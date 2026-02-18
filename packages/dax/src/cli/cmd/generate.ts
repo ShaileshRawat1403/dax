@@ -14,7 +14,7 @@ export const GenerateCommand = {
           {
             lang: "js",
             source: [
-              `import { createDaxClient } from "@dax-ai/sdk`,
+              `import { createDaxClient } from "@dax-ai/sdk"`,
               ``,
               `const client = createDaxClient()`,
               `await client.${operation.operationId}({`,

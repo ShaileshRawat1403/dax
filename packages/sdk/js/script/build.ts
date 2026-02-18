@@ -24,7 +24,7 @@ await createClient({
     },
     {
       name: "@hey-api/sdk",
-      instance: "OpencodeClient",
+      instance: "DaxClient",
       exportFromIndex: false,
       auth: false,
       paramsStructure: "flat",
@@ -41,4 +41,4 @@ await $`bun prettier --write src/gen`
 await $`bun prettier --write src/v2`
 await $`rm -rf dist`
 await $`bun tsc`
-await $`rm openapi.json`
+await $`mv openapi.json ../openapi.json`

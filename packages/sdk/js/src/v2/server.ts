@@ -53,13 +53,13 @@ export async function createDaxServer(options?: ServerOptions) {
       for (const line of lines) {
         if (!line.includes("server listening")) continue
         if (!line.includes("on ")) continue
-          const match = line.match(/on\s+(https?:\/\/[^\s]+)/)
-          if (!match) {
-            throw new Error(`Failed to parse server url from output: ${line}`)
-          }
-          clearTimeout(id)
-          resolve(match[1]!)
-          return
+        const match = line.match(/on\s+(https?:\/\/[^\s]+)/)
+        if (!match) {
+          throw new Error(`Failed to parse server url from output: ${line}`)
+        }
+        clearTimeout(id)
+        resolve(match[1]!)
+        return
       }
     })
     proc.stderr?.on("data", (chunk) => {
