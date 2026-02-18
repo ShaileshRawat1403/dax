@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150">
+  <defs>
+    <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+    <style>
+      .mark { fill: url(#aiGrad); }
+    </style>
+  </defs>
+  <g transform="translate(15, 25)">
+    <path class="mark" d="M30 0H0v100h30V80H20V20h10z"/>
+    <rect class="mark" x="45" y="35" width="30" height="30" rx="4" />
+    <path class="mark" d="M90 0h30v100H90V80h10V20H90z"/>
+  </g>
+</svg>

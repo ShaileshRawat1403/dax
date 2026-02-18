@@ -1,7 +1,14 @@
 <p align="center">
-  <img src="./assets/dax-logo.svg" alt="DAX logo" width="900" />
+  <img src="./dax-logo.svg" alt="DAX logo" width="600" />
 </p>
-<h1 align="center">DAX</h1>
+<pre align="center">
+██████╗  █████╗ ██╗  ██╗     ██████╗ ██╗     ██╗
+██╔══██╗██╔══██╗╚██╗██╔╝    ██╔════╝ ██║     ██║
+██║  ██║███████║ ╚███╔╝     ██║      ██║     ██║
+██║  ██║██╔══██║ ██╔██╗     ██║      ██║     ██║
+██████╔╝██║  ██║██╔╝ ██╗    ╚██████╗ ███████╗██║
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝
+</pre>
 <p align="center"><strong>Deterministic AI eXecution</strong></p>
 <p align="center">A governed execution product for AI-assisted (not AI-generated) software delivery.</p>
 
@@ -252,6 +259,25 @@ It competes on deterministic execution, governance, traceability, and controlled
 ---
 
 DAX: the protocol is the product.
+
+## CLI Startup Banner
+
+To display the DAX banner with the brand gradient on startup:
+
+```typescript
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
+import gradient from "gradient-string"
+
+async function showBanner() {
+  const bannerPath = join(process.cwd(), "assets", "banner.txt")
+  const banner = await readFile(bannerPath, "utf-8")
+
+  // DAX Brand Gradient (Blue to Purple)
+  const daxGradient = gradient(["#3b82f6", "#8b5cf6"])
+  console.log(daxGradient.multiline(banner))
+}
+```
 
 ## License
 

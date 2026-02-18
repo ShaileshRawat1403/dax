@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 150">
+  <defs>
+    <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" /> <!-- Blue -->
+      <stop offset="100%" stop-color="#8b5cf6" /> <!-- Purple -->
+    </linearGradient>
+    <style>
+      .text { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-weight: 800; font-size: 100px; letter-spacing: -4px; fill: #0f172a; }
+      .mark { fill: url(#aiGrad); }
+      @media (prefers-color-scheme: dark) {
+        .text { fill: #f8fafc; }
+      }
+    </style>
+  </defs>
+  <g transform="translate(50, 25)">
+    <path class="mark" d="M30 0H0v100h30V80H20V20h10z"/> <!-- Left Bracket -->
+    <rect class="mark" x="45" y="35" width="30" height="30" rx="4" /> <!-- The AI Core -->
+    <path class="mark" d="M90 0h30v100H90V80h10V20H90z"/> <!-- Right Bracket -->
+  </g>
+  <text x="170" y="110" class="text">DAX</text>
+</svg>
