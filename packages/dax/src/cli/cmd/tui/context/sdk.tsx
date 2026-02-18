@@ -1,4 +1,4 @@
-import { createOpencodeClient, type Event } from "@dax-ai/sdk/v2"
+import { createDaxClient, type Event } from "@dax-ai/sdk/v2"
 import { createSimpleContext } from "./helper"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { batch, onCleanup, onMount } from "solid-js"
@@ -17,7 +17,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     events?: EventSource
   }) => {
     const abort = new AbortController()
-    const sdk = createOpencodeClient({
+    const sdk = createDaxClient({
       baseUrl: props.url,
       signal: abort.signal,
       directory: props.directory,

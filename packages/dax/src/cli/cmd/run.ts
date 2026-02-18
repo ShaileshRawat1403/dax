@@ -6,7 +6,7 @@ import { cmd } from "./cmd"
 import { Flag } from "../../flag/flag"
 import { bootstrap } from "../bootstrap"
 import { EOL } from "os"
-import { createOpencodeClient, type Message, type OpencodeClient, type ToolPart } from "@dax-ai/sdk/v2"
+import { createDaxClient, type Message, type OpencodeClient, type ToolPart } from "@dax-ai/sdk/v2"
 import { Server } from "../../server/server"
 import { Provider } from "../../provider/provider"
 import { Agent } from "../../agent/agent"
@@ -582,7 +582,7 @@ export const RunCommand = cmd({
     }
 
     if (args.attach) {
-      const sdk = createOpencodeClient({ baseUrl: args.attach })
+      const sdk = createDaxClient({ baseUrl: args.attach })
       return await execute(sdk)
     }
 
@@ -591,7 +591,7 @@ export const RunCommand = cmd({
         const request = new Request(input, init)
         return Server.App().fetch(request)
       }) as typeof globalThis.fetch
-      const sdk = createOpencodeClient({ baseUrl: "http://dax.internal", fetch: fetchFn })
+      const sdk = createDaxClient({ baseUrl: "http://dax.internal", fetch: fetchFn })
       await execute(sdk)
     })
   },

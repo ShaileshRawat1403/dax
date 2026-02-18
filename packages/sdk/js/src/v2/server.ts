@@ -20,7 +20,7 @@ export type TuiOptions = {
 
 const BIN = process.env.DAX_BIN ?? process.env.OPENCODE_BIN ?? "dax"
 
-export async function createOpencodeServer(options?: ServerOptions) {
+export async function createDaxServer(options?: ServerOptions) {
   options = Object.assign(
     {
       hostname: "127.0.0.1",
@@ -93,7 +93,7 @@ export async function createOpencodeServer(options?: ServerOptions) {
   }
 }
 
-export function createOpencodeTui(options?: TuiOptions) {
+export function createDaxTui(options?: TuiOptions) {
   const args = []
 
   if (options?.project) {
@@ -126,5 +126,5 @@ export function createOpencodeTui(options?: TuiOptions) {
   }
 }
 
-export const createDaxServer = createOpencodeServer
-export const createDaxTui = createOpencodeTui
+export const createOpencodeServer = createDaxServer
+export const createOpencodeTui = createDaxTui

@@ -3,9 +3,9 @@ export * from "./gen/types.gen.js"
 import { createClient } from "./gen/client/client.gen.js"
 import { type Config } from "./gen/client/types.gen.js"
 import { OpencodeClient } from "./gen/sdk.gen.js"
-export { type Config as OpencodeClientConfig, OpencodeClient }
+export { type Config as DaxClientConfig, type Config as OpencodeClientConfig, OpencodeClient as DaxClient, OpencodeClient }
 
-export function createOpencodeClient(config?: Config & { directory?: string }) {
+export function createDaxClient(config?: Config & { directory?: string }) {
   if (!config?.fetch) {
     const customFetch: any = (req: any) => {
       // @ts-ignore
@@ -32,5 +32,4 @@ export function createOpencodeClient(config?: Config & { directory?: string }) {
   return new OpencodeClient({ client })
 }
 
-export const DaxClient = OpencodeClient
-export const createDaxClient = createOpencodeClient
+export const createOpencodeClient = createDaxClient
