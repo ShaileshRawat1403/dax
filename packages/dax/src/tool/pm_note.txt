@@ -1,0 +1,12 @@
+Save a daily status report (DSR) note into the local PM memory database.
+
+Use this tool to persist short project updates such as:
+- what was done
+- what changed
+- blockers or risks
+- next steps
+
+Guidelines:
+- Keep notes concrete and concise.
+- Include tags when helpful (for example: feature, bug, blocker, release).
+- Use one call per DSR entry.
