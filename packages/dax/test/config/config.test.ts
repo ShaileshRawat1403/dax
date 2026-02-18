@@ -1657,8 +1657,8 @@ describe("DAX_DISABLE_PROJECT_CONFIG", () => {
         fn: async () => {
           const directories = await Config.directories()
           // Project .dax should NOT be in directories list
-          const hasProjectOpencode = directories.some((d) => d.startsWith(tmp.path))
-          expect(hasProjectOpencode).toBe(false)
+          const hasProjectDax = directories.some((d) => d.startsWith(tmp.path))
+          expect(hasProjectDax).toBe(false)
         },
       })
     } finally {

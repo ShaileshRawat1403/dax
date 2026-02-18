@@ -18,7 +18,7 @@ export type TuiOptions = {
   config?: Config
 }
 
-const BIN = process.env.DAX_BIN ?? process.env.OPENCODE_BIN ?? "dax"
+const BIN = process.env.DAX_BIN ?? "dax"
 
 export async function createDaxServer(options?: ServerOptions) {
   options = Object.assign(
@@ -38,7 +38,6 @@ export async function createDaxServer(options?: ServerOptions) {
     env: {
       ...process.env,
       DAX_CONFIG_CONTENT: JSON.stringify(options.config ?? {}),
-      OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config ?? {}),
     },
   })
 
@@ -115,7 +114,6 @@ export function createDaxTui(options?: TuiOptions) {
     env: {
       ...process.env,
       DAX_CONFIG_CONTENT: JSON.stringify(options?.config ?? {}),
-      OPENCODE_CONFIG_CONTENT: JSON.stringify(options?.config ?? {}),
     },
   })
 
@@ -125,6 +123,3 @@ export function createDaxTui(options?: TuiOptions) {
     },
   }
 }
-
-export const createOpencodeServer = createDaxServer
-export const createOpencodeTui = createDaxTui

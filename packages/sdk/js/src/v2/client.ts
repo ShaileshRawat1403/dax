@@ -3,7 +3,7 @@ export * from "./gen/types.gen.js"
 import { createClient } from "./gen/client/client.gen.js"
 import { type Config } from "./gen/client/types.gen.js"
 import { DaxClient } from "./gen/sdk.gen.js"
-export { type Config as DaxClientConfig, type Config as OpencodeClientConfig, DaxClient, DaxClient as OpencodeClient }
+export { type Config as DaxClientConfig, DaxClient }
 
 export function createDaxClient(config?: Config & { directory?: string }) {
   if (!config?.fetch) {
@@ -24,12 +24,9 @@ export function createDaxClient(config?: Config & { directory?: string }) {
     config.headers = {
       ...config.headers,
       "x-dax-directory": encodedDirectory,
-      "x-opencode-directory": encodedDirectory,
     }
   }
 
   const client = createClient(config)
   return new DaxClient({ client })
 }
-
-export const createOpencodeClient = createDaxClient

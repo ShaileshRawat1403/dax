@@ -196,6 +196,17 @@ If Google/Gemini login appears broken in TUI:
 export GEMINI_OAUTH_CREDS_PATH=/absolute/path/to/oauth_creds.json
 ```
 
+Direct email OAuth (`Sign in with Google (email)`) is an optional maintainer mode.
+It is shown only when all of these are set:
+
+```bash
+export DAX_GEMINI_EMAIL_AUTH=1
+export DAX_GEMINI_OAUTH_CLIENT_ID=...
+export DAX_GEMINI_OAUTH_CLIENT_SECRET=...
+```
+
+For end users, the supported zero-setup path is `Use Gemini CLI login (import)`.
+
 ## Quickstart
 
 ### Prerequisites
@@ -227,74 +238,13 @@ bun run release:dax:verify
 bun run release:dax
 ```
 
-Compatibility note:
-- `DAX_*` env vars are primary.
-- `OPENCODE_*` env aliases are supported temporarily for migration and will be removed after the first stable DAX release plus one short grace patch.
+Environment note:
 
-## Repository map (DAX core)
-
-- `packages/dax/src/session` prompt assembly and streaming/session orchestration
-- `packages/dax/src/cli/cmd/tui` terminal UI routes and interaction flows
-- `packages/dax/src/pm` persistent PM storage and memory primitives
-- `packages/dax/src/tool` tool contracts and execution boundaries
-- `packages/dax/src/provider` model/provider abstraction and adapters
-
-## What “fully moved to DAX” means
-
-A complete migration means all of the following are true:
-
-1. package namespaces use `@dax-ai/*` consistently
-2. user-facing copy uses DAX naming and positioning
-3. config/runtime paths use DAX conventions
-4. plugin ecosystem and auth integrations are DAX-branded
-5. legacy naming remains only in intentionally isolated compatibility zones
-
-## Current migration work areas
-
-- package and import namespace normalization to `@dax-ai/*`
-- web/desktop/console text and links alignment to DAX branding
-- legacy config/path compatibility strategy and deprecation path
-- external plugin dependency rename/replacement strategy
-
-## Safe decoupling order (recommended)
-
-To avoid breakage, run migration in this order:
-
-1. `docs + copy`: README/help text/provider guidance (lowest risk)
-2. `dax package surfaces`: scripts, prompts, TUI labels, defaults in `packages/dax`
-3. `desktop/app/web`: launcher scripts, product copy, onboarding
-4. `ecosystem`: plugin/action/package names and external integrations
-5. `final cleanup`: remove legacy compatibility aliases and dead paths
-
-At the end of each batch:
-
-1. `bun run --cwd packages/dax typecheck`
-2. `bun test --cwd packages/dax`
-3. `bun run --cwd packages/dax dev` (smoke launch)
-
-If any step fails, stop and fix before moving to the next batch.
-
-## Risk areas (plain language)
-
-- `Lockfile/workspaces`: duplicate workspace names or stale lock entries can stop install/dev.
-- `Desktop predev scripts`: old hardcoded names can still print/use legacy paths.
-- `Provider matrix`: removing providers too fast can break model dialogs/tests.
-- `Branding drift`: docs updated but runtime text not updated causes product confusion.
-- `Large dirty worktree`: unrelated edits mixed into migration make debugging harder.
-
-## Release readiness checklist
-
-1. Branding: all user-facing surfaces reflect DAX language
-2. Behavior: RAO and PM flows are documented and testable
-3. UX: ELI12 and non-dev onboarding are coherent and low-friction
-4. Quality: package-level typecheck/tests pass for release targets
-5. Docs: install, run, validate, and migration notes are complete
-
-For CLI/TUI-only release gates, use:
-
-- `DAX_CLI_RELEASE_CHECKLIST.md`
+- Use `DAX_*` environment variables.
 
 ## Positioning
+
+An AI Agent designed for Governance, not just Speed.
 
 DAX is not competing on “better chat.”
 It competes on deterministic execution, governance, traceability, and controlled autonomy.
@@ -302,3 +252,7 @@ It competes on deterministic execution, governance, traceability, and controlled
 ---
 
 DAX: the protocol is the product.
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).

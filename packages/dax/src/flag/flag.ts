@@ -1,8 +1,5 @@
 export function readEnv(key: string) {
-  const direct = process.env[key]
-  if (direct !== undefined) return direct
-  if (!key.startsWith("DAX_")) return undefined
-  return process.env[`OPENCODE_${key.slice(4)}`]
+  return process.env[key]
 }
 
 function truthy(key: string) {

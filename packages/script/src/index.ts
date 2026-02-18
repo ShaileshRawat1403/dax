@@ -19,7 +19,7 @@ if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
 const readEnv = (key: string) => {
   const dax = process.env[`DAX_${key}`]
   if (dax !== undefined) return dax
-  return process.env[`OPENCODE_${key}`]
+  return undefined
 }
 
 const env = {
@@ -42,10 +42,7 @@ const VERSION = await (async () => {
   const version = await fetch("https://registry.npmjs.org/dax-ai/latest")
     .then(async (res) => {
       if (res.ok) return res.json()
-      return fetch("https://registry.npmjs.org/opencode-ai/latest").then((x) => {
-        if (!x.ok) throw new Error(x.statusText)
-        return x.json()
-      })
+      throw new Error(res.statusText)
     })
     .then((data: any) => data.version)
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)

@@ -3,13 +3,9 @@ import { Flag, readEnv } from "../../src/flag/flag"
 
 const keep = [
   "DAX_CLIENT",
-  "OPENCODE_CLIENT",
   "DAX_CONFIG_DIR",
-  "OPENCODE_CONFIG_DIR",
   "DAX_DISABLE_PROJECT_CONFIG",
-  "OPENCODE_DISABLE_PROJECT_CONFIG",
   "DAX_SERVER_PASSWORD",
-  "OPENCODE_SERVER_PASSWORD",
 ]
 
 function reset() {
@@ -29,35 +25,32 @@ afterEach(() => {
   })
 })
 
-describe("flag env compatibility", () => {
-  test("readEnv prefers DAX value over legacy", () => {
+describe("flag env", () => {
+  test("readEnv reads DAX value", () => {
     reset()
-    process.env.OPENCODE_SERVER_PASSWORD = "legacy"
     process.env.DAX_SERVER_PASSWORD = "primary"
     expect(readEnv("DAX_SERVER_PASSWORD")).toBe("primary")
   })
 
-  test("readEnv falls back to legacy OPENCODE key", () => {
+  test("readEnv returns undefined when not set", () => {
     reset()
-    process.env.OPENCODE_SERVER_PASSWORD = "legacy"
-    expect(readEnv("DAX_SERVER_PASSWORD")).toBe("legacy")
+    expect(readEnv("DAX_SERVER_PASSWORD")).toBeUndefined()
   })
 
-  test("DAX_CLIENT getter falls back to OPENCODE_CLIENT", () => {
+  test("DAX_CLIENT getter returns default cli", () => {
     reset()
-    process.env.OPENCODE_CLIENT = "desktop"
-    expect(Flag.DAX_CLIENT).toBe("desktop")
+    expect(Flag.DAX_CLIENT).toBe("cli")
   })
 
-  test("DAX_CONFIG_DIR getter falls back to OPENCODE_CONFIG_DIR", () => {
+  test("DAX_CONFIG_DIR getter reads DAX_CONFIG_DIR", () => {
     reset()
-    process.env.OPENCODE_CONFIG_DIR = "/tmp/legacy"
-    expect(Flag.DAX_CONFIG_DIR).toBe("/tmp/legacy")
+    process.env.DAX_CONFIG_DIR = "/tmp/dax"
+    expect(Flag.DAX_CONFIG_DIR).toBe("/tmp/dax")
   })
 
-  test("DAX_DISABLE_PROJECT_CONFIG getter falls back to OPENCODE_DISABLE_PROJECT_CONFIG", () => {
+  test("DAX_DISABLE_PROJECT_CONFIG getter reads DAX_DISABLE_PROJECT_CONFIG", () => {
     reset()
-    process.env.OPENCODE_DISABLE_PROJECT_CONFIG = "true"
+    process.env.DAX_DISABLE_PROJECT_CONFIG = "true"
     expect(Flag.DAX_DISABLE_PROJECT_CONFIG).toBe(true)
   })
 })

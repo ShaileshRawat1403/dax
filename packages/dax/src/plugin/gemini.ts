@@ -2,10 +2,17 @@ import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
 
 const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+const GEMINI_CLI_CLIENT_ID =
+  "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+const OAUTH_PORT = 1717
+const OAUTH_PORT_MAX = 1730
+const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
+const ACCESS_ONLY_PREFIX = "access-only:"
 
 const credsPaths = () =>
   [
@@ -53,6 +60,22 @@ type OAuthState = {
   clientSecret?: string
   quotaProjectID?: string
 }
+
+type TokenResponse = {
+  access_token?: string
+  refresh_token?: string
+  expires_in?: number
+}
+
+interface PkceCodes {
+  verifier: string
+  challenge: string
+}
+
+let oauthServer: ReturnType<typeof Bun.serve> | undefined
+const oauthCode = new Map<string, string>()
+let oauthRedirectURI: string | undefined
+let oauthCodeLatest: string | undefined
 
 const readCliCreds = async (): Promise<OAuthCreds | undefined> => {
   for (const item of credsPaths()) {
@@ -135,13 +158,15 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 }
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
-  const id = clientID ?? Bun.env.GOOGLE_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
+  if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
+  const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
+  const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   })
   if (id) body.set("client_id", id)
-  if (clientSecret) body.set("client_secret", clientSecret)
+  if (secret) body.set("client_secret", secret)
   const result = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -154,6 +179,135 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
     access: json.access_token,
     expires: Date.now() + (json.expires_in ?? 3600) * 1000,
   }
+}
+
+function generateRandomString(length: number): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+  const bytes = crypto.getRandomValues(new Uint8Array(length))
+  return Array.from(bytes)
+    .map((x) => chars[x % chars.length])
+    .join("")
+}
+
+function base64UrlEncode(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const binary = String.fromCharCode(...bytes)
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+async function generatePKCE(): Promise<PkceCodes> {
+  const verifier = generateRandomString(43)
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))
+  return { verifier, challenge: base64UrlEncode(hash) }
+}
+
+function generateState() {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)).buffer)
+}
+
+const startOAuthServer = async () => {
+  if (oauthServer && oauthRedirectURI) return oauthRedirectURI
+  for (let port = OAUTH_PORT; port <= OAUTH_PORT_MAX; port++) {
+    let server: ReturnType<typeof Bun.serve> | undefined
+    try {
+      server = Bun.serve({
+        port,
+        fetch(req) {
+          const url = new URL(req.url)
+          if (url.pathname !== "/auth/callback") return new Response("Not found", { status: 404 })
+          const code = url.searchParams.get("code")
+          const state = url.searchParams.get("state")
+          const error = url.searchParams.get("error")
+          const description = url.searchParams.get("error_description")
+          if (error) {
+            return new Response(description || "Authorization failed. You can close this tab.", { status: 400 })
+          }
+          if (!code || !state) {
+            return new Response("Authorization failed. You can close this tab.", { status: 400 })
+          }
+          oauthCode.set(state, code)
+          oauthCodeLatest = code
+          return new Response("Authorization successful. You can close this tab.", { status: 200 })
+        },
+      })
+    } catch {
+      server = undefined
+    }
+    if (!server) continue
+    oauthServer = server
+    oauthRedirectURI = `http://localhost:${port}/auth/callback`
+    return oauthRedirectURI
+  }
+  throw new Error(`Unable to start local OAuth callback server on ports ${OAUTH_PORT}-${OAUTH_PORT_MAX}`)
+}
+
+const waitForOAuthCode = (state: string) =>
+  new Promise<string>((resolve, reject) => {
+    const end = Date.now() + OAUTH_TIMEOUT_MS
+    const timer = setInterval(() => {
+      const code = oauthCode.get(state)
+      if (code) {
+        oauthCode.delete(state)
+        clearInterval(timer)
+        resolve(code)
+        return
+      }
+      if (oauthCodeLatest) {
+        const latest = oauthCodeLatest
+        oauthCodeLatest = undefined
+        oauthCode.clear()
+        clearInterval(timer)
+        resolve(latest)
+        return
+      }
+      if (Date.now() < end) return
+      clearInterval(timer)
+      reject(new Error("OAuth login timed out"))
+    }, 400)
+  })
+
+const exchangeCodeForTokens = async (
+  code: string,
+  redirectURI: string,
+  pkce: PkceCodes,
+  clientID: string,
+  clientSecret?: string,
+) => {
+  const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+  const body = new URLSearchParams({
+    code,
+    client_id: clientID,
+    code_verifier: pkce.verifier,
+    grant_type: "authorization_code",
+    redirect_uri: redirectURI,
+  })
+  if (secret) body.set("client_secret", secret)
+  const result = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  }).catch(() => undefined)
+  if (!result?.ok) return undefined
+  return result.json().then((x) => x as TokenResponse).catch(() => undefined)
+}
+
+const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
+  const params = new URLSearchParams({
+    access_type: "offline",
+    client_id: clientID,
+    code_challenge: pkce.challenge,
+    code_challenge_method: "S256",
+    prompt: "consent",
+    redirect_uri: redirectURI,
+    response_type: "code",
+    scope: [
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+    ].join(" "),
+    state,
+  })
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
 
 const validateGoogleAccessToken = async (accessToken: string) => {
@@ -170,6 +324,15 @@ const stripKey = (request: RequestInfo | URL) => {
   const url = new URL(base)
   url.searchParams.delete("key")
   return url
+}
+
+const isScopeError = async (response: Response) => {
+  if (response.status !== 403) return false
+  const text = await response
+    .clone()
+    .text()
+    .catch(() => "")
+  return text.toLowerCase().includes("insufficient authentication scopes")
 }
 
 export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
@@ -216,15 +379,96 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             headers.delete("Authorization")
             if (access) headers.set("Authorization", `Bearer ${access}`)
             if (quotaProjectID) headers.set("x-goog-user-project", quotaProjectID)
+            const req = stripKey(request)
+            const first = await fetch(req, { ...init, headers })
+            const scopeError = await isScopeError(first)
+            if (!scopeError) return first
 
-            return fetch(stripKey(request), { ...init, headers })
+            const candidates = [await readCliCreds(), await readAdcCreds()].filter((x) => !!x?.refresh)
+            for (const imported of candidates) {
+              if (!imported?.refresh) continue
+              const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
+              if (!renewed?.access) continue
+              await input.client.auth.set({
+                path: { id: "google" },
+                body: {
+                  type: "oauth",
+                  access: renewed.access,
+                  refresh: imported.refresh,
+                  expires: renewed.expires,
+                },
+              })
+              const retryHeaders = new Headers(init?.headers)
+              retryHeaders.delete("x-goog-api-key")
+              retryHeaders.delete("X-Goog-Api-Key")
+              retryHeaders.delete("authorization")
+              retryHeaders.delete("Authorization")
+              retryHeaders.set("Authorization", `Bearer ${renewed.access}`)
+              if (imported.quotaProjectID) retryHeaders.set("x-goog-user-project", imported.quotaProjectID)
+              const retried = await fetch(req, { ...init, headers: retryHeaders })
+              const retryScopeError = await isScopeError(retried)
+              if (!retryScopeError) return retried
+            }
+            return first
           },
         }
       },
       methods: [
         {
+          type: "oauth" as const,
+          label: "Sign in with Google (email)",
+          async authorize() {
+            const clientID =
+              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            oauthCodeLatest = undefined
+            const state = generateState()
+            const pkce = await generatePKCE()
+            return {
+              method: "auto" as const,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
+              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
+              async callback() {
+                const code = await waitForOAuthCode(state).catch(() => undefined)
+                if (!code) return { type: "failed" as const }
+                const local = await readCreds()
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, local?.clientSecret)
+                const current = await readCreds()
+                const access = token?.access_token
+                const refresh = token?.refresh_token ?? current?.refresh
+                if (!access) {
+                  const imported = await waitForCreds()
+                  if (!imported?.refresh) return { type: "failed" as const }
+                  let importedAccess = imported.access
+                  let importedExpires = imported.expires ?? 0
+                  if (!importedAccess || importedExpires < Date.now()) {
+                    const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
+                    if (!renewed?.access) return { type: "failed" as const }
+                    importedAccess = renewed.access
+                    importedExpires = renewed.expires
+                  }
+                  return {
+                    type: "success" as const,
+                    access: importedAccess,
+                    refresh: imported.refresh,
+                    expires: importedExpires || Date.now() + 30 * 60 * 1000,
+                  }
+                }
+                await validateGoogleAccessToken(access).catch(() => undefined)
+                return {
+                  type: "success" as const,
+                  access,
+                  refresh: refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                }
+              },
+            }
+          },
+        },
+        {
           type: "oauth",
-          label: "Use Gemini CLI login",
+          label: "Use Gemini CLI login (import)",
           async authorize() {
             return {
               method: "auto" as const,
@@ -246,8 +490,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!valid) {
                   const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
                   if (!renewed?.access) return { type: "failed" as const }
-                  const renewedValid = await validateGoogleAccessToken(renewed.access)
-                  if (!renewedValid) return { type: "failed" as const }
+                  await validateGoogleAccessToken(renewed.access).catch(() => undefined)
                   return {
                     type: "success" as const,
                     access: renewed.access,

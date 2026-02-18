@@ -121,8 +121,8 @@ export namespace Installation {
   )
 
   async function getBrewFormula() {
-    const tapFormula = await $`brew list --formula anomalyco/tap/dax`.throws(false).quiet().text()
-    if (tapFormula.includes("dax")) return "anomalyco/tap/dax"
+    const tapFormula = await $`brew list --formula ShaileshRawat1403/tap/dax`.throws(false).quiet().text()
+    if (tapFormula.includes("dax")) return "ShaileshRawat1403/tap/dax"
     const coreFormula = await $`brew list --formula dax`.throws(false).quiet().text()
     if (coreFormula.includes("dax")) return "dax"
     return "dax"
@@ -236,7 +236,7 @@ export namespace Installation {
         .then((data: any) => data.version)
     }
 
-    return fetch("https://api.github.com/repos/anomalyco/dax/releases/latest")
+    return fetch("https://api.github.com/repos/ShaileshRawat1403/dax/releases/latest")
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText)
         return res.json()

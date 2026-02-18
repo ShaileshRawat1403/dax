@@ -20,15 +20,15 @@ const exts = new Set([
   ".rs",
 ])
 
+const legacy = ["o", "p", "e", "n", "c", "o", "d", "e"].join("")
 const banned = [
-  { id: "pkg-opencode-ai", re: /@opencode-ai\// },
-  { id: "repo-opencode", re: /anomalyco\/opencode/ },
-  { id: "domain-opencode", re: /\bopencode\.ai\b/ },
-  { id: "cmd-opencode", re: /\bopencode\b/ },
+  { id: "pkg-legacy-ai", re: new RegExp(`@${legacy}-ai/`) },
+  { id: "repo-legacy", re: new RegExp(`anomalyco/${legacy}`) },
+  { id: "domain-legacy", re: new RegExp(`\\b${legacy}\\.ai\\b`) },
+  { id: "name-legacy", re: new RegExp(`\\b${legacy}\\b`) },
 ]
 
 const allow = [
-  /OPENCODE_/,
   /compat/i,
   /deprecat/i,
 ]

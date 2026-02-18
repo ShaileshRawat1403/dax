@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onMount, Show } from "solid-js"
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { useSync } from "@tui/context/sync"
 import { map, pipe, sortBy } from "remeda"
 import { DialogSelect } from "@tui/ui/dialog-select"
@@ -25,6 +25,7 @@ export function createDialogProviderOptions() {
   const sync = useSync()
   const dialog = useDialog()
   const sdk = useSDK()
+  const toast = useToast()
   const connected = createMemo(() => new Set(sync.data.provider_next.connected))
   const showAll = createMemo(() => {
     const experimental = sync.data.config.experimental as Record<string, unknown> | undefined
@@ -79,27 +80,33 @@ export function createDialogProviderOptions() {
             if (index == null) return
             const method = methods[index]
             if (method.type === "oauth") {
-              const result = await sdk.client.provider.oauth.authorize({
-                providerID: provider.id,
-                method: index,
-              })
-              if (result.data?.method === "code") {
+              const result = await sdk.client.provider.oauth
+                .authorize({
+                  providerID: provider.id,
+                  method: index,
+                })
+                .catch((error) => {
+                  toast.error(error)
+                  return undefined
+                })
+              if (!result?.data) return
+              if (result.data.method === "code") {
                 dialog.replace(() => (
                   <CodeMethod
                     providerID={provider.id}
                     title={method.label}
                     index={index}
-                    authorization={result.data!}
+                    authorization={result.data}
                   />
                 ))
               }
-              if (result.data?.method === "auto") {
+              if (result.data.method === "auto") {
                 dialog.replace(() => (
                   <AutoMethod
                     providerID={provider.id}
                     title={method.label}
                     index={index}
-                    authorization={result.data!}
+                    authorization={result.data}
                   />
                 ))
               }
@@ -134,19 +141,72 @@ function AutoMethod(props: AutoMethodProps) {
   const toast = useToast()
   const [hover, setHover] = createSignal(false)
   const [error, setError] = createSignal("")
+  const [fatal, setFatal] = createSignal(false)
+  let running = false
+  let timer: ReturnType<typeof setInterval> | undefined
+
+  function errorName(error: unknown) {
+    if (!error || typeof error !== "object") return
+    if ("name" in error && typeof error.name === "string") return error.name
+    if ("data" in error && error.data && typeof error.data === "object" && "name" in error.data) {
+      const name = error.data.name
+      if (typeof name === "string") return name
+    }
+    if ("errors" in error && Array.isArray(error.errors) && error.errors.length > 0) {
+      const first = error.errors[0]
+      if (first && typeof first === "object" && "name" in first && typeof first.name === "string") return first.name
+    }
+  }
+
+  function errorMessage(error: unknown) {
+    if (!error || typeof error !== "object") return
+    if ("message" in error && typeof error.message === "string") return error.message
+    if ("data" in error && error.data && typeof error.data === "object" && "message" in error.data) {
+      const message = error.data.message
+      if (typeof message === "string") return message
+    }
+    if ("errors" in error && Array.isArray(error.errors) && error.errors.length > 0) {
+      const first = error.errors[0]
+      if (first && typeof first === "object" && "data" in first && first.data && typeof first.data === "object") {
+        const data = first.data as Record<string, unknown>
+        if (typeof data.message === "string") return data.message
+      }
+    }
+  }
 
   async function attempt() {
+    if (running) return
+    running = true
     const result = await sdk.client.provider.oauth.callback({
       providerID: props.providerID,
       method: props.index,
     })
     if (result.error) {
-      setError("Authorization not ready. Complete login in Gemini CLI, then press r to retry.")
+      const name = errorName(result.error)
+      if (name === "ProviderAuthOauthMissing") {
+        setError("Authorization not ready. Complete sign-in in browser, then press r to retry.")
+        running = false
+        return
+      }
+      if (name === "ProviderAuthOauthCallbackFailed") {
+        setError(
+          errorMessage(result.error) ??
+            "Browser callback was received, but token verification failed. Press esc and start sign-in again.",
+        )
+        setFatal(true)
+        if (timer) clearInterval(timer)
+        running = false
+        return
+      }
+      setError(`Authorization error: ${name ?? "unknown"}. Press esc and retry.`)
+      running = false
       return
     }
+    if (timer) clearInterval(timer)
     await sdk.client.instance.dispose()
     await sync.bootstrap()
     dialog.replace(() => <DialogModel providerID={props.providerID} />)
+    running = false
   }
 
   useKeyboard((evt) => {
@@ -163,6 +223,14 @@ function AutoMethod(props: AutoMethodProps) {
 
   onMount(async () => {
     await attempt()
+    timer = setInterval(() => {
+      attempt().catch(() => {})
+    }, 1500)
+  })
+
+  onCleanup(() => {
+    if (!timer) return
+    clearInterval(timer)
   })
 
   return (
@@ -194,7 +262,9 @@ function AutoMethod(props: AutoMethodProps) {
         c <span style={{ fg: theme.textMuted }}>copy</span>
       </text>
       <text fg={theme.text}>
-        r <span style={{ fg: theme.textMuted }}>retry</span>
+        <Show when={!fatal()} fallback={<span style={{ fg: theme.textMuted }}>restart sign-in</span>}>
+          r <span style={{ fg: theme.textMuted }}>retry</span>
+        </Show>
       </text>
     </box>
   )

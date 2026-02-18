@@ -19,5 +19,3 @@ export async function createDax(options?: ServerOptions) {
     server,
   }
 }
-
-export const createOpencode = createDax
