@@ -1387,69 +1387,75 @@ export function Session() {
                 flexDirection={stripStacked() ? "column" : "row"}
                 gap={stripStacked() ? 0 : 2}
                 alignItems={stripStacked() ? "flex-start" : "center"}
+                justifyContent={stripStacked() ? "flex-start" : "space-between"}
+                width="100%"
                 paddingRight={0}
               >
-                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <text fg={theme.textMuted}>pane:</text>
-                  <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                    <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
-                  </box>
-                  <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                    <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
-                  </box>
-                  <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                    <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
-                  </box>
-                </box>
-                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <text fg={theme.textMuted}>mode:</text>
-                  <For each={PANE_MODES}>
-                    {(mode) => (
-                      <box onMouseUp={() => setPaneMode(() => mode)}>
-                        <text
-                          fg={paneMode() === mode ? theme.accent : theme.textMuted}
-                          attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
-                        >
-                          [{paneLabel(mode)}]
-                        </text>
-                      </box>
-                    )}
-                  </For>
-                </box>
-                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <text fg={theme.textMuted}>follow:</text>
-                  <box
-                    onMouseUp={() => {
-                      setPaneFollowMode(() => "smart")
-                      setSmartFollowActive(true)
-                      setPendingUpdates(0)
-                    }}
-                  >
-                    <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
-                  </box>
-                  <box
-                    onMouseUp={() => {
-                      setPaneFollowMode(() => "live")
-                      setSmartFollowActive(true)
-                      setPendingUpdates(0)
-                    }}
-                  >
-                    <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
-                  </box>
-                  <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
-                    <box onMouseUp={jumpToLive}>
-                      <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
+                <box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>pane:</text>
+                    <box onMouseUp={() => setPaneVisibility(() => "auto")}>
+                      <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
                     </box>
-                  </Show>
-                </box>
-                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <text fg={theme.textMuted}>theme:</text>
-                  <box onMouseUp={() => cycleTheme(-1)}>
-                    <text fg={theme.textMuted}>[theme-]</text>
+                    <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
+                      <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
+                    </box>
+                    <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
+                      <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
+                    </box>
                   </box>
-                  <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                  <box onMouseUp={() => cycleTheme(1)}>
-                    <text fg={theme.textMuted}>[theme+]</text>
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>mode:</text>
+                    <For each={PANE_MODES}>
+                      {(mode) => (
+                        <box onMouseUp={() => setPaneMode(() => mode)}>
+                          <text
+                            fg={paneMode() === mode ? theme.accent : theme.textMuted}
+                            attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
+                          >
+                            [{paneLabel(mode)}]
+                          </text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </box>
+                <box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>follow:</text>
+                    <box
+                      onMouseUp={() => {
+                        setPaneFollowMode(() => "smart")
+                        setSmartFollowActive(true)
+                        setPendingUpdates(0)
+                      }}
+                    >
+                      <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
+                    </box>
+                    <box
+                      onMouseUp={() => {
+                        setPaneFollowMode(() => "live")
+                        setSmartFollowActive(true)
+                        setPendingUpdates(0)
+                      }}
+                    >
+                      <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
+                    </box>
+                    <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
+                      <box onMouseUp={jumpToLive}>
+                        <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
+                      </box>
+                    </Show>
+                  </box>
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>theme:</text>
+                    <box onMouseUp={() => cycleTheme(-1)}>
+                      <text fg={theme.textMuted}>[theme-]</text>
+                    </box>
+                    <text fg={theme.primary}>[{selectedThemeShort()}]</text>
+                    <box onMouseUp={() => cycleTheme(1)}>
+                      <text fg={theme.textMuted}>[theme+]</text>
+                    </box>
                   </box>
                 </box>
               </box>

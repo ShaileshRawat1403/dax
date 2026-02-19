@@ -916,6 +916,13 @@ export function Prompt(props: PromptProps) {
   })
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
+  const HOME_CUE_FRAMES = ["◜", "◠", "◝", "◞", "◡", "◟"]
+  const [homeCueTick, setHomeCueTick] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setHomeCueTick((n) => (n + 1) % HOME_CUE_FRAMES.length), 110)
+    onCleanup(() => clearInterval(timer))
+  })
+  const homeCue = createMemo(() => HOME_CUE_FRAMES[homeCueTick()] ?? "◜")
 
   return (
     <>
@@ -955,7 +962,7 @@ export function Prompt(props: PromptProps) {
                   ? ""
                   : explainMode()
                     ? ELI12_PLACEHOLDER
-                    : `◐ ${showInputHint() ? `State one clear goal: ${PLACEHOLDERS[store.placeholder]}` : ""}`
+                    : `${showInputHint() ? `${homeCue()} ` : ""}State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
               }
               textColor={keybind.leader ? theme.textMuted : theme.text}
               focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
