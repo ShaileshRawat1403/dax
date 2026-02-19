@@ -17,11 +17,11 @@ import { Global } from "@/global"
 import { useDialog } from "../../ui/dialog"
 import { analyzePackageInstallCommand, analyzePythonInstallCommand } from "../../util/environment"
 import { useKV } from "../../context/kv"
+import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
+import { DAX_SETTING } from "@/dax/settings"
 
 type PermissionStage = "permission" | "always" | "reject"
 type PermissionRiskLevel = "normal" | "privacy" | "critical"
-type PolicyProfile = "balanced" | "strict"
-
 function classifyPermissionRisk(request: PermissionRequest, input: Record<string, unknown>, profile: PolicyProfile) {
   const permission = request.permission
   const sensitivePathPattern =
@@ -235,7 +235,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
   })
 
   const { theme } = useTheme()
-  const profile = createMemo<PolicyProfile>(() => (kv.get("policy_profile", "balanced") === "strict" ? "strict" : "balanced"))
+  const profile = createMemo<PolicyProfile>(() => parsePolicyProfile(kv.get(DAX_SETTING.policy_profile, "balanced")))
   const risk = createMemo(() => classifyPermissionRisk(props.request, input(), profile()))
   const elevated = createMemo(() => risk().level !== "normal")
 

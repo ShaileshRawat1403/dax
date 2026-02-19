@@ -37,6 +37,8 @@ import open from "open"
 import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { detectPythonEnvironment, formatEnvironmentDoctorReport } from "./util/environment"
+import { DAX_SETTING } from "@/dax/settings"
+import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -329,9 +331,9 @@ function App() {
     themeState.set(name)
     toast.show({ message: `Theme: ${name}`, variant: "success", duration: 1500 })
   }
-  const policyProfile = () => (kv.get("policy_profile", "balanced") === "strict" ? "strict" : "balanced")
-  function setPolicyProfile(profile: "balanced" | "strict") {
-    kv.set("policy_profile", profile)
+  const policyProfile = () => parsePolicyProfile(kv.get(DAX_SETTING.policy_profile, "balanced"))
+  function setPolicyProfile(profile: PolicyProfile) {
+    kv.set(DAX_SETTING.policy_profile, profile)
     toast.show({
       variant: "success",
       message:
