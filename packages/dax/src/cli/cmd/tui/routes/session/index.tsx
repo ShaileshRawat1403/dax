@@ -307,15 +307,15 @@ export function Session() {
   const stripInnerWidth = createMemo(() => Math.max(0, contentWidth() - 2))
   const stripColumns = createMemo(() => {
     const w = stripInnerWidth()
-    if (w >= 112) return 4
-    if (w >= 72) return 2
+    if (w >= 136) return 4
+    if (w >= 96) return 2
     return 1
   })
   const stripGap = createMemo(() => (stripColumns() === 1 ? 0 : 1))
   const stripSectionWidth = createMemo(() => {
     const cols = stripColumns()
     const inner = Math.max(0, stripInnerWidth() - stripGap() * (cols - 1))
-    return Math.max(22, Math.floor(inner / cols))
+    return Math.max(0, Math.floor(inner / cols))
   })
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
