@@ -288,8 +288,9 @@ export function Session() {
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 90)
-  const stripStacked = createMemo(() => contentWidth() < 146)
+  const stripStacked = createMemo(() => contentWidth() < 176)
   const stripCompact = createMemo(() => contentWidth() < 126)
+  const stripTight = createMemo(() => contentWidth() < 146)
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
@@ -1367,11 +1368,13 @@ export function Session() {
               paddingTop={0}
               paddingBottom={0}
             >
-              <box flexDirection="row" gap={1} alignItems="center">
+              <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                   DAX
                 </text>
-                <text fg={theme.textMuted}>workspace</text>
+                <Show when={!stripTight()}>
+                  <text fg={theme.textMuted}>workspace</text>
+                </Show>
                 <Show when={!stripCompact()}>
                   <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
                     {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
@@ -1384,9 +1387,9 @@ export function Session() {
                 flexDirection={stripStacked() ? "column" : "row"}
                 gap={stripStacked() ? 0 : 2}
                 alignItems={stripStacked() ? "flex-start" : "center"}
-                paddingRight={1}
+                paddingRight={0}
               >
-                <box flexDirection="row" gap={1} alignItems="center">
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                   <text fg={theme.textMuted}>pane:</text>
                   <box onMouseUp={() => setPaneVisibility(() => "auto")}>
                     <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
@@ -1398,7 +1401,7 @@ export function Session() {
                     <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
                   </box>
                 </box>
-                <box flexDirection="row" gap={1} alignItems="center">
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                   <text fg={theme.textMuted}>mode:</text>
                   <For each={PANE_MODES}>
                     {(mode) => (
@@ -1413,7 +1416,7 @@ export function Session() {
                     )}
                   </For>
                 </box>
-                <box flexDirection="row" gap={1} alignItems="center">
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                   <text fg={theme.textMuted}>follow:</text>
                   <box
                     onMouseUp={() => {
@@ -1439,7 +1442,7 @@ export function Session() {
                     </box>
                   </Show>
                 </box>
-                <box flexDirection="row" gap={1} alignItems="center">
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                   <text fg={theme.textMuted}>theme:</text>
                   <box onMouseUp={() => cycleTheme(-1)}>
                     <text fg={theme.textMuted}>[theme-]</text>

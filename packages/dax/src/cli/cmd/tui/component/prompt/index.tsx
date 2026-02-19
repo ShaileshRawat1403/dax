@@ -1,6 +1,5 @@
 import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, t, dim, fg } from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, Show, Switch, Match } from "solid-js"
-import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
 import { EmptyBorder } from "@tui/component/border"
@@ -24,7 +23,6 @@ import { TuiEvent } from "../../event"
 import { iife } from "@/util/iife"
 import { Locale } from "@/util/locale"
 import { formatDuration } from "@/util/format"
-import { createColors, createFrames } from "../../ui/spinner.ts"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogAlert } from "../../ui/dialog-alert"
@@ -919,26 +917,6 @@ export function Prompt(props: PromptProps) {
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
 
-  const spinnerDef = createMemo(() => {
-    const color = local.agent.color(local.agent.current().name)
-    return {
-      frames: createFrames({
-        color,
-        style: "blocks",
-        inactiveFactor: 0.6,
-        // enableFading: false,
-        minAlpha: 0.3,
-      }),
-      color: createColors({
-        color,
-        style: "blocks",
-        inactiveFactor: 0.6,
-        // enableFading: false,
-        minAlpha: 0.3,
-      }),
-    }
-  })
-
   return (
     <>
       <Autocomplete
@@ -974,12 +952,10 @@ export function Prompt(props: PromptProps) {
             <textarea
               placeholder={
                 props.sessionID
-                  ? undefined
+                  ? ""
                   : explainMode()
                     ? ELI12_PLACEHOLDER
-                    : showInputHint()
-                      ? `State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
-                      : undefined
+                    : `◐ ${showInputHint() ? `State one clear goal: ${PLACEHOLDERS[store.placeholder]}` : ""}`
               }
               textColor={keybind.leader ? theme.textMuted : theme.text}
               focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
@@ -1205,9 +1181,7 @@ export function Prompt(props: PromptProps) {
             >
               <box flexShrink={0} flexDirection="row" gap={1}>
                 <box marginLeft={1}>
-                  <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[⋯]</text>}>
-                    <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
-                  </Show>
+                  <text fg={theme.textMuted}>[working]</text>
                 </box>
                 <box flexDirection="row" gap={1} flexShrink={0}>
                   {(() => {
