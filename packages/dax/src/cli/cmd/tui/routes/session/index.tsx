@@ -304,11 +304,11 @@ export function Session() {
   const liveStacked = createMemo(() => contentWidth() < 90)
   const stripCompact = createMemo(() => contentWidth() < 112)
   const stripTight = createMemo(() => contentWidth() < 132)
-  const stripInnerWidth = createMemo(() => Math.max(0, contentWidth() - 2))
+  const stripInnerWidth = createMemo(() => Math.max(0, contentWidth()))
   const stripColumns = createMemo(() => {
     const w = stripInnerWidth()
-    if (w >= 136) return 4
-    if (w >= 96) return 2
+    if (w >= 120) return 4
+    if (w >= 64) return 2
     return 1
   })
   const stripGap = createMemo(() => (stripColumns() === 1 ? 0 : 1))
@@ -2099,6 +2099,7 @@ function UserMessage(props: {
 }
 
 function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; last: boolean }) {
+  const ctx = use()
   const local = useLocal()
   const { theme } = useTheme()
   const sync = useSync()
@@ -2183,9 +2184,21 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     if (!seconds) return 0
     return generatedTokens() / seconds
   })
+  const hasRenderablePart = createMemo(() =>
+    props.parts.some((part) => {
+      if (part.type === "text") return part.text.trim().length > 0
+      if (part.type === "reasoning") return part.text.trim().length > 0
+      if (part.type === "tool") {
+        if (ctx.showDetails()) return true
+        return part.state.status !== "completed"
+      }
+      return true
+    }),
+  )
+  const shouldRender = createMemo(() => hasRenderablePart() || !!props.message.error || final() || props.last)
 
   return (
-    <>
+    <Show when={shouldRender()}>
       <Show when={showSummary()}>
         <box
           paddingTop={1}
@@ -2282,7 +2295,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
         </Match>
       </Switch>
-    </>
+    </Show>
   )
 }
 
