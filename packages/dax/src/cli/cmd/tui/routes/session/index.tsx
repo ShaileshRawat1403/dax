@@ -288,7 +288,8 @@ export function Session() {
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 90)
-  const stripStacked = createMemo(() => contentWidth() < 112)
+  const stripStacked = createMemo(() => contentWidth() < 146)
+  const stripCompact = createMemo(() => contentWidth() < 126)
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
@@ -1371,17 +1372,18 @@ export function Session() {
                   DAX
                 </text>
                 <text fg={theme.textMuted}>workspace</text>
-                <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
-                  {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
-                </text>
-                <text fg={theme.text}>{memoryLabel(explainMode())}</text>
+                <Show when={!stripCompact()}>
+                  <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
+                    {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
+                  </text>
+                  <text fg={theme.text}>{memoryLabel(explainMode())}</text>
+                </Show>
                 <text fg={stageColor()}>{stageLabel()}</text>
-                <text fg={theme.textMuted}>pane</text>
               </box>
               <box
                 flexDirection={stripStacked() ? "column" : "row"}
                 gap={stripStacked() ? 0 : 2}
-                alignItems="flex-start"
+                alignItems={stripStacked() ? "flex-start" : "center"}
                 paddingRight={1}
               >
                 <box flexDirection="row" gap={1} alignItems="center">

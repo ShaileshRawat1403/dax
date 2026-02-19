@@ -917,16 +917,6 @@ export function Prompt(props: PromptProps) {
     return !!current
   })
 
-  const BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-  const [animTick, setAnimTick] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => setAnimTick((t) => (t + 1) % BRAILLE_FRAMES.length), 80)
-    onCleanup(() => clearInterval(timer))
-  })
-
-  const animFrame = () => BRAILLE_FRAMES[animTick()]
-
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
 
   const spinnerDef = createMemo(() => {
@@ -987,7 +977,9 @@ export function Prompt(props: PromptProps) {
                   ? undefined
                   : explainMode()
                     ? ELI12_PLACEHOLDER
-                    : `${showInputHint() ? animFrame() + " " : ""}Start with one clear goal. "${PLACEHOLDERS[store.placeholder]}"`
+                    : showInputHint()
+                      ? `State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
+                      : undefined
               }
               textColor={keybind.leader ? theme.textMuted : theme.text}
               focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
