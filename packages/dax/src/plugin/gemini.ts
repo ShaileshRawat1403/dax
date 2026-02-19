@@ -5,8 +5,7 @@ const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
-const GEMINI_CLI_CLIENT_ID =
-  "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+const GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 const OAUTH_PORT = 1717
 const OAUTH_PORT_MAX = 1730
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
@@ -138,23 +137,22 @@ const waitForCreds = async () => {
 const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promise<OAuthState | undefined> => {
   const [stored, file] = await Promise.all([getAuth(), readCreds()])
   const oauth = stored?.type === "oauth" ? stored : undefined
-  const fromFile: OAuthState | undefined = file?.refresh
-    ? {
-        access: file.access,
-        refresh: file.refresh,
-        expires: file.expires ?? 0,
-        clientID: file.clientID,
-        clientSecret: file.clientSecret,
-        quotaProjectID: file.quotaProjectID,
-      }
-    : undefined
-  if (!oauth && !fromFile) return undefined
-  if (!oauth && fromFile) return fromFile
-  if (oauth && !fromFile)
-    return { access: oauth.access, refresh: oauth.refresh, expires: oauth.expires, quotaProjectID: undefined }
-  if (!oauth || !fromFile) return undefined
-  if (fromFile.expires > oauth.expires) return fromFile
-  return { access: oauth.access, refresh: oauth.refresh, expires: oauth.expires, quotaProjectID: undefined }
+
+  if (file?.refresh) {
+    const fromFile: OAuthState = {
+      refresh: file.refresh,
+      access: file.access,
+      expires: file.expires ?? 0,
+      clientID: file.clientID,
+      clientSecret: file.clientSecret,
+      quotaProjectID: file.quotaProjectID,
+    }
+    // Prefer external CLI/ADC creds whenever available so import flow reflects
+    // the latest login identity and scopes.
+    return fromFile
+  }
+
+  return oauth
 }
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
@@ -173,7 +171,9 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
     body: body.toString(),
   }).catch(() => undefined)
   if (!result?.ok) return undefined
-  const json = (await result.json().catch(() => undefined)) as { access_token?: string; expires_in?: number } | undefined
+  const json = (await result.json().catch(() => undefined)) as
+    | { access_token?: string; expires_in?: number }
+    | undefined
   if (!json?.access_token) return undefined
   return {
     access: json.access_token,
@@ -286,9 +286,16 @@ const exchangeCodeForTokens = async (
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
-  }).catch(() => undefined)
-  if (!result?.ok) return undefined
-  return result.json().then((x) => x as TokenResponse).catch(() => undefined)
+  }).catch((err) => {
+    throw new Error(`Network error during token exchange: ${err.message}`)
+  })
+
+  if (!result?.ok) {
+    const text = await result?.text().catch(() => "Unknown error")
+    throw new Error(`Token exchange failed (${result?.status}): ${text}`)
+  }
+
+  return result.json() as Promise<TokenResponse>
 }
 
 const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
@@ -304,19 +311,27 @@ const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceC
       "https://www.googleapis.com/auth/cloud-platform",
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/generative-language",
     ].join(" "),
     state,
   })
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
 
-const validateGoogleAccessToken = async (accessToken: string) => {
+const checkTokenHealth = async (accessToken: string) => {
   const url = new URL(GOOGLE_TOKEN_INFO_URL)
   url.searchParams.set("access_token", accessToken)
-  const result = await fetch(url)
-    .then((x) => x)
-    .catch(() => undefined)
-  return !!result?.ok
+  const result = await fetch(url).catch(() => undefined)
+  if (!result?.ok) return { ok: false, reason: "token_expired" }
+  const json = (await result.json().catch(() => ({}))) as { scope?: string }
+  const scopes = json.scope ?? ""
+  if (
+    !scopes.includes("https://www.googleapis.com/auth/cloud-platform") &&
+    !scopes.includes("https://www.googleapis.com/auth/generative-language")
+  ) {
+    return { ok: false, reason: "scope_missing" }
+  }
+  return { ok: true }
 }
 
 const stripKey = (request: RequestInfo | URL) => {
@@ -354,7 +369,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             let expires = fresh?.expires ?? current.expires
             const quotaProjectID = fresh?.quotaProjectID
 
-            if (!access || expires < Date.now()) {
+            if (!access || expires < Date.now() || Bun.env.DAX_GEMINI_SIMULATE_EXPIRE) {
               const fromFile = await readCreds()
               const renewed = await refreshGoogleToken(refresh, fromFile?.clientID, fromFile?.clientSecret)
               if (renewed) {
@@ -381,6 +396,31 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (quotaProjectID) headers.set("x-goog-user-project", quotaProjectID)
             const req = stripKey(request)
             const first = await fetch(req, { ...init, headers })
+
+            // Handle 401 (Token Expired/Invalid) - Reactive Refresh
+            if (first.status === 401) {
+              const renewed = await refreshGoogleToken(refresh, fresh?.clientID, fresh?.clientSecret)
+              if (renewed?.access) {
+                await input.client.auth.set({
+                  path: { id: "google" },
+                  body: {
+                    type: "oauth",
+                    access: renewed.access,
+                    refresh,
+                    expires: renewed.expires,
+                  },
+                })
+                const retryHeaders = new Headers(init?.headers)
+                retryHeaders.delete("x-goog-api-key")
+                retryHeaders.delete("X-Goog-Api-Key")
+                retryHeaders.delete("authorization")
+                retryHeaders.delete("Authorization")
+                retryHeaders.set("Authorization", `Bearer ${renewed.access}`)
+                if (quotaProjectID) retryHeaders.set("x-goog-user-project", quotaProjectID)
+                return fetch(req, { ...init, headers: retryHeaders })
+              }
+            }
+
             const scopeError = await isScopeError(first)
             if (!scopeError) return first
 
@@ -415,54 +455,20 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
       },
       methods: [
         {
-          type: "oauth" as const,
-          label: "Sign in with Google (email)",
-          async authorize() {
-            const clientID =
-              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
-            const redirectURI = await startOAuthServer()
-            oauthCode.clear()
-            oauthCodeLatest = undefined
-            const state = generateState()
-            const pkce = await generatePKCE()
+          type: "api",
+          label: "Enter API Key",
+          prompts: [
+            {
+              key: "key",
+              type: "text",
+              message: "Enter your Gemini API Key",
+              validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+            },
+          ],
+          async authorize(inputs: any) {
             return {
-              method: "auto" as const,
-              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
-              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
-              async callback() {
-                const code = await waitForOAuthCode(state).catch(() => undefined)
-                if (!code) return { type: "failed" as const }
-                const local = await readCreds()
-                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, local?.clientSecret)
-                const current = await readCreds()
-                const access = token?.access_token
-                const refresh = token?.refresh_token ?? current?.refresh
-                if (!access) {
-                  const imported = await waitForCreds()
-                  if (!imported?.refresh) return { type: "failed" as const }
-                  let importedAccess = imported.access
-                  let importedExpires = imported.expires ?? 0
-                  if (!importedAccess || importedExpires < Date.now()) {
-                    const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
-                    if (!renewed?.access) return { type: "failed" as const }
-                    importedAccess = renewed.access
-                    importedExpires = renewed.expires
-                  }
-                  return {
-                    type: "success" as const,
-                    access: importedAccess,
-                    refresh: imported.refresh,
-                    expires: importedExpires || Date.now() + 30 * 60 * 1000,
-                  }
-                }
-                await validateGoogleAccessToken(access).catch(() => undefined)
-                return {
-                  type: "success" as const,
-                  access,
-                  refresh: refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
-                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
-                }
-              },
+              type: "success",
+              key: inputs.key,
             }
           },
         },
@@ -480,29 +486,83 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!creds?.refresh) return { type: "failed" as const }
                 let access = creds.access
                 let expires = creds.expires ?? 0
-                if (!access || expires < Date.now()) {
+
+                let health = access ? await checkTokenHealth(access) : { ok: false, reason: "token_expired" as const }
+
+                if (!health.ok && health.reason === "token_expired") {
                   const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
                   if (!renewed?.access) return { type: "failed" as const }
                   access = renewed.access
                   expires = renewed.expires
+                  health = await checkTokenHealth(access)
                 }
-                const valid = await validateGoogleAccessToken(access)
-                if (!valid) {
-                  const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
-                  if (!renewed?.access) return { type: "failed" as const }
-                  await validateGoogleAccessToken(renewed.access).catch(() => undefined)
-                  return {
-                    type: "success" as const,
-                    access: renewed.access,
-                    refresh: creds.refresh,
-                    expires: renewed.expires,
-                  }
+
+                if (!health.ok) {
+                  if (health.reason === "scope_missing") throw new Error("Run gemini to login, then retry import.")
+                  if (health.reason === "token_expired") throw new Error("Re-run gemini login.")
+                  throw new Error(`Token validation failed: ${health.reason}`)
                 }
+
                 return {
                   type: "success" as const,
-                  access,
+                  access: access!,
                   refresh: creds.refresh,
                   expires: expires || Date.now() + 30 * 60 * 1000,
+                }
+              },
+            }
+          },
+        },
+        {
+          type: "oauth" as const,
+          label: "Sign in with Google (email)",
+          async authorize() {
+            const customAuth = await Auth.get("google").then((x) => (x?.type === "oauth-custom" ? x : undefined))
+
+            const clientID =
+              customAuth?.clientID ??
+              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ??
+              Bun.env.GEMINI_OAUTH_CLIENT_ID ??
+              GEMINI_CLI_CLIENT_ID
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            oauthCodeLatest = undefined
+            const state = generateState()
+            const pkce = await generatePKCE()
+            return {
+              method: "auto" as const,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
+              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
+              async callback() {
+                const code = await waitForOAuthCode(state)
+                const local = await readCreds()
+                const token = await exchangeCodeForTokens(
+                  code,
+                  redirectURI,
+                  pkce,
+                  clientID,
+                  customAuth?.clientSecret ?? local?.clientSecret,
+                )
+
+                if (!token.access_token) throw new Error("Token response missing access_token")
+
+                const health = await checkTokenHealth(token.access_token)
+                if (!health.ok) {
+                  if (health.reason === "scope_missing")
+                    throw new Error(
+                      "Google account token is missing required scopes (cloud-platform or generative-language).",
+                    )
+                  if (health.reason === "token_expired")
+                    throw new Error("Token expired during verification. Retry sign-in.")
+                  throw new Error(`Token verification failed: ${health.reason}`)
+                }
+
+                const current = await readCreds()
+                return {
+                  type: "success" as const,
+                  access: token.access_token,
+                  refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
                 }
               },
             }

@@ -416,9 +416,6 @@ function App() {
       title: "Toggle MCPs",
       value: "mcp.list",
       category: "Agent",
-      slash: {
-        name: "mcps",
-      },
       onSelect: () => {
         dialog.replace(() => <DialogMcp />)
       },
@@ -481,9 +478,6 @@ function App() {
       title: "Switch theme",
       value: "theme.switch",
       keybind: "theme_list",
-      slash: {
-        name: "themes",
-      },
       onSelect: () => {
         dialog.replace(() => <DialogThemeList />)
       },
@@ -521,10 +515,6 @@ function App() {
     {
       title: "Exit the app",
       value: "app.exit",
-      slash: {
-        name: "exit",
-        aliases: ["quit", "q"],
-      },
       onSelect: () => exit(),
       category: "System",
     },

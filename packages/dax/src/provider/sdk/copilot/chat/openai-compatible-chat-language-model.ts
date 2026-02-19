@@ -373,8 +373,7 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV2 {
             controller.enqueue({ type: "stream-start", warnings })
           },
 
-          // TODO we lost type safety on Chunk, most likely due to the error schema. MUST FIX
-          transform(chunk: Chunk, controller) {
+          transform(chunk, controller) {
             // Emit raw chunk if requested (before anything else)
             if (options.includeRawChunks) {
               controller.enqueue({ type: "raw", rawValue: chunk.rawValue })
@@ -390,10 +389,22 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV2 {
 
             metadataExtractor?.processChunk(chunk.rawValue)
 
-            // handle error chunks:
-            if ("error" in value) {
-              finishReason = "error"
-              controller.enqueue({ type: "error", error: value.error.message })
+            // handle error chunks (identified by missing 'choices' property)
+            if (!isStreamChatChunk(value)) {
+              const errorMessage = extractProviderErrorMessage(value)
+              if (typeof errorMessage === "string") {
+                finishReason = "error"
+                controller.enqueue({ type: "error", error: errorMessage })
+              } else {
+                finishReason = "error"
+                controller.enqueue({
+                  type: "error",
+                  error: new InvalidResponseDataError({
+                    data: value,
+                    message: "Received an invalid or unknown error chunk.",
+                  }),
+                })
+              }
               return
             }
 
@@ -592,14 +603,13 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV2 {
 
                 if (toolCallDelta.function?.arguments != null) {
                   toolCall.function!.arguments += toolCallDelta.function?.arguments ?? ""
+                  // send delta only when we actually received new arguments text
+                  controller.enqueue({
+                    type: "tool-input-delta",
+                    id: toolCall.id,
+                    delta: toolCallDelta.function.arguments,
+                  })
                 }
-
-                // send delta
-                controller.enqueue({
-                  type: "tool-input-delta",
-                  id: toolCall.id,
-                  delta: toolCallDelta.function.arguments ?? "",
-                })
 
                 // check if tool call is complete
                 if (
@@ -688,6 +698,47 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV2 {
       response: { headers: responseHeaders },
     }
   }
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function isStreamChatChunk(
+  value: unknown,
+): value is {
+  id?: string | null
+  created?: number | null
+  model?: string | null
+  choices: Array<{
+    delta: {
+      role?: "assistant" | null
+      content?: string | null
+      reasoning_text?: string | null
+      reasoning_opaque?: string | null
+      tool_calls?: Array<{
+        index: number
+        id?: string | null
+        function?: {
+          name?: string | null
+          arguments?: string | null
+        }
+      }> | null
+    } | null
+    finish_reason?: string | null
+  }>
+  usage?: z.infer<typeof openaiCompatibleTokenUsageSchema>
+} {
+  return isObjectRecord(value) && "choices" in value && Array.isArray(value.choices)
+}
+
+function extractProviderErrorMessage(value: unknown): string | undefined {
+  if (!isObjectRecord(value)) return undefined
+  if (!("error" in value)) return undefined
+  const errorValue = value.error
+  if (!isObjectRecord(errorValue)) return undefined
+  const message = errorValue.message
+  return typeof message === "string" ? message : undefined
 }
 
 const openaiCompatibleTokenUsageSchema = z

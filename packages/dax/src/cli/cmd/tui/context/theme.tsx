@@ -20,6 +20,7 @@ import material from "./theme/material.json" with { type: "json" }
 import matrix from "./theme/matrix.json" with { type: "json" }
 import mercury from "./theme/mercury.json" with { type: "json" }
 import monokai from "./theme/monokai.json" with { type: "json" }
+import neon from "./theme/neon.json" with { type: "json" }
 import nightowl from "./theme/nightowl.json" with { type: "json" }
 import nord from "./theme/nord.json" with { type: "json" }
 import osakaJade from "./theme/osaka-jade.json" with { type: "json" }
@@ -155,6 +156,7 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   matrix,
   mercury,
   monokai,
+  neon,
   nightowl,
   nord,
   ["one-dark"]: onedark,
@@ -316,13 +318,11 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     onMount(init)
 
     function resolveSystemTheme() {
-      console.log("resolveSystemTheme")
       renderer
         .getPalette({
           size: 16,
         })
         .then((colors) => {
-          console.log(colors.palette)
           if (!colors.palette[0]) {
             if (store.active === "system") {
               setStore(

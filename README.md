@@ -1,87 +1,90 @@
 <p align="center">
   <img src="./dax-logo.svg" alt="DAX logo" width="600" />
 </p>
-<pre align="center">
-██████╗  █████╗ ██╗  ██╗     ██████╗ ██╗     ██╗
-██╔══██╗██╔══██╗╚██╗██╔╝    ██╔════╝ ██║     ██║
-██║  ██║███████║ ╚███╔╝     ██║      ██║     ██║
-██║  ██║██╔══██║ ██╔██╗     ██║      ██║     ██║
-██████╔╝██║  ██║██╔╝ ██╗    ╚██████╗ ███████╗██║
-╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝
-</pre>
-<p align="center"><strong>Deterministic AI eXecution</strong></p>
-<p align="center">A governed execution product for AI-assisted (not AI-generated) software delivery.</p>
+<p align="center"><strong>DAX — Deterministic AI eXecution</strong></p>
+<p align="center">Governed AI orchestration for real software delivery.</p>
 
 ---
 
-## One-line definition
+## What DAX is
 
-DAX is a deterministic execution layer that governs LLM behavior through structured policy, persistent project memory, and a Run-Audit-Override protocol.
+DAX is a policy-first execution product for teams that want AI speed without losing control.
 
-## Why DAX exists
+Instead of a chat agent that freely edits and runs commands, DAX routes execution through a governance loop:
 
-Most coding agents optimize for speed and output volume.
-DAX optimizes for safe execution, traceability, and predictable behavior.
+- Run: the model proposes
+- Audit: policy evaluates risk and scope
+- Override: humans approve, deny, or persist policy
 
-In DAX:
+This is why DAX exists: production software work needs reliability, not just fast output.
 
-- the model suggests
-- policy decides
-- actions are recorded
+## Positioning
 
-## Core frameworks
+**DAX is not “another coding chat.”**
 
-### RAO: Run -> Audit -> Override
+DAX is for:
 
-`Run`
-The model proposes an action (plan, edit, command, migration).
+- engineering teams that need traceable AI actions
+- startups that want velocity with guardrails
+- non-technical operators who need understandable execution (ELI12)
 
-`Audit`
-Deterministic rules evaluate risk, scope, permissions, and constraints.
+DAX is not for:
 
-`Override`
-The user can approve, reject, or persist an approval policy. Decisions are logged for replay and auditability.
+- users who only want a lightweight conversational coding toy
+- workflows where governance and auditability do not matter
 
-### PM: Project Manager memory
+## Product pillars
 
-PM is persistent project memory, not chat memory.
+### 1. RAO (Run -> Audit -> Override)
 
-It stores:
+Every sensitive action can be policy-gated.
 
-- constraints (hard rules)
-- preferences (soft behavior controls)
-- RAO event history
-- DSR-style notes and daily continuity context
+- explicit allow / ask / deny rules
+- persisted approval decisions
+- deterministic execution boundaries
 
-## Product principles
+### 2. PM (Project Memory)
 
-- Determinism over model randomness
-- Governance before execution
-- Traceability over opaque autonomy
-- Non-dev clarity through ELI12 explanations
+PM is persistent operational memory, not ephemeral chat context.
 
-## Key capabilities
+- constraints and preferences
+- notes and continuity
+- replayable context for future sessions
 
-- Terminal-first governed AI execution
-- Provider-agnostic model integration
-- Policy-aware command and file-action gating
-- Persistent PM state with local memory flows
-- ELI12 plain-language mode for non-technical users
-- TUI workflow visibility across understanding, analysis, execution, and verification
-- Core-first provider UX: OpenAI/Codex, Gemini, Anthropic, Ollama
+### 3. Orchestration-first UX
 
-## Default profile
+DAX is optimized for natural language programming with visible control surfaces:
 
-DAX ships with a focused default profile to reduce noise and support overhead.
+- RAO state and pending approvals
+- PM access in-session
+- Pane modes for Artifact / Diff / RAO / PM
 
-- Primary agents: `build`, `plan`, `explore`, `docs`
-- Primary providers: `openai`, `google`, `anthropic`, `ollama`
-- PM enabled for local persistent memory (`pm.sqlite`)
-- RAO enabled for controlled execution and approvals
+## Why teams choose DAX
 
-Advanced providers remain available, but are intentionally secondary in the default UX.
+- **Determinism over model randomness**
+- **Governance over blind autonomy**
+- **Traceability over black-box behavior**
+- **Execution quality over output quantity**
 
-Example config to hard-enforce the focused provider set:
+## Core capabilities
+
+- Terminal-native AI orchestration
+- Multi-provider model support (OpenAI, Google, Anthropic, Ollama)
+- Tool and command governance with explicit permissions
+- Persistent PM memory (`pm.sqlite`)
+- ELI12 communication mode for non-technical users
+- Session pane for operational visibility (`artifact`, `diff`, `rao`, `pm`)
+
+## UX profile
+
+DAX ships with a focused default profile:
+
+- primary agents: `build`, `plan`, `explore`, `docs`
+- primary providers: `openai`, `google`, `anthropic`, `ollama`
+- RAO enabled by default
+- PM enabled by default
+
+Example:
 
 ```json
 {
@@ -89,23 +92,80 @@ Example config to hard-enforce the focused provider set:
 }
 ```
 
-Optional (advanced): show all providers in TUI dialogs while keeping core defaults:
+## Quickstart
 
-```json
-{
-  "experimental": {
-    "show_all_providers": true
-  }
-}
+### Prerequisites
+
+- Bun 1.3.x
+- Git
+
+### Install
+
+```bash
+bun install
 ```
 
-Ready-to-use templates:
+### Run
 
-- `examples/dax.minimal.json` (smallest core setup)
-- `examples/dax.core.json` (recommended core profile)
-- `examples/dax.advanced.json` (core defaults + full provider list in TUI)
+```bash
+bun run dev
+```
 
-## Architecture
+### Verify package quality
+
+```bash
+bun run release:dax:verify
+```
+
+### Build release artifacts
+
+```bash
+bun run release:dax
+```
+
+## Gemini CLI auth (recommended)
+
+If Gemini provider auth appears broken:
+
+1. Run `gemini` in your terminal and complete login.
+2. Verify `~/.gemini/oauth_creds.json` exists.
+3. In DAX, connect provider `google` with `Use Gemini CLI login`.
+4. If credentials are elsewhere:
+
+```bash
+export GEMINI_OAUTH_CREDS_PATH=/absolute/path/to/oauth_creds.json
+```
+
+Direct email OAuth is maintainer-only and shown only when all are set:
+
+```bash
+export DAX_GEMINI_EMAIL_AUTH=1
+export DAX_GEMINI_OAUTH_CLIENT_ID=...
+export DAX_GEMINI_OAUTH_CLIENT_SECRET=...
+```
+
+## Visual system and productivity defaults
+
+DAX now uses a governance-centric visual hierarchy:
+
+- high-contrast operational palette
+- RAO/PM/Pane state visibility in-session
+- reduced command noise in slash UX
+
+For best readability/productivity in terminal UIs, use a coding font in your terminal profile:
+
+- `JetBrains Mono`
+- `Berkeley Mono`
+- `IBM Plex Mono`
+- `Monaspace Argon`
+
+Recommended terminal settings:
+
+- font size: 13-15
+- line height: 1.15-1.3
+- enable ligatures only if they improve readability for your team
+
+## Architecture (unchanged)
 
 ```mermaid
 flowchart LR
@@ -123,162 +183,6 @@ flowchart LR
   PROC --> OUT[Rendered Output + Telemetry]
 ```
 
-## Workflow maps
-
-### 1. Request-to-response stream
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant UI as TUI Prompt
-  participant Session as Session Loop
-  participant Model as Provider Model
-  participant Tools as Tools/Permissions
-  participant PM as PM DB
-
-  User->>UI: Submit prompt
-  UI->>Session: session.prompt(parts, system, agent, model)
-  Session->>Model: streamText(messages + instructions)
-  Model-->>Session: text-delta / reasoning / tool-call chunks
-  Session->>Tools: Execute tool call (gated by permissions)
-  Tools-->>Session: tool-result / tool-error
-  Session->>PM: append RAO + DSR events
-  Session-->>UI: incremental parts update
-  UI-->>User: live streamed answer
-```
-
-### 2. RAO decision path
-
-```mermaid
-flowchart TD
-  R[Run: model proposes action] --> A{Audit: policy check}
-  A -->|Allow| X[Execute action]
-  A -->|Ask| Q[Request user approval]
-  A -->|Deny| B[Block action]
-  Q -->|Approve once| X
-  Q -->|Always allow| M[Mutate policy]
-  M --> X
-  Q -->|Reject| B
-  X --> E[Log RAO event]
-  B --> E
-```
-
-### 3. PM memory loop
-
-```mermaid
-flowchart LR
-  S[Session events] --> P[(pm.sqlite)]
-  P --> C[Constraints]
-  P --> F[Preferences]
-  P --> D[DSR notes]
-  P --> H[RAO history]
-  C --> G[Governance decisions]
-  F --> G
-  D --> G
-  H --> G
-  G --> N[Next session behavior]
-```
-
-## ELI12 mode
-
-ELI12 is a communication mode for non-technical users.
-
-- `/eli12 on`: enable plain-language mode
-- `/eli12 off`: return to normal mode
-- `/eli12`: quick toggle / request simplification
-
-ELI12 is presentation behavior, not a separate orchestration engine.
-The same execution pipeline runs underneath.
-
-## Gemini CLI auth quick check
-
-If Google/Gemini login appears broken in TUI:
-
-1. Run `gemini` in your terminal and complete login.
-2. Verify local OAuth creds exist at `~/.gemini/oauth_creds.json`.
-3. In DAX, connect provider `google` using `Use Gemini CLI login`.
-4. If your creds are stored elsewhere, set:
-
-```bash
-export GEMINI_OAUTH_CREDS_PATH=/absolute/path/to/oauth_creds.json
-```
-
-Direct email OAuth (`Sign in with Google (email)`) is an optional maintainer mode.
-It is shown only when all of these are set:
-
-```bash
-export DAX_GEMINI_EMAIL_AUTH=1
-export DAX_GEMINI_OAUTH_CLIENT_ID=...
-export DAX_GEMINI_OAUTH_CLIENT_SECRET=...
-```
-
-For end users, the supported zero-setup path is `Use Gemini CLI login (import)`.
-
-## Quickstart
-
-### Prerequisites
-
-- Bun 1.3.x
-- Git
-
-### Install
-
-```bash
-bun install
-```
-
-### Run DAX
-
-```bash
-bun run dev
-```
-
-### Validate DAX package
-
-```bash
-bun run release:dax:verify
-```
-
-### Build DAX release artifact (CLI/TUI only)
-
-```bash
-bun run release:dax
-```
-
-Environment note:
-
-- Use `DAX_*` environment variables.
-
-## Positioning
-
-An AI Agent designed for Governance, not just Speed.
-
-DAX is not competing on “better chat.”
-It competes on deterministic execution, governance, traceability, and controlled autonomy.
-
 ---
 
-DAX: the protocol is the product.
-
-## CLI Startup Banner
-
-To display the DAX banner with the brand gradient on startup:
-
-```typescript
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
-import gradient from "gradient-string"
-
-async function showBanner() {
-  const bannerPath = join(process.cwd(), "assets", "banner.txt")
-  const banner = await readFile(bannerPath, "utf-8")
-
-  // DAX Brand Gradient (Blue to Purple)
-  const daxGradient = gradient(["#3b82f6", "#8b5cf6"])
-  console.log(daxGradient.multiline(banner))
-}
-```
-
-## License
-
-This project is open source and available under the [MIT License](LICENSE).
+DAX is designed for teams that want AI to be powerful, governable, and production-safe.

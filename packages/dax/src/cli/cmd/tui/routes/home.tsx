@@ -17,9 +17,9 @@ import { useCommandDialog } from "../component/dialog-command"
 import { useTerminalDimensions } from "@opentui/solid"
 import { cpus, freemem, totalmem } from "node:os"
 
-const STAGES = ["Understand", "Discovery", "Analysis", "Plan", "Audit", "Execute", "Verify"]
+const STAGES = ["Intent", "Context", "Plan", "RAO Gate", "Execute", "Verify", "Record"]
 const STAGES_ELI12 = ["Understand", "Find", "Think", "Plan", "Safety", "Do", "Check"]
-const HERO = "Deterministic AI Execution"
+const HERO = "Governed AI Orchestration"
 const LIVE_FRAMES = ["◎", "◉", "⬤", "◉"]
 const FEED_FRAMES = ["●○○", "○●○", "○○●", "○●○"]
 
@@ -46,12 +46,12 @@ export function Home() {
   const isFirstTimeUser = createMemo(() => sync.data.session.length === 0)
   const tipsHidden = createMemo(() => kv.get("tips_hidden", true))
   const showTips = createMemo(() => {
-    // Don't show tips for first-time users
     if (isFirstTimeUser()) return false
     return !tipsHidden()
   })
   const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
   const stages = createMemo(() => (explainMode() ? STAGES_ELI12 : STAGES))
+  const showTelemetry = createMemo(() => kv.get("tui.home_telemetry", false))
 
   command.register(() => [
     {
@@ -70,6 +70,15 @@ export function Home() {
       category: "System",
       onSelect: (dialog) => {
         kv.set("explain_mode", explainMode() ? "normal" : "eli12")
+        dialog.clear()
+      },
+    },
+    {
+      title: showTelemetry() ? "Hide system telemetry" : "Show system telemetry",
+      value: "telemetry.toggle",
+      category: "System",
+      onSelect: (dialog) => {
+        kv.set("tui.home_telemetry", !showTelemetry())
         dialog.clear()
       },
     },
@@ -159,7 +168,10 @@ export function Home() {
         gpu,
         ramUsed,
         ramTotal,
-        gpuText: process.platform === "darwin" ? `${(ramUsed / 1024 / 1024 / 1024).toFixed(1)} / ${(ramTotal / 1024 / 1024 / 1024).toFixed(1)} GB` : "n/a",
+        gpuText:
+          process.platform === "darwin"
+            ? `${(ramUsed / 1024 / 1024 / 1024).toFixed(1)} / ${(ramTotal / 1024 / 1024 / 1024).toFixed(1)} GB`
+            : "n/a",
         tick: current.tick + 1,
       }))
     }, 1000)
@@ -178,35 +190,17 @@ export function Home() {
         gap={1}
         backgroundColor={shell()}
       >
-        <box
-          width="100%"
-          maxWidth={104}
-          alignItems="center"
-          gap={1}
-          backgroundColor={frame()}
-          border={["top", "right", "bottom", "left"]}
-          borderColor={theme.borderSubtle}
-          padding={2}
-        >
-          <box
-            width="100%"
-            alignItems="center"
-            backgroundColor={hero()}
-            border={["top", "right", "bottom", "left"]}
-            borderColor={theme.border}
-            paddingTop={1}
-            paddingBottom={1}
-          >
-            <Logo />
-            <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-              {HERO}
-            </text>
-            <text fg={theme.textMuted}>AI-assisted, not AI-generated</text>
-            <text fg={explainMode() ? theme.success : theme.textMuted}>
-              ELI12 {explainMode() ? "on" : "off"} {explainMode() ? "· plain language mode" : ""}
-            </text>
+        <box width="100%" maxWidth={96} alignItems="center" gap={1}>
+          <box width="100%" alignItems="center" gap={0}>
+            <box flexDirection="row" gap={2} alignItems="center">
+              <Logo />
+              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                DAX
+              </text>
+            </box>
+            <text fg={theme.textMuted}>{HERO}</text>
           </box>
-          <box width="100%" maxWidth={94} flexDirection={wide() ? "row" : "column"} gap={1} alignItems="stretch">
+          <box width="100%" maxWidth={88} flexDirection={wide() ? "row" : "column"} gap={1} alignItems="stretch">
             <box
               flexGrow={1}
               backgroundColor={inputPanel()}
@@ -223,7 +217,7 @@ export function Home() {
                 hint={Hint}
               />
             </box>
-            <Show when={!minimal()}>
+            <Show when={!minimal() && showTelemetry()}>
               <box
                 width={wide() ? 36 : "100%"}
                 backgroundColor={livePanel()}
@@ -236,7 +230,7 @@ export function Home() {
                 justifyContent="center"
               >
                 <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-                  Live System Feed <span style={{ fg: theme.accent }}>{feed()}</span>
+                  Control Telemetry <span style={{ fg: theme.accent }}>{feed()}</span>
                 </text>
                 <text fg={theme.text}>
                   <span style={{ fg: theme.success }}>{live()}</span>{" "}
@@ -246,25 +240,16 @@ export function Home() {
                     [{telemetry().gpuLabel.toUpperCase()} {String(telemetry().gpu).padStart(2)}]
                   </span>{" "}
                   <span style={{ fg: theme.textMuted }}>
-                    [MEM {(telemetry().ramUsed / 1024 / 1024 / 1024).toFixed(1)}/{(telemetry().ramTotal / 1024 / 1024 / 1024).toFixed(1)}G]
+                    [MEM {(telemetry().ramUsed / 1024 / 1024 / 1024).toFixed(1)}/
+                    {(telemetry().ramTotal / 1024 / 1024 / 1024).toFixed(1)}G]
                   </span>
                 </text>
               </box>
             </Show>
           </box>
-          <box flexDirection={compact() ? "column" : "row"} gap={1} paddingTop={1} alignItems="center" justifyContent="center">
-            <text fg={theme.text} attributes={TextAttributes.BOLD}>
-              {explainMode() ? "Simple steps" : "Lifecycle"}
-            </text>
+          <box flexDirection="row" gap={2} paddingTop={1} alignItems="center" justifyContent="center">
             <For each={stages()}>
-              {(stage, index) => (
-                <box flexDirection="row" gap={1}>
-                  <text fg={index() < 2 ? theme.primary : theme.textMuted}>{stage}</text>
-                  <Show when={index() !== stages().length - 1}>
-                    <text fg={theme.borderSubtle}>·</text>
-                  </Show>
-                </box>
-              )}
+              {(stage, index) => <text fg={index() === 0 ? theme.primary : theme.textMuted}>{stage}</text>}
             </For>
           </box>
           <Show when={showTips() && !minimal()}>

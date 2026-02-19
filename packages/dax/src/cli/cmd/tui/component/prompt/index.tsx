@@ -268,6 +268,7 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: new Map(),
     interrupt: 0,
   })
+  const [eli12Hover, setEli12Hover] = createSignal(false)
 
   // Initialize agent/model/variant from last user message when session changes
   let syncedSessionID: string | undefined
@@ -1309,9 +1310,15 @@ export function Prompt(props: PromptProps) {
                     {keybind.print("command_list")}{" "}
                     <span style={{ fg: theme.textMuted }}>{explainMode() ? "menu" : "commands"}</span>
                   </text>
-                  <text fg={explainMode() ? theme.success : theme.textMuted}>
-                    <span style={{ bold: true }}>ELI12</span> {explainMode() ? "on" : "off"}
-                  </text>
+                  <box
+                    onMouseOver={() => setEli12Hover(true)}
+                    onMouseOut={() => setEli12Hover(false)}
+                    onMouseUp={() => setExplainMode(!explainMode())}
+                  >
+                    <text fg={explainMode() || eli12Hover() ? theme.success : theme.textMuted}>
+                      <span style={{ bold: true }}>ELI12</span> {explainMode() ? "on" : "off"}
+                    </text>
+                  </box>
                 </Match>
                 <Match when={store.mode === "shell"}>
                   <text fg={theme.text}>

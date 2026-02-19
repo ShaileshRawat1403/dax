@@ -2,7 +2,7 @@ import { createMemo, createSignal, For } from "solid-js"
 import { DEFAULT_THEMES, useTheme } from "@tui/context/theme"
 
 const themeCount = Object.keys(DEFAULT_THEMES).length
-const themeTip = `Use {highlight}/theme{/highlight} or {highlight}Ctrl+X T{/highlight} to switch between ${themeCount} built-in themes`
+const themeTip = `Use {highlight}Ctrl+X T{/highlight} to switch between ${themeCount} built-in themes`
 
 type TipPart = { text: string; highlight: boolean }
 
@@ -53,12 +53,11 @@ const TIPS = [
   "Start a message with {highlight}!{/highlight} to run shell commands directly (e.g., {highlight}!ls -la{/highlight})",
   "Press {highlight}Tab{/highlight} to cycle between Build, Plan, and Docs agents",
   "Use {highlight}/undo{/highlight} to revert the last message and file changes",
-  "Use {highlight}/redo{/highlight} to restore previously undone messages and file changes",
+  "Use {highlight}Ctrl+Y{/highlight} to restore previously undone messages and file changes",
   "Run {highlight}/share{/highlight} to create a public link to your conversation at dax.ai",
   "Drag and drop images into the terminal to add them as context",
   "Press {highlight}Ctrl+V{/highlight} to paste images from your clipboard into the prompt",
   "Press {highlight}Ctrl+X E{/highlight} or {highlight}/editor{/highlight} to compose messages in your external editor",
-  "Run {highlight}/init{/highlight} to auto-generate project rules based on your codebase",
   "Run {highlight}/models{/highlight} or {highlight}Ctrl+X M{/highlight} to see and switch between available AI models",
   themeTip,
   "Press {highlight}Ctrl+X N{/highlight} or {highlight}/new{/highlight} to start a fresh conversation session",
@@ -132,12 +131,11 @@ const TIPS = [
   "Override global tool settings per agent configuration",
   'Set {highlight}"share": "auto"{/highlight} to automatically share all sessions',
   'Set {highlight}"share": "disabled"{/highlight} to prevent any session sharing',
-  "Run {highlight}/unshare{/highlight} to remove a session from public access",
   "Permission {highlight}doom_loop{/highlight} prevents infinite tool call loops",
   "Permission {highlight}external_directory{/highlight} protects files outside project",
   "Run {highlight}dax debug config{/highlight} to troubleshoot configuration",
   "Use {highlight}--print-logs{/highlight} flag to see detailed logs in stderr",
-  "Press {highlight}Ctrl+X G{/highlight} or {highlight}/timeline{/highlight} to jump to specific messages",
+  "Press {highlight}Ctrl+X G{/highlight} to jump to specific messages",
   "Press {highlight}Ctrl+X H{/highlight} to toggle code block visibility in messages",
   "Press {highlight}Ctrl+X S{/highlight} or {highlight}/status{/highlight} to see system status info",
   "Enable {highlight}tui.scroll_acceleration{/highlight} for smooth macOS-style scrolling",
@@ -145,9 +143,7 @@ const TIPS = [
   "Run {highlight}docker run -it --rm ghcr.io/ShaileshRawat1403/dax{/highlight} for containerized use",
   "Use {highlight}/connect{/highlight} with Dax Zen for curated, tested models",
   "Commit your project's {highlight}AGENTS.md{/highlight} file to Git for team sharing",
-  "Use {highlight}/review{/highlight} to review uncommitted changes, branches, or PRs",
   "Run {highlight}/help{/highlight} or {highlight}Ctrl+X H{/highlight} to show the help dialog",
-  "Use {highlight}/details{/highlight} to toggle tool execution details visibility",
-  "Use {highlight}/rename{/highlight} to rename the current session",
+  "Use {highlight}Ctrl+P{/highlight} and search \"tool details\" to toggle execution details visibility",
   "Press {highlight}Ctrl+Z{/highlight} to suspend the terminal and return to your shell",
 ]

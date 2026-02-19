@@ -113,7 +113,7 @@ export function Session() {
   const { navigate } = useRoute()
   const sync = useSync()
   const kv = useKV()
-  const { theme } = useTheme()
+  const { theme, syntax } = useTheme()
   const promptRef = usePromptRef()
   const session = createMemo(() => sync.session.get(route.sessionID))
   const children = createMemo(() => {
@@ -136,6 +136,8 @@ export function Session() {
     return messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id
   })
 
+  const chatActive = createMemo(() => pending() !== undefined)
+
   const lastAssistant = createMemo(() => {
     return messages().findLast((x) => x.role === "assistant")
   })
@@ -153,8 +155,11 @@ export function Session() {
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [paneVisibility, setPaneVisibility] = kv.signal<"auto" | "pinned" | "hidden">("session_pane_visibility", "auto")
   const [paneMode, setPaneMode] = kv.signal<"artifact" | "diff" | "rao" | "pm">("session_pane_mode", "artifact")
+  const [paneFollowMode, setPaneFollowMode] = kv.signal<"live" | "smart">("session_pane_follow_mode", "smart")
   const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
+  const [smartFollowActive, setSmartFollowActive] = createSignal(true)
+  const [pendingUpdates, setPendingUpdates] = createSignal(0)
 
   const wide = createMemo(() => dimensions().width > 120)
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
@@ -169,11 +174,36 @@ export function Session() {
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 90)
+  const stripStacked = createMemo(() => contentWidth() < 112)
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
     return Math.max(38, Math.floor((total - gapAndBorders) / 2))
   })
+  const paneDiffView = createMemo(() => {
+    const diffStyle = sync.data.config.tui?.diff_style
+    if (diffStyle === "stacked") return "unified"
+    const availableWidth = liveStacked() ? contentWidth() : livePaneWidth()
+    return availableWidth > 120 ? "split" : "unified"
+  })
+  const followEnabled = createMemo(() => paneFollowMode() === "live" || smartFollowActive())
+  const sessionPartCount = createMemo(() => messages().reduce((acc, msg) => acc + (sync.data.part[msg.id]?.length ?? 0), 0))
+  let lastUpdateKey = ""
+
+  function pauseSmartFollow() {
+    if (paneFollowMode() !== "smart") return
+    if (!smartFollowActive()) return
+    setSmartFollowActive(false)
+  }
+
+  function jumpToLive() {
+    setSmartFollowActive(true)
+    setPendingUpdates(0)
+    setTimeout(() => {
+      if (!scroll || scroll.isDestroyed) return
+      scroll.scrollTo(scroll.scrollHeight)
+    }, 10)
+  }
 
   const scrollAcceleration = createMemo(() => {
     const tui = sync.data.config.tui
@@ -356,9 +386,6 @@ export function Session() {
       value: "session.rename",
       keybind: "session_rename",
       category: "Session",
-      slash: {
-        name: "rename",
-      },
       onSelect: (dialog) => {
         dialog.replace(() => <DialogSessionRename session={route.sessionID} />)
       },
@@ -368,9 +395,6 @@ export function Session() {
       value: "session.timeline",
       keybind: "session_timeline",
       category: "Session",
-      slash: {
-        name: "timeline",
-      },
       onSelect: (dialog) => {
         dialog.replace(() => (
           <DialogTimeline
@@ -391,9 +415,6 @@ export function Session() {
       value: "session.fork",
       keybind: "session_fork",
       category: "Session",
-      slash: {
-        name: "fork",
-      },
       onSelect: (dialog) => {
         dialog.replace(() => (
           <DialogForkFromTimeline
@@ -441,9 +462,6 @@ export function Session() {
       keybind: "session_unshare",
       category: "Session",
       enabled: !!session()?.share?.url,
-      slash: {
-        name: "unshare",
-      },
       onSelect: async (dialog) => {
         await sdk.client.session
           .unshare({
@@ -498,9 +516,6 @@ export function Session() {
       keybind: "messages_redo",
       category: "Session",
       enabled: !!session()?.revert?.messageID,
-      slash: {
-        name: "redo",
-      },
       onSelect: (dialog) => {
         dialog.clear()
         const messageID = session()?.revert?.messageID
@@ -537,9 +552,6 @@ export function Session() {
       title: `Pane: ${paneVisibility() === "auto" ? "Auto (active)" : "Auto"}`,
       value: "session.pane.auto",
       category: "View",
-      slash: {
-        name: "pane-auto",
-      },
       onSelect: (dialog) => {
         setPaneVisibility(() => "auto")
         toast.show({ message: "Pane: Auto", variant: "success" })
@@ -550,10 +562,6 @@ export function Session() {
       title: `Pane: ${paneVisibility() === "pinned" ? "Pinned (active)" : "Pinned"}`,
       value: "session.pane.pinned",
       category: "View",
-      slash: {
-        name: "pane-on",
-        aliases: ["pane-show", "pane-pin"],
-      },
       onSelect: (dialog) => {
         setPaneVisibility(() => "pinned")
         toast.show({ message: "Pane: Pinned", variant: "success" })
@@ -564,10 +572,6 @@ export function Session() {
       title: `Pane: ${paneVisibility() === "hidden" ? "Hidden (active)" : "Hidden"}`,
       value: "session.pane.hidden",
       category: "View",
-      slash: {
-        name: "pane-off",
-        aliases: ["pane-hide"],
-      },
       onSelect: (dialog) => {
         setPaneVisibility(() => "hidden")
         toast.show({ message: "Pane: Hidden", variant: "success" })
@@ -592,9 +596,6 @@ export function Session() {
       title: `Pane mode: Artifact${paneMode() === "artifact" ? " (active)" : ""}`,
       value: "session.pane.mode.artifact",
       category: "View",
-      slash: {
-        name: "pane-artifact",
-      },
       onSelect: (dialog) => {
         setPaneMode(() => "artifact")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
@@ -606,9 +607,6 @@ export function Session() {
       title: `Pane mode: Diff${paneMode() === "diff" ? " (active)" : ""}`,
       value: "session.pane.mode.diff",
       category: "View",
-      slash: {
-        name: "pane-diff",
-      },
       onSelect: (dialog) => {
         setPaneMode(() => "diff")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
@@ -620,9 +618,6 @@ export function Session() {
       title: `Pane mode: RAO${paneMode() === "rao" ? " (active)" : ""}`,
       value: "session.pane.mode.rao",
       category: "View",
-      slash: {
-        name: "pane-rao",
-      },
       onSelect: (dialog) => {
         setPaneMode(() => "rao")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
@@ -634,9 +629,6 @@ export function Session() {
       title: `Pane mode: PM${paneMode() === "pm" ? " (active)" : ""}`,
       value: "session.pane.mode.pm",
       category: "View",
-      slash: {
-        name: "pane-pm",
-      },
       onSelect: (dialog) => {
         setPaneMode(() => "pm")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
@@ -658,10 +650,6 @@ export function Session() {
       title: showTimestamps() ? "Hide timestamps" : "Show timestamps",
       value: "session.toggle.timestamps",
       category: "Session",
-      slash: {
-        name: "timestamps",
-        aliases: ["toggle-timestamps"],
-      },
       onSelect: (dialog) => {
         setTimestamps((prev) => (prev === "show" ? "hide" : "show"))
         dialog.clear()
@@ -672,10 +660,6 @@ export function Session() {
       value: "session.toggle.thinking",
       keybind: "display_thinking",
       category: "Session",
-      slash: {
-        name: "thinking",
-        aliases: ["toggle-thinking"],
-      },
       onSelect: (dialog) => {
         if (explainMode()) {
           toast.show({
@@ -1066,6 +1050,11 @@ export function Session() {
       diffFiles: revertDiffFiles(),
     }
   })
+  const paneDiffFiletype = createMemo(() => {
+    const files = revert()?.diffFiles
+    if (!files?.length) return "none"
+    return filetype(files[0].filename)
+  })
 
   const liveArtifact = createMemo(() => {
     for (const msg of [...messages()].reverse()) {
@@ -1097,7 +1086,7 @@ export function Session() {
     }
   })
   const hasDiffNeed = createMemo(() => !!revert()?.diff)
-  const hasArtifactNeed = createMemo(() => liveArtifact().active && sessionStatusType() !== "idle")
+  const hasArtifactNeed = createMemo(() => liveArtifact().active && chatActive())
   const showPane = createMemo(() => {
     if (paneVisibility() === "hidden") return false
     if (paneVisibility() === "pinned") return true
@@ -1115,7 +1104,26 @@ export function Session() {
   const renderer = useRenderer()
 
   // snap to bottom when session changes
-  createEffect(on(() => route.sessionID, toBottom))
+  createEffect(
+    on(() => route.sessionID, () => {
+      setSmartFollowActive(true)
+      setPendingUpdates(0)
+      toBottom()
+    }),
+  )
+  createEffect(() => {
+    if (paneFollowMode() === "live") {
+      setSmartFollowActive(true)
+      setPendingUpdates(0)
+      return
+    }
+    const key = `${sessionPartCount()}-${pending() ?? ""}-${sessionStatusType()}`
+    if (key === lastUpdateKey) return
+    if (lastUpdateKey && paneFollowMode() === "smart" && !smartFollowActive()) {
+      setPendingUpdates((count) => count + 1)
+    }
+    lastUpdateKey = key
+  })
 
   return (
     <context.Provider
@@ -1138,31 +1146,89 @@ export function Session() {
             <Show when={!sidebarVisible() || !wide()}>
               <Header />
             </Show>
-            <box flexDirection="row" gap={1} alignItems="center">
-              <text fg={theme.textMuted}>Pane</text>
-              <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>
-                  [auto]
+            <box
+              flexDirection="column"
+              gap={0}
+              alignItems="stretch"
+              backgroundColor={theme.backgroundPanel}
+              border={["top", "right", "bottom", "left"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+              paddingTop={0}
+              paddingBottom={0}
+            >
+              <box flexDirection="row" gap={1} alignItems="center">
+                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                  DAX
                 </text>
-              </box>
-              <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>
-                  [pin]
+                <text fg={theme.textMuted}>workspace</text>
+                <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
+                  RAO {permissions().length + questions().length}
                 </text>
+                <text fg={theme.text}>PM</text>
+                <text fg={theme.textMuted}>pane</text>
               </box>
-              <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>
-                  [hide]
-                </text>
-              </box>
-              <text fg={theme.textMuted}>mode</text>
-              <For each={["artifact", "diff", "rao", "pm"] as const}>
-                {(mode) => (
-                  <box onMouseUp={() => setPaneMode(() => mode)}>
-                    <text fg={paneMode() === mode ? theme.accent : theme.textMuted}>[{mode}]</text>
+              <box
+                flexDirection={stripStacked() ? "column" : "row"}
+                gap={stripStacked() ? 0 : 2}
+                alignItems="flex-start"
+                paddingRight={1}
+              >
+                <box flexDirection="row" gap={1} alignItems="center">
+                  <text fg={theme.textMuted}>pane:</text>
+                  <box onMouseUp={() => setPaneVisibility(() => "auto")}>
+                    <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
                   </box>
-                )}
-              </For>
+                  <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
+                    <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
+                  </box>
+                  <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
+                    <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
+                  </box>
+                </box>
+                <box flexDirection="row" gap={1} alignItems="center">
+                  <text fg={theme.textMuted}>mode:</text>
+                  <For each={["artifact", "diff", "rao", "pm"] as const}>
+                    {(mode) => (
+                      <box onMouseUp={() => setPaneMode(() => mode)}>
+                        <text
+                          fg={paneMode() === mode ? theme.accent : theme.textMuted}
+                          attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
+                        >
+                          [{mode}]
+                        </text>
+                      </box>
+                    )}
+                  </For>
+                </box>
+                <box flexDirection="row" gap={1} alignItems="center">
+                  <text fg={theme.textMuted}>follow:</text>
+                  <box
+                    onMouseUp={() => {
+                      setPaneFollowMode(() => "smart")
+                      setSmartFollowActive(true)
+                      setPendingUpdates(0)
+                    }}
+                  >
+                    <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
+                  </box>
+                  <box
+                    onMouseUp={() => {
+                      setPaneFollowMode(() => "live")
+                      setSmartFollowActive(true)
+                      setPendingUpdates(0)
+                    }}
+                  >
+                    <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
+                  </box>
+                  <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
+                    <box onMouseUp={jumpToLive}>
+                      <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
+                    </box>
+                  </Show>
+                </box>
+              </box>
             </box>
             <Switch>
               <Match when={showPane()}>
@@ -1181,6 +1247,7 @@ export function Session() {
                   >
                     <scrollbox
                       ref={(r) => (scroll = r)}
+                      onMouseDown={pauseSmartFollow}
                       viewportOptions={{
                         paddingRight: showScrollbar() ? 1 : 0,
                       }}
@@ -1192,7 +1259,7 @@ export function Session() {
                           foregroundColor: theme.border,
                         },
                       }}
-                      stickyScroll={true}
+                      stickyScroll={followEnabled()}
                       stickyStart="bottom"
                       flexGrow={1}
                       scrollAcceleration={scrollAcceleration()}
@@ -1236,8 +1303,8 @@ export function Session() {
                                     >
                                       <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
                                       <text fg={theme.textMuted}>
-                                        <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo
-                                        to restore
+                                        <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> to
+                                        restore
                                       </text>
                                       <Show when={revert()!.diffFiles?.length}>
                                         <box marginTop={1}>
@@ -1294,8 +1361,19 @@ export function Session() {
                       </For>
                     </scrollbox>
                   </box>
-                  <box width={liveStacked() ? "100%" : livePaneWidth()} flexGrow={liveStacked() ? 0 : 1} padding={2} gap={1}>
-                    <text fg={theme.text} attributes={TextAttributes.BOLD}>PANE · {activePaneMode().toUpperCase()}</text>
+                  <box
+                    width={liveStacked() ? "100%" : livePaneWidth()}
+                    flexGrow={liveStacked() ? 0 : 1}
+                    padding={2}
+                    gap={1}
+                    backgroundColor={theme.backgroundPanel}
+                  >
+                    <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                      DAX PANE · {activePaneMode().toUpperCase()}
+                    </text>
+                    <text fg={theme.textMuted}>
+                      RAO {permissions().length + questions().length} · Session {sessionStatusType()}
+                    </text>
                     <Switch>
                       <Match when={activePaneMode() === "artifact"}>
                         <text fg={theme.primary}>{liveArtifact().title}</text>
@@ -1304,23 +1382,62 @@ export function Session() {
                         </text>
                       </Match>
                       <Match when={activePaneMode() === "diff"}>
-                        <Show when={revert()?.diffFiles?.length} fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}>
-                          <For each={revert()?.diffFiles ?? []}>
-                            {(file) => (
-                              <text fg={theme.text}>
-                                {file.filename}
-                                <Show when={file.additions > 0}>
-                                  <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                </Show>
-                                <Show when={file.deletions > 0}>
-                                  <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                </Show>
-                              </text>
-                            )}
-                          </For>
+                        <Show
+                          when={revert()?.diff}
+                          fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}
+                        >
+                          <box flexDirection="column" gap={1} flexGrow={1} width="100%">
+                            <Show when={revert()?.diffFiles?.length}>
+                              <box flexDirection="column" gap={0}>
+                                <For each={revert()?.diffFiles ?? []}>
+                                  {(file) => (
+                                    <text fg={theme.text}>
+                                      {file.filename}
+                                      <Show when={file.additions > 0}>
+                                        <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                      </Show>
+                                      <Show when={file.deletions > 0}>
+                                        <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                      </Show>
+                                    </text>
+                                  )}
+                                </For>
+                              </box>
+                            </Show>
+                            <box
+                              flexGrow={1}
+                              border={["top"]}
+                              borderColor={theme.borderSubtle}
+                              paddingTop={1}
+                              width="100%"
+                            >
+                              <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
+                                <diff
+                                  diff={revert()!.diff ?? ""}
+                                  view={paneDiffView()}
+                                  filetype={paneDiffFiletype()}
+                                  syntaxStyle={syntax()}
+                                  showLineNumbers={true}
+                                  width="100%"
+                                  wrapMode={diffWrapMode()}
+                                  fg={theme.text}
+                                  addedBg={theme.diffAddedBg}
+                                  removedBg={theme.diffRemovedBg}
+                                  contextBg={theme.diffContextBg}
+                                  addedSignColor={theme.diffHighlightAdded}
+                                  removedSignColor={theme.diffHighlightRemoved}
+                                  lineNumberFg={theme.diffLineNumber}
+                                  lineNumberBg={theme.diffContextBg}
+                                  addedLineNumberBg={theme.diffAddedLineNumberBg}
+                                  removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                                />
+                              </scrollbox>
+                            </box>
+                          </box>
                         </Show>
                       </Match>
                       <Match when={activePaneMode() === "rao"}>
+                        <text fg={theme.text}>Run Audit Override</text>
                         <text fg={theme.textMuted}>Status: {sessionStatusType()}</text>
                         <text fg={permissions().length > 0 ? theme.warning : theme.textMuted}>
                           Pending approvals: {permissions().length}
@@ -1330,10 +1447,10 @@ export function Session() {
                         </text>
                       </Match>
                       <Match when={activePaneMode() === "pm"}>
-                        <text fg={theme.textMuted}>Project Memory</text>
-                        <text fg={theme.text}>/pm note  /pm list  /pm rules</text>
+                        <text fg={theme.text}>Project Memory</text>
+                        <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
                         <text fg={theme.textMuted} wrapMode="word">
-                          Use PM notes/rules to keep project constraints visible and reduce risky changes.
+                          Capture constraints and handoff context so execution stays consistent across sessions.
                         </text>
                       </Match>
                     </Switch>
@@ -1343,6 +1460,7 @@ export function Session() {
               <Match when={true}>
                 <scrollbox
                   ref={(r) => (scroll = r)}
+                  onMouseDown={pauseSmartFollow}
                   viewportOptions={{
                     paddingRight: showScrollbar() ? 1 : 0,
                   }}
@@ -1354,7 +1472,7 @@ export function Session() {
                       foregroundColor: theme.border,
                     },
                   }}
-                  stickyScroll={true}
+                  stickyScroll={followEnabled()}
                   stickyStart="bottom"
                   flexGrow={1}
                   scrollAcceleration={scrollAcceleration()}
@@ -1398,8 +1516,7 @@ export function Session() {
                                 >
                                   <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
                                   <text fg={theme.textMuted}>
-                                    <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo
-                                    to restore
+                                    <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> to restore
                                   </text>
                                   <Show when={revert()!.diffFiles?.length}>
                                     <box marginTop={1}>
@@ -1633,10 +1750,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     const text = (sync.data.part[id] ?? []).find((x) => x.type === "text" && "text" in x && x.text.trim())
     if (!text || !("text" in text)) return "Asked for help on this task."
     const body = text.text
-      .replace(
-        /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i,
-        "",
-      )
+      .replace(/^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i, "")
       .replace(/Respond in plain language for non-technical users\.[\s\S]*?Your options\.\s*/i, "")
       .replace(/Please explain this:\s*/i, "")
       .replace(/Explain your previous response[\s\S]*?understand\.\s*/i, "")
@@ -1647,7 +1761,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   })
   const doing = createMemo(() => {
     if (props.message.error) return "Hit an error while executing."
-    if (props.parts.some((x) => x.type === "tool" && x.state.status === "pending")) return "Running tools for this task."
+    if (props.parts.some((x) => x.type === "tool" && x.state.status === "pending"))
+      return "Running tools for this task."
     if (props.parts.some((x) => x.type === "reasoning")) return "Analyzing and preparing an answer."
     if (props.last && !props.message.time.completed) return "Still working on your request."
     return "Delivered an answer for this step."
@@ -1681,6 +1796,29 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     const user = messages().find((x) => x.role === "user" && x.id === props.message.parentID)
     if (!user || !user.time) return 0
     return props.message.time.completed - user.time.created
+  })
+  const totalTokens = createMemo(() => {
+    const tokens = props.message.tokens
+    if (!tokens) return 0
+    return (
+      (tokens.input ?? 0) +
+      (tokens.output ?? 0) +
+      (tokens.reasoning ?? 0) +
+      (tokens.cache?.read ?? 0) +
+      (tokens.cache?.write ?? 0)
+    )
+  })
+  const generatedTokens = createMemo(() => {
+    const tokens = props.message.tokens
+    if (!tokens) return 0
+    return (tokens.output ?? 0) + (tokens.reasoning ?? 0)
+  })
+  const tokensPerSecond = createMemo(() => {
+    const ms = duration()
+    if (!ms) return 0
+    const seconds = ms / 1000
+    if (!seconds) return 0
+    return generatedTokens() / seconds
   })
 
   return (
@@ -1766,6 +1904,18 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
               <span style={{ fg: theme.textMuted }}> · {props.message.modelID}</span>
               <Show when={duration()}>
                 <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
+              </Show>
+              <Show when={(props.message.tokens?.output ?? 0) > 0}>
+                <span style={{ fg: theme.textMuted }}> · {props.message.tokens!.output.toLocaleString()} gen tok</span>
+              </Show>
+              <Show when={duration() && tokensPerSecond() > 0}>
+                <span style={{ fg: theme.textMuted }}> · {tokensPerSecond().toFixed(1)} tok/s</span>
+              </Show>
+              <Show when={duration() && generatedTokens() > 0}>
+                <span style={{ fg: theme.textMuted }}> · gen {generatedTokens().toLocaleString()} tok</span>
+              </Show>
+              <Show when={duration() && tokensPerSecond() > 0}>
+                <span style={{ fg: theme.textMuted }}> · {tokensPerSecond().toFixed(1)} tok/s</span>
               </Show>
               <Show when={props.message.error?.name === "MessageAbortedError"}>
                 <span style={{ fg: theme.textMuted }}> · interrupted</span>

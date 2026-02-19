@@ -1,5 +1,5 @@
 import { realpathSync } from "fs"
-import { dirname, join, relative } from "path"
+import { basename, dirname, join, relative, resolve } from "path"
 
 export namespace Filesystem {
   export const exists = (p: string) =>
@@ -34,6 +34,36 @@ export namespace Filesystem {
 
   export function contains(parent: string, child: string) {
     return !relative(parent, child).startsWith("..")
+  }
+
+  export function containsReal(parent: string, child: string): boolean {
+    function resolvePathRecursively(p: string): string {
+      try {
+        return realpathSync(p)
+      } catch (err: any) {
+        if (err.code === "ENOENT") {
+          const parentDir = dirname(p)
+          if (parentDir === p) throw err
+          return join(resolvePathRecursively(parentDir), basename(p))
+        }
+        throw err
+      }
+    }
+
+    try {
+      // First, try to resolve the parent path. If it doesn't exist at all,
+      // it cannot contain anything.
+      const parentReal = resolve(realpathSync(parent))
+
+      // Then, resolve the child path, allowing for non-existent final components.
+      const childReal = resolve(resolvePathRecursively(child))
+
+      const rel = relative(parentReal, childReal)
+      return rel !== ".." && !rel.startsWith("../") && !rel.startsWith("..\\")
+    } catch {
+      // If any realpath or resolution fails, treat it as not contained.
+      return false
+    }
   }
 
   export async function findUp(target: string, start: string, stop?: string) {

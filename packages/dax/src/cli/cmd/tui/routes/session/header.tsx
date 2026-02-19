@@ -3,7 +3,6 @@ import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
 import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
-import { SplitBorder } from "@tui/component/border"
 import type { AssistantMessage, Session } from "@dax-ai/sdk/v2"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import { useKeybind } from "../../context/keybind"
@@ -14,7 +13,9 @@ const Title = (props: { session: Accessor<Session> }) => {
   const { theme } = useTheme()
   return (
     <text fg={theme.text}>
-      <span style={{ bold: true }}>#</span> <span style={{ bold: true }}>{props.session().title}</span>
+      <span style={{ fg: theme.primary, bold: true }}>DAX</span>
+      <span style={{ fg: theme.textMuted }}> / </span>
+      <span style={{ bold: true }}>{props.session().title}</span>
     </text>
   )
 }
@@ -68,18 +69,8 @@ export function Header() {
   const narrow = createMemo(() => dimensions().width < 80)
 
   return (
-    <box flexShrink={0}>
-      <box
-        paddingTop={1}
-        paddingBottom={1}
-        paddingLeft={2}
-        paddingRight={1}
-        {...SplitBorder}
-        border={["left"]}
-        borderColor={theme.border}
-        flexShrink={0}
-        backgroundColor={theme.backgroundPanel}
-      >
+    <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
+      <box paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={1} flexShrink={0}>
         <Switch>
           <Match when={session()?.parentID}>
             <box flexDirection="column" gap={1}>

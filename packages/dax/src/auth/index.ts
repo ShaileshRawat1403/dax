@@ -31,19 +31,25 @@ export namespace Auth {
     })
     .meta({ ref: "WellKnownAuth" })
 
-  export const Info = z.discriminatedUnion("type", [Oauth, Api, WellKnown]).meta({ ref: "Auth" })
+  export const OauthCustom = z.object({
+    type: z.literal("oauth-custom"),
+    clientID: z.string(),
+    clientSecret: z.string(),
+  })
+
+  export const Info = z.discriminatedUnion("type", [Oauth, Api, WellKnown, OauthCustom]).meta({ ref: "Auth" })
   export type Info = z.infer<typeof Info>
-
+  
   const filepath = path.join(Global.Path.data, "auth.json")
-
+  
   export async function get(providerID: string) {
     const auth = await all()
     return auth[providerID]
   }
-
+  
   export async function all(): Promise<Record<string, Info>> {
     const file = Bun.file(filepath)
-    const data = await file.json().catch(() => ({}) as Record<string, unknown>)
+    const data = await file.json().catch(() => ({} as Record<string, unknown>))
     return Object.entries(data).reduce(
       (acc, [key, value]) => {
         const parsed = Info.safeParse(value)
@@ -54,13 +60,13 @@ export namespace Auth {
       {} as Record<string, Info>,
     )
   }
-
+  
   export async function set(key: string, info: Info) {
     const file = Bun.file(filepath)
     const data = await all()
     await Bun.write(file, JSON.stringify({ ...data, [key]: info }, null, 2), { mode: 0o600 })
   }
-
+  
   export async function remove(key: string) {
     const file = Bun.file(filepath)
     const data = await all()

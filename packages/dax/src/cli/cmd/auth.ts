@@ -218,11 +218,36 @@ export const AuthLoginCommand = cmd({
   command: "login [url]",
   describe: "log in to a provider",
   builder: (yargs) =>
-    yargs.positional("url", {
-      describe: "dax auth provider",
-      type: "string",
-    }),
+    yargs
+      .positional("url", {
+        describe: "dax auth provider",
+        type: "string",
+      })
+      .option("oauth-creds", {
+        describe: "Path to OAuth credentials file (for Google Gemini)",
+        type: "string",
+      }),
   async handler(args) {
+    if (args.oauthCreds) {
+      const creds = await Bun.file(args.oauthCreds)
+        .json()
+        .catch(() => undefined)
+      if (!creds) {
+        throw new Error("Invalid OAuth credentials file")
+      }
+      const { client_id, client_secret } = (creds.installed ?? creds.web) ?? {}
+      if (!client_id || !client_secret) {
+        throw new Error("Missing client_id or client_secret in credentials file")
+      }
+      await Auth.set("google", {
+        type: "oauth-custom",
+        clientID: client_id,
+        clientSecret: client_secret,
+      })
+      prompts.log.success("Google OAuth credentials saved")
+      prompts.outro("You can now log in with `dax auth login` and select Google")
+      return
+    }
     await Instance.provide({
       directory: process.cwd(),
       async fn() {
