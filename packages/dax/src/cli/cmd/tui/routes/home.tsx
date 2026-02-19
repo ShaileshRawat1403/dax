@@ -14,17 +14,22 @@ import { Installation } from "@/installation"
 import { useKV } from "../context/kv"
 import { useCommandDialog } from "../component/dialog-command"
 import { useTerminalDimensions } from "@opentui/solid"
-
-const STAGES = ["Explore", "Think", "Plan", "Execute", "Verify", "Done"]
-const STAGES_ELI12 = ["Explore", "Think", "Plan", "Do", "Check", "Done"]
+import { HOME_STAGE, HOME_STAGE_ELI12 } from "@/dax/workflow/stage"
+import { isEli12Mode, nextIntentMode } from "@/dax/intent"
+import { DAX_BRAND } from "@/dax/brand"
+import { DAX_SETTING } from "@/dax/settings"
 
 const WELCOME_MESSAGES = {
   firstTime: [
-    "Welcome to DAX! Type anything to get started",
-    "Ready to code with confidence",
-    "Your AI coding partner awaits",
+    "Welcome to DAX. Bring an idea, and we will turn it into real execution.",
+    "You are one prompt away from a working plan and verified progress.",
+    "Start in plain language. DAX handles the execution flow with you.",
   ],
-  returning: ["Welcome back! Ready to continue?", "Good to see you again", "Let's build something great"],
+  returning: [
+    "Welcome back. Let us pick up momentum and ship the next improvement.",
+    "You are back in DAX. Continue from context and execute with confidence.",
+    "Good to see you again. Let us turn today’s intent into outcomes.",
+  ],
 }
 
 let once = false
@@ -40,7 +45,7 @@ function AnimatedHeader(props: { theme: any }) {
     onCleanup(() => clearInterval(timer))
   })
 
-  const letters = ["D", "A", "X"]
+  const letters = DAX_BRAND.name.toUpperCase().slice(0, 3).split("")
 
   const letterColor = (index: number) => {
     const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
@@ -67,7 +72,17 @@ function AnimatedHeader(props: { theme: any }) {
         </For>
       </box>
       <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
-        Code with confidence
+        {DAX_BRAND.category}
+      </text>
+    </box>
+  )
+}
+
+function ActionChip(props: { label: string; active?: boolean; onPress: () => void; theme: any }) {
+  return (
+    <box onMouseUp={props.onPress}>
+      <text fg={props.active ? props.theme.primary : props.theme.textMuted}>
+        [{props.label}]
       </text>
     </box>
   )
@@ -96,8 +111,8 @@ export function Home() {
     if (isFirstTimeUser()) return false
     return !tipsHidden()
   })
-  const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
-  const stages = createMemo(() => (explainMode() ? STAGES_ELI12 : STAGES))
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const stages = createMemo(() => (explainMode() ? HOME_STAGE_ELI12 : HOME_STAGE))
 
   command.register(() => [
     {
@@ -115,7 +130,7 @@ export function Home() {
       value: "eli12.toggle",
       category: "System",
       onSelect: (dialog) => {
-        kv.set("explain_mode", explainMode() ? "normal" : "eli12")
+        kv.set(DAX_SETTING.explain_mode, nextIntentMode(kv.get(DAX_SETTING.explain_mode, "normal")))
         dialog.clear()
       },
     },
@@ -183,6 +198,7 @@ export function Home() {
   const small = createMemo(() => size() === "small")
   const showInput = createMemo(() => height() >= 14)
   const showStages = createMemo(() => height() >= 18)
+  const showActions = createMemo(() => height() >= 16)
 
   const bg = createMemo(() => theme.background)
   const inputBg = createMemo(() => tint(bg(), theme.primary, 0.06))
@@ -212,6 +228,30 @@ export function Home() {
 
             <Show when={showStages()}>
               <StageIndicator stages={stages()} current={0} theme={theme} />
+            </Show>
+
+            <Show when={!tiny() && showActions()}>
+              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap">
+                <ActionChip label="new" theme={theme} onPress={() => command.trigger("session.new")} />
+                <ActionChip
+                  label={`eli12:${explainMode() ? "on" : "off"}`}
+                  active={explainMode()}
+                  theme={theme}
+                  onPress={() => command.trigger("eli12.toggle")}
+                />
+                <ActionChip
+                  label={`tips:${showTips() ? "on" : "off"}`}
+                  active={showTips()}
+                  theme={theme}
+                  onPress={() => command.trigger("tips.toggle")}
+                />
+                <ActionChip label="theme-" theme={theme} onPress={() => command.trigger("theme.previous")} />
+                <ActionChip label="theme+" theme={theme} onPress={() => command.trigger("theme.next")} />
+                <ActionChip label="env" theme={theme} onPress={() => command.trigger("env.doctor")} />
+                <ActionChip label="policy" theme={theme} onPress={() => command.trigger("policy.profile.toggle")} />
+                <ActionChip label="status" theme={theme} onPress={() => command.trigger("dax.status")} />
+                <ActionChip label="connect" theme={theme} onPress={() => command.trigger("provider.connect")} />
+              </box>
             </Show>
 
             <box width="100%" backgroundColor={inputBg()} padding={tiny() ? 0 : 1}>
@@ -268,7 +308,7 @@ export function Home() {
   )
 }
 
-function StageIndicator(props: { stages: string[]; current: number; theme: any }) {
+function StageIndicator(props: { stages: readonly string[]; current: number; theme: any }) {
   const activeColor = () => props.theme.accent
   const doneColor = () => props.theme.success
   const pendingColor = () => props.theme.textMuted

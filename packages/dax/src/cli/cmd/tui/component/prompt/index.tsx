@@ -32,6 +32,8 @@ import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
+import { isEli12Mode } from "@/dax/intent"
+import { DAX_SETTING } from "@/dax/settings"
 
 export type PromptProps = {
   sessionID?: string
@@ -54,9 +56,9 @@ export type PromptRef = {
 }
 
 const PLACEHOLDERS = [
-  "Outline a plan for this project in plain language",
-  "Explain this codebase so a non-developer can understand",
-  "Help me safely make one change and verify it",
+  "Turn this idea into a step-by-step execution plan in plain language",
+  "Help me ship one meaningful improvement safely",
+  "Guide me from messy context to a clear next action",
 ]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
@@ -143,10 +145,10 @@ export function Prompt(props: PromptProps) {
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const kv = useKV()
-  const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
 
   const setExplainMode = (enabled: boolean) => {
-    kv.set("explain_mode", enabled ? "eli12" : "normal")
+    kv.set(DAX_SETTING.explain_mode, enabled ? "eli12" : "normal")
     toast.show({
       variant: "info",
       message: enabled ? "ELI12 enabled: plain-language explanations on" : "ELI12 disabled: normal explanations on",
@@ -987,7 +989,7 @@ export function Prompt(props: PromptProps) {
                   ? undefined
                   : explainMode()
                     ? ELI12_PLACEHOLDER
-                    : `Describe your goal... "${PLACEHOLDERS[store.placeholder]}"`
+                    : `What do you want to build today? "${PLACEHOLDERS[store.placeholder]}"`
               }
               textColor={keybind.leader ? theme.textMuted : theme.text}
               focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
@@ -1164,10 +1166,10 @@ export function Prompt(props: PromptProps) {
               cursorColor={theme.text}
               syntaxStyle={syntax()}
             />
-            <Show when={showInputHint()}>
-              <text fg={animColor()}>{animFrame()}</text>
-            </Show>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
+              <Show when={showInputHint()}>
+                <text fg={animColor()}>{animFrame()}</text>
+              </Show>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
               </text>
