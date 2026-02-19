@@ -916,13 +916,17 @@ export function Prompt(props: PromptProps) {
   })
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
-  const HOME_CUE_FRAMES = ["◜", "◠", "◝", "◞", "◡", "◟"]
+  const HOME_CUE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
   const [homeCueTick, setHomeCueTick] = createSignal(0)
   onMount(() => {
     const timer = setInterval(() => setHomeCueTick((n) => (n + 1) % HOME_CUE_FRAMES.length), 110)
     onCleanup(() => clearInterval(timer))
   })
   const homeCue = createMemo(() => HOME_CUE_FRAMES[homeCueTick()] ?? "◜")
+  const homeCueColor = createMemo(() => {
+    const palette = [theme.primary, theme.accent, theme.secondary, theme.success]
+    return palette[homeCueTick() % palette.length] ?? theme.primary
+  })
 
   return (
     <>
@@ -956,26 +960,30 @@ export function Prompt(props: PromptProps) {
             backgroundColor={theme.backgroundElement}
             flexGrow={1}
           >
-            <textarea
-              placeholder={
-                props.sessionID
-                  ? ""
-                  : explainMode()
-                    ? ELI12_PLACEHOLDER
-                    : `${showInputHint() ? `${homeCue()} ` : ""}State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
-              }
-              textColor={keybind.leader ? theme.textMuted : theme.text}
-              focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
-              minHeight={1}
-              maxHeight={6}
-              onContentChange={() => {
-                const value = input.plainText
-                setStore("prompt", "input", value)
-                autocomplete.onInput(value)
-                syncExtmarksWithPromptParts()
-              }}
-              keyBindings={textareaKeybindings()}
-              onKeyDown={async (e) => {
+            <box flexDirection="row" gap={1} alignItems="flex-start">
+              <Show when={showInputHint()}>
+                <text fg={homeCueColor()}>{homeCue()}</text>
+              </Show>
+              <textarea
+                placeholder={
+                  props.sessionID
+                    ? ""
+                    : explainMode()
+                      ? ELI12_PLACEHOLDER
+                      : `State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
+                }
+                textColor={keybind.leader ? theme.textMuted : theme.text}
+                focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
+                minHeight={1}
+                maxHeight={6}
+                onContentChange={() => {
+                  const value = input.plainText
+                  setStore("prompt", "input", value)
+                  autocomplete.onInput(value)
+                  syncExtmarksWithPromptParts()
+                }}
+                keyBindings={textareaKeybindings()}
+                onKeyDown={async (e) => {
                 if (props.disabled) {
                   e.preventDefault()
                   return
@@ -1052,9 +1060,9 @@ export function Prompt(props: PromptProps) {
                   if (keybind.match("history_next", e) && input.visualCursor.visualRow === input.height - 1)
                     input.cursorOffset = input.plainText.length
                 }
-              }}
-              onSubmit={submit}
-              onPaste={async (event: PasteEvent) => {
+                }}
+                onSubmit={submit}
+                onPaste={async (event: PasteEvent) => {
                 if (props.disabled) {
                   event.preventDefault()
                   return
@@ -1121,8 +1129,8 @@ export function Prompt(props: PromptProps) {
                   input.getLayoutNode().markDirty()
                   renderer.requestRender()
                 }, 0)
-              }}
-              ref={(r: TextareaRenderable) => {
+                }}
+                ref={(r: TextareaRenderable) => {
                 input = r
                 if (promptPartTypeId === 0) {
                   promptPartTypeId = input.extmarks.registerType("prompt-part")
@@ -1133,12 +1141,13 @@ export function Prompt(props: PromptProps) {
                   if (!input || input.isDestroyed) return
                   input.cursorColor = theme.text
                 }, 0)
-              }}
-              onMouseDown={(r: MouseEvent) => r.target?.focus()}
-              focusedBackgroundColor={theme.backgroundElement}
-              cursorColor={theme.text}
-              syntaxStyle={syntax()}
-            />
+                }}
+                onMouseDown={(r: MouseEvent) => r.target?.focus()}
+                focusedBackgroundColor={theme.backgroundElement}
+                cursorColor={theme.text}
+                syntaxStyle={syntax()}
+              />
+            </box>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
