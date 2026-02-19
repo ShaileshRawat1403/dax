@@ -56,9 +56,9 @@ export type PromptRef = {
 }
 
 const PLACEHOLDERS = [
-  "Turn this idea into a step-by-step execution plan in plain language",
-  "Help me ship one meaningful improvement safely",
-  "Guide me from messy context to a clear next action",
+  "Plan this project in plain language",
+  "Ship one safe improvement",
+  "Find the best next step",
 ]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
@@ -918,7 +918,6 @@ export function Prompt(props: PromptProps) {
   })
 
   const BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-  const GRADIENT_COLORS = () => [theme.primary, theme.accent, theme.secondary, theme.success]
 
   const [animTick, setAnimTick] = createSignal(0)
   onMount(() => {
@@ -927,7 +926,6 @@ export function Prompt(props: PromptProps) {
   })
 
   const animFrame = () => BRAILLE_FRAMES[animTick()]
-  const animColor = () => GRADIENT_COLORS()[animTick() % GRADIENT_COLORS().length]
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
 
@@ -989,7 +987,7 @@ export function Prompt(props: PromptProps) {
                   ? undefined
                   : explainMode()
                     ? ELI12_PLACEHOLDER
-                    : `What do you want to build today? "${PLACEHOLDERS[store.placeholder]}"`
+                    : `${showInputHint() ? animFrame() + " " : ""}Start with one clear goal. "${PLACEHOLDERS[store.placeholder]}"`
               }
               textColor={keybind.leader ? theme.textMuted : theme.text}
               focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
@@ -1167,9 +1165,6 @@ export function Prompt(props: PromptProps) {
               syntaxStyle={syntax()}
             />
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
-              <Show when={showInputHint()}>
-                <text fg={animColor()}>{animFrame()}</text>
-              </Show>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
               </text>

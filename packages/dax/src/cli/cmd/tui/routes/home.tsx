@@ -232,7 +232,6 @@ export function Home() {
 
             <Show when={!tiny() && showActions()}>
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap">
-                <ActionChip label="new" theme={theme} onPress={() => command.trigger("session.new")} />
                 <ActionChip
                   label={`eli12:${explainMode() ? "on" : "off"}`}
                   active={explainMode()}
