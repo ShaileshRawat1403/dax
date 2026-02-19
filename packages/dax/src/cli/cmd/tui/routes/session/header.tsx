@@ -1,22 +1,13 @@
-import { type Accessor, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
 import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
-import type { AssistantMessage, Session } from "@dax-ai/sdk/v2"
+import type { AssistantMessage } from "@dax-ai/sdk/v2"
 import { Installation } from "@/installation"
 import { useTerminalDimensions } from "@opentui/solid"
 import { cpus, freemem, totalmem } from "node:os"
-
-const Title = (props: { session: Accessor<Session> }) => {
-  const { theme } = useTheme()
-  return (
-    <text fg={theme.text} attributes={TextAttributes.BOLD}>
-      {props.session().title}
-    </text>
-  )
-}
 
 export function Header() {
   const route = useRouteData("session")
@@ -82,6 +73,27 @@ export function Header() {
     const tool = parts.find((p) => p.type === "tool" && p.state.status === "pending")
     return tool ? (tool as any).tool : null
   })
+  const liveStage = createMemo(() => {
+    if (!isThinking()) return "Done"
+    const tool = currentTool()
+    if (!tool) return "Thinking"
+    if (["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"].includes(tool)) return "Exploring"
+    if (["task", "todowrite", "question", "skill"].includes(tool)) return "Planning"
+    if (["write", "edit", "apply_patch", "bash"].includes(tool)) return "Executing"
+    return "Thinking"
+  })
+  const sessionIntent = createMemo(() => {
+    const user = messages().find((x) => x.role === "user")
+    if (!user) return session().title
+    const part = (sync.data.part[user.id] ?? []).find((x) => x.type === "text" && "text" in x && x.text.trim())
+    if (!part || !("text" in part)) return session().title
+    const body = part.text.replace(/\s+/g, " ").trim().replace(/[.!?].*$/, "")
+    if (!body) return session().title
+    const text = body[0].toUpperCase() + body.slice(1)
+    if (text.length <= 44) return text
+    return `${text.slice(0, 41)}...`
+  })
+  const title = createMemo(() => `${sessionIntent()} · ${liveStage()}`)
 
   const msgCount = createMemo(() => messages().filter((x) => x.role === "user").length)
 
@@ -112,7 +124,9 @@ export function Header() {
               DAX
             </text>
             <text fg={theme.textMuted}>·</text>
-            <Title session={session} />
+            <text fg={theme.text} attributes={TextAttributes.BOLD}>
+              {title()}
+            </text>
           </box>
 
           <box flexDirection="row" gap={1} alignItems="center" flexShrink={0}>

@@ -148,7 +148,7 @@ Recommended terminal setup:
 
 Suggested fonts:
 
-- `JetBrains Mono`
+- default recommendation: `JetBrains Mono`
 - `Berkeley Mono`
 - `IBM Plex Mono`
 - `Monaspace Argon`

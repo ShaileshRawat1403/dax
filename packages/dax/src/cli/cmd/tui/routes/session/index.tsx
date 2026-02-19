@@ -181,6 +181,7 @@ export function Session() {
   )
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "artifact")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
+  const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
   const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
@@ -227,7 +228,8 @@ export function Session() {
 
     return { stage: "done", reason: "idle" }
   })
-  const STAGE_MIN_DWELL_MS = 800
+  const STAGE_MIN_DWELL_MS = 1200
+  const STREAM_RENDER_CADENCE_MS = 150
   const [displayStageState, setDisplayStageState] = createSignal(stageState())
   const [stageLastChangedAt, setStageLastChangedAt] = createSignal(Date.now())
   createEffect(() => {
@@ -274,6 +276,7 @@ export function Session() {
   })
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
   const [pendingUpdates, setPendingUpdates] = createSignal(0)
+  const [streamParts, setStreamParts] = createSignal<Record<string, Part[]>>({})
 
   const wide = createMemo(() => dimensions().width > 120)
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
@@ -288,19 +291,20 @@ export function Session() {
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 90)
-  const stripCompact = createMemo(() => contentWidth() < 126)
-  const stripTight = createMemo(() => contentWidth() < 146)
+  const stripCompact = createMemo(() => contentWidth() < 112)
+  const stripTight = createMemo(() => contentWidth() < 132)
+  const stripInnerWidth = createMemo(() => Math.max(0, contentWidth() - 2))
   const stripColumns = createMemo(() => {
-    const w = contentWidth()
-    if (w >= 156) return 4
-    if (w >= 106) return 2
+    const w = stripInnerWidth()
+    if (w >= 112) return 4
+    if (w >= 72) return 2
     return 1
   })
+  const stripGap = createMemo(() => (stripColumns() === 1 ? 0 : 1))
   const stripSectionWidth = createMemo(() => {
     const cols = stripColumns()
-    if (cols === 4) return "25%"
-    if (cols === 2) return "50%"
-    return "100%"
+    const inner = Math.max(0, stripInnerWidth() - stripGap() * (cols - 1))
+    return Math.max(22, Math.floor(inner / cols))
   })
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
@@ -324,6 +328,24 @@ export function Session() {
     return `${name.slice(0, 11)}...`
   })
   let lastUpdateKey = ""
+
+  const renderParts = (message: { id: string; role: string; time: { created: number; completed?: number } }) => {
+    const parts = sync.data.part[message.id] ?? []
+    if (!slowStream()) return parts
+    if (message.role !== "assistant") return parts
+    if (message.time.completed) return parts
+    return streamParts()[message.id] ?? []
+  }
+
+  function snapshotStreamParts() {
+    const next: Record<string, Part[]> = {}
+    for (const message of messages()) {
+      if (message.role !== "assistant") continue
+      if (message.time.completed) continue
+      next[message.id] = [...(sync.data.part[message.id] ?? [])]
+    }
+    setStreamParts(next)
+  }
 
   function cycleTheme(step: 1 | -1) {
     const themes = Object.keys(themeState.all()).sort()
@@ -414,13 +436,11 @@ export function Session() {
   const exit = useExit()
 
   createEffect(() => {
-    const title = Locale.truncate(session()?.title ?? "", 50)
     return exit.message.set(
       [
-        ``,
-        `  █▀▀█  ${UI.Style.TEXT_DIM}${title}${UI.Style.TEXT_NORMAL}`,
-        `  █  █  ${UI.Style.TEXT_DIM}dax -s ${session()?.id}${UI.Style.TEXT_NORMAL}`,
-        `  ▀▀▀▀  `,
+        "",
+        `  ${UI.Style.TEXT_NORMAL_BOLD}DAX session closed${UI.Style.TEXT_NORMAL}`,
+        `  ${UI.Style.TEXT_DIM}resume: dax -s ${session()?.id}${UI.Style.TEXT_NORMAL}`,
       ].join("\n"),
     )
   })
@@ -829,6 +849,20 @@ export function Session() {
       enabled: paneFollowMode() === "smart" && !smartFollowActive(),
       onSelect: (dialog) => {
         jumpToLive()
+        dialog.clear()
+      },
+    },
+    {
+      title: slowStream() ? "Stream cadence: Slow (active)" : "Stream cadence: Slow",
+      value: "session.stream.slow.toggle",
+      category: "View",
+      slash: {
+        name: "slowstream",
+      },
+      onSelect: (dialog) => {
+        const next = !slowStream()
+        setSlowStream(() => next)
+        toast.show({ message: `Stream cadence: ${next ? "Slow" : "Live"}`, variant: "success" })
         dialog.clear()
       },
     },
@@ -1345,6 +1379,15 @@ export function Session() {
     }
     lastUpdateKey = key
   })
+  createEffect(() => {
+    if (!slowStream()) {
+      setStreamParts({})
+      return
+    }
+    snapshotStreamParts()
+    const timer = setInterval(snapshotStreamParts, STREAM_RENDER_CADENCE_MS)
+    onCleanup(() => clearInterval(timer))
+  })
 
   return (
     <context.Provider
@@ -1397,14 +1440,15 @@ export function Session() {
               <box
                 flexDirection="row"
                 flexWrap="wrap"
-                gap={0}
+                gap={stripGap()}
                 alignItems="flex-start"
                 width="100%"
                 paddingRight={0}
               >
-                <box width={stripSectionWidth()} paddingRight={stripColumns() === 1 ? 0 : 1}>
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>pane:</text>
+                <box width={stripSectionWidth()} paddingBottom={stripColumns() === 1 ? 0 : 1}>
+                  <box flexDirection="column" gap={0}>
+                    <text fg={theme.textMuted}>pane</text>
+                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <box onMouseUp={() => setPaneVisibility(() => "auto")}>
                       <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
                     </box>
@@ -1414,11 +1458,13 @@ export function Session() {
                     <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
                       <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
                     </box>
+                    </box>
                   </box>
                 </box>
-                <box width={stripSectionWidth()} paddingRight={stripColumns() === 1 ? 0 : 1}>
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>follow:</text>
+                <box width={stripSectionWidth()} paddingBottom={stripColumns() === 1 ? 0 : 1}>
+                  <box flexDirection="column" gap={0}>
+                    <text fg={theme.textMuted}>follow</text>
+                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <box
                       onMouseUp={() => {
                         setPaneFollowMode(() => "smart")
@@ -1442,11 +1488,16 @@ export function Session() {
                         <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
                       </box>
                     </Show>
+                    <box onMouseUp={() => setSlowStream((prev) => !prev)}>
+                      <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
+                    </box>
+                    </box>
                   </box>
                 </box>
-                <box width={stripSectionWidth()} paddingRight={stripColumns() === 1 ? 0 : 1}>
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>mode:</text>
+                <box width={stripSectionWidth()} paddingBottom={stripColumns() === 1 ? 0 : 1}>
+                  <box flexDirection="column" gap={0}>
+                    <text fg={theme.textMuted}>mode</text>
+                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <For each={PANE_MODES}>
                       {(mode) => (
                         <box onMouseUp={() => setPaneMode(() => mode)}>
@@ -1459,23 +1510,25 @@ export function Session() {
                         </box>
                       )}
                     </For>
+                    </box>
                   </box>
                 </box>
-                <box width={stripSectionWidth()} paddingRight={0}>
+                <box width={stripSectionWidth()}>
                   <box
-                    flexDirection="row"
-                    gap={1}
-                    alignItems="center"
-                    flexWrap="wrap"
-                    justifyContent={stripColumns() === 4 ? "flex-end" : "flex-start"}
+                    flexDirection="column"
+                    gap={0}
+                    alignItems="flex-start"
+                    justifyContent="center"
                   >
-                    <text fg={theme.textMuted}>theme:</text>
-                    <box onMouseUp={() => cycleTheme(-1)}>
-                      <text fg={theme.textMuted}>[theme-]</text>
-                    </box>
-                    <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                    <box onMouseUp={() => cycleTheme(1)}>
-                      <text fg={theme.textMuted}>[theme+]</text>
+                    <text fg={theme.textMuted}>theme</text>
+                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                      <box onMouseUp={() => cycleTheme(-1)}>
+                        <text fg={theme.textMuted}>[theme-]</text>
+                      </box>
+                      <text fg={theme.primary}>[{selectedThemeShort()}]</text>
+                      <box onMouseUp={() => cycleTheme(1)}>
+                        <text fg={theme.textMuted}>[theme+]</text>
+                      </box>
                     </box>
                   </box>
                 </box>
@@ -1596,7 +1649,7 @@ export function Session() {
                                   ))
                                 }}
                                 message={message as UserMessage}
-                                parts={sync.data.part[message.id] ?? []}
+                                parts={renderParts(message)}
                                 pending={pending()}
                               />
                             </Match>
@@ -1604,7 +1657,7 @@ export function Session() {
                               <AssistantMessage
                                 last={lastAssistant()?.id === message.id}
                                 message={message as AssistantMessage}
-                                parts={sync.data.part[message.id] ?? []}
+                                parts={renderParts(message)}
                               />
                             </Match>
                           </Switch>
@@ -1856,7 +1909,7 @@ export function Session() {
                               ))
                             }}
                             message={message as UserMessage}
-                            parts={sync.data.part[message.id] ?? []}
+                            parts={renderParts(message)}
                             pending={pending()}
                           />
                         </Match>
@@ -1864,7 +1917,7 @@ export function Session() {
                           <AssistantMessage
                             last={lastAssistant()?.id === message.id}
                             message={message as AssistantMessage}
-                            parts={sync.data.part[message.id] ?? []}
+                            parts={renderParts(message)}
                           />
                         </Match>
                       </Switch>
@@ -2182,7 +2235,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       </Show>
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <box flexDirection="row" gap={1} alignItems="center" marginTop={1} paddingLeft={2} flexWrap="wrap">
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={2} marginBottom={1} paddingLeft={2} flexWrap="wrap">
             <text
               fg={props.message.error?.name === "MessageAbortedError" ? theme.textMuted : local.agent.color(props.message.agent)}
             >

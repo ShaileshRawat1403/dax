@@ -74,7 +74,6 @@ interface PkceCodes {
 let oauthServer: ReturnType<typeof Bun.serve> | undefined
 const oauthCode = new Map<string, string>()
 let oauthRedirectURI: string | undefined
-let oauthCodeLatest: string | undefined
 
 const readCliCreds = async (): Promise<OAuthCreds | undefined> => {
   for (const item of credsPaths()) {
@@ -226,7 +225,6 @@ const startOAuthServer = async () => {
             return new Response("Authorization failed. You can close this tab.", { status: 400 })
           }
           oauthCode.set(state, code)
-          oauthCodeLatest = code
           return new Response("Authorization successful. You can close this tab.", { status: 200 })
         },
       })
@@ -252,17 +250,14 @@ const waitForOAuthCode = (state: string) =>
         resolve(code)
         return
       }
-      if (oauthCodeLatest) {
-        const latest = oauthCodeLatest
-        oauthCodeLatest = undefined
-        oauthCode.clear()
-        clearInterval(timer)
-        resolve(latest)
-        return
-      }
       if (Date.now() < end) return
       clearInterval(timer)
-      reject(new Error("OAuth login timed out"))
+      oauthCode.delete(state)
+      reject(
+        new Error(
+          "OAuth login timed out. Use the latest DAX sign-in link and finish login in that same browser tab.",
+        ),
+      )
     }, 400)
   })
 
@@ -526,7 +521,6 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               GEMINI_CLI_CLIENT_ID
             const redirectURI = await startOAuthServer()
             oauthCode.clear()
-            oauthCodeLatest = undefined
             const state = generateState()
             const pkce = await generatePKCE()
             return {

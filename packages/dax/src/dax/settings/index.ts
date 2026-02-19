@@ -5,4 +5,5 @@ export const DAX_SETTING = {
   session_pane_visibility: "session_pane_visibility",
   session_pane_mode: "session_pane_mode",
   session_pane_follow_mode: "session_pane_follow_mode",
+  session_stream_slow: "session_stream_slow",
 } as const
