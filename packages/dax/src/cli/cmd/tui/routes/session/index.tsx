@@ -1385,77 +1385,72 @@ export function Session() {
               </box>
               <box
                 flexDirection={stripStacked() ? "column" : "row"}
-                gap={stripStacked() ? 0 : 2}
+                gap={stripStacked() ? 1 : 2}
                 alignItems={stripStacked() ? "flex-start" : "center"}
-                justifyContent={stripStacked() ? "flex-start" : "space-between"}
                 width="100%"
                 paddingRight={0}
               >
-                <box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>pane:</text>
-                    <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                      <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
-                    </box>
-                    <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                      <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
-                    </box>
-                    <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                      <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
-                    </box>
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" flexGrow={1}>
+                  <text fg={theme.textMuted}>pane:</text>
+                  <box onMouseUp={() => setPaneVisibility(() => "auto")}>
+                    <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
                   </box>
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>mode:</text>
-                    <For each={PANE_MODES}>
-                      {(mode) => (
-                        <box onMouseUp={() => setPaneMode(() => mode)}>
-                          <text
-                            fg={paneMode() === mode ? theme.accent : theme.textMuted}
-                            attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
-                          >
-                            [{paneLabel(mode)}]
-                          </text>
-                        </box>
-                      )}
-                    </For>
+                  <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
+                    <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
+                  </box>
+                  <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
+                    <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
                   </box>
                 </box>
-                <box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>follow:</text>
-                    <box
-                      onMouseUp={() => {
-                        setPaneFollowMode(() => "smart")
-                        setSmartFollowActive(true)
-                        setPendingUpdates(0)
-                      }}
-                    >
-                      <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
-                    </box>
-                    <box
-                      onMouseUp={() => {
-                        setPaneFollowMode(() => "live")
-                        setSmartFollowActive(true)
-                        setPendingUpdates(0)
-                      }}
-                    >
-                      <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
-                    </box>
-                    <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
-                      <box onMouseUp={jumpToLive}>
-                        <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
-                      </box>
-                    </Show>
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" flexGrow={1}>
+                  <text fg={theme.textMuted}>follow:</text>
+                  <box
+                    onMouseUp={() => {
+                      setPaneFollowMode(() => "smart")
+                      setSmartFollowActive(true)
+                      setPendingUpdates(0)
+                    }}
+                  >
+                    <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
                   </box>
-                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                    <text fg={theme.textMuted}>theme:</text>
-                    <box onMouseUp={() => cycleTheme(-1)}>
-                      <text fg={theme.textMuted}>[theme-]</text>
+                  <box
+                    onMouseUp={() => {
+                      setPaneFollowMode(() => "live")
+                      setSmartFollowActive(true)
+                      setPendingUpdates(0)
+                    }}
+                  >
+                    <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
+                  </box>
+                  <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
+                    <box onMouseUp={jumpToLive}>
+                      <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
                     </box>
-                    <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                    <box onMouseUp={() => cycleTheme(1)}>
-                      <text fg={theme.textMuted}>[theme+]</text>
-                    </box>
+                  </Show>
+                </box>
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" flexGrow={1}>
+                  <text fg={theme.textMuted}>mode:</text>
+                  <For each={PANE_MODES}>
+                    {(mode) => (
+                      <box onMouseUp={() => setPaneMode(() => mode)}>
+                        <text
+                          fg={paneMode() === mode ? theme.accent : theme.textMuted}
+                          attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
+                        >
+                          [{paneLabel(mode)}]
+                        </text>
+                      </box>
+                    )}
+                  </For>
+                </box>
+                <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" flexGrow={1} justifyContent="flex-end">
+                  <text fg={theme.textMuted}>theme:</text>
+                  <box onMouseUp={() => cycleTheme(-1)}>
+                    <text fg={theme.textMuted}>[theme-]</text>
+                  </box>
+                  <text fg={theme.primary}>[{selectedThemeShort()}]</text>
+                  <box onMouseUp={() => cycleTheme(1)}>
+                    <text fg={theme.textMuted}>[theme+]</text>
                   </box>
                 </box>
               </box>
@@ -2122,7 +2117,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </box>
       </Show>
 
-      <box flexDirection="row" gap={1} alignItems="center" marginTop={1} paddingLeft={2}>
+      <box flexDirection="row" gap={1} alignItems="center" marginTop={1} marginBottom={1} paddingLeft={2}>
         <text fg={theme.primary} attributes={TextAttributes.BOLD}>
           DAX
         </text>
@@ -2161,7 +2156,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       </Show>
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <box flexDirection="row" gap={1} alignItems="center" paddingLeft={2} flexWrap="wrap">
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={1} paddingLeft={2} flexWrap="wrap">
             <text
               fg={props.message.error?.name === "MessageAbortedError" ? theme.textMuted : local.agent.color(props.message.agent)}
             >
