@@ -1,10 +1,9 @@
-import { createMemo, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js"
+import { createMemo, Match, Show, Switch } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useSync } from "../../context/sync"
 import { useDirectory } from "../../context/directory"
 import { useRoute } from "../../context/route"
 import { useTerminalDimensions } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
 
 export function Footer() {
   const { theme } = useTheme()
@@ -26,29 +25,11 @@ export function Footer() {
 
   const sessionCount = createMemo(() => sync.data.session.length)
   const mode = createMemo(() => (route.data.type === "session" ? "Execute" : "Launch"))
-  const [pulseTick, setPulseTick] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => setPulseTick((n) => (n + 1) % 4), 260)
-    onCleanup(() => clearInterval(timer))
-  })
-  const pulseColor = createMemo(() => {
-    const n = pulseTick()
-    if (n === 1) return theme.accent
-    if (n === 2) return theme.primary
-    if (n === 3) return theme.success
-    return theme.primary
-  })
-  const pulseBold = createMemo(() => pulseTick() % 2 === 0)
 
   return (
     <box flexDirection="row" justifyContent="space-between" gap={1} flexShrink={0} paddingLeft={1} paddingRight={1}>
       <box flexDirection="row" gap={1}>
-        <text fg={pulseColor()} attributes={pulseBold() ? TextAttributes.BOLD : undefined}>
-          DAX
-        </text>
-        <Show when={!tiny()}>
-          <text fg={theme.textMuted}>{mode()}</text>
-        </Show>
+        <text fg={theme.primary}>{mode()}</text>
         <Show when={!small()}>
           <text fg={theme.textMuted}>{directory()}</text>
         </Show>

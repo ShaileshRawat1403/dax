@@ -927,6 +927,17 @@ export function Prompt(props: PromptProps) {
     const palette = [theme.primary, theme.accent, theme.secondary, theme.success]
     return palette[homeCueTick() % palette.length] ?? theme.primary
   })
+  const STATUS_DAX_FRAMES = ["DAX", "DAX·", "DΛX", "DAX•", "DXA", "DAX"]
+  const [statusTick, setStatusTick] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setStatusTick((n) => (n + 1) % STATUS_DAX_FRAMES.length), 150)
+    onCleanup(() => clearInterval(timer))
+  })
+  const statusDax = createMemo(() => STATUS_DAX_FRAMES[statusTick()] ?? "DAX")
+  const statusDaxColor = createMemo(() => {
+    const palette = [theme.primary, theme.accent, theme.success, theme.warning]
+    return palette[statusTick() % palette.length] ?? theme.primary
+  })
 
   return (
     <>
@@ -1197,7 +1208,9 @@ export function Prompt(props: PromptProps) {
             >
               <box flexShrink={0} flexDirection="row" gap={1}>
                 <box marginLeft={1}>
-                  <text fg={theme.textMuted}>[working]</text>
+                  <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[DAX]</text>}>
+                    <text fg={statusDaxColor()}>[{statusDax()}]</text>
+                  </Show>
                 </box>
                 <box flexDirection="row" gap={1} flexShrink={0}>
                   {(() => {
