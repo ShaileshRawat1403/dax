@@ -274,6 +274,17 @@ export function Session() {
     if (stage === "done") return theme.success
     return theme.accent
   })
+  const streamStatus = createMemo(() => {
+    const pendingID = pending()
+    if (!pendingID) return "idle"
+    const parts = sync.data.part[pendingID] ?? []
+    const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
+    if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} running`
+    const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
+    if (completedTool && completedTool.type === "tool") return `${completedTool.tool} completed`
+    if (parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)) return "reasoning stream active"
+    return "response stream active"
+  })
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
   const [pendingUpdates, setPendingUpdates] = createSignal(0)
   const [streamParts, setStreamParts] = createSignal<Record<string, Part[]>>({})
@@ -1413,6 +1424,7 @@ export function Session() {
             <box
               flexDirection="column"
               gap={0}
+              flexShrink={0}
               alignItems="stretch"
               backgroundColor={theme.backgroundPanel}
               border={["top", "right", "bottom", "left"]}
@@ -1435,7 +1447,11 @@ export function Session() {
                   </text>
                   <text fg={theme.text}>{memoryLabel(explainMode())}</text>
                 </Show>
+              </box>
+              <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
                 <text fg={stageColor()}>{stageLabel()}</text>
+                <text fg={theme.textMuted}>·</text>
+                <text fg={theme.textMuted}>{streamStatus()}</text>
               </box>
               <box
                 flexDirection="row"
@@ -1488,6 +1504,9 @@ export function Session() {
                         <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
                       </box>
                     </Show>
+                    <box onMouseUp={() => setShowDetails((prev) => !prev)}>
+                      <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
+                    </box>
                     <box onMouseUp={() => setSlowStream((prev) => !prev)}>
                       <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
                     </box>
