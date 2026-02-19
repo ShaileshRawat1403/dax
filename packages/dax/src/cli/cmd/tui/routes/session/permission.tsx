@@ -15,8 +15,79 @@ import { Keybind } from "@/util/keybind"
 import { Locale } from "@/util/locale"
 import { Global } from "@/global"
 import { useDialog } from "../../ui/dialog"
+import { analyzePackageInstallCommand, analyzePythonInstallCommand } from "../../util/environment"
+import { useKV } from "../../context/kv"
 
 type PermissionStage = "permission" | "always" | "reject"
+type PermissionRiskLevel = "normal" | "privacy" | "critical"
+type PolicyProfile = "balanced" | "strict"
+
+function classifyPermissionRisk(request: PermissionRequest, input: Record<string, unknown>, profile: PolicyProfile) {
+  const permission = request.permission
+  const sensitivePathPattern =
+    /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|credentials|token|secret|\.npmrc|\.aws/i
+
+  const risk = (level: PermissionRiskLevel, reason: string, suggestion?: string) => ({ level, reason, suggestion })
+  const elevatePrivacy = (reason: string, suggestion?: string) =>
+    risk(profile === "strict" ? "critical" : "privacy", reason, suggestion)
+  const normal = () => risk("normal", "")
+
+  if (permission === "external_directory") {
+    return elevatePrivacy("Outside-project directory access may expose local private files.")
+  }
+
+  if (permission === "webfetch" || permission === "websearch" || permission === "codesearch") {
+    return elevatePrivacy("This may send project context or queries to external services.")
+  }
+
+  if (permission === "doom_loop") {
+    return risk("critical", "Continuing after repeated failures can cause unintended repeated actions.")
+  }
+
+  if (permission === "read") {
+    const filePath = String(input.filePath ?? "")
+    if (sensitivePathPattern.test(filePath)) {
+      return risk("privacy", "Reading this file may expose secrets or credentials.")
+    }
+    return normal()
+  }
+
+  if (permission === "edit") {
+    const filepath = String(request.metadata?.filepath ?? "")
+    if (sensitivePathPattern.test(filepath)) {
+      return risk("critical", "Editing a sensitive file can impact credentials or security settings.")
+    }
+    return normal()
+  }
+
+  if (permission === "bash") {
+    const command = String(input.command ?? "").toLowerCase()
+    const pythonInstall = analyzePythonInstallCommand(command)
+    if (pythonInstall?.kind === "missing-venv") {
+      return risk("critical", pythonInstall.reason, pythonInstall.recommendation)
+    }
+    if (pythonInstall?.kind === "explicit-global") {
+      return elevatePrivacy(pythonInstall.reason)
+    }
+    const packageInstall = analyzePackageInstallCommand(command)
+    if (packageInstall?.kind === "global-install") {
+      return elevatePrivacy(packageInstall.reason, packageInstall.suggestion)
+    }
+    if (
+      /rm\s+-rf|sudo\s+|chmod\s+|chown\s+|dd\s+if=|mkfs|shutdown|reboot|halt|killall|pkill|git\s+push|git\s+reset\s+--hard|curl.+\|\s*(bash|sh)/.test(
+        command,
+      )
+    ) {
+      return risk("critical", "This command can change system state or perform destructive operations.")
+    }
+    if (/printenv|cat\s+.*\.env|gh\s+auth|aws\s+|gcloud\s+|scp\s+|rsync\s+/.test(command)) {
+      return elevatePrivacy("This command may access or transmit credentials or private data.")
+    }
+    return normal()
+  }
+
+  return normal()
+}
 
 function normalizePath(input?: string) {
   if (!input) return ""
@@ -116,9 +187,35 @@ function TextBody(props: { title: string; description?: string; icon?: string })
   )
 }
 
+function RiskCallout(props: {
+  level: PermissionRiskLevel
+  reason: string
+  suggestion?: string
+  profile: PolicyProfile
+}) {
+  const { theme } = useTheme()
+  const label = createMemo(() => (props.level === "critical" ? "Critical action" : "Privacy-sensitive action"))
+  const color = createMemo(() => (props.level === "critical" ? theme.error : theme.warning))
+  return (
+    <Show when={props.level !== "normal"}>
+      <box paddingLeft={1} flexDirection="column" gap={0}>
+        <text fg={color()} attributes={1}>
+          {label()}
+        </text>
+        <text fg={theme.textMuted}>{props.reason}</text>
+        <Show when={props.suggestion}>
+          <text fg={theme.text}>Suggested: {props.suggestion}</text>
+        </Show>
+        <text fg={theme.textMuted}>Policy profile: {props.profile}</text>
+      </box>
+    </Show>
+  )
+}
+
 export function PermissionPrompt(props: { request: PermissionRequest }) {
   const sdk = useSDK()
   const sync = useSync()
+  const kv = useKV()
   const [store, setStore] = createStore({
     stage: "permission" as PermissionStage,
   })
@@ -138,6 +235,9 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
   })
 
   const { theme } = useTheme()
+  const profile = createMemo<PolicyProfile>(() => (kv.get("policy_profile", "balanced") === "strict" ? "strict" : "balanced"))
+  const risk = createMemo(() => classifyPermissionRisk(props.request, input(), profile()))
+  const elevated = createMemo(() => risk().level !== "normal")
 
   return (
     <Switch>
@@ -196,75 +296,93 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
         {(() => {
           const body = (
             <Prompt
-              title="Permission required"
-              body={
-                <Switch>
-                  <Match when={props.request.permission === "edit"}>
-                    <EditBody request={props.request} />
-                  </Match>
-                  <Match when={props.request.permission === "read"}>
-                    <TextBody icon="→" title={`Read ` + normalizePath(input().filePath as string)} />
-                  </Match>
-                  <Match when={props.request.permission === "glob"}>
-                    <TextBody icon="✱" title={`Glob "` + (input().pattern ?? "") + `"`} />
-                  </Match>
-                  <Match when={props.request.permission === "grep"}>
-                    <TextBody icon="✱" title={`Grep "` + (input().pattern ?? "") + `"`} />
-                  </Match>
-                  <Match when={props.request.permission === "list"}>
-                    <TextBody icon="→" title={`List ` + normalizePath(input().path as string)} />
-                  </Match>
-                  <Match when={props.request.permission === "bash"}>
-                    <TextBody
-                      icon="#"
-                      title={(input().description as string) ?? ""}
-                      description={("$ " + input().command) as string}
-                    />
-                  </Match>
-                  <Match when={props.request.permission === "task"}>
-                    <TextBody
-                      icon="#"
-                      title={`${Locale.titlecase((input().subagent_type as string) ?? "Unknown")} Task`}
-                      description={"◉ " + input().description}
-                    />
-                  </Match>
-                  <Match when={props.request.permission === "webfetch"}>
-                    <TextBody icon="%" title={`WebFetch ` + (input().url ?? "")} />
-                  </Match>
-                  <Match when={props.request.permission === "websearch"}>
-                    <TextBody icon="◈" title={`Exa Web Search "` + (input().query ?? "") + `"`} />
-                  </Match>
-                  <Match when={props.request.permission === "codesearch"}>
-                    <TextBody icon="◇" title={`Exa Code Search "` + (input().query ?? "") + `"`} />
-                  </Match>
-                  <Match when={props.request.permission === "external_directory"}>
-                    {(() => {
-                      const meta = props.request.metadata ?? {}
-                      const parent = typeof meta["parentDir"] === "string" ? meta["parentDir"] : undefined
-                      const filepath = typeof meta["filepath"] === "string" ? meta["filepath"] : undefined
-                      const pattern = props.request.patterns?.[0]
-                      const derived =
-                        typeof pattern === "string"
-                          ? pattern.includes("*")
-                            ? path.dirname(pattern)
-                            : pattern
-                          : undefined
-
-                      const raw = parent ?? filepath ?? derived
-                      const dir = normalizePath(raw)
-
-                      return <TextBody icon="←" title={`Access external directory ` + dir} />
-                    })()}
-                  </Match>
-                  <Match when={props.request.permission === "doom_loop"}>
-                    <TextBody icon="⟳" title="Continue after repeated failures" />
-                  </Match>
-                  <Match when={true}>
-                    <TextBody icon="⚙" title={`Call tool ` + props.request.permission} />
-                  </Match>
-                </Switch>
+              title={
+                risk().level === "critical"
+                  ? "Critical approval required"
+                  : risk().level === "privacy"
+                    ? "Privacy approval required"
+                    : "Permission required"
               }
-              options={{ once: "Allow once", always: "Allow always", reject: "Reject" }}
+              body={
+                <box flexDirection="column" gap={1}>
+                  <RiskCallout
+                    level={risk().level}
+                    reason={risk().reason}
+                    suggestion={risk().suggestion}
+                    profile={profile()}
+                  />
+                  <Switch>
+                    <Match when={props.request.permission === "edit"}>
+                      <EditBody request={props.request} />
+                    </Match>
+                    <Match when={props.request.permission === "read"}>
+                      <TextBody icon="→" title={`Read ` + normalizePath(input().filePath as string)} />
+                    </Match>
+                    <Match when={props.request.permission === "glob"}>
+                      <TextBody icon="✱" title={`Glob "` + (input().pattern ?? "") + `"`} />
+                    </Match>
+                    <Match when={props.request.permission === "grep"}>
+                      <TextBody icon="✱" title={`Grep "` + (input().pattern ?? "") + `"`} />
+                    </Match>
+                    <Match when={props.request.permission === "list"}>
+                      <TextBody icon="→" title={`List ` + normalizePath(input().path as string)} />
+                    </Match>
+                    <Match when={props.request.permission === "bash"}>
+                      <TextBody
+                        icon="#"
+                        title={(input().description as string) ?? ""}
+                        description={("$ " + input().command) as string}
+                      />
+                    </Match>
+                    <Match when={props.request.permission === "task"}>
+                      <TextBody
+                        icon="#"
+                        title={`${Locale.titlecase((input().subagent_type as string) ?? "Unknown")} Task`}
+                        description={"◉ " + input().description}
+                      />
+                    </Match>
+                    <Match when={props.request.permission === "webfetch"}>
+                      <TextBody icon="%" title={`WebFetch ` + (input().url ?? "")} />
+                    </Match>
+                    <Match when={props.request.permission === "websearch"}>
+                      <TextBody icon="◈" title={`Exa Web Search "` + (input().query ?? "") + `"`} />
+                    </Match>
+                    <Match when={props.request.permission === "codesearch"}>
+                      <TextBody icon="◇" title={`Exa Code Search "` + (input().query ?? "") + `"`} />
+                    </Match>
+                    <Match when={props.request.permission === "external_directory"}>
+                      {(() => {
+                        const meta = props.request.metadata ?? {}
+                        const parent = typeof meta["parentDir"] === "string" ? meta["parentDir"] : undefined
+                        const filepath = typeof meta["filepath"] === "string" ? meta["filepath"] : undefined
+                        const pattern = props.request.patterns?.[0]
+                        const derived =
+                          typeof pattern === "string"
+                            ? pattern.includes("*")
+                              ? path.dirname(pattern)
+                              : pattern
+                            : undefined
+
+                        const raw = parent ?? filepath ?? derived
+                        const dir = normalizePath(raw)
+
+                        return <TextBody icon="←" title={`Access external directory ` + dir} />
+                      })()}
+                    </Match>
+                    <Match when={props.request.permission === "doom_loop"}>
+                      <TextBody icon="⟳" title="Continue after repeated failures" />
+                    </Match>
+                    <Match when={true}>
+                      <TextBody icon="⚙" title={`Call tool ` + props.request.permission} />
+                    </Match>
+                  </Switch>
+                </box>
+              }
+              options={
+                elevated()
+                  ? { approve: "Approve once", always: "Always allow", reject: "Deny" }
+                  : { once: "Allow once", always: "Allow always", reject: "Reject" }
+              }
               escapeKey="reject"
               fullscreen
               onSelect={(option) => {

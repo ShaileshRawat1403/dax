@@ -36,6 +36,7 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
+import { detectPythonEnvironment, formatEnvironmentDoctorReport } from "./util/environment"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -194,7 +195,8 @@ function App() {
   const command = useCommandDialog()
   const sdk = useSDK()
   const toast = useToast()
-  const { theme, mode, setMode } = useTheme()
+  const themeState = useTheme()
+  const { theme, mode, setMode } = themeState
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
@@ -209,10 +211,6 @@ function App() {
     renderer.clearSelection()
   }
   const [terminalTitleEnabled, setTerminalTitleEnabled] = createSignal(kv.get("terminal_title_enabled", true))
-
-  createEffect(() => {
-    console.log(JSON.stringify(route.data))
-  })
 
   // Update terminal window title based on current route and session
   createEffect(() => {
@@ -311,6 +309,38 @@ function App() {
   )
 
   const connected = useConnected()
+  function cycleTheme(step: 1 | -1) {
+    const themes = Object.keys(themeState.all()).sort()
+    if (!themes.length) return
+    const current = themeState.selected
+    const currentIndex = themes.indexOf(current)
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0
+    const next = themes[(baseIndex + step + themes.length) % themes.length]
+    if (!next) return
+    themeState.set(next)
+    toast.show({ message: `Theme: ${next}`, variant: "success", duration: 1500 })
+  }
+  function setThemeIfAvailable(name: string) {
+    const theme = themeState.all()[name]
+    if (!theme) {
+      toast.show({ message: `Theme not available: ${name}`, variant: "warning", duration: 2000 })
+      return
+    }
+    themeState.set(name)
+    toast.show({ message: `Theme: ${name}`, variant: "success", duration: 1500 })
+  }
+  const policyProfile = () => (kv.get("policy_profile", "balanced") === "strict" ? "strict" : "balanced")
+  function setPolicyProfile(profile: "balanced" | "strict") {
+    kv.set("policy_profile", profile)
+    toast.show({
+      variant: "success",
+      message:
+        profile === "strict"
+          ? "Policy profile: strict (more approvals for sensitive actions)"
+          : "Policy profile: balanced",
+      duration: 2500,
+    })
+  }
   command.register(() => [
     {
       title: "Switch session",
@@ -475,6 +505,49 @@ function App() {
       category: "System",
     },
     {
+      title: "Environment doctor",
+      value: "env.doctor",
+      slash: {
+        name: "env",
+        aliases: ["envdoctor", "doctorenv"],
+      },
+      onSelect: () => {
+        const report = detectPythonEnvironment(process.cwd())
+        DialogAlert.show(dialog, "Environment doctor", formatEnvironmentDoctorReport(report))
+      },
+      category: "System",
+    },
+    {
+      title: `Policy profile: ${policyProfile() === "balanced" ? "Balanced (active)" : "Balanced"}`,
+      value: "policy.profile.balanced",
+      category: "System",
+      onSelect: (dialog) => {
+        setPolicyProfile("balanced")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Policy profile: ${policyProfile() === "strict" ? "Strict (active)" : "Strict"}`,
+      value: "policy.profile.strict",
+      category: "System",
+      onSelect: (dialog) => {
+        setPolicyProfile("strict")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Policy: toggle profile",
+      value: "policy.profile.toggle",
+      slash: {
+        name: "policy",
+      },
+      category: "System",
+      onSelect: (dialog) => {
+        setPolicyProfile(policyProfile() === "strict" ? "balanced" : "strict")
+        dialog.clear()
+      },
+    },
+    {
       title: "Switch theme",
       value: "theme.switch",
       keybind: "theme_list",
@@ -491,6 +564,51 @@ function App() {
         dialog.clear()
       },
       category: "System",
+    },
+    {
+      title: "Theme next",
+      value: "theme.next",
+      category: "System",
+      onSelect: (dialog) => {
+        cycleTheme(1)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Theme previous",
+      value: "theme.previous",
+      category: "System",
+      onSelect: (dialog) => {
+        cycleTheme(-1)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Theme: DAX",
+      value: "theme.set.dax",
+      category: "System",
+      onSelect: (dialog) => {
+        setThemeIfAvailable("dax")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Theme: Neon Void",
+      value: "theme.set.neon",
+      category: "System",
+      onSelect: (dialog) => {
+        setThemeIfAvailable("neon")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Theme: GitHub",
+      value: "theme.set.github",
+      category: "System",
+      onSelect: (dialog) => {
+        setThemeIfAvailable("github")
+        dialog.clear()
+      },
     },
     {
       title: "Help",

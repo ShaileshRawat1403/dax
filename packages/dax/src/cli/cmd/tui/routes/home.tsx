@@ -2,11 +2,10 @@ import { Prompt, type PromptRef } from "@tui/component/prompt"
 import { createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js"
 import { tint, useTheme } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
-import { Logo } from "../component/logo"
 import { Tips } from "../component/tips"
 import { Locale } from "@/util/locale"
 import { useSync } from "../context/sync"
-import { Toast } from "../ui/toast"
+import { Toast, useToast } from "../ui/toast"
 import { useArgs } from "../context/args"
 import { useDirectory } from "../context/directory"
 import { useRouteData } from "@tui/context/route"
@@ -15,16 +14,64 @@ import { Installation } from "@/installation"
 import { useKV } from "../context/kv"
 import { useCommandDialog } from "../component/dialog-command"
 import { useTerminalDimensions } from "@opentui/solid"
-import { cpus, freemem, totalmem } from "node:os"
 
-const STAGES = ["Intent", "Context", "Plan", "RAO Gate", "Execute", "Verify", "Record"]
-const STAGES_ELI12 = ["Understand", "Find", "Think", "Plan", "Safety", "Do", "Check"]
-const HERO = "Governed AI Orchestration"
-const LIVE_FRAMES = ["◎", "◉", "⬤", "◉"]
-const FEED_FRAMES = ["●○○", "○●○", "○○●", "○●○"]
+const STAGES = ["Explore", "Think", "Plan", "Execute", "Verify", "Done"]
+const STAGES_ELI12 = ["Explore", "Think", "Plan", "Do", "Check", "Done"]
 
-// TODO: what is the best way to do this?
+const WELCOME_MESSAGES = {
+  firstTime: [
+    "Welcome to DAX! Type anything to get started",
+    "Ready to code with confidence",
+    "Your AI coding partner awaits",
+  ],
+  returning: ["Welcome back! Ready to continue?", "Good to see you again", "Let's build something great"],
+}
+
 let once = false
+let welcomeShown = false
+
+function AnimatedHeader(props: { theme: any }) {
+  const [tick, setTick] = createSignal(0)
+
+  onMount(() => {
+    const timer = setInterval(() => {
+      setTick((t) => t + 1)
+    }, 80)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const letters = ["D", "A", "X"]
+
+  const letterColor = (index: number) => {
+    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
+    const offset = (tick() + index * 3) % (colors.length * 4)
+    if (offset < colors.length) return colors[offset]
+    return colors[colors.length - 1 - (offset - colors.length)]
+  }
+
+  const letterBlink = (index: number) => {
+    const t = tick()
+    const phase = (t + index * 4) % 8
+    return phase < 2
+  }
+
+  return (
+    <box flexDirection="column" alignItems="center" gap={0}>
+      <box flexDirection="row" alignItems="center" gap={0}>
+        <For each={letters}>
+          {(letter, i) => (
+            <text fg={letterColor(i())} attributes={letterBlink(i()) ? TextAttributes.BOLD : undefined}>
+              {letter}
+            </text>
+          )}
+        </For>
+      </box>
+      <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
+        Code with confidence
+      </text>
+    </box>
+  )
+}
 
 export function Home() {
   const sync = useSync()
@@ -34,16 +81,16 @@ export function Home() {
   const promptRef = usePromptRef()
   const command = useCommandDialog()
   const dimensions = useTerminalDimensions()
+  const toast = useToast()
   const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
-  const mcpError = createMemo(() => {
-    return Object.values(sync.data.mcp).some((x) => x.status === "failed")
-  })
+  const mcpError = createMemo(() => Object.values(sync.data.mcp).some((x) => x.status === "failed"))
 
   const connectedMcpCount = createMemo(() => {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
 
   const isFirstTimeUser = createMemo(() => sync.data.session.length === 0)
+  const sessionCount = createMemo(() => sync.data.session.length)
   const tipsHidden = createMemo(() => kv.get("tips_hidden", true))
   const showTips = createMemo(() => {
     if (isFirstTimeUser()) return false
@@ -51,7 +98,6 @@ export function Home() {
   })
   const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
   const stages = createMemo(() => (explainMode() ? STAGES_ELI12 : STAGES))
-  const showTelemetry = createMemo(() => kv.get("tui.home_telemetry", false))
 
   command.register(() => [
     {
@@ -73,32 +119,22 @@ export function Home() {
         dialog.clear()
       },
     },
-    {
-      title: showTelemetry() ? "Hide system telemetry" : "Show system telemetry",
-      value: "telemetry.toggle",
-      category: "System",
-      onSelect: (dialog) => {
-        kv.set("tui.home_telemetry", !showTelemetry())
-        dialog.clear()
-      },
-    },
   ])
 
   const Hint = (
     <Show when={connectedMcpCount() > 0}>
       <box flexShrink={0} flexDirection="row" gap={1}>
-        <text fg={theme.text}>
+        <box flexDirection="row" gap={1}>
           <Switch>
             <Match when={mcpError()}>
-              <span style={{ fg: theme.error }}>•</span> mcp errors{" "}
-              <span style={{ fg: theme.textMuted }}>ctrl+x s</span>
+              <span style={{ fg: theme.error }}>!</span>
             </Match>
             <Match when={true}>
-              <span style={{ fg: theme.success }}>•</span>{" "}
-              {Locale.pluralize(connectedMcpCount(), "{} mcp server", "{} mcp servers")}
+              <span style={{ fg: theme.success }}>●</span>
             </Match>
           </Switch>
-        </text>
+          <text fg={theme.textMuted}>{Locale.pluralize(connectedMcpCount(), "{} mcp", "{} mcp")}</text>
+        </box>
       </box>
     </Show>
   )
@@ -107,76 +143,49 @@ export function Home() {
   const args = useArgs()
   onMount(() => {
     if (once) return
+    once = true
+
+    if (!welcomeShown) {
+      welcomeShown = true
+      setTimeout(() => {
+        if (isFirstTimeUser()) {
+          const msg = WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)]
+          toast.show({ message: msg, variant: "info", duration: 4000 })
+        } else {
+          const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
+          const sessionInfo = sessionCount() > 0 ? ` (${sessionCount()} sessions)` : ""
+          toast.show({ message: msg + sessionInfo, variant: "success", duration: 3000 })
+        }
+      }, 500)
+    }
+
     if (route.initialPrompt) {
       prompt.set(route.initialPrompt)
-      once = true
     } else if (args.prompt) {
       prompt.set({ input: args.prompt, parts: [] })
-      once = true
       prompt.submit()
     }
   })
   const directory = useDirectory()
 
-  const wide = createMemo(() => dimensions().width >= 112)
-  const compact = createMemo(() => dimensions().width < 92)
-  const minimal = createMemo(() => dimensions().width < 80 || dimensions().height < 28)
-  const shell = createMemo(() => tint(theme.background, theme.text, 0.01))
-  const frame = createMemo(() => tint(theme.background, theme.text, 0.04))
-  const hero = createMemo(() => tint(theme.background, theme.primary, 0.09))
-  const inputPanel = createMemo(() => tint(theme.background, theme.text, 0.03))
-  const livePanel = createMemo(() => tint(theme.background, theme.secondary, 0.12))
-  const [telemetry, setTelemetry] = createSignal({
-    cpu: 0,
-    ram: 0,
-    gpu: 0,
-    ramUsed: 0,
-    ramTotal: 0,
-    tick: 0,
-    gpuLabel: process.platform === "darwin" ? "Unified" : "GPU",
-    gpuText: process.platform === "darwin" ? "" : "n/a",
+  const width = createMemo(() => dimensions().width)
+  const height = createMemo(() => dimensions().height)
+
+  const size = createMemo(() => {
+    const w = width()
+    const h = height()
+    if (w < 50 || h < 16) return "tiny"
+    if (w < 70) return "small"
+    return "medium"
   })
 
-  const cpuSnap = () =>
-    cpus().reduce(
-      (acc, item) => {
-        const total = item.times.user + item.times.nice + item.times.sys + item.times.idle + item.times.irq
-        return { idle: acc.idle + item.times.idle, total: acc.total + total }
-      },
-      { idle: 0, total: 0 },
-    )
+  const tiny = createMemo(() => size() === "tiny")
+  const small = createMemo(() => size() === "small")
+  const showInput = createMemo(() => height() >= 14)
+  const showStages = createMemo(() => height() >= 18)
 
-  const feed = createMemo(() => FEED_FRAMES[telemetry().tick % FEED_FRAMES.length])
-  const live = createMemo(() => LIVE_FRAMES[telemetry().tick % LIVE_FRAMES.length])
-
-  onMount(() => {
-    let prev = cpuSnap()
-    const timer = setInterval(() => {
-      const next = cpuSnap()
-      const totalDiff = next.total - prev.total
-      const idleDiff = next.idle - prev.idle
-      prev = next
-      const cpu = totalDiff > 0 ? Math.max(0, Math.min(100, Math.round((1 - idleDiff / totalDiff) * 100))) : 0
-      const ramTotal = totalmem()
-      const ramUsed = ramTotal - freemem()
-      const ram = ramTotal > 0 ? Math.max(0, Math.min(100, Math.round((ramUsed / ramTotal) * 100))) : 0
-      const gpu = process.platform === "darwin" ? ram : 0
-      setTelemetry((current) => ({
-        ...current,
-        cpu,
-        ram,
-        gpu,
-        ramUsed,
-        ramTotal,
-        gpuText:
-          process.platform === "darwin"
-            ? `${(ramUsed / 1024 / 1024 / 1024).toFixed(1)} / ${(ramTotal / 1024 / 1024 / 1024).toFixed(1)} GB`
-            : "n/a",
-        tick: current.tick + 1,
-      }))
-    }, 1000)
-    onCleanup(() => clearInterval(timer))
-  })
+  const bg = createMemo(() => theme.background)
+  const inputBg = createMemo(() => tint(bg(), theme.primary, 0.06))
 
   return (
     <>
@@ -184,31 +193,28 @@ export function Home() {
         flexGrow={1}
         justifyContent="center"
         alignItems="center"
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={1}
-        gap={1}
-        backgroundColor={shell()}
+        paddingLeft={tiny() ? 0 : 1}
+        paddingRight={tiny() ? 0 : 1}
+        paddingTop={tiny() ? 0 : 1}
+        gap={tiny() ? 0 : 1}
+        backgroundColor={bg()}
       >
-        <box width="100%" maxWidth={96} alignItems="center" gap={1}>
-          <box width="100%" alignItems="center" gap={0}>
-            <box flexDirection="row" gap={2} alignItems="center">
-              <Logo />
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                DAX
-              </text>
+        <Show
+          when={showInput()}
+          fallback={
+            <box padding={1}>
+              <text fg={theme.textMuted}>Terminal too small</text>
             </box>
-            <text fg={theme.textMuted}>{HERO}</text>
-          </box>
-          <box width="100%" maxWidth={88} flexDirection={wide() ? "row" : "column"} gap={1} alignItems="stretch">
-            <box
-              flexGrow={1}
-              backgroundColor={inputPanel()}
-              border={["top", "right", "bottom", "left"]}
-              borderColor={theme.borderSubtle}
-              padding={1}
-              zIndex={1000}
-            >
+          }
+        >
+          <box width="100%" maxWidth={small() ? undefined : 72} alignItems="center" gap={tiny() ? 0 : 1}>
+            <AnimatedHeader theme={theme} />
+
+            <Show when={showStages()}>
+              <StageIndicator stages={stages()} current={0} theme={theme} />
+            </Show>
+
+            <box width="100%" backgroundColor={inputBg()} padding={tiny() ? 0 : 1}>
               <Prompt
                 ref={(r) => {
                   prompt = r
@@ -217,72 +223,85 @@ export function Home() {
                 hint={Hint}
               />
             </box>
-            <Show when={!minimal() && showTelemetry()}>
-              <box
-                width={wide() ? 36 : "100%"}
-                backgroundColor={livePanel()}
-                border={["top", "right", "bottom", "left"]}
-                borderColor={theme.border}
-                paddingLeft={1}
-                paddingRight={1}
-                paddingTop={1}
-                paddingBottom={1}
-                justifyContent="center"
-              >
-                <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-                  Control Telemetry <span style={{ fg: theme.accent }}>{feed()}</span>
-                </text>
-                <text fg={theme.text}>
-                  <span style={{ fg: theme.success }}>{live()}</span>{" "}
-                  <span style={{ fg: theme.primary }}>[CPU {String(telemetry().cpu).padStart(2)}]</span>{" "}
-                  <span style={{ fg: theme.accent }}>[RAM {String(telemetry().ram).padStart(2)}]</span>{" "}
-                  <span style={{ fg: theme.secondary }}>
-                    [{telemetry().gpuLabel.toUpperCase()} {String(telemetry().gpu).padStart(2)}]
-                  </span>{" "}
-                  <span style={{ fg: theme.textMuted }}>
-                    [MEM {(telemetry().ramUsed / 1024 / 1024 / 1024).toFixed(1)}/
-                    {(telemetry().ramTotal / 1024 / 1024 / 1024).toFixed(1)}G]
-                  </span>
-                </text>
+
+            <Show when={!tiny() && showTips()}>
+              <box width="100%" maxWidth={56} alignItems="center">
+                <Tips />
               </box>
             </Show>
           </box>
-          <box flexDirection="row" gap={2} paddingTop={1} alignItems="center" justifyContent="center">
-            <For each={stages()}>
-              {(stage, index) => <text fg={index() === 0 ? theme.primary : theme.textMuted}>{stage}</text>}
-            </For>
-          </box>
-          <Show when={showTips() && !minimal()}>
-            <box height={1} width="100%" maxWidth={76} alignItems="center" paddingTop={1}>
-              <Tips />
-            </box>
-          </Show>
-        </box>
+        </Show>
         <Toast />
       </box>
-      <box paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} flexDirection="row" flexShrink={0} gap={2}>
+
+      <box
+        paddingTop={tiny() ? 0 : 1}
+        paddingBottom={1}
+        paddingLeft={2}
+        paddingRight={2}
+        flexDirection="row"
+        flexShrink={0}
+        gap={2}
+      >
         <text fg={theme.textMuted}>{directory()}</text>
         <box gap={1} flexDirection="row" flexShrink={0}>
           <Show when={mcp()}>
-            <text fg={theme.text}>
+            <box flexDirection="row" gap={1}>
               <Switch>
                 <Match when={mcpError()}>
-                  <span style={{ fg: theme.error }}>⊙ </span>
+                  <span style={{ fg: theme.error }}>!</span>
                 </Match>
                 <Match when={true}>
-                  <span style={{ fg: connectedMcpCount() > 0 ? theme.success : theme.textMuted }}>⊙ </span>
+                  <span style={{ fg: connectedMcpCount() > 0 ? theme.success : theme.textMuted }}>●</span>
                 </Match>
               </Switch>
-              {connectedMcpCount()} MCP
-            </text>
-            <text fg={theme.textMuted}>/status</text>
+              <Show when={!tiny()}>
+                <text fg={theme.textMuted}>{`${connectedMcpCount()} mcp`}</text>
+              </Show>
+            </box>
           </Show>
         </box>
         <box flexGrow={1} />
-        <box flexShrink={0}>
-          <text fg={theme.textMuted}>{Installation.VERSION}</text>
-        </box>
+        <text fg={theme.textMuted}>v{Installation.VERSION}</text>
       </box>
     </>
+  )
+}
+
+function StageIndicator(props: { stages: string[]; current: number; theme: any }) {
+  const activeColor = () => props.theme.accent
+  const doneColor = () => props.theme.success
+  const pendingColor = () => props.theme.textMuted
+
+  return (
+    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="center">
+      <For each={props.stages}>
+        {(stage, index) => {
+          const isActive = () => index() === props.current
+          const isDone = () => index() < props.current
+
+          return (
+            <box flexDirection="row" gap={0} alignItems="center">
+              <text
+                fg={isDone() ? doneColor() : isActive() ? activeColor() : pendingColor()}
+                attributes={isActive() ? TextAttributes.BOLD : undefined}
+              >
+                {isDone() ? "●" : isActive() ? "●" : "○"}
+              </text>
+              <text
+                fg={isActive() ? activeColor() : pendingColor()}
+                attributes={isActive() ? TextAttributes.BOLD : undefined}
+              >
+                {" "}
+                {stage}
+              </text>
+              <Show when={index() !== props.stages.length - 1}>
+                <text fg={pendingColor()}> ·</text>
+              </Show>
+            </box>
+          )
+        }}
+      </For>
+    </box>
   )
 }

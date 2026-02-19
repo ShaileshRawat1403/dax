@@ -915,6 +915,20 @@ export function Prompt(props: PromptProps) {
     return !!current
   })
 
+  const BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+  const GRADIENT_COLORS = () => [theme.primary, theme.accent, theme.secondary, theme.success]
+
+  const [animTick, setAnimTick] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setAnimTick((t) => (t + 1) % BRAILLE_FRAMES.length), 80)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const animFrame = () => BRAILLE_FRAMES[animTick()]
+  const animColor = () => GRADIENT_COLORS()[animTick() % GRADIENT_COLORS().length]
+
+  const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
+
   const spinnerDef = createMemo(() => {
     const color = local.agent.color(local.agent.current().name)
     return {
@@ -958,15 +972,7 @@ export function Prompt(props: PromptProps) {
         promptPartTypeId={() => promptPartTypeId}
       />
       <box ref={(r) => (anchor = r)} visible={props.visible !== false}>
-        <box
-          border={["left"]}
-          borderColor={highlight()}
-          customBorderChars={{
-            ...EmptyBorder,
-            vertical: "┃",
-            bottomLeft: "╹",
-          }}
-        >
+        <box backgroundColor={theme.backgroundElement}>
           <box
             paddingLeft={2}
             paddingRight={2}
@@ -1158,6 +1164,9 @@ export function Prompt(props: PromptProps) {
               cursorColor={theme.text}
               syntaxStyle={syntax()}
             />
+            <Show when={showInputHint()}>
+              <text fg={animColor()}>{animFrame()}</text>
+            </Show>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
@@ -1179,15 +1188,7 @@ export function Prompt(props: PromptProps) {
             </box>
           </box>
         </box>
-        <box
-          height={1}
-          border={["left"]}
-          borderColor={highlight()}
-          customBorderChars={{
-            ...EmptyBorder,
-            vertical: theme.backgroundElement.a !== 0 ? "╹" : " ",
-          }}
-        >
+        <box height={1} backgroundColor={theme.backgroundElement}>
           <box
             height={1}
             border={["bottom"]}

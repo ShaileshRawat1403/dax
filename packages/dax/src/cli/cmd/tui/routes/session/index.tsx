@@ -6,6 +6,7 @@ import {
   createSignal,
   For,
   Match,
+  onCleanup,
   on,
   Show,
   Switch,
@@ -17,7 +18,7 @@ import { useRoute, useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
 import { SplitBorder } from "@tui/component/border"
 import { Spinner } from "@tui/component/spinner"
-import { useTheme } from "@tui/context/theme"
+import { useTheme, tint } from "@tui/context/theme"
 import {
   BoxRenderable,
   ScrollBoxRenderable,
@@ -109,11 +110,32 @@ function use() {
 }
 
 export function Session() {
+  type PaneMode = "artifact" | "diff" | "rao" | "pm"
+  type StreamStage = "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
+  const PANE_MODES = ["artifact", "diff", "rao", "pm"] as const
+  const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
+  const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
+  const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
+  const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
+  const PANE_LABELS_DEFAULT: Record<PaneMode, string> = {
+    artifact: "artifact",
+    diff: "diff",
+    rao: "rao",
+    pm: "pm",
+  }
+  const PANE_LABELS_ELI12: Record<PaneMode, string> = {
+    artifact: "files",
+    diff: "changes",
+    rao: "insights",
+    pm: "memory",
+  }
+
   const route = useRouteData("session")
   const { navigate } = useRoute()
   const sync = useSync()
   const kv = useKV()
-  const { theme, syntax } = useTheme()
+  const themeState = useTheme()
+  const { theme, syntax } = themeState
   const promptRef = usePromptRef()
   const session = createMemo(() => sync.session.get(route.sessionID))
   const children = createMemo(() => {
@@ -154,10 +176,121 @@ export function Session() {
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [paneVisibility, setPaneVisibility] = kv.signal<"auto" | "pinned" | "hidden">("session_pane_visibility", "auto")
-  const [paneMode, setPaneMode] = kv.signal<"artifact" | "diff" | "rao" | "pm">("session_pane_mode", "artifact")
+  const [paneMode, setPaneMode] = kv.signal<PaneMode>("session_pane_mode", "artifact")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<"live" | "smart">("session_pane_follow_mode", "smart")
   const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
+  const paneLabel = (mode: PaneMode) => (explainMode() ? PANE_LABELS_ELI12[mode] : PANE_LABELS_DEFAULT[mode])
+  const paneTitle = (mode: PaneMode) => (explainMode() ? paneLabel(mode) : mode.toUpperCase())
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
+  const stageState = createMemo<{ stage: StreamStage; reason: string }>(() => {
+    if (permissions().length > 0 || questions().length > 0) {
+      return {
+        stage: "waiting",
+        reason: permissions().length > 0 ? "waiting for approval" : "waiting for user input",
+      }
+    }
+
+    if (sessionStatusType() === "retry") {
+      return { stage: "retrying", reason: "recovering from a failed attempt" }
+    }
+
+    const pendingID = pending()
+    if (pendingID) {
+      const parts = sync.data.part[pendingID] ?? []
+      const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
+      const completedExecutionInTurn = parts.some(
+        (part) => part.type === "tool" && part.state.status === "completed" && EXECUTE_TOOLS.has(part.tool),
+      )
+
+      if (pendingTool && pendingTool.type === "tool") {
+        const tool = pendingTool.tool
+        if (PLAN_TOOLS.has(tool)) return { stage: "planning", reason: `${tool} in progress` }
+        if (EXECUTE_TOOLS.has(tool)) return { stage: "executing", reason: `${tool} in progress` }
+        if (VERIFY_TOOLS.has(tool) && completedExecutionInTurn) {
+          return { stage: "verifying", reason: `${tool} after execution` }
+        }
+        if (EXPLORE_TOOLS.has(tool)) return { stage: "exploring", reason: `${tool} in progress` }
+        return { stage: "executing", reason: `${tool} in progress` }
+      }
+
+      const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
+      if (hasReasoning) return { stage: "thinking", reason: "reasoning stream active" }
+      return { stage: "thinking", reason: "response stream active" }
+    }
+
+    if (sessionStatusType() === "busy") {
+      return { stage: "thinking", reason: "session processing" }
+    }
+
+    return { stage: "done", reason: "idle" }
+  })
+  const STAGE_MIN_DWELL_MS = 800
+  const [displayStageState, setDisplayStageState] = createSignal(stageState())
+  const [stageLastChangedAt, setStageLastChangedAt] = createSignal(Date.now())
+  createEffect(() => {
+    const next = stageState()
+    const current = displayStageState()
+
+    if (next.stage === current.stage) {
+      if (next.reason !== current.reason) {
+        setDisplayStageState({ stage: current.stage, reason: next.reason })
+      }
+      return
+    }
+
+    const immediate = next.stage === "waiting" || next.stage === "retrying" || current.stage === "waiting"
+    if (immediate) {
+      setDisplayStageState(next)
+      setStageLastChangedAt(Date.now())
+      return
+    }
+
+    const elapsed = Date.now() - stageLastChangedAt()
+    const remaining = Math.max(0, STAGE_MIN_DWELL_MS - elapsed)
+    if (remaining === 0) {
+      setDisplayStageState(next)
+      setStageLastChangedAt(Date.now())
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setDisplayStageState(stageState())
+      setStageLastChangedAt(Date.now())
+    }, remaining)
+    onCleanup(() => clearTimeout(timer))
+  })
+  const stageLabel = createMemo(() => {
+    const stage = displayStageState().stage
+    const labels = explainMode()
+      ? {
+          exploring: "Explore",
+          thinking: "Think",
+          planning: "Plan",
+          executing: "Do",
+          verifying: "Check",
+          waiting: "Need you",
+          retrying: "Retry",
+          done: "Done",
+        }
+      : {
+          exploring: "Exploring",
+          thinking: "Thinking",
+          planning: "Planning",
+          executing: "Executing",
+          verifying: "Verifying",
+          waiting: "Waiting",
+          retrying: "Retrying",
+          done: "Done",
+        }
+    return labels[stage]
+  })
+  const stageColor = createMemo(() => {
+    const stage = displayStageState().stage
+    if (stage === "waiting") return theme.warning
+    if (stage === "retrying") return theme.error
+    if (stage === "done") return theme.success
+    return theme.accent
+  })
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
   const [pendingUpdates, setPendingUpdates] = createSignal(0)
 
@@ -187,8 +320,27 @@ export function Session() {
     return availableWidth > 120 ? "split" : "unified"
   })
   const followEnabled = createMemo(() => paneFollowMode() === "live" || smartFollowActive())
-  const sessionPartCount = createMemo(() => messages().reduce((acc, msg) => acc + (sync.data.part[msg.id]?.length ?? 0), 0))
+  const sessionPartCount = createMemo(() =>
+    messages().reduce((acc, msg) => acc + (sync.data.part[msg.id]?.length ?? 0), 0),
+  )
+  const selectedTheme = createMemo(() => themeState.selected)
+  const selectedThemeShort = createMemo(() => {
+    const name = selectedTheme()
+    if (name.length <= 14) return name
+    return `${name.slice(0, 11)}...`
+  })
   let lastUpdateKey = ""
+
+  function cycleTheme(step: 1 | -1) {
+    const themes = Object.keys(themeState.all()).sort()
+    if (!themes.length) return
+    const current = themeState.selected
+    const currentIndex = themes.indexOf(current)
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0
+    const next = themes[(baseIndex + step + themes.length) % themes.length]
+    if (!next) return
+    themeState.set(next)
+  }
 
   function pauseSmartFollow() {
     if (paneFollowMode() !== "smart") return
@@ -593,46 +745,46 @@ export function Session() {
       },
     },
     {
-      title: `Pane mode: Artifact${paneMode() === "artifact" ? " (active)" : ""}`,
+      title: `Pane mode: ${paneLabel("artifact")}${paneMode() === "artifact" ? " (active)" : ""}`,
       value: "session.pane.mode.artifact",
       category: "View",
       onSelect: (dialog) => {
         setPaneMode(() => "artifact")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
-        toast.show({ message: "Pane mode: Artifact", variant: "success" })
+        toast.show({ message: `Pane mode: ${paneLabel("artifact")}`, variant: "success" })
         dialog.clear()
       },
     },
     {
-      title: `Pane mode: Diff${paneMode() === "diff" ? " (active)" : ""}`,
+      title: `Pane mode: ${paneLabel("diff")}${paneMode() === "diff" ? " (active)" : ""}`,
       value: "session.pane.mode.diff",
       category: "View",
       onSelect: (dialog) => {
         setPaneMode(() => "diff")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
-        toast.show({ message: "Pane mode: Diff", variant: "success" })
+        toast.show({ message: `Pane mode: ${paneLabel("diff")}`, variant: "success" })
         dialog.clear()
       },
     },
     {
-      title: `Pane mode: RAO${paneMode() === "rao" ? " (active)" : ""}`,
+      title: `Pane mode: ${paneLabel("rao")}${paneMode() === "rao" ? " (active)" : ""}`,
       value: "session.pane.mode.rao",
       category: "View",
       onSelect: (dialog) => {
         setPaneMode(() => "rao")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
-        toast.show({ message: "Pane mode: RAO", variant: "success" })
+        toast.show({ message: `Pane mode: ${paneLabel("rao")}`, variant: "success" })
         dialog.clear()
       },
     },
     {
-      title: `Pane mode: PM${paneMode() === "pm" ? " (active)" : ""}`,
+      title: `Pane mode: ${paneLabel("pm")}${paneMode() === "pm" ? " (active)" : ""}`,
       value: "session.pane.mode.pm",
       category: "View",
       onSelect: (dialog) => {
         setPaneMode(() => "pm")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
-        toast.show({ message: "Pane mode: PM", variant: "success" })
+        toast.show({ message: `Pane mode: ${paneLabel("pm")}`, variant: "success" })
         dialog.clear()
       },
     },
@@ -1105,11 +1257,14 @@ export function Session() {
 
   // snap to bottom when session changes
   createEffect(
-    on(() => route.sessionID, () => {
-      setSmartFollowActive(true)
-      setPendingUpdates(0)
-      toBottom()
-    }),
+    on(
+      () => route.sessionID,
+      () => {
+        setSmartFollowActive(true)
+        setPendingUpdates(0)
+        toBottom()
+      },
+    ),
   )
   createEffect(() => {
     if (paneFollowMode() === "live") {
@@ -1164,9 +1319,10 @@ export function Session() {
                 </text>
                 <text fg={theme.textMuted}>workspace</text>
                 <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
-                  RAO {permissions().length + questions().length}
+                  {`${explainMode() ? "Insights" : "RAO"} ${permissions().length + questions().length}`}
                 </text>
-                <text fg={theme.text}>PM</text>
+                <text fg={theme.text}>{explainMode() ? "Memory" : "PM"}</text>
+                <text fg={stageColor()}>{stageLabel()}</text>
                 <text fg={theme.textMuted}>pane</text>
               </box>
               <box
@@ -1189,14 +1345,14 @@ export function Session() {
                 </box>
                 <box flexDirection="row" gap={1} alignItems="center">
                   <text fg={theme.textMuted}>mode:</text>
-                  <For each={["artifact", "diff", "rao", "pm"] as const}>
+                  <For each={PANE_MODES}>
                     {(mode) => (
                       <box onMouseUp={() => setPaneMode(() => mode)}>
                         <text
                           fg={paneMode() === mode ? theme.accent : theme.textMuted}
                           attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
                         >
-                          [{mode}]
+                          [{paneLabel(mode)}]
                         </text>
                       </box>
                     )}
@@ -1227,6 +1383,16 @@ export function Session() {
                       <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
                     </box>
                   </Show>
+                </box>
+                <box flexDirection="row" gap={1} alignItems="center">
+                  <text fg={theme.textMuted}>theme:</text>
+                  <box onMouseUp={() => cycleTheme(-1)}>
+                    <text fg={theme.textMuted}>[theme-]</text>
+                  </box>
+                  <text fg={theme.primary}>[{selectedThemeShort()}]</text>
+                  <box onMouseUp={() => cycleTheme(1)}>
+                    <text fg={theme.textMuted}>[theme+]</text>
+                  </box>
                 </box>
               </box>
             </box>
@@ -1364,16 +1530,64 @@ export function Session() {
                   <box
                     width={liveStacked() ? "100%" : livePaneWidth()}
                     flexGrow={liveStacked() ? 0 : 1}
-                    padding={2}
+                    padding={1}
                     gap={1}
                     backgroundColor={theme.backgroundPanel}
                   >
-                    <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                      DAX PANE · {activePaneMode().toUpperCase()}
-                    </text>
-                    <text fg={theme.textMuted}>
-                      RAO {permissions().length + questions().length} · Session {sessionStatusType()}
-                    </text>
+                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                      <For each={["auto", "pin", "hide"] as const}>
+                        {(mode) => (
+                          <box
+                            onMouseUp={() => {
+                              if (mode === "auto") setPaneVisibility(() => "auto")
+                              if (mode === "pin") setPaneVisibility(() => "pinned")
+                              if (mode === "hide") setPaneVisibility(() => "hidden")
+                            }}
+                            backgroundColor={
+                              (mode === "auto" && paneVisibility() === "auto") ||
+                              (mode === "pin" && paneVisibility() === "pinned") ||
+                              (mode === "hide" && paneVisibility() === "hidden")
+                                ? theme.backgroundElement
+                                : undefined
+                            }
+                          >
+                            <text
+                              fg={
+                                (mode === "auto" && paneVisibility() === "auto") ||
+                                (mode === "pin" && paneVisibility() === "pinned") ||
+                                (mode === "hide" && paneVisibility() === "hidden")
+                                  ? theme.primary
+                                  : theme.textMuted
+                              }
+                            >
+                              [{mode}]
+                            </text>
+                          </box>
+                        )}
+                      </For>
+                      <For each={PANE_MODES}>
+                        {(mode) => (
+                          <box
+                            onMouseUp={() => {
+                              setPaneMode(() => mode)
+                              if (paneVisibility() === "hidden") {
+                                setPaneVisibility(() => "pinned")
+                              }
+                            }}
+                            backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
+                          >
+                            <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>[{paneLabel(mode)}]</text>
+                          </box>
+                        )}
+                      </For>
+                      <text fg={theme.textMuted}>·</text>
+                      <text fg={theme.textMuted}>
+                        {`${explainMode() ? "Insights" : "RAO"} ${permissions().length + questions().length}`}
+                      </text>
+                      <text fg={theme.textMuted}>·</text>
+                      <text fg={stageColor()}>{stageLabel()}</text>
+                      <text fg={theme.textMuted}>({displayStageState().reason})</text>
+                    </box>
                     <Switch>
                       <Match when={activePaneMode() === "artifact"}>
                         <text fg={theme.primary}>{liveArtifact().title}</text>
@@ -1662,13 +1876,7 @@ function UserMessage(props: {
   return (
     <>
       <Show when={text()}>
-        <box
-          id={props.message.id}
-          border={["left"]}
-          borderColor={color()}
-          customBorderChars={SplitBorder.customBorderChars}
-          marginTop={props.index === 0 ? 0 : 1}
-        >
+        <box id={props.message.id} marginTop={props.index === 0 ? 0 : 1}>
           <box
             onMouseOver={() => {
               setHover(true)
@@ -1680,12 +1888,26 @@ function UserMessage(props: {
             paddingTop={1}
             paddingBottom={1}
             paddingLeft={2}
+            paddingRight={2}
             backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
             flexShrink={0}
           >
+            <box flexDirection="row" gap={1} marginBottom={1}>
+              <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                You
+              </text>
+              <Show when={ctx.showTimestamps()}>
+                <text fg={theme.textMuted}>{Locale.todayTimeOrDateTime(props.message.time.created)}</text>
+              </Show>
+              <Show when={queued()}>
+                <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                  QUEUED
+                </text>
+              </Show>
+            </box>
             <text fg={theme.text}>{text()?.text}</text>
             <Show when={files().length}>
-              <box flexDirection="row" paddingBottom={metadataVisible() ? 1 : 0} paddingTop={1} gap={1} flexWrap="wrap">
+              <box flexDirection="row" paddingTop={1} gap={1} flexWrap="wrap">
                 <For each={files()}>
                   {(file) => {
                     const bg = createMemo(() => {
@@ -1702,22 +1924,6 @@ function UserMessage(props: {
                   }}
                 </For>
               </box>
-            </Show>
-            <Show
-              when={queued()}
-              fallback={
-                <Show when={ctx.showTimestamps()}>
-                  <text fg={theme.textMuted}>
-                    <span style={{ fg: theme.textMuted }}>
-                      {Locale.todayTimeOrDateTime(props.message.time.created)}
-                    </span>
-                  </text>
-                </Show>
-              }
-            >
-              <text fg={theme.textMuted}>
-                <span style={{ bg: theme.accent, fg: theme.backgroundPanel, bold: true }}> QUEUED </span>
-              </text>
             </Show>
           </box>
         </box>
@@ -1825,38 +2031,43 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     <>
       <Show when={showSummary()}>
         <box
-          border={["left"]}
           paddingTop={1}
           paddingBottom={1}
           paddingLeft={2}
+          paddingRight={2}
           marginTop={1}
           backgroundColor={theme.backgroundPanel}
-          customBorderChars={SplitBorder.customBorderChars}
-          borderColor={theme.accent}
         >
           <box flexDirection="column" gap={0}>
             <text fg={theme.text}>
               <span style={{ fg: theme.accent, bold: true }}>ELI12</span> summary
             </text>
             <text fg={theme.text}>
-              <span style={{ fg: theme.textMuted }}>What asked: </span>
+              <span style={{ fg: theme.textMuted }}>Asked: </span>
               {asked()}
             </text>
             <text fg={theme.text}>
-              <span style={{ fg: theme.textMuted }}>What doing: </span>
+              <span style={{ fg: theme.textMuted }}>Doing: </span>
               {doing()}
             </text>
             <text fg={theme.text}>
               <span style={{ fg: theme.textMuted }}>Next: </span>
               {next()}
             </text>
-            <text fg={theme.text}>
-              <span style={{ fg: theme.textMuted }}>Choice: </span>
-              {choice()}
-            </text>
           </box>
         </box>
       </Show>
+
+      <box flexDirection="row" gap={1} alignItems="center" marginTop={1} paddingLeft={2}>
+        <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+          DAX
+        </text>
+        <text fg={theme.textMuted}>·</text>
+        <text fg={theme.textMuted}>{Locale.titlecase(props.message.mode)}</text>
+        <text fg={theme.textMuted}>·</text>
+        <text fg={theme.textMuted}>{props.message.modelID}</text>
+      </box>
+
       <For each={props.parts}>
         {(part, index) => {
           const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -1874,53 +2085,43 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       </For>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         <box
-          border={["left"]}
           paddingTop={1}
           paddingBottom={1}
           paddingLeft={2}
+          paddingRight={2}
           marginTop={1}
-          backgroundColor={theme.backgroundPanel}
-          customBorderChars={SplitBorder.customBorderChars}
-          borderColor={theme.error}
+          backgroundColor={tint(theme.background, theme.error, 0.15)}
         >
-          <text fg={theme.textMuted}>{props.message.error?.data.message}</text>
+          <text fg={theme.error}>{props.message.error?.data.message}</text>
         </box>
       </Show>
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <box paddingLeft={3}>
-            <text marginTop={1}>
-              <span
-                style={{
-                  fg:
-                    props.message.error?.name === "MessageAbortedError"
-                      ? theme.textMuted
-                      : local.agent.color(props.message.agent),
-                }}
-              >
-                ▣{" "}
-              </span>{" "}
-              <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
-              <span style={{ fg: theme.textMuted }}> · {props.message.modelID}</span>
-              <Show when={duration()}>
-                <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
-              </Show>
-              <Show when={(props.message.tokens?.output ?? 0) > 0}>
-                <span style={{ fg: theme.textMuted }}> · {props.message.tokens!.output.toLocaleString()} gen tok</span>
-              </Show>
-              <Show when={duration() && tokensPerSecond() > 0}>
-                <span style={{ fg: theme.textMuted }}> · {tokensPerSecond().toFixed(1)} tok/s</span>
-              </Show>
-              <Show when={duration() && generatedTokens() > 0}>
-                <span style={{ fg: theme.textMuted }}> · gen {generatedTokens().toLocaleString()} tok</span>
-              </Show>
-              <Show when={duration() && tokensPerSecond() > 0}>
-                <span style={{ fg: theme.textMuted }}> · {tokensPerSecond().toFixed(1)} tok/s</span>
-              </Show>
-              <Show when={props.message.error?.name === "MessageAbortedError"}>
-                <span style={{ fg: theme.textMuted }}> · interrupted</span>
-              </Show>
+          <box flexDirection="row" gap={1} alignItems="center" paddingLeft={2} flexWrap="wrap">
+            <text
+              fg={props.message.error?.name === "MessageAbortedError" ? theme.textMuted : local.agent.color(props.message.agent)}
+            >
+              {props.last && !props.message.time.completed ? "◉" : "●"}
             </text>
+            <text fg={theme.text}>{Locale.titlecase(props.message.mode)}</text>
+            <text fg={theme.textMuted}>·</text>
+            <text fg={theme.textMuted}>{props.message.modelID}</text>
+            <Show when={duration()}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{Locale.duration(duration())}</text>
+            </Show>
+            <Show when={generatedTokens() > 0}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{`${generatedTokens().toLocaleString()} tok`}</text>
+            </Show>
+            <Show when={tokensPerSecond() > 0}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{`${tokensPerSecond().toFixed(0)}/s`}</text>
+            </Show>
+            <Show when={props.message.error?.name === "MessageAbortedError"}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>interrupted</text>
+            </Show>
           </box>
         </Match>
       </Switch>
@@ -1937,21 +2138,25 @@ const PART_MAPPING = {
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage }) {
   const { theme, subtleSyntax } = useTheme()
   const ctx = use()
+  const sync = useSync()
   const content = createMemo(() => {
-    // Filter out redacted reasoning chunks from OpenRouter
-    // OpenRouter sends encrypted reasoning data that appears as [REDACTED]
     return props.part.text.replace("[REDACTED]", "").trim()
   })
+
+  const hasPendingTool = createMemo(() => {
+    const parts = sync.data.part[props.message.id] ?? []
+    return parts.some((x) => x.type === "tool" && x.state.status === "pending")
+  })
+
   return (
-    <Show when={content() && ctx.showThinking()}>
+    <Show when={content() && ctx.showThinking() && hasPendingTool()}>
       <box
         id={"text-" + props.part.id}
         paddingLeft={2}
+        paddingRight={2}
         marginTop={1}
         flexDirection="column"
-        border={["left"]}
-        customBorderChars={SplitBorder.customBorderChars}
-        borderColor={theme.backgroundElement}
+        backgroundColor={tint(theme.background, theme.primary, 0.05)}
       >
         <code
           filetype="markdown"
