@@ -33,6 +33,8 @@ export namespace SystemPrompt {
         `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
         `Here is some useful information about the environment you are running in:`,
         `<env>`,
+        `  Product: DAX (Deterministic Agentic Execution)`,
+        `  Execution mode: AI-assisted execution (deterministic and verifiable)`,
         `  Working directory: ${Instance.directory}`,
         `  Is directory a git repo: ${project.vcs === "git" ? "yes" : "no"}`,
         `  Platform: ${process.platform}`,

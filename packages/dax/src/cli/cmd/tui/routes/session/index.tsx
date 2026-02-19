@@ -79,6 +79,19 @@ import { QuestionPrompt } from "./question"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
+import { labelStage, type StreamStage } from "@/dax/workflow/stage"
+import {
+  PANE_MODE,
+  type PaneFollowMode,
+  type PaneMode,
+  type PaneVisibility,
+  paneLabel as daxPaneLabel,
+  paneTitle as daxPaneTitle,
+  insightsLabel,
+  memoryLabel,
+} from "@/dax/presentation/pane"
+import { isEli12Mode } from "@/dax/intent"
+import { DAX_SETTING } from "@/dax/settings"
 
 addDefaultParsers(parsers.parsers)
 
@@ -110,25 +123,11 @@ function use() {
 }
 
 export function Session() {
-  type PaneMode = "artifact" | "diff" | "rao" | "pm"
-  type StreamStage = "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
-  const PANE_MODES = ["artifact", "diff", "rao", "pm"] as const
+  const PANE_MODES = PANE_MODE
   const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
   const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
   const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
   const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
-  const PANE_LABELS_DEFAULT: Record<PaneMode, string> = {
-    artifact: "artifact",
-    diff: "diff",
-    rao: "rao",
-    pm: "pm",
-  }
-  const PANE_LABELS_ELI12: Record<PaneMode, string> = {
-    artifact: "files",
-    diff: "changes",
-    rao: "insights",
-    pm: "memory",
-  }
 
   const route = useRouteData("session")
   const { navigate } = useRoute()
@@ -172,15 +171,19 @@ export function Session() {
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
   const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
+  const [showEli12Summary, setShowEli12Summary] = kv.signal(DAX_SETTING.eli12_summary_visibility, false)
   const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
-  const [paneVisibility, setPaneVisibility] = kv.signal<"auto" | "pinned" | "hidden">("session_pane_visibility", "auto")
-  const [paneMode, setPaneMode] = kv.signal<PaneMode>("session_pane_mode", "artifact")
-  const [paneFollowMode, setPaneFollowMode] = kv.signal<"live" | "smart">("session_pane_follow_mode", "smart")
-  const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
-  const paneLabel = (mode: PaneMode) => (explainMode() ? PANE_LABELS_ELI12[mode] : PANE_LABELS_DEFAULT[mode])
-  const paneTitle = (mode: PaneMode) => (explainMode() ? paneLabel(mode) : mode.toUpperCase())
+  const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(
+    DAX_SETTING.session_pane_visibility,
+    "auto",
+  )
+  const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "artifact")
+  const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
+  const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
   const stageState = createMemo<{ stage: StreamStage; reason: string }>(() => {
     if (permissions().length > 0 || questions().length > 0) {
@@ -260,29 +263,7 @@ export function Session() {
     onCleanup(() => clearTimeout(timer))
   })
   const stageLabel = createMemo(() => {
-    const stage = displayStageState().stage
-    const labels = explainMode()
-      ? {
-          exploring: "Explore",
-          thinking: "Think",
-          planning: "Plan",
-          executing: "Do",
-          verifying: "Check",
-          waiting: "Need you",
-          retrying: "Retry",
-          done: "Done",
-        }
-      : {
-          exploring: "Exploring",
-          thinking: "Thinking",
-          planning: "Planning",
-          executing: "Executing",
-          verifying: "Verifying",
-          waiting: "Waiting",
-          retrying: "Retrying",
-          done: "Done",
-        }
-    return labels[stage]
+    return labelStage(displayStageState().stage, explainMode())
   })
   const stageColor = createMemo(() => {
     const stage = displayStageState().stage
@@ -307,7 +288,9 @@ export function Session() {
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 90)
-  const stripStacked = createMemo(() => contentWidth() < 112)
+  const stripStacked = createMemo(() => contentWidth() < 176)
+  const stripCompact = createMemo(() => contentWidth() < 126)
+  const stripTight = createMemo(() => contentWidth() < 146)
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
@@ -789,6 +772,56 @@ export function Session() {
       },
     },
     {
+      title: `Pane follow: ${paneFollowMode() === "smart" ? "Smart (active)" : "Smart"}`,
+      value: "session.pane.follow.smart",
+      category: "View",
+      onSelect: (dialog) => {
+        setPaneFollowMode(() => "smart")
+        setSmartFollowActive(true)
+        setPendingUpdates(0)
+        toast.show({ message: "Pane follow: Smart", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Pane follow: ${paneFollowMode() === "live" ? "Live (active)" : "Live"}`,
+      value: "session.pane.follow.live",
+      category: "View",
+      onSelect: (dialog) => {
+        setPaneFollowMode(() => "live")
+        setSmartFollowActive(true)
+        setPendingUpdates(0)
+        toast.show({ message: "Pane follow: Live", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Pane follow: Toggle (smart <-> live)",
+      value: "session.pane.follow.toggle",
+      category: "View",
+      slash: {
+        name: "follow",
+      },
+      onSelect: (dialog) => {
+        const next = paneFollowMode() === "smart" ? "live" : "smart"
+        setPaneFollowMode(() => next)
+        setSmartFollowActive(true)
+        setPendingUpdates(0)
+        toast.show({ message: `Pane follow: ${Locale.titlecase(next)}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Pane follow: Jump live${pendingUpdates() > 0 ? ` (${pendingUpdates()} updates)` : ""}`,
+      value: "session.pane.follow.jump_live",
+      category: "View",
+      enabled: paneFollowMode() === "smart" && !smartFollowActive(),
+      onSelect: (dialog) => {
+        jumpToLive()
+        dialog.clear()
+      },
+    },
+    {
       title: conceal() ? "Disable code concealment" : "Enable code concealment",
       value: "session.toggle.conceal",
       keybind: "messages_toggle_conceal" as any,
@@ -833,6 +866,28 @@ export function Session() {
       category: "Session",
       onSelect: (dialog) => {
         setShowDetails((prev) => !prev)
+        dialog.clear()
+      },
+    },
+    {
+      title: explainMode()
+        ? showEli12Summary()
+          ? "Hide ELI12 action summary"
+          : "Show ELI12 action summary"
+        : "ELI12 action summary (available in ELI12 mode)",
+      value: "session.toggle.eli12.summary",
+      slash: {
+        name: "eli12summary",
+      },
+      category: "Session",
+      onSelect: (dialog) => {
+        const next = !showEli12Summary()
+        setShowEli12Summary(() => next)
+        toast.show({
+          variant: "info",
+          message: next ? "ELI12 action summary enabled" : "ELI12 action summary disabled",
+          duration: 2200,
+        })
         dialog.clear()
       },
     },
@@ -1244,7 +1299,7 @@ export function Session() {
     if (paneVisibility() === "pinned") return true
     return hasRaoNeed() || hasDiffNeed() || hasArtifactNeed()
   })
-  const activePaneMode = createMemo<"artifact" | "diff" | "rao" | "pm">(() => {
+  const activePaneMode = createMemo<PaneMode>(() => {
     if (paneVisibility() === "pinned") return paneMode()
     if (hasRaoNeed()) return "rao"
     if (hasDiffNeed()) return "diff"
@@ -1313,85 +1368,94 @@ export function Session() {
               paddingTop={0}
               paddingBottom={0}
             >
-              <box flexDirection="row" gap={1} alignItems="center">
+              <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                   DAX
                 </text>
-                <text fg={theme.textMuted}>workspace</text>
-                <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
-                  {`${explainMode() ? "Insights" : "RAO"} ${permissions().length + questions().length}`}
-                </text>
-                <text fg={theme.text}>{explainMode() ? "Memory" : "PM"}</text>
+                <Show when={!stripTight()}>
+                  <text fg={theme.textMuted}>workspace</text>
+                </Show>
+                <Show when={!stripCompact()}>
+                  <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
+                    {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
+                  </text>
+                  <text fg={theme.text}>{memoryLabel(explainMode())}</text>
+                </Show>
                 <text fg={stageColor()}>{stageLabel()}</text>
-                <text fg={theme.textMuted}>pane</text>
               </box>
               <box
                 flexDirection={stripStacked() ? "column" : "row"}
                 gap={stripStacked() ? 0 : 2}
-                alignItems="flex-start"
-                paddingRight={1}
+                alignItems={stripStacked() ? "flex-start" : "center"}
+                justifyContent={stripStacked() ? "flex-start" : "space-between"}
+                width="100%"
+                paddingRight={0}
               >
-                <box flexDirection="row" gap={1} alignItems="center">
-                  <text fg={theme.textMuted}>pane:</text>
-                  <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                    <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
-                  </box>
-                  <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                    <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
-                  </box>
-                  <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                    <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
-                  </box>
-                </box>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  <text fg={theme.textMuted}>mode:</text>
-                  <For each={PANE_MODES}>
-                    {(mode) => (
-                      <box onMouseUp={() => setPaneMode(() => mode)}>
-                        <text
-                          fg={paneMode() === mode ? theme.accent : theme.textMuted}
-                          attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
-                        >
-                          [{paneLabel(mode)}]
-                        </text>
-                      </box>
-                    )}
-                  </For>
-                </box>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  <text fg={theme.textMuted}>follow:</text>
-                  <box
-                    onMouseUp={() => {
-                      setPaneFollowMode(() => "smart")
-                      setSmartFollowActive(true)
-                      setPendingUpdates(0)
-                    }}
-                  >
-                    <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
-                  </box>
-                  <box
-                    onMouseUp={() => {
-                      setPaneFollowMode(() => "live")
-                      setSmartFollowActive(true)
-                      setPendingUpdates(0)
-                    }}
-                  >
-                    <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
-                  </box>
-                  <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
-                    <box onMouseUp={jumpToLive}>
-                      <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
+                <box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>pane:</text>
+                    <box onMouseUp={() => setPaneVisibility(() => "auto")}>
+                      <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
                     </box>
-                  </Show>
-                </box>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  <text fg={theme.textMuted}>theme:</text>
-                  <box onMouseUp={() => cycleTheme(-1)}>
-                    <text fg={theme.textMuted}>[theme-]</text>
+                    <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
+                      <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
+                    </box>
+                    <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
+                      <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
+                    </box>
                   </box>
-                  <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                  <box onMouseUp={() => cycleTheme(1)}>
-                    <text fg={theme.textMuted}>[theme+]</text>
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>mode:</text>
+                    <For each={PANE_MODES}>
+                      {(mode) => (
+                        <box onMouseUp={() => setPaneMode(() => mode)}>
+                          <text
+                            fg={paneMode() === mode ? theme.accent : theme.textMuted}
+                            attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
+                          >
+                            [{paneLabel(mode)}]
+                          </text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </box>
+                <box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>follow:</text>
+                    <box
+                      onMouseUp={() => {
+                        setPaneFollowMode(() => "smart")
+                        setSmartFollowActive(true)
+                        setPendingUpdates(0)
+                      }}
+                    >
+                      <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
+                    </box>
+                    <box
+                      onMouseUp={() => {
+                        setPaneFollowMode(() => "live")
+                        setSmartFollowActive(true)
+                        setPendingUpdates(0)
+                      }}
+                    >
+                      <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
+                    </box>
+                    <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
+                      <box onMouseUp={jumpToLive}>
+                        <text fg={theme.primary}>[jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]</text>
+                      </box>
+                    </Show>
+                  </box>
+                  <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    <text fg={theme.textMuted}>theme:</text>
+                    <box onMouseUp={() => cycleTheme(-1)}>
+                      <text fg={theme.textMuted}>[theme-]</text>
+                    </box>
+                    <text fg={theme.primary}>[{selectedThemeShort()}]</text>
+                    <box onMouseUp={() => cycleTheme(1)}>
+                      <text fg={theme.textMuted}>[theme+]</text>
+                    </box>
                   </box>
                 </box>
               </box>
@@ -1582,7 +1646,7 @@ export function Session() {
                       </For>
                       <text fg={theme.textMuted}>·</text>
                       <text fg={theme.textMuted}>
-                        {`${explainMode() ? "Insights" : "RAO"} ${permissions().length + questions().length}`}
+                        {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
                       </text>
                       <text fg={theme.textMuted}>·</text>
                       <text fg={stageColor()}>{stageLabel()}</text>
@@ -1947,8 +2011,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const sync = useSync()
   const kv = useKV()
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
-  const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
-  const showEli12Summary = createMemo(() => kv.get("eli12_summary_visibility", false))
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const showEli12Summary = createMemo(() => kv.get(DAX_SETTING.eli12_summary_visibility, false))
   const parent = createMemo(() => messages().find((x) => x.id === props.message.parentID && x.role === "user"))
   const asked = createMemo(() => {
     const id = parent()?.id

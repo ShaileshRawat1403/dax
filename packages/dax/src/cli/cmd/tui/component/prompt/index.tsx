@@ -24,7 +24,6 @@ import { TuiEvent } from "../../event"
 import { iife } from "@/util/iife"
 import { Locale } from "@/util/locale"
 import { formatDuration } from "@/util/format"
-import { createColors, createFrames } from "../../ui/spinner.ts"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogAlert } from "../../ui/dialog-alert"
@@ -32,6 +31,9 @@ import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
+import { isEli12Mode } from "@/dax/intent"
+import { DAX_SETTING } from "@/dax/settings"
+import { createColors } from "../../ui/spinner.ts"
 
 export type PromptProps = {
   sessionID?: string
@@ -54,9 +56,9 @@ export type PromptRef = {
 }
 
 const PLACEHOLDERS = [
-  "Outline a plan for this project in plain language",
-  "Explain this codebase so a non-developer can understand",
-  "Help me safely make one change and verify it",
+  "Plan this project in plain language",
+  "Ship one safe improvement",
+  "Find the best next step",
 ]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
@@ -143,10 +145,10 @@ export function Prompt(props: PromptProps) {
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const kv = useKV()
-  const explainMode = createMemo(() => kv.get("explain_mode", "normal") === "eli12")
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
 
   const setExplainMode = (enabled: boolean) => {
-    kv.set("explain_mode", enabled ? "eli12" : "normal")
+    kv.set(DAX_SETTING.explain_mode, enabled ? "eli12" : "normal")
     toast.show({
       variant: "info",
       message: enabled ? "ELI12 enabled: plain-language explanations on" : "ELI12 disabled: normal explanations on",
@@ -915,38 +917,36 @@ export function Prompt(props: PromptProps) {
     return !!current
   })
 
-  const BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-  const GRADIENT_COLORS = () => [theme.primary, theme.accent, theme.secondary, theme.success]
-
-  const [animTick, setAnimTick] = createSignal(0)
+  const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
+  const homeCueFrames = createMemo(() => {
+    const dots = "⠈⠐⠠⢀"
+    const heads = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    return heads.map((h, i) => {
+      const p = i % 4
+      return `${dots.slice(0, p)}${h}${dots.slice(p + 1)}`
+    })
+  })
+  const homeCueColor = createMemo(() => {
+    return createColors({
+      color: theme.primary,
+      trailSteps: 5,
+      inactiveFactor: 0.35,
+      holdStart: 0,
+      holdEnd: 0,
+      enableFading: true,
+      minAlpha: 0.25,
+    })
+  })
+  const STATUS_DAX_FRAMES = ["DAX", "DAX·", "DΛX", "DAX•", "DXA", "DAX"]
+  const [statusTick, setStatusTick] = createSignal(0)
   onMount(() => {
-    const timer = setInterval(() => setAnimTick((t) => (t + 1) % BRAILLE_FRAMES.length), 80)
+    const timer = setInterval(() => setStatusTick((n) => (n + 1) % STATUS_DAX_FRAMES.length), 150)
     onCleanup(() => clearInterval(timer))
   })
-
-  const animFrame = () => BRAILLE_FRAMES[animTick()]
-  const animColor = () => GRADIENT_COLORS()[animTick() % GRADIENT_COLORS().length]
-
-  const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
-
-  const spinnerDef = createMemo(() => {
-    const color = local.agent.color(local.agent.current().name)
-    return {
-      frames: createFrames({
-        color,
-        style: "blocks",
-        inactiveFactor: 0.6,
-        // enableFading: false,
-        minAlpha: 0.3,
-      }),
-      color: createColors({
-        color,
-        style: "blocks",
-        inactiveFactor: 0.6,
-        // enableFading: false,
-        minAlpha: 0.3,
-      }),
-    }
+  const statusDax = createMemo(() => STATUS_DAX_FRAMES[statusTick()] ?? "DAX")
+  const statusDaxColor = createMemo(() => {
+    const palette = [theme.primary, theme.accent, theme.success, theme.warning]
+    return palette[statusTick() % palette.length] ?? theme.primary
   })
 
   return (
@@ -981,26 +981,30 @@ export function Prompt(props: PromptProps) {
             backgroundColor={theme.backgroundElement}
             flexGrow={1}
           >
-            <textarea
-              placeholder={
-                props.sessionID
-                  ? undefined
-                  : explainMode()
-                    ? ELI12_PLACEHOLDER
-                    : `Describe your goal... "${PLACEHOLDERS[store.placeholder]}"`
-              }
-              textColor={keybind.leader ? theme.textMuted : theme.text}
-              focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
-              minHeight={1}
-              maxHeight={6}
-              onContentChange={() => {
-                const value = input.plainText
-                setStore("prompt", "input", value)
-                autocomplete.onInput(value)
-                syncExtmarksWithPromptParts()
-              }}
-              keyBindings={textareaKeybindings()}
-              onKeyDown={async (e) => {
+            <box flexDirection="row" gap={1} alignItems="flex-start">
+              <Show when={showInputHint()}>
+                <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
+              </Show>
+              <textarea
+                placeholder={
+                  props.sessionID
+                    ? ""
+                    : explainMode()
+                      ? ELI12_PLACEHOLDER
+                      : `State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
+                }
+                textColor={keybind.leader ? theme.textMuted : theme.text}
+                focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
+                minHeight={1}
+                maxHeight={6}
+                onContentChange={() => {
+                  const value = input.plainText
+                  setStore("prompt", "input", value)
+                  autocomplete.onInput(value)
+                  syncExtmarksWithPromptParts()
+                }}
+                keyBindings={textareaKeybindings()}
+                onKeyDown={async (e) => {
                 if (props.disabled) {
                   e.preventDefault()
                   return
@@ -1077,9 +1081,9 @@ export function Prompt(props: PromptProps) {
                   if (keybind.match("history_next", e) && input.visualCursor.visualRow === input.height - 1)
                     input.cursorOffset = input.plainText.length
                 }
-              }}
-              onSubmit={submit}
-              onPaste={async (event: PasteEvent) => {
+                }}
+                onSubmit={submit}
+                onPaste={async (event: PasteEvent) => {
                 if (props.disabled) {
                   event.preventDefault()
                   return
@@ -1146,8 +1150,8 @@ export function Prompt(props: PromptProps) {
                   input.getLayoutNode().markDirty()
                   renderer.requestRender()
                 }, 0)
-              }}
-              ref={(r: TextareaRenderable) => {
+                }}
+                ref={(r: TextareaRenderable) => {
                 input = r
                 if (promptPartTypeId === 0) {
                   promptPartTypeId = input.extmarks.registerType("prompt-part")
@@ -1158,15 +1162,13 @@ export function Prompt(props: PromptProps) {
                   if (!input || input.isDestroyed) return
                   input.cursorColor = theme.text
                 }, 0)
-              }}
-              onMouseDown={(r: MouseEvent) => r.target?.focus()}
-              focusedBackgroundColor={theme.backgroundElement}
-              cursorColor={theme.text}
-              syntaxStyle={syntax()}
-            />
-            <Show when={showInputHint()}>
-              <text fg={animColor()}>{animFrame()}</text>
-            </Show>
+                }}
+                onMouseDown={(r: MouseEvent) => r.target?.focus()}
+                focusedBackgroundColor={theme.backgroundElement}
+                cursorColor={theme.text}
+                syntaxStyle={syntax()}
+              />
+            </box>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
                 {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
@@ -1216,8 +1218,8 @@ export function Prompt(props: PromptProps) {
             >
               <box flexShrink={0} flexDirection="row" gap={1}>
                 <box marginLeft={1}>
-                  <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[⋯]</text>}>
-                    <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
+                  <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[DAX]</text>}>
+                    <text fg={statusDaxColor()}>[{statusDax()}]</text>
                   </Show>
                 </box>
                 <box flexDirection="row" gap={1} flexShrink={0}>
