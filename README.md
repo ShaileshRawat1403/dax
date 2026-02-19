@@ -6,97 +6,66 @@
 
 ---
 
-## What DAX is
+## Overview
 
-DAX is a policy-first execution product for teams that want AI speed without losing control.
+DAX is a policy-first AI execution product.
 
-Instead of a chat agent that freely edits and runs commands, DAX routes execution through a governance loop:
+It is built for teams that want AI speed, but require control, auditability, and predictable behavior in production workflows.
 
-- Run: the model proposes
+Instead of a free-running coding chat, DAX uses RAO:
+
+- Run: model proposes action
 - Audit: policy evaluates risk and scope
-- Override: humans approve, deny, or persist policy
+- Override: user approves, denies, or persists decisions
 
-This is why DAX exists: production software work needs reliability, not just fast output.
+## Who DAX is for
 
-## Positioning
-
-**DAX is not “another coding chat.”**
-
-DAX is for:
+DAX is a good fit for:
 
 - engineering teams that need traceable AI actions
-- startups that want velocity with guardrails
-- non-technical operators who need understandable execution (ELI12)
+- startups that want fast iteration with guardrails
+- mixed technical/non-technical teams using ELI12 mode
 
-DAX is not for:
+DAX is not optimized for:
 
-- users who only want a lightweight conversational coding toy
-- workflows where governance and auditability do not matter
-
-## Product pillars
-
-### 1. RAO (Run -> Audit -> Override)
-
-Every sensitive action can be policy-gated.
-
-- explicit allow / ask / deny rules
-- persisted approval decisions
-- deterministic execution boundaries
-
-### 2. PM (Project Memory)
-
-PM is persistent operational memory, not ephemeral chat context.
-
-- constraints and preferences
-- notes and continuity
-- replayable context for future sessions
-
-### 3. Orchestration-first UX
-
-DAX is optimized for natural language programming with visible control surfaces:
-
-- RAO state and pending approvals
-- PM access in-session
-- Pane modes for Artifact / Diff / RAO / PM
-
-## Why teams choose DAX
-
-- **Determinism over model randomness**
-- **Governance over blind autonomy**
-- **Traceability over black-box behavior**
-- **Execution quality over output quantity**
+- chat-only experimentation with no governance requirements
+- workflows where auditability and policy do not matter
 
 ## Core capabilities
 
 - Terminal-native AI orchestration
-- Multi-provider model support (OpenAI, Google, Anthropic, Ollama)
-- Tool and command governance with explicit permissions
-- Persistent PM memory (`pm.sqlite`)
-- ELI12 communication mode for non-technical users
-- Session pane for operational visibility (`artifact`, `diff`, `rao`, `pm`)
+- Multi-provider support: OpenAI, Google, Anthropic, Ollama
+- RAO policy gating with allow/ask/deny decisions
+- Persistent project memory (PM) in `pm.sqlite`
+- ELI12 mode for plain-language explanations
+- Session pane surfaces: `artifact`, `diff`, `rao`, `pm`
+- Theme system with multiple built-in themes and quick switching
 
-## UX profile
+## Product pillars
 
-DAX ships with a focused default profile:
+### RAO (Run -> Audit -> Override)
 
-- primary agents: `build`, `plan`, `explore`, `docs`
-- primary providers: `openai`, `google`, `anthropic`, `ollama`
-- RAO enabled by default
-- PM enabled by default
+- Explicit permissions for sensitive actions
+- Persistent approval choices when desired
+- Human override for critical operations
 
-Example:
+### PM (Project Memory)
 
-```json
-{
-  "enabled_providers": ["openai", "google", "anthropic", "ollama"]
-}
-```
+- Persistent constraints/preferences/notes
+- Session continuity across runs
+- Operational memory separate from transient chat context
+
+### Orchestration-first UX
+
+- Operational visibility in-session (status, stage, pane)
+- Approval UX for risky actions
+- Natural language programming focus with reduced command clutter
 
 ## Quickstart
 
 ### Prerequisites
 
-- Bun 1.3.x
+- Bun `1.3.x`
 - Git
 
 ### Install
@@ -105,13 +74,20 @@ Example:
 bun install
 ```
 
-### Run
+### Run DAX
 
 ```bash
 bun run dev
 ```
 
-### Verify package quality
+### Validate quality locally
+
+```bash
+bun run typecheck:dax
+bun run test:dax
+```
+
+### Full release verification pipeline
 
 ```bash
 bun run release:dax:verify
@@ -123,20 +99,38 @@ bun run release:dax:verify
 bun run release:dax
 ```
 
-## Gemini CLI auth (recommended)
+## Configuration snapshot
 
-If Gemini provider auth appears broken:
+DAX uses project/global config with provider and policy controls.
 
-1. Run `gemini` in your terminal and complete login.
+Example:
+
+```json
+{
+  "enabled_providers": ["openai", "google", "anthropic", "ollama"]
+}
+```
+
+Default UX profile is tuned for orchestration:
+
+- primary agents: `build`, `plan`, `explore`, `docs`
+- RAO enabled by default
+- PM enabled by default
+
+## Gemini auth
+
+Recommended: Gemini CLI token reuse.
+
+1. Run `gemini` and complete login.
 2. Verify `~/.gemini/oauth_creds.json` exists.
-3. In DAX, connect provider `google` with `Use Gemini CLI login`.
-4. If credentials are elsewhere:
+3. In DAX, connect `google` provider and select Gemini CLI login.
+4. If your creds file is elsewhere:
 
 ```bash
 export GEMINI_OAUTH_CREDS_PATH=/absolute/path/to/oauth_creds.json
 ```
 
-Direct email OAuth is maintainer-only and shown only when all are set:
+Email OAuth is maintainer-only and requires:
 
 ```bash
 export DAX_GEMINI_EMAIL_AUTH=1
@@ -144,28 +138,28 @@ export DAX_GEMINI_OAUTH_CLIENT_ID=...
 export DAX_GEMINI_OAUTH_CLIENT_SECRET=...
 ```
 
-## Visual system and productivity defaults
+## UX and readability defaults
 
-DAX now uses a governance-centric visual hierarchy:
+Recommended terminal setup:
 
-- high-contrast operational palette
-- RAO/PM/Pane state visibility in-session
-- reduced command noise in slash UX
+- font size: `13-15`
+- line height: `1.15-1.3`
+- high-contrast theme for long sessions
 
-For best readability/productivity in terminal UIs, use a coding font in your terminal profile:
+Suggested fonts:
 
 - `JetBrains Mono`
 - `Berkeley Mono`
 - `IBM Plex Mono`
 - `Monaspace Argon`
 
-Recommended terminal settings:
+## Security and governance notes
 
-- font size: 13-15
-- line height: 1.15-1.3
-- enable ligatures only if they improve readability for your team
+- Sensitive actions are designed to pass through RAO checks.
+- External-directory and risky command paths are permission-gated.
+- Policy profile can be tuned (balanced/strict) for stronger approvals.
 
-## Architecture (unchanged)
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -183,6 +177,19 @@ flowchart LR
   PROC --> OUT[Rendered Output + Telemetry]
 ```
 
+## Maintainer pre-release checklist
+
+Use this before any public tag/cut:
+
+1. `bun install`
+2. `bun run typecheck:dax`
+3. `bun run test:dax`
+4. `bun run release:dax:verify`
+5. `bun run release:dax`
+6. Smoke test TUI on narrow and wide terminal sizes
+7. Verify provider login flows (especially Google/Gemini)
+8. Verify RAO approval paths and policy profile behavior
+
 ---
 
-DAX is designed for teams that want AI to be powerful, governable, and production-safe.
+DAX is built for teams that need AI to be fast, governable, and production-safe.
