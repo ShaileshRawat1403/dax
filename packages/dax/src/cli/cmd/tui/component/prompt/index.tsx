@@ -1,5 +1,6 @@
 import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, t, dim, fg } from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, Show, Switch, Match } from "solid-js"
+import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
 import { EmptyBorder } from "@tui/component/border"
@@ -32,6 +33,7 @@ import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
+import { createColors } from "../../ui/spinner.ts"
 
 export type PromptProps = {
   sessionID?: string
@@ -916,16 +918,24 @@ export function Prompt(props: PromptProps) {
   })
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
-  const HOME_CUE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-  const [homeCueTick, setHomeCueTick] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => setHomeCueTick((n) => (n + 1) % HOME_CUE_FRAMES.length), 110)
-    onCleanup(() => clearInterval(timer))
+  const homeCueFrames = createMemo(() => {
+    const dots = "⠈⠐⠠⢀"
+    const heads = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    return heads.map((h, i) => {
+      const p = i % 4
+      return `${dots.slice(0, p)}${h}${dots.slice(p + 1)}`
+    })
   })
-  const homeCue = createMemo(() => HOME_CUE_FRAMES[homeCueTick()] ?? "◜")
   const homeCueColor = createMemo(() => {
-    const palette = [theme.primary, theme.accent, theme.secondary, theme.success]
-    return palette[homeCueTick() % palette.length] ?? theme.primary
+    return createColors({
+      color: theme.primary,
+      trailSteps: 5,
+      inactiveFactor: 0.35,
+      holdStart: 0,
+      holdEnd: 0,
+      enableFading: true,
+      minAlpha: 0.25,
+    })
   })
   const STATUS_DAX_FRAMES = ["DAX", "DAX·", "DΛX", "DAX•", "DXA", "DAX"]
   const [statusTick, setStatusTick] = createSignal(0)
@@ -973,7 +983,7 @@ export function Prompt(props: PromptProps) {
           >
             <box flexDirection="row" gap={1} alignItems="flex-start">
               <Show when={showInputHint()}>
-                <text fg={homeCueColor()}>{homeCue()}</text>
+                <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
               </Show>
               <textarea
                 placeholder={
