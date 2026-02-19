@@ -117,12 +117,8 @@ export function Header() {
 
           <box flexDirection="row" gap={1} alignItems="center" flexShrink={0}>
             <Show when={!tiny()}>
-              <box flexDirection="row" gap={1}>
-                <text fg={theme.textMuted}>{`cpu ${telemetry().cpu}%`}</text>
-              </box>
-              <box flexDirection="row" gap={1}>
-                <text fg={theme.textMuted}>{`ram ${telemetry().ram}%`}</text>
-              </box>
+              <text fg={theme.textMuted}>{`[CPU:${telemetry().cpu}%]`}</text>
+              <text fg={theme.textMuted}>{`[RAM:${telemetry().ram}%]`}</text>
               <text fg={theme.textMuted}>·</text>
             </Show>
             <Show when={context()}>
