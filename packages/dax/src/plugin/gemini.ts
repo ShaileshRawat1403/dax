@@ -6,6 +6,10 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 const GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
+const GOOGLE_SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
+const GOOGLE_SCOPE_PROFILE = "https://www.googleapis.com/auth/userinfo.profile"
+const GOOGLE_SCOPE_GENERATIVE = "https://www.googleapis.com/auth/generative-language"
 const OAUTH_PORT = 1717
 const OAUTH_PORT_MAX = 1730
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
@@ -294,6 +298,7 @@ const exchangeCodeForTokens = async (
 }
 
 const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
+  const allowGenerative = Bun.env.DAX_GEMINI_SCOPE_GENERATIVE === "1"
   const params = new URLSearchParams({
     access_type: "offline",
     client_id: clientID,
@@ -302,12 +307,7 @@ const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceC
     prompt: "consent",
     redirect_uri: redirectURI,
     response_type: "code",
-    scope: [
-      "https://www.googleapis.com/auth/cloud-platform",
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile",
-      "https://www.googleapis.com/auth/generative-language",
-    ].join(" "),
+    scope: [GOOGLE_SCOPE_CLOUD, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, ...(allowGenerative ? [GOOGLE_SCOPE_GENERATIVE] : [])].join(" "),
     state,
   })
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
@@ -320,10 +320,7 @@ const checkTokenHealth = async (accessToken: string) => {
   if (!result?.ok) return { ok: false, reason: "token_expired" }
   const json = (await result.json().catch(() => ({}))) as { scope?: string }
   const scopes = json.scope ?? ""
-  if (
-    !scopes.includes("https://www.googleapis.com/auth/cloud-platform") &&
-    !scopes.includes("https://www.googleapis.com/auth/generative-language")
-  ) {
+  if (!scopes.includes(GOOGLE_SCOPE_CLOUD) && !scopes.includes(GOOGLE_SCOPE_GENERATIVE)) {
     return { ok: false, reason: "scope_missing" }
   }
   return { ok: true }
