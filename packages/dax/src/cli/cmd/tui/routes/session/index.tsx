@@ -91,7 +91,7 @@ import {
   memoryLabel,
 } from "@/dax/presentation/pane"
 import { isEli12Mode } from "@/dax/intent"
-import { DAX_SETTING } from "@/dax/settings"
+import { DAX_SETTING, STREAM_SPEED_CADENCE_MS, nextStreamSpeed, type StreamSpeed } from "@/dax/settings"
 
 addDefaultParsers(parsers.parsers)
 
@@ -179,6 +179,7 @@ export function Session() {
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "artifact")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+  const [streamSpeed, setStreamSpeed] = kv.signal<StreamSpeed>(DAX_SETTING.session_stream_speed, "normal")
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
   const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
@@ -216,6 +217,10 @@ export function Session() {
 
       const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
       if (hasReasoning) return { stage: "thinking", reason: "reasoning stream active" }
+
+      // Differentiate streaming (text output active) from thinking (waiting for response)
+      const hasTextDelta = parts.some((part) => part.type === "text" && part.text.length > 0)
+      if (hasTextDelta) return { stage: "streaming", reason: "text stream active" }
       return { stage: "thinking", reason: "response stream active" }
     }
 
@@ -226,7 +231,7 @@ export function Session() {
     return { stage: "done", reason: "idle" }
   })
   const STAGE_MIN_DWELL_MS = 1200
-  const STREAM_RENDER_CADENCE_MS = 30
+  const streamCadenceMs = createMemo(() => STREAM_SPEED_CADENCE_MS[streamSpeed()])
   const [displayStageState, setDisplayStageState] = createSignal(stageState())
   const [stageLastChangedAt, setStageLastChangedAt] = createSignal(Date.now())
   createEffect(() => {
@@ -269,6 +274,7 @@ export function Session() {
     if (stage === "waiting") return theme.warning
     if (stage === "retrying") return theme.error
     if (stage === "done") return theme.success
+    if (stage === "streaming") return theme.primary
     return theme.accent
   })
   const streamStatus = createMemo(() => {
@@ -277,10 +283,14 @@ export function Session() {
     const parts = sync.data.part[pendingID] ?? []
     const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
     if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} running`
+    const runningTool = parts.findLast((part) => part.type === "tool" && part.state.status === "running")
+    if (runningTool && runningTool.type === "tool") return `${runningTool.tool} executing`
     const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
     if (completedTool && completedTool.type === "tool") return `${completedTool.tool} completed`
-    if (parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)) return "reasoning stream active"
-    return "response stream active"
+    if (parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)) return "reasoning"
+    const textParts = parts.filter((part) => part.type === "text")
+    if (textParts.length > 0 && textParts.some((p) => p.text?.length > 0)) return `streaming text`
+    return "awaiting response"
   })
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
   const [pendingUpdates, setPendingUpdates] = createSignal(0)
@@ -903,6 +913,25 @@ export function Session() {
       },
     },
     {
+      title: `Stream speed: ${Locale.titlecase(streamSpeed())}`,
+      value: "session.stream.speed.cycle",
+      keybind: "stream_speed_cycle",
+      category: "View",
+      slash: {
+        name: "streamspeed",
+      },
+      onSelect: (dialog) => {
+        const next = nextStreamSpeed(streamSpeed())
+        setStreamSpeed(() => next)
+        setSlowStream(() => true)
+        toast.show({
+          message: `Stream speed: ${Locale.titlecase(next)} (${STREAM_SPEED_CADENCE_MS[next]}ms cadence)`,
+          variant: "success",
+        })
+        dialog.clear()
+      },
+    },
+    {
       title: conceal() ? "Disable code concealment" : "Enable code concealment",
       value: "session.toggle.conceal",
       keybind: "messages_toggle_conceal" as any,
@@ -1421,7 +1450,7 @@ export function Session() {
       return
     }
     snapshotStreamParts()
-    const timer = setInterval(snapshotStreamParts, STREAM_RENDER_CADENCE_MS)
+    const timer = setInterval(snapshotStreamParts, streamCadenceMs())
     onCleanup(() => clearInterval(timer))
   })
 
@@ -1479,6 +1508,9 @@ export function Session() {
                 <text fg={theme.textMuted}>{streamStatus()}</text>
                 <Show when={pending()}>
                   <Spinner />
+                  <Show when={slowStream()}>
+                    <text fg={theme.textMuted}>[{streamSpeed()}]</text>
+                  </Show>
                 </Show>
               </box>
               <box
@@ -1541,8 +1573,16 @@ export function Session() {
                             <box onMouseUp={() => setShowDetails((prev) => !prev)}>
                               <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
                             </box>
-                            <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                              <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
+                            <box
+                              onMouseUp={() => {
+                                const next = nextStreamSpeed(streamSpeed())
+                                setStreamSpeed(() => next)
+                                setSlowStream(() => true)
+                              }}
+                            >
+                              <text fg={slowStream() ? theme.primary : theme.textMuted}>
+                                [{streamSpeed()}]
+                              </text>
                             </box>
                           </box>
                         </box>
@@ -1604,8 +1644,14 @@ export function Session() {
                     <box onMouseUp={() => setShowDetails((prev) => !prev)}>
                       <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
                     </box>
-                    <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                      <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
+                    <box
+                      onMouseUp={() => {
+                        const next = nextStreamSpeed(streamSpeed())
+                        setStreamSpeed(() => next)
+                        setSlowStream(() => true)
+                      }}
+                    >
+                      <text fg={slowStream() ? theme.primary : theme.textMuted}>[{streamSpeed()}]</text>
                     </box>
                     <text fg={theme.textMuted}>m</text>
                     <box onMouseUp={cyclePaneMode}>
