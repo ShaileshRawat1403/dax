@@ -25,6 +25,7 @@ export const TuiEvent = {
           "prompt.clear",
           "prompt.submit",
           "agent.cycle",
+          "session.stream.speed.cycle",
         ]),
         z.string(),
       ]),

@@ -1,6 +1,7 @@
 export const STREAM_STAGE = [
   "exploring",
   "thinking",
+  "streaming",
   "planning",
   "executing",
   "verifying",
@@ -11,14 +12,15 @@ export const STREAM_STAGE = [
 
 export type StreamStage = (typeof STREAM_STAGE)[number]
 
-export const HOME_STAGE = ["Explore", "Think", "Plan", "Execute", "Verify", "Done"] as const
-export const HOME_STAGE_ELI12 = ["Explore", "Think", "Plan", "Do", "Check", "Done"] as const
+export const HOME_STAGE = ["Explore", "Think", "Stream", "Plan", "Execute", "Verify", "Done"] as const
+export const HOME_STAGE_ELI12 = ["Explore", "Think", "Stream", "Plan", "Do", "Check", "Done"] as const
 
 export function labelStage(stage: StreamStage, eli12: boolean) {
   if (eli12) {
     return {
       exploring: "Explore",
       thinking: "Think",
+      streaming: "Writing",
       planning: "Plan",
       executing: "Do",
       verifying: "Check",
@@ -31,6 +33,7 @@ export function labelStage(stage: StreamStage, eli12: boolean) {
   return {
     exploring: "Exploring",
     thinking: "Thinking",
+    streaming: "Streaming",
     planning: "Planning",
     executing: "Executing",
     verifying: "Verifying",

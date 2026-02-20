@@ -16,6 +16,8 @@ export function Header() {
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 
   const [telemetry, setTelemetry] = createSignal({ cpu: 0, ram: 0 })
+  const [elapsed, setElapsed] = createSignal(0)
+  const [liveTokensPerSec, setLiveTokensPerSec] = createSignal(0)
 
   const cpuSnap = () =>
     cpus().reduce(
@@ -25,6 +27,9 @@ export function Header() {
       },
       { idle: 0, total: 0 },
     )
+
+  // Track previous token counts for live throughput calculation
+  let prevTokenSnapshot = { output: 0, reasoning: 0, time: Date.now() }
 
   onMount(() => {
     let prev = cpuSnap()
@@ -38,6 +43,34 @@ export function Header() {
       const ramUsed = ramTotal - freemem()
       const ram = ramTotal > 0 ? Math.max(0, Math.min(100, Math.round((ramUsed / ramTotal) * 100))) : 0
       setTelemetry({ cpu, ram })
+
+      // Update elapsed time during active stream
+      const pendingMsg = messages().findLast((x) => x.role === "assistant" && !x.time.completed)
+      if (pendingMsg) {
+        const parent = messages().find((x) => x.role === "user" && x.id === (pendingMsg as any).parentID)
+        if (parent) {
+          setElapsed(Date.now() - parent.time.created)
+        }
+
+        // Live tokens/sec calculation based on delta
+        const currentOutput = (pendingMsg as AssistantMessage).tokens?.output ?? 0
+        const currentReasoning = (pendingMsg as AssistantMessage).tokens?.reasoning ?? 0
+        const currentTotal = currentOutput + currentReasoning
+        const prevTotal = prevTokenSnapshot.output + prevTokenSnapshot.reasoning
+        const timeDelta = (Date.now() - prevTokenSnapshot.time) / 1000
+        if (timeDelta > 0 && currentTotal > prevTotal) {
+          const tps = (currentTotal - prevTotal) / timeDelta
+          setLiveTokensPerSec(Math.round(tps))
+        } else if (currentTotal === prevTotal && timeDelta > 3) {
+          // No new tokens for 3s, fade out
+          setLiveTokensPerSec(0)
+        }
+        prevTokenSnapshot = { output: currentOutput, reasoning: currentReasoning, time: Date.now() }
+      } else {
+        setElapsed(0)
+        setLiveTokensPerSec(0)
+        prevTokenSnapshot = { output: 0, reasoning: 0, time: Date.now() }
+      }
     }, 1000)
     onCleanup(() => clearInterval(timer))
   })
@@ -105,6 +138,24 @@ export function Header() {
 
   const statusLabel = () => (isThinking() ? (currentTool() ? `running: ${currentTool()}` : "thinking") : "ready")
 
+  const elapsedLabel = createMemo(() => {
+    const ms = elapsed()
+    if (ms <= 0) return ""
+    const seconds = Math.floor(ms / 1000)
+    if (seconds < 60) return `${seconds}s`
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}m${secs.toString().padStart(2, "0")}s`
+  })
+
+  const throughputBar = createMemo(() => {
+    const tps = liveTokensPerSec()
+    if (tps <= 0) return ""
+    // Visual bar: scale to 8 chars max, capped at 200 tok/s
+    const filled = Math.min(8, Math.max(1, Math.round((tps / 200) * 8)))
+    return "▮".repeat(filled) + "▯".repeat(8 - filled)
+  })
+
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
       <box
@@ -127,6 +178,17 @@ export function Header() {
             <text fg={theme.text} attributes={TextAttributes.BOLD}>
               {title()}
             </text>
+            <Show when={isThinking() && elapsedLabel()}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.accent}>{elapsedLabel()}</text>
+            </Show>
+            <Show when={isThinking() && liveTokensPerSec() > 0 && !tiny()}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.accent}>{liveTokensPerSec()}/s</text>
+              <Show when={!small()}>
+                <text fg={theme.accent}>{throughputBar()}</text>
+              </Show>
+            </Show>
           </box>
 
           <box flexDirection="row" gap={1} alignItems="center" flexShrink={0}>
