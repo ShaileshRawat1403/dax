@@ -1,0 +1,17 @@
+{
+  "name": "dax",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "bun run ./cli/index.ts",
+    "test": "node ./tests/run.js",
+    "lint": "echo 'lint pending'",
+    "build": "echo 'build pending'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "typescript": "^5.9.3"
+  }
+}

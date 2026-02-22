@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": [
+    "core/**/*",
+    "cli/**/*",
+    "tui/**/*",
+    "providers/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

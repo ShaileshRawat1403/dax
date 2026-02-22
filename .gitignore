@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build artifacts
+dist/
+
+# Local state
+.dax/
+
+# OS-specific
+.DS_Store
+*.swp
