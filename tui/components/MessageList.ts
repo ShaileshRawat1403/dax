@@ -9,6 +9,7 @@ export function createMessageList(screen: any) {
     height: "80%",
     scrollable: true,
     alwaysScroll: true,
+    tags: true,
     style: {
       fg: "white",
     },
