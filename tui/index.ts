@@ -13,13 +13,12 @@ import { runSession } from "../core/session";
 import { listPending, addPending } from "../core/governance/pending";
 import { addRule } from "../core/policy";
 import { resolvePending } from "../core/governance/pending";
-import { getProviders } from "../core/providers";
 import { Step } from "../core/tools/schema";
 
 // Parse arguments
 const args = process.argv.slice(2);
 let promptArg = "";
-let viewMode = "session"; // "home" or "session"
+let viewMode = "session";
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--home") {
@@ -32,9 +31,6 @@ for (let i = 0; i < args.length; i++) {
 
 // Initialize state
 const state: TUIState = createInitialState();
-if (promptArg) {
-  state.currentPrompt = promptArg;
-}
 
 // Create screen
 const screen = blessed.screen({
@@ -46,7 +42,7 @@ const screen = blessed.screen({
 // Create components
 const { box: messageBox, render: renderMessages } = createMessageList(screen);
 const { box: promptBox, clear: clearPrompt } = createPromptInput(screen, handlePromptSubmit);
-const { header, setStatus } = createHeader(screen);
+const { setStatus } = createHeader(screen);
 const { show: showPermission, hide: hidePermission } = createPermissionDialog(
   screen,
   handleApprove,
@@ -63,6 +59,7 @@ if (viewMode === "home") {
 } else {
   state.view = "session";
   renderMessages(state.messages);
+  setStatus("Ready. Type a message to start the conversation.");
 }
 
 // Handle key presses
@@ -71,12 +68,19 @@ screen.key(["q", "C-c"], () => {
 });
 
 screen.key(["h"], () => {
-  if (state.view === "home") {
-    state.view = "session";
-    showHome(); // Toggle logic would go here
-  } else {
+  if (state.view === "session") {
     state.view = "home";
+    messageBox.hide();
+    promptBox.hide();
+    showHome();
+  } else {
+    state.view = "session";
     hideHome();
+    messageBox.show();
+    promptBox.show();
+    promptBox.focus();
+    setStatus("Ready. Type a message to continue.");
+    screen.render();
   }
 });
 
@@ -107,12 +111,15 @@ screen.key(["r"], async () => {
 // Render loop
 screen.render();
 
-// Auto-start if prompt provided
-if (promptArg && state.view === "session") {
-  await handlePromptSubmit(promptArg);
-}
+// Initial render
+renderMessages(state.messages);
+promptBox.focus();
+screen.render();
 
 async function handlePromptSubmit(prompt: string) {
+  if (!prompt.trim()) return;
+
+  // Add user message
   const userMessage: Message = {
     id: Date.now().toString(36),
     role: "user",
@@ -123,24 +130,32 @@ async function handlePromptSubmit(prompt: string) {
   renderMessages(state.messages);
   clearPrompt();
 
-  setStatus("Streaming...");
+  setStatus("Thinking...");
   state.isStreaming = true;
 
+  // Build conversation context from previous messages
+  const conversationHistory = state.messages
+    .filter(m => m.role !== "tool") // Don't include tool results in context
+    .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n\n");
+
   let fullResponse = "";
-  let thinking = "";
   let currentPlan: Step[] | null = null;
 
   try {
+    // Include conversation history in the prompt
+    const contextPrompt = conversationHistory 
+      ? `${conversationHistory}\n\nUser: ${prompt}`
+      : prompt;
+
     for await (const chunk of streamSession({
       projectDir: process.cwd(),
-      prompt,
+      prompt: contextPrompt,
     })) {
-      if (chunk.type === "thinking") {
-        thinking += chunk.delta;
-      } else if (chunk.type === "text") {
+      if (chunk.type === "text") {
         fullResponse += chunk.delta;
         
-        // Update the last assistant message or create new one
+        // Update or create assistant message
         const lastMsg = state.messages[state.messages.length - 1];
         if (lastMsg && lastMsg.role === "assistant") {
           lastMsg.content = fullResponse;
@@ -154,16 +169,19 @@ async function handlePromptSubmit(prompt: string) {
         }
         renderMessages(state.messages);
       } else if (chunk.type === "done") {
-        // Try to parse a plan from the response
         currentPlan = parsePlan(fullResponse);
         if (currentPlan) {
           state.currentPlan = currentPlan;
-          setStatus("Plan ready! Press [r] to execute, [a] to approve.");
+          setStatus("Plan ready! Press [r] to execute.");
         } else {
-          setStatus("Done.");
+          setStatus("Done. Type another message to continue.");
         }
         state.isStreaming = false;
         renderMessages(state.messages);
+        
+        // Keep input focused for next message
+        promptBox.focus();
+        screen.render();
       } else if (chunk.type === "error") {
         const errorMsg: Message = {
           id: Date.now().toString(36),
@@ -173,13 +191,17 @@ async function handlePromptSubmit(prompt: string) {
         };
         state.messages.push(errorMsg);
         renderMessages(state.messages);
-        setStatus("Error occurred.");
+        setStatus("Error. Type another message to continue.");
         state.isStreaming = false;
+        promptBox.focus();
+        screen.render();
       }
     }
   } catch (err: any) {
     setStatus(`Error: ${err.message}`);
     state.isStreaming = false;
+    promptBox.focus();
+    screen.render();
   }
 }
 
@@ -192,7 +214,6 @@ async function handleApprove(always: boolean) {
     addRule(process.cwd(), { permission, pattern, action: "allow" });
   }
   
-  // Remove from pending
   const pending = listPending(process.cwd());
   const item = pending.find(p => p.permission === permission && p.pattern === pattern);
   if (item) {
@@ -202,7 +223,6 @@ async function handleApprove(always: boolean) {
   hidePermission();
   setStatus("Approved.");
   
-  // Re-execute plan if we were waiting
   if (state.currentPlan) {
     await executePlan();
   }
@@ -234,9 +254,8 @@ async function executePlan() {
   });
 
   if (result.status === "ok") {
-    setStatus("Execution successful!");
+    setStatus("Execution successful! Continue the conversation.");
     
-    // Add result messages
     if (result.results) {
       for (const r of result.results) {
         state.messages.push({
@@ -255,4 +274,8 @@ async function executePlan() {
   state.currentPlan = null;
   state.isExecuting = false;
   renderMessages(state.messages);
+  
+  // Keep input focused
+  promptBox.focus();
+  screen.render();
 }
