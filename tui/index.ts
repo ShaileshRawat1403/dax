@@ -1,220 +1,210 @@
 #!/usr/bin/env node
 
+import blessed from "blessed";
 import { streamSession } from "../core/session/stream";
-import { listNotes } from "../core/pm";
-import { readEvents } from "../core/ledger";
 import { listPending } from "../core/governance/pending";
-import { listArtifacts, Artifact } from "../core/artifacts";
 import { addRule } from "../core/policy";
 import { resolvePending } from "../core/governance/pending";
-import { recordEvent } from "../core/ledger";
-import { parsePlan } from "../core/session/parser";
+import { listArtifacts } from "../core/artifacts";
 import { runSession } from "../core/session";
-import { Step } from "../core/tools/schema";
-
-type Pane = "rao" | "pm" | "approvals" | "artifacts" | "plan";
+import { parsePlan } from "../core/session/parser";
 
 const args = process.argv.slice(2);
-let showThinking: boolean = !args.includes("--no-thinking");
-let pane: Pane = "rao";
-let lastMetrics: any = null;
-const prompt: string =
-  args.filter((a) => !a.startsWith("--")).join(" ") || "hello";
-let currentPlan: Step[] | null = null;
-let thinking: string = "";
-let text: string = "";
+const prompt = args.join(" ") || "Hello, what can you help me with?";
 
-function clear(): void {
-  process.stdout.write("\x1b[2J\x1b[0;0H");
+// Create screen
+const screen = blessed.screen({
+  smartCSR: true,
+  title: "DAX - Deterministic AI Execution",
+});
+
+// Create layout boxes
+const header = blessed.box({
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: 3,
+  content: `{bold}DAX{/bold} - Deterministic AI Execution`,
+  style: {
+    fg: "cyan",
+    bold: true,
+  },
+  tags: true,
+});
+
+const main = blessed.box({
+  top: 3,
+  left: 0,
+  width: "100%",
+  height: "80%",
+  content: "Initializing...",
+  style: {
+    fg: "white",
+  },
+  scrollable: true,
+  alwaysScroll: true,
+});
+
+const statusBar = blessed.box({
+  bottom: 0,
+  left: 0,
+  width: "100%",
+  height: 3,
+  content: "Stream: [Waiting] | Approvals: [0] | Press 'q' to quit, 'r' to run plan",
+  style: {
+    fg: "green",
+    bg: "blue",
+  },
+});
+
+const sidebar = blessed.box({
+  top: 3,
+  right: 0,
+  width: "30%",
+  height: "80%",
+  content: "{bold}Pending Approvals{/bold}\n\n(No pending items)",
+  style: {
+    fg: "white",
+    bg: "black",
+  },
+  border: {
+    type: "line" as const,
+    fg: "white",
+  },
+} as any);
+
+// Add boxes to screen
+screen.append(header);
+screen.append(main);
+screen.append(statusBar);
+screen.append(sidebar);
+
+// State
+let currentPlan: any = null;
+let isStreaming = false;
+let planText = "";
+let metrics: any = null;
+
+// Helper to update status
+function updateStatus(msg: string) {
+  statusBar.setContent(msg);
+  screen.render();
 }
 
-function moveCursor(row: number, col: number): void {
-  process.stdout.write(`\x1b[${row};${col}H`);
-}
-
-function renderPane(): void {
-  // This function was called but not defined in the original code.
-  // It should just re-render the UI.
-  renderUI();
-}
-
-if (process.stdin.isTTY) {
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  process.stdin.on("data", (buf: Buffer) => {
-    const key = buf.toString("utf8");
-    if (key === "q" || key === "\u0003") {
-      // Handle Ctrl+C
-      clear();
-      process.exit(0);
-    }
-    if (key === "t") showThinking = !showThinking;
-    if (key === "1") pane = "rao";
-    if (key === "2") pane = "pm";
-    if (key === "3") pane = "approvals";
-    if (key === "4") pane = "artifacts";
-    if (key === "5") pane = "plan";
-    if (key === "a" && pane === "approvals") approveFirst();
-    if (key === "d" && pane === "approvals") denyFirst();
-    if (key === "r") executePlan();
-    renderUI();
-  });
-} else {
-  console.error("Error: TUI requires an interactive terminal (TTY).");
-  process.exit(1);
-}
-
-function approveFirst(): void {
+// Helper to update sidebar
+function updateSidebar() {
   const pending = listPending(process.cwd());
-  const item = pending[0];
-  if (!item) return;
-  addRule(process.cwd(), {
-    permission: item.permission,
-    pattern: item.pattern,
-    action: "allow",
-  });
-  resolvePending(process.cwd(), item.id);
-  recordEvent(process.cwd(), {
-    type: "override",
-    payload: { decision: "allow_always", permission: item.permission },
-  });
-  renderPane();
+  if (pending.length === 0) {
+    sidebar.setContent("{bold}Pending Approvals{/bold}\n\n(No pending items)");
+  } else {
+    const items = pending
+      .map(
+        (p, i) =>
+          `${i + 1}. {yellow}${p.permission}{/yellow}\n   ${p.pattern}\n`,
+      )
+      .join("\n");
+    sidebar.setContent(`{bold}Pending Approvals (${pending.length}){/bold}\n\n${items}`);
+  }
+  screen.render();
 }
 
-function denyFirst(): void {
-  const pending = listPending(process.cwd());
-  const item = pending[0];
-  if (!item) return;
-  resolvePending(process.cwd(), item.id);
-  recordEvent(process.cwd(), {
-    type: "override",
-    payload: { decision: "deny", permission: item.permission },
-  });
-  renderUI();
-}
+// Render initial
+screen.render();
+updateSidebar();
 
-async function executePlan(): Promise<void> {
-  if (!currentPlan) return;
-  process.stdout.write("\n[SYSTEM] Executing plan...\n");
+// Handle input
+screen.key(["q", "C-c"], () => {
+  return process.exit(0);
+});
+
+screen.key(["r"], async () => {
+  if (!currentPlan) {
+    updateStatus("{red}No plan to execute!{/red}");
+    return;
+  }
+  updateStatus("{yellow}Executing plan...{/yellow}");
   const result = await runSession({
     projectDir: process.cwd(),
     plan: currentPlan,
   });
   if (result.status === "ok") {
-    process.stdout.write("[SYSTEM] Execution successful.\n");
+    updateStatus("{green}Execution successful!{/green}");
   } else {
-    process.stdout.write(
-      `[SYSTEM] Execution failed: ${
-        (result as { error?: string }).error || "Unknown error"
-      }\n`,
-    );
+    updateStatus(`{red}Error: ${(result as any).error}{/red}`);
   }
-  renderUI();
-}
+  // Refresh artifacts
+  const artifacts = listArtifacts(process.cwd(), 5);
+  const artText = artifacts
+    .map((a) => `• ${a.type}: ${(a as any).path || (a as any).command}`)
+    .join("\n");
+  main.setContent(main.content + "\n\n{bold}Recent Artifacts:{/bold}\n" + artText);
+  screen.render();
+});
 
-function renderUI(): void {
-  process.stdout.write("\x1b[s"); // Save cursor
-  moveCursor(1, 1);
-
-  // Header
-  process.stdout.write("\x1b[7m DAX | Deterministic AI Execution \x1b[0m");
-  process.stdout.write(
-    `  Pane: \x1b[1m${pane.toUpperCase()}\x1b[0m  |  Thinking: ${
-      showThinking ? "ON" : "OFF"
-    }\n`,
-  );
-  process.stdout.write("─".repeat(process.stdout.columns) + "\n");
-
-  // Content
-  let content = "";
-  if (pane === "pm") {
-    const notes = listNotes(process.cwd(), 5);
-    content = notes.map((n) => `• ${n.text}`).join("\n") || "(empty)";
-  } else if (pane === "rao") {
-    const events = readEvents(process.cwd(), 5);
-    content =
-      events
-        .map(
-          (e) =>
-            `[${e.ts.slice(11, 19)}] ${e.type.padEnd(12)} | ${JSON.stringify(
-              e.payload,
-            ).slice(0, 60)}...`,
-        )
-        .join("\n") || "(empty)";
-  } else if (pane === "approvals") {
-    const pending = listPending(process.cwd());
-    content =
-      pending.map((p) => `⚠️  ${p.permission} -> ${p.pattern}`).join("\n") ||
-      "(none)";
-  } else if (pane === "artifacts") {
-    const items = listArtifacts(process.cwd(), 5);
-    content =
-      items
-        .map(
-          (a: Artifact) =>
-            `📦 ${a.type}: ${(a as any).path || (a as any).command || ""}`,
-        )
-        .join("\n") || "(none)";
-  } else if (pane === "plan") {
-    content = currentPlan
-      ? JSON.stringify(currentPlan, null, 2)
-      : "(no plan detected)";
+screen.key(["a"], () => {
+  const pending = listPending(process.cwd());
+  if (pending.length > 0) {
+    const item = pending[0];
+    addRule(process.cwd(), {
+      permission: item.permission,
+      pattern: item.pattern,
+      action: "allow",
+    });
+    resolvePending(process.cwd(), item.id);
+    updateStatus("{green}Approved: " + item.permission + "{/green}");
+    updateSidebar();
   }
+});
 
-  const lines = content.split("\n").slice(0, 6);
-  for (let i = 0; i < 6; i++) {
-    process.stdout.write("\x1b[K" + (lines[i] || "") + "\n");
+screen.key(["d"], () => {
+  const pending = listPending(process.cwd());
+  if (pending.length > 0) {
+    const item = pending[0];
+    resolvePending(process.cwd(), item.id);
+    updateStatus("{red}Denied: " + item.permission + "{/red}");
+    updateSidebar();
   }
+});
 
-  // Footer
-  process.stdout.write("─".repeat(process.stdout.columns) + "\n");
-  if (lastMetrics) {
-    process.stdout.write(
-      `\x1b[K\x1b[90mMetrics: ${lastMetrics.provider} | ${lastMetrics.ms}ms | ~${lastMetrics.tokens} tokens\x1b[0m\n`,
-    );
-  } else {
-    process.stdout.write("\x1b[K\n");
-  }
-  process.stdout.write(
-    "\x1b[K\x1b[90mKeys: 1-5:Panes | t:Thinking | r:Run | a/d:Approve/Deny | q:Quit\x1b[0m\n",
-  );
-  process.stdout.write("─".repeat(process.stdout.columns) + "\n");
-
-  process.stdout.write("\x1b[u"); // Restore cursor
-}
-
-async function main() {
-  clear();
-  process.stdout.write("\n".repeat(12));
-  renderUI();
+// Start streaming
+async function run() {
+  isStreaming = true;
+  updateStatus("{yellow}Streaming...{/yellow}");
 
   for await (const chunk of streamSession({
     projectDir: process.cwd(),
     prompt,
   })) {
-    if (chunk.type === "thinking") {
-      thinking += chunk.delta;
-      if (showThinking) process.stdout.write(chunk.delta);
-    } else if (chunk.type === "text") {
-      text += chunk.delta;
-      process.stdout.write(chunk.delta);
+    if (chunk.type === "text") {
+      planText += chunk.delta;
+      main.setContent(planText);
+      screen.render();
+    } else if (chunk.type === "thinking") {
+      // Could show thinking in a separate box
     } else if (chunk.type === "metrics") {
-      lastMetrics = chunk.data;
-      renderUI();
-    } else if (chunk.type === "done" || chunk.type === "error") {
-      currentPlan = parsePlan(text);
-      process.stdout.write("\n");
-      if (currentPlan)
-        process.stdout.write(
-          "\x1b[1;32m[SYSTEM] Plan detected. Press '5' to view or 'r' to run.\x1b[0m\n",
+      metrics = chunk.data;
+      updateStatus(
+        `{yellow}Done{/yellow} | Provider: ${metrics.provider} | ${metrics.ms}ms | ~${metrics.tokens} tokens`,
+      );
+    } else if (chunk.type === "done") {
+      currentPlan = parsePlan(planText);
+      if (currentPlan) {
+        main.setContent(
+          planText +
+            "\n\n{bold}{green}Plan detected!{/green}{/bold}\n" +
+            JSON.stringify(currentPlan, null, 2),
         );
-      renderUI();
+        updateStatus(
+          "{green}Plan ready!{/green} Press 'r' to execute, 'a/d' to manage approvals.",
+        );
+      }
+      isStreaming = false;
+      screen.render();
     }
-  }
-
-  if (!showThinking && thinking) {
-    process.stdout.write("\n[thinking hidden]\n");
   }
 }
 
-main().catch(console.error);
+run().catch((err) => {
+  main.setContent("{red}Error: " + err.message + "{/red}");
+  screen.render();
+});

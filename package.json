@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.30",
-    "ai": "^6.0.97"
+    "@types/blessed": "^0.1.27",
+    "ai": "^6.0.97",
+    "blessed": "^0.1.81"
   }
 }
