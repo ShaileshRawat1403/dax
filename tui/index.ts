@@ -10,24 +10,14 @@ import { createHomeView } from "./views/HomeView";
 import { streamSession } from "../core/session/stream";
 import { parsePlan } from "../core/session/parser";
 import { runSession } from "../core/session";
-import { listPending, addPending } from "../core/governance/pending";
+import { listPending } from "../core/governance/pending";
 import { addRule } from "../core/policy";
 import { resolvePending } from "../core/governance/pending";
 import { Step } from "../core/tools/schema";
 
 // Parse arguments
 const args = process.argv.slice(2);
-let promptArg = "";
 let viewMode = "session";
-
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--home") {
-    viewMode = "home";
-  } else if (!args[i].startsWith("--")) {
-    promptArg = args.slice(i).join(" ");
-    break;
-  }
-}
 
 // Initialize state
 const state: TUIState = createInitialState();
@@ -36,7 +26,8 @@ const state: TUIState = createInitialState();
 const screen = blessed.screen({
   smartCSR: true,
   title: "DAX - Deterministic AI Execution",
-  dump: process.env.DAX_TUI_DUMP,
+  dockBorders: true,
+  autoPadding: true,
 });
 
 // Create components
@@ -50,6 +41,26 @@ const { show: showPermission, hide: hidePermission } = createPermissionDialog(
 );
 const { show: showHome, hide: hideHome } = createHomeView(screen);
 
+// Add welcome message
+function showWelcome() {
+  const welcomeMessage: Message = {
+    id: "welcome",
+    role: "assistant",
+    content: `Welcome to DAX!
+
+I'm ready to help you with:
+• Writing and reading files
+• Running shell commands
+• Searching code
+• And more...
+
+Just type your request above and press Enter to start.`,
+    timestamp: new Date().toISOString(),
+  };
+  state.messages.push(welcomeMessage);
+  renderMessages(state.messages);
+}
+
 // Set initial view
 if (viewMode === "home") {
   state.view = "home";
@@ -58,8 +69,8 @@ if (viewMode === "home") {
   showHome();
 } else {
   state.view = "session";
-  renderMessages(state.messages);
-  setStatus("Ready. Type a message to start the conversation.");
+  showWelcome();
+  setStatus("Ready. Type a message and press Enter to start.");
 }
 
 // Handle key presses
@@ -79,47 +90,33 @@ screen.key(["h"], () => {
     messageBox.show();
     promptBox.show();
     promptBox.focus();
-    setStatus("Ready. Type a message to continue.");
     screen.render();
   }
 });
 
 screen.key(["a"], () => {
-  if (state.pendingApproval) {
-    handleApprove(false);
-  }
+  if (state.pendingApproval) handleApprove(false);
 });
 
 screen.key(["A"], () => {
-  if (state.pendingApproval) {
-    handleApprove(true);
-  }
+  if (state.pendingApproval) handleApprove(true);
 });
 
 screen.key(["d"], () => {
-  if (state.pendingApproval) {
-    handleDeny();
-  }
+  if (state.pendingApproval) handleDeny();
 });
 
 screen.key(["r"], async () => {
-  if (state.currentPlan) {
-    await executePlan();
-  }
+  if (state.currentPlan) await executePlan();
 });
 
-// Render loop
-screen.render();
-
 // Initial render
-renderMessages(state.messages);
-promptBox.focus();
 screen.render();
+promptBox.focus();
 
 async function handlePromptSubmit(prompt: string) {
   if (!prompt.trim()) return;
 
-  // Add user message
   const userMessage: Message = {
     id: Date.now().toString(36),
     role: "user",
@@ -131,11 +128,9 @@ async function handlePromptSubmit(prompt: string) {
   clearPrompt();
 
   setStatus("Thinking...");
-  state.isStreaming = true;
-
-  // Build conversation context from previous messages
+  
   const conversationHistory = state.messages
-    .filter(m => m.role !== "tool") // Don't include tool results in context
+    .filter(m => m.role !== "tool" && m.id !== "welcome")
     .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
     .join("\n\n");
 
@@ -143,7 +138,6 @@ async function handlePromptSubmit(prompt: string) {
   let currentPlan: Step[] | null = null;
 
   try {
-    // Include conversation history in the prompt
     const contextPrompt = conversationHistory 
       ? `${conversationHistory}\n\nUser: ${prompt}`
       : prompt;
@@ -155,7 +149,6 @@ async function handlePromptSubmit(prompt: string) {
       if (chunk.type === "text") {
         fullResponse += chunk.delta;
         
-        // Update or create assistant message
         const lastMsg = state.messages[state.messages.length - 1];
         if (lastMsg && lastMsg.role === "assistant") {
           lastMsg.content = fullResponse;
@@ -176,30 +169,24 @@ async function handlePromptSubmit(prompt: string) {
         } else {
           setStatus("Done. Type another message to continue.");
         }
-        state.isStreaming = false;
         renderMessages(state.messages);
-        
-        // Keep input focused for next message
         promptBox.focus();
         screen.render();
       } else if (chunk.type === "error") {
-        const errorMsg: Message = {
+        state.messages.push({
           id: Date.now().toString(36),
           role: "assistant",
           content: `Error: ${chunk.error}`,
           timestamp: new Date().toISOString(),
-        };
-        state.messages.push(errorMsg);
+        });
         renderMessages(state.messages);
         setStatus("Error. Type another message to continue.");
-        state.isStreaming = false;
         promptBox.focus();
         screen.render();
       }
     }
   } catch (err: any) {
     setStatus(`Error: ${err.message}`);
-    state.isStreaming = false;
     promptBox.focus();
     screen.render();
   }
@@ -207,7 +194,6 @@ async function handlePromptSubmit(prompt: string) {
 
 async function handleApprove(always: boolean) {
   if (!state.pendingApproval) return;
-
   const { permission, pattern } = state.pendingApproval;
   
   if (always) {
@@ -216,27 +202,20 @@ async function handleApprove(always: boolean) {
   
   const pending = listPending(process.cwd());
   const item = pending.find(p => p.permission === permission && p.pattern === pattern);
-  if (item) {
-    resolvePending(process.cwd(), item.id);
-  }
+  if (item) resolvePending(process.cwd(), item.id);
 
   hidePermission();
   setStatus("Approved.");
   
-  if (state.currentPlan) {
-    await executePlan();
-  }
+  if (state.currentPlan) await executePlan();
 }
 
 function handleDeny() {
   if (!state.pendingApproval) return;
-  
   const { permission } = state.pendingApproval;
   const pending = listPending(process.cwd());
   const item = pending.find(p => p.permission === permission);
-  if (item) {
-    resolvePending(process.cwd(), item.id);
-  }
+  if (item) resolvePending(process.cwd(), item.id);
 
   hidePermission();
   setStatus("Denied.");
@@ -246,8 +225,6 @@ async function executePlan() {
   if (!state.currentPlan) return;
 
   setStatus("Executing plan...");
-  state.isExecuting = true;
-
   const result = await runSession({
     projectDir: process.cwd(),
     plan: state.currentPlan,
@@ -255,7 +232,6 @@ async function executePlan() {
 
   if (result.status === "ok") {
     setStatus("Execution successful! Continue the conversation.");
-    
     if (result.results) {
       for (const r of result.results) {
         state.messages.push({
@@ -272,10 +248,7 @@ async function executePlan() {
   }
 
   state.currentPlan = null;
-  state.isExecuting = false;
   renderMessages(state.messages);
-  
-  // Keep input focused
   promptBox.focus();
   screen.render();
 }
