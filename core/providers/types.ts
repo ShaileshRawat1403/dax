@@ -38,4 +38,5 @@ export interface StreamInput {
 export interface Provider {
   id: string;
   stream: (input: StreamInput) => AsyncGenerator<StreamChunk>;
+  sdk?: any; // To hold the underlying AI SDK provider object
 }

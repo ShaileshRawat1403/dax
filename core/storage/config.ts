@@ -10,7 +10,7 @@ export interface DaxConfig {
 }
 
 const DEFAULT_CONFIG: DaxConfig = {
-  providers: ["stub"],
+  providers: ["openai"],
   models: {},
   baseUrls: {},
 };
