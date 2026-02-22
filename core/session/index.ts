@@ -13,7 +13,7 @@ type RunResult =
   | { status: "error"; error: string }
   | { status: "pending"; step: Step }
   | { status: "denied"; step: Step }
-  | { status: "ok" };
+  | { status: "ok"; results?: { step: string; status: string; result: any }[] };
 
 export async function runSession({
   projectDir,
@@ -99,5 +99,5 @@ export async function runSession({
   recordEvent(projectDir, { type: "override", payload: { decision: "allow" } });
   session.status = "ok";
   saveSession(projectDir, session);
-  return { status: "ok" };
+  return { status: "ok", results: session.results };
 }

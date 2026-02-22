@@ -1,210 +1,258 @@
 #!/usr/bin/env node
 
 import blessed from "blessed";
+import { createInitialState, TUIState, Message } from "./state";
+import { createMessageList } from "./components/MessageList";
+import { createPromptInput } from "./components/PromptInput";
+import { createHeader } from "./components/Header";
+import { createPermissionDialog } from "./components/PermissionDialog";
+import { createHomeView } from "./views/HomeView";
 import { streamSession } from "../core/session/stream";
-import { listPending } from "../core/governance/pending";
+import { parsePlan } from "../core/session/parser";
+import { runSession } from "../core/session";
+import { listPending, addPending } from "../core/governance/pending";
 import { addRule } from "../core/policy";
 import { resolvePending } from "../core/governance/pending";
-import { listArtifacts } from "../core/artifacts";
-import { runSession } from "../core/session";
-import { parsePlan } from "../core/session/parser";
+import { getProviders } from "../core/providers";
+import { Step } from "../core/tools/schema";
 
+// Parse arguments
 const args = process.argv.slice(2);
-const prompt = args.join(" ") || "Hello, what can you help me with?";
+let promptArg = "";
+let viewMode = "session"; // "home" or "session"
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--home") {
+    viewMode = "home";
+  } else if (!args[i].startsWith("--")) {
+    promptArg = args.slice(i).join(" ");
+    break;
+  }
+}
+
+// Initialize state
+const state: TUIState = createInitialState();
+if (promptArg) {
+  state.currentPrompt = promptArg;
+}
 
 // Create screen
 const screen = blessed.screen({
   smartCSR: true,
   title: "DAX - Deterministic AI Execution",
+  dump: process.env.DAX_TUI_DUMP,
 });
 
-// Create layout boxes
-const header = blessed.box({
-  top: 0,
-  left: 0,
-  width: "100%",
-  height: 3,
-  content: `{bold}DAX{/bold} - Deterministic AI Execution`,
-  style: {
-    fg: "cyan",
-    bold: true,
-  },
-  tags: true,
-});
+// Create components
+const { box: messageBox, render: renderMessages } = createMessageList(screen);
+const { box: promptBox, clear: clearPrompt } = createPromptInput(screen, handlePromptSubmit);
+const { header, setStatus } = createHeader(screen);
+const { show: showPermission, hide: hidePermission } = createPermissionDialog(
+  screen,
+  handleApprove,
+  handleDeny
+);
+const { show: showHome, hide: hideHome } = createHomeView(screen);
 
-const main = blessed.box({
-  top: 3,
-  left: 0,
-  width: "100%",
-  height: "80%",
-  content: "Initializing...",
-  style: {
-    fg: "white",
-  },
-  scrollable: true,
-  alwaysScroll: true,
-});
-
-const statusBar = blessed.box({
-  bottom: 0,
-  left: 0,
-  width: "100%",
-  height: 3,
-  content: "Stream: [Waiting] | Approvals: [0] | Press 'q' to quit, 'r' to run plan",
-  style: {
-    fg: "green",
-    bg: "blue",
-  },
-});
-
-const sidebar = blessed.box({
-  top: 3,
-  right: 0,
-  width: "30%",
-  height: "80%",
-  content: "{bold}Pending Approvals{/bold}\n\n(No pending items)",
-  style: {
-    fg: "white",
-    bg: "black",
-  },
-  border: {
-    type: "line" as const,
-    fg: "white",
-  },
-} as any);
-
-// Add boxes to screen
-screen.append(header);
-screen.append(main);
-screen.append(statusBar);
-screen.append(sidebar);
-
-// State
-let currentPlan: any = null;
-let isStreaming = false;
-let planText = "";
-let metrics: any = null;
-
-// Helper to update status
-function updateStatus(msg: string) {
-  statusBar.setContent(msg);
-  screen.render();
+// Set initial view
+if (viewMode === "home") {
+  state.view = "home";
+  messageBox.hide();
+  promptBox.hide();
+  showHome();
+} else {
+  state.view = "session";
+  renderMessages(state.messages);
 }
 
-// Helper to update sidebar
-function updateSidebar() {
-  const pending = listPending(process.cwd());
-  if (pending.length === 0) {
-    sidebar.setContent("{bold}Pending Approvals{/bold}\n\n(No pending items)");
-  } else {
-    const items = pending
-      .map(
-        (p, i) =>
-          `${i + 1}. {yellow}${p.permission}{/yellow}\n   ${p.pattern}\n`,
-      )
-      .join("\n");
-    sidebar.setContent(`{bold}Pending Approvals (${pending.length}){/bold}\n\n${items}`);
-  }
-  screen.render();
-}
-
-// Render initial
-screen.render();
-updateSidebar();
-
-// Handle input
+// Handle key presses
 screen.key(["q", "C-c"], () => {
   return process.exit(0);
 });
 
-screen.key(["r"], async () => {
-  if (!currentPlan) {
-    updateStatus("{red}No plan to execute!{/red}");
-    return;
-  }
-  updateStatus("{yellow}Executing plan...{/yellow}");
-  const result = await runSession({
-    projectDir: process.cwd(),
-    plan: currentPlan,
-  });
-  if (result.status === "ok") {
-    updateStatus("{green}Execution successful!{/green}");
+screen.key(["h"], () => {
+  if (state.view === "home") {
+    state.view = "session";
+    showHome(); // Toggle logic would go here
   } else {
-    updateStatus(`{red}Error: ${(result as any).error}{/red}`);
+    state.view = "home";
+    hideHome();
   }
-  // Refresh artifacts
-  const artifacts = listArtifacts(process.cwd(), 5);
-  const artText = artifacts
-    .map((a) => `• ${a.type}: ${(a as any).path || (a as any).command}`)
-    .join("\n");
-  main.setContent(main.content + "\n\n{bold}Recent Artifacts:{/bold}\n" + artText);
-  screen.render();
 });
 
 screen.key(["a"], () => {
-  const pending = listPending(process.cwd());
-  if (pending.length > 0) {
-    const item = pending[0];
-    addRule(process.cwd(), {
-      permission: item.permission,
-      pattern: item.pattern,
-      action: "allow",
-    });
-    resolvePending(process.cwd(), item.id);
-    updateStatus("{green}Approved: " + item.permission + "{/green}");
-    updateSidebar();
+  if (state.pendingApproval) {
+    handleApprove(false);
+  }
+});
+
+screen.key(["A"], () => {
+  if (state.pendingApproval) {
+    handleApprove(true);
   }
 });
 
 screen.key(["d"], () => {
-  const pending = listPending(process.cwd());
-  if (pending.length > 0) {
-    const item = pending[0];
-    resolvePending(process.cwd(), item.id);
-    updateStatus("{red}Denied: " + item.permission + "{/red}");
-    updateSidebar();
+  if (state.pendingApproval) {
+    handleDeny();
   }
 });
 
-// Start streaming
-async function run() {
-  isStreaming = true;
-  updateStatus("{yellow}Streaming...{/yellow}");
+screen.key(["r"], async () => {
+  if (state.currentPlan) {
+    await executePlan();
+  }
+});
 
-  for await (const chunk of streamSession({
-    projectDir: process.cwd(),
-    prompt,
-  })) {
-    if (chunk.type === "text") {
-      planText += chunk.delta;
-      main.setContent(planText);
-      screen.render();
-    } else if (chunk.type === "thinking") {
-      // Could show thinking in a separate box
-    } else if (chunk.type === "metrics") {
-      metrics = chunk.data;
-      updateStatus(
-        `{yellow}Done{/yellow} | Provider: ${metrics.provider} | ${metrics.ms}ms | ~${metrics.tokens} tokens`,
-      );
-    } else if (chunk.type === "done") {
-      currentPlan = parsePlan(planText);
-      if (currentPlan) {
-        main.setContent(
-          planText +
-            "\n\n{bold}{green}Plan detected!{/green}{/bold}\n" +
-            JSON.stringify(currentPlan, null, 2),
-        );
-        updateStatus(
-          "{green}Plan ready!{/green} Press 'r' to execute, 'a/d' to manage approvals.",
-        );
+// Render loop
+screen.render();
+
+// Auto-start if prompt provided
+if (promptArg && state.view === "session") {
+  await handlePromptSubmit(promptArg);
+}
+
+async function handlePromptSubmit(prompt: string) {
+  const userMessage: Message = {
+    id: Date.now().toString(36),
+    role: "user",
+    content: prompt,
+    timestamp: new Date().toISOString(),
+  };
+  state.messages.push(userMessage);
+  renderMessages(state.messages);
+  clearPrompt();
+
+  setStatus("Streaming...");
+  state.isStreaming = true;
+
+  let fullResponse = "";
+  let thinking = "";
+  let currentPlan: Step[] | null = null;
+
+  try {
+    for await (const chunk of streamSession({
+      projectDir: process.cwd(),
+      prompt,
+    })) {
+      if (chunk.type === "thinking") {
+        thinking += chunk.delta;
+      } else if (chunk.type === "text") {
+        fullResponse += chunk.delta;
+        
+        // Update the last assistant message or create new one
+        const lastMsg = state.messages[state.messages.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = fullResponse;
+        } else {
+          state.messages.push({
+            id: Date.now().toString(36),
+            role: "assistant",
+            content: fullResponse,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        renderMessages(state.messages);
+      } else if (chunk.type === "done") {
+        // Try to parse a plan from the response
+        currentPlan = parsePlan(fullResponse);
+        if (currentPlan) {
+          state.currentPlan = currentPlan;
+          setStatus("Plan ready! Press [r] to execute, [a] to approve.");
+        } else {
+          setStatus("Done.");
+        }
+        state.isStreaming = false;
+        renderMessages(state.messages);
+      } else if (chunk.type === "error") {
+        const errorMsg: Message = {
+          id: Date.now().toString(36),
+          role: "assistant",
+          content: `Error: ${chunk.error}`,
+          timestamp: new Date().toISOString(),
+        };
+        state.messages.push(errorMsg);
+        renderMessages(state.messages);
+        setStatus("Error occurred.");
+        state.isStreaming = false;
       }
-      isStreaming = false;
-      screen.render();
     }
+  } catch (err: any) {
+    setStatus(`Error: ${err.message}`);
+    state.isStreaming = false;
   }
 }
 
-run().catch((err) => {
-  main.setContent("{red}Error: " + err.message + "{/red}");
-  screen.render();
-});
+async function handleApprove(always: boolean) {
+  if (!state.pendingApproval) return;
+
+  const { permission, pattern } = state.pendingApproval;
+  
+  if (always) {
+    addRule(process.cwd(), { permission, pattern, action: "allow" });
+  }
+  
+  // Remove from pending
+  const pending = listPending(process.cwd());
+  const item = pending.find(p => p.permission === permission && p.pattern === pattern);
+  if (item) {
+    resolvePending(process.cwd(), item.id);
+  }
+
+  hidePermission();
+  setStatus("Approved.");
+  
+  // Re-execute plan if we were waiting
+  if (state.currentPlan) {
+    await executePlan();
+  }
+}
+
+function handleDeny() {
+  if (!state.pendingApproval) return;
+  
+  const { permission } = state.pendingApproval;
+  const pending = listPending(process.cwd());
+  const item = pending.find(p => p.permission === permission);
+  if (item) {
+    resolvePending(process.cwd(), item.id);
+  }
+
+  hidePermission();
+  setStatus("Denied.");
+}
+
+async function executePlan() {
+  if (!state.currentPlan) return;
+
+  setStatus("Executing plan...");
+  state.isExecuting = true;
+
+  const result = await runSession({
+    projectDir: process.cwd(),
+    plan: state.currentPlan,
+  });
+
+  if (result.status === "ok") {
+    setStatus("Execution successful!");
+    
+    // Add result messages
+    if (result.results) {
+      for (const r of result.results) {
+        state.messages.push({
+          id: Date.now().toString(36),
+          role: "tool",
+          content: JSON.stringify(r.result, null, 2),
+          timestamp: new Date().toISOString(),
+          toolName: r.step,
+        });
+      }
+    }
+  } else {
+    setStatus(`Execution failed: ${(result as any).error}`);
+  }
+
+  state.currentPlan = null;
+  state.isExecuting = false;
+  renderMessages(state.messages);
+}
