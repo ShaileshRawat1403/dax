@@ -39,7 +39,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const [agentStore, setAgentStore] = createStore<{
         current: string
       }>({
-        current: agents()[0].name,
+        current: agents()[0]?.name ?? "build",
       })
       const themeState = useTheme()
       const theme = themeState.theme
@@ -57,7 +57,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return agents()
         },
         current() {
-          return agents().find((x) => x.name === agentStore.current)!
+          return agents().find((x) => x.name === agentStore.current) ?? agents()[0]
         },
         set(name: string) {
           if (!agents().some((x) => x.name === name))
@@ -70,11 +70,13 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         },
         move(direction: 1 | -1) {
           batch(() => {
-            let next = agents().findIndex((x) => x.name === agentStore.current) + direction
-            if (next < 0) next = agents().length - 1
-            if (next >= agents().length) next = 0
-            const value = agents()[next]
-            setAgentStore("current", value.name)
+            const list = agents()
+            if (list.length === 0) return
+            let next = list.findIndex((x) => x.name === agentStore.current) + direction
+            if (next < 0) next = list.length - 1
+            if (next >= list.length) next = 0
+            const value = list[next]
+            if (value) setAgentStore("current", value.name)
           })
         },
         color(name: string) {

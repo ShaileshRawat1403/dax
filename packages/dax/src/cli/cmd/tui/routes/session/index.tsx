@@ -148,7 +148,7 @@ export function Session() {
       .filter((x) => x.parentID === parentID || x.id === parentID)
       .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   })
-  const messages = createMemo(() => (route.sessionID ? sync.data.message[route.sessionID] ?? [] : []))
+  const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const permissions = createMemo(() => {
     if (!session() || session()?.parentID) return []
     return children().flatMap((x) => sync.data.permission[x.id] ?? [])
@@ -361,13 +361,32 @@ export function Session() {
   }
 
   function snapshotStreamParts() {
-    const next: Record<string, Part[]> = {}
-    for (const message of messages()) {
-      if (message.role !== "assistant") continue
-      if (message.time.completed) continue
-      next[message.id] = [...(sync.data.part[message.id] ?? [])]
+    const streamingMessages = messages().filter((m) => m.role === "assistant" && !m.time.completed)
+    if (streamingMessages.length === 0) {
+      if (Object.keys(streamParts()).length > 0) {
+        setStreamParts({})
+      }
+      return
     }
-    setStreamParts(next)
+    setStreamParts((prev) => {
+      const next: Record<string, Part[]> = { ...prev }
+      let changed = false
+      for (const message of streamingMessages) {
+        const parts = sync.data.part[message.id] ?? []
+        const prevParts = prev[message.id]
+        if (prevParts?.length !== parts.length) {
+          changed = true
+        }
+        next[message.id] = [...parts]
+      }
+      for (const key of Object.keys(next)) {
+        if (!streamingMessages.some((m) => m.id === key)) {
+          delete next[key]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
   }
 
   function cycleTheme(step: 1 | -1) {
@@ -1748,12 +1767,7 @@ export function Session() {
                       </For>
                     </scrollbox>
                   </box>
-                  <box
-                    flexGrow={liveStacked() ? 1 : 3}
-                    padding={1}
-                    gap={1}
-                    backgroundColor={theme.backgroundPanel}
-                  >
+                  <box flexGrow={liveStacked() ? 1 : 3} padding={1} gap={1} backgroundColor={theme.backgroundPanel}>
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                       <text fg={theme.textMuted}>⊞</text>
                       <For each={["auto", "pin", "hide"] as const}>
@@ -1811,11 +1825,7 @@ export function Session() {
                       <text fg={theme.textMuted}>·</text>
                       <text fg={stageColor()}>{stageLabel()}</text>
                       <text fg={theme.textMuted}>
-                        (
-                        {isThinking()
-                          ? `Thinking: ${currentPun()}`
-                          : displayStageState().reason || "Idle"}
-                        )
+                        ({isThinking() ? `Thinking: ${currentPun()}` : displayStageState().reason || "Idle"})
                       </text>
                     </box>
                     <Switch>
