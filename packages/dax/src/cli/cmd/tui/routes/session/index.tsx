@@ -78,6 +78,7 @@ import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
+import { RAOPane } from "./rao-pane"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
@@ -1891,14 +1892,7 @@ export function Session() {
                         </Show>
                       </Match>
                       <Match when={activePaneMode() === "rao"}>
-                        <text fg={theme.text}>Run Audit Override</text>
-                        <text fg={theme.textMuted}>Status: {sessionStatusType()}</text>
-                        <text fg={permissions().length > 0 ? theme.warning : theme.textMuted}>
-                          Pending approvals: {permissions().length}
-                        </text>
-                        <text fg={questions().length > 0 ? theme.warning : theme.textMuted}>
-                          Pending questions: {questions().length}
-                        </text>
+                        <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
                       </Match>
                       <Match when={activePaneMode() === "pm"}>
                         <text fg={theme.text}>Project Memory</text>
@@ -2029,14 +2023,8 @@ export function Session() {
               </Match>
             </Switch>
             <box flexShrink={0}>
-              <Show when={permissions().length > 0}>
-                <PermissionPrompt request={permissions()[0]} />
-              </Show>
-              <Show when={permissions().length === 0 && questions().length > 0}>
-                <QuestionPrompt request={questions()[0]} />
-              </Show>
               <Prompt
-                visible={!session()?.parentID && permissions().length === 0 && questions().length === 0}
+                visible={!session()?.parentID}
                 ref={(r) => {
                   prompt = r
                   promptRef.set(r)
@@ -2045,7 +2033,7 @@ export function Session() {
                     r.set(route.initialPrompt)
                   }
                 }}
-                disabled={permissions().length > 0 || questions().length > 0}
+                disabled={false}
                 onSubmit={() => {
                   toBottom()
                 }}
