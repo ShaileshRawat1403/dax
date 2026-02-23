@@ -1842,9 +1842,7 @@ export function Session() {
                       </text>
                       <text fg={theme.textMuted}>·</text>
                       <text fg={stageColor()}>{stageLabel()}</text>
-                      <text fg={theme.textMuted}>
-                        ({isThinking() ? `Thinking: ${currentPun()}` : displayStageState().reason || "Idle"})
-                      </text>
+                      <text fg={theme.textMuted}>({displayStageState().reason || "Idle"})</text>
                     </box>
                     <Switch>
                       <Match when={activePaneMode() === "artifact"}>
