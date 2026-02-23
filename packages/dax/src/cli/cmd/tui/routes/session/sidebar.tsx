@@ -94,8 +94,22 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
               <text fg={theme.text}>
                 <b>Context</b>
               </text>
-              <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
-              <text fg={theme.textMuted}>{context()?.percentage ?? 0}% used</text>
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
+                <Show when={context()}>
+                  {(c) => {
+                    const p = c().percentage
+                    if (p === null) return <></>
+                    const filled = Math.floor(p / 10)
+                    const empty = 10 - filled
+                    return (
+                      <text fg={p > 80 ? theme.error : theme.accent}>
+                        [{"■".repeat(filled)}{" ".repeat(empty)}] {p}%
+                      </text>
+                    )
+                  }}
+                </Show>
+              </box>
               <text fg={theme.textMuted}>{cost()} spent</text>
             </box>
             <Show when={mcpEntries().length > 0}>

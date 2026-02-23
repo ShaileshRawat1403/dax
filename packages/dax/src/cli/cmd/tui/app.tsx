@@ -145,7 +145,8 @@ function App() {
   const sdk = useSDK()
   const toast = useToast()
   const themeState = useTheme()
-  const { theme, mode, setMode } = themeState
+  const theme = themeState.theme
+  const { mode, setMode } = themeState
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
@@ -261,8 +262,8 @@ function App() {
     toast.show({ message: `Theme: ${next}`, variant: "success", duration: 1500 })
   }
   function setThemeIfAvailable(name: string) {
-    const theme = themeState.all()[name]
-    if (!theme) {
+    const selectedTheme = themeState.all()[name]
+    if (!selectedTheme) {
       toast.show({ message: `Theme not available: ${name}`, variant: "warning", duration: 2000 })
       return
     }
@@ -791,13 +792,13 @@ function App() {
 }
 
 function ComponentError(props: { error: any; name: string }) {
-  const { theme } = useTheme()
+  const themeState = useTheme()
   return (
-    <box flexDirection="column" padding={1} backgroundColor={theme.background}>
-      <text fg={theme.error} attributes={TextAttributes.BOLD}>
+    <box flexDirection="column" padding={1} backgroundColor={themeState.theme.background}>
+      <text fg={themeState.theme.error} attributes={TextAttributes.BOLD}>
         Error in {props.name}
       </text>
-      <text fg={theme.textMuted}>{String(props.error)}</text>
+      <text fg={themeState.theme.textMuted}>{String(props.error)}</text>
     </box>
   )
 }

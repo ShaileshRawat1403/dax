@@ -136,22 +136,25 @@ export function Session() {
   const sync = useSync()
   const kv = useKV()
   const themeState = useTheme()
-  const { theme, syntax } = themeState
+  const theme = themeState.theme
+  const syntax = themeState.syntax
   const promptRef = usePromptRef()
   const session = createMemo(() => sync.session.get(route.sessionID))
   const children = createMemo(() => {
-    const parentID = session()?.parentID ?? session()?.id
+    const s = session()
+    if (!s) return []
+    const parentID = s.parentID ?? s.id
     return sync.data.session
       .filter((x) => x.parentID === parentID || x.id === parentID)
       .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   })
-  const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
+  const messages = createMemo(() => (route.sessionID ? sync.data.message[route.sessionID] ?? [] : []))
   const permissions = createMemo(() => {
-    if (session()?.parentID) return []
+    if (!session() || session()?.parentID) return []
     return children().flatMap((x) => sync.data.permission[x.id] ?? [])
   })
   const questions = createMemo(() => {
-    if (session()?.parentID) return []
+    if (!session() || session()?.parentID) return []
     return children().flatMap((x) => sync.data.question[x.id] ?? [])
   })
 

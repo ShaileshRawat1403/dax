@@ -8,7 +8,7 @@ import { useSync } from "../context/sync"
 import { Toast, useToast } from "../ui/toast"
 import { useArgs } from "../context/args"
 import { useDirectory } from "../context/directory"
-import { useRouteData } from "@tui/context/route"
+import { useRoute, useRouteData } from "@tui/context/route"
 import { usePromptRef } from "../context/prompt"
 import { Installation } from "@/installation"
 import { useKV } from "../context/kv"
@@ -91,7 +91,9 @@ function ActionChip(props: { label: string; active?: boolean; onPress: () => voi
 export function Home() {
   const sync = useSync()
   const kv = useKV()
-  const { theme } = useTheme()
+  const themeState = useTheme()
+  const theme = themeState.theme
+  const { navigate } = useRoute()
   const route = useRouteData("home")
   const promptRef = usePromptRef()
   const command = useCommandDialog()
@@ -262,6 +264,36 @@ export function Home() {
                 hint={Hint}
               />
             </box>
+
+            <Show when={!tiny() && sessionCount() > 0}>
+              <box width="100%" marginTop={1} flexDirection="column" gap={0}>
+                <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                  {"  "}RECENT SESSIONS
+                </text>
+                <box flexDirection="column" gap={0}>
+                  <For each={sync.data.session.slice(0, 3)}>
+                    {(s) => (
+                      <box
+                        onMouseUp={() => {
+                          navigate({ type: "session", sessionID: s.id })
+                        }}
+                        paddingLeft={2}
+                        paddingRight={2}
+                        paddingTop={0}
+                        paddingBottom={0}
+                        flexDirection="row"
+                        justifyContent="space-between"
+                      >
+                        <text fg={theme.text}>
+                          ▸ {s.title.length > 50 ? s.title.slice(0, 47) + "..." : s.title}
+                        </text>
+                        <text fg={theme.textMuted}>{new Date(s.time.updated).toLocaleDateString()}</text>
+                      </box>
+                    )}
+                  </For>
+                </box>
+              </box>
+            </Show>
 
             <Show when={!tiny() && showTips()}>
               <box width="100%" maxWidth={56} alignItems="center">

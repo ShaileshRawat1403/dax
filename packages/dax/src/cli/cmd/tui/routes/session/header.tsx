@@ -13,6 +13,7 @@ export function Header() {
   const route = useRouteData("session")
   const sync = useSync()
   const { telemetry, currentPun } = useUIActivity()
+  const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 
@@ -56,22 +57,33 @@ export function Header() {
     if (["write", "edit", "apply_patch", "bash"].includes(tool)) return "Executing"
     return "Thinking"
   })
+  const stageColor = createMemo(() => {
+    const stage = liveStage()
+    if (stage === "Done") return theme.success
+    if (stage === "Thinking") return theme.warning
+    if (stage === "Exploring") return theme.secondary
+    return theme.accent
+  })
   const sessionIntent = createMemo(() => {
+    const s = session()
+    if (!s) return "Loading..."
     const user = messages().find((x) => x.role === "user")
-    if (!user) return session().title
+    if (!user) return s.title
     const part = (sync.data.part[user.id] ?? []).find((x) => x.type === "text" && "text" in x && x.text.trim())
-    if (!part || !("text" in part)) return session().title
-    const body = part.text.replace(/\s+/g, " ").trim().replace(/[.!?].*$/, "")
-    if (!body) return session().title
+    if (!part || !("text" in part)) return s.title
+    const body = part.text
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[.!?].*$/, "")
+    if (!body) return s.title
     const text = body[0].toUpperCase() + body.slice(1)
     if (text.length <= 44) return text
     return `${text.slice(0, 41)}...`
   })
-  const title = createMemo(() => `${sessionIntent()} · ${liveStage()}`)
+  const title = createMemo(() => sessionIntent())
 
   const msgCount = createMemo(() => messages().filter((x) => x.role === "user").length)
 
-  const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 60)
@@ -81,13 +93,7 @@ export function Header() {
 
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
-      <box
-        paddingTop={0}
-        paddingBottom={0}
-        paddingLeft={1}
-        paddingRight={1}
-        flexShrink={0}
-      >
+      <box paddingTop={0} paddingBottom={0} paddingLeft={1} paddingRight={1} flexShrink={0}>
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
           <box flexDirection="row" gap={1} alignItems="center">
             <text fg={theme.primary} attributes={TextAttributes.BOLD}>
@@ -95,6 +101,10 @@ export function Header() {
             </text>
             <text fg={theme.text} attributes={TextAttributes.BOLD}>
               {title()}
+            </text>
+            <text fg={theme.textMuted}>·</text>
+            <text fg={stageColor()} attributes={TextAttributes.BOLD}>
+              {liveStage()}
             </text>
             <Show when={isThinking()}>
               <text fg={theme.accent}>[{statusLabel()}]</text>
