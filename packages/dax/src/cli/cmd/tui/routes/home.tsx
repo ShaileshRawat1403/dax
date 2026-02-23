@@ -35,7 +35,7 @@ const WELCOME_MESSAGES = {
 let once = false
 let welcomeShown = false
 
-function AnimatedHeader(props: { theme: any; message?: string }) {
+function AnimatedHeader(props: { theme: any }) {
   const [tick, setTick] = createSignal(0)
 
   onMount(() => {
@@ -74,11 +74,6 @@ function AnimatedHeader(props: { theme: any; message?: string }) {
       <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
         {DAX_BRAND.category}
       </text>
-      <Show when={props.message}>
-        <text fg={props.theme.textMuted} marginTop={1}>
-          {props.message}
-        </text>
-      </Show>
     </box>
   )
 }
@@ -166,20 +161,22 @@ export function Home() {
   let prompt: PromptRef
   const args = useArgs()
 
-  const welcomeMessage = createMemo(() => {
-    if (isFirstTimeUser()) {
-      return WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)]
-    }
-    const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
-    return sessionCount() > 0 ? `${msg} (${sessionCount()} sessions)` : msg
-  })
-
   onMount(() => {
     if (once) return
     once = true
 
     if (!welcomeShown) {
       welcomeShown = true
+      setTimeout(() => {
+        if (isFirstTimeUser()) {
+          const msg = WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)]
+          toast.show({ message: msg, variant: "info", duration: 4000 })
+        } else {
+          const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
+          const sessionInfo = sessionCount() > 0 ? ` (${sessionCount()} sessions)` : ""
+          toast.show({ message: msg + sessionInfo, variant: "success", duration: 3000 })
+        }
+      }, 500)
     }
 
     if (route.initialPrompt) {
@@ -232,7 +229,7 @@ export function Home() {
           }
         >
           <box width="100%" maxWidth={small() ? undefined : 72} alignItems="center" gap={tiny() ? 0 : 1}>
-            <AnimatedHeader theme={theme} message={welcomeMessage()} />
+            <AnimatedHeader theme={theme} />
 
             <Show when={showStages()}>
               <StageIndicator stages={stages()} current={0} theme={theme} />
