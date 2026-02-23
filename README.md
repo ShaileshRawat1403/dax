@@ -7,6 +7,9 @@ DAX is a policy-driven execution system for software delivery. It is built aroun
 
 ## Features
 
+- **Modern Terminal UIs**: Two interactive TUIs (SolidJS-based and Ink-based) with 70/30 split views and real-time agent activity tracking.
+- **Ollama Integration**: Seamless support for local models with automatic detection and no-auth setup.
+- **Ultra-Compact UI**: Icon-based command strip and streamlined header for maximum focus.
 - **Policy Engine**: First-class system for controlling tool access.
 - **RAO Ledger**: Per-project audit trail with event history.
 - **AI Planning**: Generate execution plans from natural language prompts.
@@ -18,12 +21,13 @@ DAX is a policy-driven execution system for software delivery. It is built aroun
 ### Prerequisites
 
 - [Bun](https://bun.sh) runtime installed.
+- [Ollama](https://ollama.com) (optional, for local models).
 
 ### Installation
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-repo/dax.git
+   git clone https://github.com/ShaileshRawat1403/dax.git
    cd dax
    ```
 
@@ -32,21 +36,27 @@ DAX is a policy-driven execution system for software delivery. It is built aroun
    bun install
    ```
 
-3. Set your API key (for OpenAI):
+3. Configure a provider (optional if using Ollama):
    ```bash
    export OPENAI_API_KEY="sk-..."
+   # Or run 'dax auth' in the TUI
    ```
 
 ### Usage
 
+#### Start the interactive TUI (Modern)
+```bash
+bun dev
+```
+
 #### Run a plan from a file
 ```bash
-bun run dev run plan.json
+bun dev run plan.json
 ```
 
 #### Run from a prompt (AI generates the plan)
 ```bash
-bun run dev run --prompt "Create a file called hello.txt with 'Hello World'"
+bun dev run --prompt "Create a file called hello.txt with 'Hello World'"
 ```
 
 #### Start the interactive TUI

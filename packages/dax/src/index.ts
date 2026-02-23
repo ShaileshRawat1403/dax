@@ -1,32 +1,37 @@
-import yargs from "yargs"
-import { hideBin } from "yargs/helpers"
-import { RunCommand } from "./cli/cmd/run"
-import { GenerateCommand } from "./cli/cmd/generate"
-import { Log } from "./util/log"
-import { AuthCommand } from "./cli/cmd/auth"
-import { AgentCommand } from "./cli/cmd/agent"
-import { UpgradeCommand } from "./cli/cmd/upgrade"
-import { UninstallCommand } from "./cli/cmd/uninstall"
-import { ModelsCommand } from "./cli/cmd/models"
-import { UI } from "./cli/ui"
-import { Installation } from "./installation"
-import { NamedError } from "@dax-ai/util/error"
-import { FormatError } from "./cli/error"
-import { ServeCommand } from "./cli/cmd/serve"
-import { DebugCommand } from "./cli/cmd/debug"
-import { StatsCommand } from "./cli/cmd/stats"
-import { McpCommand } from "./cli/cmd/mcp"
-import { GithubCommand } from "./cli/cmd/github"
-import { ExportCommand } from "./cli/cmd/export"
-import { ImportCommand } from "./cli/cmd/import"
-import { AttachCommand } from "./cli/cmd/tui/attach"
-import { TuiThreadCommand } from "./cli/cmd/tui/thread"
-import { AcpCommand } from "./cli/cmd/acp"
-import { EOL } from "os"
-import { WebCommand } from "./cli/cmd/web"
-import { PrCommand } from "./cli/cmd/pr"
-import { SessionCommand } from "./cli/cmd/session"
-import { AuditCommand } from "./cli/cmd/audit"
+import { plugin } from "bun"
+// @ts-ignore
+import solid from "@opentui/solid/bun-plugin"
+plugin(solid)
+
+const { default: yargs } = await import("yargs")
+const { hideBin } = await import("yargs/helpers")
+const { RunCommand } = await import("./cli/cmd/run")
+const { GenerateCommand } = await import("./cli/cmd/generate")
+const { Log } = await import("./util/log")
+const { AuthCommand } = await import("./cli/cmd/auth")
+const { AgentCommand } = await import("./cli/cmd/agent")
+const { UpgradeCommand } = await import("./cli/cmd/upgrade")
+const { UninstallCommand } = await import("./cli/cmd/uninstall")
+const { ModelsCommand } = await import("./cli/cmd/models")
+const { UI } = await import("./cli/ui")
+const { Installation } = await import("./installation")
+const { NamedError } = await import("@dax-ai/util/error")
+const { FormatError } = await import("./cli/error")
+const { ServeCommand } = await import("./cli/cmd/serve")
+const { DebugCommand } = await import("./cli/cmd/debug")
+const { StatsCommand } = await import("./cli/cmd/stats")
+const { McpCommand } = await import("./cli/cmd/mcp")
+const { GithubCommand } = await import("./cli/cmd/github")
+const { ExportCommand } = await import("./cli/cmd/export")
+const { ImportCommand } = await import("./cli/cmd/import")
+const { AttachCommand } = await import("./cli/cmd/tui/attach")
+const { TuiThreadCommand } = await import("./cli/cmd/tui/thread")
+const { AcpCommand } = await import("./cli/cmd/acp")
+const { EOL } = await import("os")
+const { WebCommand } = await import("./cli/cmd/web")
+const { PrCommand } = await import("./cli/cmd/pr")
+const { SessionCommand } = await import("./cli/cmd/session")
+const { AuditCommand } = await import("./cli/cmd/audit")
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -62,7 +67,7 @@ const cli = yargs(hideBin(process.argv))
       print: process.argv.includes("--print-logs"),
       dev: Installation.isLocal(),
       level: (() => {
-        if (opts.logLevel) return opts.logLevel as Log.Level
+        if (opts.logLevel) return opts.logLevel as any
         if (Installation.isLocal()) return "DEBUG"
         return "INFO"
       })(),
@@ -133,17 +138,6 @@ try {
     })
   }
 
-  if (e instanceof ResolveMessage) {
-    Object.assign(data, {
-      name: e.name,
-      message: e.message,
-      code: e.code,
-      specifier: e.specifier,
-      referrer: e.referrer,
-      position: e.position,
-      importKind: e.importKind,
-    })
-  }
   Log.Default.error("fatal", data)
   const formatted = FormatError(e)
   if (formatted) UI.error(formatted)

@@ -7,40 +7,14 @@ import { TextAttributes } from "@opentui/core"
 import type { AssistantMessage } from "@dax-ai/sdk/v2"
 import { Installation } from "@/installation"
 import { useTerminalDimensions } from "@opentui/solid"
-import { cpus, freemem, totalmem } from "node:os"
+import { useUIActivity } from "../../context/activity"
 
 export function Header() {
   const route = useRouteData("session")
   const sync = useSync()
+  const { telemetry, currentPun } = useUIActivity()
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
-
-  const [telemetry, setTelemetry] = createSignal({ cpu: 0, ram: 0 })
-
-  const cpuSnap = () =>
-    cpus().reduce(
-      (acc, item) => {
-        const total = item.times.user + item.times.nice + item.times.sys + item.times.idle + item.times.irq
-        return { idle: acc.idle + item.times.idle, total: acc.total + total }
-      },
-      { idle: 0, total: 0 },
-    )
-
-  onMount(() => {
-    let prev = cpuSnap()
-    const timer = setInterval(() => {
-      const next = cpuSnap()
-      const totalDiff = next.total - prev.total
-      const idleDiff = next.idle - prev.idle
-      prev = next
-      const cpu = totalDiff > 0 ? Math.max(0, Math.min(100, Math.round((1 - idleDiff / totalDiff) * 100))) : 0
-      const ramTotal = totalmem()
-      const ramUsed = ramTotal - freemem()
-      const ram = ramTotal > 0 ? Math.max(0, Math.min(100, Math.round((ramUsed / ramTotal) * 100))) : 0
-      setTelemetry({ cpu, ram })
-    }, 1000)
-    onCleanup(() => clearInterval(timer))
-  })
 
   const cost = createMemo(() => {
     const total = pipe(
@@ -108,44 +82,37 @@ export function Header() {
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
       <box
-        paddingTop={tiny() ? 0 : 1}
-        paddingBottom={tiny() ? 0 : 1}
-        paddingLeft={tiny() ? 1 : 2}
+        paddingTop={0}
+        paddingBottom={0}
+        paddingLeft={1}
         paddingRight={1}
         flexShrink={0}
       >
-        <box flexDirection={small() ? "column" : "row"} justifyContent="space-between" gap={small() ? 0 : 1}>
-          <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-            <text fg={isThinking() ? theme.accent : theme.success} attributes={TextAttributes.BOLD}>
-              [{statusLabel()}]
-            </text>
-            <text fg={theme.textMuted}>·</text>
+        <box flexDirection="row" justifyContent="space-between" alignItems="center">
+          <box flexDirection="row" gap={1} alignItems="center">
             <text fg={theme.primary} attributes={TextAttributes.BOLD}>
               DAX
             </text>
-            <text fg={theme.textMuted}>·</text>
             <text fg={theme.text} attributes={TextAttributes.BOLD}>
               {title()}
             </text>
+            <Show when={isThinking()}>
+              <text fg={theme.accent}>[{statusLabel()}]</text>
+              <Show when={!tiny()}>
+                <text fg={theme.textMuted}>{currentPun()}</text>
+              </Show>
+            </Show>
           </box>
 
           <box flexDirection="row" gap={1} alignItems="center" flexShrink={0}>
             <Show when={!tiny()}>
-              <text fg={theme.textMuted}>{`[CPU:${telemetry().cpu}%]`}</text>
-              <text fg={theme.textMuted}>{`[RAM:${telemetry().ram}%]`}</text>
-              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{`C:${telemetry().cpu}% R:${telemetry().ram}%`}</text>
             </Show>
             <Show when={context()}>
-              <text fg={theme.textMuted}>{context()} tok</text>
-              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{context()}t</text>
             </Show>
-            <text fg={theme.textMuted}>{`${msgCount()} msg`}</text>
-            <text fg={theme.textMuted}>·</text>
+            <text fg={theme.textMuted}>{`${msgCount()}m`}</text>
             <text fg={theme.success}>{cost()}</text>
-            <Show when={!tiny()}>
-              <text fg={theme.textMuted}>·</text>
-              <text fg={theme.textMuted}>v{Installation.VERSION}</text>
-            </Show>
           </box>
         </box>
       </box>

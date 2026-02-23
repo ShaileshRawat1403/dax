@@ -73,6 +73,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       formatter: FormatterStatus[]
       vcs: VcsInfo | undefined
       path: Path
+      workerStatus: "connecting" | "connected" | "disconnected"
     }>({
       provider_next: {
         all: [],
@@ -82,6 +83,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       provider_auth: {},
       config: {},
       status: "loading",
+      workerStatus: "connected",
       agent: [],
       permission: {},
       question: {},
@@ -418,6 +420,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       set: setStore,
       get status() {
         return store.status
+      },
+      get workerStatus() {
+        return store.workerStatus
       },
       get ready() {
         return store.status !== "loading"

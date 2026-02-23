@@ -40,6 +40,14 @@ export const ProviderRoutes = lazy(() =>
         const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
 
         const allProviders = await ModelsDev.get()
+        if (!allProviders["ollama"]) {
+          allProviders["ollama"] = {
+            id: "ollama",
+            name: "Ollama",
+            env: ["OLLAMA_BASE_URL"],
+            models: {},
+          }
+        }
         const filteredProviders: Record<string, (typeof allProviders)[string]> = {}
         for (const [key, value] of Object.entries(allProviders)) {
           if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {

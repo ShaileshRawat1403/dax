@@ -39,65 +39,10 @@ import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { detectPythonEnvironment, formatEnvironmentDoctorReport } from "./util/environment"
 import { DAX_SETTING } from "@/dax/settings"
 import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
+import { UIActivityProvider } from "./context/activity"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
-  // can't set raw mode if not a TTY
-  if (!process.stdin.isTTY) return "dark"
-
-  return new Promise((resolve) => {
-    let timeout: NodeJS.Timeout
-
-    const cleanup = () => {
-      process.stdin.setRawMode(false)
-      process.stdin.removeListener("data", handler)
-      clearTimeout(timeout)
-    }
-
-    const handler = (data: Buffer) => {
-      const str = data.toString()
-      const match = str.match(/\x1b]11;([^\x07\x1b]+)/)
-      if (match) {
-        cleanup()
-        const color = match[1]
-        // Parse RGB values from color string
-        // Formats: rgb:RR/GG/BB or #RRGGBB or rgb(R,G,B)
-        let r = 0,
-          g = 0,
-          b = 0
-
-        if (color.startsWith("rgb:")) {
-          const parts = color.substring(4).split("/")
-          r = parseInt(parts[0], 16) >> 8 // Convert 16-bit to 8-bit
-          g = parseInt(parts[1], 16) >> 8 // Convert 16-bit to 8-bit
-          b = parseInt(parts[2], 16) >> 8 // Convert 16-bit to 8-bit
-        } else if (color.startsWith("#")) {
-          r = parseInt(color.substring(1, 3), 16)
-          g = parseInt(color.substring(3, 5), 16)
-          b = parseInt(color.substring(5, 7), 16)
-        } else if (color.startsWith("rgb(")) {
-          const parts = color.substring(4, color.length - 1).split(",")
-          r = parseInt(parts[0])
-          g = parseInt(parts[1])
-          b = parseInt(parts[2])
-        }
-
-        // Calculate luminance using relative luminance formula
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-
-        // Determine if dark or light based on luminance threshold
-        resolve(luminance > 0.5 ? "light" : "dark")
-      }
-    }
-
-    process.stdin.setRawMode(true)
-    process.stdin.on("data", handler)
-    process.stdout.write("\x1b]11;?\x07")
-
-    timeout = setTimeout(() => {
-      cleanup()
-      resolve("dark")
-    }, 1000)
-  })
+  return "dark"
 }
 
 import type { EventSource } from "./context/sdk"
@@ -111,7 +56,6 @@ export function tui(input: {
   events?: EventSource
   onExit?: () => Promise<void>
 }) {
-  // promise to prevent immediate exit
   return new Promise<void>(async (resolve) => {
     const mode = await getTerminalBackgroundColor()
     const onExit = async () => {
@@ -119,7 +63,7 @@ export function tui(input: {
       resolve()
     }
 
-    render(
+    await render(
       () => {
         return (
           <ErrorBoundary
@@ -127,41 +71,43 @@ export function tui(input: {
           >
             <ArgsProvider {...input.args}>
               <ExitProvider onExit={onExit}>
-                <KVProvider>
-                  <ToastProvider>
-                    <RouteProvider>
-                      <SDKProvider
-                        url={input.url}
-                        directory={input.directory}
-                        fetch={input.fetch}
-                        headers={input.headers}
-                        events={input.events}
-                      >
-                        <SyncProvider>
-                          <ThemeProvider mode={mode}>
-                            <LocalProvider>
-                              <KeybindProvider>
-                                <PromptStashProvider>
-                                  <DialogProvider>
-                                    <CommandProvider>
-                                      <FrecencyProvider>
-                                        <PromptHistoryProvider>
-                                          <PromptRefProvider>
-                                            <App />
-                                          </PromptRefProvider>
-                                        </PromptHistoryProvider>
-                                      </FrecencyProvider>
-                                    </CommandProvider>
-                                  </DialogProvider>
-                                </PromptStashProvider>
-                              </KeybindProvider>
-                            </LocalProvider>
-                          </ThemeProvider>
-                        </SyncProvider>
-                      </SDKProvider>
-                    </RouteProvider>
-                  </ToastProvider>
-                </KVProvider>
+                <UIActivityProvider>
+                  <KVProvider>
+                    <ToastProvider>
+                      <RouteProvider>
+                        <SDKProvider
+                          url={input.url}
+                          directory={input.directory}
+                          fetch={input.fetch}
+                          headers={input.headers}
+                          events={input.events}
+                        >
+                          <SyncProvider>
+                            <ThemeProvider mode={mode}>
+                              <LocalProvider>
+                                <KeybindProvider>
+                                  <PromptStashProvider>
+                                    <DialogProvider>
+                                      <CommandProvider>
+                                        <FrecencyProvider>
+                                          <PromptHistoryProvider>
+                                            <PromptRefProvider>
+                                              <App />
+                                            </PromptRefProvider>
+                                          </PromptHistoryProvider>
+                                        </FrecencyProvider>
+                                      </CommandProvider>
+                                    </DialogProvider>
+                                  </PromptStashProvider>
+                                </KeybindProvider>
+                              </LocalProvider>
+                            </ThemeProvider>
+                          </SyncProvider>
+                        </SDKProvider>
+                      </RouteProvider>
+                    </ToastProvider>
+                  </KVProvider>
+                </UIActivityProvider>
               </ExitProvider>
             </ArgsProvider>
           </ErrorBoundary>
@@ -172,10 +118,11 @@ export function tui(input: {
         gatherStats: false,
         exitOnCtrlC: false,
         useKittyKeyboard: {},
-        autoFocus: false,
+        autoFocus: true,
         consoleOptions: {
           keyBindings: [{ name: "y", ctrl: true, action: "copy-selection" }],
           onCopySelection: (text) => {
+            if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) return
             Clipboard.copy(text).catch((error) => {
               console.error(`Failed to copy console selection to clipboard: ${error}`)
             })
@@ -190,7 +137,7 @@ function App() {
   const route = useRoute()
   const dimensions = useTerminalDimensions()
   const renderer = useRenderer()
-  renderer.disableStdoutInterception()
+  // renderer.disableStdoutInterception()
   const dialog = useDialog()
   const local = useLocal()
   const kv = useKV()
@@ -203,7 +150,6 @@ function App() {
   const exit = useExit()
   const promptRef = usePromptRef()
 
-  // Wire up console copy-to-clipboard via opentui's onCopySelection callback
   renderer.console.onCopySelection = async (text: string) => {
     if (!text || text.length === 0) return
 
@@ -214,7 +160,6 @@ function App() {
   }
   const [terminalTitleEnabled, setTerminalTitleEnabled] = createSignal(kv.get("terminal_title_enabled", true))
 
-  // Update terminal window title based on current route and session
   createEffect(() => {
     if (!terminalTitleEnabled() || Flag.DAX_DISABLE_TERMINAL_TITLE) return
 
@@ -230,7 +175,6 @@ function App() {
         return
       }
 
-      // Truncate title to 40 chars max
       const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
       renderer.setTerminalTitle(`Dax | ${title}`)
     }
@@ -250,7 +194,6 @@ function App() {
           })
         local.model.set({ providerID, modelID }, { recent: true })
       }
-      // Handle --session without --fork immediately (fork is handled in createEffect below)
       if (args.sessionID && !args.fork) {
         route.navigate({
           type: "session",
@@ -262,7 +205,6 @@ function App() {
 
   let continued = false
   createEffect(() => {
-    // When using -c, session list is loaded in blocking phase, so we can navigate at "partial"
     if (continued || sync.status === "loading" || !args.continue) return
     const match = sync.data.session
       .toSorted((a, b) => b.time.updated - a.time.updated)
@@ -283,9 +225,6 @@ function App() {
     }
   })
 
-  // Handle --session with --fork: wait for sync to be fully complete before forking
-  // (session list loads in non-blocking phase for --session, so we must wait for "complete"
-  // to avoid a race where reconcile overwrites the newly forked session)
   let forked = false
   createEffect(() => {
     if (forked || sync.status !== "complete" || !args.sessionID || !args.fork) return
@@ -303,7 +242,6 @@ function App() {
     on(
       () => sync.status === "complete" && sync.data.provider.length === 0,
       (isEmpty, wasEmpty) => {
-        // only trigger when we transition into an empty-provider state
         if (!isEmpty || wasEmpty) return
         dialog.replace(() => <DialogProviderList />)
       },
@@ -370,7 +308,6 @@ function App() {
       },
       onSelect: () => {
         const current = promptRef.current
-        // Don't require focus - if there's any text, preserve it
         const currentPrompt = current?.current?.input ? current.current : undefined
         route.navigate({
           type: "home",
@@ -682,7 +619,6 @@ function App() {
         })
 
         renderer.suspend()
-        // pid=0 means send the signal to all processes in the process group
         process.kill(0, "SIGTSTP")
       },
     },
@@ -798,32 +734,70 @@ function App() {
   })
 
   return (
-    <box
-      width={dimensions().width}
-      height={dimensions().height}
-      backgroundColor={theme.background}
-      onMouseUp={async () => {
-        if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
-          renderer.clearSelection()
-          return
-        }
-        const text = renderer.getSelection()?.getSelectedText()
-        if (text && text.length > 0) {
-          await Clipboard.copy(text)
-            .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
-            .catch(toast.error)
-          renderer.clearSelection()
-        }
-      }}
+    <Show
+      when={themeState.ready}
+      fallback={
+        <box width={dimensions().width} height={dimensions().height} justifyContent="center" alignItems="center">
+          <text fg="#ffffff">System Initializing...</text>
+        </box>
+      }
     >
-      <Switch>
-        <Match when={route.data.type === "home"}>
-          <Home />
-        </Match>
-        <Match when={route.data.type === "session"}>
-          <Session />
-        </Match>
-      </Switch>
+      <box
+        width={dimensions().width}
+        height={dimensions().height}
+        backgroundColor={theme.background}
+        onMouseUp={async () => {
+          if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
+            renderer.clearSelection()
+            return
+          }
+          const text = renderer.getSelection()?.getSelectedText()
+          if (text && text.length > 0) {
+            await Clipboard.copy(text)
+              .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
+              .catch(toast.error)
+            renderer.clearSelection()
+          }
+        }}
+      >
+        <Switch>
+          <Match when={route.data.type === "home"}>
+            <ErrorBoundary fallback={(error) => <ComponentError error={error} name="Home" />}>
+              <Home />
+            </ErrorBoundary>
+          </Match>
+          <Match when={route.data.type === "session"}>
+            <ErrorBoundary fallback={(error) => <ComponentError error={error} name="Session" />}>
+              <Session />
+            </ErrorBoundary>
+          </Match>
+        </Switch>
+        <Show when={sync.workerStatus === "connecting"}>
+          <box
+            bottom={1}
+            right={2}
+            padding={1}
+            backgroundColor={theme.backgroundPanel}
+            border={{ type: "line", fg: theme.primary }}
+          >
+            <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+              Connecting to worker...
+            </text>
+          </box>
+        </Show>
+      </box>
+    </Show>
+  )
+}
+
+function ComponentError(props: { error: any; name: string }) {
+  const { theme } = useTheme()
+  return (
+    <box flexDirection="column" padding={1} backgroundColor={theme.background}>
+      <text fg={theme.error} attributes={TextAttributes.BOLD}>
+        Error in {props.name}
+      </text>
+      <text fg={theme.textMuted}>{String(props.error)}</text>
     </box>
   )
 }
@@ -852,7 +826,6 @@ function ErrorComponent(props: {
 
   const issueURL = new URL("https://github.com/ShaileshRawat1403/dax/issues/new?template=bug-report.yml")
 
-  // Choose safe fallback colors per mode since theme context may not be available
   const isLight = props.mode === "light"
   const colors = {
     bg: isLight ? "#ffffff" : "#0a0a0a",

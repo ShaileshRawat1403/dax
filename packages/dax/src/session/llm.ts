@@ -158,7 +158,13 @@ export namespace LLM {
             OUTPUT_TOKEN_MAX,
           )
 
-    const tools = await resolveTools(input)
+    let tools = await resolveTools(input)
+    if (!input.model.capabilities.toolcall) {
+      log.info("model does not support tools, stripping from request", {
+        modelID: input.model.id,
+      })
+      tools = {}
+    }
 
     // LiteLLM and some Anthropic proxies require the tools parameter to be present
     // when message history contains tool calls, even if no tools are being used.

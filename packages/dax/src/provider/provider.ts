@@ -66,6 +66,7 @@ export namespace Provider {
     "@openrouter/ai-sdk-provider": createOpenRouter,
     "@ai-sdk/xai": createXai,
     "@ai-sdk/mistral": createMistral,
+    "ollama": createOpenAICompatible,
     "@ai-sdk/groq": createGroq,
     "@ai-sdk/deepinfra": createDeepInfra,
     "@ai-sdk/cerebras": createCerebras,
@@ -375,6 +376,57 @@ export namespace Provider {
         async getModel(sdk: any, modelID) {
           const id = String(modelID).trim()
           return sdk.languageModel(id)
+        },
+      }
+    },
+    ollama: async (input) => {
+      const baseURL = Env.get("OLLAMA_BASE_URL") ?? "http://localhost:11434"
+      const autoload = await fetch(`${baseURL}/api/tags`)
+        .then((res) => res.ok)
+        .catch(() => false)
+
+      if (autoload) {
+        const response = await fetch(`${baseURL}/api/tags`)
+          .then((res) => res.json() as Promise<{ models: { name: string }[] }>)
+          .catch(() => ({ models: [] }))
+
+        for (const model of response.models) {
+          if (model.name.includes("embed")) continue
+          const supportsTools = !model.name.includes("llama3") && !model.name.includes("phi3")
+          input.models[model.name] = {
+            id: model.name,
+            name: model.name,
+            providerID: "ollama",
+            api: {
+              id: model.name,
+              url: `${baseURL}/v1`,
+              npm: "ollama",
+            },
+            capabilities: {
+              temperature: true,
+              reasoning: false,
+              attachment: false,
+              toolcall: supportsTools,
+              input: { text: true, audio: false, image: false, video: false, pdf: false },
+              output: { text: true, audio: false, image: false, video: false, pdf: false },
+              interleaved: false,
+            },
+            cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+            limit: { context: 4096, output: 4096 },
+            status: "active",
+            options: {},
+            headers: {},
+            release_date: "",
+            variants: {},
+          }
+        }
+      }
+
+      return {
+        autoload,
+        options: {
+          name: "ollama",
+          baseURL: `${baseURL}/v1`,
         },
       }
     },
@@ -697,6 +749,17 @@ export namespace Provider {
     const config = await Config.get()
     const modelsDev = await ModelsDev.get()
     const database = mapValues(modelsDev, fromModelsDevProvider)
+
+    if (!database["ollama"]) {
+      database["ollama"] = {
+        id: "ollama",
+        name: "Ollama",
+        source: "custom",
+        env: ["OLLAMA_BASE_URL"],
+        options: {},
+        models: {},
+      }
+    }
 
     const disabled = new Set(config.disabled_providers ?? [])
     const enabled = config.enabled_providers ? new Set(config.enabled_providers) : null

@@ -7,6 +7,7 @@ import {
   For,
   Match,
   onCleanup,
+  onMount,
   on,
   Show,
   Switch,
@@ -64,7 +65,7 @@ import { Sidebar } from "./sidebar"
 import { Flag } from "@/flag/flag"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import parsers from "../../../../../../parsers-config.ts"
-import { Clipboard } from "../../util/clipboard"
+import { Clipboard } from "@tui/util/clipboard"
 import { Toast, useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv.tsx"
 import { Editor } from "../../util/editor"
@@ -72,6 +73,7 @@ import stripAnsi from "strip-ansi"
 import { Footer } from "./footer.tsx"
 import { usePromptRef } from "../../context/prompt"
 import { useExit } from "../../context/exit"
+import { useUIActivity } from "../../context/activity"
 import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
 import { PermissionPrompt } from "./permission"
@@ -179,7 +181,17 @@ export function Session() {
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "artifact")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+  const { currentPun } = useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+
+  const isThinking = createMemo(() => {
+    const last = messages().findLast((x) => x.role === "assistant")
+    if (!last) return false
+    if (!last.time.completed) return true
+    const parts = sync.data.part[last.id] ?? []
+    return parts.some((p) => p.type === "tool" && p.state.status === "pending")
+  })
+
   const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
   const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
@@ -317,7 +329,7 @@ export function Session() {
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
-    return Math.max(38, Math.floor((total - gapAndBorders) / 2))
+    return Math.max(38, Math.floor((total - gapAndBorders) * 0.3))
   })
   const paneDiffView = createMemo(() => {
     const diffStyle = sync.data.config.tui?.diff_style
@@ -1492,95 +1504,75 @@ export function Session() {
                 <Show
                   when={stripColumns() === 1}
                   fallback={
-                    <>
-                      <box width={stripSectionWidth()} paddingBottom={stripColumns() === 1 ? 0 : 1}>
-                        <box flexDirection="column" gap={0}>
-                          <text fg={theme.textMuted}>pane</text>
-                          <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                            <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                              <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>[auto]</text>
-                            </box>
-                            <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                              <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>[pin]</text>
-                            </box>
-                            <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                              <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>[hide]</text>
-                            </box>
-                          </box>
+                    <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
+                      <box flexDirection="row" gap={1} alignItems="center">
+                        <text fg={theme.textMuted}>⊞</text>
+                        <box onMouseUp={() => setPaneVisibility(() => "auto")}>
+                          <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>auto</text>
+                        </box>
+                        <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
+                          <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>pin</text>
+                        </box>
+                        <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
+                          <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>hide</text>
                         </box>
                       </box>
-                      <box width={stripSectionWidth()} paddingBottom={stripColumns() === 1 ? 0 : 1}>
-                        <box flexDirection="column" gap={0}>
-                          <text fg={theme.textMuted}>follow</text>
-                          <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                            <box
-                              onMouseUp={() => {
-                                setPaneFollowMode(() => "smart")
-                                setSmartFollowActive(true)
-                                setPendingUpdates(0)
-                              }}
-                            >
-                              <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>[smart]</text>
-                            </box>
-                            <box
-                              onMouseUp={() => {
-                                setPaneFollowMode(() => "live")
-                                setSmartFollowActive(true)
-                                setPendingUpdates(0)
-                              }}
-                            >
-                              <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>[live]</text>
-                            </box>
-                            <Show when={paneFollowMode() === "smart" && !smartFollowActive()}>
-                              <box onMouseUp={jumpToLive}>
-                                <text fg={theme.primary}>
-                                  [jump live{pendingUpdates() > 0 ? `:${pendingUpdates()}` : ""}]
-                                </text>
-                              </box>
-                            </Show>
-                            <box onMouseUp={() => setShowDetails((prev) => !prev)}>
-                              <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
-                            </box>
-                            <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                              <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
-                            </box>
-                          </box>
+
+                      <box flexDirection="row" gap={1} alignItems="center">
+                        <text fg={theme.textMuted}>◎</text>
+                        <box
+                          onMouseUp={() => {
+                            setPaneFollowMode(() => "smart")
+                            setSmartFollowActive(true)
+                            setPendingUpdates(0)
+                          }}
+                        >
+                          <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>smart</text>
+                        </box>
+                        <box
+                          onMouseUp={() => {
+                            setPaneFollowMode(() => "live")
+                            setSmartFollowActive(true)
+                            setPendingUpdates(0)
+                          }}
+                        >
+                          <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>live</text>
+                        </box>
+                        <box onMouseUp={() => setShowDetails((prev) => !prev)}>
+                          <text fg={showDetails() ? theme.primary : theme.textMuted}>trace</text>
+                        </box>
+                        <box onMouseUp={() => setSlowStream((prev) => !prev)}>
+                          <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
                         </box>
                       </box>
-                      <box width={stripSectionWidth()} paddingBottom={stripColumns() === 1 ? 0 : 1}>
-                        <box flexDirection="column" gap={0}>
-                          <text fg={theme.textMuted}>mode</text>
-                          <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                            <For each={PANE_MODES}>
-                              {(mode) => (
-                                <box onMouseUp={() => setPaneMode(() => mode)}>
-                                  <text
-                                    fg={paneMode() === mode ? theme.accent : theme.textMuted}
-                                    attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
-                                  >
-                                    [{paneLabel(mode)}]
-                                  </text>
-                                </box>
-                              )}
-                            </For>
-                          </box>
+
+                      <box flexDirection="row" gap={1} alignItems="center">
+                        <text fg={theme.textMuted}>❖</text>
+                        <For each={PANE_MODES}>
+                          {(mode) => (
+                            <box onMouseUp={() => setPaneMode(() => mode)}>
+                              <text
+                                fg={paneMode() === mode ? theme.accent : theme.textMuted}
+                                attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
+                              >
+                                {paneLabel(mode)}
+                              </text>
+                            </box>
+                          )}
+                        </For>
+                      </box>
+
+                      <box flexDirection="row" gap={1} alignItems="center">
+                        <text fg={theme.textMuted}>🎨</text>
+                        <box onMouseUp={() => cycleTheme(-1)}>
+                          <text fg={theme.textMuted}>-</text>
+                        </box>
+                        <text fg={theme.primary}>{selectedThemeShort()}</text>
+                        <box onMouseUp={() => cycleTheme(1)}>
+                          <text fg={theme.textMuted}>+</text>
                         </box>
                       </box>
-                      <box width={stripSectionWidth()}>
-                        <box flexDirection="column" gap={0} alignItems="flex-start" justifyContent="center">
-                          <text fg={theme.textMuted}>theme</text>
-                          <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                            <box onMouseUp={() => cycleTheme(-1)}>
-                              <text fg={theme.textMuted}>[theme-]</text>
-                            </box>
-                            <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                            <box onMouseUp={() => cycleTheme(1)}>
-                              <text fg={theme.textMuted}>[theme+]</text>
-                            </box>
-                          </box>
-                        </box>
-                      </box>
-                    </>
+                    </box>
                   }
                 >
                   <box width="100%" flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" paddingBottom={1}>
@@ -1632,8 +1624,7 @@ export function Session() {
                   borderColor={theme.borderSubtle}
                 >
                   <box
-                    width={liveStacked() ? "100%" : livePaneWidth()}
-                    flexGrow={liveStacked() ? 0 : 1}
+                    flexGrow={liveStacked() ? 1 : 7}
                     border={liveStacked() ? ["bottom"] : ["right"]}
                     borderColor={theme.borderSubtle}
                     padding={0}
@@ -1755,13 +1746,13 @@ export function Session() {
                     </scrollbox>
                   </box>
                   <box
-                    width={liveStacked() ? "100%" : livePaneWidth()}
-                    flexGrow={liveStacked() ? 0 : 1}
+                    flexGrow={liveStacked() ? 1 : 3}
                     padding={1}
                     gap={1}
                     backgroundColor={theme.backgroundPanel}
                   >
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                      <text fg={theme.textMuted}>⊞</text>
                       <For each={["auto", "pin", "hide"] as const}>
                         {(mode) => (
                           <box
@@ -1787,11 +1778,12 @@ export function Session() {
                                   : theme.textMuted
                               }
                             >
-                              [{mode}]
+                              {mode}
                             </text>
                           </box>
                         )}
                       </For>
+                      <text fg={theme.textMuted}>· ❖</text>
                       <For each={PANE_MODES}>
                         {(mode) => (
                           <box
@@ -1804,7 +1796,7 @@ export function Session() {
                             backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
                           >
                             <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>
-                              [{paneLabel(mode)}]
+                              {paneLabel(mode)}
                             </text>
                           </box>
                         )}
@@ -1815,7 +1807,13 @@ export function Session() {
                       </text>
                       <text fg={theme.textMuted}>·</text>
                       <text fg={stageColor()}>{stageLabel()}</text>
-                      <text fg={theme.textMuted}>({displayStageState().reason})</text>
+                      <text fg={theme.textMuted}>
+                        (
+                        {isThinking()
+                          ? `Thinking: ${currentPun()}`
+                          : displayStageState().reason || "Idle"}
+                        )
+                      </text>
                     </box>
                     <Switch>
                       <Match when={activePaneMode() === "artifact"}>

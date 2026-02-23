@@ -53,6 +53,12 @@ export function createDialogProviderOptions() {
           category: provider.id in CORE_PROVIDER_PRIORITY ? "Core" : "Advanced",
           footer: isConnected ? "Connected" : undefined,
           async onSelect() {
+            if (provider.id === "ollama") {
+              await sdk.client.instance.dispose()
+              await sync.bootstrap()
+              dialog.replace(() => <DialogModel providerID={provider.id} />)
+              return
+            }
             const methods = sync.data.provider_auth[provider.id] ?? [
               {
                 type: "api",

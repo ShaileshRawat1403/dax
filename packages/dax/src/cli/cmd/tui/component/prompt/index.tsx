@@ -18,7 +18,7 @@ import { useCommandDialog } from "../dialog-command"
 import { useRenderer } from "@opentui/solid"
 import { Editor } from "@tui/util/editor"
 import { useExit } from "../../context/exit"
-import { Clipboard } from "../../util/clipboard"
+import { Clipboard } from "@tui/util/clipboard"
 import type { FilePart } from "@dax-ai/sdk/v2"
 import { TuiEvent } from "../../event"
 import { iife } from "@/util/iife"
@@ -344,7 +344,7 @@ export function Prompt(props: PromptProps) {
         enabled: status().type !== "idle",
         onSelect: (dialog) => {
           if (autocomplete.visible) return
-          if (!input.focused) return
+          // if (!input.focused) return // Allow interrupt even if not focused
           // TODO: this should be its own command
           if (store.mode === "shell") {
             setStore("mode", "normal")

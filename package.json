@@ -67,7 +67,8 @@
     "prettier": "3.6.2"
   },
   "dependencies": {
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "blessed": "^0.1.81"
   },
   "repository": {
     "type": "git",
