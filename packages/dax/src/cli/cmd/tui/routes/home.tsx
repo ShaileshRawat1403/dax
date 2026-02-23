@@ -35,7 +35,7 @@ const WELCOME_MESSAGES = {
 let once = false
 let welcomeShown = false
 
-function AnimatedHeader(props: { theme: any }) {
+function AnimatedHeader(props: { theme: any; message?: string }) {
   const [tick, setTick] = createSignal(0)
 
   onMount(() => {
@@ -74,15 +74,22 @@ function AnimatedHeader(props: { theme: any }) {
       <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
         {DAX_BRAND.category}
       </text>
+      <Show when={props.message}>
+        <text fg={props.theme.textMuted} marginTop={1}>
+          {props.message}
+        </text>
+      </Show>
     </box>
   )
 }
 
-function ActionChip(props: { label: string; active?: boolean; onPress: () => void; theme: any }) {
+function ActionChip(props: { label: string; active?: boolean; onPress: () => void; theme: any; icon?: string }) {
+  const icon = () => props.icon ?? (props.active ? "●" : "○")
   return (
-    <box onMouseUp={props.onPress}>
-      <text fg={props.active ? props.theme.primary : props.theme.textMuted}>
-        [{props.label}]
+    <box onMouseUp={props.onPress} flexDirection="row" gap={0} alignItems="center">
+      <text fg={props.active ? props.theme.primary : props.theme.textMuted}>{icon()}</text>
+      <text fg={props.active ? props.theme.primary : props.theme.textMuted} marginLeft={1}>
+        {props.label}
       </text>
     </box>
   )
@@ -158,22 +165,21 @@ export function Home() {
 
   let prompt: PromptRef
   const args = useArgs()
+
+  const welcomeMessage = createMemo(() => {
+    if (isFirstTimeUser()) {
+      return WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)]
+    }
+    const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
+    return sessionCount() > 0 ? `${msg} (${sessionCount()} sessions)` : msg
+  })
+
   onMount(() => {
     if (once) return
     once = true
 
     if (!welcomeShown) {
       welcomeShown = true
-      setTimeout(() => {
-        if (isFirstTimeUser()) {
-          const msg = WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)]
-          toast.show({ message: msg, variant: "info", duration: 4000 })
-        } else {
-          const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
-          const sessionInfo = sessionCount() > 0 ? ` (${sessionCount()} sessions)` : ""
-          toast.show({ message: msg + sessionInfo, variant: "success", duration: 3000 })
-        }
-      }, 500)
     }
 
     if (route.initialPrompt) {
@@ -226,32 +232,31 @@ export function Home() {
           }
         >
           <box width="100%" maxWidth={small() ? undefined : 72} alignItems="center" gap={tiny() ? 0 : 1}>
-            <AnimatedHeader theme={theme} />
+            <AnimatedHeader theme={theme} message={welcomeMessage()} />
 
             <Show when={showStages()}>
               <StageIndicator stages={stages()} current={0} theme={theme} />
             </Show>
 
             <Show when={!tiny() && showActions()}>
-              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap">
+              <box width="100%" flexDirection="row" justifyContent="center" gap={2} flexWrap="wrap" alignItems="center">
                 <ActionChip
-                  label={`eli12:${explainMode() ? "on" : "off"}`}
+                  label="Explain"
                   active={explainMode()}
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
                 <ActionChip
-                  label={`tips:${showTips() ? "on" : "off"}`}
+                  label="Tips"
                   active={showTips()}
                   theme={theme}
                   onPress={() => command.trigger("tips.toggle")}
                 />
-                <ActionChip label="theme-" theme={theme} onPress={() => command.trigger("theme.previous")} />
-                <ActionChip label="theme+" theme={theme} onPress={() => command.trigger("theme.next")} />
-                <ActionChip label="env" theme={theme} onPress={() => command.trigger("env.doctor")} />
-                <ActionChip label="policy" theme={theme} onPress={() => command.trigger("policy.profile.toggle")} />
-                <ActionChip label="status" theme={theme} onPress={() => command.trigger("dax.status")} />
-                <ActionChip label="connect" theme={theme} onPress={() => command.trigger("provider.connect")} />
+                <ActionChip label="Theme" theme={theme} onPress={() => command.trigger("theme.next")} />
+                <ActionChip label="Env" theme={theme} onPress={() => command.trigger("env.doctor")} />
+                <ActionChip label="Policy" theme={theme} onPress={() => command.trigger("policy.profile.toggle")} />
+                <ActionChip label="Status" theme={theme} onPress={() => command.trigger("dax.status")} />
+                <ActionChip label="Connect" theme={theme} onPress={() => command.trigger("provider.connect")} />
               </box>
             </Show>
 
@@ -284,9 +289,7 @@ export function Home() {
                         flexDirection="row"
                         justifyContent="space-between"
                       >
-                        <text fg={theme.text}>
-                          ▸ {s.title.length > 50 ? s.title.slice(0, 47) + "..." : s.title}
-                        </text>
+                        <text fg={theme.text}>▸ {s.title.length > 50 ? s.title.slice(0, 47) + "..." : s.title}</text>
                         <text fg={theme.textMuted}>{new Date(s.time.updated).toLocaleDateString()}</text>
                       </box>
                     )}
