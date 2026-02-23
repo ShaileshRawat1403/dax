@@ -3,16 +3,16 @@ import { createSimpleContext } from "./helper"
 import { cpus, freemem, totalmem } from "node:os"
 
 export const THINKING_PUNS = [
-  "Compiling coffee into code...",
-  "Debugging my own existence...",
-  "Querying the oracle (aka StackOverflow)...",
-  "Feeding the hamsters...",
-  "Optimizing recursive recursions...",
-  "Herding digital cats...",
-  "Teaching an AI new tricks...",
-  "Polishing the bits...",
-  "Reticulating splines...",
-  "Calculating the meaning of 42...",
+  "Reading your codebase...",
+  "Analyzing the architecture...",
+  "Planning the next move...",
+  "Checking for bugs...",
+  "Optimizing for success...",
+  "Building the solution...",
+  "Verifying the changes...",
+  "Preparing the response...",
+  "Connecting the dots...",
+  "Making it work...",
 ]
 
 const cpuSnap = () =>
@@ -29,7 +29,7 @@ export const { use: useUIActivity, provider: UIActivityProvider } = createSimple
   init: () => {
     const [telemetry, setTelemetry] = createSignal({ cpu: 0, ram: 0 })
     const [punIndex, setPunIndex] = createSignal(0)
-    
+
     let prevCpu = cpuSnap()
 
     onMount(() => {
@@ -43,9 +43,9 @@ export const { use: useUIActivity, provider: UIActivityProvider } = createSimple
         const ramTotal = totalmem()
         const ramUsed = ramTotal - freemem()
         const ram = ramTotal > 0 ? Math.max(0, Math.min(100, Math.round((ramUsed / ramTotal) * 100))) : 0
-        
+
         setTelemetry({ cpu, ram })
-        
+
         // Puns (only update every 3 seconds, but we tick every 1s)
         // We can just use a counter or check time
       }, 1000)

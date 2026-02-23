@@ -1384,28 +1384,45 @@ export function Session() {
       if (msg.role !== "assistant") continue
       const tool = [...(sync.data.part[msg.id] ?? [])].reverse().find((x): x is ToolPart => x.type === "tool")
       if (!tool) continue
-      const input = (tool.state.input ?? {}) as Record<string, any>
-      const pathHint = input.path || input.file || input.filename || input.target || ""
-      const output = tool.state.status === "completed" ? tool.state.output : tool.state.input
+
+      const toolName = tool.tool
+      const toolInput = (tool.state.input ?? {}) as Record<string, any>
+      const pathHint = toolInput.path || toolInput.file || toolInput.filename || toolInput.target || ""
+
+      const status = tool.state.status
+      const isRunning = status === "pending"
+      const isCompleted = status === "completed"
+
       let body = ""
-      if (typeof output === "string") body = output
-      else {
-        try {
-          body = JSON.stringify(output ?? {}, null, 2)
-        } catch {
-          body = ""
+      if (isRunning) {
+        body = "Running..."
+      } else if (isCompleted) {
+        const output = (tool.state as any).output
+        if (typeof output === "string" && output.length > 0) {
+          body = output.slice(0, 500) + (output.length > 500 ? "..." : "")
+        } else {
+          body = "Done"
         }
+      } else if (status === "error") {
+        body = "Error"
       }
+
       return {
         active: true,
-        title: pathHint ? `${tool.tool} · ${pathHint}` : `${tool.tool} · latest`,
-        body: body || (tool.state.status === "completed" ? "Completed." : "Running..."),
+        tool: toolName,
+        title: pathHint ? `${toolName} · ${pathHint}` : toolName,
+        body,
+        isRunning,
+        isCompleted,
       }
     }
     return {
       active: false,
-      title: "No active artifact",
-      body: "Ask DAX to make a change and this pane will display the generated artifact stream.",
+      tool: "",
+      title: "No active tool",
+      body: "When DAX runs tools, they'll appear here.",
+      isRunning: false,
+      isCompleted: false,
     }
   })
   const hasDiffNeed = createMemo(() => !!revert()?.diff)
@@ -1831,10 +1848,36 @@ export function Session() {
                     </box>
                     <Switch>
                       <Match when={activePaneMode() === "artifact"}>
-                        <text fg={theme.primary}>{liveArtifact().title}</text>
-                        <text fg={theme.textMuted} wrapMode="word">
-                          {liveArtifact().body}
-                        </text>
+                        <Show
+                          when={liveArtifact().active}
+                          fallback={
+                            <box flexDirection="column" gap={1}>
+                              <text fg={theme.textMuted}>No active tool</text>
+                            </box>
+                          }
+                        >
+                          <box flexDirection="column" gap={1}>
+                            <box flexDirection="row" gap={1} alignItems="center">
+                              <text
+                                fg={
+                                  liveArtifact().isRunning
+                                    ? theme.warning
+                                    : liveArtifact().isCompleted
+                                      ? theme.success
+                                      : theme.text
+                                }
+                              >
+                                {liveArtifact().isRunning ? "◐" : liveArtifact().isCompleted ? "✓" : "○"}
+                              </text>
+                              <text fg={theme.primary} attributes={1}>
+                                {liveArtifact().title}
+                              </text>
+                            </box>
+                            <text fg={theme.textMuted} wrapMode="word">
+                              {liveArtifact().body}
+                            </text>
+                          </box>
+                        </Show>
                       </Match>
                       <Match when={activePaneMode() === "diff"}>
                         <Show
