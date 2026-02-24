@@ -98,22 +98,12 @@ export function createDialogProviderOptions() {
               if (!result?.data) return
               if (result.data.method === "code") {
                 dialog.replace(() => (
-                  <CodeMethod
-                    providerID={provider.id}
-                    title={method.label}
-                    index={index}
-                    authorization={result.data}
-                  />
+                  <CodeMethod providerID={provider.id} title={method.label} index={index} authorization={result.data} />
                 ))
               }
               if (result.data.method === "auto") {
                 dialog.replace(() => (
-                  <AutoMethod
-                    providerID={provider.id}
-                    title={method.label}
-                    index={index}
-                    authorization={result.data}
-                  />
+                  <AutoMethod providerID={provider.id} title={method.label} index={index} authorization={result.data} />
                 ))
               }
             }
@@ -335,16 +325,18 @@ function ApiMethod(props: ApiMethodProps) {
       title={props.title}
       placeholder="API key"
       description={
-        props.providerID === "dax" ? (
-          <box gap={1}>
-            <text fg={theme.textMuted}>
-              Dax Zen gives you access to all the best coding models at the cheapest prices with a single API key.
-            </text>
-            <text fg={theme.text}>
-              Go to <span style={{ fg: theme.primary }}>https://dax.ai/zen</span> to get a key
-            </text>
-          </box>
-        ) : undefined
+        props.providerID === "dax"
+          ? () => (
+              <box gap={1}>
+                <text fg={theme.textMuted}>
+                  Dax Zen gives you access to all the best coding models at the cheapest prices with a single API key.
+                </text>
+                <text fg={theme.text}>
+                  Go to <span style={{ fg: theme.primary }}>https://dax.ai/zen</span> to get a key
+                </text>
+              </box>
+            )
+          : undefined
       }
       onConfirm={async (value) => {
         if (!value) return

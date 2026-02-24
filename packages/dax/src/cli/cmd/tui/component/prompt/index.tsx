@@ -1,4 +1,4 @@
-import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, t, dim, fg } from "@opentui/core"
+import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, KeyEvent, t, dim, fg } from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
@@ -969,7 +969,7 @@ export function Prompt(props: PromptProps) {
         agentStyleId={agentStyleId}
         promptPartTypeId={() => promptPartTypeId}
       />
-      <box ref={(r) => (anchor = r)} visible={props.visible !== false}>
+      <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false}>
         <box backgroundColor={theme.backgroundElement}>
           <box
             paddingLeft={2}
@@ -1002,7 +1002,7 @@ export function Prompt(props: PromptProps) {
                   syncExtmarksWithPromptParts()
                 }}
                 keyBindings={textareaKeybindings()}
-                onKeyDown={async (e) => {
+                onKeyDown={async (e: KeyEvent) => {
                   if (props.disabled) {
                     e.preventDefault()
                     return

@@ -1,7 +1,7 @@
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { batch, createContext, Show, useContext, type JSX, type ParentProps } from "solid-js"
 import { useTheme } from "@tui/context/theme"
-import { Renderable, RGBA } from "@opentui/core"
+import { Renderable, RGBA, type MouseEvent } from "@opentui/core"
 import { createStore } from "solid-js/store"
 import { Clipboard } from "@tui/util/clipboard"
 import { useToast } from "./toast"
@@ -32,7 +32,7 @@ export function Dialog(
       backgroundColor={RGBA.fromInts(0, 0, 0, 150)}
     >
       <box
-        onMouseUp={async (e) => {
+        onMouseUp={async (e: MouseEvent) => {
           if (renderer.getSelection()) return
           e.stopPropagation()
         }}

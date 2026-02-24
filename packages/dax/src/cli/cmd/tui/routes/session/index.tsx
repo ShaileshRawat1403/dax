@@ -98,6 +98,14 @@ import { DAX_SETTING } from "@/dax/settings"
 
 addDefaultParsers(parsers.parsers)
 
+const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
+const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
+const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
+const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
+const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
+
+type ThemeShape = ReturnType<typeof useTheme>["theme"]
+
 class CustomSpeedScroll implements ScrollAcceleration {
   constructor(private speed: number) {}
 
@@ -127,10 +135,6 @@ function use() {
 
 export function Session() {
   const PANE_MODES = PANE_MODE
-  const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
-  const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
-  const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
-  const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
 
   const route = useRouteData("session")
   const { navigate } = useRoute()
@@ -187,6 +191,7 @@ export function Session() {
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
   const { currentPun } = useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const promptDisabled = createMemo(() => !!session()?.parentID)
 
   const isThinking = createMemo(() => {
     const last = messages().findLast((x) => x.role === "assistant")
@@ -1384,45 +1389,28 @@ export function Session() {
       if (msg.role !== "assistant") continue
       const tool = [...(sync.data.part[msg.id] ?? [])].reverse().find((x): x is ToolPart => x.type === "tool")
       if (!tool) continue
-
-      const toolName = tool.tool
-      const toolInput = (tool.state.input ?? {}) as Record<string, any>
-      const pathHint = toolInput.path || toolInput.file || toolInput.filename || toolInput.target || ""
-
-      const status = tool.state.status
-      const isRunning = status === "pending"
-      const isCompleted = status === "completed"
-
+      const input = (tool.state.input ?? {}) as Record<string, any>
+      const pathHint = input.path || input.file || input.filename || input.target || ""
+      const output = tool.state.status === "completed" ? tool.state.output : tool.state.input
       let body = ""
-      if (isRunning) {
-        body = "Running..."
-      } else if (isCompleted) {
-        const output = (tool.state as any).output
-        if (typeof output === "string" && output.length > 0) {
-          body = output.slice(0, 500) + (output.length > 500 ? "..." : "")
-        } else {
-          body = "Done"
+      if (typeof output === "string") body = output
+      else {
+        try {
+          body = JSON.stringify(output ?? {}, null, 2)
+        } catch {
+          body = ""
         }
-      } else if (status === "error") {
-        body = "Error"
       }
-
       return {
         active: true,
-        tool: toolName,
-        title: pathHint ? `${toolName} · ${pathHint}` : toolName,
-        body,
-        isRunning,
-        isCompleted,
+        title: pathHint ? `${tool.tool} · ${pathHint}` : `${tool.tool} · latest`,
+        body: body || (tool.state.status === "completed" ? "Completed." : "Running..."),
       }
     }
     return {
       active: false,
-      tool: "",
-      title: "No active tool",
-      body: "When DAX runs tools, they'll appear here.",
-      isRunning: false,
-      isCompleted: false,
+      title: "No active artifact",
+      body: "Ask DAX to make a change and this pane will display the generated artifact stream.",
     }
   })
   const hasDiffNeed = createMemo(() => !!revert()?.diff)
@@ -1670,7 +1658,9 @@ export function Session() {
                     padding={0}
                   >
                     <scrollbox
-                      ref={(r) => (scroll = r)}
+                      ref={(r: ScrollBoxRenderable | undefined) => {
+                        if (r) scroll = r
+                      }}
                       onMouseDown={pauseSmartFollow}
                       viewportOptions={{
                         paddingRight: showScrollbar() ? 1 : 0,
@@ -1774,6 +1764,14 @@ export function Session() {
                               />
                             </Match>
                             <Match when={message.role === "assistant"}>
+                              <StageTimeline
+                                visible={message.id === pending()}
+                                stageState={displayStageState()}
+                                stageLabel={stageLabel()}
+                                stageColor={stageColor()}
+                                streamStatus={streamStatus()}
+                                explainMode={explainMode()}
+                              />
                               <AssistantMessage
                                 last={lastAssistant()?.id === message.id}
                                 message={message as AssistantMessage}
@@ -1785,170 +1783,154 @@ export function Session() {
                       </For>
                     </scrollbox>
                   </box>
-                  <box flexGrow={liveStacked() ? 1 : 3} padding={1} gap={1} backgroundColor={theme.backgroundPanel}>
-                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                      <text fg={theme.textMuted}>⊞</text>
-                      <For each={["auto", "pin", "hide"] as const}>
-                        {(mode) => (
-                          <box
-                            onMouseUp={() => {
-                              if (mode === "auto") setPaneVisibility(() => "auto")
-                              if (mode === "pin") setPaneVisibility(() => "pinned")
-                              if (mode === "hide") setPaneVisibility(() => "hidden")
-                            }}
-                            backgroundColor={
-                              (mode === "auto" && paneVisibility() === "auto") ||
-                              (mode === "pin" && paneVisibility() === "pinned") ||
-                              (mode === "hide" && paneVisibility() === "hidden")
-                                ? theme.backgroundElement
-                                : undefined
-                            }
-                          >
-                            <text
-                              fg={
+                  <scrollbox
+                    flexGrow={liveStacked() ? 1 : 3}
+                    backgroundColor={theme.backgroundPanel}
+                    scrollAcceleration={scrollAcceleration()}
+                  >
+                    <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
+                      <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                        <text fg={theme.textMuted}>⊞</text>
+                        <For each={["auto", "pin", "hide"] as const}>
+                          {(mode) => (
+                            <box
+                              onMouseUp={() => {
+                                if (mode === "auto") setPaneVisibility(() => "auto")
+                                if (mode === "pin") setPaneVisibility(() => "pinned")
+                                if (mode === "hide") setPaneVisibility(() => "hidden")
+                              }}
+                              backgroundColor={
                                 (mode === "auto" && paneVisibility() === "auto") ||
                                 (mode === "pin" && paneVisibility() === "pinned") ||
                                 (mode === "hide" && paneVisibility() === "hidden")
-                                  ? theme.primary
-                                  : theme.textMuted
+                                  ? theme.backgroundElement
+                                  : undefined
                               }
                             >
-                              {mode}
-                            </text>
-                          </box>
-                        )}
-                      </For>
-                      <text fg={theme.textMuted}>· ❖</text>
-                      <For each={PANE_MODES}>
-                        {(mode) => (
-                          <box
-                            onMouseUp={() => {
-                              setPaneMode(() => mode)
-                              if (paneVisibility() === "hidden") {
-                                setPaneVisibility(() => "pinned")
-                              }
-                            }}
-                            backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
-                          >
-                            <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>
-                              {paneLabel(mode)}
-                            </text>
-                          </box>
-                        )}
-                      </For>
-                      <text fg={theme.textMuted}>·</text>
-                      <text fg={theme.textMuted}>
-                        {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
-                      </text>
-                      <text fg={theme.textMuted}>·</text>
-                      <text fg={stageColor()}>{stageLabel()}</text>
-                      <text fg={theme.textMuted}>({displayStageState().reason || "Idle"})</text>
-                    </box>
-                    <Switch>
-                      <Match when={activePaneMode() === "artifact"}>
-                        <Show
-                          when={liveArtifact().active}
-                          fallback={
-                            <box flexDirection="column" gap={1}>
-                              <text fg={theme.textMuted}>No active tool</text>
-                            </box>
-                          }
-                        >
-                          <box flexDirection="column" gap={1}>
-                            <box flexDirection="row" gap={1} alignItems="center">
                               <text
                                 fg={
-                                  liveArtifact().isRunning
-                                    ? theme.warning
-                                    : liveArtifact().isCompleted
-                                      ? theme.success
-                                      : theme.text
+                                  (mode === "auto" && paneVisibility() === "auto") ||
+                                  (mode === "pin" && paneVisibility() === "pinned") ||
+                                  (mode === "hide" && paneVisibility() === "hidden")
+                                    ? theme.primary
+                                    : theme.textMuted
                                 }
                               >
-                                {liveArtifact().isRunning ? "◐" : liveArtifact().isCompleted ? "✓" : "○"}
-                              </text>
-                              <text fg={theme.primary} attributes={1}>
-                                {liveArtifact().title}
+                                {mode}
                               </text>
                             </box>
-                            <text fg={theme.textMuted} wrapMode="word">
-                              {liveArtifact().body}
-                            </text>
-                          </box>
-                        </Show>
-                      </Match>
-                      <Match when={activePaneMode() === "diff"}>
-                        <Show
-                          when={revert()?.diff}
-                          fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}
-                        >
-                          <box flexDirection="column" gap={1} flexGrow={1} width="100%">
-                            <Show when={revert()?.diffFiles?.length}>
-                              <box flexDirection="column" gap={0}>
-                                <For each={revert()?.diffFiles ?? []}>
-                                  {(file) => (
-                                    <text fg={theme.text}>
-                                      {file.filename}
-                                      <Show when={file.additions > 0}>
-                                        <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                      </Show>
-                                      <Show when={file.deletions > 0}>
-                                        <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                      </Show>
-                                    </text>
-                                  )}
-                                </For>
-                              </box>
-                            </Show>
+                          )}
+                        </For>
+                        <text fg={theme.textMuted}>· ❖</text>
+                        <For each={PANE_MODES}>
+                          {(mode) => (
                             <box
-                              flexGrow={1}
-                              border={["top"]}
-                              borderColor={theme.borderSubtle}
-                              paddingTop={1}
-                              width="100%"
+                              onMouseUp={() => {
+                                setPaneMode(() => mode)
+                                if (paneVisibility() === "hidden") {
+                                  setPaneVisibility(() => "pinned")
+                                }
+                              }}
+                              backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
                             >
-                              <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
-                                <diff
-                                  diff={revert()!.diff ?? ""}
-                                  view={paneDiffView()}
-                                  filetype={paneDiffFiletype()}
-                                  syntaxStyle={syntax()}
-                                  showLineNumbers={true}
-                                  width="100%"
-                                  wrapMode={diffWrapMode()}
-                                  fg={theme.text}
-                                  addedBg={theme.diffAddedBg}
-                                  removedBg={theme.diffRemovedBg}
-                                  contextBg={theme.diffContextBg}
-                                  addedSignColor={theme.diffHighlightAdded}
-                                  removedSignColor={theme.diffHighlightRemoved}
-                                  lineNumberFg={theme.diffLineNumber}
-                                  lineNumberBg={theme.diffContextBg}
-                                  addedLineNumberBg={theme.diffAddedLineNumberBg}
-                                  removedLineNumberBg={theme.diffRemovedLineNumberBg}
-                                />
-                              </scrollbox>
+                              <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>
+                                {paneLabel(mode)}
+                              </text>
                             </box>
-                          </box>
-                        </Show>
-                      </Match>
-                      <Match when={activePaneMode() === "rao"}>
-                        <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
-                      </Match>
-                      <Match when={activePaneMode() === "pm"}>
-                        <text fg={theme.text}>Project Memory</text>
-                        <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
-                        <text fg={theme.textMuted} wrapMode="word">
-                          Capture constraints and handoff context so execution stays consistent across sessions.
+                          )}
+                        </For>
+                        <text fg={theme.textMuted}>·</text>
+                        <text fg={theme.textMuted}>
+                          {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
                         </text>
-                      </Match>
-                    </Switch>
-                  </box>
+                        <text fg={theme.textMuted}>·</text>
+                        <text fg={stageColor()}>{stageLabel()}</text>
+                        <text fg={theme.textMuted}>
+                          ({isThinking() ? `Thinking: ${currentPun()}` : displayStageState().reason || "Idle"})
+                        </text>
+                      </box>
+                      <Switch>
+                        <Match when={activePaneMode() === "artifact"}>
+                          <text fg={theme.primary}>{liveArtifact().title}</text>
+                          <text fg={theme.textMuted} wrapMode="word">
+                            {liveArtifact().body}
+                          </text>
+                        </Match>
+                        <Match when={activePaneMode() === "diff"}>
+                          <Show
+                            when={revert()?.diff}
+                            fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}
+                          >
+                            <box flexDirection="column" gap={1} flexGrow={1} width="100%">
+                              <Show when={revert()?.diffFiles?.length}>
+                                <box flexDirection="column" gap={0}>
+                                  <For each={revert()?.diffFiles ?? []}>
+                                    {(file) => (
+                                      <text fg={theme.text}>
+                                        {file.filename}
+                                        <Show when={file.additions > 0}>
+                                          <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                        </Show>
+                                        <Show when={file.deletions > 0}>
+                                          <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                        </Show>
+                                      </text>
+                                    )}
+                                  </For>
+                                </box>
+                              </Show>
+                              <box
+                                flexGrow={1}
+                                border={["top"]}
+                                borderColor={theme.borderSubtle}
+                                paddingTop={1}
+                                width="100%"
+                              >
+                                <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
+                                  <diff
+                                    diff={revert()!.diff ?? ""}
+                                    view={paneDiffView()}
+                                    filetype={paneDiffFiletype()}
+                                    syntaxStyle={syntax()}
+                                    showLineNumbers={true}
+                                    width="100%"
+                                    wrapMode={diffWrapMode()}
+                                    fg={theme.text}
+                                    addedBg={theme.diffAddedBg}
+                                    removedBg={theme.diffRemovedBg}
+                                    contextBg={theme.diffContextBg}
+                                    addedSignColor={theme.diffHighlightAdded}
+                                    removedSignColor={theme.diffHighlightRemoved}
+                                    lineNumberFg={theme.diffLineNumber}
+                                    lineNumberBg={theme.diffContextBg}
+                                    addedLineNumberBg={theme.diffAddedLineNumberBg}
+                                    removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                                  />
+                                </scrollbox>
+                              </box>
+                            </box>
+                          </Show>
+                        </Match>
+                        <Match when={activePaneMode() === "rao"}>
+                          <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
+                        </Match>
+                        <Match when={activePaneMode() === "pm"}>
+                          <text fg={theme.text}>Project Memory</text>
+                          <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
+                          <text fg={theme.textMuted} wrapMode="word">
+                            Capture constraints and handoff context so execution stays consistent across sessions.
+                          </text>
+                        </Match>
+                      </Switch>
+                    </box>
+                  </scrollbox>
                 </box>
               </Match>
               <Match when={true}>
                 <scrollbox
-                  ref={(r) => (scroll = r)}
+                  ref={(r: ScrollBoxRenderable | undefined) => {
+                    if (r) scroll = r
+                  }}
                   onMouseDown={pauseSmartFollow}
                   viewportOptions={{
                     paddingRight: showScrollbar() ? 1 : 0,
@@ -2051,6 +2033,14 @@ export function Session() {
                           />
                         </Match>
                         <Match when={message.role === "assistant"}>
+                          <StageTimeline
+                            visible={message.id === pending()}
+                            stageState={displayStageState()}
+                            stageLabel={stageLabel()}
+                            stageColor={stageColor()}
+                            streamStatus={streamStatus()}
+                            explainMode={explainMode()}
+                          />
                           <AssistantMessage
                             last={lastAssistant()?.id === message.id}
                             message={message as AssistantMessage}
@@ -2064,8 +2054,14 @@ export function Session() {
               </Match>
             </Switch>
             <box flexShrink={0}>
+              <Show when={promptDisabled()}>
+                <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
+                  <text fg={theme.warning}>
+                    Input disabled while viewing a delegated session. Switch back to the parent to continue typing.
+                  </text>
+                </box>
+              </Show>
               <Prompt
-                visible={!session()?.parentID}
                 ref={(r) => {
                   prompt = r
                   promptRef.set(r)
@@ -2074,7 +2070,7 @@ export function Session() {
                     r.set(route.initialPrompt)
                   }
                 }}
-                disabled={false}
+                disabled={promptDisabled()}
                 onSubmit={() => {
                   toBottom()
                 }}
@@ -2207,6 +2203,90 @@ function UserMessage(props: {
         />
       </Show>
     </>
+  )
+}
+
+type StageTimelineProps = {
+  visible: boolean
+  stageState: { stage: StreamStage; reason: string }
+  stageLabel: string
+  stageColor: RGBA
+  streamStatus: string
+  explainMode: boolean
+}
+
+function StageTimeline(props: StageTimelineProps) {
+  const { theme } = useTheme()
+  const showFlow = createMemo(() => PRIMARY_STAGE_FLOW.includes(props.stageState.stage))
+  const stageNames = createMemo(() => PRIMARY_STAGE_FLOW.map((stage) => labelStage(stage, props.explainMode)))
+  const activeIndex = createMemo(() => PRIMARY_STAGE_FLOW.indexOf(props.stageState.stage))
+  const statusText = createMemo(() => (props.streamStatus === "idle" ? undefined : props.streamStatus))
+  const reason = createMemo(() => props.stageState.reason)
+  const baseBackground = createMemo(() => theme.backgroundElement ?? theme.backgroundPanel ?? theme.background)
+
+  return (
+    <Show when={props.visible}>
+      <box paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1} flexDirection="column" gap={1}>
+        <Switch>
+          <Match when={showFlow()}>
+            <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
+              <For each={PRIMARY_STAGE_FLOW}>
+                {(stage, index) => {
+                  const idx = index()
+                  const state =
+                    activeIndex() === -1
+                      ? "upcoming"
+                      : idx < activeIndex()
+                        ? "complete"
+                        : idx === activeIndex()
+                          ? "active"
+                          : "upcoming"
+                  const bg =
+                    state === "active"
+                      ? tint(baseBackground(), props.stageColor, 0.55)
+                      : state === "complete"
+                        ? tint(baseBackground(), theme.primary, 0.35)
+                        : tint(baseBackground(), theme.borderSubtle, 0.15)
+                  const fg = state === "active" ? props.stageColor : state === "complete" ? theme.text : theme.textMuted
+                  return (
+                    <box flexDirection="row" alignItems="center" gap={1}>
+                      <box paddingLeft={1} paddingRight={1} paddingBottom={0} paddingTop={0} backgroundColor={bg}>
+                        <text fg={fg}>{stageNames()[idx]}</text>
+                      </box>
+                      <Show when={idx < PRIMARY_STAGE_FLOW.length - 1}>
+                        <text fg={theme.borderSubtle}>›</text>
+                      </Show>
+                    </box>
+                  )
+                }}
+              </For>
+            </box>
+          </Match>
+          <Match when={!showFlow()}>
+            <box flexDirection="row" gap={1} alignItems="center">
+              <box
+                paddingLeft={1}
+                paddingRight={1}
+                paddingBottom={0}
+                paddingTop={0}
+                backgroundColor={tint(baseBackground(), props.stageColor, 0.5)}
+              >
+                <text fg={props.stageColor}>{props.stageLabel}</text>
+              </box>
+            </box>
+          </Match>
+        </Switch>
+        <box flexDirection="row" gap={1} flexWrap="wrap">
+          <text fg={props.stageColor}>{props.stageLabel}</text>
+          <Show when={reason()}>
+            <text fg={theme.textMuted}>· {reason()}</text>
+          </Show>
+          <Show when={statusText()}>
+            <text fg={theme.textMuted}>· {statusText()}</text>
+          </Show>
+        </box>
+      </box>
+    </Show>
   )
 }
 
@@ -2435,6 +2515,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   const content = createMemo(() => {
     return props.part.text.replace("[REDACTED]", "").trim()
   })
+  const background = createMemo(() => tint(theme.backgroundPanel, theme.secondary, theme.thinkingOpacity ?? 0.35))
 
   return (
     <Show when={content() && ctx.showThinking()}>
@@ -2444,7 +2525,9 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         paddingRight={2}
         marginTop={1}
         flexDirection="column"
-        backgroundColor={tint(theme.background, theme.primary, 0.05)}
+        backgroundColor={background()}
+        border={["left"]}
+        borderColor={theme.secondary}
       >
         <code
           filetype="markdown"
@@ -2453,7 +2536,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
           syntaxStyle={subtleSyntax()}
           content={"_Thinking:_ " + content()}
           conceal={ctx.conceal()}
-          fg={theme.textMuted}
+          fg={theme.secondary}
         />
       </box>
     </Show>
@@ -2623,6 +2706,7 @@ function InlineTool(props: {
   const { theme } = useTheme()
   const ctx = use()
   const sync = useSync()
+  const accent = createMemo(() => toolAccentColor(props.part.tool, theme))
 
   const permission = createMemo(() => {
     const callID = sync.data.permission[ctx.sessionID]?.at(0)?.tool?.callID
@@ -2636,6 +2720,11 @@ function InlineTool(props: {
     return theme.text
   })
 
+  const iconColor = createMemo(() => props.iconColor ?? accent())
+  const backgroundColor = createMemo(() =>
+    tint(theme.backgroundElement, accent(), props.part.state.status === "pending" ? 0.4 : 0.2),
+  )
+
   const error = createMemo(() => (props.part.state.status === "error" ? props.part.state.error : undefined))
 
   const denied = createMemo(
@@ -2648,9 +2737,14 @@ function InlineTool(props: {
   return (
     <box
       marginTop={margin()}
-      paddingLeft={3}
-      renderBefore={function () {
-        const el = this as BoxRenderable
+      paddingLeft={2}
+      paddingRight={1}
+      backgroundColor={backgroundColor()}
+      border={["left"]}
+      borderColor={accent()}
+      customBorderChars={SplitBorder.customBorderChars}
+      renderBefore={function (this: BoxRenderable) {
+        const el = this
         const parent = el.parent
         if (!parent) {
           return
@@ -2672,9 +2766,9 @@ function InlineTool(props: {
         }
       }}
     >
-      <text paddingLeft={3} fg={fg()} attributes={denied() ? TextAttributes.STRIKETHROUGH : undefined}>
+      <text paddingLeft={1} fg={fg()} attributes={denied() ? TextAttributes.STRIKETHROUGH : undefined}>
         <Show fallback={<>~ {props.pending}</>} when={props.complete}>
-          <span style={{ fg: props.iconColor }}>{props.icon}</span> {props.children}
+          <span style={{ fg: iconColor() }}>{props.icon}</span> {props.children}
         </Show>
       </text>
       <Show when={error() && !denied()}>
@@ -2695,6 +2789,9 @@ function BlockTool(props: {
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
+  const accent = createMemo(() => (props.part ? toolAccentColor(props.part.tool, theme) : theme.borderActive))
+  const baseBackground = createMemo(() => tint(theme.backgroundPanel, accent(), 0.08))
+  const hoverBackground = createMemo(() => tint(theme.backgroundPanel, accent(), 0.2))
   return (
     <box
       border={["left"]}
@@ -2703,9 +2800,9 @@ function BlockTool(props: {
       paddingLeft={2}
       marginTop={1}
       gap={1}
-      backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundPanel}
+      backgroundColor={hover() ? hoverBackground() : baseBackground()}
       customBorderChars={SplitBorder.customBorderChars}
-      borderColor={theme.background}
+      borderColor={accent()}
       onMouseOver={() => props.onClick && setHover(true)}
       onMouseOut={() => setHover(false)}
       onMouseUp={() => {
@@ -2721,7 +2818,7 @@ function BlockTool(props: {
           </text>
         }
       >
-        <Spinner color={theme.textMuted}>{props.title.replace(/^# /, "")}</Spinner>
+        <Spinner color={accent()}>{props.title.replace(/^# /, "")}</Spinner>
       </Show>
       {props.children}
       <Show when={error()}>
@@ -2729,6 +2826,14 @@ function BlockTool(props: {
       </Show>
     </box>
   )
+}
+
+function toolAccentColor(tool: string, theme: ThemeShape) {
+  if (PLAN_TOOLS.has(tool)) return theme.accent
+  if (EXECUTE_TOOLS.has(tool)) return theme.primary
+  if (VERIFY_TOOLS.has(tool)) return theme.success
+  if (EXPLORE_TOOLS.has(tool)) return theme.secondary
+  return theme.borderActive
 }
 
 function Bash(props: ToolProps<typeof BashTool>) {

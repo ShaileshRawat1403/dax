@@ -1,44 +1,44 @@
 {
   "$schema": "https://dax.ai/theme.json",
   "defs": {
-    "darkStep1": "#070b10",
-    "darkStep2": "#0d141c",
-    "darkStep3": "#131d28",
-    "darkStep4": "#1a2735",
-    "darkStep5": "#223347",
-    "darkStep6": "#2c3f57",
-    "darkStep7": "#3a5473",
-    "darkStep8": "#4c6a8f",
-    "darkStep9": "#3fb7ff",
-    "darkStep10": "#7fd2ff",
-    "darkStep11": "#8ea3bd",
-    "darkStep12": "#e7f0fa",
-    "darkSecondary": "#00d1a7",
-    "darkAccent": "#ffb454",
-    "darkRed": "#ff5d73",
-    "darkOrange": "#ff9f43",
-    "darkGreen": "#39d98a",
-    "darkCyan": "#1fc8ff",
-    "darkYellow": "#f3c969",
-    "lightStep1": "#f4f7fb",
-    "lightStep2": "#eaf0f7",
-    "lightStep3": "#dfe8f2",
-    "lightStep4": "#d3dfec",
-    "lightStep5": "#c2d2e4",
-    "lightStep6": "#adbfd4",
-    "lightStep7": "#8ea4be",
-    "lightStep8": "#758ea9",
-    "lightStep9": "#0f79c7",
-    "lightStep10": "#005f9f",
-    "lightStep11": "#5f7388",
-    "lightStep12": "#0c1724",
-    "lightSecondary": "#007f6b",
-    "lightAccent": "#b36a00",
-    "lightRed": "#c2364d",
-    "lightOrange": "#bf6a00",
-    "lightGreen": "#1f8a54",
-    "lightCyan": "#0d80b8",
-    "lightYellow": "#8f6b12"
+    "darkStep1": "#05080d",
+    "darkStep2": "#081017",
+    "darkStep3": "#0b1822",
+    "darkStep4": "#0f202c",
+    "darkStep5": "#132939",
+    "darkStep6": "#193445",
+    "darkStep7": "#204050",
+    "darkStep8": "#284c5c",
+    "darkStep9": "#5bd1f5",
+    "darkStep10": "#8ae6ff",
+    "darkStep11": "#aebed0",
+    "darkStep12": "#f5f8ff",
+    "darkSecondary": "#7fe0c5",
+    "darkAccent": "#ffcba3",
+    "darkRed": "#ff7f8f",
+    "darkOrange": "#ffb774",
+    "darkGreen": "#63e2ae",
+    "darkCyan": "#70d4ff",
+    "darkYellow": "#ffe9b3",
+    "lightStep1": "#f8fbff",
+    "lightStep2": "#edf5fa",
+    "lightStep3": "#e1edf4",
+    "lightStep4": "#d4e4ee",
+    "lightStep5": "#c3d7e4",
+    "lightStep6": "#afc7d6",
+    "lightStep7": "#97b2c2",
+    "lightStep8": "#809aad",
+    "lightStep9": "#2f7abf",
+    "lightStep10": "#1f5f92",
+    "lightStep11": "#4e5f6f",
+    "lightStep12": "#0c1823",
+    "lightSecondary": "#2b9c8d",
+    "lightAccent": "#d38555",
+    "lightRed": "#cb5f6b",
+    "lightOrange": "#d98846",
+    "lightGreen": "#41a57a",
+    "lightCyan": "#237fb4",
+    "lightYellow": "#b78534"
   },
   "theme": {
     "primary": {
@@ -102,12 +102,12 @@
       "light": "lightStep6"
     },
     "diffAdded": {
-      "dark": "#4ee5b3",
-      "light": "#1f7a53"
+      "dark": "#6df3c5",
+      "light": "#2f8f6a"
     },
     "diffRemoved": {
-      "dark": "#ff6f86",
-      "light": "#b54056"
+      "dark": "#ff90a2",
+      "light": "#c96374"
     },
     "diffContext": {
       "dark": "#828bb8",
@@ -118,20 +118,20 @@
       "light": "#7086b5"
     },
     "diffHighlightAdded": {
-      "dark": "#b8db87",
-      "light": "#4db380"
+      "dark": "#c0fade",
+      "light": "#55bf91"
     },
     "diffHighlightRemoved": {
-      "dark": "#e26a75",
-      "light": "#f52a65"
+      "dark": "#ffb2c0",
+      "light": "#f27a8c"
     },
     "diffAddedBg": {
-      "dark": "#122a25",
-      "light": "#d8ece2"
+      "dark": "#0f2621",
+      "light": "#daeee7"
     },
     "diffRemovedBg": {
-      "dark": "#301c25",
-      "light": "#f3dce1"
+      "dark": "#2d1419",
+      "light": "#f6dfe4"
     },
     "diffContextBg": {
       "dark": "darkStep2",
@@ -142,12 +142,12 @@
       "light": "lightStep3"
     },
     "diffAddedLineNumberBg": {
-      "dark": "#0f2421",
-      "light": "#cae0d4"
+      "dark": "#0c211d",
+      "light": "#cee4da"
     },
     "diffRemovedLineNumberBg": {
-      "dark": "#25161c",
-      "light": "#e9cfd5"
+      "dark": "#281319",
+      "light": "#efd5dc"
     },
     "markdownText": {
       "dark": "darkStep12",

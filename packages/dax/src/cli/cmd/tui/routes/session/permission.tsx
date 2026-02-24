@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store"
-import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { createMemo, For, Match, Show, Switch, type Component } from "solid-js"
 import { Portal, useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import type { TextareaRenderable } from "@opentui/core"
 import { useKeybind } from "../../context/keybind"
@@ -19,6 +19,8 @@ import { analyzePackageInstallCommand, analyzePythonInstallCommand } from "../..
 import { useKV } from "../../context/kv"
 import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
 import { DAX_SETTING } from "@/dax/settings"
+
+const PortalBox = Portal as unknown as Component<{ children: JSX.Element }>
 
 type PermissionStage = "permission" | "always" | "reject"
 type PermissionRiskLevel = "normal" | "privacy" | "critical"
@@ -619,7 +621,7 @@ function Prompt<const T extends Record<string, string>>(props: {
   )
 
   return (
-    <Show when={!store.expanded} fallback={<Portal>{content()}</Portal>}>
+    <Show when={!store.expanded} fallback={<PortalBox>{content()}</PortalBox>}>
       {content()}
     </Show>
   )
