@@ -240,16 +240,16 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
         </box>
         <box paddingTop={1}>
           <input
-            onInput={(e) => {
+            onInput={(value: string) => {
               batch(() => {
-                setStore("filter", e)
-                props.onFilter?.(e)
+                setStore("filter", value)
+                props.onFilter?.(value)
               })
             }}
             focusedBackgroundColor={theme.backgroundPanel}
             cursorColor={theme.primary}
             focusedTextColor={theme.textMuted}
-            ref={(r) => {
+            ref={(r: InputRenderable) => {
               input = r
               setTimeout(() => {
                 if (!input) return

@@ -468,14 +468,15 @@ export namespace LSP {
 
   export namespace Diagnostic {
     export function pretty(diagnostic: LSPClient.Diagnostic) {
-      const severityMap = {
+      const severityMap: Record<1 | 2 | 3 | 4, string> = {
         1: "ERROR",
         2: "WARN",
         3: "INFO",
         4: "HINT",
       }
 
-      const severity = severityMap[diagnostic.severity || 1]
+      const severityKey = (diagnostic.severity ?? 1) as 1 | 2 | 3 | 4
+      const severity = severityMap[severityKey]
       const line = diagnostic.range.start.line + 1
       const col = diagnostic.range.start.character + 1
 
