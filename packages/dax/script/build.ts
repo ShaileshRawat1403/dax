@@ -112,9 +112,14 @@ const targets = singleFlag
 await $`rm -rf dist`
 
 const binaries: Record<string, string> = {}
+const watcherVersion = pkg.dependencies?.["@parcel/watcher"] ?? pkg.devDependencies?.["@parcel/watcher"]
 if (!skipInstall) {
+  if (!watcherVersion) {
+    throw new Error("Missing @parcel/watcher version in package.json")
+  }
+
   await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
-  await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
+  await $`bun install --os="*" --cpu="*" @parcel/watcher@${watcherVersion}`
 }
 for (const item of targets) {
   const name = [
