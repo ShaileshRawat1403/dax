@@ -3,13 +3,13 @@
 ## Install
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax/releases/latest/download/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 If you always want latest release from GitHub:
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | bash
 ```
 
 Optional installer variables:
@@ -27,7 +27,7 @@ rm -f ~/.local/bin/dax
 ## Update
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax/releases/latest/download/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 ## Minimum System Requirements
@@ -60,7 +60,7 @@ curl -fsSL https://github.com/ShaileshRawat1403/dax/releases/latest/download/ins
 
 ## Report Issues
 
-Open an issue at <https://github.com/ShaileshRawat1403/dax/issues> with:
+Open an issue at <https://github.com/ShaileshRawat1403/dax-tui/issues> with:
 
 - DAX version tag (`dax --version`)
 - OS + architecture
