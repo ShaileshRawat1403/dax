@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${DAX_REPO:-ShaileshRawat1403/dax}"
+REPO="${DAX_REPO:-ShaileshRawat1403/dax-tui}"
 INSTALL_DIR="${DAX_INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${DAX_VERSION:-}"
 

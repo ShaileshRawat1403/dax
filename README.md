@@ -64,7 +64,7 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 ### Install
 
 ```bash
-git clone https://github.com/ShaileshRawat1403/dax.git
+git clone https://github.com/ShaileshRawat1403/dax-tui.git
 cd dax
 bun install
 ```
