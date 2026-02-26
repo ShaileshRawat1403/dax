@@ -1,16 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="DAX logo">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4f46e5"/>
-      <stop offset="100%" stop-color="#06b6d4"/>
+    <linearGradient id="daxGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4F7BFF" />
+      <stop offset="100%" stop-color="#7A4DFF" />
     </linearGradient>
   </defs>
-  <rect width="1200" height="320" rx="28" fill="#0b1020"/>
-  <g transform="translate(60,56)">
-    <rect width="208" height="208" rx="24" fill="url(#g)"/>
-    <path d="M58 64h42c39 0 62 23 62 54s-23 54-62 54H58z" fill="#fff"/>
-    <path d="M84 92v52h16c21 0 34-10 34-26s-13-26-34-26z" fill="url(#g)"/>
+
+  <g transform="translate(190,60)">
+    <path d="M0 0h44v26h-18v108h18v26H0z" fill="url(#daxGradient)" />
+    <rect x="56" y="52" width="44" height="44" rx="8" fill="url(#daxGradient)" />
+    <path d="M204 0h-44v26h18v108h-18v26h44z" fill="url(#daxGradient)" />
   </g>
-  <text x="320" y="155" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="110" font-weight="700" fill="#ffffff">DAX</text>
-  <text x="320" y="218" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="34" fill="#b9c4ff">Deterministic AI eXecution</text>
+
+  <text
+    x="430"
+    y="205"
+    font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif"
+    font-size="146"
+    font-weight="800"
+    letter-spacing="-2"
+    fill="#0C1638"
+  >
+    DAX
+  </text>
 </svg>

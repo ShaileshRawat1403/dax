@@ -65,7 +65,7 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 
 ```bash
 git clone https://github.com/ShaileshRawat1403/dax-tui.git
-cd dax
+cd dax-tui
 bun install
 ```
 
@@ -100,6 +100,12 @@ bun run release
 - Upload prerelease assets to GitHub (draft): `DAX_VERSION=1.0.0-beta.1 bun run release:publish`
 - Publish prerelease immediately: `DAX_VERSION=1.0.0-beta.1 bun run release:publish:live`
 - Peer install guide: `docs/prerelease.md`
+
+### Install Peer Build (No Source Checkout)
+
+```bash
+curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | DAX_VERSION=v1.0.0-beta.1 bash
+```
 
 ## Configuration Snapshot
 
