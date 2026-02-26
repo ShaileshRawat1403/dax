@@ -217,7 +217,7 @@ export function RAOPane(props: { permissions: PermissionRequest[]; questions: Qu
   })
 
   return (
-    <box flexDirection="column" gap={0} height="100%">
+    <box flexDirection="column" gap={0} flexGrow={1}>
       <Show when={items().length === 0}>
         <box flexDirection="column" gap={1} padding={1}>
           <text fg={theme.success}>All clear</text>

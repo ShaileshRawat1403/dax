@@ -14,8 +14,8 @@ process.chdir(dir)
 
 import pkg from "../package.json"
 import { Script } from "@dax-ai/script"
+
 const modelsUrl = process.env.DAX_MODELS_URL || "https://models.dev"
-// Fetch and generate models.dev snapshot
 const modelsData = process.env.MODELS_DEV_API_JSON
   ? await Bun.file(process.env.MODELS_DEV_API_JSON).text()
   : await fetch(`${modelsUrl}/api.json`).then((x) => x.text())
@@ -29,63 +29,31 @@ const singleFlag = process.argv.includes("--single")
 const baselineFlag = process.argv.includes("--baseline")
 const skipInstall = process.argv.includes("--skip-install")
 
+type ReleaseTarget = {
+  os: "darwin" | "linux" | "windows"
+  arch: "arm64" | "x64"
+  sourceName: string
+  archive: "tar.gz" | "zip"
+  binary: "dax" | "dax.exe"
+}
+
 const allTargets: {
   os: string
   arch: "arm64" | "x64"
   abi?: "musl"
   avx2?: false
 }[] = [
-  {
-    os: "linux",
-    arch: "arm64",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    avx2: false,
-  },
-  {
-    os: "linux",
-    arch: "arm64",
-    abi: "musl",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    abi: "musl",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    abi: "musl",
-    avx2: false,
-  },
-  {
-    os: "darwin",
-    arch: "arm64",
-  },
-  {
-    os: "darwin",
-    arch: "x64",
-  },
-  {
-    os: "darwin",
-    arch: "x64",
-    avx2: false,
-  },
-  {
-    os: "win32",
-    arch: "x64",
-  },
-  {
-    os: "win32",
-    arch: "x64",
-    avx2: false,
-  },
+  { os: "linux", arch: "arm64" },
+  { os: "linux", arch: "x64" },
+  { os: "linux", arch: "x64", avx2: false },
+  { os: "linux", arch: "arm64", abi: "musl" },
+  { os: "linux", arch: "x64", abi: "musl" },
+  { os: "linux", arch: "x64", abi: "musl", avx2: false },
+  { os: "darwin", arch: "arm64" },
+  { os: "darwin", arch: "x64" },
+  { os: "darwin", arch: "x64", avx2: false },
+  { os: "win32", arch: "x64" },
+  { os: "win32", arch: "x64", avx2: false },
 ]
 
 const targets = singleFlag
@@ -93,18 +61,12 @@ const targets = singleFlag
       if (item.os !== process.platform || item.arch !== process.arch) {
         return false
       }
-
-      // When building for the current platform, prefer a single native binary by default.
-      // Baseline binaries require additional Bun artifacts and can be flaky to download.
       if (item.avx2 === false) {
         return baselineFlag
       }
-
-      // also skip abi-specific builds for the same reason
       if (item.abi !== undefined) {
         return false
       }
-
       return true
     })
   : allTargets
@@ -121,10 +83,10 @@ if (!skipInstall) {
   await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
   await $`bun install --os="*" --cpu="*" @parcel/watcher@${watcherVersion}`
 }
+
 for (const item of targets) {
   const name = [
     pkg.name,
-    // changing to win32 flags npm for some reason
     item.os === "win32" ? "windows" : item.os,
     item.arch,
     item.avx2 === false ? "baseline" : undefined,
@@ -132,13 +94,12 @@ for (const item of targets) {
   ]
     .filter(Boolean)
     .join("-")
+
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
 
   const parserWorker = fs.realpathSync(path.resolve(dir, "./node_modules/@opentui/core/parser.worker.js"))
   const workerPath = "./src/cli/cmd/tui/worker.ts"
-
-  // Use platform-specific bunfs root path based on target OS
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
   const workerRelativePath = path.relative(dir, parserWorker).replaceAll("\\", "/")
 
@@ -181,18 +142,153 @@ for (const item of targets) {
       2,
     ),
   )
+
   binaries[name] = Script.version
 }
 
-if (Script.release) {
-  for (const key of Object.keys(binaries)) {
-    if (key.includes("linux")) {
-      await $`tar -czf ../../${key}.tar.gz *`.cwd(`dist/${key}/bin`)
-    } else {
-      await $`zip -r ../../${key}.zip *`.cwd(`dist/${key}/bin`)
+const releaseTargets: ReleaseTarget[] = [
+  {
+    os: "darwin",
+    arch: "arm64",
+    sourceName: `${pkg.name}-darwin-arm64`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "darwin",
+    arch: "x64",
+    sourceName: `${pkg.name}-darwin-x64`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "linux",
+    arch: "x64",
+    sourceName: `${pkg.name}-linux-x64`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "linux",
+    arch: "arm64",
+    sourceName: `${pkg.name}-linux-arm64`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "windows",
+    arch: "x64",
+    sourceName: `${pkg.name}-windows-x64`,
+    archive: "zip",
+    binary: "dax.exe",
+  },
+]
+
+const releaseDir = path.join(dir, "dist", "release")
+const shouldPackageReleaseAssets = !singleFlag || process.env.DAX_BUILD_RELEASE_ASSETS === "1"
+const releaseAssets: {
+  filename: string
+  platform: ReleaseTarget["os"]
+  arch: ReleaseTarget["arch"]
+  sha256: string
+}[] = []
+
+if (shouldPackageReleaseAssets) {
+  const stagingDir = path.join(releaseDir, ".staging")
+  await $`rm -rf ${releaseDir}`
+  await $`mkdir -p ${stagingDir}`
+
+  for (const target of releaseTargets) {
+    const sourceBinary = path.join(dir, "dist", target.sourceName, "bin", target.binary)
+    if (!fs.existsSync(sourceBinary)) {
+      throw new Error(`Missing build output for release asset: ${sourceBinary}`)
     }
+
+    const filename = `${pkg.name}-${target.os}-${target.arch}.${target.archive}`
+    const destination = path.join(releaseDir, filename)
+    const stagingBinary = path.join(stagingDir, target.binary)
+
+    await $`rm -f ${stagingBinary}`
+    await $`cp ${sourceBinary} ${stagingBinary}`
+
+    if (target.archive === "tar.gz") {
+      await $`tar -czf ${destination} -C ${stagingDir} ${target.binary}`
+    } else {
+      await $`zip -j -q ${destination} ${stagingBinary}`
+    }
+
+    const hash = new Bun.CryptoHasher("sha256")
+    hash.update(await Bun.file(destination).arrayBuffer())
+
+    releaseAssets.push({
+      filename,
+      platform: target.os,
+      arch: target.arch,
+      sha256: hash.digest("hex"),
+    })
   }
-  await $`gh release upload v${Script.version} ./dist/*.zip ./dist/*.tar.gz --clobber`
+
+  const installScriptPath = path.resolve(dir, "../../script/install.sh")
+  if (fs.existsSync(installScriptPath)) {
+    await $`cp ${installScriptPath} ${releaseDir}/install.sh`
+  }
+
+  const missingAssets = releaseTargets
+    .map((x) => `${pkg.name}-${x.os}-${x.arch}.${x.archive}`)
+    .filter((filename) => !releaseAssets.some((asset) => asset.filename === filename))
+  if (missingAssets.length > 0) {
+    throw new Error(`Release assets were not created: ${missingAssets.join(", ")}`)
+  }
+
+  await Bun.write(
+    path.join(releaseDir, "manifest.json"),
+    JSON.stringify(
+      {
+        version: Script.version,
+        generated_at: new Date().toISOString(),
+        assets: releaseAssets,
+      },
+      null,
+      2,
+    ) + "\n",
+  )
+
+  await Bun.write(
+    path.join(releaseDir, "SHA256SUMS"),
+    releaseAssets.map((asset) => `${asset.sha256}  ${asset.filename}`).join("\n") + "\n",
+  )
+}
+
+if (Script.release) {
+  if (!shouldPackageReleaseAssets) {
+    throw new Error("Release publishing requires full assets. Run without --single or set DAX_BUILD_RELEASE_ASSETS=1.")
+  }
+
+  if (!/^\d+\.\d+\.\d+-beta\.\d+$/.test(Script.version)) {
+    throw new Error(`DAX_VERSION must match X.Y.Z-beta.N for prereleases. Received: ${Script.version}`)
+  }
+
+  const tag = `v${Script.version}`
+  const title = `DAX ${Script.version}`
+  const notes = process.env.DAX_RELEASE_NOTES || `Peer prerelease for ${Script.version}`
+  const markDraft = process.env.DAX_RELEASE_DRAFT !== "0"
+  const markPrerelease = process.env.DAX_RELEASE_PRERELEASE !== "0"
+  const publishNow = process.env.DAX_RELEASE_PUBLISH === "1"
+
+  const viewResult = await $`gh release view ${tag}`.nothrow()
+  if (viewResult.exitCode !== 0) {
+    await $`gh release create ${tag} --title ${title} --notes ${notes} ${markDraft ? "--draft" : ""} ${markPrerelease ? "--prerelease" : ""}`
+  }
+
+  if (!fs.existsSync(path.join(releaseDir, "install.sh"))) {
+    throw new Error("Missing release/install.sh. Create script/install.sh before publishing.")
+  }
+
+  await $`gh release upload ${tag} ${releaseDir}/*.tar.gz ${releaseDir}/*.zip ${releaseDir}/manifest.json ${releaseDir}/SHA256SUMS ${releaseDir}/install.sh --clobber`
+
+  if (publishNow) {
+    await $`gh release edit ${tag} --draft=false`
+  }
 }
 
 export { binaries }

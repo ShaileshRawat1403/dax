@@ -79,7 +79,7 @@ export const TuiThreadCommand = cmd({
   handler: async (args) => {
     if (args.fork && !args.continue && !args.session) {
       UI.error("--fork requires --continue or --session")
-      process.exit(1)
+      return
     }
 
     // Resolve relative paths against PWD to preserve behavior when using --cwd flag
