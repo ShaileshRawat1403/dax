@@ -1,6 +1,5 @@
-p align="center">
-<img src="./dax-logo.svg" alt="DAX logo" width="600" />
-
+<p align="center">
+  <img src="./dax-logo.svg" alt="DAX logo" width="600">
 </p>
 <p align="center"><strong>DAX — Deterministic AI eXecution</strong></p>
 <p align="center">Governed AI orchestration for real software delivery.</p>
@@ -86,14 +85,21 @@ bun run test:dax
 ### Full Release Verification Pipeline
 
 ```bash
-bun run release:dax:verify
+bun run release:verify
 ```
 
 ### Build Release Artifacts
 
 ```bash
-bun run release:dax
+bun run release
 ```
+
+### Peer Pre-release (GitHub Releases)
+
+- Build release artifacts locally: `bun run release`
+- Upload prerelease assets to GitHub (draft): `DAX_VERSION=1.0.0-beta.1 bun run release:publish`
+- Publish prerelease immediately: `DAX_VERSION=1.0.0-beta.1 bun run release:publish:live`
+- Peer install guide: `docs/prerelease.md`
 
 ## Configuration Snapshot
 
@@ -164,8 +170,8 @@ flowchart LR
 1. `bun install`
 2. `bun run typecheck:dax`
 3. `bun run test:dax`
-4. `bun run release:dax:verify`
-5. `bun run release:dax`
+4. `bun run release:verify`
+5. `bun run release`
 6. Smoke-test the TUI on narrow + wide terminals
 7. Verify provider login flows (OpenAI, Google/Gemini, Anthropic, Ollama)
 8. Verify RAO approvals and policy profile behavior
