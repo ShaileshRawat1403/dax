@@ -18,6 +18,36 @@ need_cmd tar
 if [[ -z "$VERSION" ]]; then
   latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest")"
   VERSION="${latest_url##*/}"
+
+  # GitHub "latest" excludes prereleases. If there is no stable release yet,
+  # the redirect can end at /releases, which is not a tag.
+  if [[ "$VERSION" == "releases" || "$VERSION" == "latest" || -z "$VERSION" ]]; then
+    need_cmd python3
+    VERSION="$(
+      curl -fsSL "https://api.github.com/repos/${REPO}/releases" | python3 -c '
+import json, sys
+try:
+    releases = json.load(sys.stdin)
+except Exception:
+    releases = []
+for release in releases:
+    if release.get("draft"):
+        continue
+    tag = release.get("tag_name")
+    if tag:
+        print(tag)
+        raise SystemExit(0)
+raise SystemExit(1)
+'
+    )" || true
+  fi
+
+  if [[ -z "$VERSION" ]]; then
+    echo "error: could not resolve latest release tag automatically." >&2
+    echo "Set DAX_VERSION explicitly, for example:" >&2
+    echo "  DAX_VERSION=v1.0.0-beta.2 bash install.sh" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$VERSION" != v* ]]; then
