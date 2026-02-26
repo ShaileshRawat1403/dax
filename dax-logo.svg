@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="DAX logo">
+  <defs>
+    <linearGradient id="daxGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4F7BFF" />
+      <stop offset="100%" stop-color="#7A4DFF" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(190,60)">
+    <path d="M0 0h44v26h-18v108h18v26H0z" fill="url(#daxGradient)" />
+    <rect x="56" y="52" width="44" height="44" rx="8" fill="url(#daxGradient)" />
+    <path d="M204 0h-44v26h18v108h-18v26h44z" fill="url(#daxGradient)" />
+  </g>
+
+  <text
+    x="430"
+    y="205"
+    font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif"
+    font-size="146"
+    font-weight="800"
+    letter-spacing="-2"
+    fill="#0C1638"
+  >
+    DAX
+  </text>
+</svg>
