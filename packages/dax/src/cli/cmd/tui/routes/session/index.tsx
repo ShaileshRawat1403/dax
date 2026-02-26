@@ -340,6 +340,8 @@ export function Session() {
     const gapAndBorders = 6
     return Math.max(38, Math.floor((total - gapAndBorders) * 0.3))
   })
+  const mainPaneGrow = createMemo(() => (liveStacked() ? 6 : 7))
+  const sidePaneGrow = createMemo(() => (liveStacked() ? 4 : 3))
   const paneDiffView = createMemo(() => {
     const diffStyle = sync.data.config.tui?.diff_style
     if (diffStyle === "stacked") return "unified"
@@ -468,7 +470,7 @@ export function Session() {
   // Handle initial prompt from fork
   createEffect(() => {
     if (route.initialPrompt && prompt) {
-      prompt.set(route.initialPrompt)
+      prompt?.set(route.initialPrompt)
     }
   })
 
@@ -490,7 +492,7 @@ export function Session() {
   })
 
   let scroll: ScrollBoxRenderable
-  let prompt: PromptRef
+  let prompt: PromptRef | undefined
   const keybind = useKeybind()
 
   // Allow exit when in child session (prompt is hidden)
@@ -632,7 +634,7 @@ export function Session() {
               if (child) scroll.scrollBy(child.y - scroll.y - 1)
             }}
             sessionID={route.sessionID}
-            setPrompt={(promptInfo) => prompt.set(promptInfo)}
+            setPrompt={(promptInfo) => prompt?.set(promptInfo)}
           />
         ))
       },
@@ -722,7 +724,7 @@ export function Session() {
             toBottom()
           })
         const parts = sync.data.part[message.id]
-        prompt.set(
+        prompt?.set(
           parts.reduce(
             (agg, part) => {
               if (part.type === "text") {
@@ -752,7 +754,7 @@ export function Session() {
           sdk.client.session.unrevert({
             sessionID: route.sessionID,
           })
-          prompt.set({ input: "", parts: [] })
+          prompt?.set({ input: "", parts: [] })
           return
         }
         sdk.client.session.revert({
@@ -1482,7 +1484,7 @@ export function Session() {
     >
       <box flexDirection="row">
         <box flexGrow={1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
-          <Show when={session()}>
+          <Show when={true}>
             <Show when={!sidebarVisible() || !wide()}>
               <Header />
             </Show>
@@ -1648,11 +1650,13 @@ export function Session() {
                 <box
                   flexGrow={1}
                   flexDirection={liveStacked() ? "column" : "row"}
+                  minHeight={0}
                   border={["top", "right", "bottom", "left"]}
                   borderColor={theme.borderSubtle}
                 >
                   <box
-                    flexGrow={liveStacked() ? 1 : 7}
+                    flexGrow={mainPaneGrow()}
+                    minHeight={0}
                     border={liveStacked() ? ["bottom"] : ["right"]}
                     borderColor={theme.borderSubtle}
                     padding={0}
@@ -1754,7 +1758,7 @@ export function Session() {
                                     <DialogMessage
                                       messageID={message.id}
                                       sessionID={route.sessionID}
-                                      setPrompt={(promptInfo) => prompt.set(promptInfo)}
+                                      setPrompt={(promptInfo) => prompt?.set(promptInfo)}
                                     />
                                   ))
                                 }}
@@ -1784,7 +1788,8 @@ export function Session() {
                     </scrollbox>
                   </box>
                   <scrollbox
-                    flexGrow={liveStacked() ? 1 : 3}
+                    flexGrow={sidePaneGrow()}
+                    minHeight={0}
                     backgroundColor={theme.backgroundPanel}
                     scrollAcceleration={scrollAcceleration()}
                   >
@@ -1912,14 +1917,18 @@ export function Session() {
                           </Show>
                         </Match>
                         <Match when={activePaneMode() === "rao"}>
-                          <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
+                          <box flexGrow={1} minHeight={0}>
+                            <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
+                          </box>
                         </Match>
                         <Match when={activePaneMode() === "pm"}>
-                          <text fg={theme.text}>Project Memory</text>
-                          <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
-                          <text fg={theme.textMuted} wrapMode="word">
-                            Capture constraints and handoff context so execution stays consistent across sessions.
-                          </text>
+                          <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
+                            <text fg={theme.text}>Project Memory</text>
+                            <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
+                            <text fg={theme.textMuted} wrapMode="word">
+                              Capture constraints and handoff context so execution stays consistent across sessions.
+                            </text>
+                          </box>
                         </Match>
                       </Switch>
                     </box>
@@ -2023,7 +2032,7 @@ export function Session() {
                                 <DialogMessage
                                   messageID={message.id}
                                   sessionID={route.sessionID}
-                                  setPrompt={(promptInfo) => prompt.set(promptInfo)}
+                                  setPrompt={(promptInfo) => prompt?.set(promptInfo)}
                                 />
                               ))
                             }}
