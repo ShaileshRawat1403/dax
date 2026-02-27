@@ -1,6 +1,6 @@
 export const logo = {
-  left: ["           ", "█▀▄ █▀█", "█▄▀ █▀█", "           "],
-  right: ["  ▀▄ ", "  ▄▀ ", "  ▀▄ "],
+  left: ["     ", " DAX ", "     "],
+  right: ["", "", ""],
 }
 
 export const marks = "_^~"

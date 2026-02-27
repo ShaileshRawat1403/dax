@@ -10,6 +10,7 @@ import {
   onMount,
   on,
   Show,
+  ErrorBoundary,
   Switch,
   useContext,
 } from "solid-js"
@@ -406,6 +407,7 @@ export function Session() {
     const next = themes[(baseIndex + step + themes.length) % themes.length]
     if (!next) return
     themeState.set(next)
+    toast.show({ message: `Theme: ${next}`, variant: "success", duration: 1800 })
   }
 
   function cyclePaneVisibility() {
@@ -945,6 +947,30 @@ export function Session() {
       },
     },
     {
+      title: `Theme: Next (${selectedThemeShort()})`,
+      value: "session.theme.next",
+      category: "View",
+      slash: {
+        name: "theme-next",
+      },
+      onSelect: (dialog) => {
+        cycleTheme(1)
+        dialog.clear()
+      },
+    },
+    {
+      title: `Theme: Previous (${selectedThemeShort()})`,
+      value: "session.theme.previous",
+      category: "View",
+      slash: {
+        name: "theme-prev",
+      },
+      onSelect: (dialog) => {
+        cycleTheme(-1)
+        dialog.clear()
+      },
+    },
+    {
       title: conceal() ? "Disable code concealment" : "Enable code concealment",
       value: "session.toggle.conceal",
       keybind: "messages_toggle_conceal" as any,
@@ -1433,6 +1459,14 @@ export function Session() {
   const dialog = useDialog()
   const renderer = useRenderer()
 
+  const keepPromptFocused = () => {
+    if (promptDisabled()) return
+    setTimeout(() => {
+      if (!prompt) return
+      prompt.focus()
+    }, 0)
+  }
+
   // snap to bottom when session changes
   createEffect(
     on(
@@ -1466,6 +1500,15 @@ export function Session() {
     const timer = setInterval(snapshotStreamParts, STREAM_RENDER_CADENCE_MS)
     onCleanup(() => clearInterval(timer))
   })
+  createEffect(
+    on(
+      [paneVisibility, paneMode, paneFollowMode, showDetails, slowStream, selectedTheme, sidebarVisible],
+      () => {
+        keepPromptFocused()
+      },
+      { defer: true },
+    ),
+  )
 
   return (
     <context.Provider
@@ -1483,14 +1526,13 @@ export function Session() {
       }}
     >
       <box flexDirection="row">
-        <box flexGrow={1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
-          <Show when={true}>
-            <Show when={!sidebarVisible() || !wide()}>
-              <Header />
-            </Show>
-            <box
-              flexDirection="column"
-              gap={0}
+        <box flexGrow={1} minHeight={0} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
+          <Show when={!sidebarVisible() || !wide()}>
+            <Header />
+          </Show>
+          <box
+            flexDirection="column"
+            gap={0}
               flexShrink={0}
               alignItems="stretch"
               backgroundColor={theme.backgroundPanel}
@@ -1645,8 +1687,41 @@ export function Session() {
                 </Show>
               </box>
             </box>
-            <Switch>
-              <Match when={showPane()}>
+            <box flexGrow={1} minHeight={0}>
+              <ErrorBoundary
+                fallback={(error, reset) => (
+                  <box
+                    flexGrow={1}
+                    minHeight={0}
+                    flexDirection="column"
+                    gap={1}
+                    border={["top", "right", "bottom", "left"]}
+                    borderColor={theme.error}
+                    backgroundColor={tint(theme.backgroundPanel, theme.error, 0.12)}
+                    padding={2}
+                  >
+                    <text fg={theme.error} attributes={TextAttributes.BOLD}>
+                      Session pane recovered from an error
+                    </text>
+                    <text fg={theme.textMuted} wrapMode="word">
+                      {String(error)}
+                    </text>
+                    <box
+                      onMouseUp={() => {
+                        reset()
+                        keepPromptFocused()
+                      }}
+                      backgroundColor={theme.primary}
+                      paddingLeft={1}
+                      paddingRight={1}
+                    >
+                      <text fg={theme.background}>Reset pane</text>
+                    </box>
+                  </box>
+                )}
+              >
+                <Switch>
+                  <Match when={showPane()}>
                 <box
                   flexGrow={1}
                   flexDirection={liveStacked() ? "column" : "row"}
@@ -2061,7 +2136,9 @@ export function Session() {
                   </For>
                 </scrollbox>
               </Match>
-            </Switch>
+                </Switch>
+              </ErrorBoundary>
+            </box>
             <box flexShrink={0}>
               <Show when={promptDisabled()}>
                 <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
@@ -2089,7 +2166,6 @@ export function Session() {
             <Show when={!sidebarVisible() || !wide()}>
               <Footer />
             </Show>
-          </Show>
           <Toast />
         </box>
         <Show when={sidebarVisible()}>
