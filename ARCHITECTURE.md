@@ -35,7 +35,7 @@ DAX is a policy-driven execution system for software delivery. The core contract
 - cli/
   - commands/
 - tui/
-- providers/
+- packages/dax/src/provider/
 - docs/
 
 ## Non-Goals
