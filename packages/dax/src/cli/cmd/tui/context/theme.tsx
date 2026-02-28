@@ -1,6 +1,6 @@
 import { SyntaxStyle, RGBA, type TerminalColors } from "@opentui/core"
 import path from "path"
-import { createEffect, createMemo, onMount } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onMount } from "solid-js"
 import { useSync } from "@tui/context/sync"
 import { createSimpleContext } from "./helper"
 import aura from "./theme/aura.json" with { type: "json" }
@@ -283,17 +283,42 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
   init: (props: { mode: "dark" | "light" }) => {
     const sync = useSync()
     const kv = useKV()
+    const renderer = useRenderer()
+    const [kvHydrated, setKvHydrated] = createSignal(false)
+    const [customThemesLoaded, setCustomThemesLoaded] = createSignal(false)
+    const [systemResolved, setSystemResolved] = createSignal(false)
     const [store, setStore] = createStore({
       themes: DEFAULT_THEMES,
-      mode: kv.get("theme_mode", props.mode),
-      active: (sync.data.config.theme ?? kv.get("theme", "dax")) as string,
+      mode: props.mode,
+      active: (sync.data.config.theme ?? "dax") as string,
       ready: false,
     })
 
-    createEffect(() => {
-      const theme = sync.data.config.theme
-      if (theme) setStore("active", theme)
-    })
+    function resolveSystemTheme() {
+      setSystemResolved(false)
+      renderer
+        .getPalette({
+          size: 16,
+        })
+        .then((colors) => {
+          if (!colors.palette[0]) {
+            setStore(
+              produce((draft) => {
+                if (draft.active === "system") draft.active = "dax"
+              }),
+            )
+            return
+          }
+          setStore(
+            produce((draft) => {
+              draft.themes.system = generateSystem(colors, draft.mode)
+            }),
+          )
+        })
+        .finally(() => {
+          setSystemResolved(true)
+        })
+    }
 
     function init() {
       resolveSystemTheme()
@@ -309,45 +334,59 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
           setStore("active", "dax")
         })
         .finally(() => {
-          if (store.active !== "system") {
-            setStore("ready", true)
-          }
+          setCustomThemesLoaded(true)
         })
     }
 
     onMount(init)
 
-    function resolveSystemTheme() {
-      renderer
-        .getPalette({
-          size: 16,
-        })
-        .then((colors) => {
-          if (!colors.palette[0]) {
-            if (store.active === "system") {
-              setStore(
-                produce((draft) => {
-                  draft.active = "dax"
-                  draft.ready = true
-                }),
-              )
-            }
-            return
+    createEffect(() => {
+      if (!kv.ready || kvHydrated()) return
+      const persistedMode = kv.get("theme_mode")
+      const persistedTheme = kv.get("theme")
+      setStore(
+        produce((draft) => {
+          if (persistedMode === "dark" || persistedMode === "light") {
+            draft.mode = persistedMode
           }
-          setStore(
-            produce((draft) => {
-              draft.themes.system = generateSystem(colors, store.mode)
-              if (store.active === "system") {
-                draft.ready = true
-              }
-            }),
-          )
-        })
-    }
+          if (!sync.data.config.theme && typeof persistedTheme === "string" && persistedTheme.length) {
+            draft.active = persistedTheme
+          }
+        }),
+      )
+      setKvHydrated(true)
+      if ((sync.data.config.theme ?? persistedTheme) === "system") {
+        resolveSystemTheme()
+      }
+    })
 
-    const renderer = useRenderer()
+    createEffect(() => {
+      const theme = sync.data.config.theme
+      if (theme) setStore("active", theme)
+    })
+
+    createEffect(
+      on(
+        () => store.active,
+        (active) => {
+          if (active === "system") resolveSystemTheme()
+        },
+        { defer: true },
+      ),
+    )
+
+    createEffect(() => {
+      if (!customThemesLoaded() || !kvHydrated()) return
+      if (store.active === "system" && !systemResolved()) {
+        if (store.ready) setStore("ready", false)
+        return
+      }
+      if (!store.ready) setStore("ready", true)
+    })
+
     process.on("SIGUSR2", async () => {
       renderer.clearPaletteCache()
+      setCustomThemesLoaded(false)
       init()
     })
 
@@ -376,6 +415,9 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       setMode(mode: "dark" | "light") {
         setStore("mode", mode)
         kv.set("theme_mode", mode)
+        if (store.active === "system") {
+          resolveSystemTheme()
+        }
       },
       set(theme: string) {
         setStore("active", theme)

@@ -95,7 +95,9 @@ export function Home() {
   const sync = useSync()
   const kv = useKV()
   const themeState = useTheme()
-  const theme = themeState.theme
+  const theme = new Proxy({} as any, {
+    get: (_target, prop: string) => (themeState.theme as any)[prop],
+  })
   const { navigate } = useRoute()
   const route = useRouteData("home")
   const promptRef = usePromptRef()

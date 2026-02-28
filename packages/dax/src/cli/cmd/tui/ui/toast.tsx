@@ -11,7 +11,10 @@ export type ToastOptions = z.infer<typeof TuiEvent.ToastShow.properties>
 
 export function Toast() {
   const toast = useToast()
-  const { theme } = useTheme()
+  const themeState = useTheme()
+  const theme = new Proxy({} as any, {
+    get: (_target, prop: string) => (themeState.theme as any)[prop],
+  })
   const dimensions = useTerminalDimensions()
 
   return (
@@ -22,7 +25,7 @@ export function Toast() {
           justifyContent="center"
           alignItems="flex-start"
           top={2}
-          right={2}
+          left={2}
           maxWidth={Math.min(60, dimensions().width - 6)}
           paddingLeft={2}
           paddingRight={2}

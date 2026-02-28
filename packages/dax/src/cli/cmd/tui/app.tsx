@@ -87,17 +87,17 @@ export function tui(input: {
                               <LocalProvider>
                                 <KeybindProvider>
                                   <PromptStashProvider>
-                                    <DialogProvider>
-                                      <CommandProvider>
-                                        <FrecencyProvider>
-                                          <PromptHistoryProvider>
-                                            <PromptRefProvider>
+                                    <PromptRefProvider>
+                                      <DialogProvider>
+                                        <CommandProvider>
+                                          <FrecencyProvider>
+                                            <PromptHistoryProvider>
                                               <App />
-                                            </PromptRefProvider>
-                                          </PromptHistoryProvider>
-                                        </FrecencyProvider>
-                                      </CommandProvider>
-                                    </DialogProvider>
+                                            </PromptHistoryProvider>
+                                          </FrecencyProvider>
+                                        </CommandProvider>
+                                      </DialogProvider>
+                                    </PromptRefProvider>
                                   </PromptStashProvider>
                                 </KeybindProvider>
                               </LocalProvider>
@@ -151,13 +151,31 @@ function App() {
   const exit = useExit()
   const promptRef = usePromptRef()
 
+  const refocusPrompt = () => {
+    const tryFocus = () => {
+      const prompt = promptRef.current
+      if (!prompt) return
+      prompt.focus()
+      if (!prompt.focused) {
+        prompt.blur()
+        prompt.focus()
+      }
+    }
+    for (const delay of [0, 16, 48, 96, 180]) {
+      setTimeout(tryFocus, delay)
+    }
+  }
+
   renderer.console.onCopySelection = async (text: string) => {
     if (!text || text.length === 0) return
 
     await Clipboard.copy(text)
       .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
       .catch(toast.error)
-    renderer.clearSelection()
+      .finally(() => {
+        renderer.clearSelection()
+        refocusPrompt()
+      })
   }
   const [terminalTitleEnabled, setTerminalTitleEnabled] = createSignal(kv.get("terminal_title_enabled", true))
 
@@ -757,7 +775,10 @@ function App() {
             await Clipboard.copy(text)
               .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
               .catch(toast.error)
-            renderer.clearSelection()
+              .finally(() => {
+                renderer.clearSelection()
+                refocusPrompt()
+              })
           }
         }}
       >
