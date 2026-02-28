@@ -123,22 +123,37 @@ Default UX profile:
 - RAO enabled by default
 - PM enabled by default
 
-## Gemini Auth (Google Provider)
+## Google / Gemini Auth
 
-Recommended flow: reuse Gemini CLI tokens.
+DAX supports two different Google paths. Use the one that matches your credentials:
+
+1. `google` provider (Gemini API)
+   - Auth with Gemini API key (recommended), or Gemini OAuth token.
+   - Do **not** use `gcloud application-default` credentials here.
+
+2. `google-vertex` / `google-vertex-anthropic` providers (Vertex AI)
+   - Auth with Google Cloud ADC and a project.
+
+Gemini API (`google`) quick setup:
 
 ```bash
+# Option A: API key
+export GEMINI_API_KEY=your_key
+
+# Option B: Gemini CLI OAuth creds import
 gemini login
 export GEMINI_OAUTH_CREDS_PATH=$HOME/.gemini/oauth_creds.json
 ```
 
-Then connect the `google` provider inside DAX and pick “Gemini CLI login”. To opt into maintainer-only email OAuth:
+Vertex (`google-vertex`) quick setup:
 
 ```bash
-export DAX_GEMINI_EMAIL_AUTH=1
-export DAX_GEMINI_OAUTH_CLIENT_ID=...
-export DAX_GEMINI_OAUTH_CLIENT_SECRET=...
+gcloud auth application-default login
+gcloud auth application-default set-quota-project your-project-id
+export GOOGLE_CLOUD_PROJECT=your-project-id
 ```
+
+If you see `insufficient authentication scopes` or `invalid authentication credentials` on the `google` provider, switch to API key or use Vertex provider for ADC credentials.
 
 ## UX Defaults & Recommendations
 

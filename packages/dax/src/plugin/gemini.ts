@@ -123,7 +123,10 @@ const readCreds = async (): Promise<OAuthCreds | undefined> => {
   const [cli, adc] = await Promise.all([readCliCreds(), readAdcCreds()])
   if (cli?.access && cli?.refresh) return cli
   if (cli?.refresh) return cli
-  if (adc?.refresh) return adc
+  // Do not auto-import ADC for Gemini API ("google" provider). ADC is for
+  // Vertex flows and usually yields cloud-platform scoped tokens that fail
+  // against Gemini API auth requirements.
+  if (adc?.refresh && Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1") return adc
   return undefined
 }
 
@@ -320,7 +323,8 @@ const checkTokenHealth = async (accessToken: string) => {
   if (!result?.ok) return { ok: false, reason: "token_expired" }
   const json = (await result.json().catch(() => ({}))) as { scope?: string }
   const scopes = json.scope ?? ""
-  if (!scopes.includes(GOOGLE_SCOPE_CLOUD) && !scopes.includes(GOOGLE_SCOPE_GENERATIVE)) {
+  // Gemini API requires explicit generative scope for OAuth user tokens.
+  if (!scopes.includes(GOOGLE_SCOPE_GENERATIVE)) {
     return { ok: false, reason: "scope_missing" }
   }
   return { ok: true }
@@ -341,6 +345,37 @@ const isScopeError = async (response: Response) => {
     .catch(() => "")
   return text.toLowerCase().includes("insufficient authentication scopes")
 }
+
+const isInvalidCredentialError = async (response: Response) => {
+  if (response.status !== 401 && response.status !== 403) return false
+  const text = await response
+    .clone()
+    .text()
+    .catch(() => "")
+    .then((x) => x.toLowerCase())
+  return (
+    text.includes("invalid authentication credentials") ||
+    text.includes("expected oauth 2 access token") ||
+    text.includes("login cookie")
+  )
+}
+
+const googleAuthHelpResponse = (status: number, message: string) =>
+  new Response(
+    JSON.stringify({
+      error: {
+        code: status,
+        message,
+        status: status === 401 ? "UNAUTHENTICATED" : "PERMISSION_DENIED",
+      },
+    }),
+    {
+      status,
+      headers: {
+        "content-type": "application/json",
+      },
+    },
+  )
 
 export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
   return {
@@ -414,9 +449,10 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             }
 
             const scopeError = await isScopeError(first)
-            if (!scopeError) return first
+            const invalidCredential = await isInvalidCredentialError(first)
+            if (!scopeError && !invalidCredential) return first
 
-            const candidates = [await readCliCreds(), await readAdcCreds()].filter((x) => !!x?.refresh)
+            const candidates = [await readCliCreds(), Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined].filter((x) => !!x?.refresh)
             for (const imported of candidates) {
               if (!imported?.refresh) continue
               const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
@@ -439,7 +475,20 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               if (imported.quotaProjectID) retryHeaders.set("x-goog-user-project", imported.quotaProjectID)
               const retried = await fetch(req, { ...init, headers: retryHeaders })
               const retryScopeError = await isScopeError(retried)
-              if (!retryScopeError) return retried
+              const retryInvalidCredential = await isInvalidCredentialError(retried)
+              if (!retryScopeError && !retryInvalidCredential) return retried
+            }
+            if (scopeError) {
+              return googleAuthHelpResponse(
+                403,
+                "Google (Gemini API) token is missing the generative-language scope. Use Google provider with API key (recommended), or use 'Sign in with Google (email)' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+              )
+            }
+            if (invalidCredential) {
+              return googleAuthHelpResponse(
+                401,
+                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Gemini OAuth (generative-language scope). For gcloud ADC credentials, switch to Vertex provider.",
+              )
             }
             return first
           },
@@ -472,7 +521,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               method: "auto" as const,
               url: GEMINI_OAUTH_DOC,
               instructions:
-                "Run `gemini` and finish Google login (or run `gcloud auth application-default login`), then wait here while DAX imports credentials.",
+                "Run `gemini` and finish Google login, then wait here while DAX imports Gemini OAuth credentials.",
               async callback() {
                 const creds = await waitForCreds()
                 if (!creds?.refresh) return { type: "failed" as const }
@@ -490,7 +539,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 }
 
                 if (!health.ok) {
-                  if (health.reason === "scope_missing") throw new Error("Run gemini to login, then retry import.")
+                  if (health.reason === "scope_missing") {
+                    throw new Error(
+                      "Imported token is missing Gemini scope. Use API key for Google provider, or use Sign in with Google (email). For gcloud credentials use Vertex provider.",
+                    )
+                  }
                   if (health.reason === "token_expired") throw new Error("Re-run gemini login.")
                   throw new Error(`Token validation failed: ${health.reason}`)
                 }
