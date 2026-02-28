@@ -3,8 +3,6 @@ import { batch, createContext, Show, useContext, type JSX, type ParentProps } fr
 import { useTheme } from "@tui/context/theme"
 import { Renderable, RGBA, type MouseEvent } from "@opentui/core"
 import { createStore } from "solid-js/store"
-import { Clipboard } from "@tui/util/clipboard"
-import { useToast } from "./toast"
 
 export function Dialog(
   props: ParentProps<{
@@ -131,23 +129,10 @@ const ctx = createContext<DialogContext>()
 
 export function DialogProvider(props: ParentProps) {
   const value = init()
-  const renderer = useRenderer()
-  const toast = useToast()
   return (
     <ctx.Provider value={value}>
       {props.children}
-      <box
-        position="absolute"
-        onMouseUp={async () => {
-          const text = renderer.getSelection()?.getSelectedText()
-          if (text && text.length > 0) {
-            await Clipboard.copy(text)
-              .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
-              .catch(toast.error)
-            renderer.clearSelection()
-          }
-        }}
-      >
+      <box position="absolute">
         <Show when={value.stack.length}>
           <Dialog onClose={() => value.clear()} size={value.size}>
             {value.stack.at(-1)!.element}
