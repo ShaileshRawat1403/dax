@@ -9,7 +9,7 @@ const GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
 const GOOGLE_SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
 const GOOGLE_SCOPE_PROFILE = "https://www.googleapis.com/auth/userinfo.profile"
-const GOOGLE_SCOPE_GENERATIVE = "https://www.googleapis.com/auth/generative-language"
+const GOOGLE_SCOPE_GENERATIVE = "https://www.googleapis.com/auth/generative-language.retriever"
 const OAUTH_PORT = 1717
 const OAUTH_PORT_MAX = 1730
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
@@ -301,7 +301,6 @@ const exchangeCodeForTokens = async (
 }
 
 const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
-  const allowGenerative = Bun.env.DAX_GEMINI_SCOPE_GENERATIVE === "1"
   const params = new URLSearchParams({
     access_type: "offline",
     client_id: clientID,
@@ -310,7 +309,7 @@ const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceC
     prompt: "consent",
     redirect_uri: redirectURI,
     response_type: "code",
-    scope: [GOOGLE_SCOPE_CLOUD, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, ...(allowGenerative ? [GOOGLE_SCOPE_GENERATIVE] : [])].join(" "),
+    scope: [GOOGLE_SCOPE_CLOUD, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_GENERATIVE].join(" "),
     state,
   })
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
@@ -323,8 +322,8 @@ const checkTokenHealth = async (accessToken: string) => {
   if (!result?.ok) return { ok: false, reason: "token_expired" }
   const json = (await result.json().catch(() => ({}))) as { scope?: string }
   const scopes = json.scope ?? ""
-  // Gemini API requires explicit generative scope for OAuth user tokens.
-  if (!scopes.includes(GOOGLE_SCOPE_GENERATIVE)) {
+  // Gemini OAuth tokens should include Gemini or Cloud scope.
+  if (!scopes.includes(GOOGLE_SCOPE_GENERATIVE) && !scopes.includes(GOOGLE_SCOPE_CLOUD)) {
     return { ok: false, reason: "scope_missing" }
   }
   return { ok: true }
@@ -481,13 +480,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google (Gemini API) token is missing the generative-language scope. Use Google provider with API key (recommended), or use 'Sign in with Google (email)' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Sign in with Google (email)' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Gemini OAuth (generative-language scope). For gcloud ADC credentials, switch to Vertex provider.",
+                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Gemini OAuth (Gemini OAuth scope). For gcloud ADC credentials, switch to Vertex provider.",
               )
             }
             return first
@@ -594,7 +593,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing")
                     throw new Error(
-                      "Google account token is missing required scopes (cloud-platform or generative-language).",
+                      "Google account token is missing required scopes (cloud-platform or generative-language.retriever).",
                     )
                   if (health.reason === "token_expired")
                     throw new Error("Token expired during verification. Retry sign-in.")
