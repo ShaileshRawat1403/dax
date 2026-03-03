@@ -38,13 +38,17 @@ jobs:
           path: dist/homebrew/Formula/dax.rb
 
       - name: Publish to Homebrew tap
-        if: ${{ inputs.publish_to_tap && secrets.HOMEBREW_TAP_TOKEN != '' && secrets.HOMEBREW_TAP_REPO != '' }}
+        if: ${{ inputs.publish_to_tap }}
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           HOMEBREW_TAP_REPO: ${{ secrets.HOMEBREW_TAP_REPO }}
           VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" || -z "${HOMEBREW_TAP_REPO:-}" ]]; then
+            echo "HOMEBREW_TAP_TOKEN and HOMEBREW_TAP_REPO must be set as repository secrets."
+            exit 1
+          fi
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${HOMEBREW_TAP_REPO}.git" /tmp/homebrew-tap
           mkdir -p /tmp/homebrew-tap/Formula
           cp dist/homebrew/Formula/dax.rb /tmp/homebrew-tap/Formula/dax.rb
