@@ -71,4 +71,4 @@ jobs:
           $version = "${{ inputs.version }}"
           if ($version.StartsWith("v")) { $version = $version.Substring(1) }
           $installerUrl = "https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/dax-windows-x64.zip"
-          wingetcreate update "${{ inputs.package_identifier }}" -u $installerUrl -v $version -t "dist/winget/manifests/$version" --submit --token $env:WINGETCREATE_TOKEN
+          wingetcreate update "${{ inputs.package_identifier }}" -u $installerUrl -v $version -o "dist/winget/manifests/$version" --submit --token $env:WINGETCREATE_TOKEN
