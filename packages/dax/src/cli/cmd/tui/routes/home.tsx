@@ -118,6 +118,10 @@ export function Home() {
     if (isFirstTimeUser()) return false
     return !tipsHidden()
   })
+
+  onCleanup(() => {
+    promptRef.set(undefined)
+  })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const stages = createMemo(() => (explainMode() ? HOME_STAGE_ELI12 : HOME_STAGE))
 
