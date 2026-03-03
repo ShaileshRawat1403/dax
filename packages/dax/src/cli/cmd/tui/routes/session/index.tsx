@@ -142,7 +142,9 @@ export function Session() {
   const sync = useSync()
   const kv = useKV()
   const themeState = useTheme()
-  const theme = themeState.theme
+  const theme = new Proxy({} as any, {
+    get: (_target, prop: string) => (themeState.theme as any)[prop],
+  })
   const syntax = themeState.syntax
   const promptRef = usePromptRef()
   const session = createMemo(() => sync.session.get(route.sessionID))
@@ -193,6 +195,9 @@ export function Session() {
   const { currentPun } = useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const promptDisabled = createMemo(() => !!session()?.parentID)
+  onCleanup(() => {
+    promptRef.set(undefined)
+  })
 
   const isThinking = createMemo(() => {
     const last = messages().findLast((x) => x.role === "assistant")

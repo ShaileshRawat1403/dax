@@ -6,6 +6,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 const GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+const GOOGLE_SCOPE_OPENID = "openid"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
 const GOOGLE_SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
 const GOOGLE_SCOPE_PROFILE = "https://www.googleapis.com/auth/userinfo.profile"
@@ -144,6 +145,13 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
   const [stored, file] = await Promise.all([getAuth(), readCreds()])
   const oauth = stored?.type === "oauth" ? stored : undefined
 
+  // Prefer the credential explicitly stored in DAX auth state.
+  // Falling back to CLI/ADC files can unintentionally override a freshly
+  // completed "Sign in with Google (email)" flow with unrelated credentials.
+  if (oauth?.refresh) {
+    return oauth
+  }
+
   if (file?.refresh) {
     const fromFile: OAuthState = {
       refresh: file.refresh,
@@ -226,10 +234,17 @@ const startOAuthServer = async () => {
           const error = url.searchParams.get("error")
           const description = url.searchParams.get("error_description")
           if (error) {
-            return new Response(description || "Authorization failed. You can close this tab.", { status: 400 })
+            const message = description
+              ? `Authorization failed: ${description}. You can close this tab.`
+              : `Authorization failed (${error}). You can close this tab.`
+            return new Response(message, { status: 400 })
           }
           if (!code || !state) {
-            return new Response("Authorization failed. You can close this tab.", { status: 400 })
+            return new Response(
+              "Authorization callback missing code/state. Do not open localhost callback directly. " +
+                "Use the latest Google sign-in link from DAX and complete consent in that same browser window.",
+              { status: 400 },
+            )
           }
           oauthCode.set(state, code)
           return new Response("Authorization successful. You can close this tab.", { status: 200 })
@@ -301,6 +316,10 @@ const exchangeCodeForTokens = async (
 }
 
 const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
+  const scopeMode = (Bun.env.DAX_GEMINI_OAUTH_SCOPE_MODE ?? "compat").toLowerCase()
+  const scopes = [GOOGLE_SCOPE_OPENID, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_CLOUD]
+  // compat mode avoids hard failures on some unverified clients that reject generative-language scope.
+  if (scopeMode !== "compat") scopes.push(GOOGLE_SCOPE_GENERATIVE)
   const params = new URLSearchParams({
     access_type: "offline",
     client_id: clientID,
@@ -309,7 +328,7 @@ const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceC
     prompt: "consent",
     redirect_uri: redirectURI,
     response_type: "code",
-    scope: [GOOGLE_SCOPE_CLOUD, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_GENERATIVE].join(" "),
+    scope: scopes.join(" "),
     state,
   })
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
@@ -396,8 +415,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const quotaProjectID = fresh?.quotaProjectID
 
             if (!access || expires < Date.now() || Bun.env.DAX_GEMINI_SIMULATE_EXPIRE) {
-              const fromFile = await readCreds()
-              const renewed = await refreshGoogleToken(refresh, fromFile?.clientID, fromFile?.clientSecret)
+              const renewed = await refreshGoogleToken(refresh, fresh?.clientID, fresh?.clientSecret)
               if (renewed) {
                 access = renewed.access
                 expires = renewed.expires
@@ -575,7 +593,9 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             return {
               method: "auto" as const,
               url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
-              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
+              instructions:
+                "Complete sign-in in your browser. DAX will detect the localhost redirect automatically. " +
+                `OAuth client: ${clientID}. Redirect: ${redirectURI}.`,
               async callback() {
                 const code = await waitForOAuthCode(state)
                 const local = await readCreds()

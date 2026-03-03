@@ -1,21 +1,27 @@
 # Providers
 
-DAX reads providers from `.dax/config.json`.
+DAX can be configured via project/global config and environment variables.
 
-Example:
-```json
-{
-  "providers": [
-    { "id": "openai", "model": "gpt-4.1-mini" },
-    { "id": "anthropic", "model": "claude-3-5-sonnet" },
-    { "id": "google", "model": "gemini-1.5-flash" },
-    { "id": "ollama", "model": "llama3" }
-  ]
-}
-```
+## Common Provider Env Vars
 
-Environment variables:
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
 - `GEMINI_API_KEY` (or `GOOGLE_API_KEY`)
-- `OLLAMA_HOST` (default: `http://localhost:11434`)
+- `GOOGLE_CLOUD_PROJECT` (for Vertex providers)
+- `GOOGLE_APPLICATION_CREDENTIALS` (optional explicit ADC path)
+- `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
+
+## Google Provider Split (Important)
+
+| Model Prefix | Auth Path |
+| --- | --- |
+| `google/*` | Gemini API key or Google OAuth (email) |
+| `google-vertex/*` | ADC + project |
+| `google-vertex-anthropic/*` | ADC + project |
+
+Use diagnostics:
+
+```bash
+dax auth doctor
+dax auth doctor google/gemini-2.5-flash
+```
