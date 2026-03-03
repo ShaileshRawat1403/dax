@@ -1,0 +1,60 @@
+name: Publish Homebrew Formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version/tag (for example: v1.0.0-beta.6)"
+        required: true
+      repo:
+        description: "GitHub repo in owner/name format"
+        required: true
+        default: "ShaileshRawat1403/dax-tui"
+      publish_to_tap:
+        description: "Push Formula/dax.rb to tap repo"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Generate formula
+        run: bun run dist:homebrew --version "${{ inputs.version }}" --repo "${{ inputs.repo }}"
+
+      - name: Upload formula artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula-${{ inputs.version }}
+          path: dist/homebrew/Formula/dax.rb
+
+      - name: Publish to Homebrew tap
+        if: ${{ inputs.publish_to_tap && secrets.HOMEBREW_TAP_TOKEN != '' && secrets.HOMEBREW_TAP_REPO != '' }}
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_REPO: ${{ secrets.HOMEBREW_TAP_REPO }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${HOMEBREW_TAP_REPO}.git" /tmp/homebrew-tap
+          mkdir -p /tmp/homebrew-tap/Formula
+          cp dist/homebrew/Formula/dax.rb /tmp/homebrew-tap/Formula/dax.rb
+          cd /tmp/homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/dax.rb
+          if git diff --cached --quiet; then
+            echo "No Homebrew formula changes to publish."
+            exit 0
+          fi
+          git commit -m "dax ${VERSION}"
+          git push origin HEAD

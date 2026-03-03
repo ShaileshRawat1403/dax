@@ -1,0 +1,74 @@
+name: Publish Winget Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version/tag (for example: v1.0.0-beta.6)"
+        required: true
+      repo:
+        description: "GitHub repo in owner/name format"
+        required: true
+        default: "ShaileshRawat1403/dax-tui"
+      package_identifier:
+        description: "Winget PackageIdentifier (must already exist for update flow)"
+        required: true
+        default: "ShaileshRawat1403.DAX"
+      submit:
+        description: "Submit to winget-pkgs via wingetcreate update"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Generate manifests
+        run: bun run dist:winget --version "${{ inputs.version }}" --repo "${{ inputs.repo }}" --id "${{ inputs.package_identifier }}"
+
+      - name: Upload winget manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: winget-manifests-${{ inputs.version }}
+          path: dist/winget/manifests
+
+  submit:
+    if: ${{ inputs.submit }}
+    runs-on: windows-latest
+    needs: generate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Generate manifests
+        shell: pwsh
+        run: bun run dist:winget --version "${{ inputs.version }}" --repo "${{ inputs.repo }}" --id "${{ inputs.package_identifier }}"
+
+      - name: Install wingetcreate
+        shell: pwsh
+        run: winget install --id Microsoft.WingetCreate --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
+
+      - name: Submit manifest update
+        if: ${{ secrets.WINGETCREATE_TOKEN != '' }}
+        shell: pwsh
+        env:
+          WINGETCREATE_TOKEN: ${{ secrets.WINGETCREATE_TOKEN }}
+        run: |
+          $version = "${{ inputs.version }}"
+          if ($version.StartsWith("v")) { $version = $version.Substring(1) }
+          $installerUrl = "https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/dax-windows-x64.zip"
+          wingetcreate update "${{ inputs.package_identifier }}" -u $installerUrl -v $version -t "dist/winget/manifests/$version" --submit --token $env:WINGETCREATE_TOKEN

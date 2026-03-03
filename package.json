@@ -15,7 +15,9 @@
     "release:verify": "bun run release:check && bun run typecheck:dax && bun run test",
     "release": "bun run release:verify && bun run build",
     "release:publish": "DAX_RELEASE=1 bun run release",
-    "release:publish:live": "DAX_RELEASE=1 DAX_RELEASE_DRAFT=0 DAX_RELEASE_PUBLISH=1 bun run release"
+    "release:publish:live": "DAX_RELEASE=1 DAX_RELEASE_DRAFT=0 DAX_RELEASE_PUBLISH=1 bun run release",
+    "dist:homebrew": "bun run script/generate-homebrew-formula.ts",
+    "dist:winget": "bun run script/generate-winget-manifest.ts"
   },
   "workspaces": {
     "packages": [
