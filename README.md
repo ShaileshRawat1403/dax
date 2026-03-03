@@ -16,6 +16,13 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 2. **Audit** – policy evaluates scope, risk, and context.
 3. **Override** – humans allow, deny, or persist the decision.
 
+## Guides
+
+- Non-dev quick guide: [docs/non-developer-guide.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-developer-guide.md)
+- Architecture deep dive: [ARCHITECTURE.md](/Users/Shailesh/MYAIAGENTS/dax/ARCHITECTURE.md)
+- Provider setup: [docs/PROVIDERS.md](/Users/Shailesh/MYAIAGENTS/dax/docs/PROVIDERS.md)
+- Peer prerelease install/validation: [docs/prerelease.md](/Users/Shailesh/MYAIAGENTS/dax/docs/prerelease.md)
+
 ## Who DAX Is For
 
 | Ideal for                                             | Not optimized for                                 |
@@ -123,22 +130,87 @@ Default UX profile:
 - RAO enabled by default
 - PM enabled by default
 
-## Gemini Auth (Google Provider)
+## Beta 1.0.0-beta.6 Highlights
 
-Recommended flow: reuse Gemini CLI tokens.
+- Google auth hardening for Gemini/Vertex split:
+  - `google/*` enforces Gemini API auth path.
+  - `google-vertex/*` enforces ADC/project path.
+- New diagnostics:
+  - `dax auth doctor`
+  - `dax auth doctor provider/model`
+- Clearer Google OAuth callback and credential mismatch errors.
+- Prompt input lifecycle hardening for focus-loss/copy-outside flows.
+- `.env` hierarchy loading from parent directories during bootstrap.
+
+## Google / Gemini Auth
+
+Use this matrix to keep Google auth modes isolated:
+
+| Model prefix | Provider path | Auth mode | Required setup |
+| --- | --- | --- | --- |
+| `google/*` | Gemini API | Gemini API key or Google OAuth (email) | `GEMINI_API_KEY` (or OAuth login via `dax auth login`) |
+| `google-vertex/*` | Vertex AI | ADC + project | `GOOGLE_CLOUD_PROJECT` + ADC (`gcloud auth application-default login` or `GOOGLE_APPLICATION_CREDENTIALS`) |
+| `google-vertex-anthropic/*` | Vertex Anthropic | ADC + project | Same as `google-vertex/*` |
+
+`google/*` (Gemini API) examples:
 
 ```bash
-gemini login
-export GEMINI_OAUTH_CREDS_PATH=$HOME/.gemini/oauth_creds.json
+# Recommended: API key mode
+export GEMINI_API_KEY=__your_gemini_api_key__
+
+# Optional OAuth email mode
+dax auth login
+# choose provider: google
+# choose method: Sign in with Google (email)
 ```
 
-Then connect the `google` provider inside DAX and pick “Gemini CLI login”. To opt into maintainer-only email OAuth:
+`google-vertex/*` examples:
 
 ```bash
-export DAX_GEMINI_EMAIL_AUTH=1
-export DAX_GEMINI_OAUTH_CLIENT_ID=...
-export DAX_GEMINI_OAUTH_CLIENT_SECRET=...
+gcloud auth application-default login
+gcloud auth application-default set-quota-project __your_project_id__
+export GOOGLE_CLOUD_PROJECT=__your_project_id__
+# optional explicit ADC path:
+# export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/adc.json
 ```
+
+Auth diagnostics:
+
+```bash
+# check Google/Gemini + Vertex auth status
+dax auth doctor
+
+# check one model target
+dax auth doctor google/gemini-2.5-flash
+```
+
+Local source command equivalent (if global `dax` is on an older installed beta):
+
+```bash
+bun run --cwd packages/dax src/index.ts auth doctor google/gemini-2.5-flash
+```
+
+### Troubleshooting
+
+- `insufficient authentication scopes`
+  - Cause: Google OAuth token for `google/*` is missing Gemini scope.
+  - Fix: re-login with Google OAuth including `https://www.googleapis.com/auth/generative-language.retriever`, or switch to `GEMINI_API_KEY`.
+
+- `invalid authentication credentials` or `expected oauth 2 access token`
+  - Cause: token-type mismatch, expired token, or ADC credentials used against `google/*`.
+  - Fix: use `google-vertex/*` with ADC, or use Gemini API key / Google OAuth for `google/*`.
+
+- `Google model selected but only Vertex project env is configured`
+  - Cause: provider/model auth-mode split mismatch.
+  - Fix: either switch model to `google-vertex/*` or configure `GEMINI_API_KEY` / Google OAuth for `google/*`.
+
+- `Authorization callback missing code/state`
+  - Cause: opening localhost callback directly or completing auth in a different browser tab/session than the generated sign-in URL.
+  - Fix: start `dax auth login`, use that exact URL, and complete consent in the same browser window. Do not manually open `http://localhost:1717/auth/callback`.
+
+- `auth doctor` shows default client id instead of your custom one
+  - Cause: old installed CLI or env not loaded in current run path.
+  - Fix: run local source command (`bun run --cwd packages/dax src/index.ts ...`) or update installed binary after release.
 
 ## UX Defaults & Recommendations
 
@@ -181,6 +253,8 @@ flowchart LR
 6. Smoke-test the TUI on narrow + wide terminals
 7. Verify provider login flows (OpenAI, Google/Gemini, Anthropic, Ollama)
 8. Verify RAO approvals and policy profile behavior
+9. If build regenerates [packages/dax/src/provider/models-snapshot.ts](/Users/Shailesh/MYAIAGENTS/dax/packages/dax/src/provider/models-snapshot.ts), include it in the release PR (expected for provider metadata refresh).
+10. Confirm docs shipped for auth matrix + troubleshooting + beta release notes.
 
 ## License
 

@@ -7,6 +7,8 @@ dist/
 
 # Local state
 .dax/
+.env
+.env.local
 
 # OS-specific
 .DS_Store

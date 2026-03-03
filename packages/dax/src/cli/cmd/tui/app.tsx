@@ -2,7 +2,19 @@ import { render, useKeyboard, useRenderer, useTerminalDimensions } from "@opentu
 import { Clipboard } from "@tui/util/clipboard"
 import { TextAttributes } from "@opentui/core"
 import { RouteProvider, useRoute } from "@tui/context/route"
-import { Switch, Match, createEffect, untrack, ErrorBoundary, createSignal, onMount, batch, Show, on } from "solid-js"
+import {
+  Switch,
+  Match,
+  createEffect,
+  untrack,
+  ErrorBoundary,
+  createSignal,
+  onMount,
+  batch,
+  Show,
+  on,
+  onCleanup,
+} from "solid-js"
 import { Installation } from "@/installation"
 import { Flag } from "@/flag/flag"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
@@ -145,7 +157,9 @@ function App() {
   const sdk = useSDK()
   const toast = useToast()
   const themeState = useTheme()
-  const theme = themeState.theme
+  const theme = new Proxy({} as any, {
+    get: (_target, prop: string) => (themeState.theme as any)[prop],
+  })
   const { mode, setMode } = themeState
   const sync = useSync()
   const exit = useExit()
@@ -155,6 +169,7 @@ function App() {
     const tryFocus = () => {
       const prompt = promptRef.current
       if (!prompt) return
+      if (!prompt.alive) return
       prompt.focus()
       if (!prompt.focused) {
         prompt.blur()
@@ -165,6 +180,25 @@ function App() {
       setTimeout(tryFocus, delay)
     }
   }
+
+  onMount(() => {
+    const onContinue = () => {
+      setTimeout(refocusPrompt, 30)
+    }
+    process.on("SIGCONT", onContinue)
+    onCleanup(() => {
+      process.off("SIGCONT", onContinue)
+    })
+  })
+
+  createEffect(
+    on(
+      () => route.data.type,
+      () => {
+        setTimeout(refocusPrompt, 10)
+      },
+    ),
+  )
 
   renderer.console.onCopySelection = async (text: string) => {
     if (!text || text.length === 0) return
@@ -768,18 +802,21 @@ function App() {
         onMouseUp={async () => {
           if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
             renderer.clearSelection()
+            if (!dialog.stack.length) refocusPrompt()
             return
           }
           const text = renderer.getSelection()?.getSelectedText()
-          if (text && text.length > 0) {
-            await Clipboard.copy(text)
-              .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
-              .catch(toast.error)
-              .finally(() => {
-                renderer.clearSelection()
-                refocusPrompt()
-              })
+          if (!text || text.length === 0) {
+            if (!dialog.stack.length) refocusPrompt()
+            return
           }
+          await Clipboard.copy(text)
+            .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
+            .catch(toast.error)
+            .finally(() => {
+              renderer.clearSelection()
+              if (!dialog.stack.length) refocusPrompt()
+            })
         }}
       >
         <Switch>

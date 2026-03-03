@@ -12,6 +12,7 @@ import { STATUS_CODES } from "http"
 import { iife } from "@/util/iife"
 import { type SystemError } from "bun"
 import type { Provider } from "@/provider/provider"
+import { ProviderAuthPreflightError } from "@/provider/auth-preflight"
 
 export namespace MessageV2 {
   export const OutputLengthError = NamedError.create("MessageOutputLengthError", z.object({}))
@@ -729,6 +730,14 @@ export namespace MessageV2 {
         ).toObject()
       case MessageV2.OutputLengthError.isInstance(e):
         return e
+      case e instanceof ProviderAuthPreflightError:
+        return new MessageV2.AuthError(
+          {
+            providerID: e.providerID,
+            message: e.message,
+          },
+          { cause: e },
+        ).toObject()
       case LoadAPIKeyError.isInstance(e):
         return new MessageV2.AuthError(
           {
