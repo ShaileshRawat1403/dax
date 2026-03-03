@@ -22,6 +22,7 @@ import { SystemPrompt } from "./system"
 import { Flag } from "@/flag/flag"
 import { PermissionNext } from "@/governance/next"
 import { Auth } from "@/auth"
+import { assertProviderAuth } from "@/provider/auth-preflight"
 
 export namespace LLM {
   const log = Log.create({ service: "llm" })
@@ -56,6 +57,7 @@ export namespace LLM {
       modelID: input.model.id,
       providerID: input.model.providerID,
     })
+    await assertProviderAuth(input.model.providerID)
     const [language, cfg, provider, auth] = await Promise.all([
       Provider.getLanguage(input.model),
       Config.get(),

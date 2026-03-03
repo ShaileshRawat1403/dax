@@ -46,6 +46,7 @@ export type PromptProps = {
 }
 
 export type PromptRef = {
+  alive: boolean
   focused: boolean
   current: PromptInfo
   set(prompt: PromptInfo): void
@@ -505,25 +506,33 @@ export function Prompt(props: PromptProps) {
   })
 
   const ref: PromptRef = {
+    get alive() {
+      return !!input && !input.isDestroyed
+    },
     get focused() {
-      return input.focused
+      return !!input && !input.isDestroyed && input.focused
     },
     get current() {
+      if (!input || input.isDestroyed) return { input: "", parts: [] }
       return store.prompt
     },
     focus() {
+      if (!input || input.isDestroyed) return
       input.focus()
     },
     blur() {
+      if (!input || input.isDestroyed) return
       input.blur()
     },
     set(prompt) {
+      if (!input || input.isDestroyed) return
       input.setText(prompt.input)
       setStore("prompt", prompt)
       restoreExtmarksFromParts(prompt.parts)
       input.gotoBufferEnd()
     },
     reset() {
+      if (!input || input.isDestroyed) return
       input.clear()
       input.extmarks.clear()
       setStore("prompt", {
@@ -533,6 +542,7 @@ export function Prompt(props: PromptProps) {
       setStore("extmarkToPartIndex", new Map())
     },
     submit() {
+      if (!input || input.isDestroyed) return
       submit()
     },
   }

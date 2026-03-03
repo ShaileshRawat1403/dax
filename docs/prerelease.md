@@ -47,16 +47,40 @@ curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download
 2. Configure a provider key/token:
    - OpenAI: `OPENAI_API_KEY`
    - Anthropic: `ANTHROPIC_API_KEY`
-   - Google/Gemini: Gemini CLI login or OAuth envs
+   - Google/Gemini: `dax auth login` (Google OAuth) or `GEMINI_API_KEY`
    - Ollama: local daemon running (default `http://localhost:11434`)
 
 3. Validate by running a prompt and confirming streaming output + tool approvals.
+
+## Beta.6 Validation Matrix
+
+Run this before publishing beta.6:
+
+```bash
+bun run release:verify
+bun run build
+```
+
+Google auth checks:
+
+```bash
+# If your globally installed dax is older, run local source command:
+bun run --cwd packages/dax src/index.ts auth doctor google/gemini-2.5-flash
+bun run --cwd packages/dax src/index.ts auth login
+```
+
+Expected:
+- `auth doctor` shows `google: OK (...)`.
+- OAuth client id matches intended client.
+- A `google/*` prompt succeeds after login.
+- A `google-vertex/*` prompt requires `GOOGLE_CLOUD_PROJECT` + ADC.
 
 ## Known Limitations (Peer Pre-release)
 
 - Windows installer script is not included yet (download archive manually from release assets).
 - Non-core providers and advanced toolchains may need extra setup.
 - Pre-release versions can change state/config format between builds.
+- If global `dax` in `PATH` is on an older beta, new commands (like `auth doctor`) may not exist until you install the latest release binary.
 
 ## Report Issues
 

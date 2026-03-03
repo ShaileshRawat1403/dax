@@ -11,6 +11,10 @@ import { Global } from "../../global"
 import { Plugin } from "../../plugin"
 import { Instance } from "../../project/instance"
 import type { Hooks } from "@dax-ai/plugin"
+import { diagnoseProviderAuth, expectedGoogleOauthClientIds } from "../../provider/auth-preflight"
+import { Provider } from "../../provider/provider"
+import { bootstrap } from "../bootstrap"
+import open from "open"
 
 type PluginAuth = NonNullable<Hooks["auth"]>
 
@@ -67,6 +71,9 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
 
     if (authorize.url) {
       prompts.log.info("Go to: " + authorize.url)
+      await open(authorize.url).catch(() => {
+        prompts.log.warn("Could not open browser automatically. Open the URL above manually.")
+      })
     }
 
     if (authorize.method === "auto") {
@@ -159,11 +166,66 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
   return false
 }
 
+export const AuthDoctorCommand = cmd({
+  command: "doctor [model]",
+  describe: "show effective auth mode and missing requirements for Google/Gemini providers",
+  builder: (yargs) =>
+    yargs.positional("model", {
+      describe: "Optional model in provider/model format, e.g. google/gemini-2.5-flash",
+      type: "string",
+      array: false,
+    }),
+  async handler(args) {
+    await bootstrap(process.cwd(), async () => {
+        const checks: string[] = []
+        if (args.model) {
+          const parsed = Provider.parseModel(args.model)
+          if (!parsed.providerID) throw new Error(`Invalid model format: ${args.model}`)
+          checks.push(parsed.providerID)
+        } else {
+          checks.push("google", "google-vertex", "google-vertex-anthropic")
+        }
+
+        prompts.intro("Auth doctor")
+        for (const providerID of checks) {
+          const report = await diagnoseProviderAuth(providerID)
+          const status = report.ok
+            ? `${UI.Style.TEXT_SUCCESS}OK${UI.Style.TEXT_NORMAL}`
+            : `${UI.Style.TEXT_DANGER}FAIL${UI.Style.TEXT_NORMAL}`
+          prompts.log.info(`${providerID}: ${status} (${report.mode})`)
+          if (report.requiredEnv.length > 0) {
+            prompts.log.message(`  required: ${report.requiredEnv.join("; ")}`)
+          }
+          if (report.missingEnv.length > 0) {
+            prompts.log.warn(`  missing: ${report.missingEnv.join("; ")}`)
+          }
+          for (const item of report.details) {
+            prompts.log.message(`  detail: ${item}`)
+          }
+          if (report.error) {
+            prompts.log.error(`  fix: ${report.error}`)
+          }
+        }
+
+        const audiences = expectedGoogleOauthClientIds()
+        if (audiences.length > 0) {
+          prompts.log.message(`Google OAuth client ids in play: ${audiences.join(", ")}`)
+        }
+        prompts.outro("Done")
+    })
+  },
+})
+
 export const AuthCommand = cmd({
   command: "auth",
   describe: "manage credentials",
   builder: (yargs) =>
-    yargs.command(AuthLoginCommand).command(AuthLogoutCommand).command(AuthListCommand).demandCommand(),
+    yargs
+      .command(AuthLoginCommand)
+      .command(AuthLogoutCommand)
+      .command(AuthListCommand)
+      .command(AuthDoctorCommand)
+      .demandCommand(),
   async handler() {},
 })
 
@@ -248,9 +310,7 @@ export const AuthLoginCommand = cmd({
       prompts.outro("You can now log in with `dax auth login` and select Google")
       return
     }
-    await Instance.provide({
-      directory: process.cwd(),
-      async fn() {
+    await bootstrap(process.cwd(), async () => {
         UI.empty()
         prompts.intro("Add credential")
         if (args.url) {
@@ -394,7 +454,6 @@ export const AuthLoginCommand = cmd({
         })
 
         prompts.outro("Done")
-      },
     })
   },
 })

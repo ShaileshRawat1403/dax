@@ -813,6 +813,7 @@ export namespace ProviderTransform {
 
   export function error(providerID: string, error: APICallError) {
     let message = error.message
+    const lower = message.toLowerCase()
     if (providerID.includes("github-copilot") && error.statusCode === 403) {
       return "Please reauthenticate with the copilot provider to ensure your credentials work properly with Dax."
     }
@@ -820,6 +821,25 @@ export namespace ProviderTransform {
       return (
         message +
         "\n\nMake sure the model is enabled in your copilot settings: https://github.com/settings/copilot/features"
+      )
+    }
+    if (providerID === "google" && lower.includes("insufficient authentication scopes")) {
+      return (
+        "Google (Gemini API) token is missing required scopes. " +
+        "Use `GEMINI_API_KEY` (recommended) or re-login with 'Sign in with Google (email)' and include Gemini scope " +
+        "`https://www.googleapis.com/auth/generative-language.retriever`."
+      )
+    }
+    if (
+      providerID === "google" &&
+      (lower.includes("invalid authentication credentials") ||
+        lower.includes("expected oauth 2 access token") ||
+        lower.includes("login cookie"))
+    ) {
+      return (
+        "Google (Gemini API) credentials are invalid for this auth mode. " +
+        "If you are using gcloud/ADC, switch to `google-vertex/*`. For Gemini API (`google/*`), use " +
+        "`GEMINI_API_KEY` or re-login via 'Sign in with Google (email)'."
       )
     }
 
