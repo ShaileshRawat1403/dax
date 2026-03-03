@@ -22,6 +22,7 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 - Architecture deep dive: [ARCHITECTURE.md](/Users/Shailesh/MYAIAGENTS/dax/ARCHITECTURE.md)
 - Provider setup: [docs/PROVIDERS.md](/Users/Shailesh/MYAIAGENTS/dax/docs/PROVIDERS.md)
 - Peer prerelease install/validation: [docs/prerelease.md](/Users/Shailesh/MYAIAGENTS/dax/docs/prerelease.md)
+- Distribution channels (script/Homebrew/Winget): [docs/distribution.md](/Users/Shailesh/MYAIAGENTS/dax/docs/distribution.md)
 
 ## Who DAX Is For
 
@@ -111,8 +112,18 @@ bun run release
 ### Install Peer Build (No Source Checkout)
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | DAX_VERSION=v1.0.0-beta.1 bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
 ```
+
+Why this URL:
+- GitHub `releases/latest` only points to stable releases, not prereleases.
+- For beta tags, use `script/install.sh` from `main` and set `DAX_VERSION`.
+
+### Install Channels
+
+- macOS/Linux: release install script (recommended today).
+- Windows: `dax-windows-x64.zip` release asset (manual PATH setup).
+- Homebrew + Winget: publishing workflows are now available in-repo for channel rollout.
 
 ## Configuration Snapshot
 

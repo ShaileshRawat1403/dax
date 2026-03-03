@@ -3,20 +3,20 @@
 ## Install
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
-If you always want latest release from GitHub:
+If you always want latest published release tag (stable first, then prerelease fallback):
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
 ```
 
 Optional installer variables:
 
 - `DAX_VERSION`: release tag to install (example: `v1.0.0-beta.1`)
 - `DAX_INSTALL_DIR`: install directory (default: `~/.local/bin`)
-- `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax`)
+- `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax-tui`)
 
 ## Uninstall
 
@@ -27,7 +27,7 @@ rm -f ~/.local/bin/dax
 ## Update
 
 ```bash
-curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 ## Minimum System Requirements
@@ -35,6 +35,17 @@ curl -fsSL https://github.com/ShaileshRawat1403/dax-tui/releases/latest/download
 - macOS (arm64 or x64), Linux (arm64 or x64), Windows x64 (manual binary download)
 - Terminal with 256-color support
 - Internet access for provider APIs
+
+## Windows Install (Manual)
+
+1. Download `dax-windows-x64.zip` from the release assets.
+2. Extract `dax.exe` to a directory (example: `C:\Tools\dax`).
+3. Add that directory to `PATH`.
+4. Open a new terminal and run:
+
+```powershell
+dax --version
+```
 
 ## Provider Quickstart
 
@@ -77,7 +88,7 @@ Expected:
 
 ## Known Limitations (Peer Pre-release)
 
-- Windows installer script is not included yet (download archive manually from release assets).
+- GitHub `releases/latest/download/...` can return 404 when only prereleases exist.
 - Non-core providers and advanced toolchains may need extra setup.
 - Pre-release versions can change state/config format between builds.
 - If global `dax` in `PATH` is on an older beta, new commands (like `auth doctor`) may not exist until you install the latest release binary.
