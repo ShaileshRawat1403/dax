@@ -23,6 +23,8 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    outputs:
+      package_exists: ${{ steps.check_package.outputs.package_exists }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,8 +43,25 @@ jobs:
           name: winget-manifests-${{ inputs.version }}
           path: dist/winget/manifests
 
+      - name: Check package onboarding status
+        id: check_package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_id="${{ inputs.package_identifier }}"
+          package_path="${package_id//./\/}"
+          url="https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/${package_path:0:1}/${package_path}"
+          if curl -fsSL "$url" >/dev/null; then
+            echo "package_exists=true" >> "$GITHUB_OUTPUT"
+            echo "Package exists in winget-pkgs: ${package_id}"
+          else
+            echo "package_exists=false" >> "$GITHUB_OUTPUT"
+            echo "Package not found in winget-pkgs yet: ${package_id}"
+            echo "Initial onboarding PR must merge before submit=true can publish updates."
+          fi
+
   submit:
-    if: ${{ inputs.submit }}
+    if: ${{ inputs.submit && needs.generate.outputs.package_exists == 'true' }}
     runs-on: windows-latest
     needs: generate
     steps:
@@ -72,3 +91,14 @@ jobs:
           if ($version.StartsWith("v")) { $version = $version.Substring(1) }
           $installerUrl = "https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/dax-windows-x64.zip"
           wingetcreate update "${{ inputs.package_identifier }}" -u $installerUrl -v $version -o "dist/winget/manifests/$version" --submit --token $env:WINGETCREATE_TOKEN
+
+  submit-not-ready:
+    if: ${{ inputs.submit && needs.generate.outputs.package_exists != 'true' }}
+    runs-on: ubuntu-latest
+    needs: generate
+    steps:
+      - name: Onboarding not merged yet
+        run: |
+          echo "Skipping submit because package is not yet in microsoft/winget-pkgs."
+          echo "Package: ${{ inputs.package_identifier }}"
+          echo "Action: merge initial onboarding PR, then rerun with submit=true."
