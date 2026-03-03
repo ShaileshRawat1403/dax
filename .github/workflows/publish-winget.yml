@@ -63,11 +63,11 @@ jobs:
         run: winget install --id Microsoft.WingetCreate --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
 
       - name: Submit manifest update
-        if: ${{ secrets.WINGETCREATE_TOKEN != '' }}
         shell: pwsh
         env:
           WINGETCREATE_TOKEN: ${{ secrets.WINGETCREATE_TOKEN }}
         run: |
+          if (-not $env:WINGETCREATE_TOKEN) { throw "WINGETCREATE_TOKEN repository secret is required for submit mode." }
           $version = "${{ inputs.version }}"
           if ($version.StartsWith("v")) { $version = $version.Substring(1) }
           $installerUrl = "https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/dax-windows-x64.zip"
