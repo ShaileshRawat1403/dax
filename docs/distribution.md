@@ -46,14 +46,14 @@ Required secrets for tap publish:
 What it does:
 - Generates manifest files in `dist/winget/manifests/<version>/`.
 - Uploads manifests as workflow artifact.
-- Optional submit job runs `wingetcreate update`.
+- Optional submit job runs `wingetcreate update` when onboarding already exists.
 
 Required secret for submit:
 - `WINGETCREATE_TOKEN`: GitHub token used by wingetcreate submission flow.
 
 Important:
-- `publish-winget.yml` submit path assumes package identifier already exists in winget-pkgs.
-- For first-time package onboarding, run a manual initial submit and then use update flow.
+- If package onboarding is not merged yet in `microsoft/winget-pkgs`, workflow will skip submit and print a clear notice.
+- After onboarding merge, rerun with `submit=true` to publish updates automatically.
 
 ## Local generation commands
 

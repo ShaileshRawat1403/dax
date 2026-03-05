@@ -18,7 +18,13 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 
 ## Guides
 
+- Full docs index: [docs/README.md](/Users/Shailesh/MYAIAGENTS/dax/docs/README.md)
+- Start here: [docs/start-here.md](/Users/Shailesh/MYAIAGENTS/dax/docs/start-here.md)
+- Non-dev quickstart: [docs/non-dev-quickstart.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-dev-quickstart.md)
 - Non-dev quick guide: [docs/non-developer-guide.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-developer-guide.md)
+- Audit agent (beta): [docs/audit-agent.md](/Users/Shailesh/MYAIAGENTS/dax/docs/audit-agent.md)
+- GitHub + CI integration lane: [docs/integrations-github-ci.md](/Users/Shailesh/MYAIAGENTS/dax/docs/integrations-github-ci.md)
+- Build on DAX: [docs/build-on-dax.md](/Users/Shailesh/MYAIAGENTS/dax/docs/build-on-dax.md)
 - Architecture deep dive: [ARCHITECTURE.md](/Users/Shailesh/MYAIAGENTS/dax/ARCHITECTURE.md)
 - Provider setup: [docs/PROVIDERS.md](/Users/Shailesh/MYAIAGENTS/dax/docs/PROVIDERS.md)
 - Peer prerelease install/validation: [docs/prerelease.md](/Users/Shailesh/MYAIAGENTS/dax/docs/prerelease.md)
@@ -38,9 +44,19 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 - Multi-provider support: OpenAI, Google/Gemini, Anthropic, Ollama, more via RAO tools.
 - RAO policy gating with allow/ask/deny + persisted approvals.
 - Project Memory (PM) stored in `pm.sqlite` for durable context.
+- Audit agent (beta): release-readiness and policy checks with structured JSON output.
 - ELI12 mode that rewrites responses in plain language.
-- Pane system for `artifact`, `diff`, `rao`, and `pm` views.
+- Pane system for `artifact`, `diff`, `rao`, `pm`, and (beta) `audit` views.
 - Theme system with quick-switch profiles.
+
+## What Else DAX Can Do
+
+Beyond coding tasks, DAX can help with:
+
+- Release governance and readiness audits (`/audit`, `/audit gate`).
+- Documentation quality checks (missing runbooks/guides, remediation steps).
+- Policy guardrails via PM rules and reviewable findings metadata.
+- CI-friendly audit artifacts (`artifacts/audit-result.json`) for automation.
 
 ## Product Pillars
 
@@ -87,7 +103,7 @@ bun run dev
 
 ```bash
 bun run typecheck:dax
-bun run test:dax
+bun run test
 ```
 
 ### Full Release Verification Pipeline
@@ -137,7 +153,7 @@ DAX uses per-project and global config for provider and policy controls. Example
 
 Default UX profile:
 
-- Primary agents: `build`, `plan`, `explore`, `docs`
+- Primary agents: `build`, `plan`, `explore`, `docs`, `audit` (beta-gated)
 - RAO enabled by default
 - PM enabled by default
 
@@ -258,7 +274,7 @@ flowchart LR
 
 1. `bun install`
 2. `bun run typecheck:dax`
-3. `bun run test:dax`
+3. `bun run test`
 4. `bun run release:verify`
 5. `bun run release`
 6. Smoke-test the TUI on narrow + wide terminals
