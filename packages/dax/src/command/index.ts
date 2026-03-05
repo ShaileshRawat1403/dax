@@ -56,6 +56,7 @@ export namespace Command {
     REVIEW: "review",
     PM: "pm",
     AUDIT: "audit",
+    DOCS: "docs",
   } as const
 
   const state = Instance.state(async () => {
@@ -94,6 +95,13 @@ export namespace Command {
         source: "command",
         template: "audit",
         hints: ["profile", "gate", "explain"],
+      },
+      [Default.DOCS]: {
+        name: Default.DOCS,
+        description: "docs workflows: /docs [guide|spec|release-notes|qa]",
+        source: "command",
+        template: "docs",
+        hints: ["guide", "spec", "release-notes", "qa"],
       },
     }
 

@@ -135,6 +135,31 @@ type AuditResult = {
     trigger: string
   }
 }
+type DocsSeverity = "critical" | "high" | "medium" | "low" | "info"
+type DocsCheck = {
+  id: string
+  severity: DocsSeverity
+  category: string
+  title: string
+  evidence: string
+  fix: string
+  blocking: boolean
+}
+type DocsResult = {
+  run_id: string
+  timestamp: string
+  mode: "guide" | "spec" | "release-notes" | "qa"
+  status: "pass" | "warn" | "fail"
+  title: string
+  content: string
+  checks: DocsCheck[]
+  summary: {
+    blocker_count: number
+    warning_count: number
+    info_count: number
+  }
+  next_actions: string[]
+}
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -644,6 +669,18 @@ export function Session() {
       return
     }
   }
+  const parseDocsResult = (text: string): DocsResult | undefined => {
+    if (!text) return
+    const fenced = text.match(/```json\s*([\s\S]*?)```/i)?.[1]
+    const candidate = fenced ?? text
+    try {
+      const parsed = JSON.parse(candidate) as DocsResult
+      if (!parsed || !Array.isArray(parsed.checks) || !parsed.summary || !parsed.mode) return
+      return parsed
+    } catch {
+      return
+    }
+  }
 
   const recentPmCommands = createMemo(() =>
     messages()
@@ -702,6 +739,35 @@ export function Session() {
       return order[a.severity] - order[b.severity]
     })
   })
+  const docsHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      responseText: string
+      result?: DocsResult
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/docs")) continue
+      const response = messageList.find((candidate) => candidate.role === "assistant" && candidate.parentID === message.id)
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+      items.push({
+        commandText,
+        responseText,
+        result: parseDocsResult(responseText),
+        createdAt: response.time.created,
+      })
+    }
+    return items
+  })
+  const latestDocsQa = createMemo(() =>
+    docsHistory().findLast((entry) => entry.result && entry.result.mode === "qa"),
+  )
 
   const pmHistory = createMemo(() => {
     const messageList = messages()
@@ -2465,6 +2531,40 @@ export function Session() {
                                   )}
                                 </For>
                               </box>
+                              <box flexDirection="row" gap={1} flexWrap="wrap">
+                                <box
+                                  onMouseUp={() => runAuditCommand("/docs qa")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.accent}>Run /docs qa</text>
+                                </box>
+                                <box
+                                  onMouseUp={() => runAuditCommand("/docs guide")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.textMuted}>/docs guide</text>
+                                </box>
+                                <box
+                                  onMouseUp={() => runAuditCommand("/docs spec")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.textMuted}>/docs spec</text>
+                                </box>
+                                <box
+                                  onMouseUp={() => runAuditCommand("/docs release-notes")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.textMuted}>/docs release-notes</text>
+                                </box>
+                              </box>
                               <Show
                                 when={latestAudit()?.result}
                                 fallback={<text fg={theme.textMuted}>No parsed audit result yet in this session.</text>}
@@ -2531,6 +2631,44 @@ export function Session() {
                                   </box>
                                 )}
                               </Show>
+                              <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+                                <text fg={theme.textMuted}>Docs QA</text>
+                                <Show
+                                  when={latestDocsQa()?.result}
+                                  fallback={<text fg={theme.textMuted}>No docs QA result yet in this session.</text>}
+                                >
+                                  {(result) => (
+                                    <box flexDirection="column" gap={1}>
+                                      <text fg={theme.text}>
+                                        status: {result().status} | blockers: {result().summary.blocker_count} | warnings:{" "}
+                                        {result().summary.warning_count}
+                                      </text>
+                                      <Show
+                                        when={result().checks.length > 0}
+                                        fallback={<text fg={theme.textMuted}>No docs QA findings.</text>}
+                                      >
+                                        <For each={result().checks.slice(0, 4)}>
+                                          {(check) => (
+                                            <box
+                                              flexDirection="column"
+                                              paddingLeft={1}
+                                              paddingRight={1}
+                                              backgroundColor={theme.backgroundElement}
+                                            >
+                                              <text fg={check.blocking ? theme.error : theme.text}>
+                                                {check.blocking ? "BLOCKER" : check.severity.toUpperCase()} | {check.title}
+                                              </text>
+                                              <text fg={theme.textMuted} wrapMode="word">
+                                                {check.evidence}
+                                              </text>
+                                            </box>
+                                          )}
+                                        </For>
+                                      </Show>
+                                    </box>
+                                  )}
+                                </Show>
+                              </box>
                             </Show>
                           </box>
                         </Match>
