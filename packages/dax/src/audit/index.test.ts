@@ -61,10 +61,11 @@ describe("audit contracts", () => {
     const config = {
       audit: {
         enabled: true,
-        auto_triggers: ["after_pr_review"],
+        auto_triggers: ["after_pr_review", "after_docs_qa"],
       },
     } as any
     expect(Audit.shouldAutoTrigger({ trigger: "after_pr_review", config })).toBeTrue()
+    expect(Audit.shouldAutoTrigger({ trigger: "after_docs_qa", config })).toBeTrue()
     expect(Audit.shouldAutoTrigger({ trigger: "manual", config })).toBeFalse()
     expect(Audit.shouldAutoTrigger({ trigger: "before_release", config })).toBeFalse()
   })
@@ -108,4 +109,3 @@ describe("audit contracts", () => {
     expect(gate.message).toContain("AUDIT_GATE_FAIL")
   })
 })
-
