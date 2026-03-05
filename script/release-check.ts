@@ -42,7 +42,12 @@ const auditOutput = await $`bun run --cwd packages/dax src/index.ts audit run --
 })
 
 try {
-  const parsed = JSON.parse(auditOutput)
+  const start = auditOutput.indexOf("{")
+  const end = auditOutput.lastIndexOf("}")
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("no JSON object found in audit output")
+  }
+  const parsed = JSON.parse(auditOutput.slice(start, end + 1))
   await fs.writeFile(auditArtifact, JSON.stringify(parsed, null, 2) + "\n", "utf8")
 } catch (error) {
   throw new Error(`invalid audit JSON output while writing artifact: ${error instanceof Error ? error.message : String(error)}`)
