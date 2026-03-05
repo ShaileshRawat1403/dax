@@ -13,6 +13,8 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 
+const PRIMARY_AGENT_ORDER = ["build", "plan", "explore", "docs", "audit"] as const
+
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
   init: () => {
@@ -34,7 +36,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const agent = iife(() => {
-      const agents = createMemo(() => sync.data.agent.filter((x) => x.mode !== "subagent" && !x.hidden))
+      const agents = createMemo(() =>
+        sync.data.agent
+          .filter((x) => x.mode !== "subagent" && !x.hidden)
+          .toSorted((a, b) => {
+            const aIndex = PRIMARY_AGENT_ORDER.indexOf(a.name as (typeof PRIMARY_AGENT_ORDER)[number])
+            const bIndex = PRIMARY_AGENT_ORDER.indexOf(b.name as (typeof PRIMARY_AGENT_ORDER)[number])
+            const aRank = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex
+            const bRank = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex
+            if (aRank !== bRank) return aRank - bRank
+            return a.name.localeCompare(b.name)
+          }),
+      )
       const visibleAgents = createMemo(() => sync.data.agent.filter((x) => !x.hidden))
       const [agentStore, setAgentStore] = createStore<{
         current: string
