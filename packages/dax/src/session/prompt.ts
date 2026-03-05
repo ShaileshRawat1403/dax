@@ -47,6 +47,9 @@ import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { PM } from "@/pm"
+import { formatPMList, formatPMRules } from "@/pm/format"
+import { Audit } from "@/audit"
+import { Config } from "@/config/config"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -1668,6 +1671,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
       return result
     }
+    if (input.command === Command.Default.AUDIT) {
+      const result = await commandAudit(input)
+      Bus.publish(Command.Event.Executed, {
+        name: input.command,
+        sessionID: input.sessionID,
+        arguments: input.arguments,
+        messageID: result.info.id,
+      })
+      return result
+    }
     const command = await Command.get(input.command)
     const agentName = command.agent ?? input.agent ?? (await Agent.defaultAgent())
 
@@ -1807,6 +1820,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       messageID: result.info.id,
     })
 
+    await maybeAutoAuditFromCommand(input)
+
     return result
   }
 
@@ -1856,15 +1871,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         day,
         limit: 20,
       })
-      const text =
-        rows.length === 0
-          ? "No DSR notes found."
-          : rows
-              .map((x) => `- ${x.day} | ${x.title}${x.tags.length ? ` [${x.tags.join(", ")}]` : ""}`)
-              .join("\n")
       return respondCommandText({
         input,
-        text,
+        text: formatPMList(rows.map((x) => ({ day: x.day, title: x.title, tags: x.tags }))),
       })
     }
 
@@ -1880,6 +1889,18 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         const action = args.at(-1)!
         const rule_type = args[0]!
         const pattern = args.slice(1, -1).join(" ")
+        if (!["never_touch", "require_approval", "deny_tool", "allow_tool"].includes(rule_type)) {
+          return respondCommandText({
+            input,
+            text: "Usage: /pm rules add <never_touch|require_approval|deny_tool|allow_tool> <pattern> <allow|deny|ask>",
+          })
+        }
+        if (!["allow", "deny", "ask"].includes(action)) {
+          return respondCommandText({
+            input,
+            text: "Usage: /pm rules add <never_touch|require_approval|deny_tool|allow_tool> <pattern> <allow|deny|ask>",
+          })
+        }
         const row = await PM.add_constraint({
           project_id,
           rule_type: rule_type as "never_touch" | "require_approval" | "deny_tool" | "allow_tool",
@@ -1890,19 +1911,24 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         return respondCommandText({
           input,
           text: `Rule added: ${row.rule_type} ${row.pattern} -> ${row.action}`,
+          commandName: Command.Default.PM,
         })
       }
       const rules = await PM.list_constraints({
         project_id,
         limit: 30,
       })
-      const text =
-        rules.length === 0
-          ? "No PM rules set."
-          : rules.map((x) => `- ${x.rule_type} ${x.pattern} -> ${x.action} (${x.source})`).join("\n")
       return respondCommandText({
         input,
-        text,
+        text: formatPMRules(
+          rules.map((x) => ({
+            ruleType: x.rule_type,
+            pattern: x.pattern,
+            action: x.action,
+            source: x.source,
+          })),
+        ),
+        commandName: Command.Default.PM,
       })
     }
 
@@ -1915,10 +1941,159 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         "/pm rules",
         "/pm rules add <type> <pattern> <action>",
       ].join("\n"),
+      commandName: Command.Default.PM,
     })
   }
 
-  async function respondCommandText(input: { input: CommandInput; text: string }): Promise<MessageV2.WithParts> {
+  async function commandAudit(input: CommandInput): Promise<MessageV2.WithParts> {
+    const settings = Audit.resolveSettings(await Config.get())
+    if (!settings.enabled) {
+      return respondCommandText({
+        input,
+        commandName: Command.Default.AUDIT,
+        text: [
+          "Audit is disabled.",
+          "Enable it with DAX_AUDIT_BETA=1 or config.audit.enabled=true.",
+        ].join("\n"),
+      })
+    }
+
+    const tokens = input.arguments.trim().split(/\s+/).filter(Boolean)
+    const sub = (tokens[0] ?? "").toLowerCase()
+
+    if (sub === "profile") {
+      const requested = tokens[1]?.toLowerCase()
+      if (requested !== "strict" && requested !== "balanced" && requested !== "advisory") {
+        return respondCommandText({
+          input,
+          commandName: Command.Default.AUDIT,
+          text: "Usage: /audit profile <strict|balanced|advisory>",
+        })
+      }
+      await PM.set_preference({
+        project_id: Instance.project.id,
+        pref_key: "audit.profile",
+        pref_value: requested,
+      })
+      return respondCommandText({
+        input,
+        commandName: Command.Default.AUDIT,
+        text: `Audit profile set to ${requested}.`,
+      })
+    }
+
+    const prefs = await PM.list_preferences({ project_id: Instance.project.id }).catch(() => [])
+    const savedProfile = prefs.find((x) => x.pref_key === "audit.profile")?.pref_value
+    const resolvedProfile = Audit.Profile.safeParse(savedProfile).success
+      ? (savedProfile as Audit.Profile)
+      : settings.profile
+
+    const result = await Audit.run({
+      trigger: "manual",
+      profile: resolvedProfile,
+    })
+
+    if (sub === "explain") {
+      const findingID = tokens[1]
+      if (!findingID) {
+        return respondCommandText({
+          input,
+          commandName: Command.Default.AUDIT,
+          text: "Usage: /audit explain <finding_id>",
+        })
+      }
+      const item = Audit.explain(result, findingID)
+      if (!item) {
+        return respondCommandText({
+          input,
+          commandName: Command.Default.AUDIT,
+          text: `Finding not found: ${findingID}`,
+        })
+      }
+      return respondCommandText({
+        input,
+        commandName: Command.Default.AUDIT,
+        text: [
+          `Finding: ${item.id}`,
+          `Severity: ${item.severity}${item.blocking ? " (BLOCKER)" : ""}`,
+          `Category: ${item.category}`,
+          `Title: ${item.title}`,
+          `Evidence: ${item.evidence}`,
+          `Impact: ${item.impact}`,
+          `Fix: ${item.fix}`,
+          `Owner hint: ${item.owner_hint}`,
+        ].join("\n"),
+      })
+    }
+
+    if (sub === "gate") {
+      const gate = Audit.gate(result)
+      const text = [
+        `Gate: ${gate.pass ? "PASS" : "FAIL"}`,
+        gate.message,
+        Audit.toMarkdown(result),
+        "```json",
+        JSON.stringify(result, null, 2),
+        "```",
+      ].join("\n\n")
+      return respondCommandText({
+        input,
+        commandName: Command.Default.AUDIT,
+        text,
+      })
+    }
+
+    const text = [
+      Audit.toMarkdown(result),
+      "```json",
+      JSON.stringify(result, null, 2),
+      "```",
+    ].join("\n\n")
+    return respondCommandText({
+      input,
+      commandName: Command.Default.AUDIT,
+      text,
+    })
+  }
+
+  async function maybeAutoAuditFromCommand(input: CommandInput) {
+    if (input.command === Command.Default.AUDIT) return
+    const config = await Config.get()
+    const trigger = (() => {
+      if (input.command === Command.Default.REVIEW) return "after_pr_review" as const
+      if (input.command === Command.Default.PM && input.arguments.trim().toLowerCase().startsWith("rules add")) {
+        return "after_docs_policy_change" as const
+      }
+      return
+    })()
+    if (!trigger) return
+    if (!Audit.shouldAutoTrigger({ trigger, config })) return
+
+    const result = await Audit.run({ trigger, config })
+    const text = [
+      `Auto audit trigger: ${trigger}`,
+      Audit.toMarkdown(result),
+      "```json",
+      JSON.stringify(result, null, 2),
+      "```",
+    ].join("\n\n")
+
+    await respondCommandText({
+      input: {
+        ...input,
+        command: Command.Default.AUDIT,
+        arguments: `trigger ${trigger}`,
+      },
+      commandName: Command.Default.AUDIT,
+      text,
+    })
+  }
+
+  async function respondCommandText(input: {
+    input: CommandInput
+    text: string
+    commandName?: string
+  }): Promise<MessageV2.WithParts> {
     const model = input.input.model ? Provider.parseModel(input.input.model) : await lastModel(input.input.sessionID)
     const agent = input.input.agent ?? (await Agent.defaultAgent())
     const user: MessageV2.User = {
@@ -1941,7 +2116,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       id: Identifier.ascending("part"),
       messageID: user.id,
       sessionID: user.sessionID,
-      text: `/${Command.Default.PM} ${input.input.arguments}`.trim(),
+      text: `/${input.commandName ?? input.input.command} ${input.input.arguments}`.trim(),
     })
 
     const msg: MessageV2.Assistant = {

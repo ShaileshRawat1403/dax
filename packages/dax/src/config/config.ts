@@ -52,6 +52,28 @@ export namespace Config {
 
   const managedConfigDir = readEnv("DAX_TEST_MANAGED_CONFIG_DIR") || getManagedConfigDir()
 
+  const Audit = z
+    .object({
+      enabled: z.boolean().optional(),
+      profile: z.enum(["strict", "balanced", "advisory"]).optional(),
+      auto_triggers: z.array(z.string()).optional(),
+      fail_on: z.array(z.string()).optional(),
+    })
+    .optional()
+
+  const Integration = z
+    .object({
+      github: z
+        .object({
+          enabled: z.boolean().optional(),
+          checks: z.boolean().optional(),
+          pr_comment: z.boolean().optional(),
+          issue_annotations: z.boolean().optional(),
+        })
+        .optional(),
+    })
+    .optional()
+
   // Custom merge function that concatenates array fields instead of replacing them
   function mergeConfigConcatArrays(target: Info, source: Info): Info {
     const merged = mergeDeep(target, source)
@@ -60,6 +82,17 @@ export namespace Config {
     }
     if (target.instructions && source.instructions) {
       merged.instructions = Array.from(new Set([...target.instructions, ...source.instructions]))
+    }
+    if (target.instruction_url_allowlist && source.instruction_url_allowlist) {
+      merged.instruction_url_allowlist = Array.from(
+        new Set([...target.instruction_url_allowlist, ...source.instruction_url_allowlist]),
+      )
+    }
+    if (target.audit?.auto_triggers && source.audit?.auto_triggers) {
+      merged.audit = {
+        ...(merged.audit ?? {}),
+        auto_triggers: Array.from(new Set([...target.audit.auto_triggers, ...source.audit.auto_triggers])),
+      }
     }
     return merged
   }
@@ -1076,6 +1109,7 @@ export namespace Config {
           title: Agent.optional(),
           summary: Agent.optional(),
           compaction: Agent.optional(),
+          audit: Agent.optional(),
         })
         .catchall(Agent)
         .optional()
@@ -1149,6 +1183,12 @@ export namespace Config {
           },
         ),
       instructions: z.array(z.string()).optional().describe("Additional instruction files or patterns to include"),
+      instruction_url_allowlist: z
+        .array(z.string())
+        .optional()
+        .describe("Optional host allowlist for remote instruction URLs (exact host, *.suffix, or full https:// URL)"),
+      audit: Audit.describe("Audit engine controls (beta): profile, triggers, and gating behavior."),
+      integration: Integration.describe("Integration settings for external systems (GitHub first)."),
       layout: Layout.optional().describe("@deprecated Always uses stretch layout."),
       permission: Permission.optional(),
       tools: z.record(z.string(), z.boolean()).optional(),

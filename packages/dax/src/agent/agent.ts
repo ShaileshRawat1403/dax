@@ -13,12 +13,14 @@ import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
+import PROMPT_AUDIT from "./prompt/audit.txt"
 import { PermissionNext } from "@/governance/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
+import { Flag } from "@/flag/flag"
 
 export namespace Agent {
   export const Info = z
@@ -147,10 +149,11 @@ export namespace Agent {
           }),
           user,
         ),
-        description: `Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.`,
+        description:
+          'Fast agent specialized for codebase exploration and discovery. Use this when you need broad/targeted search, dependency tracing, and architecture understanding before edits. Mention desired depth: "quick", "medium", or "very thorough".',
         prompt: PROMPT_EXPLORE,
         options: {},
-        mode: "subagent",
+        mode: "primary",
         native: true,
       },
       docs: {
@@ -167,6 +170,31 @@ export namespace Agent {
             list: "allow",
             webfetch: "allow",
             websearch: "allow",
+            codesearch: "allow",
+            external_directory: {
+              [Truncate.GLOB]: "allow",
+            },
+          }),
+          user,
+        ),
+        options: {},
+        mode: "primary",
+        native: true,
+      },
+      audit: {
+        name: "audit",
+        description:
+          "SDLC audit agent for release readiness, policy/risk checks, and documentation/CI quality gates.",
+        prompt: PROMPT_AUDIT,
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            read: "allow",
+            glob: "allow",
+            grep: "allow",
+            list: "allow",
+            webfetch: "allow",
             codesearch: "allow",
             external_directory: {
               [Truncate.GLOB]: "allow",
@@ -255,20 +283,23 @@ export namespace Agent {
       item.permission = PermissionNext.merge(item.permission, PermissionNext.fromConfig(value.permission ?? {}))
     }
 
-    // Ensure Truncate.GLOB is allowed unless explicitly configured
-    for (const name in result) {
-      const agent = result[name]
-      const explicit = agent.permission.some((r) => {
-        if (r.permission !== "external_directory") return false
-        if (r.action !== "deny") return false
-        return r.pattern === Truncate.GLOB
-      })
-      if (explicit) continue
+    // Ensure Truncate.GLOB is allowed unless explicitly configured.
+    // This can be disabled in strict environments.
+    if (!Flag.DAX_STRICT_EXTERNAL_DIRECTORY) {
+      for (const name in result) {
+        const agent = result[name]
+        const explicit = agent.permission.some((r) => {
+          if (r.permission !== "external_directory") return false
+          if (r.action !== "deny") return false
+          return r.pattern === Truncate.GLOB
+        })
+        if (explicit) continue
 
-      result[name].permission = PermissionNext.merge(
-        result[name].permission,
-        PermissionNext.fromConfig({ external_directory: { [Truncate.GLOB]: "allow" } }),
-      )
+        result[name].permission = PermissionNext.merge(
+          result[name].permission,
+          PermissionNext.fromConfig({ external_directory: { [Truncate.GLOB]: "allow" } }),
+        )
+      }
     }
 
     return result
