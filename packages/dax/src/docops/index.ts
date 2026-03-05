@@ -97,6 +97,13 @@ export namespace DocOps {
     return out
   }
 
+  function resolveDocLink(root: string, sourceFile: string, link: string) {
+    const clean = link.split("#")[0]?.split("?")[0] ?? link
+    if (!clean) return undefined
+    if (clean.startsWith("/")) return clean
+    return path.resolve(path.dirname(path.join(root, sourceFile)), clean)
+  }
+
   function parseCodePaths(text: string) {
     const out: string[] = []
     const re = /`([^`]+)`/g
@@ -111,13 +118,30 @@ export namespace DocOps {
 
   function parseCommandSnippets(text: string) {
     const out: string[] = []
-    const re = /`([^`]+)`/g
+    const isCommandLike = (value: string) =>
+      /^(dax|bun|npm|pnpm|yarn|git|python|node|curl|gcloud|gh|winget|brew)\b/i.test(value) ||
+      /^\/(audit|docs|pm)\b/i.test(value)
+
+    const fenced = /```(?:bash|sh|zsh|shell)?\n([\s\S]*?)```/gim
+    let block: RegExpExecArray | null
+    while ((block = fenced.exec(text))) {
+      const body = block[1] ?? ""
+      for (const rawLine of body.split("\n")) {
+        const line = rawLine.trim()
+        if (!line || line.startsWith("#")) continue
+        if (!isCommandLike(line)) continue
+        out.push(line)
+      }
+    }
+
+    const inline = /`([^`]+)`/g
     let m: RegExpExecArray | null
-    while ((m = re.exec(text))) {
+    while ((m = inline.exec(text))) {
       const value = m[1]?.trim()
       if (!value) continue
       if (!value.includes(" ")) continue
       if (value.startsWith("#")) continue
+      if (!isCommandLike(value)) continue
       out.push(value)
     }
     return out
@@ -126,8 +150,9 @@ export namespace DocOps {
   async function commandExists(cmd: string) {
     const first = cmd.trim().split(/\s+/)[0]
     if (!first) return true
+    if (first.startsWith("/")) return true
     if (["npm", "bun", "pnpm", "yarn", "npx", "node", "python", "bash", "sh", "git", "dax"].includes(first)) return true
-    const found = await $`command -v ${first}`.nothrow()
+    const found = await $`command -v ${first}`.quiet().nothrow()
     return found.exitCode === 0
   }
 
@@ -168,7 +193,8 @@ export namespace DocOps {
 
       for (const link of parseLinks(content)) {
         if (link.startsWith("http://") || link.startsWith("https://") || link.startsWith("#")) continue
-        if (!existsSync(path.join(input.root, link))) {
+        const resolved = resolveDocLink(input.root, input.file, link)
+        if (!resolved || !existsSync(resolved)) {
           input.checks.push({
             id: `docs.link.broken.${input.file.replace(/[/.]/g, "_")}.${link.replace(/[/.]/g, "_")}`,
             severity: "medium",
@@ -216,16 +242,16 @@ export namespace DocOps {
   }
 
   function summarize(checks: Check[], qa_profile: QAProfile = "balanced") {
-    const blockers = checks.map((item) => {
+    const normalized = checks.map((item) => {
       if (item.blocking) return item
       if (qa_profile === "strict" && (item.severity === "high" || item.severity === "medium")) {
         return { ...item, blocking: true }
       }
       return item
     })
-    const blocker_count = blockers.filter((c) => c.blocking).length
-    const warning_count = checks.filter((c) => !c.blocking && c.severity !== "info").length
-    const info_count = checks.filter((c) => c.severity === "info").length
+    const blocker_count = normalized.filter((c) => c.blocking).length
+    const warning_count = normalized.filter((c) => !c.blocking && c.severity !== "info").length
+    const info_count = normalized.filter((c) => c.severity === "info").length
     const status: Status = blocker_count > 0 ? "fail" : warning_count > 0 ? "warn" : "pass"
     return { blocker_count, warning_count, info_count, status }
   }
