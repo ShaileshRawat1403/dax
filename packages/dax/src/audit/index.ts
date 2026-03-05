@@ -6,6 +6,7 @@ import { Config } from "@/config/config"
 import { Flag } from "@/flag/flag"
 import { Instance } from "@/project/instance"
 import { PM } from "@/pm"
+import { DocOps } from "@/docops"
 
 export namespace Audit {
   export const Trigger = z.enum([
@@ -14,6 +15,7 @@ export namespace Audit {
     "after_pr_review",
     "after_config_change",
     "after_docs_policy_change",
+    "after_docs_qa",
   ])
   export type Trigger = z.infer<typeof Trigger>
 
@@ -253,6 +255,32 @@ export namespace Audit {
           fail_on,
         }),
       )
+    }
+
+    // Include docs QA findings in audit gate decisions so documentation readiness
+    // is visible in the same blocker/warning pipeline as code and release checks.
+    const docsQA = await DocOps.run({ mode: "qa" }).catch(() => undefined)
+    if (docsQA) {
+      for (const check of docsQA.checks) {
+        const mappedSeverity: Severity =
+          check.severity === "critical" || check.severity === "high" || check.severity === "medium" || check.severity === "low"
+            ? check.severity
+            : "info"
+        findings.push(
+          finding({
+            id: `documentation.qa.${check.id}`,
+            severity: mappedSeverity,
+            category: "documentation",
+            title: check.title,
+            evidence: check.evidence,
+            impact: "Documentation quality/readiness issues may reduce release clarity and user success.",
+            fix: check.fix,
+            owner_hint: "docs owner",
+            profile,
+            fail_on,
+          }),
+        )
+      }
     }
 
     const workflowExists = existsSync(path.join(Instance.worktree, ".github", "workflows"))
