@@ -17,7 +17,7 @@ import { HOME_STAGE, HOME_STAGE_ELI12 } from "@/dax/workflow/stage"
 import { isEli12Mode, nextIntentMode } from "@/dax/intent"
 import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
-import { useToast } from "../ui/toast"
+import { Toast, useToast } from "../ui/toast"
 
 const WELCOME_MESSAGES = {
   firstTime: [
