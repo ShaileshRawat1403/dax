@@ -11,6 +11,7 @@ import { ProviderTransform } from "../provider/transform"
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
+import PROMPT_DOCS from "./prompt/docs.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_AUDIT from "./prompt/audit.txt"
@@ -160,6 +161,7 @@ export namespace Agent {
         name: "docs",
         description:
           "Documentation-focused agent for explaining architecture, writing specs, and producing release-ready docs without editing code.",
+        prompt: PROMPT_DOCS,
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
