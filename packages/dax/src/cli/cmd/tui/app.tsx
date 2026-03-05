@@ -38,7 +38,7 @@ import { PromptHistoryProvider } from "./component/prompt/history"
 import { FrecencyProvider } from "./component/prompt/frecency"
 import { PromptStashProvider } from "./component/prompt/stash"
 import { DialogAlert } from "./ui/dialog-alert"
-import { ToastProvider, useToast } from "./ui/toast"
+import { ToastProvider, useToast, type ToastPosition, type ToastStyle } from "./ui/toast"
 import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session"
 import { TuiEvent } from "./event"
@@ -334,6 +334,16 @@ function App() {
       duration: 2500,
     })
   }
+  const toastPosition = () => kv.get(DAX_SETTING.toast_position, "top-center") as ToastPosition
+  const toastStyle = () => kv.get(DAX_SETTING.toast_style, "pill") as ToastStyle
+  function setToastPosition(position: ToastPosition) {
+    kv.set(DAX_SETTING.toast_position, position)
+    toast.show({ message: `Notifications: ${position}`, variant: "success", duration: 1500 })
+  }
+  function setToastStyle(style: ToastStyle) {
+    kv.set(DAX_SETTING.toast_style, style)
+    toast.show({ message: `Notification style: ${style}`, variant: "success", duration: 1500 })
+  }
   command.register(() => [
     {
       title: "Switch session",
@@ -599,6 +609,60 @@ function App() {
       category: "System",
       onSelect: (dialog) => {
         setThemeIfAvailable("github")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Notifications: Top-left${toastPosition() === "top-left" ? " (active)" : ""}`,
+      value: "notifications.position.top_left",
+      category: "System",
+      onSelect: (dialog) => {
+        setToastPosition("top-left")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Notifications: Top-center${toastPosition() === "top-center" ? " (active)" : ""}`,
+      value: "notifications.position.top_center",
+      category: "System",
+      onSelect: (dialog) => {
+        setToastPosition("top-center")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Notifications: Top-right${toastPosition() === "top-right" ? " (active)" : ""}`,
+      value: "notifications.position.top_right",
+      category: "System",
+      onSelect: (dialog) => {
+        setToastPosition("top-right")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Notification style: Pill${toastStyle() === "pill" ? " (active)" : ""}`,
+      value: "notifications.style.pill",
+      category: "System",
+      onSelect: (dialog) => {
+        setToastStyle("pill")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Notification style: Band${toastStyle() === "band" ? " (active)" : ""}`,
+      value: "notifications.style.band",
+      category: "System",
+      onSelect: (dialog) => {
+        setToastStyle("band")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Notification style: Card${toastStyle() === "card" ? " (active)" : ""}`,
+      value: "notifications.style.card",
+      category: "System",
+      onSelect: (dialog) => {
+        setToastStyle("card")
         dialog.clear()
       },
     },

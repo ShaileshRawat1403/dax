@@ -1,4 +1,4 @@
-export const PANE_MODE = ["artifact", "diff", "rao", "pm"] as const
+export const PANE_MODE = ["artifact", "diff", "rao", "pm", "audit"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
 
@@ -17,6 +17,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
       diff: "changes",
       rao: "insights",
       pm: "memory",
+      audit: "audit",
     }[mode]
   }
 
@@ -25,6 +26,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
     diff: "diff",
     rao: "rao",
     pm: "pm",
+    audit: "audit",
   }[mode]
 }
 

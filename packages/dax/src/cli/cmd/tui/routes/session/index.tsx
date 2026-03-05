@@ -96,6 +96,8 @@ import {
 } from "@/dax/presentation/pane"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
+import { Identifier } from "@/id/id"
+import { parsePMList, parsePMRules } from "@/pm/format"
 
 addDefaultParsers(parsers.parsers)
 
@@ -104,6 +106,35 @@ const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
 const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
 const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
 const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
+type PMTab = "note" | "list" | "rules"
+type AuditSeverity = "critical" | "high" | "medium" | "low" | "info"
+type AuditFinding = {
+  id: string
+  severity: AuditSeverity
+  category: string
+  title: string
+  evidence: string
+  impact: string
+  fix: string
+  owner_hint: string
+  blocking: boolean
+}
+type AuditResult = {
+  run_id: string
+  timestamp: string
+  profile: "strict" | "balanced" | "advisory"
+  status: "pass" | "warn" | "fail"
+  findings: AuditFinding[]
+  summary: {
+    blocker_count: number
+    warning_count: number
+    info_count: number
+  }
+  next_actions: string[]
+  metadata: {
+    trigger: string
+  }
+}
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -421,9 +452,10 @@ export function Session() {
   }
 
   function cyclePaneMode() {
-    const modes = PANE_MODES
+    const modes = availablePaneModes()
+    if (!modes.length) return
     const i = modes.indexOf(paneMode())
-    const next = modes[(i + 1) % modes.length]
+    const next = modes[(Math.max(i, 0) + 1) % modes.length]
     if (!next) return
     setPaneMode(() => next)
   }
@@ -479,6 +511,12 @@ export function Session() {
     if (route.initialPrompt && prompt) {
       prompt?.set(route.initialPrompt)
     }
+  })
+
+  createEffect(() => {
+    if (paneMode() !== "audit") return
+    if (auditPaneEnabled()) return
+    setPaneMode(() => "artifact")
   })
 
   let lastSwitch: string | undefined = undefined
@@ -576,6 +614,202 @@ export function Session() {
   }
 
   const local = useLocal()
+  const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
+  const auditPaneEnabled = createMemo(
+    () => Flag.DAX_AUDIT_BETA || (sync.data.config as Record<string, any>).audit?.enabled === true,
+  )
+  const availablePaneModes = createMemo(() =>
+    PANE_MODES.filter((mode) => (mode === "audit" ? auditPaneEnabled() : true)),
+  )
+
+  const messageText = (messageID: string) => {
+    const parts = sync.data.part[messageID] ?? []
+    let text = ""
+    for (const part of parts) {
+      if (part.type !== "text" || part.synthetic) continue
+      text += part.text
+    }
+    return text.trim()
+  }
+
+  const parseAuditResult = (text: string): AuditResult | undefined => {
+    if (!text) return
+    const fenced = text.match(/```json\s*([\s\S]*?)```/i)?.[1]
+    const candidate = fenced ?? text
+    try {
+      const parsed = JSON.parse(candidate) as AuditResult
+      if (!parsed || !Array.isArray(parsed.findings) || !parsed.summary) return
+      return parsed
+    } catch {
+      return
+    }
+  }
+
+  const recentPmCommands = createMemo(() =>
+    messages()
+      .filter((message) => message.role === "user")
+      .map((message) => ({
+        id: message.id,
+        text: messageText(message.id),
+      }))
+      .filter((entry) => entry.text.startsWith("/pm "))
+      .slice(-6)
+      .reverse(),
+  )
+
+  const auditHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      responseText: string
+      result?: AuditResult
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/audit")) continue
+      const response = messageList.find((candidate) => candidate.role === "assistant" && candidate.parentID === message.id)
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+      items.push({
+        commandText,
+        responseText,
+        result: parseAuditResult(responseText),
+        createdAt: response.time.created,
+      })
+    }
+
+    return items
+  })
+
+  const latestAudit = createMemo(() => auditHistory().findLast((entry) => entry.result !== undefined))
+  const auditSummary = createMemo(() => latestAudit()?.result?.summary)
+  const auditFindings = createMemo(() => {
+    const result = latestAudit()?.result
+    if (!result) return [] as AuditFinding[]
+    const order: Record<AuditSeverity, number> = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+      info: 4,
+    }
+    return [...result.findings].sort((a, b) => {
+      if (a.blocking !== b.blocking) return a.blocking ? -1 : 1
+      return order[a.severity] - order[b.severity]
+    })
+  })
+
+  const pmHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      subcommand: PMTab | "help"
+      responseText: string
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/pm")) continue
+      const subcommand = (commandText.split(/\s+/)[1]?.toLowerCase() ?? "help") as PMTab | "help"
+      const response = messageList.find((candidate) => candidate.role === "assistant" && candidate.parentID === message.id)
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+
+      items.push({
+        commandText,
+        subcommand: ["note", "list", "rules"].includes(subcommand) ? (subcommand as PMTab) : "help",
+        responseText,
+        createdAt: response.time.created,
+      })
+    }
+
+    return items
+  })
+
+  const latestPmListResponse = createMemo(() => pmHistory().findLast((entry) => entry.subcommand === "list"))
+  const latestPmRulesResponse = createMemo(() =>
+    pmHistory().findLast((entry) => entry.subcommand === "rules" && entry.commandText.trim() === "/pm rules"),
+  )
+  const latestPmRulesAddResponse = createMemo(() =>
+    pmHistory().findLast((entry) => entry.subcommand === "rules" && entry.commandText.trim().startsWith("/pm rules add ")),
+  )
+
+  const parsedPmList = createMemo(() => {
+    const responseText = latestPmListResponse()?.responseText
+    const parsed = parsePMList(responseText ?? "")
+    return {
+      rows: parsed.rows,
+      empty: parsed.rows.length === 0,
+      info: parsed.info ?? "",
+    }
+  })
+
+  const parsedPmRules = createMemo(() => {
+    const responseText = latestPmRulesResponse()?.responseText
+    const parsed = parsePMRules(responseText ?? "")
+    return {
+      rows: parsed.rows,
+      empty: parsed.rows.length === 0,
+      info: parsed.info ?? "",
+    }
+  })
+
+  const prefillPmNote = () => {
+    prompt?.set({
+      input: "/pm note Project constants | Product codename is ... | release,context",
+      parts: [],
+    })
+  }
+
+  const runSessionSlashCommand = async (raw: string) => {
+    const selectedModel = local.model.current()
+    if (!selectedModel) {
+      toast.show({
+        variant: "warning",
+        message: "Select a model before running commands",
+        duration: 3000,
+      })
+      return
+    }
+
+    const trimmed = raw.trim()
+    if (!trimmed.startsWith("/")) return
+    const commandLine = trimmed.slice(1)
+    const [name, ...rest] = commandLine.split(" ")
+    if (!name) return
+    const variant = local.model.variant.current()
+    const args = rest.join(" ").trim()
+
+    await sdk.client.session
+      .command({
+        sessionID: route.sessionID,
+        command: name,
+        arguments: args,
+        agent: local.agent.current().name,
+        model: `${selectedModel.providerID}/${selectedModel.modelID}`,
+        messageID: Identifier.ascending("message"),
+        variant,
+        parts: [],
+      })
+      .then(() => {
+        setPaneVisibility(() => "pinned")
+        toast.show({ message: `Queued ${trimmed}`, variant: "success", duration: 1600 })
+        toBottom()
+      })
+      .catch((error) => {
+        toast.error(error)
+      })
+  }
+
+  const runPmCommand = async (raw: string) => runSessionSlashCommand(raw)
+  const runAuditCommand = async (raw: string) => runSessionSlashCommand(raw)
 
   function moveChild(direction: number) {
     if (children().length === 1) return
@@ -869,6 +1103,18 @@ export function Session() {
         setPaneMode(() => "pm")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
         toast.show({ message: `Pane mode: ${paneLabel("pm")}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Pane mode: ${paneLabel("audit")}${paneMode() === "audit" ? " (active)" : ""}`,
+      value: "session.pane.mode.audit",
+      category: "View",
+      enabled: auditPaneEnabled(),
+      onSelect: (dialog) => {
+        setPaneMode(() => "audit")
+        setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+        toast.show({ message: `Pane mode: ${paneLabel("audit")}`, variant: "success" })
         dialog.clear()
       },
     },
@@ -1625,7 +1871,7 @@ export function Session() {
 
                       <box flexDirection="row" gap={1} alignItems="center">
                         <text fg={theme.textMuted}>❖</text>
-                        <For each={PANE_MODES}>
+                        <For each={availablePaneModes()}>
                           {(mode) => (
                             <box onMouseUp={() => setPaneMode(() => mode)}>
                               <text
@@ -1907,7 +2153,7 @@ export function Session() {
                           )}
                         </For>
                         <text fg={theme.textMuted}>· ❖</text>
-                        <For each={PANE_MODES}>
+                        <For each={availablePaneModes()}>
                           {(mode) => (
                             <box
                               onMouseUp={() => {
@@ -2004,10 +2250,288 @@ export function Session() {
                         <Match when={activePaneMode() === "pm"}>
                           <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
                             <text fg={theme.text}>Project Memory</text>
-                            <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
-                            <text fg={theme.textMuted} wrapMode="word">
-                              Capture constraints and handoff context so execution stays consistent across sessions.
-                            </text>
+                            <box flexDirection="row" gap={1} flexWrap="wrap">
+                              <For each={["note", "list", "rules"] as PMTab[]}>
+                                {(tab) => (
+                                  <box
+                                    onMouseUp={() => setPmTab(() => tab)}
+                                    backgroundColor={pmTab() === tab ? theme.backgroundElement : undefined}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <text
+                                      fg={pmTab() === tab ? theme.primary : theme.textMuted}
+                                      attributes={pmTab() === tab ? TextAttributes.BOLD : undefined}
+                                    >
+                                      /pm {tab}
+                                    </text>
+                                  </box>
+                                )}
+                              </For>
+                            </box>
+                            <Switch>
+                              <Match when={pmTab() === "note"}>
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  Save product constraints and handoff context that should survive across sessions.
+                                </text>
+                                <box flexDirection="row" gap={1} flexWrap="wrap">
+                                  <box
+                                    onMouseUp={prefillPmNote}
+                                    backgroundColor={theme.backgroundElement}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <text fg={theme.primary}>Template</text>
+                                  </box>
+                                  <box
+                                    onMouseUp={() => runPmCommand("/pm note")}
+                                    backgroundColor={theme.backgroundElement}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <text fg={theme.accent}>Run /pm note</text>
+                                  </box>
+                                </box>
+                              </Match>
+                              <Match when={pmTab() === "list"}>
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  List recent PM notes and tags for this workspace.
+                                </text>
+                                <box flexDirection="row" gap={1} flexWrap="wrap">
+                                  <box
+                                    onMouseUp={() => runPmCommand("/pm list")}
+                                    backgroundColor={theme.backgroundElement}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <text fg={theme.accent}>Run /pm list</text>
+                                  </box>
+                                  <Show when={latestPmListResponse()}>
+                                    {(entry) => <text fg={theme.textMuted}>Last: {entry().commandText}</text>}
+                                  </Show>
+                                </box>
+                                <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+                                  <Show
+                                    when={!parsedPmList().empty}
+                                    fallback={<text fg={theme.textMuted} wrapMode="word">{parsedPmList().info}</text>}
+                                  >
+                                    <For each={parsedPmList().rows}>
+                                      {(row) => (
+                                        <box
+                                          flexDirection="column"
+                                          paddingLeft={1}
+                                          paddingRight={1}
+                                          backgroundColor={theme.backgroundElement}
+                                        >
+                                          <text fg={theme.text}>
+                                            {row.day} | {row.title}
+                                          </text>
+                                          <Show when={row.tags.length > 0}>
+                                            <text fg={theme.textMuted}>tags: {row.tags.join(", ")}</text>
+                                          </Show>
+                                        </box>
+                                      )}
+                                    </For>
+                                  </Show>
+                                </box>
+                              </Match>
+                              <Match when={pmTab() === "rules"}>
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  Inspect and maintain project guardrails that should always be enforced.
+                                </text>
+                                <box flexDirection="row" gap={1} flexWrap="wrap">
+                                  <box
+                                    onMouseUp={() => runPmCommand("/pm rules")}
+                                    backgroundColor={theme.backgroundElement}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <text fg={theme.accent}>Run /pm rules</text>
+                                  </box>
+                                  <box
+                                    onMouseUp={() =>
+                                      prompt?.set({
+                                        input: "/pm rules add require_approval release:publish ask",
+                                        parts: [],
+                                      })
+                                    }
+                                    backgroundColor={theme.backgroundElement}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <text fg={theme.primary}>Add rule template</text>
+                                  </box>
+                                </box>
+                                <Show when={latestPmRulesAddResponse()}>
+                                  {(entry) => (
+                                    <text fg={theme.textMuted} wrapMode="word">
+                                      Latest update: {entry().responseText}
+                                    </text>
+                                  )}
+                                </Show>
+                                <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+                                  <Show
+                                    when={!parsedPmRules().empty}
+                                    fallback={<text fg={theme.textMuted} wrapMode="word">{parsedPmRules().info}</text>}
+                                  >
+                                    <For each={parsedPmRules().rows}>
+                                      {(row) => (
+                                        <box
+                                          flexDirection="column"
+                                          paddingLeft={1}
+                                          paddingRight={1}
+                                          backgroundColor={theme.backgroundElement}
+                                        >
+                                          <text fg={theme.text}>
+                                            {row.ruleType}
+                                            {" -> "}
+                                            {row.action}
+                                          </text>
+                                          <text fg={theme.textMuted} wrapMode="word">
+                                            pattern: {row.pattern}
+                                          </text>
+                                          <Show when={row.source}>
+                                            <text fg={theme.textMuted}>source: {row.source}</text>
+                                          </Show>
+                                        </box>
+                                      )}
+                                    </For>
+                                  </Show>
+                                </box>
+                              </Match>
+                            </Switch>
+                            <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+                              <text fg={theme.textMuted}>Recent PM activity</text>
+                              <Show
+                                when={recentPmCommands().length > 0}
+                                fallback={<text fg={theme.textMuted}>No PM commands yet in this session.</text>}
+                              >
+                                <For each={recentPmCommands()}>
+                                  {(entry) => (
+                                    <box
+                                      onMouseUp={() => prompt?.set({ input: entry.text, parts: [] })}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                      backgroundColor={theme.backgroundElement}
+                                    >
+                                      <text fg={theme.text} wrapMode="word">
+                                        {entry.text}
+                                      </text>
+                                    </box>
+                                  )}
+                                </For>
+                              </Show>
+                            </box>
+                          </box>
+                        </Match>
+                        <Match when={activePaneMode() === "audit"}>
+                          <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
+                            <text fg={theme.text}>Audit</text>
+                            <Show
+                              when={auditPaneEnabled()}
+                              fallback={
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  Audit beta is disabled. Enable `DAX_AUDIT_BETA=1` or `config.audit.enabled=true`.
+                                </text>
+                              }
+                            >
+                              <box flexDirection="row" gap={1} flexWrap="wrap">
+                                <box
+                                  onMouseUp={() => runAuditCommand("/audit")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.accent}>Run /audit</text>
+                                </box>
+                                <box
+                                  onMouseUp={() => runAuditCommand("/audit gate")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.primary}>Run /audit gate</text>
+                                </box>
+                                <For each={["strict", "balanced", "advisory"] as const}>
+                                  {(profile) => (
+                                    <box
+                                      onMouseUp={() => runAuditCommand(`/audit profile ${profile}`)}
+                                      backgroundColor={theme.backgroundElement}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.textMuted}>profile:{profile}</text>
+                                    </box>
+                                  )}
+                                </For>
+                              </box>
+                              <Show
+                                when={latestAudit()?.result}
+                                fallback={<text fg={theme.textMuted}>No parsed audit result yet in this session.</text>}
+                              >
+                                {(latest) => (
+                                  <box flexDirection="column" gap={1}>
+                                    <text fg={theme.textMuted}>
+                                      Latest: {latest().run_id} | {latest().timestamp}
+                                    </text>
+                                    <text fg={theme.text}>
+                                      status: {latest().status} | profile: {latest().profile} | trigger:{" "}
+                                      {latest().metadata.trigger}
+                                    </text>
+                                    <Show when={auditSummary()}>
+                                      {(summary) => (
+                                        <text fg={theme.textMuted}>
+                                          blockers: {summary().blocker_count} · warnings: {summary().warning_count} · info:{" "}
+                                          {summary().info_count}
+                                        </text>
+                                      )}
+                                    </Show>
+                                    <box
+                                      border={["top"]}
+                                      borderColor={theme.borderSubtle}
+                                      paddingTop={1}
+                                      flexDirection="column"
+                                      gap={1}
+                                    >
+                                      <text fg={theme.textMuted}>Findings</text>
+                                      <Show
+                                        when={auditFindings().length > 0}
+                                        fallback={<text fg={theme.textMuted}>No findings.</text>}
+                                      >
+                                        <For each={auditFindings().slice(0, 8)}>
+                                          {(finding) => (
+                                            <box
+                                              flexDirection="column"
+                                              paddingLeft={1}
+                                              paddingRight={1}
+                                              backgroundColor={theme.backgroundElement}
+                                            >
+                                              <text
+                                                fg={
+                                                  finding.blocking
+                                                    ? theme.error
+                                                    : finding.severity === "high"
+                                                      ? theme.warning
+                                                      : theme.text
+                                                }
+                                              >
+                                                {finding.blocking ? "BLOCKER" : finding.severity.toUpperCase()} | {finding.title}
+                                              </text>
+                                              <text fg={theme.textMuted} wrapMode="word">
+                                                {finding.id} · {finding.category}
+                                              </text>
+                                              <text fg={theme.textMuted} wrapMode="word">
+                                                fix: {finding.fix}
+                                              </text>
+                                            </box>
+                                          )}
+                                        </For>
+                                      </Show>
+                                    </box>
+                                  </box>
+                                )}
+                              </Show>
+                            </Show>
                           </box>
                         </Match>
                       </Switch>
