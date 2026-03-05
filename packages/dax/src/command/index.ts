@@ -98,10 +98,10 @@ export namespace Command {
       },
       [Default.DOCS]: {
         name: Default.DOCS,
-        description: "docs workflows: /docs [guide|spec|release-notes|qa]",
+        description: "docs workflows: /docs [guide|spec|release-notes|prd|rfc|runbook|incident|qa]",
         source: "command",
         template: "docs",
-        hints: ["guide", "spec", "release-notes", "qa"],
+        hints: ["guide", "spec", "release-notes", "prd", "rfc", "runbook", "incident", "qa"],
       },
     }
 
