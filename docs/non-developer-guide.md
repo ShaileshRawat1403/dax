@@ -2,6 +2,8 @@
 
 This guide explains DAX in plain language: what it is, how to use it safely, and how to understand what it is doing.
 
+If you are new, start with [non-dev-quickstart.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-dev-quickstart.md) first.
+
 ## What DAX Is
 
 DAX is an AI assistant that can inspect files, run commands, and suggest code changes with governance controls.
@@ -25,6 +27,7 @@ Core loop:
     - `diff`: file changes.
     - `rao`: approvals/questions.
     - `pm`: project memory context.
+    - `audit` (beta): blockers/warnings + remediation guidance.
 - Prompt box:
   - Enter tasks.
   - Attach files/pasted content.
@@ -76,6 +79,10 @@ dax auth doctor
 
 # List models
 dax models
+
+# SDLC audit (beta)
+dax audit run --profile strict
+dax audit gate --profile strict
 ```
 
 ## Troubleshooting
@@ -95,4 +102,3 @@ dax models
 - After upgrading, re-run:
   - `dax --version`
   - `dax auth doctor`
-
