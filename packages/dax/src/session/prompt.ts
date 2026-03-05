@@ -50,6 +50,7 @@ import { PM } from "@/pm"
 import { formatPMList, formatPMRules } from "@/pm/format"
 import { Audit } from "@/audit"
 import { Config } from "@/config/config"
+import { DocOps } from "@/docops"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -1681,6 +1682,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
       return result
     }
+    if (input.command === Command.Default.DOCS) {
+      const result = await commandDocs(input)
+      Bus.publish(Command.Event.Executed, {
+        name: input.command,
+        sessionID: input.sessionID,
+        arguments: input.arguments,
+        messageID: result.info.id,
+      })
+      return result
+    }
     const command = await Command.get(input.command)
     const agentName = command.agent ?? input.agent ?? (await Agent.defaultAgent())
 
@@ -2056,8 +2067,37 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     })
   }
 
+  async function commandDocs(input: CommandInput): Promise<MessageV2.WithParts> {
+    const tokens = input.arguments.trim().split(/\s+/).filter(Boolean)
+    const sub = (tokens[0] ?? "guide").toLowerCase()
+    const topic = tokens.slice(1).join(" ").trim() || undefined
+    const mode = DocOps.Mode.safeParse(sub).success ? (sub as DocOps.Mode) : undefined
+
+    if (!mode) {
+      return respondCommandText({
+        input,
+        commandName: Command.Default.DOCS,
+        text: "Usage: /docs <guide|spec|release-notes|qa> [topic]",
+      })
+    }
+
+    const result = await DocOps.run({ mode, topic })
+    const text = [
+      DocOps.toMarkdown(result),
+      "```json",
+      JSON.stringify(result, null, 2),
+      "```",
+    ].join("\n\n")
+
+    return respondCommandText({
+      input,
+      commandName: Command.Default.DOCS,
+      text,
+    })
+  }
+
   async function maybeAutoAuditFromCommand(input: CommandInput) {
-    if (input.command === Command.Default.AUDIT) return
+    if (input.command === Command.Default.AUDIT || input.command === Command.Default.DOCS) return
     const config = await Config.get()
     const trigger = (() => {
       if (input.command === Command.Default.REVIEW) return "after_pr_review" as const
