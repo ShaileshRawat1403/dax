@@ -55,6 +55,7 @@ export namespace Command {
     INIT: "init",
     REVIEW: "review",
     PM: "pm",
+    AUDIT: "audit",
   } as const
 
   const state = Instance.state(async () => {
@@ -86,6 +87,13 @@ export namespace Command {
         source: "command",
         template: "pm",
         hints: ["note", "list", "rules"],
+      },
+      [Default.AUDIT]: {
+        name: Default.AUDIT,
+        description: "run SDLC audit: /audit [profile|gate|explain]",
+        source: "command",
+        template: "audit",
+        hints: ["profile", "gate", "explain"],
       },
     }
 

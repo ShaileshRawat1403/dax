@@ -15,6 +15,7 @@ const FILES = [
   "CLAUDE.md",
   "CONTEXT.md", // deprecated
 ]
+const MAX_INSTRUCTION_CHARS = 48_000
 
 function globalFiles() {
   const files = []
@@ -39,6 +40,33 @@ async function resolveRelative(instruction: string): Promise<string[]> {
     return []
   }
   return Filesystem.globUp(instruction, Flag.DAX_CONFIG_DIR, Flag.DAX_CONFIG_DIR).catch(() => [])
+}
+
+export function isAllowedInstructionURL(input: {
+  url: string
+  allowlist: string[]
+}): boolean {
+  if (input.allowlist.length === 0) return true
+
+  const parsed = new URL(input.url)
+  const host = parsed.hostname.toLowerCase()
+  const href = parsed.href.toLowerCase()
+
+  return input.allowlist.some((entry) => {
+    const rule = entry.trim().toLowerCase()
+    if (!rule) return false
+
+    if (rule.startsWith("http://") || rule.startsWith("https://")) {
+      return href.startsWith(rule)
+    }
+
+    if (rule.startsWith("*.")) {
+      const suffix = rule.slice(2)
+      return host === suffix || host.endsWith("." + suffix)
+    }
+
+    return host === rule
+  })
 }
 
 export namespace InstructionPrompt {
@@ -66,6 +94,15 @@ export namespace InstructionPrompt {
 
   export function clear(messageID: string) {
     state().claims.delete(messageID)
+  }
+
+  function truncateInstruction(source: string, content: string) {
+    if (content.length <= MAX_INSTRUCTION_CHARS) return content
+    return [
+      content.slice(0, MAX_INSTRUCTION_CHARS),
+      "",
+      `...[truncated ${content.length - MAX_INSTRUCTION_CHARS} chars from ${source}]`,
+    ].join("\n")
   }
 
   export async function systemPaths() {
@@ -118,28 +155,39 @@ export namespace InstructionPrompt {
   export async function system() {
     const config = await Config.get()
     const paths = await systemPaths()
+    const urlAllowlist = Array.from(
+      new Set([...(config.instruction_url_allowlist ?? []), ...Flag.DAX_INSTRUCTION_URL_ALLOWLIST]),
+    )
 
-    const files = Array.from(paths).map(async (p) => {
-      const content = await Bun.file(p)
-        .text()
-        .catch(() => "")
-      return content ? "Instructions from: " + p + "\n" + content : ""
-    })
+    const files = Array.from(paths)
+      .sort()
+      .map(async (p) => {
+        const content = await Bun.file(p)
+          .text()
+          .catch(() => "")
+        return content ? "Instructions from: " + p + "\n" + truncateInstruction(p, content) : ""
+      })
 
-    const urls: string[] = []
+    const urls = new Set<string>()
     if (config.instructions) {
       for (const instruction of config.instructions) {
         if (instruction.startsWith("https://") || instruction.startsWith("http://")) {
-          urls.push(instruction)
+          if (isAllowedInstructionURL({ url: instruction, allowlist: urlAllowlist })) {
+            urls.add(instruction)
+          } else {
+            log.warn("skipping remote instruction URL not in allowlist", { url: instruction })
+          }
         }
       }
     }
-    const fetches = urls.map((url) =>
+    const fetches = Array.from(urls)
+      .sort()
+      .map((url) =>
       fetch(url, { signal: AbortSignal.timeout(5000) })
         .then((res) => (res.ok ? res.text() : ""))
         .catch(() => "")
-        .then((x) => (x ? "Instructions from: " + url + "\n" + x : "")),
-    )
+        .then((x) => (x ? "Instructions from: " + url + "\n" + truncateInstruction(url, x) : "")),
+      )
 
     return Promise.all([...files, ...fetches]).then((result) => result.filter(Boolean))
   }

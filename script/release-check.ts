@@ -2,6 +2,7 @@
 
 import path from "path"
 import { existsSync } from "fs"
+import fs from "fs/promises"
 import { $ } from "bun"
 
 const root = process.cwd()
@@ -31,5 +32,22 @@ const ghFound = await $`command -v gh`.nothrow()
 if (ghFound.exitCode !== 0) {
   console.warn("warning: gh CLI is not installed; release upload will be unavailable")
 }
+
+const artifactsDir = path.join(root, "artifacts")
+await fs.mkdir(artifactsDir, { recursive: true })
+const auditArtifact = path.join(artifactsDir, "audit-result.json")
+
+const auditOutput = await $`bun run --cwd packages/dax src/index.ts audit run --profile strict --json`.text().catch((error) => {
+  throw new Error(`failed to generate audit artifact: ${error instanceof Error ? error.message : String(error)}`)
+})
+
+try {
+  const parsed = JSON.parse(auditOutput)
+  await fs.writeFile(auditArtifact, JSON.stringify(parsed, null, 2) + "\n", "utf8")
+} catch (error) {
+  throw new Error(`invalid audit JSON output while writing artifact: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+console.log(`release-check: wrote ${path.relative(root, auditArtifact)}`)
 
 console.log("release-check: ok")

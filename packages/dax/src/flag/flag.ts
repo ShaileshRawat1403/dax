@@ -7,6 +7,15 @@ function truthy(key: string) {
   return value === "true" || value === "1"
 }
 
+function csv(key: string) {
+  const value = readEnv(key)
+  if (!value) return []
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 export namespace Flag {
   export const DAX_AUTO_SHARE = truthy("DAX_AUTO_SHARE")
   export const DAX_GIT_BASH_PATH = readEnv("DAX_GIT_BASH_PATH")
@@ -30,6 +39,13 @@ export namespace Flag {
     DAX_DISABLE_CLAUDE_CODE || truthy("DAX_DISABLE_CLAUDE_CODE_SKILLS")
   export const DAX_DISABLE_EXTERNAL_SKILLS =
     DAX_DISABLE_CLAUDE_CODE_SKILLS || truthy("DAX_DISABLE_EXTERNAL_SKILLS")
+  // When true, do not auto-inject external_directory allow wildcard into agent permissions.
+  // This enables stricter permission postures for locked-down environments.
+  export const DAX_STRICT_EXTERNAL_DIRECTORY = truthy("DAX_STRICT_EXTERNAL_DIRECTORY")
+  export const DAX_INSTRUCTION_URL_ALLOWLIST = csv("DAX_INSTRUCTION_URL_ALLOWLIST")
+  export const DAX_AUDIT_BETA = truthy("DAX_AUDIT_BETA")
+  export const DAX_AUDIT_PROFILE = readEnv("DAX_AUDIT_PROFILE")
+  export const DAX_AUDIT_AUTOTRIGGERS = readEnv("DAX_AUDIT_AUTOTRIGGERS")
   export declare const DAX_DISABLE_PROJECT_CONFIG: boolean
   export const DAX_FAKE_VCS = readEnv("DAX_FAKE_VCS")
   export declare const DAX_CLIENT: string
