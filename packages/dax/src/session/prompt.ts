@@ -2097,12 +2097,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   }
 
   async function maybeAutoAuditFromCommand(input: CommandInput) {
-    if (input.command === Command.Default.AUDIT || input.command === Command.Default.DOCS) return
+    if (input.command === Command.Default.AUDIT) return
     const config = await Config.get()
     const trigger = (() => {
       if (input.command === Command.Default.REVIEW) return "after_pr_review" as const
       if (input.command === Command.Default.PM && input.arguments.trim().toLowerCase().startsWith("rules add")) {
         return "after_docs_policy_change" as const
+      }
+      if (input.command === Command.Default.DOCS && input.arguments.trim().toLowerCase().startsWith("qa")) {
+        return "after_docs_qa" as const
       }
       return
     })()
