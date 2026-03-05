@@ -5,8 +5,10 @@ import { Instance } from "@/project/instance"
 import { $ } from "bun"
 
 export namespace DocOps {
-  export const Mode = z.enum(["guide", "spec", "release-notes", "qa"])
+  export const Mode = z.enum(["guide", "spec", "release-notes", "prd", "rfc", "runbook", "incident", "qa"])
   export type Mode = z.infer<typeof Mode>
+  export const QAProfile = z.enum(["balanced", "strict"])
+  export type QAProfile = z.infer<typeof QAProfile>
 
   export const Severity = z.enum(["critical", "high", "medium", "low", "info"])
   export type Severity = z.infer<typeof Severity>
@@ -39,6 +41,7 @@ export namespace DocOps {
       info_count: z.number().int().nonnegative(),
     }),
     next_actions: z.array(z.string()),
+    qa_profile: QAProfile.optional(),
   })
   export type Result = z.infer<typeof Result>
 
@@ -106,6 +109,28 @@ export namespace DocOps {
     return out
   }
 
+  function parseCommandSnippets(text: string) {
+    const out: string[] = []
+    const re = /`([^`]+)`/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text))) {
+      const value = m[1]?.trim()
+      if (!value) continue
+      if (!value.includes(" ")) continue
+      if (value.startsWith("#")) continue
+      out.push(value)
+    }
+    return out
+  }
+
+  async function commandExists(cmd: string) {
+    const first = cmd.trim().split(/\s+/)[0]
+    if (!first) return true
+    if (["npm", "bun", "pnpm", "yarn", "npx", "node", "python", "bash", "sh", "git", "dax"].includes(first)) return true
+    const found = await $`command -v ${first}`.nothrow()
+    return found.exitCode === 0
+  }
+
   function checkMarkdownFile(input: {
     root: string
     file: string
@@ -126,7 +151,7 @@ export namespace DocOps {
       return
     }
     const text = Bun.file(fullPath).text()
-    return text.then((content) => {
+    return text.then(async (content) => {
       for (const section of input.requiredHeadings ?? []) {
         if (!heading(content, section)) {
           input.checks.push({
@@ -160,13 +185,45 @@ export namespace DocOps {
         if (p.startsWith("http://") || p.startsWith("https://")) continue
         if (p.includes(" ")) continue
         const rel = p.startsWith("/") ? p.slice(1) : p
-        if (!existsSync(path.join(input.root, rel))) continue
+        if (!rel.includes("/")) continue
+        if (existsSync(path.join(input.root, rel))) continue
+        if (rel.includes("*") || rel.includes("$")) continue
+        input.checks.push({
+          id: `docs.path.missing.${input.file.replace(/[/.]/g, "_")}.${rel.replace(/[/.]/g, "_")}`,
+          severity: "low",
+          category: "documentation",
+          title: "Referenced path may not exist",
+          evidence: `${input.file} -> ${rel}`,
+          fix: `Verify or update path reference ${rel} in ${input.file}.`,
+          blocking: false,
+        })
+      }
+
+      for (const cmd of parseCommandSnippets(content)) {
+        const ok = await commandExists(cmd)
+        if (ok) continue
+        input.checks.push({
+          id: `docs.command.missing.${input.file.replace(/[/.]/g, "_")}.${cmd.replace(/[^a-zA-Z0-9]+/g, "_")}`,
+          severity: "medium",
+          category: "documentation",
+          title: "Referenced command is not available",
+          evidence: `${input.file} -> ${cmd}`,
+          fix: `Replace command ${cmd} or document prerequisite installation.`,
+          blocking: false,
+        })
       }
     })
   }
 
-  function summarize(checks: Check[]) {
-    const blocker_count = checks.filter((c) => c.blocking).length
+  function summarize(checks: Check[], qa_profile: QAProfile = "balanced") {
+    const blockers = checks.map((item) => {
+      if (item.blocking) return item
+      if (qa_profile === "strict" && (item.severity === "high" || item.severity === "medium")) {
+        return { ...item, blocking: true }
+      }
+      return item
+    })
+    const blocker_count = blockers.filter((c) => c.blocking).length
     const warning_count = checks.filter((c) => !c.blocking && c.severity !== "info").length
     const info_count = checks.filter((c) => c.severity === "info").length
     const status: Status = blocker_count > 0 ? "fail" : warning_count > 0 ? "warn" : "pass"
@@ -267,11 +324,127 @@ export namespace DocOps {
     ].join("\n")
   }
 
-  export async function run(input: { mode: Mode; topic?: string }): Promise<Result> {
+  function buildPRD(ctx: Context, topic?: string) {
+    const subject = topic?.trim() || `${ctx.repoName} Product Requirement`
+    return [
+      `# PRD: ${subject}`,
+      "",
+      "## Problem Statement",
+      "Describe the user problem and why this matters now.",
+      "",
+      "## Goals and Non-goals",
+      "- Goals: measurable outcomes",
+      "- Non-goals: out-of-scope outcomes",
+      "",
+      "## User Personas",
+      "- Primary user",
+      "- Secondary user",
+      "",
+      "## Success Metrics",
+      "- Adoption metric",
+      "- Quality metric",
+      "- Reliability metric",
+      "",
+      "## Delivery Plan",
+      `- Branch: ${ctx.branch}`,
+      "- Milestones and ownership",
+    ].join("\n")
+  }
+
+  function buildRFC(ctx: Context, topic?: string) {
+    const subject = topic?.trim() || "Technical RFC"
+    return [
+      `# RFC: ${subject}`,
+      "",
+      "## Context",
+      "Current state and constraints.",
+      "",
+      "## Decision",
+      "Chosen approach and rationale.",
+      "",
+      "## Alternatives Considered",
+      "- Option A with tradeoffs",
+      "- Option B with tradeoffs",
+      "",
+      "## Risks and Mitigations",
+      "- Operational risk",
+      "- Security/governance risk",
+      "",
+      "## Rollout and Rollback",
+      "- Rollout sequence",
+      "- Rollback trigger and steps",
+      "",
+      "## Acceptance Criteria",
+      "- Verification commands and expected outcomes",
+    ].join("\n")
+  }
+
+  function buildRunbook(ctx: Context, topic?: string) {
+    const subject = topic?.trim() || "Operational Runbook"
+    return [
+      `# Runbook: ${subject}`,
+      "",
+      "## Purpose",
+      "Operational steps for repeatable execution.",
+      "",
+      "## Preconditions",
+      "- Access and credentials",
+      "- Required tooling",
+      "",
+      "## Procedure",
+      "1. Preparation",
+      "2. Execution",
+      "3. Verification",
+      "4. Closure",
+      "",
+      "## Failure Handling",
+      "- Common failure modes and fallback actions",
+      "",
+      "## Escalation",
+      "- Escalation owner and timeline",
+      "",
+      `## Environment`,
+      `- repo: ${ctx.repoName}`,
+      `- branch: ${ctx.branch}`,
+    ].join("\n")
+  }
+
+  function buildIncident(ctx: Context, topic?: string) {
+    const subject = topic?.trim() || "Incident Summary"
+    return [
+      `# Incident Report: ${subject}`,
+      "",
+      "## Summary",
+      "What happened and impact scope.",
+      "",
+      "## Timeline",
+      "- Detection",
+      "- Mitigation",
+      "- Resolution",
+      "",
+      "## Root Cause",
+      "Contributing factors and primary trigger.",
+      "",
+      "## Corrective Actions",
+      "1. Immediate fix",
+      "2. Preventive hardening",
+      "",
+      "## Follow-up",
+      "- Owner assignments",
+      "- Due dates",
+      "",
+      `## Environment`,
+      `- branch: ${ctx.branch}`,
+      `- working tree clean: ${ctx.dirty ? "no" : "yes"}`,
+    ].join("\n")
+  }
+
+  export async function run(input: { mode: Mode; topic?: string; qa_profile?: QAProfile }): Promise<Result> {
     const ctx = await context()
     const checks: Check[] = []
     let content = ""
     let title = ""
+    const qa_profile = input.qa_profile ?? "balanced"
 
     if (input.mode === "guide") {
       title = "Guide Draft"
@@ -282,6 +455,18 @@ export namespace DocOps {
     } else if (input.mode === "release-notes") {
       title = "Release Notes Draft"
       content = buildReleaseNotes(ctx, input.topic)
+    } else if (input.mode === "prd") {
+      title = "PRD Draft"
+      content = buildPRD(ctx, input.topic)
+    } else if (input.mode === "rfc") {
+      title = "RFC Draft"
+      content = buildRFC(ctx, input.topic)
+    } else if (input.mode === "runbook") {
+      title = "Runbook Draft"
+      content = buildRunbook(ctx, input.topic)
+    } else if (input.mode === "incident") {
+      title = "Incident Report Draft"
+      content = buildIncident(ctx, input.topic)
     } else {
       title = "Documentation QA"
       await Promise.all([
@@ -304,9 +489,10 @@ export namespace DocOps {
           checks,
         }),
       ])
-      const qa = summarize(checks)
+      const qa = summarize(checks, qa_profile)
       content = [
         `## Docs QA`,
+        `- profile: ${qa_profile}`,
         `- status: ${qa.status}`,
         `- blockers: ${qa.blocker_count}`,
         `- warnings: ${qa.warning_count}`,
@@ -318,7 +504,7 @@ export namespace DocOps {
       ].join("\n")
     }
 
-    const resultSummary = summarize(checks)
+    const resultSummary = summarize(checks, qa_profile)
     const next_actions = checks.length
       ? checks.slice(0, 3).map((c) => `Fix: ${c.title}`)
       : [
@@ -341,6 +527,7 @@ export namespace DocOps {
         info_count: resultSummary.info_count,
       },
       next_actions,
+      qa_profile: input.mode === "qa" ? qa_profile : undefined,
     }
   }
 
@@ -349,6 +536,7 @@ export namespace DocOps {
       `## Docs Result`,
       `- run_id: ${result.run_id}`,
       `- mode: ${result.mode}`,
+      ...(result.qa_profile ? [`- qa_profile: ${result.qa_profile}`] : []),
       `- status: ${result.status}`,
       `- blockers: ${result.summary.blocker_count}`,
       `- warnings: ${result.summary.warning_count}`,

@@ -2541,6 +2541,14 @@ export function Session() {
                                   <text fg={theme.accent}>Run /docs qa</text>
                                 </box>
                                 <box
+                                  onMouseUp={() => runAuditCommand("/docs qa --strict")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.warning}>/docs qa --strict</text>
+                                </box>
+                                <box
                                   onMouseUp={() => runAuditCommand("/docs guide")}
                                   backgroundColor={theme.backgroundElement}
                                   paddingLeft={1}
@@ -2563,6 +2571,22 @@ export function Session() {
                                   paddingRight={1}
                                 >
                                   <text fg={theme.textMuted}>/docs release-notes</text>
+                                </box>
+                                <box
+                                  onMouseUp={() => runAuditCommand("/docs prd")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.textMuted}>/docs prd</text>
+                                </box>
+                                <box
+                                  onMouseUp={() => runAuditCommand("/docs rfc")}
+                                  backgroundColor={theme.backgroundElement}
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                >
+                                  <text fg={theme.textMuted}>/docs rfc</text>
                                 </box>
                               </box>
                               <Show

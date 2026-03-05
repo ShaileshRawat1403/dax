@@ -38,10 +38,23 @@ describe("docops contracts", () => {
     expect(result.content).toContain("# User Guide")
   })
 
+  test("prd mode returns pass with template content", async () => {
+    const result = await DocOps.run({ mode: "prd", topic: "Agent UX" })
+    expect(result.mode).toBe("prd")
+    expect(result.status).toBe("pass")
+    expect(result.content).toContain("# PRD:")
+  })
+
   test("qa mode returns valid status", async () => {
     const result = await DocOps.run({ mode: "qa" })
     expect(["pass", "warn", "fail"]).toContain(result.status)
     expect(result.summary.blocker_count).toBeGreaterThanOrEqual(0)
   })
-})
 
+  test("qa strict mode includes profile in result", async () => {
+    const result = await DocOps.run({ mode: "qa", qa_profile: "strict" })
+    expect(result.mode).toBe("qa")
+    expect(result.qa_profile).toBe("strict")
+    expect(["pass", "warn", "fail"]).toContain(result.status)
+  })
+})

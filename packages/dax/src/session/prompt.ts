@@ -2070,18 +2070,22 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   async function commandDocs(input: CommandInput): Promise<MessageV2.WithParts> {
     const tokens = input.arguments.trim().split(/\s+/).filter(Boolean)
     const sub = (tokens[0] ?? "guide").toLowerCase()
-    const topic = tokens.slice(1).join(" ").trim() || undefined
+    const qa_profile =
+      sub === "qa" && (tokens.includes("--strict") || tokens.includes("strict")) ? ("strict" as const) : ("balanced" as const)
+    const topicTokens =
+      sub === "qa" ? tokens.slice(1).filter((token) => token !== "--strict" && token !== "strict") : tokens.slice(1)
+    const topic = topicTokens.join(" ").trim() || undefined
     const mode = DocOps.Mode.safeParse(sub).success ? (sub as DocOps.Mode) : undefined
 
     if (!mode) {
       return respondCommandText({
         input,
         commandName: Command.Default.DOCS,
-        text: "Usage: /docs <guide|spec|release-notes|qa> [topic]",
+        text: "Usage: /docs <guide|spec|release-notes|prd|rfc|runbook|incident|qa> [topic]\nFor strict QA: /docs qa --strict",
       })
     }
 
-    const result = await DocOps.run({ mode, topic })
+    const result = await DocOps.run({ mode, topic, qa_profile })
     const text = [
       DocOps.toMarkdown(result),
       "```json",
