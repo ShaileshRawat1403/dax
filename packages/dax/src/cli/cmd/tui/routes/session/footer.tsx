@@ -10,9 +10,7 @@ export function Footer() {
   const sync = useSync()
   const route = useRoute()
   const dimensions = useTerminalDimensions()
-  const mcp = createMemo(() => Object.values(sync.data.mcp).filter((x) => x.status === "connected").length)
   const mcpError = createMemo(() => Object.values(sync.data.mcp).some((x) => x.status === "failed"))
-  const lsp = createMemo(() => Object.keys(sync.data.lsp))
   const permissions = createMemo(() => {
     if (route.data.type !== "session") return []
     return sync.data.permission[route.data.sessionID] ?? []
@@ -23,8 +21,12 @@ export function Footer() {
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
 
-  const sessionCount = createMemo(() => sync.data.session.length)
   const mode = createMemo(() => (route.data.type === "session" ? "Execute" : "Launch"))
+  const mcpAttention = createMemo(() =>
+    Object.values(sync.data.mcp).filter(
+      (x) => x.status === "failed" || x.status === "needs_auth" || x.status === "needs_client_registration",
+    ).length,
+  )
 
   return (
     <box flexDirection="row" justifyContent="space-between" gap={1} flexShrink={0} paddingLeft={1} paddingRight={1}>
@@ -36,26 +38,20 @@ export function Footer() {
       </box>
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
         <Show when={permissions().length > 0}>
-          <text fg={theme.warning}>{`[approval:${permissions().length}]`}</text>
+          <text fg={theme.warning}>{`${permissions().length} needs review`}</text>
         </Show>
-        <Show when={!tiny() && lsp().length > 0}>
-          <text fg={theme.textMuted}>{`[lsp:${lsp().length}]`}</text>
-        </Show>
-        <Show when={mcp() > 0}>
+        <Show when={mcpAttention() > 0}>
           <Switch>
             <Match when={mcpError()}>
-              <text fg={theme.error}>{`[mcp:${mcp()}!]`}</text>
+              <text fg={theme.error}>{`${mcpAttention()} MCP issue${mcpAttention() === 1 ? "" : "s"}`}</text>
             </Match>
             <Match when={true}>
-              <text fg={theme.textMuted}>{`[mcp:${mcp()}]`}</text>
+              <text fg={theme.warning}>{`${mcpAttention()} MCP need${mcpAttention() === 1 ? "s" : ""} attention`}</text>
             </Match>
           </Switch>
         </Show>
-        <Show when={!small() && sessionCount() > 0}>
-          <text fg={theme.textMuted}>{`[sessions:${sessionCount()}]`}</text>
-        </Show>
-        <Show when={!tiny()}>
-          <text fg={theme.textMuted}>[help:?]</text>
+        <Show when={!tiny() && permissions().length === 0 && mcpAttention() === 0}>
+          <text fg={theme.textMuted}>? help</text>
         </Show>
       </box>
     </box>

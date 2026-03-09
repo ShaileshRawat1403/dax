@@ -338,12 +338,12 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
         <box paddingRight={2} paddingLeft={4} flexDirection="row" gap={2} flexShrink={0} paddingTop={1}>
           <For each={keybinds()}>
             {(item) => (
-              <text>
-                <span style={{ fg: theme.text }}>
-                  <b>{item.title}</b>{" "}
-                </span>
-                <span style={{ fg: theme.textMuted }}>{Keybind.toString(item.keybind)}</span>
-              </text>
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.text}>
+                  <b>{item.title}</b>
+                </text>
+                <text fg={theme.textMuted}>{Keybind.toString(item.keybind)}</text>
+              </box>
             )}
           </For>
         </box>
@@ -376,19 +376,21 @@ function Option(props: {
           {props.gutter}
         </box>
       </Show>
-      <text
-        flexGrow={1}
-        fg={props.active ? fg : props.current ? theme.primary : theme.text}
-        attributes={props.active ? TextAttributes.BOLD : undefined}
-        overflow="hidden"
-        wrapMode="none"
-        paddingLeft={3}
-      >
-        {Locale.truncate(props.title, 61)}
+      <box flexGrow={1} paddingLeft={3} flexDirection="row" gap={1} overflow="hidden">
+        <text
+          fg={props.active ? fg : props.current ? theme.primary : theme.text}
+          attributes={props.active ? TextAttributes.BOLD : undefined}
+          overflow="hidden"
+          wrapMode="none"
+        >
+          {Locale.truncate(props.title, 61)}
+        </text>
         <Show when={props.description}>
-          <span style={{ fg: props.active ? fg : theme.textMuted }}> {props.description}</span>
+          <text fg={props.active ? fg : theme.textMuted} overflow="hidden" wrapMode="none">
+            {props.description}
+          </text>
         </Show>
-      </text>
+      </box>
       <Show when={props.footer}>
         <box flexShrink={0}>
           <text fg={props.active ? fg : theme.textMuted}>{props.footer}</text>

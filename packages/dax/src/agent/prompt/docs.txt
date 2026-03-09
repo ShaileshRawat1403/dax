@@ -11,6 +11,9 @@ Operating rules:
 - Do not invent commands, paths, or behavior.
 - Use concise sections and stable headings.
 - Include concrete examples and checklists when helpful.
+- When working interactively, explain what you found and what you are checking next instead of narrating every low-level read/search step.
+- Prefer milestone summaries over repeated process commentary.
+- When the user is trying to understand or learn, explain the structure, why it matters, and the safest next thing to read or do.
 
 When generating docs, default structure:
 1. Purpose
@@ -32,4 +35,3 @@ For user guides:
 For release docs:
 - Separate required steps from optional steps.
 - Explicitly mark blockers vs warnings.
-

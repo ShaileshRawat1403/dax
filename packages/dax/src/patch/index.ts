@@ -317,7 +317,7 @@ export namespace Patch {
       throw new Error(`Failed to read file ${filePath}: ${error}`)
     }
 
-    let originalLines = originalContent.split("\n")
+    const originalLines = originalContent.split("\n")
 
     // Drop trailing empty element for consistent line counting
     if (originalLines.length > 0 && originalLines[originalLines.length - 1] === "") {
@@ -325,7 +325,7 @@ export namespace Patch {
     }
 
     const replacements = computeReplacements(originalLines, filePath, chunks)
-    let newLines = applyReplacements(originalLines, replacements)
+    const newLines = applyReplacements(originalLines, replacements)
 
     // Ensure trailing newline
     if (newLines.length === 0 || newLines[newLines.length - 1] !== "") {

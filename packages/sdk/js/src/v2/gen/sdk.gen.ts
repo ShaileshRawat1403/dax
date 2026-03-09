@@ -54,9 +54,14 @@ import type {
   McpAuthStartResponses,
   McpConnectResponses,
   McpDisconnectResponses,
+  McpInspectResponses,
   McpLocalConfig,
+  McpPingResponses,
+  McpPromptsResponses,
   McpRemoteConfig,
+  McpResourcesResponses,
   McpStatusResponses,
+  McpToolsResponses,
   Part as Part2,
   PartDeleteErrors,
   PartDeleteResponses,
@@ -68,7 +73,7 @@ import type {
   PermissionReplyResponses,
   PermissionRespondErrors,
   PermissionRespondResponses,
-  PermissionRuleset,
+  PolicyRuleset,
   ProjectCurrentResponses,
   ProjectListResponses,
   ProjectUpdateErrors,
@@ -972,7 +977,7 @@ export class Session extends HeyApiClient {
       directory?: string
       parentID?: string
       title?: string
-      permission?: PermissionRuleset
+      permission?: PolicyRuleset
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2525,6 +2530,156 @@ export class Mcp extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Inspect MCP server
+   *
+   * Get MCP server status plus available tools, prompts, and resources.
+   */
+  public inspect<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpInspectResponses, unknown, ThrowOnError>({
+      url: "/mcp/{name}/inspect",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List MCP tools
+   *
+   * List tools exposed by one MCP server.
+   */
+  public tools<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpToolsResponses, unknown, ThrowOnError>({
+      url: "/mcp/{name}/tools",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List MCP resources
+   *
+   * List resources exposed by one MCP server.
+   */
+  public resources<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpResourcesResponses, unknown, ThrowOnError>({
+      url: "/mcp/{name}/resources",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List MCP prompts
+   *
+   * List prompts exposed by one MCP server.
+   */
+  public prompts<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpPromptsResponses, unknown, ThrowOnError>({
+      url: "/mcp/{name}/prompts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Ping MCP server
+   *
+   * Measure MCP inventory round-trip and summarize server readiness.
+   */
+  public ping<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpPingResponses, unknown, ThrowOnError>({
+      url: "/mcp/{name}/ping",
+      ...options,
+      ...params,
     })
   }
 

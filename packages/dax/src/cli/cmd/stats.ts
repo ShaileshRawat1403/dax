@@ -186,9 +186,9 @@ export async function aggregateSessionStats(days?: number, projectFilter?: strin
       const messages = await Session.messages({ sessionID: session.id })
 
       let sessionCost = 0
-      let sessionTokens = { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
-      let sessionToolUsage: Record<string, number> = {}
-      let sessionModelUsage: Record<
+      const sessionTokens = { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
+      const sessionToolUsage: Record<string, number> = {}
+      const sessionModelUsage: Record<
         string,
         {
           messages: number

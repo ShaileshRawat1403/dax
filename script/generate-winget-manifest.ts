@@ -21,8 +21,8 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   const version = versionRaw.startsWith("v") ? versionRaw : `v${versionRaw}`
-  const repo = get("--repo") ?? process.env.DAX_REPO ?? "ShaileshRawat1403/dax-tui"
-  const packageIdentifier = get("--id") ?? "ShaileshRawat1403.DAX"
+  const repo = get("--repo") ?? process.env.DAX_REPO ?? "dax-ai/dax"
+  const packageIdentifier = get("--id") ?? "DaxAi.DAX"
   const outputDir = get("--output-dir") ?? "dist/winget/manifests"
   return { version, repo, packageIdentifier, outputDir }
 }

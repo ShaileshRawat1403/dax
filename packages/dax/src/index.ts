@@ -32,6 +32,9 @@ const { WebCommand } = await import("./cli/cmd/web")
 const { PrCommand } = await import("./cli/cmd/pr")
 const { SessionCommand } = await import("./cli/cmd/session")
 const { AuditCommand } = await import("./cli/cmd/audit")
+const { DoctorCommand } = await import("./cli/cmd/doctor")
+const { DocsCommand } = await import("./cli/cmd/docs")
+const { HELP_GROUPS } = await import("./cli/help")
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -81,7 +84,7 @@ const cli = yargs(hideBin(process.argv))
       args: process.argv.slice(2),
     })
   })
-  .usage("\n" + UI.logo())
+  .usage("\n" + UI.logo() + EOL + EOL + HELP_GROUPS.split("\n").join(EOL))
   .completion("completion", "generate shell completion script")
   .command(AcpCommand)
   .command(McpCommand)
@@ -99,6 +102,8 @@ const cli = yargs(hideBin(process.argv))
   .command(ModelsCommand)
   .command(StatsCommand)
   .command(AuditCommand)
+  .command(DocsCommand)
+  .command(DoctorCommand)
   .command(ExportCommand)
   .command(ImportCommand)
   .command(GithubCommand)
@@ -121,7 +126,7 @@ const cli = yargs(hideBin(process.argv))
 try {
   await cli.parse()
 } catch (e) {
-  let data: Record<string, any> = {}
+  const data: Record<string, any> = {}
   if (e instanceof NamedError) {
     const obj = e.toObject()
     Object.assign(data, {

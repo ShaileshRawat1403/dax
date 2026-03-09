@@ -52,6 +52,8 @@ import { detectPythonEnvironment, formatEnvironmentDoctorReport } from "./util/e
 import { DAX_SETTING } from "@/dax/settings"
 import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
 import { UIActivityProvider } from "./context/activity"
+import { bootstrap } from "../../bootstrap"
+import { formatDoctorSection, mcpSection, projectSection } from "@/doctor"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   return "dark"
@@ -445,8 +447,8 @@ function App() {
       },
     },
     {
-      title: "Toggle MCPs",
-      value: "mcp.list",
+      title: "Inspect MCP",
+      value: "mcp.inspect",
       category: "Agent",
       onSelect: () => {
         dialog.replace(() => <DialogMcp />)
@@ -516,6 +518,24 @@ function App() {
       onSelect: () => {
         const report = detectPythonEnvironment(process.cwd())
         DialogAlert.show(dialog, "Environment doctor", formatEnvironmentDoctorReport(report))
+      },
+      category: "System",
+    },
+    {
+      title: "MCP doctor",
+      value: "mcp.doctor",
+      onSelect: async () => {
+        const section = await bootstrap(process.cwd(), () => mcpSection())
+        await DialogAlert.show(dialog, "MCP doctor", formatDoctorSection(section))
+      },
+      category: "System",
+    },
+    {
+      title: "Project doctor",
+      value: "project.doctor",
+      onSelect: async () => {
+        const section = await bootstrap(process.cwd(), () => projectSection(process.cwd()))
+        await DialogAlert.show(dialog, "Project doctor", formatDoctorSection(section))
       },
       category: "System",
     },

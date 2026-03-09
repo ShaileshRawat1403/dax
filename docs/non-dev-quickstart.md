@@ -98,4 +98,4 @@ Capture:
 - Behavior changed after update:
   - check `dax --version` and re-run auth checks
 
-Deep guide: [non-developer-guide.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-developer-guide.md)
+Deep guide: [non-developer-guide.md](non-developer-guide.md)

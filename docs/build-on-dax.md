@@ -13,8 +13,8 @@ This guide explains how to fork and extend DAX for your own product/workflow.
 ## Local Dev Setup
 
 ```bash
-git clone https://github.com/ShaileshRawat1403/dax-tui.git
-cd dax-tui
+git clone https://github.com/dax-ai/dax.git
+cd dax
 bun install
 bun run dev
 ```
@@ -37,9 +37,9 @@ bun run release:verify
 
 Read first:
 
-- [ARCHITECTURE.md](/Users/Shailesh/MYAIAGENTS/dax/ARCHITECTURE.md)
-- [PROVIDERS.md](/Users/Shailesh/MYAIAGENTS/dax/docs/PROVIDERS.md)
-- [distribution.md](/Users/Shailesh/MYAIAGENTS/dax/docs/distribution.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [PROVIDERS.md](PROVIDERS.md)
+- [distribution.md](distribution.md)
 
 ## Recommended Customization Sequence
 
