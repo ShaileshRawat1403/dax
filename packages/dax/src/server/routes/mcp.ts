@@ -60,6 +60,121 @@ export const McpRoutes = lazy(() =>
         return c.json(result.status)
       },
     )
+    .get(
+      "/:name/inspect",
+      describeRoute({
+        summary: "Inspect MCP server",
+        description: "Get MCP server status plus available tools, prompts, and resources.",
+        operationId: "mcp.inspect",
+        responses: {
+          200: {
+            description: "Detailed MCP server inspection",
+            content: {
+              "application/json": {
+                schema: resolver(MCP.Inspect),
+              },
+            },
+          },
+        },
+      }),
+      validator("param", z.object({ name: z.string() })),
+      async (c) => {
+        const { name } = c.req.valid("param")
+        return c.json(await MCP.inspect(name))
+      },
+    )
+    .get(
+      "/:name/tools",
+      describeRoute({
+        summary: "List MCP tools",
+        description: "List tools exposed by one MCP server.",
+        operationId: "mcp.tools",
+        responses: {
+          200: {
+            description: "MCP tool catalog",
+            content: {
+              "application/json": {
+                schema: resolver(MCP.ToolSummary.array()),
+              },
+            },
+          },
+        },
+      }),
+      validator("param", z.object({ name: z.string() })),
+      async (c) => {
+        const { name } = c.req.valid("param")
+        return c.json(await MCP.toolCatalog(name))
+      },
+    )
+    .get(
+      "/:name/resources",
+      describeRoute({
+        summary: "List MCP resources",
+        description: "List resources exposed by one MCP server.",
+        operationId: "mcp.resources",
+        responses: {
+          200: {
+            description: "MCP resource catalog",
+            content: {
+              "application/json": {
+                schema: resolver(MCP.Resource.array()),
+              },
+            },
+          },
+        },
+      }),
+      validator("param", z.object({ name: z.string() })),
+      async (c) => {
+        const { name } = c.req.valid("param")
+        return c.json(await MCP.resourceCatalog(name))
+      },
+    )
+    .get(
+      "/:name/prompts",
+      describeRoute({
+        summary: "List MCP prompts",
+        description: "List prompts exposed by one MCP server.",
+        operationId: "mcp.prompts",
+        responses: {
+          200: {
+            description: "MCP prompt catalog",
+            content: {
+              "application/json": {
+                schema: resolver(MCP.PromptSummary.array()),
+              },
+            },
+          },
+        },
+      }),
+      validator("param", z.object({ name: z.string() })),
+      async (c) => {
+        const { name } = c.req.valid("param")
+        return c.json(await MCP.promptCatalog(name))
+      },
+    )
+    .get(
+      "/:name/ping",
+      describeRoute({
+        summary: "Ping MCP server",
+        description: "Measure MCP inventory round-trip and summarize server readiness.",
+        operationId: "mcp.ping",
+        responses: {
+          200: {
+            description: "MCP ping response",
+            content: {
+              "application/json": {
+                schema: resolver(MCP.Ping),
+              },
+            },
+          },
+        },
+      }),
+      validator("param", z.object({ name: z.string() })),
+      async (c) => {
+        const { name } = c.req.valid("param")
+        return c.json(await MCP.ping(name))
+      },
+    )
     .post(
       "/:name/auth",
       describeRoute({

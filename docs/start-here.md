@@ -13,7 +13,7 @@ This is the fastest path to first success with DAX.
 For beta releases:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
 ```
 
 Check install:
@@ -63,6 +63,10 @@ Capture:
 Capture:
 - One submitted prompt and response visible
 - Side panes (`artifact`, `diff`, `rao`, `pm`) visible
+- Session review surfaces visible:
+  - `What to do now`
+  - `Move through this session`
+  - `Review and inspect`
 
 ### 3) Diff review
 
@@ -85,8 +89,8 @@ dax auth list
 For Google-specific auth issues:
 
 ```bash
-dax auth doctor
-dax auth doctor google/gemini-2.5-flash
+dax doctor auth
+dax doctor auth google/gemini-2.5-flash
 ```
 
-Next guide: [non-dev-quickstart.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-dev-quickstart.md)
+Next guide: [non-dev-quickstart.md](non-dev-quickstart.md)

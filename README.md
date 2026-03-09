@@ -18,17 +18,45 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 
 ## Guides
 
-- Full docs index: [docs/README.md](/Users/Shailesh/MYAIAGENTS/dax/docs/README.md)
-- Start here: [docs/start-here.md](/Users/Shailesh/MYAIAGENTS/dax/docs/start-here.md)
-- Non-dev quickstart: [docs/non-dev-quickstart.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-dev-quickstart.md)
-- Non-dev quick guide: [docs/non-developer-guide.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-developer-guide.md)
-- Audit agent (beta): [docs/audit-agent.md](/Users/Shailesh/MYAIAGENTS/dax/docs/audit-agent.md)
-- GitHub + CI integration lane: [docs/integrations-github-ci.md](/Users/Shailesh/MYAIAGENTS/dax/docs/integrations-github-ci.md)
-- Build on DAX: [docs/build-on-dax.md](/Users/Shailesh/MYAIAGENTS/dax/docs/build-on-dax.md)
-- Architecture deep dive: [ARCHITECTURE.md](/Users/Shailesh/MYAIAGENTS/dax/ARCHITECTURE.md)
-- Provider setup: [docs/PROVIDERS.md](/Users/Shailesh/MYAIAGENTS/dax/docs/PROVIDERS.md)
-- Peer prerelease install/validation: [docs/prerelease.md](/Users/Shailesh/MYAIAGENTS/dax/docs/prerelease.md)
-- Distribution channels (script/Homebrew/Winget): [docs/distribution.md](/Users/Shailesh/MYAIAGENTS/dax/docs/distribution.md)
+- Full docs index: [docs/README.md](docs/README.md)
+- Start here: [docs/start-here.md](docs/start-here.md)
+- Non-dev quickstart: [docs/non-dev-quickstart.md](docs/non-dev-quickstart.md)
+- Non-dev quick guide: [docs/non-developer-guide.md](docs/non-developer-guide.md)
+- Audit agent (beta): [docs/audit-agent.md](docs/audit-agent.md)
+- GitHub + CI integration lane: [docs/integrations-github-ci.md](docs/integrations-github-ci.md)
+- Build on DAX: [docs/build-on-dax.md](docs/build-on-dax.md)
+- Architecture deep dive: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Provider setup: [docs/PROVIDERS.md](docs/PROVIDERS.md)
+- Peer prerelease install/validation: [docs/prerelease.md](docs/prerelease.md)
+- Distribution channels (script/Homebrew/Winget): [docs/distribution.md](docs/distribution.md)
+- Release readiness guide: [docs/release-readiness.md](docs/release-readiness.md)
+- Workspace decision record: [docs/WORKSPACE_DECISION_RECORD.md](docs/WORKSPACE_DECISION_RECORD.md)
+- Repo boundaries: [docs/REPO_BOUNDARIES.md](docs/REPO_BOUNDARIES.md)
+- `dax-cli` donor inventory: [docs/DAX_CLI_DONOR_INVENTORY.md](docs/DAX_CLI_DONOR_INVENTORY.md)
+- Use `workspace-mcp` with DAX: [docs/WORKSPACE_MCP_WITH_DAX.md](docs/WORKSPACE_MCP_WITH_DAX.md)
+- DAX absorption strategy: [docs/DAX_ABSORPTION_STRATEGY.md](docs/DAX_ABSORPTION_STRATEGY.md)
+
+## Workspace Role
+
+DAX is the canonical execution product in the `MYAIAGENTS` workspace.
+
+- `dax`: local-first governed execution product
+- `soothsayer`: multi-user web platform and orchestration shell
+- `workspace-mcp` in Soothsayer: kernel and policy contract
+- `dao`: archived/reference-only architecture line
+
+DAX is responsible for the CLI/TUI, local server/API, session runtime, tool execution, provider integrations, and RAO/PM behavior at the execution layer.
+
+Your `workspace-mcp` kernel from Soothsayer can be used with DAX today as an external local MCP server.
+The recommended integration path is documented in [docs/WORKSPACE_MCP_WITH_DAX.md](docs/WORKSPACE_MCP_WITH_DAX.md).
+
+## Repo Boundaries
+
+This repository still contains some older scaffold directories such as `cli/`, `core/`, `tui/`, and `script/build.ts`.
+They are not the canonical shipped DAX product surface.
+
+The real product lives under `packages/dax`.
+The scaffold paths are retained only as quarantined legacy material until they are removed.
 
 ## Who DAX Is For
 
@@ -48,6 +76,13 @@ Instead of a free-running coding chat, DAX uses **RAO**:
 - ELI12 mode that rewrites responses in plain language.
 - Pane system for `artifact`, `diff`, `rao`, `pm`, and (beta) `audit` views.
 - Theme system with quick-switch profiles.
+
+## Canonical Workflows
+
+- Start or continue work: `dax`, `dax run`
+- Review and inspect: `dax docs`, `dax mcp`, in-session review surfaces for approvals, diff, transcript, and docs
+- Diagnose and configure: `dax doctor`, `dax auth`, `dax models`
+- Automate and export: `dax serve`, `dax export`, `dax import`
 
 ## What Else DAX Can Do
 
@@ -88,8 +123,8 @@ Beyond coding tasks, DAX can help with:
 ### Install
 
 ```bash
-git clone https://github.com/ShaileshRawat1403/dax-tui.git
-cd dax-tui
+git clone https://github.com/dax-ai/dax.git
+cd dax
 bun install
 ```
 
@@ -128,7 +163,7 @@ bun run release
 ### Install Peer Build (No Source Checkout)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
 ```
 
 Why this URL:
@@ -280,7 +315,7 @@ flowchart LR
 6. Smoke-test the TUI on narrow + wide terminals
 7. Verify provider login flows (OpenAI, Google/Gemini, Anthropic, Ollama)
 8. Verify RAO approvals and policy profile behavior
-9. If build regenerates [packages/dax/src/provider/models-snapshot.ts](/Users/Shailesh/MYAIAGENTS/dax/packages/dax/src/provider/models-snapshot.ts), include it in the release PR (expected for provider metadata refresh).
+9. If build regenerates `packages/dax/src/provider/models-snapshot.ts`, include it in the release PR (expected for provider metadata refresh).
 10. Confirm docs shipped for auth matrix + troubleshooting + beta release notes.
 
 ## License

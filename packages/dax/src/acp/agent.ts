@@ -1470,7 +1470,7 @@ export namespace ACP {
       .get({ directory }, { throwOnError: true })
       .then((resp) => {
         const cfg = resp.data
-        if (!cfg || !cfg.model) return undefined
+        if (!cfg || !cfg.model || typeof cfg.model !== "string") return undefined
         const parsed = Provider.parseModel(cfg.model)
         return {
           providerID: parsed.providerID,

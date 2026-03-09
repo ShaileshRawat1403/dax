@@ -1,4 +1,5 @@
 import type { Argv } from "yargs"
+import * as prompts from "@clack/prompts"
 import { cmd } from "./cmd"
 import { Session } from "../../session"
 import { bootstrap } from "../bootstrap"
@@ -35,10 +36,19 @@ function pagerCmd(): string[] {
   return ["cmd", "/c", "more"]
 }
 
+type SessionSummary = {
+  id: string
+  title: string
+  updated: number
+  created: number
+  projectId: string
+  directory: string
+}
+
 export const SessionCommand = cmd({
   command: "session",
   describe: "manage sessions",
-  builder: (yargs: Argv) => yargs.command(SessionListCommand).demandCommand(),
+  builder: (yargs: Argv) => yargs.command(SessionListCommand).command(SessionPruneCommand).demandCommand(),
   async handler() {},
 })
 
@@ -132,4 +142,124 @@ function formatSessionJSON(sessions: Session.Info[]): string {
     directory: session.directory,
   }))
   return JSON.stringify(jsonData, null, 2)
+}
+
+export const SessionPruneCommand = cmd({
+  command: "prune",
+  describe: "delete older sessions while keeping the most recent ones",
+  builder: (yargs: Argv) =>
+    yargs
+      .option("keep", {
+        alias: "k",
+        describe: "keep N most recent top-level sessions",
+        type: "number",
+        default: 20,
+      })
+      .option("dry-run", {
+        describe: "show what would be deleted without deleting",
+        type: "boolean",
+        default: false,
+      })
+      .option("format", {
+        describe: "output format",
+        type: "string",
+        choices: ["table", "json"],
+        default: "table",
+      })
+      .option("yes", {
+        alias: "y",
+        describe: "skip confirmation prompt",
+        type: "boolean",
+        default: false,
+      }),
+  handler: async (args) => {
+    await bootstrap(process.cwd(), async () => {
+      const keep = Math.max(0, Math.floor(args.keep ?? 20))
+      const sessions: Session.Info[] = []
+      for await (const session of Session.list()) {
+        if (!session.parentID) sessions.push(session)
+      }
+      sessions.sort((a, b) => b.time.updated - a.time.updated)
+
+      const keepSessions = sessions.slice(0, keep)
+      const pruneSessions = sessions.slice(keep)
+
+      const summary = {
+        projectId: keepSessions[0]?.projectID ?? pruneSessions[0]?.projectID ?? "",
+        total: sessions.length,
+        keep,
+        kept: keepSessions.length,
+        prune: pruneSessions.length,
+        sessions: pruneSessions.map(toSessionSummary),
+      }
+
+      if (args.format === "json") {
+        console.log(JSON.stringify(summary, null, 2))
+      } else {
+        renderPruneSummary(summary)
+      }
+
+      if (pruneSessions.length === 0) {
+        if (args.format !== "json") prompts.outro("No sessions need pruning")
+        return
+      }
+
+      if (args.dryRun) {
+        if (args.format !== "json") prompts.outro("Dry run only; no sessions deleted")
+        return
+      }
+
+      if (!args.yes) {
+        const confirm = await prompts.confirm({
+          message: `Delete ${pruneSessions.length} older sessions and keep ${keepSessions.length}?`,
+          initialValue: false,
+        })
+        if (!confirm || prompts.isCancel(confirm)) {
+          prompts.outro("Cancelled")
+          return
+        }
+      }
+
+      const spinner = prompts.spinner()
+      spinner.start(`Deleting ${pruneSessions.length} older sessions...`)
+      for (const session of pruneSessions) {
+        await Session.remove(session.id)
+      }
+      spinner.stop(`Deleted ${pruneSessions.length} sessions`)
+      prompts.outro(`Kept ${keepSessions.length} recent sessions`)
+    })
+  },
+})
+
+function toSessionSummary(session: Session.Info): SessionSummary {
+  return {
+    id: session.id,
+    title: session.title,
+    updated: session.time.updated,
+    created: session.time.created,
+    projectId: session.projectID,
+    directory: session.directory,
+  }
+}
+
+function renderPruneSummary(input: {
+  total: number
+  keep: number
+  kept: number
+  prune: number
+  sessions: SessionSummary[]
+}) {
+  UI.empty()
+  prompts.intro("Session prune")
+  prompts.log.info(`Total sessions: ${input.total}`)
+  prompts.log.info(`Keeping newest: ${input.kept}`)
+  prompts.log.info(`Deleting older: ${input.prune}`)
+  if (input.prune === 0) return
+  prompts.log.message("Oldest sessions queued for deletion:")
+  for (const session of input.sessions.slice(0, 10)) {
+    prompts.log.info(`  • ${session.title} ${UI.Style.TEXT_DIM}(${Locale.todayTimeOrDateTime(session.updated)})`)
+  }
+  if (input.sessions.length > 10) {
+    prompts.log.info(`  … and ${input.sessions.length - 10} more`)
+  }
 }

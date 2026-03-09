@@ -20,7 +20,7 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   const version = versionRaw.startsWith("v") ? versionRaw : `v${versionRaw}`
-  const repo = get("--repo") ?? process.env.DAX_REPO ?? "ShaileshRawat1403/dax-tui"
+  const repo = get("--repo") ?? process.env.DAX_REPO ?? "dax-ai/dax"
   const output = get("--output") ?? "dist/homebrew/Formula/dax.rb"
 
   return { version, repo, output }

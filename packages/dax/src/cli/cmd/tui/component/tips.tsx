@@ -39,11 +39,11 @@ export function Tips() {
       <text flexShrink={0} style={{ fg: theme.warning }}>
         ● Tip{" "}
       </text>
-      <text flexShrink={1}>
+      <box flexDirection="row" flexShrink={1}>
         <For each={parts}>
-          {(part) => <span style={{ fg: part.highlight ? theme.text : theme.textMuted }}>{part.text}</span>}
+          {(part) => <text fg={part.highlight ? theme.text : theme.textMuted}>{part.text}</text>}
         </For>
-      </text>
+      </box>
     </box>
   )
 }
@@ -142,7 +142,7 @@ const TIPS = [
   "Press {highlight}Ctrl+X S{/highlight} or {highlight}/status{/highlight} to see system status info",
   "Enable {highlight}tui.scroll_acceleration{/highlight} for smooth macOS-style scrolling",
   "Toggle username display in chat via command palette ({highlight}Ctrl+P{/highlight})",
-  "Run {highlight}docker run -it --rm ghcr.io/ShaileshRawat1403/dax{/highlight} for containerized use",
+  "Run {highlight}docker run -it --rm ghcr.io/dax-ai/dax{/highlight} for containerized use",
   "Use {highlight}/connect{/highlight} with Dax Zen for curated, tested models",
   "Commit your project's {highlight}AGENTS.md{/highlight} file to Git for team sharing",
   "Run {highlight}/help{/highlight} or {highlight}Ctrl+X H{/highlight} to show the help dialog",

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://dax.ai/config.json",
+  "mcp": {
+    "workspace_kernel": {
+      "type": "local",
+      "command": [
+        "/Users/Shared/MYAIAGENTS/soothsayer/workspace-mcp/.venv/bin/workspace-mcp",
+        "--workspace-root",
+        "/Users/Shared/MYAIAGENTS/dax",
+        "--profile",
+        "dev"
+      ],
+      "environment": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "timeout": 30000
+    }
+  }
+}

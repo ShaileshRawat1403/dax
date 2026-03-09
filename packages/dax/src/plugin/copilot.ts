@@ -114,7 +114,9 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                     isAgent: !(last?.role === "user" && hasNonToolCalls),
                   }
                 }
-              } catch {}
+              } catch {
+                /* Intentionally ignored: request body might not be valid JSON or in expected format. */
+              }
               return { isVision: false, isAgent: false }
             })
 

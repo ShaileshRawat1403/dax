@@ -4,6 +4,9 @@
 
 DAX is a policy-driven execution system for software delivery.
 
+In the wider `MYAIAGENTS` workspace, DAX is the execution layer.
+`workspace-mcp` is the kernel/policy contract owned outside this repo, and Soothsayer is the multi-user platform layer that may integrate DAX and MCP as clients.
+
 Core contract (RAO):
 
 - Run: propose or execute the smallest useful action.
@@ -79,6 +82,11 @@ DAX intentionally enforces this split to avoid token-type mismatch.
 - `packages/dax/src/tool/*`
 - `packages/dax/src/project/*`
 - `packages/dax/src/auth/*`
+
+## Repo Boundary
+
+The canonical shipped DAX product lives in `packages/dax`.
+Older root-level scaffold paths such as `cli/`, `core/`, `tui/`, and `script/build.ts` are quarantined legacy material and are not the source of truth for new work.
 
 ## Non-Goals
 

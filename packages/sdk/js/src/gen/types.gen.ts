@@ -819,6 +819,18 @@ export type KeybindsConfig = {
    */
   session_timeline?: string
   /**
+   * Inspect approvals and questions
+   */
+  session_approvals?: string
+  /**
+   * Inspect session diff summary
+   */
+  session_diff?: string
+  /**
+   * Inspect MCP for the current session
+   */
+  session_mcp?: string
+  /**
    * Share current session
    */
   session_share?: string

@@ -7,7 +7,7 @@ This guide covers end-user install paths and maintainer publishing workflows.
 ### macOS/Linux (script)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
 ```
 
 Notes:
@@ -59,8 +59,8 @@ Important:
 
 ```bash
 # Homebrew formula
-bun run dist:homebrew --version v1.0.0-beta.6 --repo ShaileshRawat1403/dax-tui
+bun run dist:homebrew --version v1.0.0-beta.6 --repo dax-ai/dax
 
 # Winget manifests
-bun run dist:winget --version v1.0.0-beta.6 --repo ShaileshRawat1403/dax-tui --id ShaileshRawat1403.DAX
+bun run dist:winget --version v1.0.0-beta.6 --repo dax-ai/dax --id DaxAi.DAX
 ```

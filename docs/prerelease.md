@@ -3,20 +3,20 @@
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 If you always want latest published release tag (stable first, then prerelease fallback):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | bash
 ```
 
 Optional installer variables:
 
 - `DAX_VERSION`: release tag to install (example: `v1.0.0-beta.1`)
 - `DAX_INSTALL_DIR`: install directory (default: `~/.local/bin`)
-- `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax-tui`)
+- `DAX_REPO`: release repo (default: `dax-ai/dax`)
 
 ## Uninstall
 
@@ -27,7 +27,7 @@ rm -f ~/.local/bin/dax
 ## Update
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 ## Minimum System Requirements
@@ -95,7 +95,7 @@ Expected:
 
 ## Report Issues
 
-Open an issue at <https://github.com/ShaileshRawat1403/dax-tui/issues> with:
+Open an issue at <https://github.com/dax-ai/dax/issues> with:
 
 - DAX version tag (`dax --version`)
 - OS + architecture

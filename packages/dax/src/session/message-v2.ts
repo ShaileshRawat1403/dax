@@ -761,7 +761,7 @@ export namespace MessageV2 {
         ).toObject()
       case APICallError.isInstance(e):
         const message = iife(() => {
-          let msg = e.message
+          const msg = e.message
           if (msg === "") {
             if (e.responseBody) return e.responseBody
             if (e.statusCode) {

@@ -2,7 +2,7 @@
 
 This guide explains DAX in plain language: what it is, how to use it safely, and how to understand what it is doing.
 
-If you are new, start with [non-dev-quickstart.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-dev-quickstart.md) first.
+If you are new, start with [non-dev-quickstart.md](non-dev-quickstart.md) first.
 
 ## What DAX Is
 
@@ -22,6 +22,9 @@ Core loop:
   - Toggle ELI12 mode for plain-language output.
 - Session screen:
   - Main transcript (requests and responses).
+  - `What to do now`: the next recommended action when DAX is blocked or waiting.
+  - `Move through this session`: transcript navigation and jump controls.
+  - `Review and inspect`: approvals, diff, MCP, docs, and PM entrypoints.
   - Side panes:
     - `artifact`: latest generated output.
     - `diff`: file changes.
@@ -51,8 +54,8 @@ Core loop:
 If Google auth is confusing, run:
 
 ```bash
-dax auth doctor
-dax auth doctor google/gemini-2.5-flash
+dax doctor auth
+dax doctor auth google/gemini-2.5-flash
 ```
 
 ## Safe Usage Workflow
@@ -75,7 +78,7 @@ dax auth list
 dax auth logout
 
 # Diagnose Google auth mode/scope
-dax auth doctor
+dax doctor auth
 
 # List models
 dax models
@@ -92,7 +95,7 @@ dax audit gate --profile strict
   - Beta.6 includes focus lifecycle hardening.
 - Google OAuth succeeds but model call fails:
   - Confirm provider/model split (`google/*` vs `google-vertex/*`).
-  - Run `dax auth doctor ...` and follow fixes.
+  - Run `dax doctor auth ...` and follow fixes.
 - Commands differ between installed and local build:
   - Your installed binary may be on an older beta.
 
@@ -101,4 +104,4 @@ dax audit gate --profile strict
 - Pre-release binaries can change behavior across betas.
 - After upgrading, re-run:
   - `dax --version`
-  - `dax auth doctor`
+  - `dax doctor auth`

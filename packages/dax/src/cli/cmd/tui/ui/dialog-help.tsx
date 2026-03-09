@@ -40,15 +40,15 @@ export function DialogHelp() {
         </text>
       </box>
       <box paddingBottom={1} gap={0}>
-        <text fg={theme.text}>
-          <span style={{ bold: true }}>Provider strategy</span>
+        <text fg={theme.text} attributes={TextAttributes.BOLD}>
+          Provider strategy
         </text>
         <text fg={theme.textMuted}>Core: OpenAI/Codex, Gemini, Anthropic, Ollama</text>
         <text fg={theme.textMuted}>Advanced providers are available via /connect</text>
       </box>
       <box paddingBottom={1} gap={0}>
-        <text fg={theme.text}>
-          <span style={{ bold: true }}>Default agents</span>
+        <text fg={theme.text} attributes={TextAttributes.BOLD}>
+          Default agents
         </text>
         <text fg={theme.textMuted}>Build, Plan, Explore, Docs</text>
       </box>

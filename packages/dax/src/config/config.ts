@@ -121,10 +121,7 @@ export namespace Config {
         const remoteConfig = wellknown.config ?? {}
         // Add $schema to prevent load() from trying to write back to a non-existent file
         if (!remoteConfig.$schema) remoteConfig.$schema = "https://dax.ai/config.json"
-        result = mergeConfigConcatArrays(
-          result,
-          await load(JSON.stringify(remoteConfig), `${key}/.well-known/dax`),
-        )
+        result = mergeConfigConcatArrays(result, await load(JSON.stringify(remoteConfig), `${key}/.well-known/dax`))
         log.debug("loaded remote config from well-known", { url: key })
       }
     }
@@ -194,12 +191,14 @@ export namespace Config {
         }
       }
 
-      deps.push(
-        iife(async () => {
-          const shouldInstall = await needsInstall(dir)
-          if (shouldInstall) await installDependencies(dir)
-        }),
-      )
+      if (!Installation.isLocal()) {
+        deps.push(
+          iife(async () => {
+            const shouldInstall = await needsInstall(dir)
+            if (shouldInstall) await installDependencies(dir)
+          }),
+        )
+      }
 
       result.command = mergeDeep(result.command ?? {}, await loadCommand(dir))
       result.agent = mergeDeep(result.agent, await loadAgent(dir))
@@ -284,7 +283,9 @@ export namespace Config {
 
   export async function installDependencies(dir: string) {
     const pkg = path.join(dir, "package.json")
-    const targetVersion = Installation.isLocal() ? "*" : Installation.VERSION
+    const targetVersion = Installation.isLocal()
+      ? `file:${path.resolve(import.meta.dir, "../../../plugin")}`
+      : Installation.VERSION
 
     const json = await Bun.file(pkg)
       .json()
@@ -342,6 +343,11 @@ export namespace Config {
     const dependencies = parsed?.dependencies ?? {}
     const depVersion = dependencies["@dax-ai/plugin"]
     if (!depVersion) return true
+
+    if (Installation.isLocal()) {
+      const expected = `file:${path.resolve(import.meta.dir, "../../../plugin")}`
+      return depVersion !== expected
+    }
 
     const targetVersion = Installation.isLocal() ? "latest" : Installation.VERSION
     if (targetVersion === "latest") {
@@ -805,6 +811,9 @@ export namespace Config {
       session_new: z.string().optional().default("<leader>n").describe("Create a new session"),
       session_list: z.string().optional().default("<leader>l").describe("List all sessions"),
       session_timeline: z.string().optional().default("<leader>g").describe("Show session timeline"),
+      session_approvals: z.string().optional().default("<leader>p").describe("Inspect approvals and questions"),
+      session_diff: z.string().optional().default("<leader>d").describe("Inspect session diff summary"),
+      session_mcp: z.string().optional().default("<leader>k").describe("Inspect MCP for the current session"),
       session_fork: z.string().optional().default("none").describe("Fork session from message"),
       session_rename: z.string().optional().default("ctrl+r").describe("Rename session"),
       session_delete: z.string().optional().default("ctrl+d").describe("Delete session"),
@@ -1267,7 +1276,7 @@ export namespace Config {
 
   async function loadFile(filepath: string): Promise<Info> {
     log.info("loading", { path: filepath })
-    let text = await Bun.file(filepath)
+    const text = await Bun.file(filepath)
       .text()
       .catch((err) => {
         if (err.code === "ENOENT") return
@@ -1358,7 +1367,9 @@ export namespace Config {
           const plugin = data.plugin[i]
           try {
             data.plugin[i] = import.meta.resolve!(plugin, configFilepath)
-          } catch (err) {}
+          } catch (err) {
+            /* Intentionally ignored: error already handled or not critical. */
+          }
         }
       }
       return data
@@ -1411,9 +1422,7 @@ export namespace Config {
   }
 
   function globalConfigFile() {
-    const candidates = ["dax.jsonc", "dax.json", "config.json"].map((file) =>
-      path.join(Global.Path.config, file),
-    )
+    const candidates = ["dax.jsonc", "dax.json", "config.json"].map((file) => path.join(Global.Path.config, file))
     for (const file of candidates) {
       if (existsSync(file)) return file
     }

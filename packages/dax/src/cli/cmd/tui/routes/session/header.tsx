@@ -1,67 +1,35 @@
-import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createMemo, For, Show } from "solid-js"
 import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
-import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
 import type { AssistantMessage } from "@dax-ai/sdk/v2"
-import { Installation } from "@/installation"
 import { useTerminalDimensions } from "@opentui/solid"
-import { useUIActivity } from "../../context/activity"
+import { classifyAssistantNarrativeIntensity } from "@/dax/assistant-narrative"
 
-export function Header() {
+type HeaderAction = {
+  label: string
+  onPress: () => void
+  primary?: boolean
+}
+
+export function Header(props: {
+  stageLabel: string
+  stageReason: string
+  detail?: string
+  emphasis?: "normal" | "muted"
+  actions?: HeaderAction[]
+}) {
   const route = useRouteData("session")
   const sync = useSync()
-  const { telemetry, currentPun } = useUIActivity()
   const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 
-  const cost = createMemo(() => {
-    const total = pipe(
-      messages(),
-      sumBy((x) => (x.role === "assistant" ? x.cost : 0)),
-    )
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)
-  })
-
-  const context = createMemo(() => {
-    const last = messages().findLast((x) => x.role === "assistant" && x.tokens.output > 0) as AssistantMessage
-    if (!last) return
-    const total =
-      last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
-    return total.toLocaleString()
-  })
-
-  const isThinking = createMemo(() => {
-    const last = messages().findLast((x) => x.role === "assistant")
-    if (!last) return false
-    if (!last.time.completed) return true
-    const parts = sync.data.part[last.id] ?? []
-    return parts.some((p) => p.type === "tool" && p.state.status === "pending")
-  })
-
-  const currentTool = createMemo(() => {
-    const last = messages().findLast((x) => x.role === "assistant")
-    if (!last) return
-    const parts = sync.data.part[last.id] ?? []
-    const tool = parts.find((p) => p.type === "tool" && p.state.status === "pending")
-    return tool ? (tool as any).tool : null
-  })
-  const liveStage = createMemo(() => {
-    if (!isThinking()) return "Done"
-    const tool = currentTool()
-    if (!tool) return "Thinking"
-    if (["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"].includes(tool)) return "Exploring"
-    if (["task", "todowrite", "question", "skill"].includes(tool)) return "Planning"
-    if (["write", "edit", "apply_patch", "bash"].includes(tool)) return "Executing"
-    return "Thinking"
-  })
   const stageColor = createMemo(() => {
-    const stage = liveStage()
-    if (stage === "Done") return theme.success
-    if (stage === "Thinking") return theme.warning
-    if (stage === "Exploring") return theme.secondary
+    if (props.stageLabel.includes("Waiting")) return theme.warning
+    if (props.stageLabel.includes("Complete") || props.stageLabel.includes("Done")) return theme.success
+    if (props.stageLabel.includes("Understanding")) return theme.secondary
     return theme.accent
   })
   const sessionIntent = createMemo(() => {
@@ -81,15 +49,44 @@ export function Header() {
     return `${text.slice(0, 41)}...`
   })
   const title = createMemo(() => sessionIntent())
-
-  const msgCount = createMemo(() => messages().filter((x) => x.role === "user").length)
+  const headline = createMemo(() => {
+    const reason = props.stageReason?.trim()
+    if (!reason) return props.stageLabel
+    return reason[0].toUpperCase() + reason.slice(1)
+  })
+  const shellIntensity = createMemo(() => {
+    const last = messages().findLast((x) => x.role === "assistant") as AssistantMessage | undefined
+    if (!last) return "guided" as const
+    const parent = last.parentID ? messages().find((x) => x.id === last.parentID && x.role === "user") : undefined
+    const askedPart =
+      parent &&
+      (sync.data.part[parent.id] ?? []).find((x) => x.type === "text" && "text" in x && x.text.trim())
+    const asked = askedPart && "text" in askedPart ? askedPart.text : ""
+    const parts = sync.data.part[last.id] ?? []
+    return classifyAssistantNarrativeIntensity({
+      asked,
+      mode: last.mode,
+      hasPendingTool: parts.some((part) => part.type === "tool" && part.state.status === "pending"),
+      hasToolActivity: parts.some((part) => part.type === "tool"),
+      toolCount: parts.filter((part) => part.type === "tool").length,
+      hasExecuteTool: parts.some((part) => part.type === "tool" && ["write", "edit", "apply_patch", "bash"].includes(part.tool)),
+      hasVerifyTool: parts.some((part) => part.type === "tool" && ["read", "grep", "list", "glob"].includes(part.tool)),
+      hasReasoning: parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0),
+      hasError: !!last.error,
+      completed: !!last.time.completed,
+      doing: "",
+      next: "",
+    })
+  })
 
   const dimensions = useTerminalDimensions()
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 60)
-  const small = createMemo(() => width() < 80)
-
-  const statusLabel = () => (isThinking() ? (currentTool() ? `running: ${currentTool()}` : "thinking") : "ready")
+  const wide = createMemo(() => width() >= 90)
+  const showSessionTitle = createMemo(() => shellIntensity() === "operational" && wide())
+  const showHeadline = createMemo(() => shellIntensity() !== "light" || props.emphasis === "normal" || !!props.detail)
+  const showStageBadge = createMemo(() => shellIntensity() !== "light" && props.stageLabel !== "Complete")
+  const detailColor = createMemo(() => (props.emphasis === "muted" ? theme.textMuted : theme.warning))
 
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
@@ -99,31 +96,46 @@ export function Header() {
             <text fg={theme.primary} attributes={TextAttributes.BOLD}>
               DAX
             </text>
-            <text fg={theme.text} attributes={TextAttributes.BOLD}>
-              {title()}
-            </text>
-            <text fg={theme.textMuted}>·</text>
-            <text fg={stageColor()} attributes={TextAttributes.BOLD}>
-              {liveStage()}
-            </text>
-            <Show when={isThinking()}>
-              <text fg={theme.accent}>[{statusLabel()}]</text>
-              <Show when={!tiny()}>
-                <text fg={theme.textMuted}>{currentPun()}</text>
-              </Show>
+            <Show when={showSessionTitle()}>
+              <>
+                <text fg={theme.textMuted}>
+                  {title()}
+                </text>
+                <text fg={theme.textMuted}>·</text>
+              </>
+            </Show>
+            <Show when={showHeadline()}>
+              <text fg={shellIntensity() === "light" ? theme.textMuted : theme.text} attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}>
+                {headline()}
+              </text>
+            </Show>
+            <Show when={showStageBadge()}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={stageColor()}>{props.stageLabel}</text>
+            </Show>
+            <Show when={!tiny() && props.detail}>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={detailColor()} attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}>
+                {props.detail}
+              </text>
             </Show>
           </box>
-
-          <box flexDirection="row" gap={1} alignItems="center" flexShrink={0}>
-            <Show when={!tiny()}>
-              <text fg={theme.textMuted}>{`C:${telemetry().cpu}% R:${telemetry().ram}%`}</text>
-            </Show>
-            <Show when={context()}>
-              <text fg={theme.textMuted}>{context()}t</text>
-            </Show>
-            <text fg={theme.textMuted}>{`${msgCount()}m`}</text>
-            <text fg={theme.success}>{cost()}</text>
-          </box>
+          <Show when={props.actions?.length}>
+            <box flexDirection="row" gap={1} alignItems="center">
+              <For each={props.actions}>
+                {(action) => (
+                  <box
+                    onMouseUp={action.onPress}
+                    paddingLeft={1}
+                    paddingRight={1}
+                    backgroundColor={action.primary ? theme.primary : theme.backgroundElement}
+                  >
+                    <text fg={action.primary ? theme.background : theme.textMuted}>{action.label}</text>
+                  </box>
+                )}
+              </For>
+            </box>
+          </Show>
         </box>
       </box>
     </box>

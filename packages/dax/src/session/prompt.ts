@@ -51,6 +51,7 @@ import { formatPMList, formatPMRules } from "@/pm/format"
 import { Audit } from "@/audit"
 import { Config } from "@/config/config"
 import { DocOps } from "@/docops"
+import { buildPreferredNamePrompt } from "@/dax/user-profile"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -152,6 +153,13 @@ export namespace SessionPrompt {
   export type PromptInput = z.infer<typeof PromptInput>
 
   export const prompt = fn(PromptInput, async (input) => {
+    const cfg = await Config.get()
+    const preferredNamePrompt =
+      cfg.username && cfg.username !== os.userInfo().username ? buildPreferredNamePrompt(cfg.username) : undefined
+    if (preferredNamePrompt) {
+      input.system = [input.system, preferredNamePrompt].filter(Boolean).join("\n\n")
+    }
+
     const session = await Session.get(input.sessionID)
     await SessionRevert.cleanup(session)
 
@@ -305,7 +313,7 @@ export namespace SessionPrompt {
       let lastUser: MessageV2.User | undefined
       let lastAssistant: MessageV2.Assistant | undefined
       let lastFinished: MessageV2.Assistant | undefined
-      let tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
+      const tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
       for (let i = msgs.length - 1; i >= 0; i--) {
         const msg = msgs[i]
         if (!lastUser && msg.info.role === "user") lastUser = msg.info as MessageV2.User
@@ -371,7 +379,7 @@ export namespace SessionPrompt {
             created: Date.now(),
           },
         })) as MessageV2.Assistant
-        let part = (await Session.updatePart({
+        const part = (await Session.updatePart({
           id: Identifier.ascending("part"),
           messageID: assistantMessage.id,
           sessionID: assistantMessage.sessionID,

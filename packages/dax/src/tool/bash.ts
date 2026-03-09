@@ -94,7 +94,7 @@ export const BashTool = Tool.define("bash", async () => {
         if (!node) continue
 
         // Get full command text including redirects if present
-        let commandText = node.parent?.type === "redirected_statement" ? node.parent.text : node.text
+        const commandText = node.parent?.type === "redirected_statement" ? node.parent.text : node.text
 
         const command = []
         for (let i = 0; i < node.childCount; i++) {
