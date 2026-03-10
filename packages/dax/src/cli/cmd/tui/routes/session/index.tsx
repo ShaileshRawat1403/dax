@@ -183,6 +183,7 @@ type TranscriptPosition = {
 type FocusedPane = "activity" | "plan" | "approvals" | "artifacts" | "audit"
 type WorkstationOverlayKind =
   | "approval_dialog"
+  | "timeline_detail"
   | "artifact_detail"
   | "audit_detail"
   | "audit_events"
@@ -1701,16 +1702,7 @@ export function Session() {
     )
   }
   const openTimelineReview = () => {
-    dialog.replace(() => (
-      <DialogTimeline
-        onMove={(messageID) => {
-          const child = scroll.getChildren().find((child) => child.id === messageID)
-          if (child) scroll.scrollBy(child.y - scroll.y - 1)
-        }}
-        sessionID={route.sessionID}
-        setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-      />
-    ))
+    replaceWorkstationOverlay("timeline_detail", <DialogTimeline sessionID={route.sessionID} />)
   }
   const openPmPane = () => {
     setPaneMode(() => "pm")
@@ -2851,6 +2843,11 @@ export function Session() {
           return {
             label: "Artifact detail",
             hints: ["esc close"],
+          }
+        case "timeline_detail":
+          return {
+            label: "Session timeline",
+            hints: ["up/down move", "esc close"],
           }
         case "audit_detail":
           return {
