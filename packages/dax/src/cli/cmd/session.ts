@@ -500,6 +500,8 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
   const lifecycle = deriveSessionLifecycleFromMessages({
     archivedAt: session.time.archived,
     pendingApprovalCount: pendingApprovals.length,
+    retainedArtifactCount: artifacts.length,
+    diffCount: diffs.length,
     messages,
   })
   const history = toSessionHistoryRow({

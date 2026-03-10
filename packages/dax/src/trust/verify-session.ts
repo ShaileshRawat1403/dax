@@ -99,6 +99,8 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
   const lifecycle = deriveSessionLifecycleFromMessages({
     archivedAt: session.time.archived,
     pendingApprovalCount: pendingApprovals.length,
+    retainedArtifactCount: artifacts.length,
+    diffCount: diffs.length,
     messages,
   })
   const latestAudit = latestAuditEvent(events)
