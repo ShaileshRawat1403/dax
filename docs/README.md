@@ -67,6 +67,7 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_SIDEBAR_SPEC.md](DAX_WORKSTATION_SIDEBAR_SPEC.md): sidebar contract for card order, state rules, clickability, and default operator truth in the balanced workstation
 - [DAX_WORKSTATION_STREAM_SPEC.md](DAX_WORKSTATION_STREAM_SPEC.md): center-stream contract for allowed message classes, forbidden message classes, interruptions, and short outcome behavior
 - [DAX_WORKSTATION_OVERLAY_SPEC.md](DAX_WORKSTATION_OVERLAY_SPEC.md): evidence-layer contract for verify, release, artifacts, timeline, and inspect overlays
+- [DAX_WORKSTATION_INTERACTION_SPEC.md](DAX_WORKSTATION_INTERACTION_SPEC.md): focus, open-close, and shortcut behavior across stream, sidebar, and overlays
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
