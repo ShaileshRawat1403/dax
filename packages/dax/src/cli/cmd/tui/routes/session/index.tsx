@@ -278,10 +278,16 @@ function WorkstationSummaryCard(props: {
   actionLabel?: string
   onPress?: () => void
   focused?: boolean
-  tone?: "normal" | "warning" | "success"
+  tone?: "normal" | "warning" | "critical" | "success"
 }) {
   const summaryColor = () =>
-    props.tone === "warning" ? props.theme.warning : props.tone === "success" ? props.theme.success : props.theme.text
+    props.tone === "critical"
+      ? props.theme.error
+      : props.tone === "warning"
+        ? props.theme.warning
+        : props.tone === "success"
+          ? props.theme.success
+          : props.theme.text
   return (
     <box
       flexDirection="column"
@@ -2846,6 +2852,105 @@ export function Session() {
         : undefined,
     }),
   )
+  const releaseCard = createMemo(() => {
+    const docsQa = latestDocsQa()?.result
+    if (docsQa) {
+      if (docsQa.status === "fail") return { summary: "Not ready", detail: "Blocking release checks remain.", tone: "critical" as const }
+      if (docsQa.status === "warn") return { summary: "Review ready", detail: "Release review is still needed.", tone: "warning" as const }
+      return { summary: "Ready", detail: "Release checks currently pass.", tone: "success" as const }
+    }
+    if (workstationState().trustPosture === "blocked") {
+      return { summary: "Not ready", detail: "Trust blockers still limit release readiness.", tone: "critical" as const }
+    }
+    if (workstationState().trustPosture === "review_needed") {
+      return { summary: "Review ready", detail: "Release evidence is still incomplete.", tone: "warning" as const }
+    }
+    return { summary: "Ready", detail: "No release blockers are currently visible.", tone: "success" as const }
+  })
+  const stageCard = createMemo(() => {
+    const phase = orchestrationPhase()
+    return {
+      summary: labelOrchestrationPhase(phase, explainMode()),
+      detail: displayStageState().reason,
+      tone: (phase === "waiting" ? "warning" : phase === "complete" ? "success" : "normal") as
+        | "normal"
+        | "warning"
+        | "success",
+    }
+  })
+  const lifecycleCardTone = createMemo(() => {
+    const lifecycle = workstationState().lifecycle
+    if (lifecycle === "blocked" || lifecycle === "failed") return "critical" as const
+    if (lifecycle === "awaiting_approval") return "warning" as const
+    if (lifecycle === "completed") return "success" as const
+    return "normal" as const
+  })
+  const trustCardTone = createMemo(() => {
+    if (workstationState().trustPosture === "blocked") return "critical" as const
+    if (workstationState().trustPosture === "review_needed") return "warning" as const
+    return "success" as const
+  })
+  const approvalsCard = createMemo(() => {
+    const pendingCount = workstationState().approvalSummary.pendingCount
+    if (pendingCount === 0) {
+      return {
+        summary: "0 pending",
+        detail: "No operator approvals are waiting.",
+        tone: "normal" as const,
+      }
+    }
+    return {
+      summary: `${pendingCount} pending`,
+      detail: workstationState().approvalSummary.topReason ?? "Operator approval is required before execution continues.",
+      tone: "warning" as const,
+    }
+  })
+  const artifactsCard = createMemo(() => ({
+    summary:
+      workstationState().artifactSummary.count > 0
+        ? `${workstationState().artifactSummary.count} retained`
+        : "0 retained",
+    detail:
+      workstationState().artifactSummary.count > 0
+        ? [
+            workstationState().artifactSummary.items[0]?.label,
+            workstationState().artifactSummary.remainderCount > 0
+              ? `+${workstationState().artifactSummary.remainderCount} more`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "No retained outputs yet.",
+    tone: workstationState().artifactSummary.count > 0 ? ("success" as const) : ("normal" as const),
+  }))
+  const writeGovernanceCard = createMemo(() => {
+    if (permissions().length > 0) {
+      return {
+        summary: "Awaiting approval",
+        detail: "A governed write is waiting for operator review.",
+        tone: "warning" as const,
+      }
+    }
+    if (sessionDiffs().length > 0) {
+      return {
+        summary: "Writes detected",
+        detail: `${sessionDiffSummary().files} changed file${sessionDiffSummary().files === 1 ? "" : "s"} in this session.`,
+        tone: "normal" as const,
+      }
+    }
+    if (workstationState().artifactSummary.count > 0) {
+      return {
+        summary: "Artifact writes",
+        detail: "Retained outputs were produced during this run.",
+        tone: "normal" as const,
+      }
+    }
+    return {
+      summary: "No writes yet",
+      detail: "No governed write activity is visible yet.",
+      tone: "normal" as const,
+    }
+  })
 
   const dialog = useDialog()
   const renderer = useRenderer()
@@ -3367,68 +3472,65 @@ export function Session() {
                       <box padding={0} gap={1} backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)} flexDirection="column">
                       <WorkstationSummaryCard
                         theme={theme}
-                        title="Approvals"
-                        summary={
-                          workstationState().approvalSummary.pendingCount > 0
-                            ? `${workstationState().approvalSummary.pendingCount} item${workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} awaiting operator decision`
-                            : "No approvals pending."
-                        }
+                        title="Lifecycle"
+                        summary={workstationState().lifecycleLabel}
+                        detail={workstationState().currentStep ?? "Current execution state"}
+                        tone={lifecycleCardTone()}
+                      />
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Stage"
+                        summary={stageCard().summary}
+                        detail={stageCard().detail}
+                        tone={stageCard().tone}
+                      />
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Trust"
+                        summary={workstationState().trustLabel}
                         detail={
-                          workstationState().approvalSummary.topReason ??
-                          "DAX will stop here only when operator input is required."
+                          workstationState().auditSummary.findingsCount > 0
+                            ? `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} recorded`
+                            : "Current trust posture for this session."
                         }
+                        actionLabel={auditPaneEnabled() ? "Open verify" : undefined}
+                        onPress={auditPaneEnabled() ? openAuditDetail : undefined}
+                        focused={focusedPane() === "audit"}
+                        tone={trustCardTone()}
+                      />
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Release"
+                        summary={releaseCard().summary}
+                        detail={releaseCard().detail}
+                        tone={releaseCard().tone}
+                      />
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Approvals"
+                        summary={approvalsCard().summary}
+                        detail={approvalsCard().detail}
                         actionLabel={workstationState().approvalSummary.pendingCount > 0 ? "Open approvals" : undefined}
                         onPress={workstationState().approvalSummary.pendingCount > 0 ? openApprovalsReview : undefined}
                         focused={focusedPane() === "approvals"}
+                        tone={approvalsCard().tone}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
                         title="Artifacts"
-                        summary={
-                          workstationState().artifactSummary.count > 0
-                            ? `${workstationState().artifactSummary.count} retained output${workstationState().artifactSummary.count === 1 ? "" : "s"}`
-                            : "No retained outputs yet."
-                        }
-                        detail={
-                          workstationState().artifactSummary.count > 0
-                            ? [
-                                workstationState().artifactSummary.items[0]?.label,
-                                workstationState().artifactSummary.items[0]?.kind,
-                                workstationState().artifactSummary.remainderCount > 0
-                                  ? `+${workstationState().artifactSummary.remainderCount} more`
-                                  : undefined,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")
-                            : "Artifacts will appear here as the session produces reviewable work."
-                        }
+                        summary={artifactsCard().summary}
+                        detail={artifactsCard().detail}
                         actionLabel="Open detail"
                         onPress={openArtifactDetail}
                         focused={focusedPane() === "artifacts"}
+                        tone={artifactsCard().tone}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
-                        title="Audit"
-                        summary={workstationState().trustLabel}
-                        detail={
-                          workstationState().auditSummary.findingsCount > 0
-                            ? workstationState().auditSummary.evidencePresent
-                              ? `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence present`
-                              : `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence limited`
-                            : workstationState().auditSummary.evidencePresent
-                              ? "No audit issues detected yet."
-                              : "Trust posture will update as evidence accumulates."
-                        }
-                        actionLabel={auditPaneEnabled() ? "Open detail" : undefined}
-                        onPress={auditPaneEnabled() ? openAuditDetail : undefined}
-                        focused={focusedPane() === "audit"}
-                        tone={
-                          workstationState().trustPosture === "blocked"
-                            ? "warning"
-                            : workstationState().trustPosture === "clear"
-                              ? "success"
-                              : "normal"
-                        }
+                        title="Write governance"
+                        summary={writeGovernanceCard().summary}
+                        detail={writeGovernanceCard().detail}
+                        tone={writeGovernanceCard().tone}
                       />
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                         <For each={visiblePaneModes()}>
