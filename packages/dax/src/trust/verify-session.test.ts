@@ -14,6 +14,8 @@ describe("session verification evaluator", () => {
       write_governance: {
         status: "governed",
         workspace_write_artifact_count: 1,
+        risk_bucket: "governed_project_write",
+        governance_expectation: "expected",
       },
       overrides: { count: 0 },
       evidence: {
@@ -51,6 +53,8 @@ describe("session verification evaluator", () => {
       write_governance: {
         status: "governed",
         workspace_write_artifact_count: 1,
+        risk_bucket: "governed_project_write",
+        governance_expectation: "expected",
       },
       overrides: { count: 0 },
       evidence: {
@@ -89,6 +93,8 @@ describe("session verification evaluator", () => {
       write_governance: {
         status: "blocked",
         workspace_write_artifact_count: 0,
+        risk_bucket: "governed_project_write",
+        governance_expectation: "expected",
       },
       overrides: { count: 0 },
       evidence: {
@@ -125,6 +131,8 @@ describe("session verification evaluator", () => {
       write_governance: {
         status: "governed",
         workspace_write_artifact_count: 1,
+        risk_bucket: "governed_project_write",
+        governance_expectation: "expected",
       },
       overrides: { count: 1 },
       evidence: {
@@ -164,6 +172,8 @@ describe("session verification evaluator", () => {
         write_governance: {
           status: "governed",
           workspace_write_artifact_count: 1,
+          risk_bucket: "governed_project_write",
+          governance_expectation: "expected",
         },
         overrides: { count: 0 },
         evidence: {
@@ -205,6 +215,8 @@ describe("session verification evaluator", () => {
       write_governance: {
         status: "ungated",
         workspace_write_artifact_count: 2,
+        risk_bucket: "governed_project_write",
+        governance_expectation: "expected",
       },
       overrides: { count: 0 },
       evidence: {
@@ -227,7 +239,46 @@ describe("session verification evaluator", () => {
     expect(summary.write_governance_status).toBe("ungated")
     expect(summary.verification_result).toBe("verification_incomplete")
     expect(summary.degrading_factors).toContain(
-      "2 retained workspace write artifacts exist, but no governance evidence was recorded for the write path.",
+      "2 retained workspace write artifacts changed governed project paths without visible governance evidence. Operator review is required before trusting the write path.",
+    )
+  })
+
+  test("treats sensitive ungated writes as a verification failure", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_sensitive_ungated_write",
+      lifecycle: {
+        state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
+      approvals: { pending_count: 0 },
+      write_governance: {
+        status: "ungated",
+        workspace_write_artifact_count: 1,
+        risk_bucket: "sensitive_or_system_write",
+        governance_expectation: "required",
+      },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: false,
+        artifacts_present: true,
+        artifact_count: 1,
+      },
+      audit: {
+        present: false,
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_failed")
+    expect(summary.blocking_factors).toContain(
+      "1 retained workspace write artifact touched sensitive or system-impacting paths without required governance evidence. Trust cannot be treated as clean.",
     )
   })
 })
