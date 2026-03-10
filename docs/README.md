@@ -37,6 +37,7 @@ Use this index based on your role and goal.
 - [DAX_TUI_FOCUS_MODEL.md](DAX_TUI_FOCUS_MODEL.md): Pass 3 focus contract layered over the current prompt-first, dialog-priority TUI
 - [DAX_TUI_OVERLAY_MODEL.md](DAX_TUI_OVERLAY_MODEL.md): Pass 4 overlay contract for workstation subviews, return behavior, and footer ownership
 - [DAX_TUI_DETAIL_POLISH.md](DAX_TUI_DETAIL_POLISH.md): Pass 5 polish contract for readability, density, empty states, and calmness
+- [DAX_NEXT_PRODUCT_DECISION.md](DAX_NEXT_PRODUCT_DECISION.md): strategic choice for the product layer after the workstation phase
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
 - [DAX_PLAN_DESIGN.md](DAX_PLAN_DESIGN.md): command contract and behavior map for `dax plan`
