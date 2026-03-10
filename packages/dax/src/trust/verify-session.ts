@@ -5,6 +5,7 @@ import { Session } from "../session"
 import { deriveSessionLifecycleFromMessages, type SessionLifecycleState } from "../session/lifecycle"
 import { Instance } from "../project/instance"
 import { Locale } from "../util/locale"
+import { withLockedRetry } from "../util/locked-retry"
 import { buildArtifactsForSession } from "../cli/cmd/artifacts"
 
 export type VerificationResult =
@@ -84,63 +85,65 @@ export type SessionVerification = {
 type LedgerEvent = Awaited<ReturnType<typeof RAOLedger.list>>[number]
 
 export async function collectSessionVerification(sessionID: string): Promise<SessionVerification> {
-  const session = await Session.get(sessionID)
-  const [messages, diffs, pendingApprovals, events] = await Promise.all([
-    Session.messages({ sessionID }),
-    Session.diff(sessionID),
-    listPendingApprovals(sessionID),
-    RAOLedger.list({
+  return withLockedRetry(async () => {
+    const session = await Session.get(sessionID)
+    const [messages, diffs, pendingApprovals, events] = await Promise.all([
+      Session.messages({ sessionID }),
+      Session.diff(sessionID),
+      listPendingApprovals(sessionID),
+      RAOLedger.list({
+        project_id: Instance.project.id,
+        limit: 200,
+      }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+    ])
+
+    const artifacts = buildArtifactsForSession(session, messages, diffs)
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      archivedAt: session.time.archived,
+      pendingApprovalCount: pendingApprovals.length,
+      retainedArtifactCount: artifacts.length,
+      diffCount: diffs.length,
+      messages,
+    })
+    const latestAudit = latestAuditEvent(events)
+    const latestActivityAt = latestActivityTimestamp({
+      sessionUpdatedAt: session.time.updated,
+      messageTimes: messages.map((message) => message.info.time.created),
+      eventTimes: events.map((row) => row.created_at),
+      artifactTimes: artifacts.map((artifact) => artifact.created_at).filter((value): value is number => typeof value === "number"),
+    })
+
+    return evaluateSessionVerification({
+      session_id: sessionID,
       project_id: Instance.project.id,
-      limit: 200,
-    }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
-  ])
-
-  const artifacts = buildArtifactsForSession(session, messages, diffs)
-  const lifecycle = deriveSessionLifecycleFromMessages({
-    archivedAt: session.time.archived,
-    pendingApprovalCount: pendingApprovals.length,
-    retainedArtifactCount: artifacts.length,
-    diffCount: diffs.length,
-    messages,
-  })
-  const latestAudit = latestAuditEvent(events)
-  const latestActivityAt = latestActivityTimestamp({
-    sessionUpdatedAt: session.time.updated,
-    messageTimes: messages.map((message) => message.info.time.created),
-    eventTimes: events.map((row) => row.created_at),
-    artifactTimes: artifacts.map((artifact) => artifact.created_at).filter((value): value is number => typeof value === "number"),
-  })
-
-  return evaluateSessionVerification({
-    session_id: sessionID,
-    project_id: Instance.project.id,
-    lifecycle: {
-      state: lifecycle.lifecycle_state,
-      terminal: lifecycle.terminal,
-      requires_reconciliation: lifecycle.requires_reconciliation,
-    },
-    approvals: {
-      pending_count: pendingApprovals.length,
-    },
-    overrides: {
-      count: events.filter((row) => row.event_type === "override").length,
-    },
-    evidence: {
-      diff_present: diffs.length > 0,
-      artifacts_present: artifacts.length > 0,
-      artifact_count: artifacts.length,
-    },
-    audit: {
-      present: !!latestAudit,
-      status: latestAudit?.status,
-      blocker_count: latestAudit?.blocker_count ?? 0,
-      warning_count: latestAudit?.warning_count ?? 0,
-      info_count: latestAudit?.info_count ?? 0,
-    },
-    trace: {
-      assistant_message_count: messages.filter((message) => message.info.role === "assistant").length,
-      latest_activity_at: latestActivityAt,
-    },
+      lifecycle: {
+        state: lifecycle.lifecycle_state,
+        terminal: lifecycle.terminal,
+        requires_reconciliation: lifecycle.requires_reconciliation,
+      },
+      approvals: {
+        pending_count: pendingApprovals.length,
+      },
+      overrides: {
+        count: events.filter((row) => row.event_type === "override").length,
+      },
+      evidence: {
+        diff_present: diffs.length > 0,
+        artifacts_present: artifacts.length > 0,
+        artifact_count: artifacts.length,
+      },
+      audit: {
+        present: !!latestAudit,
+        status: latestAudit?.status,
+        blocker_count: latestAudit?.blocker_count ?? 0,
+        warning_count: latestAudit?.warning_count ?? 0,
+        info_count: latestAudit?.info_count ?? 0,
+      },
+      trace: {
+        assistant_message_count: messages.filter((message) => message.info.role === "assistant").length,
+        latest_activity_at: latestActivityAt,
+      },
+    })
   })
 }
 

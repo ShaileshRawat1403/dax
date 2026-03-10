@@ -13,6 +13,7 @@ import type { MessageV2 } from "../../session/message-v2"
 import { RAOLedger } from "../../rao"
 import { Instance } from "../../project/instance"
 import { deriveSessionLifecycleFromMessages, type SessionLifecycleState, type SessionLifecycleSummary } from "../../session/lifecycle"
+import { withLockedRetry } from "../../util/locked-retry"
 import {
   collectSessionVerification,
   type SessionVerification,
@@ -452,113 +453,119 @@ export const SessionTimelineCommand = cmd({
 })
 
 export async function collectSessionTimeline(sessionID: string) {
-  const session = await Session.get(sessionID)
-  const [messages, diffs, pendingApprovals, ledgerEvents] = await Promise.all([
-    Session.messages({ sessionID }),
-    Session.diff(sessionID),
-    listTimelineApprovals(sessionID),
-    RAOLedger.list({
-      project_id: Instance.project.id,
-      limit: 200,
-    }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
-  ])
+  return withLockedRetry(async () => {
+    const session = await Session.get(sessionID)
+    const [messages, diffs, pendingApprovals, ledgerEvents] = await Promise.all([
+      Session.messages({ sessionID }),
+      Session.diff(sessionID),
+      listTimelineApprovals(sessionID),
+      RAOLedger.list({
+        project_id: Instance.project.id,
+        limit: 200,
+      }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+    ])
 
-  const artifacts = buildArtifactsForSession(session, messages, diffs)
-  const planPath = Session.plan({ slug: session.slug, time: session.time })
-  const planGeneratedAt = await Bun.file(planPath)
-    .exists()
-    .then(async (exists) => (exists ? (await Bun.file(planPath).stat()).mtimeMs : undefined))
-    .catch(() => undefined)
+    const artifacts = buildArtifactsForSession(session, messages, diffs)
+    const planPath = Session.plan({ slug: session.slug, time: session.time })
+    const planGeneratedAt = await Bun.file(planPath)
+      .exists()
+      .then(async (exists) => (exists ? (await Bun.file(planPath).stat()).mtimeMs : undefined))
+      .catch(() => undefined)
 
-  return buildSessionTimelineRows({
-    session,
-    messages,
-    approvals: pendingApprovals,
-    artifacts,
-    ledgerEvents,
-    planGeneratedAt,
-    planReference: path.relative(process.cwd(), planPath) || ".",
+    return buildSessionTimelineRows({
+      session,
+      messages,
+      approvals: pendingApprovals,
+      artifacts,
+      ledgerEvents,
+      planGeneratedAt,
+      planReference: path.relative(process.cwd(), planPath) || ".",
+    })
   })
 }
 
 export async function collectSessionShowSummary(sessionID: string): Promise<SessionShowSummary> {
-  const session = await Session.get(sessionID)
-  const [messages, diffs, timeline, verification, auditSummary, pendingApprovals, events] = await Promise.all([
-    Session.messages({ sessionID }),
-    Session.diff(sessionID),
-    collectSessionTimeline(sessionID),
-    collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
-    buildAuditSummary({ sessionID }),
-    listTimelineApprovals(sessionID),
-    RAOLedger.list({
-      project_id: Instance.project.id,
-      limit: 200,
-    }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
-  ])
+  return withLockedRetry(async () => {
+    const session = await Session.get(sessionID)
+    const [messages, diffs, timeline, verification, auditSummary, pendingApprovals, events] = await Promise.all([
+      Session.messages({ sessionID }),
+      Session.diff(sessionID),
+      collectSessionTimeline(sessionID),
+      collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
+      buildAuditSummary({ sessionID }),
+      listTimelineApprovals(sessionID),
+      RAOLedger.list({
+        project_id: Instance.project.id,
+        limit: 200,
+      }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+    ])
 
-  const artifacts = buildArtifactsForSession(session, messages, diffs)
-  const lifecycle = deriveSessionLifecycleFromMessages({
-    archivedAt: session.time.archived,
-    pendingApprovalCount: pendingApprovals.length,
-    retainedArtifactCount: artifacts.length,
-    diffCount: diffs.length,
-    messages,
-  })
-  const history = toSessionHistoryRow({
-    session,
-    timeline,
-    lifecycle,
-    verification,
-  })
-
-  return {
-    id: session.id,
-    title: session.title,
-    project_id: session.projectID,
-    directory: session.directory,
-    created: session.time.created,
-    updated: session.time.updated,
-    outcome: history.outcome,
-    lifecycle_state: lifecycle.lifecycle_state,
-    lifecycle_terminal: lifecycle.terminal,
-    lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
-    trust_posture: verification.trust_posture,
-    verification_result: verification.verification_result,
-    stage: deriveSessionStage({
+    const artifacts = buildArtifactsForSession(session, messages, diffs)
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      archivedAt: session.time.archived,
+      pendingApprovalCount: pendingApprovals.length,
+      retainedArtifactCount: artifacts.length,
+      diffCount: diffs.length,
+      messages,
+    })
+    const history = toSessionHistoryRow({
+      session,
       timeline,
-      approval_count: pendingApprovals.length,
-      audit_posture: auditSummary.posture,
+      lifecycle,
+      verification,
+    })
+
+    return {
+      id: session.id,
+      title: session.title,
+      project_id: session.projectID,
+      directory: session.directory,
+      created: session.time.created,
+      updated: session.time.updated,
+      outcome: history.outcome,
+      lifecycle_state: lifecycle.lifecycle_state,
+      lifecycle_terminal: lifecycle.terminal,
+      lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
+      trust_posture: verification.trust_posture,
       verification_result: verification.verification_result,
-    }),
-    artifact_count: artifacts.length,
-    approval_count: pendingApprovals.length,
-    override_count: events.filter((row) => row.event_type === "override").length,
-    timeline_count: timeline.length,
-    audit_posture: auditSummary.posture,
-    latest_activity_at: verification.latest_activity_at ?? auditSummary.latest_activity_at,
-  }
+      stage: deriveSessionStage({
+        timeline,
+        approval_count: pendingApprovals.length,
+        audit_posture: auditSummary.posture,
+        verification_result: verification.verification_result,
+      }),
+      artifact_count: artifacts.length,
+      approval_count: pendingApprovals.length,
+      override_count: events.filter((row) => row.event_type === "override").length,
+      timeline_count: timeline.length,
+      audit_posture: auditSummary.posture,
+      latest_activity_at: verification.latest_activity_at ?? auditSummary.latest_activity_at,
+    }
+  })
 }
 
 export async function collectSessionInspectSummary(sessionID: string): Promise<SessionInspectSummary> {
-  const session = await Session.get(sessionID)
-  const [messages, diffs, timeline, verification, audit, summary] = await Promise.all([
-    Session.messages({ sessionID }),
-    Session.diff(sessionID),
-    collectSessionTimeline(sessionID),
-    collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
-    buildAuditSummary({ sessionID }),
-    collectSessionShowSummary(sessionID),
-  ])
+  return withLockedRetry(async () => {
+    const session = await Session.get(sessionID)
+    const [messages, diffs, timeline, verification, audit, summary] = await Promise.all([
+      Session.messages({ sessionID }),
+      Session.diff(sessionID),
+      collectSessionTimeline(sessionID),
+      collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
+      buildAuditSummary({ sessionID }),
+      collectSessionShowSummary(sessionID),
+    ])
 
-  return {
-    type: "session_inspect",
-    summary,
-    stages_reached: deriveStagesReached(timeline, summary.stage),
-    timeline,
-    artifacts: buildArtifactsForSession(session, messages, diffs),
-    audit,
-    verification,
-  }
+    return {
+      type: "session_inspect",
+      summary,
+      stages_reached: deriveStagesReached(timeline, summary.stage),
+      timeline,
+      artifacts: buildArtifactsForSession(session, messages, diffs),
+      audit,
+      verification,
+    }
+  })
 }
 
 export function buildSessionTimelineRows(input: {
