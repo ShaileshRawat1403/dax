@@ -190,3 +190,181 @@ The goal is only to observe real friction.
 ## When to Stop
 
 Run at least 5 to 10 real sessions before making changes. Patterns should emerge naturally.
+
+## Evaluation Batch 001
+
+This first batch records four representative sessions across lightweight and artifact-producing work. It is not enough to justify product changes yet, but it is enough to establish an evidence baseline.
+
+### Commands Used
+
+```text
+dax session list
+dax session show <session-id>
+dax session inspect <session-id>
+dax verify <session-id>
+dax release check <session-id>
+```
+
+### Session Record: ses_328ed3310ffe50coOPafJELC5f
+
+Task:
+
+```text
+Understanding DAX
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- `session show` exposed outcome, trust posture, and stage quickly.
+- `session inspect` made it obvious that the session had no artifacts or approvals.
+- `verify` and `release check` were consistent with each other.
+
+What slowed the workflow:
+
+- The path from `show` to `inspect` to `verify` still depends on command recall.
+
+What was confusing:
+
+- `stage: review` on a conversational session feels semantically stretched.
+- `review_ready` sounds stronger than the actual evidence level for a no-artifact session.
+
+What should change:
+
+- Revisit stage derivation for lightweight conversational sessions after more evidence.
+- Revisit readiness wording if artifact-light sessions continue to look too positive.
+
+### Session Record: ses_32d662276ffervMwsjjDxy68o2
+
+Task:
+
+```text
+MCP capabilities and best read-only options
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- `session inspect` showed a concise progression with only session creation, execution start, and completion.
+- `verify` exposed the exact missing trust signals in a readable structure.
+
+What slowed the workflow:
+
+- Moving from summary to explanation still requires explicit command switching.
+
+What was confusing:
+
+- The session is functionally informational, but the output still reads like an execution record awaiting stronger evidence.
+- Missing policy evaluation and findings resolution appear repeatedly even when the session shape does not naturally produce them.
+
+What should change:
+
+- Observe whether informational sessions need a lighter verification/readiness path.
+- Watch for repetitive incompleteness wording across read-only sessions.
+
+### Session Record: ses_32ddd10fbffe6xBlnTvYtoTxF3
+
+Task:
+
+```text
+Multi-step repo work with retained artifacts and code changes
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: implementation
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- `session show` and `session inspect` clearly surfaced artifact count, timeline count, and current stage.
+- `session inspect` made the progression and artifact accumulation legible.
+- `release check` showed stronger positive signals than the lighter sessions because artifacts and clear audit evidence were present.
+
+What slowed the workflow:
+
+- Artifact references in `session inspect` are still implementation-shaped file/tool paths rather than operator-facing artifact summaries.
+
+What was confusing:
+
+- Despite strong artifacts, clear audit posture, and trace continuity, the session still stops at `verification_incomplete` and `review_ready`.
+- The difference between “good evidence present” and “not yet verified” is correct, but still reads slightly conservative without stronger operator framing.
+
+What should change:
+
+- Improve artifact summary wording before deeper artifact UX work.
+- Continue validating whether the verification ladder is too dominated by missing policy evaluation.
+
+### Session Record: ses_32a18961dffe6EB7pyv1b4k2Lw
+
+Task:
+
+```text
+Quick greeting
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- The system remained consistent even on trivial sessions.
+- `session inspect` correctly showed no artifacts, no approvals, and a minimal timeline.
+
+What slowed the workflow:
+
+- Trivial sessions still require the same surface sequence to understand why they are not more ready.
+
+What was confusing:
+
+- Stage, verification, and readiness all exist for a greeting session, which may be more architectural consistency than operator value.
+
+What should change:
+
+- Use more real sessions before deciding whether trivial sessions need different presentation or filtering.
+
+## Evidence Log
+
+| Session | Issue | Surface | Severity |
+| ------- | ----- | ------- | -------- |
+| ses_328ed3310ffe50coOPafJELC5f | `review_ready` feels optimistic for artifact-free conversational work | release check | medium |
+| ses_328ed3310ffe50coOPafJELC5f | `stage: review` feels semantically weak for lightweight chat-like sessions | session show | low |
+| ses_32d662276ffervMwsjjDxy68o2 | verification incompleteness wording repeats across read-only sessions | verify | medium |
+| ses_32d662276ffervMwsjjDxy68o2 | navigation between summary and explanation still depends on command recall | session show / inspect / verify | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | artifact references remain too implementation-shaped | session inspect | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | strong evidence still ends in `review_ready`, which may under-communicate progress | verify / release check | medium |
+| ses_32a18961dffe6EB7pyv1b4k2Lw | trivial sessions produce governance output with limited operator value | session show / inspect / verify | low |
+
+## Batch 001 Pattern Summary
+
+- The system is internally consistent across very different session shapes.
+- Navigation between `show`, `inspect`, `verify`, and `release check` is functional but still recall-driven.
+- Verification and readiness remain conservative, with missing policy evaluation dominating outcomes.
+- Artifact-heavy sessions already feel substantially better than lightweight sessions, but artifact wording still needs translation into operator language.
+- Trivial conversational sessions likely need later presentation tuning, but not a model change yet.
