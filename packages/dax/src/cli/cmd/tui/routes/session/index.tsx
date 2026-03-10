@@ -239,6 +239,37 @@ function WorkstationSection(props: { theme: ThemeShape; title: string; focused?:
   )
 }
 
+function WorkstationRegion(props: {
+  theme: ThemeShape
+  title: string
+  focused?: boolean
+  children: JSX.Element
+  flexGrow?: number
+  minHeight?: number
+}) {
+  return (
+    <box
+      flexDirection="column"
+      gap={1}
+      flexGrow={props.flexGrow}
+      minHeight={props.minHeight}
+      padding={1}
+      border={["top", "right", "bottom", "left"]}
+      borderColor={props.focused ? props.theme.primary : props.theme.borderSubtle}
+      backgroundColor={
+        props.focused
+          ? tint(props.theme.backgroundPanel, props.theme.primary, 0.04)
+          : tint(props.theme.backgroundPanel, props.theme.borderSubtle, 0.02)
+      }
+    >
+      <text fg={props.focused ? props.theme.primary : props.theme.text} attributes={TextAttributes.BOLD}>
+        {props.title}
+      </text>
+      {props.children}
+    </box>
+  )
+}
+
 function WorkstationSummaryCard(props: {
   theme: ThemeShape
   title: string
@@ -2982,12 +3013,12 @@ export function Session() {
             emphasis={hasRaoNeed() || pendingUpdates() > 0 ? "normal" : "muted"}
             actions={headerActions()}
           />
-          <WorkstationSection theme={theme} title="Plan" focused={focusedPane() === "plan"}>
+          <WorkstationRegion theme={theme} title="Task / Context" focused={focusedPane() === "plan"}>
             <Show
               when={workstationState().planSummary.steps.length > 0 || workstationState().planSummary.goal}
               fallback={
                 <text fg={theme.textMuted} wrapMode="word">
-                  No plan available yet. DAX will show the proposed workflow once planning begins.
+                  No task context available yet. DAX will show the working objective once planning begins.
                 </text>
               }
             >
@@ -3021,8 +3052,33 @@ export function Session() {
                 )}
               </For>
             </Show>
-          </WorkstationSection>
-          <Show when={transcriptNavigatorVisible()}>
+          </WorkstationRegion>
+          <box flexGrow={1} minHeight={0} flexDirection="row" gap={1}>
+            <WorkstationRegion theme={theme} title="Live stream" focused={focusedPane() === "activity"} flexGrow={1} minHeight={0}>
+              <WorkstationSection theme={theme} title="Activity" focused={focusedPane() === "activity"}>
+                <Show
+                  when={workstationState().activitySummary.current || workstationState().activitySummary.items.length > 0}
+                  fallback={
+                    <text fg={theme.textMuted} wrapMode="word">
+                      No activity recorded yet. DAX will narrate the workflow here once execution starts.
+                    </text>
+                  }
+                >
+                  <text fg={theme.text} wrapMode="word">
+                    {workstationState().activitySummary.current ?? displayStageState().reason}
+                  </text>
+                  <Show when={workstationState().activitySummary.items.length > 1}>
+                    <For each={workstationState().activitySummary.items.slice(1)}>
+                      {(item) => (
+                        <text fg={theme.textMuted} wrapMode="word">
+                          {item}
+                        </text>
+                      )}
+                    </For>
+                  </Show>
+                </Show>
+              </WorkstationSection>
+              <Show when={transcriptNavigatorVisible()}>
               <box
                 flexDirection="row"
                 gap={1}
@@ -3065,8 +3121,8 @@ export function Session() {
                   <SessionQuickAction theme={theme} label={SESSION_COMMAND_LABELS.jumpLive} onPress={jumpToLive} muted />
                 </Show>
               </box>
-            </Show>
-            <Show when={reviewBarVisible()}>
+              </Show>
+              <Show when={reviewBarVisible()}>
               <box
                 flexDirection="row"
                 gap={1}
@@ -3118,31 +3174,8 @@ export function Session() {
                   <SessionQuickAction theme={theme} label={memoryLabel(explainMode())} onPress={openPmPane} />
                 </Show>
               </box>
-            </Show>
-            <box flexGrow={1} minHeight={0}>
-              <WorkstationSection theme={theme} title="Activity" focused={focusedPane() === "activity"}>
-                <Show
-                  when={workstationState().activitySummary.current || workstationState().activitySummary.items.length > 0}
-                  fallback={
-                    <text fg={theme.textMuted} wrapMode="word">
-                      No activity recorded yet. DAX will narrate the workflow here once execution starts.
-                    </text>
-                  }
-                >
-                  <text fg={theme.text} wrapMode="word">
-                    {workstationState().activitySummary.current ?? displayStageState().reason}
-                  </text>
-                  <Show when={workstationState().activitySummary.items.length > 1}>
-                    <For each={workstationState().activitySummary.items.slice(1)}>
-                      {(item) => (
-                        <text fg={theme.textMuted} wrapMode="word">
-                          {item}
-                        </text>
-                      )}
-                    </For>
-                  </Show>
-                </Show>
-              </WorkstationSection>
+              </Show>
+              <box flexGrow={1} minHeight={0}>
               <ErrorBoundary
                 fallback={(error, reset) => (
                   <box
@@ -3318,16 +3351,20 @@ export function Session() {
                       </For>
                     </scrollbox>
                   </box>
-                  <scrollbox
+                  <WorkstationRegion
+                    theme={theme}
+                    title="Session truth"
+                    focused={focusedPane() === "approvals" || focusedPane() === "artifacts" || focusedPane() === "audit"}
                     flexGrow={sidePaneGrow()}
                     minHeight={0}
-                    backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)}
-                    scrollAcceleration={scrollAcceleration()}
                   >
-                    <box padding={1} gap={1} backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)} flexDirection="column">
-                      <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                        Overview
-                      </text>
+                    <scrollbox
+                      flexGrow={1}
+                      minHeight={0}
+                      backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)}
+                      scrollAcceleration={scrollAcceleration()}
+                    >
+                      <box padding={0} gap={1} backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)} flexDirection="column">
                       <WorkstationSummaryCard
                         theme={theme}
                         title="Approvals"
@@ -4097,8 +4134,9 @@ export function Session() {
                           </Show>
                         </Match>
                       </Switch>
-                    </box>
-                  </scrollbox>
+                      </box>
+                    </scrollbox>
+                  </WorkstationRegion>
                 </box>
               </Match>
               <Match when={true}>
@@ -4231,7 +4269,9 @@ export function Session() {
               </Match>
                 </Switch>
               </ErrorBoundary>
-            </box>
+              </box>
+            </WorkstationRegion>
+          </box>
             <box flexShrink={0}>
               <Show when={actionStripState()}>
                 {(strip) => (
