@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
   buildSessionTimelineRows,
+  collectSessionInspectSummary,
   collectSessionShowSummary,
   deriveSessionHistoryOutcome,
+  formatSessionInspectSummary,
   formatSessionShowSummary,
   formatSessionTable,
   formatSessionTimeline,
@@ -467,6 +469,113 @@ describe("session timeline helpers", () => {
         summary.verification_result,
       )
       expect(["clear", "review_needed", "blocked"]).toContain(summary.audit_posture)
+    },
+    40000,
+  )
+
+  test("formats a deep inspection surface for a durable session record", () => {
+    const rendered = formatSessionInspectSummary({
+      type: "session_inspect",
+      summary: {
+        id: "session_inspect_1",
+        title: "Repo audit",
+        project_id: "project_1",
+        directory: "/repo",
+        created: 1_000,
+        updated: 2_000,
+        outcome: "completed",
+        trust_posture: "verified",
+        verification_result: "verification_passed",
+        artifact_count: 1,
+        approval_count: 0,
+        override_count: 0,
+        timeline_count: 2,
+        audit_posture: "clear",
+        latest_activity_at: 2_000,
+      },
+      timeline: [
+        {
+          id: "timeline_1",
+          type: "execution_completed",
+          session_id: "session_inspect_1",
+          timestamp: 2_000,
+          source: "execution",
+          summary: "Execution completed",
+          state_effect: "lifecycle completed",
+        },
+      ],
+      artifacts: [
+        {
+          id: "artifact_1",
+          kind: "attachment",
+          session_id: "session_inspect_1",
+          label: "scan_report.json",
+          source: "bash attachment",
+          created_at: 2_000,
+        },
+      ],
+      audit: {
+        type: "audit_summary",
+        project_id: "project_1",
+        session_id: "session_inspect_1",
+        posture: "clear",
+        approvals: {
+          requested: 0,
+          overrides: 0,
+        },
+        evidence: {
+          diff_present: true,
+          artifacts_present: true,
+          sessions_with_diffs: 1,
+          artifact_count: 1,
+        },
+        findings: {
+          status: "pass",
+          blocker_count: 0,
+          warning_count: 0,
+          info_count: 0,
+        },
+        next_actions: [],
+      },
+      verification: {
+        type: "session_verification",
+        project_id: "project_1",
+        session_id: "session_inspect_1",
+        verification_result: "verification_passed",
+        trust_posture: "verified",
+        checks: [
+          {
+            id: "approvals",
+            label: "Approvals",
+            status: "pass",
+            summary: "No pending approvals remain.",
+          },
+        ],
+        blocking_factors: [],
+        degrading_factors: [],
+      },
+    })
+
+    expect(rendered).toContain("Timeline")
+    expect(rendered).toContain("Artifacts")
+    expect(rendered).toContain("Audit")
+    expect(rendered).toContain("Verification")
+    expect(rendered).toContain("scan_report.json")
+    expect(rendered).toContain("Execution completed")
+  })
+
+  test(
+    "collects a durable session inspect surface from canonical session data",
+    async () => {
+      const repoRoot = path.resolve(import.meta.dir, "../../../..")
+      const summary = await bootstrap(repoRoot, () => collectSessionInspectSummary("ses_32947d739ffeVp11tIEucq7Omg"))
+
+      expect(summary.type).toBe("session_inspect")
+      expect(summary.summary.id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(Array.isArray(summary.timeline)).toBe(true)
+      expect(Array.isArray(summary.artifacts)).toBe(true)
+      expect(summary.audit.session_id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(summary.verification.session_id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
     },
     40000,
   )
