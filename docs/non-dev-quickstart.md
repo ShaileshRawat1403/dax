@@ -30,6 +30,7 @@ DAX follows a safety flow:
 7. Run `dax artifacts` to inspect retained outputs after work completes.
 8. Run `dax audit` to inspect trust posture before handoff.
 9. Run `dax verify <session-id>` when you need a direct judgment about what still blocks a stronger trust posture.
+10. Run `dax release check <session-id>` when you need a direct judgment about handoff or shipping readiness.
 
 ## Safe Prompts You Can Reuse
 
