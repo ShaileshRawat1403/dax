@@ -18,6 +18,7 @@ import {
   type VerificationResult,
   type VerificationTrustPosture,
 } from "../../trust/verify-session"
+import { buildAuditSummary, type AuditPosture } from "./audit"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -67,6 +68,24 @@ export type SessionHistoryRow = {
   verification_result: VerificationResult
 }
 
+export type SessionShowSummary = {
+  id: string
+  title: string
+  project_id: string
+  directory: string
+  created: number
+  updated: number
+  outcome: SessionHistoryOutcome
+  trust_posture: VerificationTrustPosture
+  verification_result: VerificationResult
+  artifact_count: number
+  approval_count: number
+  override_count: number
+  timeline_count: number
+  audit_posture: AuditPosture
+  latest_activity_at?: number
+}
+
 type TimelineApproval = {
   id: string
   createdAt: number
@@ -103,7 +122,12 @@ export const SessionCommand = cmd({
   command: "session",
   describe: "manage sessions",
   builder: (yargs: Argv) =>
-    yargs.command(SessionListCommand).command(SessionTimelineCommand).command(SessionPruneCommand).demandCommand(),
+    yargs
+      .command(SessionListCommand)
+      .command(SessionShowCommand)
+      .command(SessionTimelineCommand)
+      .command(SessionPruneCommand)
+      .demandCommand(),
   async handler() {},
 })
 
@@ -228,6 +252,36 @@ export function formatSessionTable(rows: SessionHistoryRow[]): string {
 function formatSessionJSON(sessions: SessionHistoryRow[]): string {
   return JSON.stringify(sessions, null, 2)
 }
+
+export const SessionShowCommand = cmd({
+  command: "show <session-id>",
+  describe: "show a concise durable summary for one session",
+  builder: (yargs: Argv) =>
+    yargs
+      .positional("session-id", {
+        describe: "session id to inspect",
+        type: "string",
+      })
+      .option("format", {
+        describe: "output format",
+        type: "string",
+        choices: ["table", "json"],
+        default: "table",
+      }),
+  handler: async (args) => {
+    await bootstrap(process.cwd(), async () => {
+      const sessionID = String(args["session-id"])
+      const summary = await collectSessionShowSummary(sessionID)
+
+      if (args.format === "json") {
+        console.log(JSON.stringify(summary, null, 2))
+        return
+      }
+
+      console.log(formatSessionShowSummary(summary))
+    })
+  },
+})
 
 export const SessionPruneCommand = cmd({
   command: "prune",
@@ -372,6 +426,47 @@ export async function collectSessionTimeline(sessionID: string) {
     planGeneratedAt,
     planReference: path.relative(process.cwd(), planPath) || ".",
   })
+}
+
+export async function collectSessionShowSummary(sessionID: string): Promise<SessionShowSummary> {
+  const session = await Session.get(sessionID)
+  const [messages, diffs, timeline, verification, auditSummary, pendingApprovals, events] = await Promise.all([
+    Session.messages({ sessionID }),
+    Session.diff(sessionID),
+    collectSessionTimeline(sessionID),
+    collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
+    buildAuditSummary({ sessionID }),
+    listTimelineApprovals(sessionID),
+    RAOLedger.list({
+      project_id: Instance.project.id,
+      limit: 200,
+    }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+  ])
+
+  const artifacts = buildArtifactsForSession(session, messages, diffs)
+  const history = toSessionHistoryRow({
+    session,
+    timeline,
+    verification,
+  })
+
+  return {
+    id: session.id,
+    title: session.title,
+    project_id: session.projectID,
+    directory: session.directory,
+    created: session.time.created,
+    updated: session.time.updated,
+    outcome: history.outcome,
+    trust_posture: verification.trust_posture,
+    verification_result: verification.verification_result,
+    artifact_count: artifacts.length,
+    approval_count: pendingApprovals.length,
+    override_count: events.filter((row) => row.event_type === "override").length,
+    timeline_count: timeline.length,
+    audit_posture: auditSummary.posture,
+    latest_activity_at: verification.latest_activity_at ?? auditSummary.latest_activity_at,
+  }
 }
 
 export function buildSessionTimelineRows(input: {
@@ -547,6 +642,31 @@ export function formatSessionTimeline(rows: SessionTimelineRow[]) {
         .join(EOL),
     )
     .join(`${EOL}${"─".repeat(72)}${EOL}`)
+}
+
+export function formatSessionShowSummary(summary: SessionShowSummary) {
+  return [
+    `Session: ${summary.id}`,
+    `Title: ${summary.title}`,
+    `Project: ${summary.project_id}`,
+    `Directory: ${summary.directory}`,
+    `Created: ${Locale.todayTimeOrDateTime(summary.created)}`,
+    `Updated: ${Locale.todayTimeOrDateTime(summary.updated)}`,
+    summary.latest_activity_at ? `Latest activity: ${Locale.todayTimeOrDateTime(summary.latest_activity_at)}` : undefined,
+    "",
+    `Outcome: ${formatSessionOutcome(summary.outcome)}`,
+    `Trust posture: ${formatSessionTrustPosture(summary.trust_posture)}`,
+    `Verification: ${formatVerificationResultLabel(summary.verification_result)}`,
+    `Audit posture: ${formatAuditPosture(summary.audit_posture)}`,
+    "",
+    "Session record",
+    `- Timeline events: ${summary.timeline_count}`,
+    `- Retained artifacts: ${summary.artifact_count}`,
+    `- Pending approvals: ${summary.approval_count}`,
+    `- Overrides recorded: ${summary.override_count}`,
+  ]
+    .filter(Boolean)
+    .join(EOL)
 }
 
 function formatTimelineType(type: SessionTimelineEventType) {
@@ -799,6 +919,17 @@ function formatVerificationResultLabel(result: VerificationResult) {
       return "Incomplete"
     case "verification_degraded":
       return "Degraded"
+  }
+}
+
+function formatAuditPosture(posture: AuditPosture) {
+  switch (posture) {
+    case "clear":
+      return "Clear"
+    case "review_needed":
+      return "Review needed"
+    case "blocked":
+      return "Blocked"
   }
 }
 

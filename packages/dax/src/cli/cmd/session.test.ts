@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import {
   buildSessionTimelineRows,
+  collectSessionShowSummary,
   deriveSessionHistoryOutcome,
+  formatSessionShowSummary,
   formatSessionTable,
   formatSessionTimeline,
   toSessionHistoryRow,
   type SessionTimelineRow,
 } from "./session"
+import { bootstrap } from "../bootstrap"
+import path from "path"
 
 describe("session timeline helpers", () => {
   test("builds meaningful operator-facing timeline rows from session state", () => {
@@ -417,4 +421,53 @@ describe("session timeline helpers", () => {
     expect(rendered).toContain("Verified")
     expect(rendered).toContain("Passed")
   })
+
+  test("formats a concise durable session summary", () => {
+    const rendered = formatSessionShowSummary({
+      id: "session_show_1",
+      title: "Repo audit",
+      project_id: "project_1",
+      directory: "/repo",
+      created: 1_000,
+      updated: 2_000,
+      outcome: "completed",
+      trust_posture: "verified",
+      verification_result: "verification_passed",
+      artifact_count: 2,
+      approval_count: 0,
+      override_count: 1,
+      timeline_count: 6,
+      audit_posture: "review_needed",
+      latest_activity_at: 2_000,
+    })
+
+    expect(rendered).toContain("Session: session_show_1")
+    expect(rendered).toContain("Outcome: Completed")
+    expect(rendered).toContain("Trust posture: Verified")
+    expect(rendered).toContain("Verification: Passed")
+    expect(rendered).toContain("Audit posture: Review needed")
+    expect(rendered).toContain("Timeline events: 6")
+  })
+
+  test(
+    "collects a durable session summary from canonical session surfaces",
+    async () => {
+      const repoRoot = path.resolve(import.meta.dir, "../../../..")
+      const summary = await bootstrap(repoRoot, () => collectSessionShowSummary("ses_32947d739ffeVp11tIEucq7Omg"))
+
+      expect(summary.id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(typeof summary.title).toBe("string")
+      expect(typeof summary.timeline_count).toBe("number")
+      expect(typeof summary.artifact_count).toBe("number")
+      expect(typeof summary.approval_count).toBe("number")
+      expect(typeof summary.override_count).toBe("number")
+      expect(["active", "blocked", "completed", "archived"]).toContain(summary.outcome)
+      expect(["review_needed", "policy_clean", "verified"]).toContain(summary.trust_posture)
+      expect(["verification_passed", "verification_failed", "verification_incomplete", "verification_degraded"]).toContain(
+        summary.verification_result,
+      )
+      expect(["clear", "review_needed", "blocked"]).toContain(summary.audit_posture)
+    },
+    40000,
+  )
 })
