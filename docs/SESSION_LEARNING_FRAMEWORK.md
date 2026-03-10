@@ -258,6 +258,59 @@ Why it worked:
 
 #### Pattern 10: Distinguish trust judgment from operational readiness
 
+## Session 004: Let Validation Close Before Redesigning Execution Semantics
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted DAX to stop expanding surfaces and start learning from real work, then use that evidence to choose the next strengthening layer.
+
+### What The Session Revealed
+
+Validation did its job.
+
+Real usage showed that DAX is already strong in artifact-heavy governed workflows, but weaker in two execution-truth areas:
+
+- `run` lifecycle closure
+- write-governance visibility
+
+That changed the next design priority from workstation UX to execution semantics.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 11: Use evidence to choose the next abstraction
+
+Strong sequence:
+
+1. stop feature work
+2. run real sessions
+3. log repeated friction
+4. wait for stable patterns
+5. only then write the next model docs
+
+Why it worked:
+
+- it prevented speculative redesign
+- it turned validation into product direction
+- it kept the next design layer tied to real operator pain
+
+#### Pattern 12: Separate architectural stability from semantic weakness
+
+The correct reading of the evidence was not “the system is failing.”
+
+It was:
+
+- architecture is stable
+- artifact-heavy workflows are strong
+- lifecycle and write-governance semantics need tightening
+
+Why it worked:
+
+- it kept confidence in the control-plane architecture
+- it localized the next work instead of reopening everything
+- it delayed TUI decisions until the underlying runtime truth becomes clearer
+
 The strong separation was:
 
 - `verify` asks whether a session can be trusted
