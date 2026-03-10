@@ -219,6 +219,60 @@ It was to read the existing runtime and see that DAX already has:
 - plan-mode entry and exit tools
 - a real plan file path
 
+## Session 003: Refine Semantics in Two Passes, Not One
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted the next post-validation correction to tighten run lifecycle truth before any UI work resumed.
+
+### What The Session Revealed
+
+The first lifecycle correction solved the weak path:
+
+- lightweight visible-answer runs no longer looked falsely complete
+- planning-only sessions became terminal correctly
+
+But it also exposed a second semantic gap:
+
+- strong artifact-heavy runs could still remain classified as active
+
+That meant the right move was not a broad rewrite. It was a second lifecycle refinement pass with a narrower question:
+
+- what evidence is sufficient to treat a tool-driven artifact-heavy run as terminal?
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 9: Fix the weak path first, then refine the strong path separately
+
+Better sequence:
+
+1. expose unfinished lightweight runs honestly
+2. verify that planning-only sessions still terminate cleanly
+3. only then refine the strong artifact-heavy completion path
+
+Why it worked:
+
+- it prevented one large ambiguous semantics change
+- it made regression risk easier to understand
+- it let evidence define the second refinement question precisely
+
+#### Pattern 10: Write the refinement bridge before touching the strong path
+
+The right intermediate artifact was:
+
+- `DAX_RUN_LIFECYCLE_REFINEMENT_2.md`
+
+Why it worked:
+
+- it locked the acceptance cases before code changed
+- it kept lifecycle refinement separate from write-governance work
+- it preserved the repo discipline:
+  - model
+  - bridge
+  - code
+
 ## Session 003: Finish Session Depth Before Defining Release Judgment
 
 Date: March 10, 2026
