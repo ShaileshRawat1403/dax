@@ -756,3 +756,20 @@ Why it worked:
 - it prevented diminishing-return UI churn
 - it turned a pause into an architectural checkpoint
 - it kept the next phase anchored to product questions instead of implementation momentum
+
+#### Pattern 17: Define the session before defining deeper trust
+
+Once DAX reaches a stable execution grammar and workstation, the next move is not to jump into verification features.
+
+The correct move is:
+
+- define what a session actually is
+- define its lifecycle
+- define what it contains
+- attach future trust, artifacts, and readiness work to that object
+
+Why it worked:
+
+- it kept sessions as runtime primitives instead of UI-only concepts
+- it ensured trust would attach to durable work lifecycles rather than isolated commands
+- it created a stable object model for future timeline, handoff, and release-readiness work
