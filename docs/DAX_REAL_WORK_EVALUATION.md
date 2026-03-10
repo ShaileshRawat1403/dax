@@ -511,3 +511,170 @@ What should change:
 - Repeated `verify` and `release check` calls are stable on an artifact-heavy session.
 - Stage derivation still appears too eager to end at `review` for non-artifact, non-governance-heavy sessions.
 - The biggest new signal is operational stability in `run`, not a new information-architecture gap.
+
+## Evaluation Batch 003
+
+This batch extends the edge cases into governance and lifecycle failure territory: a write-intent session, a planning-only session, and another interrupted lightweight `run`.
+
+### Commands Used
+
+```text
+dax run -m google-vertex/gemini-2.5-flash
+dax plan -m google-vertex/gemini-2.5-flash
+dax session list
+dax session show <session-id>
+dax session inspect <session-id>
+dax verify <session-id>
+dax release check <session-id>
+```
+
+### Session Record: ses_32881fdd6ffeiIsGcNoiuuhl35
+
+Task:
+
+```text
+Edge case: approval required write
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- The session was recorded and could be revisited through `show`, `verify`, and `release check`.
+- The system remained structurally consistent after a write-intent task.
+
+What slowed the workflow:
+
+- `session inspect` hit `database is locked` for this session during evaluation.
+
+What was confusing:
+
+- No approval gate appeared for a write-intent task.
+- The requested file was not present afterward in `artifacts/eval-approval/note.txt`.
+- The session still completed with no approval or artifact evidence, which makes the write path hard to trust.
+
+What should change:
+
+- Keep collecting evidence, but this is the strongest governance-control signal so far.
+- Revisit write approval semantics and completion semantics if this pattern repeats.
+
+### Session Record: ses_32888c8ecffeQ1UE2gawdGQO5p
+
+Task:
+
+```text
+Edge case: planning only
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- Planning continues to complete cleanly under the explicit `google-vertex/gemini-2.5-flash` model path.
+- The planning surface is still more stable than lightweight `run`.
+
+What slowed the workflow:
+
+- The operator still has to navigate manually into later inspection surfaces to understand session status.
+
+What was confusing:
+
+- Planning-only work still ends at `stage: review`, reinforcing that stage derivation is too generous for low-complexity sessions.
+
+What should change:
+
+- No immediate change. Keep validating stage semantics across more planning-only and execution-light sessions.
+
+### Session Record: ses_32889a3c9ffehYufvJ3CIjqFSr
+
+Task:
+
+```text
+Edge case: empty session
+```
+
+Outcome:
+
+```text
+Outcome: active
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- The session model preserved the incomplete lifecycle cleanly enough to inspect later.
+
+What slowed the workflow:
+
+- The run produced visible assistant output but did not resolve to completion.
+
+What was confusing:
+
+- The timeline stopped at `execution_started`, but the user-facing run produced an answer.
+- Readiness remained `review_ready` rather than communicating a harder interruption or abandonment state.
+
+What should change:
+
+- Keep focusing on run lifecycle semantics as the likely next product layer if this repeats.
+
+### Stability Record: repeated verify and release checks on ses_32ddd10fbffe6xBlnTvYtoTxF3
+
+Outcome:
+
+```text
+Verification: stable across repeated runs
+Release check: stable across repeated runs
+```
+
+What worked well:
+
+- Repeated trust and readiness checks stayed identical.
+- No new drift appeared in the artifact-heavy, governed path.
+
+What should change:
+
+- Nothing yet. This remains a positive control case.
+
+## Evidence Log
+
+| Session | Issue | Surface | Severity |
+| ------- | ----- | ------- | -------- |
+| ses_328ed3310ffe50coOPafJELC5f | `review_ready` feels optimistic for artifact-free conversational work | release check | medium |
+| ses_328ed3310ffe50coOPafJELC5f | `stage: review` feels semantically weak for lightweight chat-like sessions | session show | low |
+| ses_32d662276ffervMwsjjDxy68o2 | verification incompleteness wording repeats across read-only sessions | verify | medium |
+| ses_32d662276ffervMwsjjDxy68o2 | navigation between summary and explanation still depends on command recall | session show / inspect / verify | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | artifact references remain too implementation-shaped | session inspect | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | strong evidence still ends in `review_ready`, which may under-communicate progress | verify / release check | medium |
+| ses_32a18961dffe6EB7pyv1b4k2Lw | trivial sessions produce governance output with limited operator value | session show / inspect / verify | low |
+| edge-session-run | default `dax run` model path failed before useful execution and required manual provider override | run | high |
+| ses_32889a3c9ffehYufvJ3CIjqFSr | lightweight `dax run` session remained active after visible assistant response | run / session inspect | high |
+| ses_32888c8ecffeQ1UE2gawdGQO5p | planning-only work still maps to `stage: review`, weakening stage semantics | session show / inspect | medium |
+| ses_32881fdd6ffeiIsGcNoiuuhl35 | write-intent session produced no approval gate and no retained artifact | run / governance | high |
+| ses_32881fdd6ffeiIsGcNoiuuhl35 | `session inspect` hit `database is locked` during evaluation | session inspect | high |
+
+## Batch 003 Pattern Summary
+
+- Artifact-heavy trust and readiness checks remain the most stable path in DAX.
+- Lightweight `run` remains the weakest lifecycle surface.
+- Write-intent execution now raises a stronger governance concern than simple navigation friction:
+  - no visible approval gate
+  - no resulting file
+  - completed session anyway
+- `plan` continues to be more reliable than `run` for low-complexity work.
+- Runtime lifecycle clarity is now a stronger emerging next layer than UI design.
