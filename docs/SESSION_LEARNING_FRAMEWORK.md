@@ -808,3 +808,20 @@ Why it worked:
 - it kept the timeline from collapsing into a log viewer
 - it made future replay, handoff, and verification work easier to attach
 - it preserved a clean distinction between transcript, ledger, and session progression
+
+#### Pattern 20: Define verification as judgment over existing signals
+
+Once session, trust, and timeline are defined, the next move is not to invent a new verification subsystem.
+
+The correct move is:
+
+- treat verification as evaluation
+- use approvals, artifacts, findings, overrides, and timeline evidence as inputs
+- let verification confirm, degrade, or limit trust posture
+- keep verification separate from audit browsing
+
+Why it worked:
+
+- it prevented verification from inventing a parallel trust model
+- it kept audit as inspection and verification as judgment
+- it created a clean bridge toward release-readiness without conflating execution outcome with trust outcome
