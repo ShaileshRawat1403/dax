@@ -791,3 +791,20 @@ Why it worked:
 - it kept trust from collapsing into command behavior or UI labels
 - it made audit a surface over trust rather than the owner of trust
 - it created a clean foundation for later release-readiness and verification design
+
+#### Pattern 19: Define the timeline as progression, not telemetry
+
+Once session and trust are defined, the next move is to define how a session reveals its lifecycle over time.
+
+The correct move is:
+
+- model the timeline as a session-native runtime structure
+- define meaningful event families
+- keep the timeline append-oriented
+- prefer operator meaning over raw event exhaust
+
+Why it worked:
+
+- it kept the timeline from collapsing into a log viewer
+- it made future replay, handoff, and verification work easier to attach
+- it preserved a clean distinction between transcript, ledger, and session progression
