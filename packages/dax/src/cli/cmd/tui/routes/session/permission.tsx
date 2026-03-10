@@ -303,7 +303,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                   ? "Critical approval required"
                   : risk().level === "privacy"
                     ? "Privacy approval required"
-                    : "Permission required"
+                    : "Approval required before execution"
               }
               body={
                 <box flexDirection="column" gap={1}>

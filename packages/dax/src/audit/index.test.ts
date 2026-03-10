@@ -108,4 +108,43 @@ describe("audit contracts", () => {
     expect(gate.blockers.length).toBe(1)
     expect(gate.message).toContain("AUDIT_GATE_FAIL")
   })
+
+  test("markdown report includes summary and next actions", () => {
+    const result = Audit.Result.parse({
+      run_id: "audit_markdown",
+      timestamp: new Date().toISOString(),
+      profile: "balanced",
+      status: "warn",
+      findings: [
+        {
+          id: "documentation.qa.example",
+          severity: "medium",
+          category: "documentation",
+          title: "Example warning",
+          evidence: "missing screenshot",
+          impact: "release docs feel incomplete",
+          fix: "add the screenshot or remove the reference",
+          owner_hint: "docs",
+          blocking: false,
+        },
+      ],
+      summary: {
+        blocker_count: 0,
+        warning_count: 1,
+        info_count: 0,
+      },
+      next_actions: ["Resolve warnings before next release cut."],
+      metadata: {
+        trigger: "manual",
+        project_id: "proj_1",
+        github_enabled: false,
+        auto_triggers: [],
+      },
+    })
+
+    const markdown = Audit.toMarkdown(result)
+    expect(markdown).toContain("## Audit Result")
+    expect(markdown).toContain("### Findings")
+    expect(markdown).toContain("### Next Actions")
+  })
 })

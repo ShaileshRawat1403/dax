@@ -3079,7 +3079,7 @@ export function Session() {
                             <text fg={theme.primary}>{paneTitle("rao")}</text>
                             <text fg={permissions().length + questions().length > 0 ? theme.warning : theme.text}>
                               {permissions().length + questions().length > 0
-                                ? `${permissions().length + questions().length} item${permissions().length + questions().length === 1 ? "" : "s"} waiting for review`
+                                ? `${permissions().length + questions().length} item${permissions().length + questions().length === 1 ? "" : "s"} awaiting operator review`
                                 : "No approvals waiting."}
                             </text>
                           </Show>

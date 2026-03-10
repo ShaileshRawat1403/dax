@@ -13,19 +13,22 @@ DAX is an AI teammate that can:
 
 DAX follows a safety flow:
 
-1. Run: it proposes work.
-2. Audit: it checks risk.
-3. Override: you approve or deny.
+1. Plan: it structures work before acting.
+2. Run: it executes approved work.
+3. Override: you approve or deny when checkpoints appear.
 
 ## 10-Minute Flow
 
 1. Open DAX with `dax`.
-2. Ask one narrow question:
-   - `Explain this project to me in simple language.`
-3. Turn on ELI12 mode if needed for simpler responses.
-4. Ask for a safe change:
+2. Start with planning:
+   - `dax plan "Explain this project to me in simple language."`
+3. Check the plan preview so you can confirm the interpreted work before execution.
+4. Turn on ELI12 mode if needed for simpler responses.
+5. Ask for a safe change:
    - `Only suggest, do not apply yet.`
-5. Review `diff` pane before approving anything.
+6. Review `diff` pane before approving anything.
+7. Run `dax artifacts` to inspect retained outputs after work completes.
+8. Run `dax audit` to inspect trust posture before handoff.
 
 ## Safe Prompts You Can Reuse
 

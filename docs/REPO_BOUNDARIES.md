@@ -39,5 +39,6 @@ Within the broader `MYAIAGENTS` workspace:
 
 - New product work belongs in `packages/dax`.
 - Do not add new features to the root scaffold paths.
+- CI should block new additions or edits under the root scaffold paths except explicit removal commits.
 - If behavior exists in both the scaffold and `packages/dax`, `packages/dax` wins.
 - Any future removal of scaffold paths should preserve only migration notes, not runtime ownership.

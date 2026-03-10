@@ -33,18 +33,21 @@ dax
 Then:
 
 1. Choose provider/model.
-2. Enter a small request, for example: `summarize this repository structure`.
-3. Watch the stream stages and response.
+2. Enter a small execution intent, for example: `summarize this repository structure`.
+3. Review the execution preview DAX shows before work begins.
+4. Watch the stream stages and result.
 
 ## First Real Task
 
 Try:
 
-1. `find all TODO comments and group by file`
-2. `propose a safe cleanup plan`
-3. `apply the first small cleanup and show the diff`
+1. `dax plan "find all TODO comments and group by file, then propose a safe cleanup plan"`
+2. Review the plan preview and readiness state.
+3. `dax run "apply the first small cleanup and show the diff"`
+4. `dax artifacts`
+5. `dax audit`
 
-This gives you a full Run -> Audit -> Override loop with low risk.
+This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit loop.
 
 ## Screenshots
 

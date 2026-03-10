@@ -2,7 +2,7 @@
 
 ## Product Principle
 
-DAX is a policy-driven execution system for software delivery.
+DAX is the execution control plane for AI-assisted SDLC.
 
 In the wider `MYAIAGENTS` workspace, DAX is the execution layer.
 `workspace-mcp` is the kernel/policy contract owned outside this repo, and Soothsayer is the multi-user platform layer that may integrate DAX and MCP as clients.
@@ -10,7 +10,7 @@ In the wider `MYAIAGENTS` workspace, DAX is the execution layer.
 Core contract (RAO):
 
 - Run: propose or execute the smallest useful action.
-- Audit: evaluate safety, scope, and policy impact.
+- Audit: evaluate permission, safety, and policy impact.
 - Override: require human approval for protected actions.
 
 ## System Layers
@@ -23,8 +23,8 @@ Core contract (RAO):
    - Selects provider/model.
    - Streams model output and tool calls.
 3. Governance Layer (RAO)
-   - Applies policy to commands/tools/filesystem actions.
-   - Produces allow/ask/deny decisions.
+   - Applies permission rules to commands/tools/filesystem actions.
+   - Produces allow/ask/deny decisions and approval requests.
 4. Tool Layer
    - Read/search/edit/patch/shell/web/task tools.
    - Structured inputs/outputs for traceability.
@@ -42,7 +42,7 @@ Core contract (RAO):
 5. Tool call is proposed and checked by RAO policy.
 6. If approved, tool executes and emits structured result.
 7. Runtime records outputs, diffs, and telemetry.
-8. Session completes with deterministic trace.
+8. Session completes with a recorded execution trace.
 
 ## Provider Orchestration Model
 
@@ -69,9 +69,9 @@ DAX intentionally enforces this split to avoid token-type mismatch.
 ## Safety Properties
 
 - Explicit human approvals for high-risk actions.
-- Structured audit trail for tool calls and outputs.
+- Structured audit trail for tool calls, approvals, and outputs.
 - Per-project state isolation.
-- Deterministic tool result recording (including diffs and snapshots).
+- Recorded tool results, diffs, and snapshots for replay and review.
 
 ## Module Map
 
@@ -96,5 +96,5 @@ Older root-level scaffold paths such as `cli/`, `core/`, `tui/`, and `script/bui
 ## Distinctive Features
 
 - RAO approvals integrated into runtime, not bolted on.
-- Tool-first deterministic tracing with rich status panes.
+- Human-readable execution trace with rich review surfaces.
 - Multi-provider auth diagnostics and preflight validation.

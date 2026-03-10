@@ -6,6 +6,8 @@ This guide explains how to validate DAX end to end before a release.
 
 Use this checklist when you want confidence that the shipped DAX product still works as a complete experience:
 
+- legal and public docs are production-ready
+- canonical repo boundaries are intact
 - CLI help and command grouping render correctly
 - readiness diagnostics report actionable state
 - MCP integration is healthy
@@ -29,6 +31,7 @@ Run these from the repository root.
 
 ```bash
 bun run --cwd packages/dax src/index.ts --help
+bun run release:check
 bun run --cwd packages/dax src/index.ts doctor --json
 DAX_CONFIG=/Users/Shared/MYAIAGENTS/dax/.dax/dax.jsonc DAX_FORCE_EXIT=1 bun run --cwd packages/dax src/index.ts mcp ping workspace_kernel --json
 bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash guide Release Readiness
@@ -44,6 +47,12 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
   - review and inspect
   - diagnose and configure
   - automate and export
+
+### Repo Integrity
+
+- `bun run release:check` should fail when legal docs are placeholders
+- `bun run release:check` should fail when markdown links or referenced assets are missing
+- `bun run release:check` should fail when new edits land under root legacy paths in CI
 
 ### Doctor
 
@@ -92,10 +101,11 @@ Validate these in one real session before release:
    - `Move through this session`
    - `Review and inspect`
 3. Trigger a blocked approval or question and confirm the action strip points to the review path.
-4. Make one low-risk edit and confirm diff review is reachable from the session bar, action strip, and command palette.
-5. If MCP is configured, open `Inspect MCP` from the session shell and confirm the cockpit is usable.
-6. Open the docs workflow from the session review surface and confirm docs QA or guide review is legible in-session.
-7. Navigate a longer transcript and confirm:
+4. Run `dax approvals` in a second terminal and confirm pending approvals are visible as operator objects.
+5. Make one low-risk edit and confirm diff review is reachable from the session bar, action strip, and command palette.
+6. If MCP is configured, open `Inspect MCP` from the session shell and confirm the cockpit is usable.
+7. Open the docs workflow from the session review surface and confirm docs QA or guide review is legible in-session.
+8. Navigate a longer transcript and confirm:
    - position indicator updates
    - `jump live` works
    - transcript jump controls remain understandable on your terminal width
@@ -119,14 +129,17 @@ You are in a reasonable pre-release state when:
 
 1. typecheck passes
 2. tests pass
-3. CLI help renders correctly
-4. MCP health is confirmed
-5. docs guide generation works
-6. docs strict QA works
-7. interactive TUI review flows feel coherent
-8. any remaining blocked doctor result is understood and intentional
+3. repo integrity checks pass
+4. CLI help renders correctly
+5. MCP health is confirmed
+6. `dax approvals` reflects governance state clearly when approvals are pending
+7. docs guide generation works
+8. docs strict QA works
+9. interactive TUI review flows feel coherent
+10. any remaining blocked doctor result is understood and intentional
 
 ## Next Actions
 
-1. Add this guide to the prerelease flow and CI documentation checks.
+1. Keep this guide wired into release verification and CI documentation checks.
 2. Capture one visual TUI validation pass with screenshots for the home dashboard, MCP cockpit, approvals, diff review, and docs review.
+3. Remove the frozen root legacy paths once references and CI checks show they are no longer needed.

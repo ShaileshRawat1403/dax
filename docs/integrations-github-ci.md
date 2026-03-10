@@ -73,17 +73,12 @@ Exit code behavior:
 
 ### 1) CI artifact upload
 
-![GitHub Actions run with uploaded audit-result artifact](./images/integration-01-ci-artifact.png)
-
 Capture:
 - Workflow summary page
 - artifact named `audit-result`
 
 ### 2) Gate failure
 
-![Workflow log showing audit gate fail and blocker count](./images/integration-02-gate-fail.png)
-
 Capture:
 - `AUDIT_GATE_FAIL` line
 - blocker count in logs
-

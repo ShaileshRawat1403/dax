@@ -2,18 +2,24 @@
   <img src="./dax-logo.svg" alt="DAX logo" width="600">
 </p>
 <p align="center"><strong>DAX — Deterministic AI eXecution</strong></p>
-<p align="center">Governed AI orchestration for real software delivery.</p>
+<p align="center">The execution control plane for AI-assisted SDLC.</p>
 
 ---
 
 ## Overview
 
-DAX is a policy-first AI execution product. It is built for teams that want AI speed **and** predictable, auditable automation.
+DAX is the execution control plane for AI-assisted SDLC. It is built for teams and ambitious builders who want AI speed with explicit control, traceability, and customization.
 
-Instead of a free-running coding chat, DAX uses **RAO**:
+The flagship experience is a transcript-first terminal workspace:
+
+- DAX explains what it found, what it is checking, and what happens next.
+- risky actions go through explicit review and approval instead of hidden tool calls.
+- detailed trace and context stay available on demand without overwhelming the main conversation.
+
+Instead of a free-running coding chat, DAX uses **RAO** as a governed execution loop:
 
 1. **Run** – the model proposes the next action.
-2. **Audit** – policy evaluates scope, risk, and context.
+2. **Audit** – permission rules and runtime checks evaluate whether the action should proceed, ask, or stop.
 3. **Override** – humans allow, deny, or persist the decision.
 
 ## Guides
@@ -60,35 +66,43 @@ The scaffold paths are retained only as quarantined legacy material until they a
 
 ## Who DAX Is For
 
-| Ideal for                                             | Not optimized for                                 |
-| ----------------------------------------------------- | ------------------------------------------------- |
-| Engineering teams that need traceable AI actions      | Chat-only experimentation with no governance      |
-| Startups that want fast iteration with guardrails     | Scenarios where policy/auditability do not matter |
-| Mixed technical/non-technical groups using ELI12 mode |                                                   |
+| Ideal for                                                 | Not optimized for                                   |
+| --------------------------------------------------------- | --------------------------------------------------- |
+| Engineering teams adopting AI under real delivery rules   | Chat-only experimentation with no governance        |
+| Platform and developer productivity teams                 | IDE-first workflows where the editor is the product |
+| Technical founders with mixed technical/non-technical ops | “Replace developers” positioning                    |
+| Open-source builders who want governed local execution    | AGI-adjacent marketing claims                       |
 
 ## Core Capabilities
 
-- Terminal-native AI orchestration (SolidJS TUI with live timeline and diff panes).
+- Transcript-first terminal workspace (SolidJS TUI) with milestone-based progress and review surfaces.
 - Multi-provider support: OpenAI, Google/Gemini, Anthropic, Ollama, more via RAO tools.
-- RAO policy gating with allow/ask/deny + persisted approvals.
+- Governed approvals with allow/ask/deny rules, persisted approvals, and audit trace recording.
 - Project Memory (PM) stored in `pm.sqlite` for durable context.
 - Audit agent (beta): release-readiness and policy checks with structured JSON output.
 - ELI12 mode that rewrites responses in plain language.
-- Pane system for `artifact`, `diff`, `rao`, `pm`, and (beta) `audit` views.
+- Product-facing work surfaces for `Plan`, `Review`, `Changes`, `Context`, and `Docs`.
+- Built-in review and diagnostics via `dax approvals`, `dax doctor`, `dax mcp inspect`, and docs workflows via `dax docs`.
+- `dax plan` exposes the canonical planning workflow so operators can inspect work before execution.
+- Explicit execution previews in `dax run` so operators can inspect the work request before execution begins.
+- `dax artifacts` exposes retained outputs such as attachments, truncated tool output references, and session diffs.
+- `dax audit` exposes trust posture by summarizing approvals, overrides, evidence presence, and audit findings.
+- Session personalization with `/name`, plus session cleanup with `dax session prune`.
 - Theme system with quick-switch profiles.
+- Open customization via tools, plugins, agents, and policy/config packs.
 
 ## Canonical Workflows
 
-- Start or continue work: `dax`, `dax run`
-- Review and inspect: `dax docs`, `dax mcp`, in-session review surfaces for approvals, diff, transcript, and docs
+- Start or continue governed work: `dax`, `dax plan`, `dax run`
+- Review and inspect: `dax docs`, `dax mcp`, `dax approvals`, `dax artifacts`, `dax audit`, in-session review surfaces for approvals, changes, context, and docs
 - Diagnose and configure: `dax doctor`, `dax auth`, `dax models`
-- Automate and export: `dax serve`, `dax export`, `dax import`
+- Automate and export: `dax serve`, `dax export`, `dax import`, `dax session prune`
 
 ## What Else DAX Can Do
 
 Beyond coding tasks, DAX can help with:
 
-- Release governance and readiness audits (`/audit`, `/audit gate`).
+- Trust review via `dax audit`, plus release governance and readiness audits (`/audit`, `/audit gate`).
 - Documentation quality checks (missing runbooks/guides, remediation steps).
 - Policy guardrails via PM rules and reviewable findings metadata.
 - CI-friendly audit artifacts (`artifacts/audit-result.json`) for automation.
@@ -100,6 +114,7 @@ Beyond coding tasks, DAX can help with:
 - Explicit permissions for sensitive actions.
 - Persistent approvals for recurring scenarios.
 - Human override for high-risk operations.
+- Audit and override events recorded for traceability.
 
 ### Project Memory (PM)
 
@@ -107,11 +122,47 @@ Beyond coding tasks, DAX can help with:
 - Session continuity across runs.
 - Operational memory that stays separate from transient chat state.
 
-### Orchestration-First UX
+### Transcript-First Orchestration UX
 
-- Real-time stream stages and tool usage in the TUI.
-- Approval UX for risky actions and policy prompts.
-- Natural language programming focus with minimal ceremony.
+- The transcript is the primary surface.
+- DAX reports milestone findings instead of raw tool chatter by default.
+- `Trace` keeps detailed execution history available without making the chat noisy.
+- `Review` appears when decisions are needed.
+- `Plan`, `Changes`, `Context`, and `Docs` stay available as supporting surfaces.
+
+### Open Customization
+
+- Customize tools, plugins, agents, prompts, and policies without forking the runtime core.
+- Use DAX as a local governed execution layer for your own workflows.
+
+## Flagship TUI
+
+The TUI is the premium DAX experience.
+
+- Header: one state sentence, one useful detail, and only the most relevant actions.
+- Transcript: calm SDLC teammate voice with `light`, `guided`, and `operational` stream density.
+- Drawer: contextual review surface for `Plan`, `Review`, `Changes`, `Context`, and `Docs`.
+- Footer: minimal attention strip for real blockers or the next useful action.
+
+### Normal and ELI12 Modes
+
+Both modes use the same layout.
+
+- Normal mode is concise and implementation-oriented.
+- ELI12 keeps the same structure but explains what the result means and what happens next in simpler language.
+
+### Personalization
+
+- Set how DAX addresses you in-session: `/name Shaily`
+- Check the current value: `/name status`
+- Clear it: `/name clear`
+- Use global fallback via config:
+
+```json
+{
+  "username": "Shaily"
+}
+```
 
 ## Quickstart
 
@@ -132,6 +183,19 @@ bun install
 
 ```bash
 bun run dev
+```
+
+### Useful First Commands
+
+```bash
+# overall readiness
+bun run --cwd packages/dax src/index.ts doctor --json
+
+# docs workflows
+bun run --cwd packages/dax src/index.ts docs qa strict
+
+# MCP inspection
+bun run --cwd packages/dax src/index.ts mcp inspect workspace_kernel --json
 ```
 
 ### Validate Quality Locally
@@ -192,17 +256,20 @@ Default UX profile:
 - RAO enabled by default
 - PM enabled by default
 
-## Beta 1.0.0-beta.6 Highlights
+## Supported Customization Patterns
 
-- Google auth hardening for Gemini/Vertex split:
-  - `google/*` enforces Gemini API auth path.
-  - `google-vertex/*` enforces ADC/project path.
-- New diagnostics:
-  - `dax auth doctor`
-  - `dax auth doctor provider/model`
-- Clearer Google OAuth callback and credential mismatch errors.
-- Prompt input lifecycle hardening for focus-loss/copy-outside flows.
-- `.env` hierarchy loading from parent directories during bootstrap.
+- Tool packs: add new execution capabilities using the tool and plugin contracts.
+- Agent and prompt packs: tailor planning, implementation, docs, or audit behavior to your workflow.
+- Policy and config packs: ship reusable guardrails, provider settings, and project conventions.
+
+## Current Product Highlights
+
+- Doctor suite for auth, MCP, environment, and project readiness.
+- Transcript-first TUI with `Explain`, `Trace`, and contextual `Review` actions.
+- Docs workflows available both from CLI (`dax docs ...`) and in-session review surfaces.
+- MCP inspection and ping flows with first-class CLI and TUI support.
+- Personalized sessions with `/name`.
+- Release-readiness guidance and audit flows built into the product.
 
 ## Google / Gemini Auth
 

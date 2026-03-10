@@ -12,6 +12,8 @@ const requiredFiles = [
   "script/install.sh",
   "README.md",
   "docs/prerelease.md",
+  "docs/CONTRIBUTOR_START_HERE.md",
+  "docs/LEGACY_REMOVAL_PLAN.md",
 ]
 
 for (const file of requiredFiles) {
@@ -32,6 +34,8 @@ const ghFound = await $`command -v gh`.nothrow()
 if (ghFound.exitCode !== 0) {
   console.warn("warning: gh CLI is not installed; release upload will be unavailable")
 }
+
+await $`bun run script/check-repo-integrity.ts`
 
 const artifactsDir = path.join(root, "artifacts")
 await fs.mkdir(artifactsDir, { recursive: true })

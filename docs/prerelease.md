@@ -63,9 +63,9 @@ dax --version
 
 3. Validate by running a prompt and confirming streaming output + tool approvals.
 
-## Beta.6 Validation Matrix
+## Release Validation Matrix
 
-Run this before publishing beta.6:
+Run this before publishing a beta:
 
 ```bash
 bun run release:verify
