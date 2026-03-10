@@ -8,6 +8,10 @@ import { Locale } from "../../util/locale"
 import { Flag } from "../../flag/flag"
 import { EOL } from "os"
 import path from "path"
+import { buildArtifactsForSession, type ArtifactRow } from "./artifacts"
+import type { MessageV2 } from "../../session/message-v2"
+import { RAOLedger } from "../../rao"
+import { Instance } from "../../project/instance"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -45,10 +49,42 @@ type SessionSummary = {
   directory: string
 }
 
+type TimelineApproval = {
+  id: string
+  createdAt: number
+  sessionID: string
+  permission: string
+  patterns?: string[]
+}
+
+type TimelineLedgerEvent = Awaited<ReturnType<typeof RAOLedger.list>>[number]
+
+export type SessionTimelineEventType =
+  | "session_created"
+  | "plan_generated"
+  | "execution_started"
+  | "approval_requested"
+  | "approval_resolved"
+  | "artifact_produced"
+  | "audit_finding_recorded"
+  | "trust_posture_changed"
+
+export type SessionTimelineRow = {
+  id: string
+  type: SessionTimelineEventType
+  session_id: string
+  timestamp: number
+  source: "session" | "planning" | "execution" | "governance" | "artifact" | "audit"
+  summary: string
+  reference?: string
+  state_effect?: string
+}
+
 export const SessionCommand = cmd({
   command: "session",
   describe: "manage sessions",
-  builder: (yargs: Argv) => yargs.command(SessionListCommand).command(SessionPruneCommand).demandCommand(),
+  builder: (yargs: Argv) =>
+    yargs.command(SessionListCommand).command(SessionTimelineCommand).command(SessionPruneCommand).demandCommand(),
   async handler() {},
 })
 
@@ -230,6 +266,270 @@ export const SessionPruneCommand = cmd({
     })
   },
 })
+
+export const SessionTimelineCommand = cmd({
+  command: "timeline <session-id>",
+  describe: "inspect meaningful progression for a session",
+  builder: (yargs: Argv) =>
+    yargs
+      .positional("session-id", {
+        describe: "session id to inspect",
+        type: "string",
+      })
+      .option("format", {
+        describe: "output format",
+        type: "string",
+        choices: ["table", "json"],
+        default: "table",
+      }),
+  handler: async (args) => {
+    await bootstrap(process.cwd(), async () => {
+      const sessionID = String(args["session-id"])
+      const rows = await collectSessionTimeline(sessionID)
+      if (args.format === "json") {
+        console.log(JSON.stringify(rows, null, 2))
+        return
+      }
+      console.log(formatSessionTimeline(rows))
+    })
+  },
+})
+
+export async function collectSessionTimeline(sessionID: string) {
+  const session = await Session.get(sessionID)
+  const [messages, diffs, pendingApprovals, ledgerEvents] = await Promise.all([
+    Session.messages({ sessionID }),
+    Session.diff(sessionID),
+    listTimelineApprovals(sessionID),
+    RAOLedger.list({
+      project_id: Instance.project.id,
+      limit: 200,
+    }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+  ])
+
+  const artifacts = buildArtifactsForSession(session, messages, diffs)
+  const planPath = Session.plan({ slug: session.slug, time: session.time })
+  const planGeneratedAt = await Bun.file(planPath)
+    .exists()
+    .then(async (exists) => (exists ? (await Bun.file(planPath).stat()).mtimeMs : undefined))
+    .catch(() => undefined)
+
+  return buildSessionTimelineRows({
+    session,
+    messages,
+    approvals: pendingApprovals,
+    artifacts,
+    ledgerEvents,
+    planGeneratedAt,
+    planReference: path.relative(process.cwd(), planPath) || ".",
+  })
+}
+
+export function buildSessionTimelineRows(input: {
+  session: Session.Info
+  messages: MessageV2.WithParts[]
+  approvals: TimelineApproval[]
+  artifacts: ArtifactRow[]
+  ledgerEvents: TimelineLedgerEvent[]
+  planGeneratedAt?: number
+  planReference?: string
+}) {
+  const rows: SessionTimelineRow[] = []
+
+  rows.push({
+    id: `session:${input.session.id}`,
+    type: "session_created",
+    session_id: input.session.id,
+    timestamp: input.session.time.created,
+    source: "session",
+    summary: `Session created: ${input.session.title}`,
+    state_effect: "lifecycle created",
+  })
+
+  if (typeof input.planGeneratedAt === "number") {
+    rows.push({
+      id: `plan:${input.session.id}`,
+      type: "plan_generated",
+      session_id: input.session.id,
+      timestamp: input.planGeneratedAt,
+      source: "planning",
+      summary: "Plan generated for this session",
+      reference: input.planReference,
+      state_effect: "lifecycle planning",
+    })
+  }
+
+  const firstAssistant = input.messages.find((message) => message.info.role === "assistant")
+  if (firstAssistant && firstAssistant.info.role === "assistant") {
+    rows.push({
+      id: `execution:${firstAssistant.info.id}`,
+      type: "execution_started",
+      session_id: input.session.id,
+      timestamp: firstAssistant.info.time.created,
+      source: "execution",
+      summary: "Execution started",
+      state_effect: "lifecycle executing",
+    })
+  }
+
+  for (const approval of input.approvals) {
+    rows.push({
+      id: `approval:${approval.id}`,
+      type: "approval_requested",
+      session_id: input.session.id,
+      timestamp: approval.createdAt,
+      source: "governance",
+      summary: `Approval requested for ${approval.permission}`,
+      reference: approval.patterns?.filter(Boolean).join(", "),
+      state_effect: "lifecycle awaiting_approval",
+    })
+  }
+
+  for (const artifact of input.artifacts) {
+    rows.push({
+      id: `artifact:${artifact.id}`,
+      type: "artifact_produced",
+      session_id: input.session.id,
+      timestamp: artifact.created_at ?? input.session.time.updated,
+      source: "artifact",
+      summary: `Artifact produced: ${artifact.label}`,
+      reference: artifact.reference,
+      state_effect: "artifact attached",
+    })
+  }
+
+  for (const row of input.ledgerEvents) {
+    if (row.event_type === "override") {
+      const reply = typeof row.payload.reply === "string" ? row.payload.reply : "resolved"
+      const permission = typeof row.payload.permission === "string" ? row.payload.permission : "approval"
+      rows.push({
+        id: `override:${row.id}`,
+        type: "approval_resolved",
+        session_id: input.session.id,
+        timestamp: row.created_at,
+        source: "governance",
+        summary: `Approval resolved via ${reply}`,
+        reference: permission,
+        state_effect: "approval state changed",
+      })
+      continue
+    }
+
+    if (row.event_type !== "audit") continue
+
+    if ("run_id" in row.payload) {
+      const blockers = asNumber(row.payload.blockers)
+      const warnings = asNumber(row.payload.warnings)
+      rows.push({
+        id: `audit:${row.id}`,
+        type: "audit_finding_recorded",
+        session_id: input.session.id,
+        timestamp: row.created_at,
+        source: "audit",
+        summary:
+          blockers + warnings > 0
+            ? `Audit recorded ${countLabel(blockers, "blocker")} and ${countLabel(warnings, "warning")}`
+            : "Audit recorded no findings",
+        reference: typeof row.payload.run_id === "string" ? row.payload.run_id : undefined,
+        state_effect: blockers > 0 ? "trust blockers recorded" : warnings > 0 ? "trust warnings recorded" : undefined,
+      })
+
+      rows.push({
+        id: `trust:${row.id}`,
+        type: "trust_posture_changed",
+        session_id: input.session.id,
+        timestamp: row.created_at,
+        source: "audit",
+        summary: `Trust posture changed to ${auditStatusToTrustLabel(typeof row.payload.status === "string" ? row.payload.status : "warn")}`,
+        state_effect: `trust ${auditStatusToTrustLabel(typeof row.payload.status === "string" ? row.payload.status : "warn")}`,
+      })
+      continue
+    }
+
+    if (row.payload.action === "ask") {
+      const permission = typeof row.payload.permission === "string" ? row.payload.permission : "approval"
+      const pattern = typeof row.payload.pattern === "string" ? row.payload.pattern : undefined
+      rows.push({
+        id: `governance:${row.id}`,
+        type: "approval_requested",
+        session_id: input.session.id,
+        timestamp: row.created_at,
+        source: "governance",
+        summary: `Approval requested for ${permission}`,
+        reference: pattern,
+        state_effect: "lifecycle awaiting_approval",
+      })
+    }
+  }
+
+  const deduped = new Map<string, SessionTimelineRow>()
+  for (const row of rows) deduped.set(row.id, row)
+
+  return Array.from(deduped.values()).sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id))
+}
+
+export function formatSessionTimeline(rows: SessionTimelineRow[]) {
+  if (rows.length === 0) return "No timeline events recorded for this session."
+
+  return rows
+    .map((row) =>
+      [
+        `${Locale.todayTimeOrDateTime(row.timestamp)}  ${formatTimelineType(row.type)}`,
+        row.summary,
+        row.state_effect ? `Effect: ${row.state_effect}` : undefined,
+        row.reference ? `Reference: ${row.reference}` : undefined,
+      ]
+        .filter(Boolean)
+        .join(EOL),
+    )
+    .join(`${EOL}${"─".repeat(72)}${EOL}`)
+}
+
+function formatTimelineType(type: SessionTimelineEventType) {
+  switch (type) {
+    case "session_created":
+      return "Session created"
+    case "plan_generated":
+      return "Plan generated"
+    case "execution_started":
+      return "Execution started"
+    case "approval_requested":
+      return "Approval requested"
+    case "approval_resolved":
+      return "Approval resolved"
+    case "artifact_produced":
+      return "Artifact produced"
+    case "audit_finding_recorded":
+      return "Audit finding recorded"
+    case "trust_posture_changed":
+      return "Trust posture changed"
+  }
+}
+
+function auditStatusToTrustLabel(status: string) {
+  switch (status) {
+    case "fail":
+      return "blocked"
+    case "pass":
+      return "policy_clean"
+    default:
+      return "review_needed"
+  }
+}
+
+function countLabel(value: number, noun: string) {
+  return `${value} ${noun}${value === 1 ? "" : "s"}`
+}
+
+function asNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+async function listTimelineApprovals(sessionID: string): Promise<TimelineApproval[]> {
+  const { PermissionNext } = await import("../../governance/next")
+  const pending = await PermissionNext.list()
+  return pending.filter((item) => item.sessionID === sessionID)
+}
 
 function toSessionSummary(session: Session.Info): SessionSummary {
   return {
