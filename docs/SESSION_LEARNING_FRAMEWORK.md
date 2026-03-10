@@ -280,6 +280,40 @@ Why it worked:
 - it made surface placement a product decision rather than a guess
 - it clarified that not every internal truth deserves default visibility
 
+#### Pattern 12: Choose workstation direction through exposure variants, not isolated widgets
+
+Better sequence:
+
+1. settle runtime truth
+2. settle surface exposure boundaries
+3. compare 2-3 workstation variants
+4. choose one product posture
+5. only then refine panes, overlays, and stream rules
+
+Why it worked:
+
+- it kept the TUI discussion architectural instead of cosmetic
+- it forced tradeoffs to be explicit:
+  - calmness vs visibility
+  - execution focus vs governance emphasis
+  - summary vs drilldown
+- it made the "balanced workstation" recommendation defensible rather than stylistic
+
+#### Pattern 13: Lock sidebar truth rules before refining interaction details
+
+Better sequence:
+
+1. lock center vs sidebar invariant
+2. choose the balanced workstation direction
+3. define sidebar card order and card behavior
+4. only then design overlays, footer shortcuts, and focus behavior
+
+Why it worked:
+
+- it kept durable truth separate from live execution
+- it prevented drilldown behavior from shaping card semantics prematurely
+- it gave the workstation a stable operator scan order before visual refinement
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`

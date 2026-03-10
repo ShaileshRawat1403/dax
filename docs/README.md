@@ -63,6 +63,8 @@ Use this index based on your role and goal.
 - [DAX_WRITE_GOVERNANCE_POLICY_REFINEMENT.md](DAX_WRITE_GOVERNANCE_POLICY_REFINEMENT.md): policy refinement for distinguishing harmless, governed, sensitive, and partial writes
 - [DAX_WRITE_GOVERNANCE_PARTIAL_BLOCKED.md](DAX_WRITE_GOVERNANCE_PARTIAL_BLOCKED.md): policy pass for distinguishing completed ungated writes from blocked, partial, and no-durable-result write outcomes
 - [DAX_OPERATOR_SURFACE_EXPOSURE.md](DAX_OPERATOR_SURFACE_EXPOSURE.md): operator-surface decision for what belongs in list, show, inspect, judgment, and later workstation defaults
+- [DAX_WORKSTATION_MOCKUP_VARIANTS.md](DAX_WORKSTATION_MOCKUP_VARIANTS.md): three grounded workstation directions: operator-minimal, balanced, and governance-heavy
+- [DAX_WORKSTATION_SIDEBAR_SPEC.md](DAX_WORKSTATION_SIDEBAR_SPEC.md): sidebar contract for card order, state rules, clickability, and default operator truth in the balanced workstation
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
