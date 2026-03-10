@@ -1,11 +1,16 @@
-import { createMemo, Match, Show, Switch } from "solid-js"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useSync } from "../../context/sync"
 import { useDirectory } from "../../context/directory"
 import { useRoute } from "../../context/route"
 import { useTerminalDimensions } from "@opentui/solid"
 
-export function Footer(props?: { lifecycleLabel?: string; trustLabel?: string }) {
+export function Footer(props?: {
+  lifecycleLabel?: string
+  trustLabel?: string
+  focusLabel?: string
+  focusHints?: string[]
+}) {
   const { theme } = useTheme()
   const sync = useSync()
   const route = useRoute()
@@ -38,6 +43,9 @@ export function Footer(props?: { lifecycleLabel?: string; trustLabel?: string })
         <Show when={!small()}>
           <text fg={theme.textMuted}>{directory()}</text>
         </Show>
+        <Show when={!small() && props?.focusLabel}>
+          <text fg={theme.textMuted}>{`Focus ${props?.focusLabel}`}</text>
+        </Show>
       </box>
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
         <Show when={permissions().length > 0}>
@@ -68,6 +76,20 @@ export function Footer(props?: { lifecycleLabel?: string; trustLabel?: string })
         </Show>
         <Show when={!tiny() && permissions().length === 0 && mcpAttention() === 0}>
           <text fg={theme.textMuted}>? help</text>
+        </Show>
+        <Show when={!small() && (props?.focusHints?.length ?? 0) > 0}>
+          <box gap={1} flexDirection="row" alignItems="center">
+            <For each={props?.focusHints ?? []}>
+              {(hint, index) => (
+                <>
+                  <Show when={index() > 0}>
+                    <text fg={theme.textMuted}>·</text>
+                  </Show>
+                  <text fg={theme.textMuted}>{hint}</text>
+                </>
+              )}
+            </For>
+          </box>
         </Show>
       </box>
     </box>
