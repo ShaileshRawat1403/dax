@@ -12,6 +12,12 @@ import { buildArtifactsForSession, type ArtifactRow } from "./artifacts"
 import type { MessageV2 } from "../../session/message-v2"
 import { RAOLedger } from "../../rao"
 import { Instance } from "../../project/instance"
+import {
+  collectSessionVerification,
+  type SessionVerification,
+  type VerificationResult,
+  type VerificationTrustPosture,
+} from "../../trust/verify-session"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -47,6 +53,18 @@ type SessionSummary = {
   created: number
   projectId: string
   directory: string
+}
+
+export type SessionHistoryOutcome = "active" | "blocked" | "completed" | "archived"
+
+export type SessionHistoryRow = {
+  id: string
+  title: string
+  updated: number
+  created: number
+  outcome: SessionHistoryOutcome
+  trust_posture: VerificationTrustPosture
+  verification_result: VerificationResult
 }
 
 type TimelineApproval = {
@@ -123,11 +141,13 @@ export const SessionListCommand = cmd({
         return
       }
 
+      const history = await collectSessionHistoryRows(limitedSessions)
+
       let output: string
       if (args.format === "json") {
-        output = formatSessionJSON(limitedSessions)
+        output = formatSessionJSON(history)
       } else {
-        output = formatSessionTable(limitedSessions)
+        output = formatSessionTable(history)
       }
 
       const shouldPaginate = process.stdout.isTTY && !args.maxCount && args.format === "table"
@@ -150,35 +170,63 @@ export const SessionListCommand = cmd({
   },
 })
 
-function formatSessionTable(sessions: Session.Info[]): string {
+export async function collectSessionHistoryRows(sessions: Session.Info[]) {
+  const rows = await Promise.all(
+    sessions.map(async (session) => {
+      const [timeline, verification] = await Promise.all([
+        collectSessionTimeline(session.id).catch(() => [] as SessionTimelineRow[]),
+        collectSessionVerification(session.id).catch(() => fallbackVerification(session.id)),
+      ])
+
+      return toSessionHistoryRow({
+        session,
+        timeline,
+        verification,
+      })
+    }),
+  )
+
+  return rows.sort((a, b) => b.updated - a.updated)
+}
+
+export function formatSessionTable(rows: SessionHistoryRow[]): string {
   const lines: string[] = []
 
-  const maxIdWidth = Math.max(20, ...sessions.map((s) => s.id.length))
-  const maxTitleWidth = Math.max(25, ...sessions.map((s) => s.title.length))
+  const maxIdWidth = Math.max(20, ...rows.map((s) => s.id.length))
+  const maxTitleWidth = Math.max(25, ...rows.map((s) => s.title.length))
+  const maxOutcomeWidth = Math.max(9, ...rows.map((row) => formatSessionOutcome(row.outcome).length))
+  const maxTrustWidth = Math.max(12, ...rows.map((row) => formatSessionTrustPosture(row.trust_posture).length))
+  const maxVerificationWidth = Math.max(12, ...rows.map((row) => formatVerificationResultLabel(row.verification_result).length))
 
-  const header = `Session ID${" ".repeat(maxIdWidth - 10)}  Title${" ".repeat(maxTitleWidth - 5)}  Updated`
+  const header = [
+    `Session ID${" ".repeat(maxIdWidth - 10)}`,
+    `Title${" ".repeat(maxTitleWidth - 5)}`,
+    `Outcome${" ".repeat(maxOutcomeWidth - 7)}`,
+    `Trust${" ".repeat(maxTrustWidth - 5)}`,
+    `Verification${" ".repeat(maxVerificationWidth - 12)}`,
+    "Updated",
+  ].join("  ")
   lines.push(header)
   lines.push("─".repeat(header.length))
-  for (const session of sessions) {
+  for (const session of rows) {
     const truncatedTitle = Locale.truncate(session.title, maxTitleWidth)
-    const timeStr = Locale.todayTimeOrDateTime(session.time.updated)
-    const line = `${session.id.padEnd(maxIdWidth)}  ${truncatedTitle.padEnd(maxTitleWidth)}  ${timeStr}`
+    const timeStr = Locale.todayTimeOrDateTime(session.updated)
+    const line = [
+      session.id.padEnd(maxIdWidth),
+      truncatedTitle.padEnd(maxTitleWidth),
+      formatSessionOutcome(session.outcome).padEnd(maxOutcomeWidth),
+      formatSessionTrustPosture(session.trust_posture).padEnd(maxTrustWidth),
+      formatVerificationResultLabel(session.verification_result).padEnd(maxVerificationWidth),
+      timeStr,
+    ].join("  ")
     lines.push(line)
   }
 
   return lines.join(EOL)
 }
 
-function formatSessionJSON(sessions: Session.Info[]): string {
-  const jsonData = sessions.map((session) => ({
-    id: session.id,
-    title: session.title,
-    updated: session.time.updated,
-    created: session.time.created,
-    projectId: session.projectID,
-    directory: session.directory,
-  }))
-  return JSON.stringify(jsonData, null, 2)
+function formatSessionJSON(sessions: SessionHistoryRow[]): string {
+  return JSON.stringify(sessions, null, 2)
 }
 
 export const SessionPruneCommand = cmd({
@@ -678,6 +726,79 @@ function toSessionSummary(session: Session.Info): SessionSummary {
     created: session.time.created,
     projectId: session.projectID,
     directory: session.directory,
+  }
+}
+
+export function toSessionHistoryRow(input: {
+  session: Session.Info
+  timeline: SessionTimelineRow[]
+  verification: SessionVerification
+}): SessionHistoryRow {
+  return {
+    id: input.session.id,
+    title: input.session.title,
+    updated: input.session.time.updated,
+    created: input.session.time.created,
+    outcome: deriveSessionHistoryOutcome(input.session, input.timeline),
+    trust_posture: input.verification.trust_posture,
+    verification_result: input.verification.verification_result,
+  }
+}
+
+export function deriveSessionHistoryOutcome(session: Session.Info, timeline: SessionTimelineRow[]): SessionHistoryOutcome {
+  if (session.time.archived) return "archived"
+  if (timeline.some((row) => row.type === "approval_requested")) return "blocked"
+  if (timeline.some((row) => row.type === "execution_completed")) return "completed"
+  return "active"
+}
+
+function fallbackVerification(sessionID: string): SessionVerification {
+  return {
+    type: "session_verification",
+    project_id: Instance.project.id,
+    session_id: sessionID,
+    verification_result: "verification_incomplete",
+    trust_posture: "review_needed",
+    checks: [],
+    blocking_factors: [],
+    degrading_factors: ["Verification could not be collected for this session."],
+  }
+}
+
+function formatSessionOutcome(outcome: SessionHistoryOutcome) {
+  switch (outcome) {
+    case "active":
+      return "Active"
+    case "blocked":
+      return "Blocked"
+    case "completed":
+      return "Completed"
+    case "archived":
+      return "Archived"
+  }
+}
+
+function formatSessionTrustPosture(posture: VerificationTrustPosture) {
+  switch (posture) {
+    case "review_needed":
+      return "Review needed"
+    case "policy_clean":
+      return "Policy clean"
+    case "verified":
+      return "Verified"
+  }
+}
+
+function formatVerificationResultLabel(result: VerificationResult) {
+  switch (result) {
+    case "verification_passed":
+      return "Passed"
+    case "verification_failed":
+      return "Failed"
+    case "verification_incomplete":
+      return "Incomplete"
+    case "verification_degraded":
+      return "Degraded"
   }
 }
 
