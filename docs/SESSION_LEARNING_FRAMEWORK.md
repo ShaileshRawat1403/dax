@@ -219,6 +219,56 @@ It was to read the existing runtime and see that DAX already has:
 - plan-mode entry and exit tools
 - a real plan file path
 
+## Session 003: Settle Write Outcome Semantics Before Surface Expansion
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted richer write-governance truth pushed into operator surfaces, but only after the semantic layer could distinguish completed writes from blocked or partial write paths.
+
+### What The Session Revealed
+
+The stronger move was not immediate `session show` / `session inspect` exposure.
+
+The stronger move was:
+
+1. classify write risk
+2. map write buckets into trust/readiness severity
+3. stop again and define partial / blocked / no-durable-result semantics
+4. only then expose richer write-governance truth in broader operator surfaces
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 9: Finish semantic distinctions before broadening operator surfaces
+
+Good sequence:
+
+1. artifact truth
+2. enforcement visibility
+3. bucket-based severity
+4. partial/blocked semantics
+5. operator-surface expansion later
+
+Why it worked:
+
+- it prevented `show` / `inspect` from becoming semantically unstable
+- it kept the repo aligned with the model -> bridge -> code discipline
+- it made policy depth a prerequisite for surface breadth
+
+#### Pattern 10: Separate write outcome semantics from risk buckets
+
+Useful distinction:
+
+- risk bucket answers `what kind of path was written?`
+- write outcome answers `how did the governed write path actually end?`
+
+Why it worked:
+
+- it stopped severity from doing too much semantic work
+- it clarified why partial writes and blocked writes must be modeled separately
+- it keeps later operator wording more auditable and easier to reason about
+
 ## Session 003: Refine Semantics in Two Passes, Not One
 
 Date: March 10, 2026
