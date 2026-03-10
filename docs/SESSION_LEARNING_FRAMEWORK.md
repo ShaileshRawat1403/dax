@@ -1286,3 +1286,16 @@ Applied sequence in DAX:
 - write-governance enforcement
 
 This keeps workstation and operator-surface design downstream of stable semantics instead of forcing UI to guess at runtime truth.
+
+## Session Pattern: Add An Implementation Bridge Before Broad Governance Changes
+
+When a governance model can affect approvals, artifacts, trust, and readiness at once, lock the first implementation slice before writing code.
+
+For write governance specifically, that means:
+
+- define enforcement truth
+- define the smallest shared evaluator
+- propagate it first through trust and readiness
+- avoid mixing UI or approval-flow redesign into the same slice
+
+This keeps governance corrections narrow and makes it easier to tell whether the next issue is enforcement logic or surface design.
