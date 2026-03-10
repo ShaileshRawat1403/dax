@@ -4,6 +4,7 @@ import {
   collectSessionInspectSummary,
   collectSessionShowSummary,
   deriveSessionStage,
+  deriveStagesReached,
   deriveSessionHistoryOutcome,
   formatSessionInspectSummary,
   formatSessionShowSummary,
@@ -512,6 +513,48 @@ describe("session timeline helpers", () => {
     ).toBe("implementation")
   })
 
+  test("derives ordered stages reached from timeline progression", () => {
+    expect(
+      deriveStagesReached(
+        [
+          {
+            id: "timeline_created",
+            type: "session_created",
+            session_id: "session_stage_path",
+            timestamp: 1_000,
+            source: "session",
+            summary: "Session created",
+          },
+          {
+            id: "timeline_plan",
+            type: "plan_generated",
+            session_id: "session_stage_path",
+            timestamp: 2_000,
+            source: "planning",
+            summary: "Plan generated",
+          },
+          {
+            id: "timeline_impl",
+            type: "artifact_produced",
+            session_id: "session_stage_path",
+            timestamp: 3_000,
+            source: "artifact",
+            summary: "Artifacts produced (2)",
+          },
+          {
+            id: "timeline_review",
+            type: "trust_posture_changed",
+            session_id: "session_stage_path",
+            timestamp: 4_000,
+            source: "audit",
+            summary: "Trust posture updated",
+          },
+        ],
+        "review",
+      ),
+    ).toEqual(["discovery", "planning", "implementation", "review"])
+  })
+
   test(
     "collects a durable session summary from canonical session surfaces",
     async () => {
@@ -558,6 +601,7 @@ describe("session timeline helpers", () => {
         audit_posture: "clear",
         latest_activity_at: 2_000,
       },
+      stages_reached: ["planning", "implementation", "verification"],
       timeline: [
         {
           id: "timeline_1",
@@ -621,6 +665,9 @@ describe("session timeline helpers", () => {
       },
     })
 
+    expect(rendered).toContain("Stage progression")
+    expect(rendered).toContain("Current stage: Verification")
+    expect(rendered).toContain("Stages reached: Planning -> Implementation -> Verification")
     expect(rendered).toContain("Timeline")
     expect(rendered).toContain("Artifacts")
     expect(rendered).toContain("Audit")
@@ -637,6 +684,7 @@ describe("session timeline helpers", () => {
 
       expect(summary.type).toBe("session_inspect")
       expect(summary.summary.id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(Array.isArray(summary.stages_reached)).toBe(true)
       expect(Array.isArray(summary.timeline)).toBe(true)
       expect(Array.isArray(summary.artifacts)).toBe(true)
       expect(summary.audit.session_id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
