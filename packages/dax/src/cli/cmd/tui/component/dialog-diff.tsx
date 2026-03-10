@@ -44,11 +44,11 @@ export function DialogDiff(props: { diffs: FileDiff[]; onOpenPane?: () => void; 
   })
 
   const current = createMemo(() => props.diffs[selected()])
-  const title = createMemo(() => (props.explainMode ? "Changes made" : "Diff review"))
+  const title = createMemo(() => (props.explainMode ? "Evidence review" : "Evidence detail"))
   const footer = createMemo(() =>
     props.explainMode
-      ? "Open the diff pane to inspect the live file-by-file change summary."
-      : "Open the diff pane for the live change summary while you continue the session.",
+      ? "Open the evidence pane to inspect the live file-by-file change summary."
+      : "Open the evidence pane for the live change summary while you continue the session.",
   )
   const emptyState = createMemo(() =>
     props.explainMode ? "No tracked file changes yet for this work." : "No tracked file changes yet.",
