@@ -1,6 +1,7 @@
 import { EOL } from "os"
 import { collectSessionShowSummary } from "../cli/cmd/session"
 import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "../trust/verify-session"
+import type { SessionLifecycleState } from "../session/lifecycle"
 
 export type ReleaseReadiness =
   | "not_ready"
@@ -11,6 +12,7 @@ export type ReleaseReadiness =
 export type ReleaseCheckStatus = "pass" | "fail" | "incomplete"
 
 export type ReleaseCheckID =
+  | "lifecycle_terminal"
   | "verification_passed"
   | "approvals_complete"
   | "artifacts_present"
@@ -28,6 +30,7 @@ export type ReleaseCheck = {
 export type SessionReleaseCheck = {
   type: "session_release_check"
   session_id: string
+  lifecycle_state: SessionLifecycleState
   release_readiness: ReleaseReadiness
   trust_posture: VerificationTrustPosture
   verification_result: VerificationResult
@@ -43,6 +46,9 @@ export async function collectSessionReleaseCheck(sessionID: string): Promise<Ses
 
   return evaluateSessionReleaseCheck({
     session_id: sessionID,
+    lifecycle_state: verification.lifecycle_state,
+    lifecycle_terminal: verification.lifecycle_terminal,
+    lifecycle_requires_reconciliation: verification.lifecycle_requires_reconciliation,
     verification_result: verification.verification_result,
     trust_posture: verification.trust_posture,
     approval_count: summary.approval_count,
@@ -55,6 +61,9 @@ export async function collectSessionReleaseCheck(sessionID: string): Promise<Ses
 
 export function evaluateSessionReleaseCheck(input: {
   session_id: string
+  lifecycle_state: SessionLifecycleState
+  lifecycle_terminal: boolean
+  lifecycle_requires_reconciliation: boolean
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
   approval_count: number
@@ -64,6 +73,7 @@ export function evaluateSessionReleaseCheck(input: {
   trace_continuity_ok: boolean
 }): SessionReleaseCheck {
   const checks: ReleaseCheck[] = [
+    buildLifecycleCheck(input.lifecycle_state, input.lifecycle_terminal, input.lifecycle_requires_reconciliation),
     buildVerificationCheck(input.verification_result),
     buildApprovalsCheck(input.approval_count),
     buildArtifactsCheck(input.artifact_count),
@@ -79,6 +89,7 @@ export function evaluateSessionReleaseCheck(input: {
   return {
     type: "session_release_check",
     session_id: input.session_id,
+    lifecycle_state: input.lifecycle_state,
     release_readiness: deriveReleaseReadiness(checks, input.verification_result),
     trust_posture: input.trust_posture,
     verification_result: input.verification_result,
@@ -92,6 +103,7 @@ export function evaluateSessionReleaseCheck(input: {
 export function formatSessionReleaseCheck(summary: SessionReleaseCheck) {
   const lines = [
     `Session: ${summary.session_id}`,
+    `Lifecycle: ${formatLifecycleState(summary.lifecycle_state)}`,
     `Readiness: ${summary.release_readiness}`,
     `Trust posture: ${formatTrustPosture(summary.trust_posture)}`,
     `Verification: ${formatVerificationResult(summary.verification_result)}`,
@@ -113,6 +125,37 @@ export function formatSessionReleaseCheck(summary: SessionReleaseCheck) {
   lines.push("Summary", `- ${formatReadinessSummary(summary)}`)
 
   return lines.join(EOL)
+}
+
+function buildLifecycleCheck(
+  lifecycleState: SessionLifecycleState,
+  lifecycleTerminal: boolean,
+  lifecycleRequiresReconciliation: boolean,
+): ReleaseCheck {
+  if (lifecycleTerminal && !lifecycleRequiresReconciliation) {
+    return {
+      id: "lifecycle_terminal",
+      label: "Lifecycle complete",
+      status: "pass",
+      summary: "Session lifecycle reached a terminal execution state.",
+    }
+  }
+
+  if (lifecycleRequiresReconciliation) {
+    return {
+      id: "lifecycle_terminal",
+      label: "Lifecycle complete",
+      status: "fail",
+      summary: "Session produced visible output, but lifecycle completion was not finalized.",
+    }
+  }
+
+  return {
+    id: "lifecycle_terminal",
+    label: "Lifecycle complete",
+    status: "fail",
+    summary: `Session lifecycle is still non-terminal: ${formatLifecycleState(lifecycleState)}.`,
+  }
 }
 
 function deriveReleaseReadiness(checks: ReleaseCheck[], verificationResult: VerificationResult): ReleaseReadiness {
@@ -264,6 +307,21 @@ function formatReadinessSummary(summary: SessionReleaseCheck) {
       return "This session is ready for handoff, but some non-blocking release evidence is still missing."
     case "release_ready":
       return "This session is ready to ship."
+  }
+}
+
+function formatLifecycleState(state: SessionLifecycleState) {
+  switch (state) {
+    case "active":
+      return "Active"
+    case "executing":
+      return "Executing"
+    case "completed":
+      return "Completed"
+    case "interrupted":
+      return "Interrupted"
+    case "abandoned":
+      return "Abandoned"
   }
 }
 

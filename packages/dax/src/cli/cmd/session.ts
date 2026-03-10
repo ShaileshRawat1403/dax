@@ -12,6 +12,7 @@ import { buildArtifactsForSession, type ArtifactRow } from "./artifacts"
 import type { MessageV2 } from "../../session/message-v2"
 import { RAOLedger } from "../../rao"
 import { Instance } from "../../project/instance"
+import { deriveSessionLifecycleFromMessages, type SessionLifecycleState, type SessionLifecycleSummary } from "../../session/lifecycle"
 import {
   collectSessionVerification,
   type SessionVerification,
@@ -77,6 +78,9 @@ export type SessionShowSummary = {
   created: number
   updated: number
   outcome: SessionHistoryOutcome
+  lifecycle_state: SessionLifecycleState
+  lifecycle_terminal: boolean
+  lifecycle_requires_reconciliation: boolean
   trust_posture: VerificationTrustPosture
   verification_result: VerificationResult
   stage: SDLCStage
@@ -218,6 +222,12 @@ export async function collectSessionHistoryRows(sessions: Session.Info[]) {
       return toSessionHistoryRow({
         session,
         timeline,
+        lifecycle: {
+          lifecycle_state: verification.lifecycle_state,
+          terminal: verification.lifecycle_terminal,
+          requires_reconciliation: verification.lifecycle_requires_reconciliation,
+          execution_started: true,
+        },
         verification,
       })
     }),
@@ -487,9 +497,15 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
   ])
 
   const artifacts = buildArtifactsForSession(session, messages, diffs)
+  const lifecycle = deriveSessionLifecycleFromMessages({
+    archivedAt: session.time.archived,
+    pendingApprovalCount: pendingApprovals.length,
+    messages,
+  })
   const history = toSessionHistoryRow({
     session,
     timeline,
+    lifecycle,
     verification,
   })
 
@@ -501,6 +517,9 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
     created: session.time.created,
     updated: session.time.updated,
     outcome: history.outcome,
+    lifecycle_state: lifecycle.lifecycle_state,
+    lifecycle_terminal: lifecycle.terminal,
+    lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
     trust_posture: verification.trust_posture,
     verification_result: verification.verification_result,
     stage: deriveSessionStage({
@@ -726,6 +745,7 @@ export function formatSessionShowSummary(summary: SessionShowSummary) {
     summary.latest_activity_at ? `Latest activity: ${Locale.todayTimeOrDateTime(summary.latest_activity_at)}` : undefined,
     "",
     `Outcome: ${formatSessionOutcome(summary.outcome)}`,
+    `Lifecycle: ${formatSessionLifecycleState(summary.lifecycle_state)}${summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : ""}`,
     `Stage: ${formatSessionStage(summary.stage)}`,
     `Trust posture: ${formatSessionTrustPosture(summary.trust_posture)}`,
     `Verification: ${formatVerificationResultLabel(summary.verification_result)}`,
@@ -761,6 +781,7 @@ export function formatSessionInspectSummary(summary: SessionInspectSummary) {
     formatSessionShowSummary(summary.summary),
     "",
     "Stage progression",
+    `- Lifecycle: ${formatSessionLifecycleState(summary.summary.lifecycle_state)}${summary.summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : ""}`,
     `- Current stage: ${formatSessionStage(summary.summary.stage)}`,
     `- Stages reached: ${summary.stages_reached.map(formatSessionStage).join(" -> ")}`,
     "",
@@ -975,6 +996,7 @@ function toSessionSummary(session: Session.Info): SessionSummary {
 export function toSessionHistoryRow(input: {
   session: Session.Info
   timeline: SessionTimelineRow[]
+  lifecycle: SessionLifecycleSummary
   verification: SessionVerification
 }): SessionHistoryRow {
   return {
@@ -982,16 +1004,20 @@ export function toSessionHistoryRow(input: {
     title: input.session.title,
     updated: input.session.time.updated,
     created: input.session.time.created,
-    outcome: deriveSessionHistoryOutcome(input.session, input.timeline),
+    outcome: deriveSessionHistoryOutcome(input.session, input.timeline, input.lifecycle),
     trust_posture: input.verification.trust_posture,
     verification_result: input.verification.verification_result,
   }
 }
 
-export function deriveSessionHistoryOutcome(session: Session.Info, timeline: SessionTimelineRow[]): SessionHistoryOutcome {
+export function deriveSessionHistoryOutcome(
+  session: Session.Info,
+  timeline: SessionTimelineRow[],
+  lifecycle: SessionLifecycleSummary,
+): SessionHistoryOutcome {
   if (session.time.archived) return "archived"
   if (timeline.some((row) => row.type === "approval_requested")) return "blocked"
-  if (timeline.some((row) => row.type === "execution_completed")) return "completed"
+  if (lifecycle.lifecycle_state === "completed") return "completed"
   return "active"
 }
 
@@ -1000,6 +1026,9 @@ function fallbackVerification(sessionID: string): SessionVerification {
     type: "session_verification",
     project_id: Instance.project.id,
     session_id: sessionID,
+    lifecycle_state: "active",
+    lifecycle_terminal: false,
+    lifecycle_requires_reconciliation: false,
     verification_result: "verification_incomplete",
     trust_posture: "review_needed",
     checks: [],
@@ -1018,6 +1047,21 @@ function formatSessionOutcome(outcome: SessionHistoryOutcome) {
       return "Completed"
     case "archived":
       return "Archived"
+  }
+}
+
+function formatSessionLifecycleState(state: SessionLifecycleState) {
+  switch (state) {
+    case "active":
+      return "Active"
+    case "executing":
+      return "Executing"
+    case "completed":
+      return "Completed"
+    case "interrupted":
+      return "Interrupted"
+    case "abandoned":
+      return "Abandoned"
   }
 }
 
