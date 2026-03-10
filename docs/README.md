@@ -42,6 +42,7 @@ Use this index based on your role and goal.
 - [DAX_TRUST_MODEL.md](DAX_TRUST_MODEL.md): session-level trust inputs, posture ladder, and degradation rules
 - [DAX_SESSION_TIMELINE.md](DAX_SESSION_TIMELINE.md): append-oriented timeline model for meaningful session progression over time
 - [DAX_AUDIT_VERIFICATION.md](DAX_AUDIT_VERIFICATION.md): verification model for evaluating session trust posture and evidence
+- [DAX_VERIFICATION_SURFACE.md](DAX_VERIFICATION_SURFACE.md): first operator-facing verification surface for session trust judgment
 - [DAX_SESSION_TIMELINE_SURFACE.md](DAX_SESSION_TIMELINE_SURFACE.md): first operator-facing surface contract for readable session progression
 - [DAX_SESSION_TIMELINE_DENSITY_REVIEW.md](DAX_SESSION_TIMELINE_DENSITY_REVIEW.md): real-session review of timeline density, wording, and grouping gaps
 - [DAX_SESSION_PROGRESS_LAYERS.md](DAX_SESSION_PROGRESS_LAYERS.md): hard separation between transcript, timeline, and verification layers

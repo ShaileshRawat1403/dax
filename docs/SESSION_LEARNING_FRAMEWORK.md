@@ -879,3 +879,12 @@ For timeline specifically:
 
 - CLI proves event families, wording, and grouping
 - workstation should then expose the proven structure as a drilldown, not as a competing always-on pane
+
+## Session Pattern: Separate Trust Inspection From Trust Judgment
+
+As trust surfaces mature, keep the product language clean:
+
+- `audit` inspects trust state
+- `verify` judges whether trust signals justify stronger posture
+
+This prevents audit from absorbing verification semantics and keeps verification from turning into another history or findings browser.
