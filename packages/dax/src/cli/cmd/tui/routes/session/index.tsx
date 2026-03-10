@@ -181,6 +181,12 @@ type TranscriptPosition = {
 }
 
 type FocusedPane = "activity" | "plan" | "approvals" | "artifacts" | "audit"
+type WorkstationOverlayKind =
+  | "approval_dialog"
+  | "artifact_detail"
+  | "audit_detail"
+  | "audit_events"
+  | "diff_detail"
 
 function SessionQuickAction(props: {
   theme: ThemeShape
@@ -267,6 +273,135 @@ function WorkstationSummaryCard(props: {
         </box>
       </Show>
     </box>
+  )
+}
+
+function WorkstationOverlayPanel(props: {
+  title: string
+  body: JSX.Element
+  footer: string
+  width?: number
+}) {
+  const dialog = useDialog()
+  const { theme } = useTheme()
+
+  onMount(() => {
+    dialog.setSize("large")
+  })
+
+  return (
+    <box paddingLeft={2} paddingRight={2} gap={1} paddingBottom={1} flexDirection="column">
+      <box flexDirection="row" justifyContent="space-between">
+        <text fg={theme.text} attributes={TextAttributes.BOLD}>
+          {props.title}
+        </text>
+        <text fg={theme.textMuted}>{props.footer}</text>
+      </box>
+      <box width={props.width ?? 62} flexDirection="column" gap={1}>
+        {props.body}
+      </box>
+    </box>
+  )
+}
+
+function DialogArtifactDetail(props: { title: string; body: string }) {
+  const { theme } = useTheme()
+  return (
+    <WorkstationOverlayPanel
+      title="Artifact detail"
+      footer="esc close"
+      body={
+        <>
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            {props.title}
+          </text>
+          <scrollbox height={18}>
+            <text fg={theme.textMuted} wrapMode="word">
+              {props.body}
+            </text>
+          </scrollbox>
+        </>
+      }
+    />
+  )
+}
+
+function DialogAuditEvents(props: { findings: AuditFinding[] }) {
+  const { theme } = useTheme()
+  return (
+    <WorkstationOverlayPanel
+      title="Audit events"
+      footer="esc close"
+      body={
+        <Show
+          when={props.findings.length > 0}
+          fallback={<text fg={theme.textMuted}>No audit findings recorded for this session.</text>}
+        >
+          <scrollbox height={18}>
+            <box flexDirection="column" gap={1}>
+              <For each={props.findings}>
+                {(finding) => (
+                  <box flexDirection="column" gap={0}>
+                    <text fg={finding.blocking ? theme.error : theme.warning} attributes={TextAttributes.BOLD}>
+                      {finding.severity.toUpperCase()} · {finding.title}
+                    </text>
+                    <text fg={theme.textMuted} wrapMode="word">
+                      {finding.category}
+                    </text>
+                    <text fg={theme.text} wrapMode="word">
+                      {finding.evidence}
+                    </text>
+                  </box>
+                )}
+              </For>
+            </box>
+          </scrollbox>
+        </Show>
+      }
+    />
+  )
+}
+
+function DialogAuditDetail(props: {
+  trustLabel: string
+  summary?: AuditResult["summary"]
+  findings: AuditFinding[]
+  onOpenEvents: () => void
+}) {
+  const { theme } = useTheme()
+  useKeyboard((evt) => {
+    if (evt.name === "e") {
+      evt.preventDefault()
+      props.onOpenEvents()
+    }
+  })
+
+  return (
+    <WorkstationOverlayPanel
+      title="Audit summary"
+      footer="e audit events • esc close"
+      body={
+        <>
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            {`Trust posture: ${props.trustLabel}`}
+          </text>
+          <Show when={props.summary}>
+            {(summary) => (
+              <box flexDirection="column" gap={0}>
+                <text fg={theme.textMuted}>{`Blockers: ${summary().blocker_count}`}</text>
+                <text fg={theme.textMuted}>{`Warnings: ${summary().warning_count}`}</text>
+                <text fg={theme.textMuted}>{`Info: ${summary().info_count}`}</text>
+              </box>
+            )}
+          </Show>
+          <text fg={theme.text}>
+            {props.findings.length > 0
+              ? `${props.findings.length} finding${props.findings.length === 1 ? "" : "s"} available for review.`
+              : "No audit findings recorded for this session."}
+          </text>
+        </>
+      }
+    />
   )
 }
 
@@ -722,6 +857,13 @@ export function Session() {
   const [raoFocusRequestID, setRaoFocusRequestID] = createSignal<string | undefined>(undefined)
   const [focusedPane, setFocusedPane] = createSignal<FocusedPane>("activity")
   const [paneKeyboardMode, setPaneKeyboardMode] = createSignal(false)
+  const [overlayState, setOverlayState] = createSignal<
+    | {
+        kind: WorkstationOverlayKind
+        returnPane: FocusedPane
+      }
+    | undefined
+  >(undefined)
   const { currentPun } = useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const promptDisabled = createMemo(() => !!session()?.parentID)
@@ -1524,7 +1666,8 @@ export function Session() {
 
   const command = useCommandDialog()
   const openApprovalsReview = () => {
-    dialog.replace(() => (
+    replaceWorkstationOverlay(
+      "approval_dialog",
       <DialogApprovals
         permissions={permissions()}
         questions={questions()}
@@ -1535,12 +1678,14 @@ export function Session() {
           setPaneVisibility(() => "pinned")
           dialog.clear()
         }}
-      />
-    ))
+      />,
+      "approvals",
+    )
   }
   const openDiffReview = () => {
     const diffs = sync.data.session_diff[route.sessionID] ?? []
-    dialog.replace(() => (
+    replaceWorkstationOverlay(
+      "diff_detail",
       <DialogDiff
         diffs={diffs}
         explainMode={explainMode()}
@@ -1549,8 +1694,8 @@ export function Session() {
           setPaneVisibility(() => "pinned")
           dialog.clear()
         }}
-      />
-    ))
+      />,
+    )
   }
   const openTimelineReview = () => {
     dialog.replace(() => (
@@ -1574,21 +1719,39 @@ export function Session() {
     setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
     keepPromptFocused()
   }
+  const openArtifactDetail = () => {
+    replaceWorkstationOverlay(
+      "artifact_detail",
+      <DialogArtifactDetail title={liveArtifact().title} body={liveArtifact().body} />,
+      "artifacts",
+    )
+  }
+  const openAuditEvents = () => {
+    replaceWorkstationOverlay("audit_events", <DialogAuditEvents findings={auditFindings()} />, "audit")
+  }
+  const openAuditDetail = () => {
+    replaceWorkstationOverlay(
+      "audit_detail",
+      <DialogAuditDetail
+        trustLabel={workstationState().trustLabel}
+        summary={latestAudit()?.result?.summary}
+        findings={auditFindings()}
+        onOpenEvents={openAuditEvents}
+      />,
+      "audit",
+    )
+  }
   const activateFocusedPane = () => {
     switch (focusedPane()) {
       case "approvals":
         if (permissions().length > 0 || questions().length > 0) openApprovalsReview()
         return
       case "artifacts":
-        setPaneMode(() => "artifact")
-        if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
-        keepPromptFocused()
+        openArtifactDetail()
         return
       case "audit":
         if (auditPaneEnabled()) {
-          setPaneMode(() => "audit")
-          if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
-          keepPromptFocused()
+          openAuditDetail()
         }
         return
       default:
@@ -2660,11 +2823,52 @@ export function Session() {
 
   const dialog = useDialog()
   const renderer = useRenderer()
+  function replaceWorkstationOverlay(kind: WorkstationOverlayKind, element: JSX.Element, returnPane = focusedPane()) {
+    dialog.replace(() => element, () => {
+      const nextPane = overlayState()?.returnPane ?? returnPane
+      setOverlayState(undefined)
+      setFocusedPane(nextPane)
+      setPaneKeyboardMode(true)
+    })
+    setOverlayState({
+      kind,
+      returnPane,
+    })
+  }
   const footerFocus = createMemo(() => {
+    const activeOverlay = overlayState()
     if (dialog.stack.length > 0) {
-      return {
-        label: "Dialog",
-        hints: ["enter select", "esc close"],
+      switch (activeOverlay?.kind) {
+        case "approval_dialog":
+          return {
+            label: "Approval dialog",
+            hints: ["enter open live review", "esc close"],
+          }
+        case "artifact_detail":
+          return {
+            label: "Artifact detail",
+            hints: ["esc close"],
+          }
+        case "audit_detail":
+          return {
+            label: "Audit detail",
+            hints: ["e audit events", "esc close"],
+          }
+        case "audit_events":
+          return {
+            label: "Audit events",
+            hints: ["esc close"],
+          }
+        case "diff_detail":
+          return {
+            label: "Evidence detail",
+            hints: ["enter open evidence", "esc close"],
+          }
+        default:
+          return {
+            label: "Dialog",
+            hints: ["enter select", "esc close"],
+          }
       }
     }
 
@@ -3137,11 +3341,8 @@ export function Session() {
                             : "No retained outputs yet."
                         }
                         detail={workstationState().artifactSummary.items[0]?.label}
-                        actionLabel="Open artifacts"
-                        onPress={() => {
-                          setPaneMode(() => "artifact")
-                          if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
-                        }}
+                        actionLabel="Open detail"
+                        onPress={openArtifactDetail}
                         focused={focusedPane() === "artifacts"}
                       />
                       <WorkstationSummaryCard
@@ -3153,15 +3354,8 @@ export function Session() {
                             ? `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence present`
                             : `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence still limited`
                         }
-                        actionLabel={auditPaneEnabled() ? "Open audit" : undefined}
-                        onPress={
-                          auditPaneEnabled()
-                            ? () => {
-                                setPaneMode(() => "audit")
-                                if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
-                              }
-                            : undefined
-                        }
+                        actionLabel={auditPaneEnabled() ? "Open detail" : undefined}
+                        onPress={auditPaneEnabled() ? openAuditDetail : undefined}
                         focused={focusedPane() === "audit"}
                       />
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
