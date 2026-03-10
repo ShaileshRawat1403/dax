@@ -57,6 +57,7 @@ type SessionSummary = {
 }
 
 export type SessionHistoryOutcome = "active" | "blocked" | "completed" | "archived"
+export type SDLCStage = "discovery" | "planning" | "implementation" | "verification" | "review" | "release_preparation"
 
 export type SessionHistoryRow = {
   id: string
@@ -78,6 +79,7 @@ export type SessionShowSummary = {
   outcome: SessionHistoryOutcome
   trust_posture: VerificationTrustPosture
   verification_result: VerificationResult
+  stage: SDLCStage
   artifact_count: number
   approval_count: number
   override_count: number
@@ -500,6 +502,12 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
     outcome: history.outcome,
     trust_posture: verification.trust_posture,
     verification_result: verification.verification_result,
+    stage: deriveSessionStage({
+      timeline,
+      approval_count: pendingApprovals.length,
+      audit_posture: auditSummary.posture,
+      verification_result: verification.verification_result,
+    }),
     artifact_count: artifacts.length,
     approval_count: pendingApprovals.length,
     override_count: events.filter((row) => row.event_type === "override").length,
@@ -716,6 +724,7 @@ export function formatSessionShowSummary(summary: SessionShowSummary) {
     summary.latest_activity_at ? `Latest activity: ${Locale.todayTimeOrDateTime(summary.latest_activity_at)}` : undefined,
     "",
     `Outcome: ${formatSessionOutcome(summary.outcome)}`,
+    `Stage: ${formatSessionStage(summary.stage)}`,
     `Trust posture: ${formatSessionTrustPosture(summary.trust_posture)}`,
     `Verification: ${formatVerificationResultLabel(summary.verification_result)}`,
     `Audit posture: ${formatAuditPosture(summary.audit_posture)}`,
@@ -1038,6 +1047,54 @@ function formatAuditPosture(posture: AuditPosture) {
       return "Review needed"
     case "blocked":
       return "Blocked"
+  }
+}
+
+export function deriveSessionStage(input: {
+  timeline: SessionTimelineRow[]
+  approval_count: number
+  audit_posture: AuditPosture
+  verification_result: VerificationResult
+}): SDLCStage {
+  if (input.approval_count > 0 || input.audit_posture !== "clear") return "review"
+  if (input.verification_result !== "verification_incomplete") return "verification"
+
+  const latest = input.timeline.at(-1)
+  if (!latest) return "discovery"
+
+  switch (latest.type) {
+    case "session_created":
+      return "discovery"
+    case "plan_generated":
+      return "planning"
+    case "execution_started":
+    case "execution_completed":
+    case "artifact_produced":
+      return "implementation"
+    case "approval_requested":
+    case "approval_resolved":
+    case "audit_finding_recorded":
+    case "trust_posture_changed":
+      return "review"
+    default:
+      return "discovery"
+  }
+}
+
+function formatSessionStage(stage: SDLCStage) {
+  switch (stage) {
+    case "discovery":
+      return "Discovery"
+    case "planning":
+      return "Planning"
+    case "implementation":
+      return "Implementation"
+    case "verification":
+      return "Verification"
+    case "review":
+      return "Review"
+    case "release_preparation":
+      return "Release preparation"
   }
 }
 

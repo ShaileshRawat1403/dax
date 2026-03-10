@@ -3,6 +3,7 @@ import {
   buildSessionTimelineRows,
   collectSessionInspectSummary,
   collectSessionShowSummary,
+  deriveSessionStage,
   deriveSessionHistoryOutcome,
   formatSessionInspectSummary,
   formatSessionShowSummary,
@@ -435,6 +436,7 @@ describe("session timeline helpers", () => {
       outcome: "completed",
       trust_posture: "verified",
       verification_result: "verification_passed",
+      stage: "verification",
       artifact_count: 2,
       approval_count: 0,
       override_count: 1,
@@ -445,10 +447,69 @@ describe("session timeline helpers", () => {
 
     expect(rendered).toContain("Session: session_show_1")
     expect(rendered).toContain("Outcome: Completed")
+    expect(rendered).toContain("Stage: Verification")
     expect(rendered).toContain("Trust posture: Verified")
     expect(rendered).toContain("Verification: Passed")
     expect(rendered).toContain("Audit posture: Review needed")
     expect(rendered).toContain("Timeline events: 6")
+  })
+
+  test("derives a review stage when governance or audit review is still active", () => {
+    expect(
+      deriveSessionStage({
+        timeline: [
+          {
+            id: "timeline_1",
+            type: "execution_completed",
+            session_id: "session_stage_1",
+            timestamp: 2_000,
+            source: "execution",
+            summary: "Execution completed",
+          },
+        ],
+        approval_count: 1,
+        audit_posture: "review_needed",
+        verification_result: "verification_incomplete",
+      }),
+    ).toBe("review")
+  })
+
+  test("derives planning and implementation stages from timeline progression", () => {
+    expect(
+      deriveSessionStage({
+        timeline: [
+          {
+            id: "timeline_plan",
+            type: "plan_generated",
+            session_id: "session_stage_2",
+            timestamp: 1_000,
+            source: "planning",
+            summary: "Plan generated",
+          },
+        ],
+        approval_count: 0,
+        audit_posture: "clear",
+        verification_result: "verification_incomplete",
+      }),
+    ).toBe("planning")
+
+    expect(
+      deriveSessionStage({
+        timeline: [
+          {
+            id: "timeline_impl",
+            type: "artifact_produced",
+            session_id: "session_stage_3",
+            timestamp: 2_000,
+            source: "artifact",
+            summary: "Artifacts produced (2)",
+          },
+        ],
+        approval_count: 0,
+        audit_posture: "clear",
+        verification_result: "verification_incomplete",
+      }),
+    ).toBe("implementation")
   })
 
   test(
@@ -464,6 +525,9 @@ describe("session timeline helpers", () => {
       expect(typeof summary.approval_count).toBe("number")
       expect(typeof summary.override_count).toBe("number")
       expect(["active", "blocked", "completed", "archived"]).toContain(summary.outcome)
+      expect(["discovery", "planning", "implementation", "verification", "review", "release_preparation"]).toContain(
+        summary.stage,
+      )
       expect(["review_needed", "policy_clean", "verified"]).toContain(summary.trust_posture)
       expect(["verification_passed", "verification_failed", "verification_incomplete", "verification_degraded"]).toContain(
         summary.verification_result,
@@ -486,6 +550,7 @@ describe("session timeline helpers", () => {
         outcome: "completed",
         trust_posture: "verified",
         verification_result: "verification_passed",
+        stage: "verification",
         artifact_count: 1,
         approval_count: 0,
         override_count: 0,
