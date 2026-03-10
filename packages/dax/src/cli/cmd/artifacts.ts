@@ -1,13 +1,14 @@
 import type { Argv } from "yargs"
 import { EOL } from "os"
 import path from "path"
+import { existsSync } from "fs"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { Session } from "../../session"
 import { Locale } from "../../util/locale"
 import type { MessageV2 } from "../../session/message-v2"
 
-type ArtifactKind = "attachment" | "truncated_output" | "session_diff"
+type ArtifactKind = "attachment" | "truncated_output" | "session_diff" | "workspace_file"
 
 export type ArtifactRow = {
   id: string
@@ -68,9 +69,10 @@ export function buildArtifactsForSession(
   diffs: Awaited<ReturnType<typeof Session.diff>>,
 ) {
   const rows: ArtifactRow[] = []
+  const seenReferences = new Set<string>()
 
   if (diffs.length > 0) {
-    rows.push({
+    const row = {
       id: `diff:${session.id}`,
       kind: "session_diff",
       session_id: session.id,
@@ -78,7 +80,9 @@ export function buildArtifactsForSession(
       source: "session diff",
       created_at: session.time.updated,
       reference: diffs.map((diff) => diff.file).join(", "),
-    })
+    } satisfies ArtifactRow
+    rows.push(row)
+    if (row.reference) seenReferences.add(row.reference)
   }
 
   for (const message of messages) {
@@ -89,7 +93,7 @@ export function buildArtifactsForSession(
       const title = part.state.title || `${part.tool} output`
 
       for (const [index, attachment] of (part.state.attachments ?? []).entries()) {
-        rows.push({
+        const row = {
           id: `${part.id}:attachment:${index}`,
           kind: "attachment",
           session_id: part.sessionID,
@@ -97,12 +101,14 @@ export function buildArtifactsForSession(
           source: `${part.tool} attachment`,
           created_at: completedAt,
           reference: describeAttachment(attachment),
-        })
+        } satisfies ArtifactRow
+        rows.push(row)
+        if (row.reference) seenReferences.add(row.reference)
       }
 
       const outputPath = typeof part.state.metadata?.outputPath === "string" ? part.state.metadata.outputPath : undefined
       if (outputPath) {
-        rows.push({
+        const row = {
           id: `${part.id}:truncated`,
           kind: "truncated_output",
           session_id: part.sessionID,
@@ -110,7 +116,19 @@ export function buildArtifactsForSession(
           source: `${part.tool} truncated output`,
           created_at: completedAt,
           reference: normalizeReference(outputPath),
-        })
+        } satisfies ArtifactRow
+        rows.push(row)
+        if (row.reference) seenReferences.add(row.reference)
+      }
+
+      const workspaceFile = deriveWorkspaceFileArtifact({
+        sessionDirectory: session.directory,
+        part,
+        completedAt,
+      })
+      if (workspaceFile && (!workspaceFile.reference || !seenReferences.has(workspaceFile.reference))) {
+        rows.push(workspaceFile)
+        if (workspaceFile.reference) seenReferences.add(workspaceFile.reference)
       }
     }
   }
@@ -136,6 +154,34 @@ function normalizeReference(input: string) {
   }
   if (path.isAbsolute(input)) return path.relative(process.cwd(), input) || "."
   return input
+}
+
+function deriveWorkspaceFileArtifact(input: {
+  sessionDirectory: string
+  part: Extract<MessageV2.Part, { type: "tool" }>
+  completedAt?: number
+}): ArtifactRow | undefined {
+  if (input.part.tool !== "write") return
+  const metadata = "metadata" in input.part.state ? input.part.state.metadata : undefined
+  const filepath = typeof metadata?.filepath === "string" ? metadata.filepath : undefined
+  if (!filepath) return
+  if (!existsSync(filepath)) return
+  if (!isWithinDirectory(input.sessionDirectory, filepath)) return
+
+  return {
+    id: `${input.part.id}:workspace-file`,
+    kind: "workspace_file",
+    session_id: input.part.sessionID,
+    label: path.basename(filepath),
+    source: `${input.part.tool} file`,
+    created_at: input.completedAt,
+    reference: path.relative(input.sessionDirectory, filepath) || path.basename(filepath),
+  }
+}
+
+function isWithinDirectory(directory: string, filePath: string) {
+  const relative = path.relative(directory, filePath)
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
 }
 
 export function formatArtifactTable(rows: ArtifactRow[]) {
@@ -166,5 +212,7 @@ function formatKind(kind: ArtifactKind) {
       return "Truncated output"
     case "session_diff":
       return "Session diff"
+    case "workspace_file":
+      return "Workspace file"
   }
 }
