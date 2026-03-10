@@ -285,6 +285,23 @@ Why it worked:
 - it forced a clear product separation between `verify` and `release`
 - it kept the next implementation slice narrow and inspect-first
 
+#### Pattern 12: Validate judgment ladders against real sessions before UI exposure
+
+Once `release check` existed, the next step was not workstation exposure.
+
+It was:
+
+1. run the judgment against real sessions
+2. inspect state distribution
+3. test whether ladder levels are meaningfully distinct
+4. refine the CLI surface first if the ladder is skewed
+
+Why it worked:
+
+- it exposed that `review_ready` dominated real-session outcomes
+- it separated surface readability from ladder usefulness
+- it prevented premature UI work around an unproven readiness distribution
+
 #### Pattern 9: Define trust surfaces from operator questions, not legacy command names
 
 For the trust layer, the right move was not:
