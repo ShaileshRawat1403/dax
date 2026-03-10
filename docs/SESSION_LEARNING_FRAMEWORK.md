@@ -325,6 +325,42 @@ Why it worked:
 - it kept the first slice narrow
 - it aligned trust, readiness, and history on the same artifact evidence
 
+## Session 005: Fix Reliability Before Expanding Surface Area
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted the next layer chosen based on what was still technically unreliable after lifecycle and artifact truth were corrected.
+
+### What The Session Revealed
+
+Once lifecycle and artifact truth were in place, the sharpest remaining issue was no longer semantics.
+
+It was reliability:
+
+- `session inspect`
+- transient `database is locked`
+
+That made the next correct move a reliability bridge for inspection paths, not more governance design and not UI expansion.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 13: Fix the narrowest real failure before broadening behavior
+
+Better sequence:
+
+1. correct lifecycle truth
+2. correct artifact truth
+3. identify the next operator-visible failure
+4. fix read-path reliability before adding more surface area
+
+Why it worked:
+
+- it kept the product disciplined
+- it prevented UI work from masking a real backend instability
+- it chose the smallest meaningful reliability target
+
 ## Session 003: Finish Session Depth Before Defining Release Judgment
 
 Date: March 10, 2026
