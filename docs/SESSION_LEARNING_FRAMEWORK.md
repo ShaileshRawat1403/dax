@@ -258,6 +258,28 @@ Why it worked:
 
 #### Pattern 10: Separate write outcome semantics from risk buckets
 
+Why it worked:
+
+- risk buckets answer what kind of write happened
+- write outcomes answer how the write actually resolved
+- trust and readiness can consume both without collapsing them into one overloaded concept
+
+#### Pattern 11: Stabilize semantics before deciding default surface exposure
+
+Good sequence:
+
+1. fix lifecycle truth
+2. fix artifact truth
+3. harden inspection reliability
+4. settle write governance semantics
+5. only then decide what belongs in list/show/inspect/judgment/workstation defaults
+
+Why it worked:
+
+- it prevented premature UI and surface churn
+- it made surface placement a product decision rather than a guess
+- it clarified that not every internal truth deserves default visibility
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`
