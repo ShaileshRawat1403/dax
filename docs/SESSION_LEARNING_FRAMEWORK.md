@@ -865,3 +865,17 @@ As session depth grows, keep three layers distinct:
 - verification for trust judgment
 
 This prevents the timeline from becoming a dumping ground and prevents audit from absorbing history, artifacts, and verification into one overloaded surface.
+
+## Session Pattern: Prove The CLI Surface Before TUI Placement
+
+When a new structured surface is introduced:
+
+- model it first
+- validate it through a narrow CLI surface
+- refine density against real sessions
+- only then choose workstation placement
+
+For timeline specifically:
+
+- CLI proves event families, wording, and grouping
+- workstation should then expose the proven structure as a drilldown, not as a competing always-on pane
