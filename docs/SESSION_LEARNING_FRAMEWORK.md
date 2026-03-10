@@ -1494,3 +1494,26 @@ For write governance, that means:
 - tune trust and readiness severity before pushing the signal into broader operator surfaces
 
 This prevents UI and summary layers from hard-coding governance language before the policy distinctions are stable.
+
+## Session Pattern: Lock Overlay Internals After Surface Roles
+
+Once the workstation has stable roles for:
+
+- stream as narrative
+- sidebar as truth
+- overlays as evidence
+
+the next useful move is to define the internal structure of overlays before worrying about responsive collapse or visual polish.
+
+The right sequence is:
+
+- define which overlays exist
+- define their interaction model
+- define one consistent internal layout contract
+- only then address terminal-density constraints
+
+Why it worked:
+
+- it kept the evidence layer from becoming inconsistent across verify, release, artifacts, timeline, and inspect
+- it made approval overlays fit the same workstation grammar instead of becoming a special-case modal
+- it delayed terminal constraints until the real information density was known
