@@ -525,6 +525,9 @@ describe("session timeline helpers", () => {
       lifecycle_requires_reconciliation: false,
       trust_posture: "verified",
       verification_result: "verification_passed",
+      write_outcome: "governed_completed",
+      write_governance_status: "governed",
+      write_risk_bucket: "governed_project_write",
       stage: "verification",
       artifact_count: 2,
       approval_count: 0,
@@ -540,6 +543,8 @@ describe("session timeline helpers", () => {
     expect(rendered).toContain("Stage: Verification")
     expect(rendered).toContain("Trust posture: Verified")
     expect(rendered).toContain("Verification: Passed")
+    expect(rendered).toContain("Write outcome: Governed completed write")
+    expect(rendered).toContain("Write governance: Governed (Governed project write)")
     expect(rendered).toContain("Audit posture: Review needed")
     expect(rendered).toContain("Timeline events: 6")
   })
@@ -664,6 +669,10 @@ describe("session timeline helpers", () => {
       expect(["verification_passed", "verification_failed", "verification_incomplete", "verification_degraded"]).toContain(
         summary.verification_result,
       )
+      expect(["none", "governed_completed", "completed_ungated", "blocked", "partial", "no_durable_result"]).toContain(
+        summary.write_outcome,
+      )
+      expect(["none", "governed", "blocked", "ungated"]).toContain(summary.write_governance_status)
       expect(["clear", "review_needed", "blocked"]).toContain(summary.audit_posture)
     },
     40000,
@@ -685,6 +694,9 @@ describe("session timeline helpers", () => {
         lifecycle_requires_reconciliation: false,
         trust_posture: "verified",
         verification_result: "verification_passed",
+        write_outcome: "completed_ungated",
+        write_governance_status: "ungated",
+        write_risk_bucket: "project_artifact",
         stage: "verification",
         artifact_count: 1,
         approval_count: 0,
@@ -749,7 +761,14 @@ describe("session timeline helpers", () => {
         trust_posture: "verified",
         write_governance_status: "governed",
         write_outcome: "governed_completed",
+        write_risk_bucket: "governed_project_write",
         checks: [
+          {
+            id: "write_governance",
+            label: "Write governance",
+            status: "pass",
+            summary: "1 retained workspace write artifact recorded with governance evidence for governed project changes.",
+          },
           {
             id: "approvals",
             label: "Approvals",
@@ -770,6 +789,10 @@ describe("session timeline helpers", () => {
     expect(rendered).toContain("Artifacts")
     expect(rendered).toContain("Audit")
     expect(rendered).toContain("Verification")
+    expect(rendered).toContain("Write governance")
+    expect(rendered).toContain("Outcome: Governed completed write")
+    expect(rendered).toContain("Governance status: Governed")
+    expect(rendered).toContain("Risk bucket: Governed project write")
     expect(rendered).toContain("scan_report.json")
     expect(rendered).toContain("Execution completed")
   })
