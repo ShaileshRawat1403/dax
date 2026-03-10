@@ -20,6 +20,7 @@ import {
   type VerificationResult,
   type VerificationTrustPosture,
 } from "../../trust/verify-session"
+import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "../../trust/write-governance"
 import { buildAuditSummary, type AuditPosture } from "./audit"
 
 function pagerCmd(): string[] {
@@ -84,6 +85,9 @@ export type SessionShowSummary = {
   lifecycle_requires_reconciliation: boolean
   trust_posture: VerificationTrustPosture
   verification_result: VerificationResult
+  write_outcome: WriteOutcome
+  write_governance_status: WriteGovernanceStatus
+  write_risk_bucket?: WriteRiskBucket
   stage: SDLCStage
   artifact_count: number
   approval_count: number
@@ -528,6 +532,9 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
       lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
       trust_posture: verification.trust_posture,
       verification_result: verification.verification_result,
+      write_outcome: verification.write_outcome,
+      write_governance_status: verification.write_governance_status,
+      write_risk_bucket: verification.write_risk_bucket,
       stage: deriveSessionStage({
         timeline,
         approval_count: pendingApprovals.length,
@@ -758,6 +765,8 @@ export function formatSessionShowSummary(summary: SessionShowSummary) {
     `Stage: ${formatSessionStage(summary.stage)}`,
     `Trust posture: ${formatSessionTrustPosture(summary.trust_posture)}`,
     `Verification: ${formatVerificationResultLabel(summary.verification_result)}`,
+    `Write outcome: ${formatWriteOutcome(summary.write_outcome)}`,
+    `Write governance: ${formatWriteGovernanceStatus(summary.write_governance_status)}${summary.write_risk_bucket ? ` (${formatWriteRiskBucket(summary.write_risk_bucket)})` : ""}`,
     `Audit posture: ${formatAuditPosture(summary.audit_posture)}`,
     "",
     "Session record",
@@ -788,6 +797,14 @@ export function formatSessionInspectSummary(summary: SessionInspectSummary) {
 
   return [
     formatSessionShowSummary(summary.summary),
+    "",
+    "Write governance",
+    `- Outcome: ${formatWriteOutcome(summary.verification.write_outcome)}`,
+    `- Governance status: ${formatWriteGovernanceStatus(summary.verification.write_governance_status)}`,
+    summary.verification.write_risk_bucket
+      ? `- Risk bucket: ${formatWriteRiskBucket(summary.verification.write_risk_bucket)}`
+      : "- Risk bucket: none",
+    `- Summary: ${formatWriteOutcomeSummary(summary.verification)}`,
     "",
     "Stage progression",
     `- Lifecycle: ${formatSessionLifecycleState(summary.summary.lifecycle_state)}${summary.summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : ""}`,
@@ -1108,6 +1125,69 @@ function formatAuditPosture(posture: AuditPosture) {
       return "Review needed"
     case "blocked":
       return "Blocked"
+  }
+}
+
+function formatWriteOutcome(outcome: WriteOutcome) {
+  switch (outcome) {
+    case "none":
+      return "No write activity"
+    case "governed_completed":
+      return "Governed completed write"
+    case "completed_ungated":
+      return "Completed ungated write"
+    case "blocked":
+      return "Blocked write"
+    case "partial":
+      return "Partial write"
+    case "no_durable_result":
+      return "Write attempt with no durable result"
+  }
+}
+
+function formatWriteGovernanceStatus(status: WriteGovernanceStatus) {
+  switch (status) {
+    case "none":
+      return "None"
+    case "governed":
+      return "Governed"
+    case "blocked":
+      return "Blocked"
+    case "ungated":
+      return "Ungated"
+  }
+}
+
+function formatWriteRiskBucket(bucket: WriteRiskBucket) {
+  switch (bucket) {
+    case "harmless_local":
+      return "Harmless local"
+    case "project_artifact":
+      return "Project artifact"
+    case "governed_project_write":
+      return "Governed project write"
+    case "sensitive_or_system_write":
+      return "Sensitive or system write"
+  }
+}
+
+function formatWriteOutcomeSummary(verification: SessionVerification) {
+  const writeGovernanceCheck = verification.checks.find((check) => check.id === "write_governance")
+  if (writeGovernanceCheck?.summary) return writeGovernanceCheck.summary
+
+  switch (verification.write_outcome) {
+    case "none":
+      return "No governed write activity detected."
+    case "governed_completed":
+      return "Retained workspace writes completed with governance evidence."
+    case "completed_ungated":
+      return "Retained workspace writes completed without visible governance evidence."
+    case "blocked":
+      return "Write-capable work remained blocked on governance resolution."
+    case "partial":
+      return "Retained writes were recorded, but the write path did not finish cleanly."
+    case "no_durable_result":
+      return "Write-capable execution occurred, but no durable retained workspace write artifacts were recorded."
   }
 }
 
