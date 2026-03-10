@@ -49,6 +49,7 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_TIMELINE_SURFACE.md](DAX_WORKSTATION_TIMELINE_SURFACE.md): workstation timeline as a structured session drilldown that complements Activity
 - [DAX_SESSION_HISTORY_SURFACE.md](DAX_SESSION_HISTORY_SURFACE.md): CLI-first browsing and inspection surface for durable session records
 - [DAX_RELEASE_READINESS.md](DAX_RELEASE_READINESS.md): readiness model for handoff and shipping judgment above verification
+- [DAX_RELEASE_SURFACE.md](DAX_RELEASE_SURFACE.md): CLI-first surface contract for exposing handoff and shipping readiness
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
 - [DAX_PLAN_DESIGN.md](DAX_PLAN_DESIGN.md): command contract and behavior map for `dax plan`
