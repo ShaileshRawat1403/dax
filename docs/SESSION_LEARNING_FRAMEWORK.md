@@ -855,3 +855,13 @@ Sequence:
 - refine the surface before adding more presentation layers
 
 This prevents workstation or release-oriented design from being built on top of a surface that still reads like implementation exhaust.
+
+## Session Pattern: Keep Session Progress Layers Separate
+
+As session depth grows, keep three layers distinct:
+
+- transcript for live execution story
+- timeline for meaningful progression
+- verification for trust judgment
+
+This prevents the timeline from becoming a dumping ground and prevents audit from absorbing history, artifacts, and verification into one overloaded surface.
