@@ -359,6 +359,22 @@ Why it worked:
 - it made focus ownership a consequence of product structure
 - it kept the workstation interaction model simple in the first version
 
+#### Pattern 17: Collapse multiple workstation specs into one refined committed direction
+
+Better sequence:
+
+1. compare variants
+2. lock sidebar rules
+3. lock stream rules
+4. lock overlay and interaction rules
+5. collapse them into one refined workstation mockup
+
+Why it worked:
+
+- it turns abstract design layers into one implementable product shape
+- it prevents endless variant churn
+- it gives implementation a single source of workstation truth
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`
