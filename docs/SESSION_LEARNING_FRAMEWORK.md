@@ -1517,3 +1517,20 @@ Why it worked:
 - it kept the evidence layer from becoming inconsistent across verify, release, artifacts, timeline, and inspect
 - it made approval overlays fit the same workstation grammar instead of becoming a special-case modal
 - it delayed terminal constraints until the real information density was known
+
+## Session Pattern: Define Terminal Degradation Only After Information Density Is Known
+
+Terminal responsiveness should not be designed before the workstation content model is stable.
+
+The correct order is:
+
+- define sidebar truth
+- define stream narrative
+- define overlays and their internal layouts
+- then define width tiers, collapse rules, and resizing behavior
+
+Why it worked:
+
+- it prevented terminal constraints from being based on guesswork
+- it made sidebar collapse a deliberate design choice instead of an implementation accident
+- it kept stream continuity as the highest-priority constraint during shrinkage
