@@ -713,3 +713,21 @@ Why it worked:
 - it kept the session workstation coherent
 - it reduced the risk of local UI decisions drifting from the full model
 - it made the next refactor phase pass-based instead of exploratory
+
+#### Pattern 15: Lock polish intent before visual cleanup
+
+Once the workstation shell, focus model, and overlay model are stable, the next risk is vague polish work.
+
+The correct move is to define a narrow detail-polish contract first:
+
+- readability
+- density
+- empty states
+- continuity cues
+- truncation rules
+
+Why it worked:
+
+- it prevents polish from turning into stealth interaction redesign
+- it keeps the pass focused on calmness and scanability
+- it protects the already-stable focus and overlay ownership model
