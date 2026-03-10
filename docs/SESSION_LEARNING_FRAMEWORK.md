@@ -344,6 +344,21 @@ Why it worked:
 - it made each drilldown surface justify its existence
 - it preserved the center/sidebar/overlay separation as a real product architecture
 
+#### Pattern 16: Lock interaction hierarchy only after surface roles are clear
+
+Better sequence:
+
+1. define center narrative
+2. define sidebar truth
+3. define overlays as evidence
+4. then define focus, shortcuts, and open-close behavior
+
+Why it worked:
+
+- it prevented shortcut design from distorting surface purpose
+- it made focus ownership a consequence of product structure
+- it kept the workstation interaction model simple in the first version
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`
