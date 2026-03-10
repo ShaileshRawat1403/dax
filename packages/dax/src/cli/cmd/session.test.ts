@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { buildSessionTimelineRows, formatSessionTimeline, type SessionTimelineRow } from "./session"
+import {
+  buildSessionTimelineRows,
+  deriveSessionHistoryOutcome,
+  formatSessionTable,
+  formatSessionTimeline,
+  toSessionHistoryRow,
+  type SessionTimelineRow,
+} from "./session"
 
 describe("session timeline helpers", () => {
   test("builds meaningful operator-facing timeline rows from session state", () => {
@@ -318,5 +325,96 @@ describe("session timeline helpers", () => {
     })
 
     expect(rows.find((row) => row.type === "execution_completed")?.summary).toContain("Execution completed")
+  })
+
+  test("derives session history rows with outcome, trust posture, and verification result", () => {
+    const row = toSessionHistoryRow({
+      session: {
+        id: "session_history_1",
+        slug: "repo-audit",
+        projectID: "project_1",
+        directory: "/repo",
+        title: "Repo audit",
+        version: "1.0.0",
+        time: {
+          created: 1_000,
+          updated: 9_000,
+        },
+      } as any,
+      timeline: [
+        {
+          id: "execution:done",
+          type: "execution_completed",
+          session_id: "session_history_1",
+          timestamp: 9_000,
+          source: "execution",
+          summary: "Execution completed",
+        },
+      ],
+      verification: {
+        type: "session_verification",
+        project_id: "project_1",
+        session_id: "session_history_1",
+        verification_result: "verification_passed",
+        trust_posture: "verified",
+        checks: [],
+        blocking_factors: [],
+        degrading_factors: [],
+      },
+    })
+
+    expect(row.outcome).toBe("completed")
+    expect(row.trust_posture).toBe("verified")
+    expect(row.verification_result).toBe("verification_passed")
+  })
+
+  test("marks pending approval sessions as blocked in history view", () => {
+    const outcome = deriveSessionHistoryOutcome(
+      {
+        id: "session_blocked",
+        slug: "repo-audit",
+        projectID: "project_1",
+        directory: "/repo",
+        title: "Repo audit",
+        version: "1.0.0",
+        time: {
+          created: 1_000,
+          updated: 2_000,
+        },
+      } as any,
+      [
+        {
+          id: "approval:1",
+          type: "approval_requested",
+          session_id: "session_blocked",
+          timestamp: 1_500,
+          source: "governance",
+          summary: "Approval requested",
+        },
+      ],
+    )
+
+    expect(outcome).toBe("blocked")
+  })
+
+  test("formats session history rows as a compact record browser", () => {
+    const rendered = formatSessionTable([
+      {
+        id: "session_123",
+        title: "Repo audit",
+        created: 1_000,
+        updated: 2_000,
+        outcome: "completed",
+        trust_posture: "verified",
+        verification_result: "verification_passed",
+      },
+    ])
+
+    expect(rendered).toContain("Outcome")
+    expect(rendered).toContain("Trust")
+    expect(rendered).toContain("Verification")
+    expect(rendered).toContain("Completed")
+    expect(rendered).toContain("Verified")
+    expect(rendered).toContain("Passed")
   })
 })
