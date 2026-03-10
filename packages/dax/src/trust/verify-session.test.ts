@@ -11,6 +11,10 @@ describe("session verification evaluator", () => {
         requires_reconciliation: false,
       },
       approvals: { pending_count: 0 },
+      write_governance: {
+        status: "governed",
+        workspace_write_artifact_count: 1,
+      },
       overrides: { count: 0 },
       evidence: {
         diff_present: true,
@@ -44,6 +48,10 @@ describe("session verification evaluator", () => {
         requires_reconciliation: false,
       },
       approvals: { pending_count: 0 },
+      write_governance: {
+        status: "governed",
+        workspace_write_artifact_count: 1,
+      },
       overrides: { count: 0 },
       evidence: {
         diff_present: true,
@@ -78,6 +86,10 @@ describe("session verification evaluator", () => {
         requires_reconciliation: true,
       },
       approvals: { pending_count: 1 },
+      write_governance: {
+        status: "blocked",
+        workspace_write_artifact_count: 0,
+      },
       overrides: { count: 0 },
       evidence: {
         diff_present: false,
@@ -110,6 +122,10 @@ describe("session verification evaluator", () => {
         requires_reconciliation: false,
       },
       approvals: { pending_count: 0 },
+      write_governance: {
+        status: "governed",
+        workspace_write_artifact_count: 1,
+      },
       overrides: { count: 1 },
       evidence: {
         diff_present: true,
@@ -145,6 +161,10 @@ describe("session verification evaluator", () => {
           requires_reconciliation: false,
         },
         approvals: { pending_count: 0 },
+        write_governance: {
+          status: "governed",
+          workspace_write_artifact_count: 1,
+        },
         overrides: { count: 0 },
         evidence: {
           diff_present: true,
@@ -171,5 +191,43 @@ describe("session verification evaluator", () => {
     expect(rendered).toContain("Trust posture: Verified")
     expect(rendered).toContain("Checks")
     expect(rendered).toContain("Summary")
+  })
+
+  test("surfaces ungated retained writes as a write-governance concern", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_ungated_write",
+      lifecycle: {
+        state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
+      approvals: { pending_count: 0 },
+      write_governance: {
+        status: "ungated",
+        workspace_write_artifact_count: 2,
+      },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: false,
+        artifacts_present: true,
+        artifact_count: 2,
+      },
+      audit: {
+        present: false,
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.write_governance_status).toBe("ungated")
+    expect(summary.verification_result).toBe("verification_incomplete")
+    expect(summary.degrading_factors).toContain(
+      "2 retained workspace write artifacts exist, but no governance evidence was recorded for the write path.",
+    )
   })
 })

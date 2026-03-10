@@ -369,6 +369,7 @@ describe("session timeline helpers", () => {
         lifecycle_requires_reconciliation: false,
         verification_result: "verification_passed",
         trust_posture: "verified",
+        write_governance_status: "none",
         checks: [],
         blocking_factors: [],
         degrading_factors: [],
@@ -745,6 +746,7 @@ describe("session timeline helpers", () => {
         lifecycle_requires_reconciliation: false,
         verification_result: "verification_passed",
         trust_posture: "verified",
+        write_governance_status: "governed",
         checks: [
           {
             id: "approvals",

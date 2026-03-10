@@ -10,6 +10,7 @@ describe("session release evaluator", () => {
       lifecycle_requires_reconciliation: false,
       verification_result: "verification_passed",
       trust_posture: "verified",
+      write_governance_status: "governed",
       approval_count: 0,
       artifact_count: 2,
       override_count: 0,
@@ -29,6 +30,7 @@ describe("session release evaluator", () => {
       lifecycle_requires_reconciliation: false,
       verification_result: "verification_failed",
       trust_posture: "review_needed",
+      write_governance_status: "governed",
       approval_count: 0,
       artifact_count: 1,
       override_count: 0,
@@ -49,6 +51,7 @@ describe("session release evaluator", () => {
       lifecycle_requires_reconciliation: false,
       verification_result: "verification_passed",
       trust_posture: "verified",
+      write_governance_status: "blocked",
       approval_count: 1,
       artifact_count: 2,
       override_count: 0,
@@ -68,6 +71,7 @@ describe("session release evaluator", () => {
       lifecycle_requires_reconciliation: true,
       verification_result: "verification_incomplete",
       trust_posture: "review_needed",
+      write_governance_status: "none",
       approval_count: 0,
       artifact_count: 1,
       override_count: 0,
@@ -90,6 +94,7 @@ describe("session release evaluator", () => {
       lifecycle_requires_reconciliation: false,
       verification_result: "verification_passed",
       trust_posture: "verified",
+      write_governance_status: "governed",
       approval_count: 0,
       artifact_count: 0,
       override_count: 1,
@@ -111,6 +116,7 @@ describe("session release evaluator", () => {
         lifecycle_requires_reconciliation: false,
         verification_result: "verification_passed",
         trust_posture: "verified",
+        write_governance_status: "governed",
         approval_count: 0,
         artifact_count: 2,
         override_count: 0,
@@ -125,5 +131,27 @@ describe("session release evaluator", () => {
     expect(rendered).toContain("Verification: Passed")
     expect(rendered).toContain("Signals")
     expect(rendered).toContain("Summary")
+  })
+
+  test("does not treat ungated retained writes as a clean release signal", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_ungated_write",
+      lifecycle_state: "completed",
+      lifecycle_terminal: true,
+      lifecycle_requires_reconciliation: false,
+      verification_result: "verification_degraded",
+      trust_posture: "policy_clean",
+      write_governance_status: "ungated",
+      approval_count: 0,
+      artifact_count: 2,
+      override_count: 0,
+      audit_posture: "clear",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("review_ready")
+    expect(summary.missing_evidence).toContain(
+      "Retained workspace writes were recorded without visible governance evidence.",
+    )
   })
 })

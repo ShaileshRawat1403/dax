@@ -7,6 +7,7 @@ import { Instance } from "../project/instance"
 import { Locale } from "../util/locale"
 import { withLockedRetry } from "../util/locked-retry"
 import { buildArtifactsForSession } from "../cli/cmd/artifacts"
+import { deriveWriteGovernanceStatus, type WriteGovernanceStatus } from "./write-governance"
 
 export type VerificationResult =
   | "verification_passed"
@@ -21,6 +22,7 @@ export type VerificationCheckStatus = "pass" | "fail" | "incomplete" | "degraded
 export type VerificationCheckID =
   | "lifecycle_state"
   | "approvals"
+  | "write_governance"
   | "policy_compliance"
   | "artifacts_present"
   | "evidence_completeness"
@@ -53,6 +55,10 @@ export type SessionVerificationSignals = {
   approvals: {
     pending_count: number
   }
+  write_governance: {
+    status: WriteGovernanceStatus
+    workspace_write_artifact_count: number
+  }
   overrides: {
     count: number
   }
@@ -76,6 +82,7 @@ export type SessionVerification = {
   lifecycle_requires_reconciliation: boolean
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
+  write_governance_status: WriteGovernanceStatus
   checks: VerificationCheck[]
   blocking_factors: string[]
   degrading_factors: string[]
@@ -112,6 +119,14 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
       eventTimes: events.map((row) => row.created_at),
       artifactTimes: artifacts.map((artifact) => artifact.created_at).filter((value): value is number => typeof value === "number"),
     })
+    const overrideCount = events.filter((row) => row.event_type === "override").length
+    const workspaceWriteArtifactCount = artifacts.filter((artifact) => artifact.kind === "workspace_file").length
+    const writeGovernanceStatus = deriveWriteGovernanceStatus({
+      workspace_write_artifact_count: workspaceWriteArtifactCount,
+      pending_approval_count: pendingApprovals.length,
+      override_count: overrideCount,
+      policy_evaluated: !!latestAudit,
+    })
 
     return evaluateSessionVerification({
       session_id: sessionID,
@@ -124,8 +139,12 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
       approvals: {
         pending_count: pendingApprovals.length,
       },
+      write_governance: {
+        status: writeGovernanceStatus,
+        workspace_write_artifact_count: workspaceWriteArtifactCount,
+      },
       overrides: {
-        count: events.filter((row) => row.event_type === "override").length,
+        count: overrideCount,
       },
       evidence: {
         diff_present: diffs.length > 0,
@@ -151,6 +170,7 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
   const checks: VerificationCheck[] = [
     buildLifecycleCheck(input.lifecycle.state, input.lifecycle.terminal, input.lifecycle.requires_reconciliation),
     buildApprovalsCheck(input.approvals.pending_count),
+    buildWriteGovernanceCheck(input.write_governance.status, input.write_governance.workspace_write_artifact_count),
     buildPolicyCheck(input.audit.present, input.audit.status, input.audit.blocker_count),
     buildArtifactsCheck(input.evidence.diff_present, input.evidence.artifacts_present, input.evidence.artifact_count),
     buildEvidenceCompletenessCheck({
@@ -180,6 +200,7 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
     lifecycle_requires_reconciliation: input.lifecycle.requires_reconciliation,
     verification_result,
     trust_posture,
+    write_governance_status: input.write_governance.status,
     checks,
     blocking_factors,
     degrading_factors: [...incomplete_factors, ...degrading_factors],
@@ -273,6 +294,42 @@ function buildApprovalsCheck(pendingCount: number): VerificationCheck {
     label: "Approvals",
     status: "pass",
     summary: "No pending approvals remain.",
+  }
+}
+
+function buildWriteGovernanceCheck(
+  status: WriteGovernanceStatus,
+  workspaceWriteArtifactCount: number,
+): VerificationCheck {
+  switch (status) {
+    case "none":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "pass",
+        summary: "No governed write activity detected.",
+      }
+    case "governed":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "pass",
+        summary: `${workspaceWriteArtifactCount} retained workspace write artifact${workspaceWriteArtifactCount === 1 ? "" : "s"} recorded with governance evidence.`,
+      }
+    case "blocked":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "incomplete",
+        summary: "Write-capable work is still awaiting governance resolution.",
+      }
+    case "ungated":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "degraded",
+        summary: `${workspaceWriteArtifactCount} retained workspace write artifact${workspaceWriteArtifactCount === 1 ? "" : "s"} exist, but no governance evidence was recorded for the write path.`,
+      }
   }
 }
 
