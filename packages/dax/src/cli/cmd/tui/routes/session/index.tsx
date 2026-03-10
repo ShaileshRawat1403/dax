@@ -221,11 +221,11 @@ function WorkstationSection(props: { theme: ThemeShape; title: string; focused?:
   return (
     <box
       flexDirection="column"
-      gap={1}
+      gap={0}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
-      paddingBottom={1}
+      paddingBottom={0}
       border={["top"]}
       borderColor={props.focused ? props.theme.primary : props.theme.borderSubtle}
       backgroundColor={props.focused ? tint(props.theme.backgroundPanel, props.theme.primary, 0.06) : props.theme.backgroundPanel}
@@ -246,11 +246,14 @@ function WorkstationSummaryCard(props: {
   actionLabel?: string
   onPress?: () => void
   focused?: boolean
+  tone?: "normal" | "warning" | "success"
 }) {
+  const summaryColor = () =>
+    props.tone === "warning" ? props.theme.warning : props.tone === "success" ? props.theme.success : props.theme.text
   return (
     <box
       flexDirection="column"
-      gap={1}
+      gap={0}
       backgroundColor={props.focused ? tint(props.theme.backgroundElement, props.theme.primary, 0.12) : props.theme.backgroundElement}
       border={props.focused ? ["left"] : []}
       borderColor={props.focused ? props.theme.primary : undefined}
@@ -259,7 +262,7 @@ function WorkstationSummaryCard(props: {
       <text fg={props.focused ? props.theme.primary : props.theme.text} attributes={TextAttributes.BOLD}>
         {props.title}
       </text>
-      <text fg={props.theme.text} wrapMode="word">
+      <text fg={summaryColor()} wrapMode="word" attributes={props.tone ? TextAttributes.BOLD : undefined}>
         {props.summary}
       </text>
       <Show when={props.detail}>
@@ -316,7 +319,7 @@ function DialogArtifactDetail(props: { title: string; body: string }) {
             {props.title}
           </text>
           <scrollbox height={18}>
-            <text fg={theme.textMuted} wrapMode="word">
+            <text fg={theme.text} wrapMode="word">
               {props.body}
             </text>
           </scrollbox>
@@ -335,7 +338,7 @@ function DialogAuditEvents(props: { findings: AuditFinding[] }) {
       body={
         <Show
           when={props.findings.length > 0}
-          fallback={<text fg={theme.textMuted}>No audit findings recorded for this session.</text>}
+          fallback={<text fg={theme.textMuted}>No audit findings recorded for this session yet.</text>}
         >
           <scrollbox height={18}>
             <box flexDirection="column" gap={1}>
@@ -397,7 +400,7 @@ function DialogAuditDetail(props: {
           <text fg={theme.text}>
             {props.findings.length > 0
               ? `${props.findings.length} finding${props.findings.length === 1 ? "" : "s"} available for review.`
-              : "No audit findings recorded for this session."}
+              : "No audit findings recorded for this session yet."}
           </text>
         </>
       }
@@ -2984,10 +2987,10 @@ export function Session() {
           />
           <WorkstationSection theme={theme} title="Plan" focused={focusedPane() === "plan"}>
             <Show
-              when={workstationState().planSummary.steps.length > 0}
+              when={workstationState().planSummary.steps.length > 0 || workstationState().planSummary.goal}
               fallback={
                 <text fg={theme.textMuted} wrapMode="word">
-                  {workstationState().goal ?? "No explicit plan steps yet for this session."}
+                  No plan available yet. DAX will show the proposed workflow once planning begins.
                 </text>
               }
             >
@@ -3121,17 +3124,26 @@ export function Session() {
             </Show>
             <box flexGrow={1} minHeight={0}>
               <WorkstationSection theme={theme} title="Activity" focused={focusedPane() === "activity"}>
-                <text fg={theme.text} wrapMode="word">
-                  {workstationState().activitySummary.current ?? displayStageState().reason}
-                </text>
-                <Show when={workstationState().activitySummary.items.length > 1}>
-                  <For each={workstationState().activitySummary.items.slice(1)}>
-                    {(item) => (
-                      <text fg={theme.textMuted} wrapMode="word">
-                        {item}
-                      </text>
-                    )}
-                  </For>
+                <Show
+                  when={workstationState().activitySummary.current || workstationState().activitySummary.items.length > 0}
+                  fallback={
+                    <text fg={theme.textMuted} wrapMode="word">
+                      No activity recorded yet. DAX will narrate the workflow here once execution starts.
+                    </text>
+                  }
+                >
+                  <text fg={theme.text} wrapMode="word">
+                    {workstationState().activitySummary.current ?? displayStageState().reason}
+                  </text>
+                  <Show when={workstationState().activitySummary.items.length > 1}>
+                    <For each={workstationState().activitySummary.items.slice(1)}>
+                      {(item) => (
+                        <text fg={theme.textMuted} wrapMode="word">
+                          {item}
+                        </text>
+                      )}
+                    </For>
+                  </Show>
                 </Show>
               </WorkstationSection>
               <ErrorBoundary
@@ -3317,7 +3329,7 @@ export function Session() {
                   >
                     <box padding={1} gap={1} backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)} flexDirection="column">
                       <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                        Operator overview
+                        Overview
                       </text>
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3325,9 +3337,12 @@ export function Session() {
                         summary={
                           workstationState().approvalSummary.pendingCount > 0
                             ? `${workstationState().approvalSummary.pendingCount} item${workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} awaiting operator decision`
-                            : "No decisions waiting right now."
+                            : "No approvals pending."
                         }
-                        detail={workstationState().approvalSummary.topReason}
+                        detail={
+                          workstationState().approvalSummary.topReason ??
+                          "DAX will stop here only when operator input is required."
+                        }
                         actionLabel={workstationState().approvalSummary.pendingCount > 0 ? "Open approvals" : undefined}
                         onPress={workstationState().approvalSummary.pendingCount > 0 ? openApprovalsReview : undefined}
                         focused={focusedPane() === "approvals"}
@@ -3340,7 +3355,19 @@ export function Session() {
                             ? `${workstationState().artifactSummary.count} retained output${workstationState().artifactSummary.count === 1 ? "" : "s"}`
                             : "No retained outputs yet."
                         }
-                        detail={workstationState().artifactSummary.items[0]?.label}
+                        detail={
+                          workstationState().artifactSummary.count > 0
+                            ? [
+                                workstationState().artifactSummary.items[0]?.label,
+                                workstationState().artifactSummary.items[0]?.kind,
+                                workstationState().artifactSummary.remainderCount > 0
+                                  ? `+${workstationState().artifactSummary.remainderCount} more`
+                                  : undefined,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")
+                            : "Artifacts will appear here as the session produces reviewable work."
+                        }
                         actionLabel="Open detail"
                         onPress={openArtifactDetail}
                         focused={focusedPane() === "artifacts"}
@@ -3348,15 +3375,26 @@ export function Session() {
                       <WorkstationSummaryCard
                         theme={theme}
                         title="Audit"
-                        summary={`Posture: ${workstationState().trustLabel}`}
+                        summary={workstationState().trustLabel}
                         detail={
-                          workstationState().auditSummary.evidencePresent
-                            ? `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence present`
-                            : `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence still limited`
+                          workstationState().auditSummary.findingsCount > 0
+                            ? workstationState().auditSummary.evidencePresent
+                              ? `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence present`
+                              : `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence limited`
+                            : workstationState().auditSummary.evidencePresent
+                              ? "No audit issues detected yet."
+                              : "Trust posture will update as evidence accumulates."
                         }
                         actionLabel={auditPaneEnabled() ? "Open detail" : undefined}
                         onPress={auditPaneEnabled() ? openAuditDetail : undefined}
                         focused={focusedPane() === "audit"}
+                        tone={
+                          workstationState().trustPosture === "blocked"
+                            ? "warning"
+                            : workstationState().trustPosture === "clear"
+                              ? "success"
+                              : "normal"
+                        }
                       />
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                         <For each={visiblePaneModes()}>

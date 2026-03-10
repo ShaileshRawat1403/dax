@@ -84,6 +84,7 @@ export function Header(props: {
     () => shellIntensity() !== "light" || props.emphasis === "normal" || !!props.currentStep || !!props.trustLabel,
   )
   const detailColor = createMemo(() => (props.emphasis === "muted" ? theme.textMuted : theme.warning))
+  const trustText = createMemo(() => (props.trustLabel ? `Trust ${props.trustLabel.toLowerCase()}` : undefined))
 
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
@@ -113,7 +114,7 @@ export function Header(props: {
             <Show when={!tiny() && props.trustLabel}>
               <text fg={theme.textMuted}>·</text>
               <text fg={detailColor()} attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}>
-                Audit: {props.trustLabel}
+                {trustText()}
               </text>
             </Show>
           </box>
