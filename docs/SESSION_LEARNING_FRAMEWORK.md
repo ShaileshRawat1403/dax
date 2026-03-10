@@ -311,6 +311,22 @@ Why it worked:
 - it localized the next work instead of reopening everything
 - it delayed TUI decisions until the underlying runtime truth becomes clearer
 
+#### Pattern 13: Write the implementation bridge before fixing semantics
+
+Once validation identifies the weak layer, the next move should not be immediate code edits.
+
+The stronger sequence is:
+
+1. define the semantic model
+2. define the implementation bridge
+3. only then change runtime behavior and dependent surfaces
+
+Why it worked:
+
+- it kept the implementation boundary narrow
+- it forced a clear decision about computation ownership
+- it reduced the risk of patching surface symptoms independently
+
 The strong separation was:
 
 - `verify` asks whether a session can be trusted

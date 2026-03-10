@@ -54,6 +54,7 @@ Use this index based on your role and goal.
 - [DAX_SDLC_STAGE_MODEL.md](DAX_SDLC_STAGE_MODEL.md): higher-order SDLC stage grouping over session progression and judgment surfaces
 - [DAX_REAL_WORK_EVALUATION.md](DAX_REAL_WORK_EVALUATION.md): evidence-first runbook for evaluating the full operator loop on real tasks
 - [DAX_RUN_LIFECYCLE_MODEL.md](DAX_RUN_LIFECYCLE_MODEL.md): evidence-driven lifecycle contract for `dax run`, session closure, interruption, and abandonment
+- [DAX_RUN_LIFECYCLE_IMPLEMENTATION.md](DAX_RUN_LIFECYCLE_IMPLEMENTATION.md): narrow implementation bridge for making lifecycle truth visible across history, verification, and readiness
 - [DAX_WRITE_GOVERNANCE_MODEL.md](DAX_WRITE_GOVERNANCE_MODEL.md): evidence-driven model for write intent, approvals, artifact detection, and trust-surface visibility
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
