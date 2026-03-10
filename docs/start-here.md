@@ -47,8 +47,9 @@ Try:
 4. `dax artifacts`
 5. `dax audit`
 6. `dax verify <session-id>`
+7. `dax release check <session-id>`
 
-This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit -> Verify loop.
+This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit -> Verify -> Release Check loop.
 
 ## Screenshots
 

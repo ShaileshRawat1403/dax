@@ -1,0 +1,297 @@
+import { EOL } from "os"
+import { collectSessionShowSummary } from "../cli/cmd/session"
+import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "../trust/verify-session"
+
+export type ReleaseReadiness =
+  | "not_ready"
+  | "review_ready"
+  | "handoff_ready"
+  | "release_ready"
+
+export type ReleaseCheckStatus = "pass" | "fail" | "incomplete"
+
+export type ReleaseCheckID =
+  | "verification_passed"
+  | "approvals_complete"
+  | "artifacts_present"
+  | "blocking_findings_absent"
+  | "overrides_justified"
+  | "trace_continuity"
+
+export type ReleaseCheck = {
+  id: ReleaseCheckID
+  label: string
+  status: ReleaseCheckStatus
+  summary: string
+}
+
+export type SessionReleaseCheck = {
+  type: "session_release_check"
+  session_id: string
+  release_readiness: ReleaseReadiness
+  trust_posture: VerificationTrustPosture
+  verification_result: VerificationResult
+  checks: ReleaseCheck[]
+  blocking_factors: string[]
+  missing_evidence: string[]
+}
+
+export async function collectSessionReleaseCheck(sessionID: string): Promise<SessionReleaseCheck> {
+  const [verification, summary] = await Promise.all([
+    collectSessionVerification(sessionID),
+    collectSessionShowSummary(sessionID),
+  ])
+
+  return evaluateSessionReleaseCheck({
+    session_id: sessionID,
+    verification_result: verification.verification_result,
+    trust_posture: verification.trust_posture,
+    approval_count: summary.approval_count,
+    artifact_count: summary.artifact_count,
+    override_count: summary.override_count,
+    audit_posture: summary.audit_posture,
+    trace_continuity_ok: typeof verification.latest_activity_at === "number",
+  })
+}
+
+export function evaluateSessionReleaseCheck(input: {
+  session_id: string
+  verification_result: VerificationResult
+  trust_posture: VerificationTrustPosture
+  approval_count: number
+  artifact_count: number
+  override_count: number
+  audit_posture: "clear" | "review_needed" | "blocked"
+  trace_continuity_ok: boolean
+}): SessionReleaseCheck {
+  const checks: ReleaseCheck[] = [
+    buildVerificationCheck(input.verification_result),
+    buildApprovalsCheck(input.approval_count),
+    buildArtifactsCheck(input.artifact_count),
+    buildFindingsCheck(input.audit_posture),
+    buildOverridesCheck(input.override_count),
+    buildTraceCheck(input.trace_continuity_ok),
+  ]
+
+  const blocking_factors = checks.filter((check) => check.status === "fail").map((check) => check.summary)
+  const missing_evidence = checks.filter((check) => check.status === "incomplete").map((check) => check.summary)
+
+  return {
+    type: "session_release_check",
+    session_id: input.session_id,
+    release_readiness: deriveReleaseReadiness(checks, input.verification_result),
+    trust_posture: input.trust_posture,
+    verification_result: input.verification_result,
+    checks,
+    blocking_factors,
+    missing_evidence,
+  }
+}
+
+export function formatSessionReleaseCheck(summary: SessionReleaseCheck) {
+  const lines = [
+    `Session: ${summary.session_id}`,
+    `Readiness: ${formatReleaseReadiness(summary.release_readiness)}`,
+    `Trust posture: ${formatTrustPosture(summary.trust_posture)}`,
+    `Verification: ${formatVerificationResult(summary.verification_result)}`,
+    "",
+    "Checks",
+    ...summary.checks.map((check) => `- ${check.label}: ${formatCheckStatus(check.status)}${check.summary ? ` — ${check.summary}` : ""}`),
+  ]
+
+  const summaryLines =
+    summary.blocking_factors.length > 0
+      ? summary.blocking_factors
+      : summary.missing_evidence.length > 0
+        ? summary.missing_evidence
+        : ["All readiness checks passed."]
+
+  return [...lines, "", "Summary", ...summaryLines.map((line) => `- ${line}`)].join(EOL)
+}
+
+function deriveReleaseReadiness(checks: ReleaseCheck[], verificationResult: VerificationResult): ReleaseReadiness {
+  if (checks.some((check) => check.status === "fail")) return "not_ready"
+  if (verificationResult !== "verification_passed") return "review_ready"
+  if (checks.some((check) => check.status === "incomplete")) return "handoff_ready"
+  return "release_ready"
+}
+
+function buildVerificationCheck(result: VerificationResult): ReleaseCheck {
+  switch (result) {
+    case "verification_passed":
+      return {
+        id: "verification_passed",
+        label: "Verification passed",
+        status: "pass",
+        summary: "Session trust verification passed.",
+      }
+    case "verification_degraded":
+      return {
+        id: "verification_passed",
+        label: "Verification passed",
+        status: "incomplete",
+        summary: "Trust verification is degraded and still needs review before release.",
+      }
+    case "verification_incomplete":
+      return {
+        id: "verification_passed",
+        label: "Verification passed",
+        status: "incomplete",
+        summary: "Trust verification is incomplete.",
+      }
+    case "verification_failed":
+      return {
+        id: "verification_passed",
+        label: "Verification passed",
+        status: "fail",
+        summary: "Trust verification failed.",
+      }
+  }
+}
+
+function buildApprovalsCheck(approvalCount: number): ReleaseCheck {
+  if (approvalCount > 0) {
+    return {
+      id: "approvals_complete",
+      label: "Approvals complete",
+      status: "incomplete",
+      summary: `${approvalCount} pending approval${approvalCount === 1 ? "" : "s"} still block readiness.`,
+    }
+  }
+
+  return {
+    id: "approvals_complete",
+    label: "Approvals complete",
+    status: "pass",
+    summary: "No pending approvals remain.",
+  }
+}
+
+function buildArtifactsCheck(artifactCount: number): ReleaseCheck {
+  if (artifactCount > 0) {
+    return {
+      id: "artifacts_present",
+      label: "Required artifacts present",
+      status: "pass",
+      summary: `${artifactCount} retained artifact${artifactCount === 1 ? "" : "s"} available for review.`,
+    }
+  }
+
+  return {
+    id: "artifacts_present",
+    label: "Required artifacts present",
+    status: "incomplete",
+    summary: "No retained artifacts have been recorded for this session yet.",
+  }
+}
+
+function buildFindingsCheck(posture: "clear" | "review_needed" | "blocked"): ReleaseCheck {
+  if (posture === "blocked") {
+    return {
+      id: "blocking_findings_absent",
+      label: "Blocking findings absent",
+      status: "fail",
+      summary: "Blocking audit findings still need resolution.",
+    }
+  }
+
+  if (posture === "review_needed") {
+    return {
+      id: "blocking_findings_absent",
+      label: "Blocking findings absent",
+      status: "incomplete",
+      summary: "Audit review is still needed before stronger readiness.",
+    }
+  }
+
+  return {
+    id: "blocking_findings_absent",
+    label: "Blocking findings absent",
+    status: "pass",
+    summary: "No blocking audit findings remain.",
+  }
+}
+
+function buildOverridesCheck(overrideCount: number): ReleaseCheck {
+  if (overrideCount > 0) {
+    return {
+      id: "overrides_justified",
+      label: "Overrides justified",
+      status: "incomplete",
+      summary: `${overrideCount} override${overrideCount === 1 ? "" : "s"} still require operator review before release.`,
+    }
+  }
+
+  return {
+    id: "overrides_justified",
+    label: "Overrides justified",
+    status: "pass",
+    summary: "No overrides require further review.",
+  }
+}
+
+function buildTraceCheck(traceContinuityOk: boolean): ReleaseCheck {
+  if (!traceContinuityOk) {
+    return {
+      id: "trace_continuity",
+      label: "Trace continuity",
+      status: "incomplete",
+      summary: "Trace continuity evidence is incomplete.",
+    }
+  }
+
+  return {
+    id: "trace_continuity",
+    label: "Trace continuity",
+    status: "pass",
+    summary: "Trace continuity is present for this session.",
+  }
+}
+
+function formatReleaseReadiness(readiness: ReleaseReadiness) {
+  switch (readiness) {
+    case "not_ready":
+      return "Not ready"
+    case "review_ready":
+      return "Review ready"
+    case "handoff_ready":
+      return "Handoff ready"
+    case "release_ready":
+      return "Release ready"
+  }
+}
+
+function formatTrustPosture(posture: VerificationTrustPosture) {
+  switch (posture) {
+    case "review_needed":
+      return "Review needed"
+    case "policy_clean":
+      return "Policy clean"
+    case "verified":
+      return "Verified"
+  }
+}
+
+function formatVerificationResult(result: VerificationResult) {
+  switch (result) {
+    case "verification_passed":
+      return "Passed"
+    case "verification_failed":
+      return "Failed"
+    case "verification_incomplete":
+      return "Incomplete"
+    case "verification_degraded":
+      return "Degraded"
+  }
+}
+
+function formatCheckStatus(status: ReleaseCheckStatus) {
+  switch (status) {
+    case "pass":
+      return "pass"
+    case "fail":
+      return "fail"
+    case "incomplete":
+      return "incomplete"
+  }
+}
