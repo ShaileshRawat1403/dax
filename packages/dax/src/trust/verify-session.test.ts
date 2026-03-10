@@ -1,0 +1,148 @@
+import { describe, expect, test } from "bun:test"
+import { evaluateSessionVerification, formatSessionVerification } from "./verify-session"
+
+describe("session verification evaluator", () => {
+  test("returns verification_passed when trust signals are complete and clean", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_verified",
+      approvals: { pending_count: 0 },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: true,
+        artifacts_present: true,
+        artifact_count: 2,
+      },
+      audit: {
+        present: true,
+        status: "pass",
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 2,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_passed")
+    expect(summary.trust_posture).toBe("verified")
+    expect(summary.checks.every((check) => check.status === "pass")).toBe(true)
+  })
+
+  test("returns verification_failed when blocking findings are present", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_failed",
+      approvals: { pending_count: 0 },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: true,
+        artifacts_present: true,
+        artifact_count: 1,
+      },
+      audit: {
+        present: true,
+        status: "fail",
+        blocker_count: 1,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_failed")
+    expect(summary.trust_posture).toBe("review_needed")
+    expect(summary.blocking_factors).toContain("Policy checks reported blocking issues.")
+    expect(summary.blocking_factors).toContain("1 blocking finding still need resolution.")
+  })
+
+  test("returns verification_incomplete when evidence and approvals are still missing", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_incomplete",
+      approvals: { pending_count: 1 },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: false,
+        artifacts_present: false,
+        artifact_count: 0,
+      },
+      audit: {
+        present: false,
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 0,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_incomplete")
+    expect(summary.trust_posture).toBe("review_needed")
+    expect(summary.checks.filter((check) => check.status === "incomplete").length).toBeGreaterThan(0)
+  })
+
+  test("returns verification_degraded when warnings or overrides limit trust posture", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_degraded",
+      approvals: { pending_count: 0 },
+      overrides: { count: 1 },
+      evidence: {
+        diff_present: true,
+        artifacts_present: true,
+        artifact_count: 2,
+      },
+      audit: {
+        present: true,
+        status: "warn",
+        blocker_count: 0,
+        warning_count: 2,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_degraded")
+    expect(summary.trust_posture).toBe("policy_clean")
+    expect(summary.degrading_factors).toContain("2 warnings still require review.")
+    expect(summary.degrading_factors).toContain("1 override decision was recorded and still require operator review.")
+  })
+
+  test("formats an operator-facing verification summary", () => {
+    const rendered = formatSessionVerification(
+      evaluateSessionVerification({
+        session_id: "session_rendered",
+        approvals: { pending_count: 0 },
+        overrides: { count: 0 },
+        evidence: {
+          diff_present: true,
+          artifacts_present: true,
+          artifact_count: 2,
+        },
+        audit: {
+          present: true,
+          status: "pass",
+          blocker_count: 0,
+          warning_count: 0,
+          info_count: 0,
+        },
+        trace: {
+          assistant_message_count: 1,
+          latest_activity_at: 1_700_000_000_000,
+        },
+      }),
+    )
+
+    expect(rendered).toContain("Session: session_rendered")
+    expect(rendered).toContain("Verification: Verification passed")
+    expect(rendered).toContain("Trust posture: Verified")
+    expect(rendered).toContain("Checks")
+    expect(rendered).toContain("Summary")
+  })
+})

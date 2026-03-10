@@ -66,8 +66,9 @@ dax doctor auth google/gemini-2.5-flash
 4. Use `dax approvals` to inspect everything waiting on your decision.
 5. Use `dax artifacts` to inspect retained outputs after work runs.
 6. Use `dax audit` to inspect trust posture before handoff or release.
-7. Ask DAX to explain decisions in ELI12 mode when needed.
-8. Run verification commands/tests before shipping.
+7. Use `dax verify <session-id>` to judge whether the session evidence is strong enough for a verified posture.
+8. Ask DAX to explain decisions in ELI12 mode when needed.
+9. Run verification commands/tests before shipping.
 
 ## Common Commands
 
@@ -94,6 +95,9 @@ dax artifacts
 
 # Inspect trust posture
 dax audit
+
+# Judge whether a session is actually verified
+dax verify <session-id>
 
 # List models
 dax models

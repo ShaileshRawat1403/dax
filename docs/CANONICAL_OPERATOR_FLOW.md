@@ -9,8 +9,9 @@ The current operator grammar is:
 - `dax approvals`
 - `dax artifacts`
 - `dax audit`
+- `dax verify`
 
-This is the minimum coherent product contract for governed execution and trust review.
+This is the minimum coherent product contract for governed execution, trust inspection, and trust judgment.
 
 ## 1. `plan`
 
@@ -119,6 +120,7 @@ The canonical flow is:
 4. inspect or clear checkpoints with `dax approvals`
 5. inspect retained outputs with `dax artifacts`
 6. inspect trust posture with `dax audit`
+7. judge verification status with `dax verify`
 
 This gives DAX a clear control-plane shape:
 
@@ -127,8 +129,8 @@ This gives DAX a clear control-plane shape:
 3. action
 4. approval
 5. outputs
-6. trust
-7. later: verification
+6. trust inspection
+7. trust judgment
 
 ## 7. Later Surfaces
 
@@ -163,5 +165,6 @@ Future changes should preserve this responsibility split:
 - `approvals` exposes checkpoints
 - `artifacts` exposes retained outputs
 - `audit` exposes trust posture
+ - `verify` judges trust readiness
 
 If a new feature blurs those boundaries, it should be documented and justified before implementation.

@@ -46,8 +46,9 @@ Try:
 3. `dax run "apply the first small cleanup and show the diff"`
 4. `dax artifacts`
 5. `dax audit`
+6. `dax verify <session-id>`
 
-This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit loop.
+This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit -> Verify loop.
 
 ## Screenshots
 

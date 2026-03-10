@@ -87,6 +87,7 @@ The scaffold paths are retained only as quarantined legacy material until they a
 - Explicit execution previews in `dax run` so operators can inspect the work request before execution begins.
 - `dax artifacts` exposes retained outputs such as attachments, truncated tool output references, and session diffs.
 - `dax audit` exposes trust posture by summarizing approvals, overrides, evidence presence, and audit findings.
+- `dax verify` judges whether a session has enough evidence and governance signal to reach a stronger trust posture.
 - Session personalization with `/name`, plus session cleanup with `dax session prune`.
 - Theme system with quick-switch profiles.
 - Open customization via tools, plugins, agents, and policy/config packs.
@@ -94,7 +95,7 @@ The scaffold paths are retained only as quarantined legacy material until they a
 ## Canonical Workflows
 
 - Start or continue governed work: `dax`, `dax plan`, `dax run`
-- Review and inspect: `dax docs`, `dax mcp`, `dax approvals`, `dax artifacts`, `dax audit`, in-session review surfaces for approvals, changes, context, and docs
+- Review and inspect: `dax docs`, `dax mcp`, `dax approvals`, `dax artifacts`, `dax audit`, `dax verify`, in-session review surfaces for approvals, changes, context, and docs
 - Diagnose and configure: `dax doctor`, `dax auth`, `dax models`
 - Automate and export: `dax serve`, `dax export`, `dax import`, `dax session prune`
 
