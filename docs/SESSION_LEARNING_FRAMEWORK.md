@@ -329,6 +329,21 @@ Why it worked:
 - it made interruptions explicit without turning them into explanations
 - it preserved the stream as a chronological execution story
 
+#### Pattern 15: Define overlays as evidence surfaces after stream and sidebar are stable
+
+Better sequence:
+
+1. lock sidebar truth
+2. lock stream narrative
+3. define overlays as evidence and explanation surfaces
+4. only then refine focus and shortcut behavior in detail
+
+Why it worked:
+
+- it kept overlays from absorbing responsibilities meant for the stream or sidebar
+- it made each drilldown surface justify its existence
+- it preserved the center/sidebar/overlay separation as a real product architecture
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`
