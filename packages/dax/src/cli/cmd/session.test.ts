@@ -15,6 +15,7 @@ import {
 } from "./session"
 import { bootstrap } from "../bootstrap"
 import path from "path"
+import { deriveSessionLifecycleFromMessages } from "../../session/lifecycle"
 
 describe("session timeline helpers", () => {
   test("builds meaningful operator-facing timeline rows from session state", () => {
@@ -363,11 +364,21 @@ describe("session timeline helpers", () => {
         type: "session_verification",
         project_id: "project_1",
         session_id: "session_history_1",
+        lifecycle_state: "completed",
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
         verification_result: "verification_passed",
         trust_posture: "verified",
         checks: [],
         blocking_factors: [],
         degrading_factors: [],
+      },
+      lifecycle: {
+        lifecycle_state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+        execution_started: true,
+        completion_reason: "execution_completed",
       },
     })
 
@@ -377,6 +388,10 @@ describe("session timeline helpers", () => {
   })
 
   test("marks pending approval sessions as blocked in history view", () => {
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      pendingApprovalCount: 1,
+      messages: [],
+    } as any)
     const outcome = deriveSessionHistoryOutcome(
       {
         id: "session_blocked",
@@ -400,9 +415,52 @@ describe("session timeline helpers", () => {
           summary: "Approval requested",
         },
       ],
+      lifecycle,
     )
 
     expect(outcome).toBe("blocked")
+  })
+
+  test("keeps lightweight visible-answer runs active until lifecycle completion is recorded", () => {
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      pendingApprovalCount: 0,
+      messages: [
+        {
+          info: { role: "user", time: { created: 1 } },
+          parts: [{ type: "text" }],
+        },
+        {
+          info: { role: "assistant", finish: "stop", time: { created: 2, completed: 3 } },
+          parts: [{ type: "text" }, { type: "step-finish" }],
+        },
+      ] as any,
+    })
+
+    expect(lifecycle.lifecycle_state).toBe("active")
+    expect(lifecycle.requires_reconciliation).toBe(true)
+  })
+
+  test("derives completed lifecycle for multi-step governed execution", () => {
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      pendingApprovalCount: 0,
+      messages: [
+        {
+          info: { role: "user", time: { created: 1 } },
+          parts: [{ type: "text" }],
+        },
+        {
+          info: { role: "assistant", finish: "tool-calls", time: { created: 2, completed: 3 } },
+          parts: [{ type: "tool", state: { status: "completed" } }, { type: "step-finish" }],
+        },
+        {
+          info: { role: "assistant", finish: "stop", time: { created: 4, completed: 5 } },
+          parts: [{ type: "text" }, { type: "step-finish" }],
+        },
+      ] as any,
+    })
+
+    expect(lifecycle.lifecycle_state).toBe("completed")
+    expect(lifecycle.terminal).toBe(true)
   })
 
   test("formats session history rows as a compact record browser", () => {
@@ -435,6 +493,9 @@ describe("session timeline helpers", () => {
       created: 1_000,
       updated: 2_000,
       outcome: "completed",
+      lifecycle_state: "completed",
+      lifecycle_terminal: true,
+      lifecycle_requires_reconciliation: false,
       trust_posture: "verified",
       verification_result: "verification_passed",
       stage: "verification",
@@ -448,6 +509,7 @@ describe("session timeline helpers", () => {
 
     expect(rendered).toContain("Session: session_show_1")
     expect(rendered).toContain("Outcome: Completed")
+    expect(rendered).toContain("Lifecycle: Completed")
     expect(rendered).toContain("Stage: Verification")
     expect(rendered).toContain("Trust posture: Verified")
     expect(rendered).toContain("Verification: Passed")
@@ -591,6 +653,9 @@ describe("session timeline helpers", () => {
         created: 1_000,
         updated: 2_000,
         outcome: "completed",
+        lifecycle_state: "completed",
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
         trust_posture: "verified",
         verification_result: "verification_passed",
         stage: "verification",
@@ -650,6 +715,9 @@ describe("session timeline helpers", () => {
         type: "session_verification",
         project_id: "project_1",
         session_id: "session_inspect_1",
+        lifecycle_state: "completed",
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
         verification_result: "verification_passed",
         trust_posture: "verified",
         checks: [
@@ -666,6 +734,7 @@ describe("session timeline helpers", () => {
     })
 
     expect(rendered).toContain("Stage progression")
+    expect(rendered).toContain("Lifecycle: Completed")
     expect(rendered).toContain("Current stage: Verification")
     expect(rendered).toContain("Stages reached: Planning -> Implementation -> Verification")
     expect(rendered).toContain("Timeline")

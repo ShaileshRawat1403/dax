@@ -2,6 +2,7 @@ import { EOL } from "os"
 import { Audit } from "../audit"
 import { RAOLedger } from "../rao"
 import { Session } from "../session"
+import { deriveSessionLifecycleFromMessages, type SessionLifecycleState } from "../session/lifecycle"
 import { Instance } from "../project/instance"
 import { Locale } from "../util/locale"
 import { buildArtifactsForSession } from "../cli/cmd/artifacts"
@@ -17,6 +18,7 @@ export type VerificationTrustPosture = "review_needed" | "policy_clean" | "verif
 export type VerificationCheckStatus = "pass" | "fail" | "incomplete" | "degraded"
 
 export type VerificationCheckID =
+  | "lifecycle_state"
   | "approvals"
   | "policy_compliance"
   | "artifacts_present"
@@ -35,6 +37,11 @@ export type VerificationCheck = {
 export type SessionVerificationSignals = {
   session_id: string
   project_id?: string
+  lifecycle: {
+    state: SessionLifecycleState
+    terminal: boolean
+    requires_reconciliation: boolean
+  }
   audit: {
     present: boolean
     status?: Audit.Status
@@ -63,6 +70,9 @@ export type SessionVerification = {
   type: "session_verification"
   project_id: string
   session_id: string
+  lifecycle_state: SessionLifecycleState
+  lifecycle_terminal: boolean
+  lifecycle_requires_reconciliation: boolean
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
   checks: VerificationCheck[]
@@ -86,6 +96,11 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
   ])
 
   const artifacts = buildArtifactsForSession(session, messages, diffs)
+  const lifecycle = deriveSessionLifecycleFromMessages({
+    archivedAt: session.time.archived,
+    pendingApprovalCount: pendingApprovals.length,
+    messages,
+  })
   const latestAudit = latestAuditEvent(events)
   const latestActivityAt = latestActivityTimestamp({
     sessionUpdatedAt: session.time.updated,
@@ -97,6 +112,11 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
   return evaluateSessionVerification({
     session_id: sessionID,
     project_id: Instance.project.id,
+    lifecycle: {
+      state: lifecycle.lifecycle_state,
+      terminal: lifecycle.terminal,
+      requires_reconciliation: lifecycle.requires_reconciliation,
+    },
     approvals: {
       pending_count: pendingApprovals.length,
     },
@@ -124,6 +144,7 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
 
 export function evaluateSessionVerification(input: SessionVerificationSignals): SessionVerification {
   const checks: VerificationCheck[] = [
+    buildLifecycleCheck(input.lifecycle.state, input.lifecycle.terminal, input.lifecycle.requires_reconciliation),
     buildApprovalsCheck(input.approvals.pending_count),
     buildPolicyCheck(input.audit.present, input.audit.status, input.audit.blocker_count),
     buildArtifactsCheck(input.evidence.diff_present, input.evidence.artifacts_present, input.evidence.artifact_count),
@@ -149,6 +170,9 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
     type: "session_verification",
     project_id: input.project_id ?? "unknown",
     session_id: input.session_id,
+    lifecycle_state: input.lifecycle.state,
+    lifecycle_terminal: input.lifecycle.terminal,
+    lifecycle_requires_reconciliation: input.lifecycle.requires_reconciliation,
     verification_result,
     trust_posture,
     checks,
@@ -161,6 +185,7 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
 export function formatSessionVerification(summary: SessionVerification) {
   const lines = [
     `Session: ${summary.session_id}`,
+    `Lifecycle: ${formatLifecycleState(summary.lifecycle_state)}${summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : ""}`,
     `Verification: ${formatVerificationResult(summary.verification_result)}`,
     `Trust posture: ${formatTrustPosture(summary.trust_posture)}`,
     summary.latest_activity_at ? `Latest activity: ${Locale.todayTimeOrDateTime(summary.latest_activity_at)}` : undefined,
@@ -177,6 +202,37 @@ export function formatSessionVerification(summary: SessionVerification) {
         : ["All verification checks passed."]
 
   return [...lines, "", "Summary", ...summaryLines.map((line) => `- ${line}`)].join(EOL)
+}
+
+function buildLifecycleCheck(
+  state: SessionLifecycleState,
+  terminal: boolean,
+  requiresReconciliation: boolean,
+): VerificationCheck {
+  if (terminal && !requiresReconciliation) {
+    return {
+      id: "lifecycle_state",
+      label: "Lifecycle state",
+      status: "pass",
+      summary: `Session lifecycle is terminal: ${formatLifecycleState(state)}.`,
+    }
+  }
+
+  if (requiresReconciliation) {
+    return {
+      id: "lifecycle_state",
+      label: "Lifecycle state",
+      status: "incomplete",
+      summary: "Execution produced visible output, but session completion was not finalized.",
+    }
+  }
+
+  return {
+    id: "lifecycle_state",
+    label: "Lifecycle state",
+    status: "incomplete",
+    summary: `Session lifecycle is still non-terminal: ${formatLifecycleState(state)}.`,
+  }
 }
 
 function deriveVerificationResult(checks: VerificationCheck[]): VerificationResult {
@@ -385,6 +441,21 @@ function formatTrustPosture(posture: VerificationTrustPosture) {
       return "Policy clean"
     case "verified":
       return "Verified"
+  }
+}
+
+function formatLifecycleState(state: SessionLifecycleState) {
+  switch (state) {
+    case "active":
+      return "Active"
+    case "executing":
+      return "Executing"
+    case "completed":
+      return "Completed"
+    case "interrupted":
+      return "Interrupted"
+    case "abandoned":
+      return "Abandoned"
   }
 }
 

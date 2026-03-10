@@ -5,6 +5,11 @@ describe("session verification evaluator", () => {
   test("returns verification_passed when trust signals are complete and clean", () => {
     const summary = evaluateSessionVerification({
       session_id: "session_verified",
+      lifecycle: {
+        state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
       approvals: { pending_count: 0 },
       overrides: { count: 0 },
       evidence: {
@@ -33,6 +38,11 @@ describe("session verification evaluator", () => {
   test("returns verification_failed when blocking findings are present", () => {
     const summary = evaluateSessionVerification({
       session_id: "session_failed",
+      lifecycle: {
+        state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
       approvals: { pending_count: 0 },
       overrides: { count: 0 },
       evidence: {
@@ -62,6 +72,11 @@ describe("session verification evaluator", () => {
   test("returns verification_incomplete when evidence and approvals are still missing", () => {
     const summary = evaluateSessionVerification({
       session_id: "session_incomplete",
+      lifecycle: {
+        state: "active",
+        terminal: false,
+        requires_reconciliation: true,
+      },
       approvals: { pending_count: 1 },
       overrides: { count: 0 },
       evidence: {
@@ -82,12 +97,18 @@ describe("session verification evaluator", () => {
 
     expect(summary.verification_result).toBe("verification_incomplete")
     expect(summary.trust_posture).toBe("review_needed")
+    expect(summary.degrading_factors).toContain("Execution produced visible output, but session completion was not finalized.")
     expect(summary.checks.filter((check) => check.status === "incomplete").length).toBeGreaterThan(0)
   })
 
   test("returns verification_degraded when warnings or overrides limit trust posture", () => {
     const summary = evaluateSessionVerification({
       session_id: "session_degraded",
+      lifecycle: {
+        state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
       approvals: { pending_count: 0 },
       overrides: { count: 1 },
       evidence: {
@@ -118,6 +139,11 @@ describe("session verification evaluator", () => {
     const rendered = formatSessionVerification(
       evaluateSessionVerification({
         session_id: "session_rendered",
+        lifecycle: {
+          state: "completed",
+          terminal: true,
+          requires_reconciliation: false,
+        },
         approvals: { pending_count: 0 },
         overrides: { count: 0 },
         evidence: {
@@ -140,6 +166,7 @@ describe("session verification evaluator", () => {
     )
 
     expect(rendered).toContain("Session: session_rendered")
+    expect(rendered).toContain("Lifecycle: Completed")
     expect(rendered).toContain("Verification: Verification passed")
     expect(rendered).toContain("Trust posture: Verified")
     expect(rendered).toContain("Checks")
