@@ -3,7 +3,7 @@ import { collectSessionShowSummary } from "../cli/cmd/session"
 import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "../trust/verify-session"
 import type { SessionLifecycleState } from "../session/lifecycle"
 import { withLockedRetry } from "../util/locked-retry"
-import type { WriteGovernanceStatus, WriteRiskBucket } from "../trust/write-governance"
+import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "../trust/write-governance"
 
 export type ReleaseReadiness =
   | "not_ready"
@@ -55,6 +55,7 @@ export async function collectSessionReleaseCheck(sessionID: string): Promise<Ses
     verification_result: verification.verification_result,
     trust_posture: verification.trust_posture,
     write_governance_status: verification.write_governance_status,
+    write_outcome: verification.write_outcome,
     write_risk_bucket: verification.write_risk_bucket,
     approval_count: summary.approval_count,
     artifact_count: summary.artifact_count,
@@ -72,6 +73,7 @@ export function evaluateSessionReleaseCheck(input: {
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
   write_governance_status: WriteGovernanceStatus
+  write_outcome: WriteOutcome
   write_risk_bucket?: WriteRiskBucket
   approval_count: number
   artifact_count: number
@@ -83,7 +85,7 @@ export function evaluateSessionReleaseCheck(input: {
     buildLifecycleCheck(input.lifecycle_state, input.lifecycle_terminal, input.lifecycle_requires_reconciliation),
     buildVerificationCheck(input.verification_result),
     buildApprovalsCheck(input.approval_count),
-    buildWriteGovernanceCheck(input.write_governance_status, input.write_risk_bucket),
+    buildWriteGovernanceCheck(input.write_governance_status, input.write_outcome, input.write_risk_bucket),
     buildArtifactsCheck(input.artifact_count),
     buildFindingsCheck(input.audit_posture),
     buildOverridesCheck(input.override_count),
@@ -224,14 +226,17 @@ function buildApprovalsCheck(approvalCount: number): ReleaseCheck {
   }
 }
 
-function buildWriteGovernanceCheck(status: WriteGovernanceStatus, riskBucket?: WriteRiskBucket): ReleaseCheck {
+function buildWriteGovernanceCheck(status: WriteGovernanceStatus, outcome: WriteOutcome, riskBucket?: WriteRiskBucket): ReleaseCheck {
   switch (status) {
     case "none":
       return {
         id: "write_governance",
         label: "Write governance",
-        status: "pass",
-        summary: "No governed write activity detected.",
+        status: outcome === "no_durable_result" ? "incomplete" : "pass",
+        summary:
+          outcome === "no_durable_result"
+            ? "Write-capable execution occurred without any durable retained workspace write artifacts, so stronger readiness still needs review."
+            : "No governed write activity detected.",
       }
     case "governed":
       return {
@@ -245,7 +250,10 @@ function buildWriteGovernanceCheck(status: WriteGovernanceStatus, riskBucket?: W
         id: "write_governance",
         label: "Write governance",
         status: "fail",
-        summary: "Write-capable work is still blocked on governance resolution.",
+        summary:
+          outcome === "blocked"
+            ? "Write-capable work remained blocked on governance resolution, so handoff or release readiness is blocked."
+            : "Write-capable work is still blocked on governance resolution.",
       }
     case "ungated":
       return {
@@ -257,12 +265,15 @@ function buildWriteGovernanceCheck(status: WriteGovernanceStatus, riskBucket?: W
             : riskBucket === "governed_project_write"
               ? "fail"
               : "incomplete",
-        summary: formatReleaseWriteGovernanceSummary(riskBucket),
+        summary: formatReleaseWriteGovernanceSummary(outcome, riskBucket),
       }
   }
 }
 
-function formatReleaseWriteGovernanceSummary(riskBucket?: WriteRiskBucket) {
+function formatReleaseWriteGovernanceSummary(outcome: WriteOutcome, riskBucket?: WriteRiskBucket) {
+  if (outcome === "partial") {
+    return "Retained writes were recorded, but the write path did not complete cleanly under governance, so stronger readiness is blocked pending review."
+  }
   switch (riskBucket) {
     case "harmless_local":
       return "Retained writes only touched harmless local paths, so governance evidence is optional for readiness."

@@ -13,6 +13,7 @@ describe("session verification evaluator", () => {
       approvals: { pending_count: 0 },
       write_governance: {
         status: "governed",
+        outcome: "governed_completed",
         workspace_write_artifact_count: 1,
         risk_bucket: "governed_project_write",
         governance_expectation: "expected",
@@ -52,6 +53,7 @@ describe("session verification evaluator", () => {
       approvals: { pending_count: 0 },
       write_governance: {
         status: "governed",
+        outcome: "governed_completed",
         workspace_write_artifact_count: 1,
         risk_bucket: "governed_project_write",
         governance_expectation: "expected",
@@ -92,6 +94,7 @@ describe("session verification evaluator", () => {
       approvals: { pending_count: 1 },
       write_governance: {
         status: "blocked",
+        outcome: "blocked",
         workspace_write_artifact_count: 0,
         risk_bucket: "governed_project_write",
         governance_expectation: "expected",
@@ -130,6 +133,7 @@ describe("session verification evaluator", () => {
       approvals: { pending_count: 0 },
       write_governance: {
         status: "governed",
+        outcome: "governed_completed",
         workspace_write_artifact_count: 1,
         risk_bucket: "governed_project_write",
         governance_expectation: "expected",
@@ -171,6 +175,7 @@ describe("session verification evaluator", () => {
         approvals: { pending_count: 0 },
         write_governance: {
           status: "governed",
+          outcome: "governed_completed",
           workspace_write_artifact_count: 1,
           risk_bucket: "governed_project_write",
           governance_expectation: "expected",
@@ -214,6 +219,7 @@ describe("session verification evaluator", () => {
       approvals: { pending_count: 0 },
       write_governance: {
         status: "ungated",
+        outcome: "completed_ungated",
         workspace_write_artifact_count: 2,
         risk_bucket: "governed_project_write",
         governance_expectation: "expected",
@@ -254,6 +260,7 @@ describe("session verification evaluator", () => {
       approvals: { pending_count: 0 },
       write_governance: {
         status: "ungated",
+        outcome: "completed_ungated",
         workspace_write_artifact_count: 1,
         risk_bucket: "sensitive_or_system_write",
         governance_expectation: "required",
@@ -279,6 +286,84 @@ describe("session verification evaluator", () => {
     expect(summary.verification_result).toBe("verification_failed")
     expect(summary.blocking_factors).toContain(
       "1 retained workspace write artifact touched sensitive or system-impacting paths without required governance evidence. Trust cannot be treated as clean.",
+    )
+  })
+
+  test("surfaces partial write outcomes separately from completed ungated writes", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_partial_write",
+      lifecycle: {
+        state: "active",
+        terminal: false,
+        requires_reconciliation: true,
+      },
+      approvals: { pending_count: 0 },
+      write_governance: {
+        status: "ungated",
+        outcome: "partial",
+        workspace_write_artifact_count: 2,
+        risk_bucket: "project_artifact",
+        governance_expectation: "expected",
+      },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: false,
+        artifacts_present: true,
+        artifact_count: 2,
+      },
+      audit: {
+        present: false,
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_incomplete")
+    expect(summary.degrading_factors).toContain(
+      "2 retained workspace write artifacts were recorded, but the write path did not reach a clean terminal governance boundary. Treat the mutation as partial until reviewed.",
+    )
+  })
+
+  test("surfaces write attempts with no durable result separately from clean no-write sessions", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_write_no_durable_result",
+      lifecycle: {
+        state: "completed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
+      approvals: { pending_count: 0 },
+      write_governance: {
+        status: "none",
+        outcome: "no_durable_result",
+        workspace_write_artifact_count: 0,
+      },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: false,
+        artifacts_present: false,
+        artifact_count: 0,
+      },
+      audit: {
+        present: false,
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    })
+
+    expect(summary.verification_result).toBe("verification_incomplete")
+    expect(summary.degrading_factors).toContain(
+      "Write-capable execution was attempted, but no durable retained workspace write artifacts were recorded.",
     )
   })
 })

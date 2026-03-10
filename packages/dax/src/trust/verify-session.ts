@@ -9,8 +9,10 @@ import { withLockedRetry } from "../util/locked-retry"
 import { buildArtifactsForSession } from "../cli/cmd/artifacts"
 import {
   deriveWriteGovernanceClassification,
+  deriveWriteOutcome,
   deriveWriteGovernanceStatus,
   type WriteGovernanceExpectation,
+  type WriteOutcome,
   type WriteGovernanceStatus,
   type WriteRiskBucket,
 } from "./write-governance"
@@ -63,6 +65,7 @@ export type SessionVerificationSignals = {
   }
   write_governance: {
     status: WriteGovernanceStatus
+    outcome: WriteOutcome
     workspace_write_artifact_count: number
     risk_bucket?: WriteRiskBucket
     governance_expectation?: WriteGovernanceExpectation
@@ -91,6 +94,7 @@ export type SessionVerification = {
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
   write_governance_status: WriteGovernanceStatus
+  write_outcome: WriteOutcome
   write_risk_bucket?: WriteRiskBucket
   checks: VerificationCheck[]
   blocking_factors: string[]
@@ -130,18 +134,26 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
     })
     const overrideCount = events.filter((row) => row.event_type === "override").length
     const workspaceWriteArtifactCount = artifacts.filter((artifact) => artifact.kind === "workspace_file").length
+    const writeIntentDetected = messages.some((message) =>
+      message.parts.some((part) => part.type === "tool" && part.tool === "write"),
+    )
     const writeGovernanceClassification = deriveWriteGovernanceClassification({
       sessionDirectory: session.directory,
       references: artifacts
         .filter((artifact) => artifact.kind === "workspace_file" && artifact.reference)
         .map((artifact) => artifact.reference as string),
     })
-    const writeGovernanceStatus = deriveWriteGovernanceStatus({
+    const writeGovernanceSignals = {
+      write_intent_detected: writeIntentDetected,
       workspace_write_artifact_count: workspaceWriteArtifactCount,
       pending_approval_count: pendingApprovals.length,
       override_count: overrideCount,
       policy_evaluated: !!latestAudit,
-    })
+      lifecycle_terminal: lifecycle.terminal,
+      lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
+    } as const
+    const writeGovernanceStatus = deriveWriteGovernanceStatus(writeGovernanceSignals)
+    const writeOutcome = deriveWriteOutcome(writeGovernanceSignals)
 
     return evaluateSessionVerification({
       session_id: sessionID,
@@ -156,6 +168,7 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
       },
       write_governance: {
         status: writeGovernanceStatus,
+        outcome: writeOutcome,
         workspace_write_artifact_count: workspaceWriteArtifactCount,
         risk_bucket: writeGovernanceClassification?.bucket,
         governance_expectation: writeGovernanceClassification?.governance_expectation,
@@ -189,6 +202,7 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
     buildApprovalsCheck(input.approvals.pending_count),
     buildWriteGovernanceCheck({
       status: input.write_governance.status,
+      outcome: input.write_governance.outcome,
       workspace_write_artifact_count: input.write_governance.workspace_write_artifact_count,
       risk_bucket: input.write_governance.risk_bucket,
       governance_expectation: input.write_governance.governance_expectation,
@@ -223,6 +237,7 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
     verification_result,
     trust_posture,
     write_governance_status: input.write_governance.status,
+    write_outcome: input.write_governance.outcome,
     write_risk_bucket: input.write_governance.risk_bucket,
     checks,
     blocking_factors,
@@ -322,6 +337,7 @@ function buildApprovalsCheck(pendingCount: number): VerificationCheck {
 
 function buildWriteGovernanceCheck(input: {
   status: WriteGovernanceStatus
+  outcome: WriteOutcome
   workspace_write_artifact_count: number
   risk_bucket?: WriteRiskBucket
   governance_expectation?: WriteGovernanceExpectation
@@ -331,8 +347,11 @@ function buildWriteGovernanceCheck(input: {
       return {
         id: "write_governance",
         label: "Write governance",
-        status: "pass",
-        summary: "No governed write activity detected.",
+        status: input.outcome === "no_durable_result" ? "incomplete" : "pass",
+        summary:
+          input.outcome === "no_durable_result"
+            ? "Write-capable execution was attempted, but no durable retained workspace write artifacts were recorded."
+            : "No governed write activity detected.",
       }
     case "governed":
       return {
@@ -346,7 +365,10 @@ function buildWriteGovernanceCheck(input: {
         id: "write_governance",
         label: "Write governance",
         status: "incomplete",
-        summary: "Write-capable work is still awaiting governance resolution.",
+        summary:
+          input.outcome === "blocked"
+            ? "Write-capable work is still awaiting governance resolution and should not be treated as a clean completed write."
+            : "Write-capable work is still awaiting governance resolution.",
       }
     case "ungated":
       return {
@@ -364,11 +386,15 @@ function buildWriteGovernanceCheck(input: {
 }
 
 function formatUngatedWriteGovernanceSummary(input: {
+  outcome: WriteOutcome
   workspace_write_artifact_count: number
   risk_bucket?: WriteRiskBucket
   governance_expectation?: WriteGovernanceExpectation
 }) {
   const countLabel = `${input.workspace_write_artifact_count} retained workspace write artifact${input.workspace_write_artifact_count === 1 ? "" : "s"}`
+  if (input.outcome === "partial") {
+    return `${countLabel} were recorded, but the write path did not reach a clean terminal governance boundary. Treat the mutation as partial until reviewed.`
+  }
   switch (input.risk_bucket) {
     case "harmless_local":
       return `${countLabel} only touched harmless local paths, so governance evidence was optional.`

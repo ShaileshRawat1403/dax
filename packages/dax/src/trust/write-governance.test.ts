@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   classifyWritePathRisk,
+  deriveWriteOutcome,
   deriveWriteGovernanceStatus,
   governanceExpectationForBucket,
 } from "./write-governance"
@@ -9,10 +10,13 @@ describe("write governance derivation", () => {
   test("returns none when no workspace write artifacts exist", () => {
     expect(
       deriveWriteGovernanceStatus({
+        write_intent_detected: false,
         workspace_write_artifact_count: 0,
         pending_approval_count: 0,
         override_count: 0,
         policy_evaluated: false,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
       }),
     ).toBe("none")
   })
@@ -20,10 +24,13 @@ describe("write governance derivation", () => {
   test("returns blocked when write activity still has pending approvals", () => {
     expect(
       deriveWriteGovernanceStatus({
+        write_intent_detected: true,
         workspace_write_artifact_count: 1,
         pending_approval_count: 1,
         override_count: 0,
         policy_evaluated: false,
+        lifecycle_terminal: false,
+        lifecycle_requires_reconciliation: true,
       }),
     ).toBe("blocked")
   })
@@ -31,10 +38,13 @@ describe("write governance derivation", () => {
   test("returns governed when policy evidence is present", () => {
     expect(
       deriveWriteGovernanceStatus({
+        write_intent_detected: true,
         workspace_write_artifact_count: 1,
         pending_approval_count: 0,
         override_count: 0,
         policy_evaluated: true,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
       }),
     ).toBe("governed")
   })
@@ -42,10 +52,13 @@ describe("write governance derivation", () => {
   test("returns governed when override evidence exists", () => {
     expect(
       deriveWriteGovernanceStatus({
+        write_intent_detected: true,
         workspace_write_artifact_count: 1,
         pending_approval_count: 0,
         override_count: 1,
         policy_evaluated: false,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
       }),
     ).toBe("governed")
   })
@@ -53,12 +66,101 @@ describe("write governance derivation", () => {
   test("returns ungated when write artifacts exist without governance evidence", () => {
     expect(
       deriveWriteGovernanceStatus({
+        write_intent_detected: true,
         workspace_write_artifact_count: 2,
         pending_approval_count: 0,
         override_count: 0,
         policy_evaluated: false,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
       }),
     ).toBe("ungated")
+  })
+})
+
+describe("write outcome derivation", () => {
+  test("returns none when no write intent and no durable result exist", () => {
+    expect(
+      deriveWriteOutcome({
+        write_intent_detected: false,
+        workspace_write_artifact_count: 0,
+        pending_approval_count: 0,
+        override_count: 0,
+        policy_evaluated: false,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
+      }),
+    ).toBe("none")
+  })
+
+  test("returns no_durable_result when write intent exists without retained output", () => {
+    expect(
+      deriveWriteOutcome({
+        write_intent_detected: true,
+        workspace_write_artifact_count: 0,
+        pending_approval_count: 0,
+        override_count: 0,
+        policy_evaluated: false,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
+      }),
+    ).toBe("no_durable_result")
+  })
+
+  test("returns blocked when governance remained unresolved", () => {
+    expect(
+      deriveWriteOutcome({
+        write_intent_detected: true,
+        workspace_write_artifact_count: 1,
+        pending_approval_count: 1,
+        override_count: 0,
+        policy_evaluated: false,
+        lifecycle_terminal: false,
+        lifecycle_requires_reconciliation: true,
+      }),
+    ).toBe("blocked")
+  })
+
+  test("returns partial when durable writes exist but lifecycle did not finish cleanly", () => {
+    expect(
+      deriveWriteOutcome({
+        write_intent_detected: true,
+        workspace_write_artifact_count: 1,
+        pending_approval_count: 0,
+        override_count: 0,
+        policy_evaluated: false,
+        lifecycle_terminal: false,
+        lifecycle_requires_reconciliation: true,
+      }),
+    ).toBe("partial")
+  })
+
+  test("returns governed_completed when durable writes finished with governance evidence", () => {
+    expect(
+      deriveWriteOutcome({
+        write_intent_detected: true,
+        workspace_write_artifact_count: 1,
+        pending_approval_count: 0,
+        override_count: 0,
+        policy_evaluated: true,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
+      }),
+    ).toBe("governed_completed")
+  })
+
+  test("returns completed_ungated when durable writes finished without governance evidence", () => {
+    expect(
+      deriveWriteOutcome({
+        write_intent_detected: true,
+        workspace_write_artifact_count: 1,
+        pending_approval_count: 0,
+        override_count: 0,
+        policy_evaluated: false,
+        lifecycle_terminal: true,
+        lifecycle_requires_reconciliation: false,
+      }),
+    ).toBe("completed_ungated")
   })
 })
 
