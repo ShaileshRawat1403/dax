@@ -1534,3 +1534,22 @@ Why it worked:
 - it prevented terminal constraints from being based on guesswork
 - it made sidebar collapse a deliberate design choice instead of an implementation accident
 - it kept stream continuity as the highest-priority constraint during shrinkage
+
+## Session Pattern: End Design With One Implementation Bridge
+
+Once the workstation has stable semantics, surfaces, overlays, interruptions, and terminal constraints, the final design artifact should not be another mockup.
+
+It should be a single implementation bridge that maps:
+
+- layout regions
+- component boundaries
+- overlay routing
+- focus ownership
+- resize handling
+- event-loop responsibilities
+
+Why it worked:
+
+- it converts design into implementable structure without reopening semantics
+- it gives implementation a fixed north star for architecture and sequencing
+- it cleanly marks the end of the workstation design phase

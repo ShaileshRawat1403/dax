@@ -72,6 +72,7 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_REFINED_MOCKUP.md](DAX_WORKSTATION_REFINED_MOCKUP.md): single committed balanced-workstation direction combining stream, sidebar, overlays, and footer
 - [DAX_APPROVAL_INTERRUPTION_SPEC.md](DAX_APPROVAL_INTERRUPTION_SPEC.md): how approvals interrupt the workstation through stream events, sidebar state, and a focused decision overlay
 - [DAX_TERMINAL_CONSTRAINTS.md](DAX_TERMINAL_CONSTRAINTS.md): width tiers, sidebar collapse behavior, overlay sizing, scrolling, and resize rules for the workstation
+- [DAX_TUI_IMPLEMENTATION_PLAN.md](DAX_TUI_IMPLEMENTATION_PLAN.md): final bridge from workstation design into TUI layout regions, component boundaries, overlay routing, resize handling, and event-loop responsibilities
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
