@@ -375,6 +375,21 @@ Why it worked:
 - it prevents endless variant churn
 - it gives implementation a single source of workstation truth
 
+#### Pattern 18: Treat approvals as interruptions, not persistent UI mode
+
+Better sequence:
+
+1. define workstation roles
+2. commit a refined workstation direction
+3. define approval interruptions as a special narrative break
+4. keep decision-making inside the overlay, not the stream
+
+Why it worked:
+
+- it preserved the center/sidebar/overlay separation under stress
+- it kept approvals visible without turning the workstation into a modal shell
+- it made approval handling feel like part of the execution story rather than a separate product
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`

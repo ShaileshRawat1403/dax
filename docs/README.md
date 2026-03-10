@@ -69,6 +69,7 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_OVERLAY_SPEC.md](DAX_WORKSTATION_OVERLAY_SPEC.md): evidence-layer contract for verify, release, artifacts, timeline, and inspect overlays
 - [DAX_WORKSTATION_INTERACTION_SPEC.md](DAX_WORKSTATION_INTERACTION_SPEC.md): focus, open-close, and shortcut behavior across stream, sidebar, and overlays
 - [DAX_WORKSTATION_REFINED_MOCKUP.md](DAX_WORKSTATION_REFINED_MOCKUP.md): single committed balanced-workstation direction combining stream, sidebar, overlays, and footer
+- [DAX_APPROVAL_INTERRUPTION_SPEC.md](DAX_APPROVAL_INTERRUPTION_SPEC.md): how approvals interrupt the workstation through stream events, sidebar state, and a focused decision overlay
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
