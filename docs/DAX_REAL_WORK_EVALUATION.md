@@ -678,3 +678,313 @@ What should change:
   - completed session anyway
 - `plan` continues to be more reliable than `run` for low-complexity work.
 - Runtime lifecycle clarity is now a stronger emerging next layer than UI design.
+
+## Evaluation Batch 004
+
+This batch adds one more interrupted lightweight `run`, one successful multi-file write burst, and one longer planning session. It is the first batch where the filesystem and the session record disagree in a way that directly affects governance trust.
+
+### Commands Used
+
+```text
+dax run -m google-vertex/gemini-2.5-flash
+dax plan -m google-vertex/gemini-2.5-flash
+dax session list
+dax session show <session-id>
+dax session inspect <session-id>
+dax verify <session-id>
+dax release check <session-id>
+```
+
+### Session Record: ses_328798997ffe94WzKEfHX0CEPF
+
+Task:
+
+```text
+Edge case: interrupted run 2
+```
+
+Outcome:
+
+```text
+Outcome: active
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- The session record once again preserved the incomplete lifecycle cleanly enough for later inspection.
+
+What slowed the workflow:
+
+- The session again produced visible assistant output but never transitioned to completion.
+
+What was confusing:
+
+- This is now a repeated lifecycle pattern rather than a one-off edge case.
+
+What should change:
+
+- No product change yet, but this is now strong repeated evidence for a dedicated run-lifecycle model.
+
+### Session Record: ses_3287989daffexk1sqhEm2PfL6L
+
+Task:
+
+```text
+Edge case: artifact burst write
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+Filesystem result:
+
+```text
+packages/dax/artifacts/eval-burst/summary.txt
+packages/dax/artifacts/eval-burst/notes.md
+packages/dax/artifacts/eval-burst/result.json
+```
+
+What worked well:
+
+- The runtime completed.
+- The three requested files were actually created.
+- The content of the files matched the requested task.
+
+What slowed the workflow:
+
+- The session record still required manual inspection to discover that the files landed under `packages/dax/artifacts/...` rather than repo-root `artifacts/...`.
+
+What was confusing:
+
+- `session show`, `session inspect`, `verify`, and `release check` all reported:
+  - `artifact_count: 0`
+  - no retained artifacts
+  - no stronger trust or readiness signal
+- The system successfully produced files, but the governance surfaces did not reflect that fact.
+
+What should change:
+
+- Keep validating, but this is the strongest write-governance visibility gap so far.
+- Future work likely needs to distinguish between filesystem output and retained-artifact registration.
+
+### Session Record: ses_32879897bffe4RP42I4KGFGpJe
+
+Task:
+
+```text
+Edge case: long planning session
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- Planning remains consistently clean and stable.
+- Even a longer multi-step plan preserves a readable and compact session record.
+
+What slowed the workflow:
+
+- Despite richer content, the durable record still looks operationally similar to lighter planning sessions because artifacts and explicit verification evidence are absent.
+
+What was confusing:
+
+- The richer planning content does not create stronger progression or stage differentiation in the durable surfaces.
+
+What should change:
+
+- No immediate change. This reinforces that planning is stable but that stage derivation and evidence surfaces are still conservative.
+
+## Evidence Log
+
+| Session | Issue | Surface | Severity |
+| ------- | ----- | ------- | -------- |
+| ses_328ed3310ffe50coOPafJELC5f | `review_ready` feels optimistic for artifact-free conversational work | release check | medium |
+| ses_328ed3310ffe50coOPafJELC5f | `stage: review` feels semantically weak for lightweight chat-like sessions | session show | low |
+| ses_32d662276ffervMwsjjDxy68o2 | verification incompleteness wording repeats across read-only sessions | verify | medium |
+| ses_32d662276ffervMwsjjDxy68o2 | navigation between summary and explanation still depends on command recall | session show / inspect / verify | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | artifact references remain too implementation-shaped | session inspect | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | strong evidence still ends in `review_ready`, which may under-communicate progress | verify / release check | medium |
+| ses_32a18961dffe6EB7pyv1b4k2Lw | trivial sessions produce governance output with limited operator value | session show / inspect / verify | low |
+| edge-session-run | default `dax run` model path failed before useful execution and required manual provider override | run | high |
+| ses_32889a3c9ffehYufvJ3CIjqFSr | lightweight `dax run` session remained active after visible assistant response | run / session inspect | high |
+| ses_32888c8ecffeQ1UE2gawdGQO5p | planning-only work still maps to `stage: review`, weakening stage semantics | session show / inspect | medium |
+| ses_32881fdd6ffeiIsGcNoiuuhl35 | write-intent session produced no approval gate and no retained artifact | run / governance | high |
+| ses_32881fdd6ffeiIsGcNoiuuhl35 | `session inspect` hit `database is locked` during evaluation | session inspect | high |
+| ses_328798997ffe94WzKEfHX0CEPF | repeated lightweight `run` again remained active after visible answer | run / lifecycle | high |
+| ses_3287989daffexk1sqhEm2PfL6L | files were created on disk but no artifacts were registered in trust surfaces | run / artifacts / verify | high |
+| ses_3287989daffexk1sqhEm2PfL6L | artifact path resolution is relative to `packages/dax`, not obvious repo-root location | run / artifacts | medium |
+| ses_32879897bffe4RP42I4KGFGpJe | longer planning content does not yet change stage or trust semantics meaningfully | session inspect / verify | low |
+
+## Batch 004 Pattern Summary
+
+- The interrupted lightweight `run` lifecycle issue is now repeated enough to treat as a real product pattern.
+- The strongest new signal is a split between actual filesystem side effects and governance visibility:
+  - files can be created successfully
+  - the session can still report zero artifacts
+  - trust and readiness remain blind to those outputs
+- Planning remains the stable path.
+- Artifact-heavy governed work is still the product center, but write-governance visibility is not yet reliable enough to trust by default.
+
+## Evaluation Batch 005
+
+This batch closes the initial evaluation set with one more interrupted lightweight run and two more successful write-intent sessions. It is the first point where the evidence is repetitive enough to support a concrete next design direction.
+
+### Session Record: ses_328735030ffegD8G4THWtOiQLh
+
+Task:
+
+```text
+Edge case: interrupted run 3
+```
+
+Outcome:
+
+```text
+Outcome: active
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- The session was durable enough to inspect afterward.
+
+What was confusing:
+
+- The run again produced a visible answer but remained `active`.
+- This is now the third repeated instance of the same lifecycle pattern.
+
+### Session Record: ses_32873501bffeMpbN5eb32UOEBT
+
+Task:
+
+```text
+Edge case: write intent 2
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+Filesystem result:
+
+```text
+packages/dax/artifacts/eval-write-2/status.txt
+```
+
+What worked well:
+
+- The file was created successfully on disk.
+
+What was confusing:
+
+- `session inspect` hit `database is locked` again.
+- `session show`, `verify`, and `release check` still reported zero retained artifacts and no stronger trust signal.
+- There was still no visible approval gate for the write-intent path.
+
+### Session Record: ses_328735009ffeyhiPcVbx8BzI2L
+
+Task:
+
+```text
+Edge case: artifact burst write 2
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+Filesystem result:
+
+```text
+packages/dax/artifacts/eval-burst-2/a.txt
+packages/dax/artifacts/eval-burst-2/b.md
+packages/dax/artifacts/eval-burst-2/c.json
+packages/dax/artifacts/eval-burst-2/d.txt
+```
+
+What worked well:
+
+- The write burst completed and produced all four requested files.
+
+What was confusing:
+
+- The trust surfaces still reported `artifact_count: 0`.
+- No retained artifacts were visible in `session inspect`.
+- Verification and readiness remained blind to the concrete filesystem outputs.
+
+## Evidence Log
+
+| Session | Issue | Surface | Severity |
+| ------- | ----- | ------- | -------- |
+| ses_328ed3310ffe50coOPafJELC5f | `review_ready` feels optimistic for artifact-free conversational work | release check | medium |
+| ses_328ed3310ffe50coOPafJELC5f | `stage: review` feels semantically weak for lightweight chat-like sessions | session show | low |
+| ses_32d662276ffervMwsjjDxy68o2 | verification incompleteness wording repeats across read-only sessions | verify | medium |
+| ses_32d662276ffervMwsjjDxy68o2 | navigation between summary and explanation still depends on command recall | session show / inspect / verify | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | artifact references remain too implementation-shaped | session inspect | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | strong evidence still ends in `review_ready`, which may under-communicate progress | verify / release check | medium |
+| ses_32a18961dffe6EB7pyv1b4k2Lw | trivial sessions produce governance output with limited operator value | session show / inspect / verify | low |
+| edge-session-run | default `dax run` model path failed before useful execution and required manual provider override | run | high |
+| ses_32889a3c9ffehYufvJ3CIjqFSr | lightweight `dax run` session remained active after visible assistant response | run / session inspect | high |
+| ses_32888c8ecffeQ1UE2gawdGQO5p | planning-only work still maps to `stage: review`, weakening stage semantics | session show / inspect | medium |
+| ses_32881fdd6ffeiIsGcNoiuuhl35 | write-intent session produced no approval gate and no retained artifact | run / governance | high |
+| ses_32881fdd6ffeiIsGcNoiuuhl35 | `session inspect` hit `database is locked` during evaluation | session inspect | high |
+| ses_328798997ffe94WzKEfHX0CEPF | repeated lightweight `run` again remained active after visible answer | run / lifecycle | high |
+| ses_3287989daffexk1sqhEm2PfL6L | files were created on disk but no artifacts were registered in trust surfaces | run / artifacts / verify | high |
+| ses_3287989daffexk1sqhEm2PfL6L | artifact path resolution is relative to `packages/dax`, not obvious repo-root location | run / artifacts | medium |
+| ses_32879897bffe4RP42I4KGFGpJe | longer planning content does not yet change stage or trust semantics meaningfully | session inspect / verify | low |
+| ses_328735030ffegD8G4THWtOiQLh | third repeated lightweight run remained active after visible answer | run / lifecycle | high |
+| ses_32873501bffeMpbN5eb32UOEBT | second write-intent session created a file but trust surfaces still reported no artifacts | run / artifacts / verify | high |
+| ses_32873501bffeMpbN5eb32UOEBT | `session inspect` hit `database is locked` again on a write-intent session | session inspect | high |
+| ses_328735009ffeyhiPcVbx8BzI2L | second artifact burst wrote files successfully but retained-artifact visibility stayed at zero | run / artifacts / verify | high |
+
+## Overall Evaluation Summary
+
+- DAX is strongest on artifact-heavy, governed workflows where execution completes and trace surfaces remain stable.
+- `plan` is consistently more reliable than lightweight `run`.
+- Lightweight `run` has a repeated lifecycle problem:
+  - visible answer
+  - session remains `active`
+  - no clean completion semantics
+- Write-intent execution has a repeated governance visibility gap:
+  - files are created on disk
+  - retained artifacts are not reflected in session history, verification, or readiness
+  - approval behavior is not visible on these paths
+- `session inspect` still has a repeated `database is locked` edge case under evaluation pressure.
+
+## Emerging Next Layer
+
+The strongest next product layer is no longer TUI or output polish.
+
+It is:
+
+- runtime lifecycle clarity
+- write-governance visibility and reliability
+- inspection-path lock resilience
