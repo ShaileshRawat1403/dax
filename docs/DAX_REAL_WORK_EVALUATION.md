@@ -368,3 +368,146 @@ What should change:
 - Verification and readiness remain conservative, with missing policy evaluation dominating outcomes.
 - Artifact-heavy sessions already feel substantially better than lightweight sessions, but artifact wording still needs translation into operator language.
 - Trivial conversational sessions likely need later presentation tuning, but not a model change yet.
+
+## Evaluation Batch 002
+
+This batch adds deliberate edge cases: an interrupted near-empty run, a planning-only session, and a repeated verification/readiness stability check.
+
+### Commands Used
+
+```text
+dax run -m google-vertex/gemini-2.5-flash
+dax plan -m google-vertex/gemini-2.5-flash
+dax session show <session-id>
+dax session inspect <session-id>
+dax verify <session-id>
+dax release check <session-id>
+```
+
+### Session Record: ses_32889a3c9ffehYufvJ3CIjqFSr
+
+Task:
+
+```text
+Edge case: empty session
+```
+
+Outcome:
+
+```text
+Outcome: active
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- `session show` and `session inspect` clearly exposed that the run never reached completion.
+- `verify` and `release check` remained stable even for an incomplete session.
+
+What slowed the workflow:
+
+- The run path did not terminate cleanly after a simple no-tool response.
+
+What was confusing:
+
+- The model produced a clear one-line answer, but the session remained `active` with only `session_created` and `execution_started` in the timeline.
+- `release_ready` did not fail hard because the session still had no explicit blocking factors, only missing evidence.
+
+What should change:
+
+- Observe whether incomplete active sessions should produce a stronger readiness downgrade once more evidence accumulates.
+- Investigate why `dax run` can leave lightweight sessions active after a visible assistant response.
+
+### Session Record: ses_32888c8ecffeQ1UE2gawdGQO5p
+
+Task:
+
+```text
+Edge case: planning only
+```
+
+Outcome:
+
+```text
+Outcome: completed
+Stage: review
+Verification: verification_incomplete
+Readiness: review_ready
+```
+
+What worked well:
+
+- `dax plan` returned a coherent structured preview and produced a clean completed session.
+- `session inspect` remained readable on a planning-only record.
+
+What slowed the workflow:
+
+- Planning output was machine-readable and useful, but post-plan navigation still depends on manually moving into `show`, `inspect`, `verify`, and `release check`.
+
+What was confusing:
+
+- A planning-only session ends in `stage: review`, which suggests the stage derivation still compresses planning-only work into a later lifecycle label.
+
+What should change:
+
+- Keep watching whether planning-only sessions need more specific stage derivation before changing the model.
+
+### Stability Record: ses_32ddd10fbffe6xBlnTvYtoTxF3
+
+Task:
+
+```text
+Repeated verification and release checks on an artifact-heavy session
+```
+
+Outcome:
+
+```text
+Verification run 1: verification_incomplete
+Verification run 2: verification_incomplete
+Release run 1: review_ready
+Release run 2: review_ready
+```
+
+What worked well:
+
+- Repeated `verify` output remained identical across runs.
+- Repeated `release check` output remained identical across runs.
+- No transient lock or drift appeared during the repeated checks on this session.
+
+What slowed the workflow:
+
+- Repeating the checks provides no additional affordance or summary for comparison; stability had to be inferred manually.
+
+What was confusing:
+
+- The system is stable here, but nothing in the output explicitly says the judgment is cached, unchanged, or freshly recomputed.
+
+What should change:
+
+- No immediate change. This is a stability confirmation, not yet a product gap.
+
+## Evidence Log
+
+| Session | Issue | Surface | Severity |
+| ------- | ----- | ------- | -------- |
+| ses_328ed3310ffe50coOPafJELC5f | `review_ready` feels optimistic for artifact-free conversational work | release check | medium |
+| ses_328ed3310ffe50coOPafJELC5f | `stage: review` feels semantically weak for lightweight chat-like sessions | session show | low |
+| ses_32d662276ffervMwsjjDxy68o2 | verification incompleteness wording repeats across read-only sessions | verify | medium |
+| ses_32d662276ffervMwsjjDxy68o2 | navigation between summary and explanation still depends on command recall | session show / inspect / verify | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | artifact references remain too implementation-shaped | session inspect | medium |
+| ses_32ddd10fbffe6xBlnTvYtoTxF3 | strong evidence still ends in `review_ready`, which may under-communicate progress | verify / release check | medium |
+| ses_32a18961dffe6EB7pyv1b4k2Lw | trivial sessions produce governance output with limited operator value | session show / inspect / verify | low |
+| edge-session-run | default `dax run` model path failed before useful execution and required manual provider override | run | high |
+| ses_32889a3c9ffehYufvJ3CIjqFSr | lightweight `dax run` session remained active after visible assistant response | run / session inspect | high |
+| ses_32888c8ecffeQ1UE2gawdGQO5p | planning-only work still maps to `stage: review`, weakening stage semantics | session show / inspect | medium |
+
+## Batch 002 Pattern Summary
+
+- The default `run` path in this environment is not reliable enough for evaluation without an explicit model override.
+- Planning completes more cleanly than lightweight `run` in the current setup.
+- Repeated `verify` and `release check` calls are stable on an artifact-heavy session.
+- Stage derivation still appears too eager to end at `review` for non-artifact, non-governance-heavy sessions.
+- The biggest new signal is operational stability in `run`, not a new information-architecture gap.
