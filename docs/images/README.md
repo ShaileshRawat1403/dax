@@ -11,8 +11,6 @@ Add screenshots in this folder with the exact filenames below.
 5. `non-dev-02-rao-approval.png`
 6. `non-dev-03-diff-before-approval.png`
 7. `build-on-dax-01-local-dev-run.png`
-8. `build-on-dax-02-release-assets.png`
-9. `build-on-dax-03-distribution-workflow-success.png`
 
 ## Capture quality recommendations
 

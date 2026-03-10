@@ -142,7 +142,7 @@ export function Sidebar(props: {
               </Show>
               <Show when={approvalCount() > 0 || questionCount() > 0}>
                 <text fg={theme.warning}>
-                  {approvalCount() > 0 ? `${approvalCount()} needs approval` : ""}
+                  {approvalCount() > 0 ? `${approvalCount()} awaiting operator decision` : ""}
                   {approvalCount() > 0 && questionCount() > 0 ? " · " : ""}
                   {questionCount() > 0 ? `${questionCount()} blocked by question` : ""}
                 </text>

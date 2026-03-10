@@ -27,7 +27,7 @@ function permissionItem(item: PermissionRequest): ApprovalItem {
   return {
     kind: "permission",
     id: item.id,
-    title: `${item.permission} approval`,
+    title: `${item.permission} pending approval`,
     summary: `${toolInfo} · patterns: ${patterns}`,
     detail: [
       `Permission: ${item.permission}`,
@@ -101,14 +101,14 @@ export function DialogApprovals(props: {
   })
 
   const current = createMemo(() => items()[selected()])
-  const title = createMemo(() => (props.explainMode ? "Things DAX needs from you" : "Approvals and questions"))
+  const title = createMemo(() => (props.explainMode ? "Things awaiting operator decision" : "Pending approvals and questions"))
   const footer = createMemo(() =>
     props.explainMode
-      ? "Open live review to answer DAX so work can continue safely."
-      : "Open live review to answer approvals and questions in the RAO pane.",
+      ? "Open live review so DAX can continue the blocked step safely."
+      : "Open live review to resolve approvals and questions in the RAO pane.",
   )
   const emptyState = createMemo(() =>
-    props.explainMode ? "DAX does not need anything from you right now." : "No pending approvals or questions.",
+    props.explainMode ? "No operator decision is required right now." : "No pending approvals or questions.",
   )
 
   return (
@@ -150,8 +150,8 @@ export function DialogApprovals(props: {
               <Show when={props.explainMode}>
                 <text fg={theme.text}>
                   {current()!.kind === "permission"
-                    ? "DAX is waiting for your approval before it can continue this step."
-                    : "DAX needs an answer from you before it can continue this step."}
+                    ? "DAX is awaiting your approval before it can continue this step."
+                    : "DAX is awaiting your answer before it can continue this step."}
                 </text>
               </Show>
               <text fg={theme.textMuted} wrapMode="word">

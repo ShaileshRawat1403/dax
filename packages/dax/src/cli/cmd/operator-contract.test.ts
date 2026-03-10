@@ -32,8 +32,10 @@ function hasWorkspaceKernel() {
 
 describe("operator contract coverage", () => {
   test("help groups present the new product guidance", () => {
-    expect(HELP_GROUPS).toContain("Start and work: dax | dax run | dax attach | dax web")
-    expect(HELP_GROUPS).toContain("Review and inspect: dax docs | dax mcp | dax session | dax audit | dax stats")
+    expect(HELP_GROUPS).toContain("Start and work: dax | dax plan | dax run | dax attach | dax web")
+    expect(HELP_GROUPS).toContain(
+      "Review and inspect: dax docs | dax mcp | dax approvals | dax artifacts | dax session | dax audit | dax stats",
+    )
     expect(HELP_GROUPS).toContain("Diagnose and configure: dax doctor | dax auth | dax models")
   })
 

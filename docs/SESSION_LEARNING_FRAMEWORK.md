@@ -1,0 +1,564 @@
+# DAX Session Learning Framework
+
+This document is a living record of how DAX should learn from real working sessions.
+
+The goal is not just to save outputs. The goal is to capture:
+
+- how to think
+- how to ask
+- how to constrain
+- how to sequence work
+- how to refine intent into execution
+
+Over time, this should become a practical masterclass in prompt engineering for AI-assisted SDLC.
+
+## Why This Exists
+
+DAX is not only a runtime for execution. It should also help users learn how to work effectively with AI.
+
+That means each important session can produce reusable knowledge in five layers:
+
+1. product insight
+2. prompt pattern
+3. execution pattern
+4. architecture decision
+5. anti-pattern to avoid
+
+## Session Learning Template
+
+For each significant session, capture:
+
+### 1. Intent
+
+- What the user actually wanted
+- What they first said
+- What the deeper objective turned out to be
+
+### 2. Clarification Path
+
+- Which questions mattered
+- Which repo checks reduced ambiguity
+- What assumptions were safe vs unsafe
+
+### 3. Prompt Engineering Pattern
+
+- What framing worked
+- What constraints improved output quality
+- What language reduced ambiguity
+- What sequencing turned vague goals into executable work
+
+### 4. Execution Pattern
+
+- What should happen first
+- What should not happen too early
+- Where safety or governance must intervene
+
+### 5. Durable Learning
+
+- What DAX should remember
+- What can become product behavior
+- What can become docs, templates, or workflows
+
+## Session 001: Reposition DAX as an Execution Control Plane
+
+Date: March 9, 2026
+
+### Starting User Intent
+
+The user wanted a deep critique of DAX as a practical AI-assisted SDLC product, then wanted to reposition and overhaul it into a real enterprise-grade product.
+
+### What The Session Revealed
+
+The real need was not “make it better.”
+
+The real need was:
+
+- choose the right category
+- remove confusing product signals
+- preserve useful existing work
+- define what to reuse versus what to delete
+- turn one conversation into a repeatable product-learning asset
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 1: Move from aspiration to category
+
+Weak framing:
+
+- “make DAX powerful”
+- “move toward AGI”
+
+Strong framing:
+
+- “DAX is the execution control plane for AI-assisted SDLC”
+
+Why it worked:
+
+- it defined category, audience, and differentiation in one sentence
+- it made later architectural decisions easier
+- it removed distracting AGI marketing pressure
+
+#### Pattern 2: Ask for critique before implementation
+
+Strong sequence:
+
+1. review the repo as-is
+2. identify strengths and weaknesses
+3. choose positioning
+4. define overhaul plan
+5. implement in stages
+
+Why it worked:
+
+- it prevented premature refactoring
+- it preserved useful work
+- it exposed the real trust and repo-boundary problems first
+
+#### Pattern 3: Name the reuse constraint explicitly
+
+Important user correction:
+
+- do not delete CLI, TUI, and core blindly
+- reuse maximum code
+- delete only redundant parts
+
+Why it worked:
+
+- it changed the cleanup strategy from removal-first to donor-assessment-first
+- it protects accumulated product intuition already embedded in legacy surfaces
+
+#### Pattern 4: Convert the session into a reusable framework
+
+This is a high-value move.
+
+Instead of treating the conversation as disposable chat, treat it as:
+
+- a product artifact
+- a prompt-engineering lesson
+- a workflow design pattern
+
+This should become a DAX-native behavior.
+
+## Session 002: Make Governance Visible Before Tightening Execution
+
+Date: March 9, 2026
+
+### Starting User Intent
+
+The user wanted DAX to feel like a real operator system, starting with `dax approvals`, then tightening `run` only after governance language was stable.
+
+### What The Session Revealed
+
+The safer execution order was:
+
+1. expose approvals as first-class objects
+2. align wording across CLI and TUI
+3. tighten `run` around governed execution
+
+This avoided destabilizing runtime flow too early.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 5: Sequence the safest category-defining change first
+
+Better sequence:
+
+1. make approvals visible
+2. stabilize intervention language
+3. tighten execution entrypoint
+
+Why it worked:
+
+- it improved category clarity before touching a foundational path
+- it reduced implementation risk
+- it made `run` easier to reframe honestly
+
+#### Pattern 6: Tighten semantics before broad refactors
+
+For `run`, the correct move was not “rewrite runtime.”
+
+It was:
+
+- clarify execution intent
+- show pre-execution visibility
+- keep structured output
+- avoid overclaiming plan validation that does not yet exist
+
+Why it worked:
+
+- it improved product posture with minimal churn
+- it respected the current runtime contract
+- it kept future plan-mode work open
+
+#### Pattern 7: Separate workflow stages before adding more capability
+
+Strong next-step framing:
+
+- close the execution-language wave first
+- record the planning vs execution boundary explicitly
+- only then design a first-class planning surface
+
+Why it worked:
+
+- it prevented `run` from absorbing too many identities
+- it made the product grammar clearer:
+  - `plan`
+  - `run`
+  - `approvals`
+  - `artifacts`
+  - `audit`
+- it preserved convenience while clarifying long-term direction
+
+#### Pattern 8: Design around existing behavior before inventing new surfaces
+
+For `dax plan`, the strongest move was not to invent a new planner from scratch.
+
+It was to read the existing runtime and see that DAX already has:
+
+- a `plan` agent
+- plan-mode entry and exit tools
+- a real plan file path
+
+#### Pattern 9: Define trust surfaces from operator questions, not legacy command names
+
+For the trust layer, the right move was not:
+
+- keep `verify-ledger` because it existed
+- expose raw logs because they were available
+
+It was:
+
+- ask what operator trust question needs answering
+- inspect canonical trust substrate first
+- define `audit` as a summary-first trust surface
+
+Why it worked:
+
+- it kept `audit` separate from artifacts
+- it prevented the surface from collapsing into raw internals
+- it preserved future room for verification without forcing it into v1
+- read-only constraints during planning
+
+Why it worked:
+
+- it grounded the design in the current architecture
+- it avoided creating a second planning model
+- it showed that the next command can be an exposure layer, not a subsystem rewrite
+
+#### Pattern 9: Write the implementation contract before writing the command
+
+For `dax plan`, the next artifact after design was an implementation note, not code.
+
+Why it worked:
+
+- it locked the v1 scope before implementation pressure widened it
+- it defined reuse points in the canonical runtime
+- it made the non-goals explicit, especially:
+  - no second planner
+  - no breaking change to `run`
+  - no explicit validation command yet
+
+#### Pattern 10: Convert the new grammar into a contributor-facing contract
+
+After `plan`, `run`, and `approvals` became real surfaces, the next useful move was not another feature.
+
+It was to document the canonical operator flow explicitly.
+
+Why it worked:
+
+- it turned implementation progress into a stable product contract
+- it reduced the risk of future commands blurring responsibilities
+- it gave contributors a simple rule:
+  - `plan` defines work
+  - `run` executes work
+  - `approvals` exposes checkpoints
+
+#### Pattern 11: Define inspectability before trust
+
+Once the core operator grammar was stable, the next correct move was not to jump straight into verification language.
+
+It was to define artifacts first.
+
+Why it worked:
+
+- artifacts answer what was produced
+- trust surfaces answer why the result can be trusted
+- separating them keeps storage, inspection, and verification from collapsing into one muddy concept
+
+#### Pattern 12: Do the behavior pass before the implementation contract
+
+For artifacts, the correct sequence was:
+
+1. define the product boundary
+2. inspect canonical runtime behavior
+3. compare donor semantics
+4. write the v1 implementation contract
+
+Why it worked:
+
+- it kept the command scope anchored to real runtime behavior
+- it separated mental model value from obsolete donor storage design
+- it made the v1 command contract much easier to keep thin
+
+#### Pattern 13: Add the next command only after its place in the operator flow is clear
+
+`artifacts` became safe to implement only after:
+
+- the operator grammar was already stable
+- the product boundary was defined
+- the runtime substrate was inspected
+
+Why it worked:
+
+- the new command extended the canonical flow instead of competing with it
+- docs and CLI help could absorb it cleanly
+- it kept trust and inspectability separated
+
+#### Pattern 14: Design the trust surface from the operator question, not the legacy command name
+
+Once the visible operator grammar was stable, the next correct question became:
+
+- why should I trust this execution trail?
+
+Why it worked:
+
+- it framed audit as a trust posture surface instead of a log dump
+- it prevented early lock-in to `verify-ledger` as the category
+- it kept `audit` broad enough to synthesize approvals, outputs, and readiness later
+
+#### Pattern 15: Compare legacy verification semantics to canonical trust behavior, not to command names
+
+For audit, the useful donor question was not:
+
+- should we keep `verify-ledger`?
+
+It was:
+
+- what trust posture does `verify-ledger` imply that canonical DAX should preserve?
+
+Why it worked:
+
+- it separated conceptual integrity-check value from legacy implementation
+- it let audit v1 stay inspect-first
+- it kept explicit verification available as a later layer instead of forcing it too early
+
+## As-Is vs To-Be
+
+## As-Is
+
+### Product
+
+- DAX has strong execution/runtime ambition but mixed public messaging.
+- It reads partly like governed orchestration, partly like coding assistant, partly like experiment.
+- The repo contains real value but presents duplicate surfaces and mixed maturity.
+
+### Architecture
+
+- `packages/dax` is the real product surface.
+- root `cli/`, `core/`, and `tui/` still contain meaningful older thinking and command patterns.
+- some public docs still reflect older command shapes and storage models.
+
+### Governance
+
+- approvals, permission rules, audit trace, and PM are real strengths
+- current governance is rule-based and approval-centric, not yet a rich contextual policy engine
+
+### Extensibility
+
+- tools, plugins, agents, and config surfaces exist
+- extension behavior is powerful but still partly implicit and too implementation-shaped
+
+### Release Trust
+
+- now improved, but historically had placeholders, broken doc references, and soft repo boundaries
+
+## To-Be
+
+### Product
+
+- DAX is clearly the execution control plane for AI-assisted SDLC
+- natural-language programming is a capability, not the category
+- the product serves both builders and operators
+
+### Architecture
+
+- `packages/dax` stays canonical
+- root legacy paths are treated as donor/refactor material first
+- only clearly redundant code gets deleted
+
+### Governance
+
+- DAX owns governed execution:
+  - intent
+  - plan
+  - action
+  - approval
+  - verification
+  - evidence
+
+### Extensibility
+
+- supported customization paths are explicit:
+  - tool packs
+  - agent/prompt packs
+  - policy/config packs
+- unstable hooks are clearly marked experimental
+
+### Release Trust
+
+- legal/docs integrity
+- CI-enforced repo boundaries
+- smoke-tested release readiness
+- human-readable operator runbooks
+
+## Reuse Strategy for `cli/`, `core/`, and `tui/`
+
+Delete nothing by default.
+
+Use this rubric:
+
+### Keep and Migrate
+
+Move ideas or code when a legacy area contains:
+
+- a user flow missing from `packages/dax`
+- clearer command ergonomics
+- useful storage or workflow semantics
+- better narrative or review UX
+
+### Refactor In Place
+
+Reuse logic when the behavior is valuable but the shape is outdated.
+
+Examples:
+
+- command semantics that should be re-expressed in the canonical CLI
+- older session or memory models that should inform the new product contract
+- simple TUI flows that can be absorbed into the current review surfaces
+
+### Delete as Redundant
+
+Delete only when all of the following are true:
+
+- equivalent or better behavior already exists in `packages/dax`
+- no public docs or tests still rely on the old path
+- the old code adds onboarding or maintenance confusion
+
+## What DAX Should Learn From This Session
+
+This session suggests a future product capability:
+
+### Session Learning Mode
+
+DAX should be able to convert a work session into:
+
+- a summary
+- a decision log
+- a prompt-engineering lesson
+- a reusable workflow pattern
+- a product-memory update
+
+This can later become:
+
+- a command
+- a review surface
+- a docs generator
+- a team learning artifact
+
+## Next Updates To Make In This Document
+
+As the session continues, append:
+
+- donor assessment for root `cli/`, `core/`, and `tui/`
+- concrete reusable patterns found there
+- refined as-is vs to-be architecture map
+- commands or workflows that should become first-class DAX behavior
+
+## Session 003: Build Trust Surfaces As Summary-First Operator Layers
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted DAX to move beyond execution and outputs into a real trust layer, beginning with `dax audit`.
+
+### What The Session Revealed
+
+The correct move was not to expose raw ledger history as the main surface.
+
+The correct move was:
+
+- define the operator trust question first
+- inspect canonical trust substrate already in the runtime
+- preserve low-level access separately
+- make `dax audit` a concise trust summary
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 10: Define trust from review posture, not from implementation detail
+
+Weak framing:
+
+- show logs
+- verify the ledger
+
+Strong framing:
+
+- what happened that matters for trust?
+- is this execution trail reviewable?
+
+Why it worked:
+
+- it kept `audit` separate from artifacts
+- it stopped the surface from becoming a raw event dump
+- it made posture more important than internals
+
+#### Pattern 11: Preserve advanced capability by making it explicit, not default
+
+Instead of deleting low-level event access, move it behind an explicit command shape:
+
+- `dax audit` for trust summary
+- `dax audit events` for raw RAO history
+
+Why it worked:
+
+- it kept the operator surface clean
+- it preserved useful debugging power
+- it avoided false conflict between enterprise UX and advanced inspection
+
+#### Pattern 12: Define the execution model before designing the workstation
+
+The right UI sequence was not:
+
+- sketch panels first
+- wrap commands visually
+
+It was:
+
+- define the execution lifecycle
+- define the session as the product unit
+- map operator questions to workspace surfaces
+
+Why it worked:
+
+- it prevented the UI from becoming a chat shell with extra panes
+- it anchored design to the real control-plane model
+- it made the workstation a consequence of architecture, not decoration
+
+#### Pattern 13: Use DITA as design grammar, not as user-facing vocabulary
+
+For the TUI, the strongest move was not:
+
+- invent more widgets
+- use documentation labels literally in the UI
+
+It was:
+
+- use concept, task, reference, and troubleshooting as information-design roles
+- map those roles to DAX-native panes like Plan, Activity, Approvals, Artifacts, Audit, and Alerts
+
+Why it worked:
+
+- it separated orientation, action, state, and recovery cleanly
+- it gave each pane one editorial job
+- it kept the workstation legible without turning it into a dashboard

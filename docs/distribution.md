@@ -1,6 +1,6 @@
 # DAX Distribution Channels
 
-This guide covers end-user install paths and maintainer publishing workflows.
+This guide covers end-user install paths and maintainer publishing workflows for the DAX execution control plane.
 
 ## End-user install
 

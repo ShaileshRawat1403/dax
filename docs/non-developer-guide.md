@@ -6,12 +6,12 @@ If you are new, start with [non-dev-quickstart.md](non-dev-quickstart.md) first.
 
 ## What DAX Is
 
-DAX is an AI assistant that can inspect files, run commands, and suggest code changes with governance controls.
+DAX is an AI execution system that can define work, inspect files, run commands, and suggest code changes with governance controls.
 
 Core loop:
 
-1. Run: DAX proposes or starts an action.
-2. Audit: DAX checks risk/policy.
+1. Plan: DAX structures the work before acting.
+2. Run: DAX executes the approved work.
 3. Override: You approve, deny, or persist a decision.
 
 ## What You See In the UI
@@ -60,17 +60,23 @@ dax doctor auth google/gemini-2.5-flash
 
 ## Safe Usage Workflow
 
-1. Start with a small request.
+1. Start with `dax plan "<intent>"` when the work is not obvious yet.
 2. Watch `diff` pane before accepting changes.
 3. Use RAO approvals for risky actions.
-4. Ask DAX to explain decisions in ELI12 mode when needed.
-5. Run verification commands/tests before shipping.
+4. Use `dax approvals` to inspect everything waiting on your decision.
+5. Use `dax artifacts` to inspect retained outputs after work runs.
+6. Use `dax audit` to inspect trust posture before handoff or release.
+7. Ask DAX to explain decisions in ELI12 mode when needed.
+8. Run verification commands/tests before shipping.
 
 ## Common Commands
 
 ```bash
 # Start UI
 dax
+
+# Define work before execution
+dax plan "Review governance gaps in this repository"
 
 # Configure credentials
 dax auth login
@@ -80,12 +86,24 @@ dax auth logout
 # Diagnose Google auth mode/scope
 dax doctor auth
 
+# Inspect pending approvals
+dax approvals
+
+# Inspect retained outputs
+dax artifacts
+
+# Inspect trust posture
+dax audit
+
 # List models
 dax models
 
-# SDLC audit (beta)
+# SDLC audit workflows (beta)
 dax audit run --profile strict
 dax audit gate --profile strict
+
+# Inspect low-level event history only when needed
+dax audit events --type audit
 ```
 
 ## Troubleshooting

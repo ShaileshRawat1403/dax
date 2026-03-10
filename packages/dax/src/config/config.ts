@@ -191,13 +191,19 @@ export namespace Config {
         }
       }
 
-      if (!Installation.isLocal()) {
+      if (!Installation.isLocal() && !Flag.DAX_DISABLE_CONFIG_AUTO_INSTALL && result.experimental?.auto_install_config_dependencies !== false) {
         deps.push(
           iife(async () => {
             const shouldInstall = await needsInstall(dir)
             if (shouldInstall) await installDependencies(dir)
           }),
         )
+      } else if (!Installation.isLocal()) {
+        log.debug("skipping config dependency auto-install", {
+          dir,
+          disabledByEnv: Flag.DAX_DISABLE_CONFIG_AUTO_INSTALL,
+          disabledByConfig: result.experimental?.auto_install_config_dependencies === false,
+        })
       }
 
       result.command = mergeDeep(result.command ?? {}, await loadCommand(dir))
@@ -1235,6 +1241,10 @@ export namespace Config {
             .boolean()
             .optional()
             .describe("Show all providers in the TUI provider/model dialogs instead of the core-first default"),
+          auto_install_config_dependencies: z
+            .boolean()
+            .optional()
+            .describe("Allow DAX to install plugin dependencies into discovered config directories"),
         })
         .optional(),
     })
