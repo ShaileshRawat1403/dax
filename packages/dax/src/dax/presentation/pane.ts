@@ -13,20 +13,20 @@ export type PaneFollowMode = (typeof PANE_FOLLOW_MODE)[number]
 export function paneLabel(mode: PaneMode, eli12: boolean) {
   if (eli12) {
     return {
-      artifact: "context",
-      diff: "changes",
-      rao: "decisions",
-      pm: "project notes",
-      audit: "docs check",
+      artifact: "artifacts",
+      diff: "evidence",
+      rao: "approvals",
+      pm: "plan",
+      audit: "audit",
     }[mode]
   }
 
   return {
-    artifact: "context",
-    diff: "changes",
-    rao: "review",
+    artifact: "artifacts",
+    diff: "evidence",
+    rao: "approvals",
     pm: "plan",
-    audit: "docs",
+    audit: "audit",
   }[mode]
 }
 
@@ -35,9 +35,9 @@ export function paneTitle(mode: PaneMode, eli12: boolean) {
 }
 
 export function insightsLabel(eli12: boolean) {
-  return eli12 ? "Needs your decision" : "Review"
+  return eli12 ? "Needs your decision" : "Approvals"
 }
 
 export function memoryLabel(eli12: boolean) {
-  return eli12 ? "Project notes" : "Plan"
+  return "Plan"
 }

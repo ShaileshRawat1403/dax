@@ -5,7 +5,7 @@ import { useDirectory } from "../../context/directory"
 import { useRoute } from "../../context/route"
 import { useTerminalDimensions } from "@opentui/solid"
 
-export function Footer() {
+export function Footer(props?: { lifecycleLabel?: string; trustLabel?: string }) {
   const { theme } = useTheme()
   const sync = useSync()
   const route = useRoute()
@@ -21,7 +21,10 @@ export function Footer() {
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
 
-  const mode = createMemo(() => (route.data.type === "session" ? "Execute" : "Launch"))
+  const mode = createMemo(() => {
+    if (route.data.type !== "session") return "Launch"
+    return props?.lifecycleLabel ?? "Activity"
+  })
   const mcpAttention = createMemo(() =>
     Object.values(sync.data.mcp).filter(
       (x) => x.status === "failed" || x.status === "needs_auth" || x.status === "needs_client_registration",
@@ -38,7 +41,20 @@ export function Footer() {
       </box>
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
         <Show when={permissions().length > 0}>
-          <text fg={theme.warning}>{`${permissions().length} needs review`}</text>
+          <text fg={theme.warning}>{`${permissions().length} approval${permissions().length === 1 ? "" : "s"} waiting`}</text>
+        </Show>
+        <Show when={!tiny() && props?.trustLabel}>
+          <text
+            fg={
+              props?.trustLabel === "Blocked"
+                ? theme.error
+                : props?.trustLabel === "Review needed"
+                  ? theme.warning
+                  : theme.success
+            }
+          >
+            {`Audit ${props?.trustLabel?.toLowerCase()}`}
+          </text>
         </Show>
         <Show when={mcpAttention() > 0}>
           <Switch>

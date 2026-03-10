@@ -105,7 +105,7 @@ export function DialogApprovals(props: {
   const footer = createMemo(() =>
     props.explainMode
       ? "Open live review so DAX can continue the blocked step safely."
-      : "Open live review to resolve approvals and questions in the RAO pane.",
+      : "Open live review to resolve approvals and questions in the approvals panel.",
   )
   const emptyState = createMemo(() =>
     props.explainMode ? "No operator decision is required right now." : "No pending approvals or questions.",

@@ -100,6 +100,7 @@ import {
   paneTitle as daxPaneTitle,
   memoryLabel,
 } from "@/dax/presentation/pane"
+import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
@@ -204,6 +205,57 @@ function SessionQuickAction(props: {
       >
         {props.label}
       </text>
+    </box>
+  )
+}
+
+function WorkstationSection(props: { theme: ThemeShape; title: string; children: JSX.Element }) {
+  return (
+    <box
+      flexDirection="column"
+      gap={1}
+      paddingLeft={1}
+      paddingRight={1}
+      paddingTop={1}
+      paddingBottom={1}
+      border={["top"]}
+      borderColor={props.theme.borderSubtle}
+      backgroundColor={props.theme.backgroundPanel}
+    >
+      <text fg={props.theme.primary} attributes={TextAttributes.BOLD}>
+        {props.title}
+      </text>
+      {props.children}
+    </box>
+  )
+}
+
+function WorkstationSummaryCard(props: {
+  theme: ThemeShape
+  title: string
+  summary: string
+  detail?: string
+  actionLabel?: string
+  onPress?: () => void
+}) {
+  return (
+    <box flexDirection="column" gap={1} backgroundColor={props.theme.backgroundElement} padding={1}>
+      <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
+        {props.title}
+      </text>
+      <text fg={props.theme.text} wrapMode="word">
+        {props.summary}
+      </text>
+      <Show when={props.detail}>
+        <text fg={props.theme.textMuted} wrapMode="word">
+          {props.detail}
+        </text>
+      </Show>
+      <Show when={props.actionLabel && props.onPress}>
+        <box onMouseUp={props.onPress!}>
+          <text fg={props.theme.primary}>{props.actionLabel}</text>
+        </box>
+      </Show>
     </box>
   )
 }
@@ -1292,6 +1344,14 @@ export function Session() {
     docsHistory().findLast((entry) => entry.result && entry.result.mode === "qa"),
   )
 
+  const sessionGoal = createMemo(() => {
+    const firstUser = messages().find((message) => message.role === "user")
+    if (!firstUser) return session()?.title
+    const text = messageText(firstUser.id).replace(/\s+/g, " ").trim()
+    if (!text) return session()?.title
+    return text.length > 88 ? `${text.slice(0, 85)}...` : text
+  })
+
   const pmHistory = createMemo(() => {
     const messageList = messages()
     const items: Array<{
@@ -1511,7 +1571,7 @@ export function Session() {
   const actionStripState = createMemo(() => {
     if (permissions().length > 0) {
       return {
-        state: "needs approval",
+        state: "approval required",
         detail: `${permissions().length} request${permissions().length === 1 ? "" : "s"} waiting`,
         primaryLabel: SESSION_COMMAND_LABELS.reviewApprovals,
         primaryAction: openApprovalsReview,
@@ -2369,48 +2429,6 @@ export function Session() {
       return []
     }
   })
-  const headerDetail = createMemo(() => {
-    if (permissions().length + questions().length > 0) {
-      return `${permissions().length + questions().length} approval${permissions().length + questions().length === 1 ? "" : "s"}`
-    }
-    if (pendingUpdates() > 0 && paneFollowMode() === "smart" && !smartFollowActive()) {
-      return `${pendingUpdates()} update${pendingUpdates() === 1 ? "" : "s"} ready`
-    }
-    if (sessionDiffs().length > 0 && paneVisibility() !== "pinned") {
-      return `${sessionDiffs().length} changed file${sessionDiffs().length === 1 ? "" : "s"}`
-    }
-    const mcpBlocked = Object.values(sync.data.mcp).filter(
-      (x) => x.status === "failed" || x.status === "needs_auth" || x.status === "needs_client_registration",
-    ).length
-    if (mcpBlocked > 0) {
-      return `${mcpBlocked} MCP issue${mcpBlocked === 1 ? "" : "s"}`
-    }
-    const pendingID = pending()
-    if (pendingID) {
-      const pendingMessage = messages().find(
-        (message): message is AssistantMessage => message.id === pendingID && message.role === "assistant",
-      )
-      const parentID = pendingMessage?.parentID
-      const askedPart =
-        parentID &&
-        (sync.data.part[parentID] ?? []).find((part) => part.type === "text" && "text" in part && part.text.trim())
-      const asked = askedPart && "text" in askedPart ? askedPart.text : ""
-      const parts = sync.data.part[pendingID] ?? []
-      const completedTools = parts.filter((part): part is ToolPart => part.type === "tool" && part.state.status === "completed")
-      const pendingTool = parts.findLast((part): part is ToolPart => part.type === "tool" && part.state.status === "pending")
-      const milestone = describeOperationalMilestone({
-        asked,
-        completedTools,
-        pendingTool,
-        hasReasoning: parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0),
-        explainMode: explainMode(),
-      })
-      if (milestone.found) return `Found: ${milestone.found}`
-      if (milestone.checking) return `Checking: ${milestone.checking}`
-      if (milestone.next) return `Next: ${milestone.next}`
-    }
-    return undefined
-  })
   const mcpNeedsAttention = createMemo(
     () =>
       Object.values(sync.data.mcp).some(
@@ -2521,6 +2539,55 @@ export function Session() {
     return availablePaneModes().filter((mode) => modes.has(mode))
   })
 
+  const workstationState = createMemo<WorkstationState>(() =>
+    deriveWorkstationState({
+      stage: displayStageState().stage,
+      stageReason: displayStageState().reason,
+      sessionStatusType: sessionStatusType() as "busy" | "idle" | "retry",
+      goal: sessionGoal(),
+      todo: todo().map((item) => ({
+        content: item.content,
+        status: item.status,
+      })),
+      approvals: permissions().map((request) => ({
+        label: request.permission,
+        reason:
+          typeof request.metadata?.description === "string" && request.metadata.description.trim()
+            ? request.metadata.description.trim()
+            : "approval required before execution",
+      })),
+      questions: questions().length,
+      artifacts: liveArtifact().active
+        ? [
+            {
+              label: liveArtifact().title,
+              kind: "active",
+            },
+          ]
+        : [],
+      diffCount: sessionDiffs().length,
+      audit: latestAudit()?.result
+        ? {
+            status: latestAudit()!.result!.status,
+            blockerCount: latestAudit()!.result!.summary.blocker_count,
+            warningCount: latestAudit()!.result!.summary.warning_count,
+            infoCount: latestAudit()!.result!.summary.info_count,
+          }
+        : undefined,
+      alert: actionStripState()
+        ? {
+            level:
+              actionStripState()!.state === "blocked"
+                ? "error"
+                : actionStripState()!.state === "approval required"
+                  ? "warning"
+                  : "info",
+            message: actionStripState()!.detail,
+          }
+        : undefined,
+    }),
+  )
+
   const dialog = useDialog()
   const renderer = useRenderer()
 
@@ -2598,12 +2665,53 @@ export function Session() {
       <box flexDirection="row">
         <box flexGrow={1} minHeight={0} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
           <Header
-            stageLabel={stageLabel()}
-            stageReason={displayStageState().reason}
-            detail={headerDetail()}
+            sessionLabel={workstationState().goal ?? session()?.title}
+            lifecycleLabel={workstationState().lifecycleLabel}
+            currentStep={workstationState().currentStep}
+            trustLabel={workstationState().trustLabel}
             emphasis={hasRaoNeed() || pendingUpdates() > 0 ? "normal" : "muted"}
             actions={headerActions()}
           />
+          <WorkstationSection theme={theme} title="Plan">
+            <Show
+              when={workstationState().planSummary.steps.length > 0}
+              fallback={
+                <text fg={theme.textMuted} wrapMode="word">
+                  {workstationState().goal ?? "No explicit plan steps yet for this session."}
+                </text>
+              }
+            >
+              <Show when={workstationState().planSummary.goal}>
+                <text fg={theme.text} wrapMode="word">
+                  {workstationState().planSummary.goal}
+                </text>
+              </Show>
+              <For each={workstationState().planSummary.steps}>
+                {(step) => (
+                  <box flexDirection="row" gap={1}>
+                    <text
+                      fg={
+                        step.status === "active"
+                          ? theme.warning
+                          : step.status === "done"
+                            ? theme.success
+                            : theme.textMuted
+                      }
+                    >
+                      {step.status === "done" ? "✓" : step.status === "active" ? "•" : "·"}
+                    </text>
+                    <text
+                      fg={step.status === "active" ? theme.text : theme.textMuted}
+                      attributes={step.status === "active" ? TextAttributes.BOLD : undefined}
+                      wrapMode="word"
+                    >
+                      {step.label}
+                    </text>
+                  </box>
+                )}
+              </For>
+            </Show>
+          </WorkstationSection>
           <Show when={transcriptNavigatorVisible()}>
               <box
                 flexDirection="row"
@@ -2678,7 +2786,7 @@ export function Session() {
                 <Show when={sessionDiffs().length > 0}>
                   <SessionQuickAction
                     theme={theme}
-                    label={shellTight() ? "Diff" : `${SESSION_COMMAND_LABELS.reviewDiff} ${keyHint(SESSION_COMMAND_BINDINGS.reviewDiff)}`.trim()}
+                    label={shellTight() ? "Evidence" : `${SESSION_COMMAND_LABELS.reviewDiff} ${keyHint(SESSION_COMMAND_BINDINGS.reviewDiff)}`.trim()}
                     onPress={openDiffReview}
                   />
                 </Show>
@@ -2692,7 +2800,7 @@ export function Session() {
                 <Show when={!!latestDocsQa()?.result}>
                   <SessionQuickAction
                     theme={theme}
-                    label={shellTight() ? "Docs" : SESSION_COMMAND_LABELS.reviewDocs}
+                    label={shellTight() ? "Audit" : SESSION_COMMAND_LABELS.reviewDocs}
                     onPress={openDocsReview}
                   />
                 </Show>
@@ -2702,6 +2810,20 @@ export function Session() {
               </box>
             </Show>
             <box flexGrow={1} minHeight={0}>
+              <WorkstationSection theme={theme} title="Activity">
+                <text fg={theme.text} wrapMode="word">
+                  {workstationState().activitySummary.current ?? displayStageState().reason}
+                </text>
+                <Show when={workstationState().activitySummary.items.length > 1}>
+                  <For each={workstationState().activitySummary.items.slice(1)}>
+                    {(item) => (
+                      <text fg={theme.textMuted} wrapMode="word">
+                        {item}
+                      </text>
+                    )}
+                  </For>
+                </Show>
+              </WorkstationSection>
               <ErrorBoundary
                 fallback={(error, reset) => (
                   <box
@@ -2884,6 +3006,55 @@ export function Session() {
                     scrollAcceleration={scrollAcceleration()}
                   >
                     <box padding={1} gap={1} backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.03)} flexDirection="column">
+                      <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                        Operator overview
+                      </text>
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Approvals"
+                        summary={
+                          workstationState().approvalSummary.pendingCount > 0
+                            ? `${workstationState().approvalSummary.pendingCount} item${workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} awaiting operator decision`
+                            : "No decisions waiting right now."
+                        }
+                        detail={workstationState().approvalSummary.topReason}
+                        actionLabel={workstationState().approvalSummary.pendingCount > 0 ? "Open approvals" : undefined}
+                        onPress={workstationState().approvalSummary.pendingCount > 0 ? openApprovalsReview : undefined}
+                      />
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Artifacts"
+                        summary={
+                          workstationState().artifactSummary.count > 0
+                            ? `${workstationState().artifactSummary.count} retained output${workstationState().artifactSummary.count === 1 ? "" : "s"}`
+                            : "No retained outputs yet."
+                        }
+                        detail={workstationState().artifactSummary.items[0]?.label}
+                        actionLabel="Open artifacts"
+                        onPress={() => {
+                          setPaneMode(() => "artifact")
+                          if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
+                        }}
+                      />
+                      <WorkstationSummaryCard
+                        theme={theme}
+                        title="Audit"
+                        summary={`Posture: ${workstationState().trustLabel}`}
+                        detail={
+                          workstationState().auditSummary.evidencePresent
+                            ? `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence present`
+                            : `${workstationState().auditSummary.findingsCount} finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} · evidence still limited`
+                        }
+                        actionLabel={auditPaneEnabled() ? "Open audit" : undefined}
+                        onPress={
+                          auditPaneEnabled()
+                            ? () => {
+                                setPaneMode(() => "audit")
+                                if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
+                              }
+                            : undefined
+                        }
+                      />
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                         <For each={visiblePaneModes()}>
                           {(mode) => (
@@ -2941,7 +3112,7 @@ export function Session() {
                               </>
                             }
                           >
-                            <text fg={theme.primary}>Artifact</text>
+                            <text fg={theme.primary}>Artifacts</text>
                             <text fg={theme.text}>{liveArtifact().title}</text>
                             <text fg={theme.textMuted} wrapMode="word">
                               {liveArtifact().active ? "Latest artifact ready. Open detail for full output." : "No live artifact yet."}
@@ -3331,10 +3502,10 @@ export function Session() {
                           </box>
                             }
                           >
-                            <text fg={theme.primary}>Project memory</text>
+                            <text fg={theme.primary}>Plan</text>
                             <text fg={theme.textMuted} wrapMode="word">
                               {parsedPmList().empty
-                                ? "No saved PM notes yet."
+                                ? "No saved plan notes yet."
                                 : `${parsedPmList().rows.length} recent note${parsedPmList().rows.length === 1 ? "" : "s"} available.`}
                             </text>
                             <text fg={theme.textMuted} wrapMode="word">
@@ -3349,7 +3520,7 @@ export function Session() {
                             when={paneSummaryMode()}
                             fallback={
                           <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
-                            <text fg={theme.text}>Audit</text>
+                            <text fg={theme.text}>Audit posture</text>
                             <Show
                               when={auditPaneEnabled()}
                               fallback={
@@ -3738,7 +3909,7 @@ export function Session() {
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                       <text
                         fg={
-                          strip().state === "needs approval"
+                          strip().state === "approval required"
                             ? theme.warning
                             : strip().state === "blocked"
                               ? theme.error
@@ -3799,7 +3970,7 @@ export function Session() {
               />
             </box>
             <Show when={!sidebarVisible() || !wide()}>
-              <Footer />
+              <Footer lifecycleLabel={workstationState().lifecycleLabel} trustLabel={workstationState().trustLabel} />
             </Show>
           <Toast />
         </box>
