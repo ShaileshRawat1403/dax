@@ -258,6 +258,66 @@ Why it worked:
 
 #### Pattern 10: Distinguish trust judgment from operational readiness
 
+The strong separation was:
+
+- `verify` asks whether a session can be trusted
+- `release check` asks whether a trusted session is ready for handoff or shipping
+
+Why it worked:
+
+- it prevented trust posture from collapsing into shipping judgment
+- it made readiness depend on inspectable evidence
+- it kept operator language legible
+
+## Session 004: Stop Building and Start Structured Real-Work Evaluation
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted to stop expanding surfaces and shift DAX into real-world validation without losing the disciplined structure built during the design phase.
+
+### What The Session Revealed
+
+At the end of the core design phase, the highest-value move is not another feature.
+
+It is a runbook that turns real usage into structured evidence.
+
+That lets the next layer emerge from friction rather than intuition.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 11: Replace instinctive iteration with evidence capture
+
+The strong move was:
+
+1. freeze the current operator loop
+2. run real tasks through it
+3. record friction in a consistent structure
+4. delay fixes until patterns emerge
+
+Why it worked:
+
+- it protects the product from premature refinement
+- it turns real workflows into comparable evidence
+- it makes the next improvement layer easier to justify
+
+#### Pattern 12: Evaluate the whole loop, not isolated commands
+
+The useful framing was to test:
+
+- discoverability
+- readability
+- navigation
+- trust explanation
+- readiness clarity
+
+Why it worked:
+
+- it evaluates DAX as an operator system rather than as disconnected commands
+- it keeps the focus on workflow friction instead of local polish
+- it creates a practical bridge from architecture to product maturation
+
 Important boundary:
 
 - `verify` decides whether a session can be trusted

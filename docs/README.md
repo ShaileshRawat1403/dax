@@ -52,6 +52,7 @@ Use this index based on your role and goal.
 - [DAX_RELEASE_SURFACE.md](DAX_RELEASE_SURFACE.md): CLI-first surface contract for exposing handoff and shipping readiness
 - [DAX_RELEASE_READINESS_REVIEW.md](DAX_RELEASE_READINESS_REVIEW.md): real-session review of readiness ladder balance, blockers, and missing-evidence wording
 - [DAX_SDLC_STAGE_MODEL.md](DAX_SDLC_STAGE_MODEL.md): higher-order SDLC stage grouping over session progression and judgment surfaces
+- [DAX_REAL_WORK_EVALUATION.md](DAX_REAL_WORK_EVALUATION.md): evidence-first runbook for evaluating the full operator loop on real tasks
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
 - [DAX_PLAN_DESIGN.md](DAX_PLAN_DESIGN.md): command contract and behavior map for `dax plan`
