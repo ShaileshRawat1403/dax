@@ -7,7 +7,13 @@ import { Instance } from "../project/instance"
 import { Locale } from "../util/locale"
 import { withLockedRetry } from "../util/locked-retry"
 import { buildArtifactsForSession } from "../cli/cmd/artifacts"
-import { deriveWriteGovernanceStatus, type WriteGovernanceStatus } from "./write-governance"
+import {
+  deriveWriteGovernanceClassification,
+  deriveWriteGovernanceStatus,
+  type WriteGovernanceExpectation,
+  type WriteGovernanceStatus,
+  type WriteRiskBucket,
+} from "./write-governance"
 
 export type VerificationResult =
   | "verification_passed"
@@ -58,6 +64,8 @@ export type SessionVerificationSignals = {
   write_governance: {
     status: WriteGovernanceStatus
     workspace_write_artifact_count: number
+    risk_bucket?: WriteRiskBucket
+    governance_expectation?: WriteGovernanceExpectation
   }
   overrides: {
     count: number
@@ -83,6 +91,7 @@ export type SessionVerification = {
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
   write_governance_status: WriteGovernanceStatus
+  write_risk_bucket?: WriteRiskBucket
   checks: VerificationCheck[]
   blocking_factors: string[]
   degrading_factors: string[]
@@ -121,6 +130,12 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
     })
     const overrideCount = events.filter((row) => row.event_type === "override").length
     const workspaceWriteArtifactCount = artifacts.filter((artifact) => artifact.kind === "workspace_file").length
+    const writeGovernanceClassification = deriveWriteGovernanceClassification({
+      sessionDirectory: session.directory,
+      references: artifacts
+        .filter((artifact) => artifact.kind === "workspace_file" && artifact.reference)
+        .map((artifact) => artifact.reference as string),
+    })
     const writeGovernanceStatus = deriveWriteGovernanceStatus({
       workspace_write_artifact_count: workspaceWriteArtifactCount,
       pending_approval_count: pendingApprovals.length,
@@ -142,6 +157,8 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
       write_governance: {
         status: writeGovernanceStatus,
         workspace_write_artifact_count: workspaceWriteArtifactCount,
+        risk_bucket: writeGovernanceClassification?.bucket,
+        governance_expectation: writeGovernanceClassification?.governance_expectation,
       },
       overrides: {
         count: overrideCount,
@@ -170,7 +187,12 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
   const checks: VerificationCheck[] = [
     buildLifecycleCheck(input.lifecycle.state, input.lifecycle.terminal, input.lifecycle.requires_reconciliation),
     buildApprovalsCheck(input.approvals.pending_count),
-    buildWriteGovernanceCheck(input.write_governance.status, input.write_governance.workspace_write_artifact_count),
+    buildWriteGovernanceCheck({
+      status: input.write_governance.status,
+      workspace_write_artifact_count: input.write_governance.workspace_write_artifact_count,
+      risk_bucket: input.write_governance.risk_bucket,
+      governance_expectation: input.write_governance.governance_expectation,
+    }),
     buildPolicyCheck(input.audit.present, input.audit.status, input.audit.blocker_count),
     buildArtifactsCheck(input.evidence.diff_present, input.evidence.artifacts_present, input.evidence.artifact_count),
     buildEvidenceCompletenessCheck({
@@ -201,6 +223,7 @@ export function evaluateSessionVerification(input: SessionVerificationSignals): 
     verification_result,
     trust_posture,
     write_governance_status: input.write_governance.status,
+    write_risk_bucket: input.write_governance.risk_bucket,
     checks,
     blocking_factors,
     degrading_factors: [...incomplete_factors, ...degrading_factors],
@@ -297,11 +320,13 @@ function buildApprovalsCheck(pendingCount: number): VerificationCheck {
   }
 }
 
-function buildWriteGovernanceCheck(
-  status: WriteGovernanceStatus,
-  workspaceWriteArtifactCount: number,
-): VerificationCheck {
-  switch (status) {
+function buildWriteGovernanceCheck(input: {
+  status: WriteGovernanceStatus
+  workspace_write_artifact_count: number
+  risk_bucket?: WriteRiskBucket
+  governance_expectation?: WriteGovernanceExpectation
+}): VerificationCheck {
+  switch (input.status) {
     case "none":
       return {
         id: "write_governance",
@@ -314,7 +339,7 @@ function buildWriteGovernanceCheck(
         id: "write_governance",
         label: "Write governance",
         status: "pass",
-        summary: `${workspaceWriteArtifactCount} retained workspace write artifact${workspaceWriteArtifactCount === 1 ? "" : "s"} recorded with governance evidence.`,
+        summary: `${input.workspace_write_artifact_count} retained workspace write artifact${input.workspace_write_artifact_count === 1 ? "" : "s"} recorded with governance evidence${input.risk_bucket ? ` for ${formatWriteRiskBucket(input.risk_bucket)} changes` : ""}.`,
       }
     case "blocked":
       return {
@@ -327,9 +352,47 @@ function buildWriteGovernanceCheck(
       return {
         id: "write_governance",
         label: "Write governance",
-        status: "degraded",
-        summary: `${workspaceWriteArtifactCount} retained workspace write artifact${workspaceWriteArtifactCount === 1 ? "" : "s"} exist, but no governance evidence was recorded for the write path.`,
+        status:
+          input.risk_bucket === "sensitive_or_system_write"
+            ? "fail"
+            : input.risk_bucket === "governed_project_write"
+              ? "degraded"
+              : "incomplete",
+        summary: formatUngatedWriteGovernanceSummary(input),
       }
+  }
+}
+
+function formatUngatedWriteGovernanceSummary(input: {
+  workspace_write_artifact_count: number
+  risk_bucket?: WriteRiskBucket
+  governance_expectation?: WriteGovernanceExpectation
+}) {
+  const countLabel = `${input.workspace_write_artifact_count} retained workspace write artifact${input.workspace_write_artifact_count === 1 ? "" : "s"}`
+  switch (input.risk_bucket) {
+    case "harmless_local":
+      return `${countLabel} only touched harmless local paths, so governance evidence was optional.`
+    case "project_artifact":
+      return `${countLabel} produced project artifact outputs without visible governance evidence. Review is still needed before stronger trust claims.`
+    case "governed_project_write":
+      return `${countLabel} changed governed project paths without visible governance evidence. Operator review is required before trusting the write path.`
+    case "sensitive_or_system_write":
+      return `${countLabel} touched sensitive or system-impacting paths without required governance evidence. Trust cannot be treated as clean.`
+    default:
+      return `${countLabel} exist, but no governance evidence was recorded${input.governance_expectation ? ` even though governance was ${input.governance_expectation}` : ""} for the write path.`
+  }
+}
+
+function formatWriteRiskBucket(bucket: WriteRiskBucket) {
+  switch (bucket) {
+    case "harmless_local":
+      return "harmless local"
+    case "project_artifact":
+      return "project artifact"
+    case "governed_project_write":
+      return "governed project"
+    case "sensitive_or_system_write":
+      return "sensitive or system"
   }
 }
 

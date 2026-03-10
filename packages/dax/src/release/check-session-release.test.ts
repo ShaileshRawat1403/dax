@@ -11,6 +11,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "governed",
+      write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 2,
       override_count: 0,
@@ -31,6 +32,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_failed",
       trust_posture: "review_needed",
       write_governance_status: "governed",
+      write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 1,
       override_count: 0,
@@ -52,6 +54,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "blocked",
+      write_risk_bucket: "governed_project_write",
       approval_count: 1,
       artifact_count: 2,
       override_count: 0,
@@ -72,6 +75,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_incomplete",
       trust_posture: "review_needed",
       write_governance_status: "none",
+      write_risk_bucket: undefined,
       approval_count: 0,
       artifact_count: 1,
       override_count: 0,
@@ -95,6 +99,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "governed",
+      write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 0,
       override_count: 1,
@@ -117,6 +122,7 @@ describe("session release evaluator", () => {
         verification_result: "verification_passed",
         trust_posture: "verified",
         write_governance_status: "governed",
+        write_risk_bucket: "governed_project_write",
         approval_count: 0,
         artifact_count: 2,
         override_count: 0,
@@ -142,6 +148,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_degraded",
       trust_posture: "policy_clean",
       write_governance_status: "ungated",
+      write_risk_bucket: "project_artifact",
       approval_count: 0,
       artifact_count: 2,
       override_count: 0,
@@ -151,7 +158,53 @@ describe("session release evaluator", () => {
 
     expect(summary.release_readiness).toBe("review_ready")
     expect(summary.missing_evidence).toContain(
-      "Retained workspace writes were recorded without visible governance evidence.",
+      "Project artifact outputs were retained without visible governance evidence, so stronger readiness still needs review.",
+    )
+  })
+
+  test("treats ungated governed project writes as a readiness blocker", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_ungated_governed_write",
+      lifecycle_state: "completed",
+      lifecycle_terminal: true,
+      lifecycle_requires_reconciliation: false,
+      verification_result: "verification_degraded",
+      trust_posture: "policy_clean",
+      write_governance_status: "ungated",
+      write_risk_bucket: "governed_project_write",
+      approval_count: 0,
+      artifact_count: 1,
+      override_count: 0,
+      audit_posture: "clear",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("not_ready")
+    expect(summary.blocking_factors).toContain(
+      "Governed project paths were changed without visible governance evidence, so handoff or release readiness is blocked.",
+    )
+  })
+
+  test("does not block readiness for harmless local ungated writes by themselves", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_harmless_local_write",
+      lifecycle_state: "completed",
+      lifecycle_terminal: true,
+      lifecycle_requires_reconciliation: false,
+      verification_result: "verification_passed",
+      trust_posture: "verified",
+      write_governance_status: "ungated",
+      write_risk_bucket: "harmless_local",
+      approval_count: 0,
+      artifact_count: 1,
+      override_count: 0,
+      audit_posture: "clear",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("handoff_ready")
+    expect(summary.missing_evidence).toContain(
+      "Retained writes only touched harmless local paths, so governance evidence is optional for readiness.",
     )
   })
 })

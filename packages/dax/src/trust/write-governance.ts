@@ -15,6 +15,12 @@ export type WriteGovernanceSignals = {
   policy_evaluated: boolean
 }
 
+export type WriteGovernanceClassification = {
+  bucket: WriteRiskBucket
+  governance_expectation: WriteGovernanceExpectation
+  references: string[]
+}
+
 export function deriveWriteGovernanceStatus(input: WriteGovernanceSignals): WriteGovernanceStatus {
   if (input.workspace_write_artifact_count <= 0) return "none"
   if (input.pending_approval_count > 0) return "blocked"
@@ -100,5 +106,41 @@ export function governanceExpectationForBucket(bucket: WriteRiskBucket): WriteGo
       return "expected"
     case "sensitive_or_system_write":
       return "required"
+  }
+}
+
+export function deriveWriteGovernanceClassification(input: {
+  sessionDirectory: string
+  references: string[]
+}): WriteGovernanceClassification | undefined {
+  const classified = input.references
+    .map((reference) => classifyWritePathRisk({ sessionDirectory: input.sessionDirectory, reference }))
+    .filter((entry) => entry.path)
+
+  if (classified.length === 0) return
+
+  const highest = classified.reduce((current, entry) =>
+    writeRiskBucketRank(entry.bucket) > writeRiskBucketRank(current.bucket) ? entry : current,
+  )
+
+  return {
+    bucket: highest.bucket,
+    governance_expectation: highest.governance_expectation,
+    references: classified
+      .filter((entry) => entry.bucket === highest.bucket)
+      .map((entry) => entry.path),
+  }
+}
+
+function writeRiskBucketRank(bucket: WriteRiskBucket) {
+  switch (bucket) {
+    case "harmless_local":
+      return 0
+    case "project_artifact":
+      return 1
+    case "governed_project_write":
+      return 2
+    case "sensitive_or_system_write":
+      return 3
   }
 }
