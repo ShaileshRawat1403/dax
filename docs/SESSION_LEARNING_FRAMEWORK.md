@@ -825,3 +825,19 @@ Why it worked:
 - it prevented verification from inventing a parallel trust model
 - it kept audit as inspection and verification as judgment
 - it created a clean bridge toward release-readiness without conflating execution outcome with trust outcome
+
+#### Pattern 21: Expose timeline depth before release judgment
+
+Once session, trust, timeline, and verification models exist, the next move should not be release-readiness policy first.
+
+The correct move is:
+
+- expose the session timeline as an operator-facing surface
+- validate event density and readability
+- make progression visible before adding stronger judgment layers
+
+Why it worked:
+
+- it turned the new depth model into product behavior with low interaction risk
+- it validated session progression as a usable surface before policy expansion
+- it kept DAX grounded in accountable progression rather than jumping too early into formal release gates
