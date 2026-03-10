@@ -19,6 +19,22 @@ describe("session timeline helpers", () => {
       messages: [
         {
           info: {
+            id: "message_0",
+            role: "user",
+            sessionID: "session_123",
+            providerID: "openai",
+            modelID: "gpt-5",
+            mode: "default",
+            agent: "default",
+            path: { cwd: "/repo", root: "/repo" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 1_800 },
+          },
+          parts: [],
+        },
+        {
+          info: {
             id: "message_1",
             role: "assistant",
             sessionID: "session_123",
@@ -31,6 +47,22 @@ describe("session timeline helpers", () => {
             cost: 0,
             tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
             time: { created: 2_000 },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "message_2",
+            role: "user",
+            sessionID: "session_123",
+            providerID: "openai",
+            modelID: "gpt-5",
+            mode: "default",
+            agent: "default",
+            path: { cwd: "/repo", root: "/repo" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 8_000 },
           },
           parts: [],
         },
@@ -53,6 +85,15 @@ describe("session timeline helpers", () => {
           source: "bash attachment",
           created_at: 5_000,
           reference: "scan_report.json",
+        },
+        {
+          id: "artifact_2",
+          kind: "attachment",
+          session_id: "session_123",
+          label: "dependency_summary.md",
+          source: "bash attachment",
+          created_at: 5_030,
+          reference: "/tmp/tool-output/dependency_summary.md",
         },
       ],
       ledgerEvents: [
@@ -104,6 +145,8 @@ describe("session timeline helpers", () => {
       "trust_posture_changed",
     ])
     expect(rows[1]?.reference).toContain(".dax/plans")
+    expect(rows[5]?.summary).toContain("Artifacts produced (2)")
+    expect(rows[5]?.reference).toContain("scan_report.json")
     expect(rows[6]?.summary).toContain("2 warnings")
     expect(rows[7]?.summary).toContain("review_needed")
   })
@@ -134,5 +177,146 @@ describe("session timeline helpers", () => {
     expect(rendered).toContain("Trust posture changed")
     expect(rendered).toContain("Effect: lifecycle created")
     expect(rendered).toContain("Reference: audit_1")
+  })
+
+  test("rewrites implementation-shaped artifact and approval references into operator language", () => {
+    const rows = buildSessionTimelineRows({
+      session: {
+        id: "session_123",
+        slug: "repo-audit",
+        projectID: "project_1",
+        directory: "/repo",
+        title: "Repo audit",
+        version: "1.0.0",
+        time: {
+          created: 1_000,
+          updated: 3_000,
+        },
+      } as any,
+      messages: [
+        {
+          info: {
+            id: "message_1",
+            role: "assistant",
+            sessionID: "session_123",
+            parentID: "message_user",
+            providerID: "openai",
+            modelID: "gpt-5",
+            mode: "default",
+            agent: "default",
+            path: { cwd: "/repo", root: "/repo" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 2_000 },
+          },
+          parts: [],
+        },
+      ] as any,
+      approvals: [],
+      artifacts: [
+        {
+          id: "artifact_1",
+          kind: "attachment",
+          session_id: "session_123",
+          label: "Automatically fix linting errors",
+          source: "bash attachment",
+          created_at: 2_500,
+          reference: "../../../../../ananyalayek/.local/share/dax/tool-output/tool_cd2614ecd001KKo1cuf3SloL0n",
+        },
+      ],
+      ledgerEvents: [
+        {
+          id: "event_1",
+          project_id: "project_1",
+          session_id: "session_123",
+          message_id: null,
+          event_type: "override",
+          payload: {
+            permission: "bash",
+            reply: "once",
+          },
+          policy_hash: null,
+          contract_hash: null,
+          pm_rev: 1,
+          created_at: 2_200,
+        },
+      ] as any,
+    })
+
+    expect(rows.find((row) => row.type === "approval_resolved")?.summary).toContain("Approval granted for command execution")
+    expect(rows.find((row) => row.type === "artifact_produced")?.reference).toContain("tool_cd2614ecd001KKo1cuf3SloL0n")
+  })
+
+  test("adds execution completed when the session shows completed progression without pending approvals", () => {
+    const rows = buildSessionTimelineRows({
+      session: {
+        id: "session_123",
+        slug: "repo-audit",
+        projectID: "project_1",
+        directory: "/repo",
+        title: "Repo audit",
+        version: "1.0.0",
+        time: {
+          created: 1_000,
+          updated: 5_000,
+        },
+      } as any,
+      messages: [
+        {
+          info: {
+            id: "message_0",
+            role: "user",
+            sessionID: "session_123",
+            providerID: "openai",
+            modelID: "gpt-5",
+            mode: "default",
+            agent: "default",
+            path: { cwd: "/repo", root: "/repo" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 1_100 },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "message_1",
+            role: "assistant",
+            sessionID: "session_123",
+            parentID: "message_0",
+            providerID: "openai",
+            modelID: "gpt-5",
+            mode: "default",
+            agent: "default",
+            path: { cwd: "/repo", root: "/repo" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 2_000 },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "message_2",
+            role: "user",
+            sessionID: "session_123",
+            providerID: "openai",
+            modelID: "gpt-5",
+            mode: "default",
+            agent: "default",
+            path: { cwd: "/repo", root: "/repo" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 4_000 },
+          },
+          parts: [],
+        },
+      ] as any,
+      approvals: [],
+      artifacts: [],
+      ledgerEvents: [],
+    })
+
+    expect(rows.find((row) => row.type === "execution_completed")?.summary).toContain("Execution completed")
   })
 })

@@ -63,6 +63,7 @@ export type SessionTimelineEventType =
   | "session_created"
   | "plan_generated"
   | "execution_started"
+  | "execution_completed"
   | "approval_requested"
   | "approval_resolved"
   | "artifact_produced"
@@ -372,6 +373,24 @@ export function buildSessionTimelineRows(input: {
     })
   }
 
+  const lastMessage = input.messages.at(-1)
+  const hasCompletionSignal =
+    !!lastMessage &&
+    input.messages.length > 2 &&
+    input.approvals.length === 0 &&
+    input.session.time.updated > (firstAssistant?.info.time.created ?? input.session.time.created)
+  if (hasCompletionSignal) {
+    rows.push({
+      id: `execution:completed:${input.session.id}`,
+      type: "execution_completed",
+      session_id: input.session.id,
+      timestamp: Math.max(input.session.time.updated, lastMessage!.info.time.created),
+      source: "execution",
+      summary: "Execution completed",
+      state_effect: "lifecycle completed",
+    })
+  }
+
   for (const approval of input.approvals) {
     rows.push({
       id: `approval:${approval.id}`,
@@ -379,22 +398,22 @@ export function buildSessionTimelineRows(input: {
       session_id: input.session.id,
       timestamp: approval.createdAt,
       source: "governance",
-      summary: `Approval requested for ${approval.permission}`,
-      reference: approval.patterns?.filter(Boolean).join(", "),
+      summary: `Approval requested for ${formatPermissionReference(approval.permission)}`,
+      reference: summarizeReferenceList(approval.patterns?.filter(Boolean) ?? []),
       state_effect: "lifecycle awaiting_approval",
     })
   }
 
-  for (const artifact of input.artifacts) {
+  for (const artifactGroup of groupArtifacts(input.artifacts, input.session.time.updated)) {
     rows.push({
-      id: `artifact:${artifact.id}`,
+      id: artifactGroup.id,
       type: "artifact_produced",
       session_id: input.session.id,
-      timestamp: artifact.created_at ?? input.session.time.updated,
+      timestamp: artifactGroup.timestamp,
       source: "artifact",
-      summary: `Artifact produced: ${artifact.label}`,
-      reference: artifact.reference,
-      state_effect: "artifact attached",
+      summary: artifactGroup.summary,
+      reference: artifactGroup.reference,
+      state_effect: artifactGroup.stateEffect,
     })
   }
 
@@ -408,8 +427,8 @@ export function buildSessionTimelineRows(input: {
         session_id: input.session.id,
         timestamp: row.created_at,
         source: "governance",
-        summary: `Approval resolved via ${reply}`,
-        reference: permission,
+        summary: approvalResolutionSummary(reply, permission),
+        reference: formatPermissionReference(permission),
         state_effect: "approval state changed",
       })
       continue
@@ -426,10 +445,7 @@ export function buildSessionTimelineRows(input: {
         session_id: input.session.id,
         timestamp: row.created_at,
         source: "audit",
-        summary:
-          blockers + warnings > 0
-            ? `Audit recorded ${countLabel(blockers, "blocker")} and ${countLabel(warnings, "warning")}`
-            : "Audit recorded no findings",
+        summary: formatAuditFindingSummary(blockers, warnings),
         reference: typeof row.payload.run_id === "string" ? row.payload.run_id : undefined,
         state_effect: blockers > 0 ? "trust blockers recorded" : warnings > 0 ? "trust warnings recorded" : undefined,
       })
@@ -440,7 +456,7 @@ export function buildSessionTimelineRows(input: {
         session_id: input.session.id,
         timestamp: row.created_at,
         source: "audit",
-        summary: `Trust posture changed to ${auditStatusToTrustLabel(typeof row.payload.status === "string" ? row.payload.status : "warn")}`,
+        summary: `Trust posture updated to ${auditStatusToTrustLabel(typeof row.payload.status === "string" ? row.payload.status : "warn")}`,
         state_effect: `trust ${auditStatusToTrustLabel(typeof row.payload.status === "string" ? row.payload.status : "warn")}`,
       })
       continue
@@ -455,8 +471,8 @@ export function buildSessionTimelineRows(input: {
         session_id: input.session.id,
         timestamp: row.created_at,
         source: "governance",
-        summary: `Approval requested for ${permission}`,
-        reference: pattern,
+        summary: `Approval requested for ${formatPermissionReference(permission)}`,
+        reference: formatPatternReference(pattern),
         state_effect: "lifecycle awaiting_approval",
       })
     }
@@ -493,6 +509,8 @@ function formatTimelineType(type: SessionTimelineEventType) {
       return "Plan generated"
     case "execution_started":
       return "Execution started"
+    case "execution_completed":
+      return "Execution completed"
     case "approval_requested":
       return "Approval requested"
     case "approval_resolved":
@@ -515,6 +533,127 @@ function auditStatusToTrustLabel(status: string) {
     default:
       return "review_needed"
   }
+}
+
+function formatAuditFindingSummary(blockers: number, warnings: number) {
+  if (blockers + warnings === 0) return "Audit completed with no issues"
+  if (blockers > 0 && warnings > 0) return `Audit issues detected: ${countLabel(blockers, "blocker")}, ${countLabel(warnings, "warning")}`
+  if (blockers > 0) return `Audit issues detected: ${countLabel(blockers, "blocker")}`
+  return `Audit issues detected: ${countLabel(warnings, "warning")}`
+}
+
+function approvalResolutionSummary(reply: string, permission: string) {
+  const scope = formatPermissionReference(permission)
+  switch (reply) {
+    case "always":
+    case "once":
+    case "allow":
+      return `Approval granted for ${scope}`
+    case "reject":
+    case "deny":
+      return `Approval rejected for ${scope}`
+    default:
+      return `Approval resolved for ${scope}`
+  }
+}
+
+function formatPermissionReference(permission: string) {
+  switch (permission) {
+    case "bash":
+      return "command execution"
+    case "edit":
+      return "file edits"
+    case "read":
+      return "file access"
+    case "external_directory":
+      return "external directory access"
+    default:
+      return permission
+  }
+}
+
+function formatPatternReference(pattern?: string) {
+  if (!pattern) return undefined
+  if (pattern.includes(",")) return summarizeReferenceList(pattern.split(",").map((item) => item.trim()).filter(Boolean))
+  if (pattern.includes("/")) return shortenPathReference(pattern)
+  return Locale.truncate(pattern, 80)
+}
+
+function shortenPathReference(reference: string) {
+  if (reference.includes("tool-output/")) return path.basename(reference)
+  return path.basename(reference) || Locale.truncate(reference, 80)
+}
+
+function summarizeReferenceList(items: string[]) {
+  if (items.length === 0) return undefined
+  const labels = items.map((item) => shortenPathReference(item))
+  if (labels.length <= 3) return labels.join(", ")
+  return `${labels.slice(0, 3).join(", ")} +${labels.length - 3} more`
+}
+
+function groupArtifacts(artifacts: ArtifactRow[], fallbackTimestamp: number) {
+  if (artifacts.length === 0) return []
+
+  const sorted = [...artifacts].sort(
+    (a, b) => (a.created_at ?? fallbackTimestamp) - (b.created_at ?? fallbackTimestamp) || a.id.localeCompare(b.id),
+  )
+
+  const groups: ArtifactRow[][] = []
+  for (const artifact of sorted) {
+    const ts = artifact.created_at ?? fallbackTimestamp
+    const current = groups.at(-1)
+    if (!current) {
+      groups.push([artifact])
+      continue
+    }
+    const currentTs = current[0]!.created_at ?? fallbackTimestamp
+    const sameBurst = ts - currentTs <= 90_000
+    const sameKind = current.every((item) => item.kind === artifact.kind)
+    if (sameBurst && sameKind) {
+      current.push(artifact)
+      continue
+    }
+    groups.push([artifact])
+  }
+
+  return groups.map((group, index) => formatArtifactGroup(group, fallbackTimestamp, index))
+}
+
+function formatArtifactGroup(group: ArtifactRow[], fallbackTimestamp: number, index: number) {
+  const timestamp = group.at(-1)?.created_at ?? fallbackTimestamp
+  if (group.length === 1) {
+    const artifact = group[0]!
+    return {
+      id: `artifact:${artifact.id}`,
+      timestamp,
+      summary: singleArtifactSummary(artifact),
+      reference: formatPatternReference(artifact.reference),
+      stateEffect: "artifact attached",
+    }
+  }
+
+  const labels = group.map((artifact) => artifactDisplayLabel(artifact))
+  return {
+    id: `artifact-group:${group[0]!.id}:${index}`,
+    timestamp,
+    summary: `Artifacts produced (${group.length})`,
+    reference: summarizeReferenceList(labels),
+    stateEffect: "artifacts attached",
+  }
+}
+
+function singleArtifactSummary(artifact: ArtifactRow) {
+  if (artifact.kind === "session_diff") return `Code changes captured: ${artifact.label}`
+  return `Artifact produced: ${artifactDisplayLabel(artifact)}`
+}
+
+function artifactDisplayLabel(artifact: ArtifactRow) {
+  if (artifact.kind === "session_diff") return artifact.label
+  if (artifact.reference) {
+    const shortened = formatPatternReference(artifact.reference)
+    if (shortened && shortened !== artifact.reference) return shortened
+  }
+  return artifact.label
 }
 
 function countLabel(value: number, noun: string) {
