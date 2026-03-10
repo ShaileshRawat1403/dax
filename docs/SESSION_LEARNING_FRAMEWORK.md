@@ -302,6 +302,22 @@ Why it worked:
 - it separated surface readability from ladder usefulness
 - it prevented premature UI work around an unproven readiness distribution
 
+#### Pattern 13: Add higher-order grouping only after the lower layers are stable
+
+Once transcript, timeline, verification, release readiness, and history all existed, the next move was not more CLI or UI work.
+
+It was:
+
+1. define SDLC stages as a higher-order grouping
+2. keep stages out of the live stream
+3. apply them first to history and summary surfaces
+
+Why it worked:
+
+- it preserved the separation between narration, progression, and judgment
+- it prevented stages from turning into noisy stream labels
+- it created a clean abstraction for later history and timeline summarization
+
 #### Pattern 9: Define trust surfaces from operator questions, not legacy command names
 
 For the trust layer, the right move was not:
