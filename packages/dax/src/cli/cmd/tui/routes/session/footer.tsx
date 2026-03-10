@@ -25,6 +25,7 @@ export function Footer(props?: {
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
+  const compactHints = createMemo(() => (props?.focusHints ?? []).slice(0, small() ? 2 : 3))
 
   const mode = createMemo(() => {
     if (route.data.type !== "session") return "Launch"
@@ -60,8 +61,8 @@ export function Footer(props?: {
                   ? theme.warning
                   : theme.success
             }
-          >
-            {`Audit ${props?.trustLabel?.toLowerCase()}`}
+            >
+            {`Trust ${props?.trustLabel?.toLowerCase()}`}
           </text>
         </Show>
         <Show when={mcpAttention() > 0}>
@@ -77,9 +78,9 @@ export function Footer(props?: {
         <Show when={!tiny() && permissions().length === 0 && mcpAttention() === 0}>
           <text fg={theme.textMuted}>? help</text>
         </Show>
-        <Show when={!small() && (props?.focusHints?.length ?? 0) > 0}>
+        <Show when={!small() && compactHints().length > 0}>
           <box gap={1} flexDirection="row" alignItems="center">
-            <For each={props?.focusHints ?? []}>
+            <For each={compactHints()}>
               {(hint, index) => (
                 <>
                   <Show when={index() > 0}>

@@ -32,6 +32,7 @@ export type WorkstationState = {
   artifactSummary: {
     count: number
     items: Array<{ label: string; kind?: string }>
+    remainderCount: number
   }
   auditSummary: {
     approvals: number
@@ -91,15 +92,15 @@ export function deriveWorkstationState(input: {
     trustPosture,
     trustLabel: labelTrustPosture(trustPosture),
     planSummary: {
-      goal: input.goal,
+      goal: summarize(input.goal, 88),
       steps: input.todo.slice(0, 5).map((item) => ({
-        label: item.content,
+        label: summarize(item.content, 60) ?? item.content,
         status: item.status === "completed" ? "done" : item.status === "in_progress" ? "active" : "pending",
       })),
     },
     activitySummary: {
       items: compactActivityItems(input.stageReason, currentTodo?.content),
-      current: input.stageReason,
+      current: summarize(input.stageReason, 88),
     },
     approvalSummary: {
       pendingCount: approvalsPending,
@@ -108,7 +109,11 @@ export function deriveWorkstationState(input: {
     },
     artifactSummary: {
       count: input.artifacts.length,
-      items: input.artifacts.slice(0, 3),
+      items: input.artifacts.slice(0, 3).map((item) => ({
+        label: summarize(item.label, 44) ?? item.label,
+        kind: item.kind ? summarize(item.kind, 16) : undefined,
+      })),
+      remainderCount: Math.max(0, input.artifacts.length - 3),
     },
     auditSummary: {
       approvals: approvalsPending,
@@ -153,7 +158,16 @@ function deriveTrustPosture(input: {
 
 function compactActivityItems(stageReason: string, currentStep?: string) {
   const items = [currentStep, stageReason].filter(Boolean) as string[]
-  return Array.from(new Set(items)).slice(0, 3)
+  return Array.from(new Set(items))
+    .map((item) => summarize(item, 72) ?? item)
+    .slice(0, 3)
+}
+
+function summarize(value: string | undefined, max: number) {
+  if (!value) return value
+  const normalized = value.replace(/\s+/g, " ").trim()
+  if (normalized.length <= max) return normalized
+  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`
 }
 
 export function labelLifecycle(lifecycle: WorkstationLifecycle) {
