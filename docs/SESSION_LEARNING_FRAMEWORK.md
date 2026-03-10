@@ -258,6 +258,79 @@ Why it worked:
   - no breaking change to `run`
   - no explicit validation command yet
 
+## Session 003: Layer Workstation Focus Over the Existing Interaction Substrate
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted Pass 3 of the TUI refactor, but only after understanding the current keyboard and navigation behavior well enough to avoid fighting the existing session, prompt, and dialog model.
+
+### What The Session Revealed
+
+The current TUI is not empty. It already has a stable interaction priority:
+
+1. dialogs
+2. prompt
+3. workstation surface
+
+That means pane focus cannot be designed as a clean-slate navigation system. It must be added as a thin visible layer over the current prompt-first and dialog-priority substrate.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 10: Inspect real interaction ownership before defining a focus model
+
+The useful question was not:
+
+- what should a TUI focus model look like in theory?
+
+It was:
+
+- what currently owns interaction?
+- which keys already mean something?
+- where can workstation focus be added safely?
+
+Why it worked:
+
+- it grounded the next design step in the actual codebase
+- it prevented a fictional focus model that would conflict with working dialogs and prompt behavior
+- it made Pass 3 additive instead of disruptive
+
+#### Pattern 11: Design new interaction layers as overlays, not replacements
+
+The correct framing for workstation focus was:
+
+- keep dialogs in control when open
+- keep prompt as the fallback interaction home
+- add pane focus only when no higher-priority owner is active
+
+Why it worked:
+
+- it respected current TUI behavior
+- it kept keyboard changes narrow
+- it created a safe boundary for `tab`, `shift+tab`, and pane-aware footer hints
+
+#### Pattern 12: Narrow the first focus pass to visibility and predictability
+
+The right Pass 3 scope was not:
+
+- rebuild all navigation
+- rewrite overlays
+- universalize `enter`
+
+It was:
+
+- make focus visible
+- make pane cycling predictable
+- make footer hints focus-aware
+- add `enter` only where it already maps naturally
+
+Why it worked:
+
+- it reduces the risk of regressions in prompt, approval, question, and diff flows
+- it keeps the workstation feeling more intentional without overreaching
+- it makes the next implementation slice mechanical instead of exploratory
+
 #### Pattern 10: Convert the new grammar into a contributor-facing contract
 
 After `plan`, `run`, and `approvals` became real surfaces, the next useful move was not another feature.
