@@ -180,6 +180,8 @@ type TranscriptPosition = {
   live: boolean
 }
 
+type FocusedPane = "activity" | "plan" | "approvals" | "artifacts" | "audit"
+
 function SessionQuickAction(props: {
   theme: ThemeShape
   label: string
@@ -209,7 +211,7 @@ function SessionQuickAction(props: {
   )
 }
 
-function WorkstationSection(props: { theme: ThemeShape; title: string; children: JSX.Element }) {
+function WorkstationSection(props: { theme: ThemeShape; title: string; focused?: boolean; children: JSX.Element }) {
   return (
     <box
       flexDirection="column"
@@ -219,10 +221,10 @@ function WorkstationSection(props: { theme: ThemeShape; title: string; children:
       paddingTop={1}
       paddingBottom={1}
       border={["top"]}
-      borderColor={props.theme.borderSubtle}
-      backgroundColor={props.theme.backgroundPanel}
+      borderColor={props.focused ? props.theme.primary : props.theme.borderSubtle}
+      backgroundColor={props.focused ? tint(props.theme.backgroundPanel, props.theme.primary, 0.06) : props.theme.backgroundPanel}
     >
-      <text fg={props.theme.primary} attributes={TextAttributes.BOLD}>
+      <text fg={props.focused ? props.theme.primary : props.theme.text} attributes={TextAttributes.BOLD}>
         {props.title}
       </text>
       {props.children}
@@ -237,10 +239,18 @@ function WorkstationSummaryCard(props: {
   detail?: string
   actionLabel?: string
   onPress?: () => void
+  focused?: boolean
 }) {
   return (
-    <box flexDirection="column" gap={1} backgroundColor={props.theme.backgroundElement} padding={1}>
-      <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
+    <box
+      flexDirection="column"
+      gap={1}
+      backgroundColor={props.focused ? tint(props.theme.backgroundElement, props.theme.primary, 0.12) : props.theme.backgroundElement}
+      border={props.focused ? ["left"] : []}
+      borderColor={props.focused ? props.theme.primary : undefined}
+      padding={1}
+    >
+      <text fg={props.focused ? props.theme.primary : props.theme.text} attributes={TextAttributes.BOLD}>
         {props.title}
       </text>
       <text fg={props.theme.text} wrapMode="word">
@@ -710,6 +720,8 @@ export function Session() {
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
   const [raoFocusRequestID, setRaoFocusRequestID] = createSignal<string | undefined>(undefined)
+  const [focusedPane, setFocusedPane] = createSignal<FocusedPane>("activity")
+  const [paneKeyboardMode, setPaneKeyboardMode] = createSignal(false)
   const { currentPun } = useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const promptDisabled = createMemo(() => !!session()?.parentID)
@@ -1056,6 +1068,16 @@ export function Session() {
     const printed = keybind.print(name)
     return printed ? `[${printed}]` : ""
   }
+  const paneOrder: FocusedPane[] = ["activity", "plan", "approvals", "artifacts", "audit"]
+  function cycleFocusedPane(step: 1 | -1) {
+    const current = focusedPane()
+    const index = paneOrder.indexOf(current)
+    const next = paneOrder[(Math.max(index, 0) + step + paneOrder.length) % paneOrder.length]
+    if (!next) return
+    setFocusedPane(next)
+    setPaneKeyboardMode(true)
+    prompt?.blur()
+  }
 
   // Allow exit when in child session (prompt is hidden)
   const exit = useExit()
@@ -1074,6 +1096,33 @@ export function Session() {
     if (!session()?.parentID) return
     if (keybind.match("app_exit", evt)) {
       exit()
+    }
+  })
+
+  useKeyboard((evt) => {
+    if (dialog.stack.length > 0) return
+    if (permissions().length > 0 || questions().length > 0) return
+    if (keybind.leader) return
+
+    if (evt.name === "tab") {
+      evt.preventDefault()
+      cycleFocusedPane(evt.shift ? -1 : 1)
+      return
+    }
+
+    if (!paneKeyboardMode()) return
+
+    if (evt.name === "return") {
+      evt.preventDefault()
+      activateFocusedPane()
+      return
+    }
+
+    const isTypingKey =
+      (!!evt.name && evt.name.length === 1 && !evt.ctrl && !evt.meta && !evt.super) || evt.name === "backspace"
+    if (isTypingKey) {
+      setPaneKeyboardMode(false)
+      keepPromptFocused()
     }
   })
 
@@ -1524,6 +1573,27 @@ export function Session() {
     setPaneMode(() => "audit")
     setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
     keepPromptFocused()
+  }
+  const activateFocusedPane = () => {
+    switch (focusedPane()) {
+      case "approvals":
+        if (permissions().length > 0 || questions().length > 0) openApprovalsReview()
+        return
+      case "artifacts":
+        setPaneMode(() => "artifact")
+        if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
+        keepPromptFocused()
+        return
+      case "audit":
+        if (auditPaneEnabled()) {
+          setPaneMode(() => "audit")
+          if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
+          keepPromptFocused()
+        }
+        return
+      default:
+        return
+    }
   }
   const openMcpInspect = () => command.trigger("mcp.inspect")
   const toggleExplainMode = () => {
@@ -2590,6 +2660,42 @@ export function Session() {
 
   const dialog = useDialog()
   const renderer = useRenderer()
+  const footerFocus = createMemo(() => {
+    if (dialog.stack.length > 0) {
+      return {
+        label: "Dialog",
+        hints: ["enter select", "esc close"],
+      }
+    }
+
+    switch (focusedPane()) {
+      case "activity":
+        return {
+          label: "Activity",
+          hints: ["tab switch panes", "enter prompt"],
+        }
+      case "plan":
+        return {
+          label: "Plan",
+          hints: ["tab switch panes", "goal and steps"],
+        }
+      case "approvals":
+        return {
+          label: "Approvals",
+          hints: ["tab switch panes", "enter open approvals"],
+        }
+      case "artifacts":
+        return {
+          label: "Artifacts",
+          hints: ["tab switch panes", "enter open artifacts"],
+        }
+      case "audit":
+        return {
+          label: "Audit",
+          hints: ["tab switch panes", "enter open audit"],
+        }
+    }
+  })
 
   const keepPromptFocused = () => {
     if (promptDisabled()) return
@@ -2672,7 +2778,7 @@ export function Session() {
             emphasis={hasRaoNeed() || pendingUpdates() > 0 ? "normal" : "muted"}
             actions={headerActions()}
           />
-          <WorkstationSection theme={theme} title="Plan">
+          <WorkstationSection theme={theme} title="Plan" focused={focusedPane() === "plan"}>
             <Show
               when={workstationState().planSummary.steps.length > 0}
               fallback={
@@ -2810,7 +2916,7 @@ export function Session() {
               </box>
             </Show>
             <box flexGrow={1} minHeight={0}>
-              <WorkstationSection theme={theme} title="Activity">
+              <WorkstationSection theme={theme} title="Activity" focused={focusedPane() === "activity"}>
                 <text fg={theme.text} wrapMode="word">
                   {workstationState().activitySummary.current ?? displayStageState().reason}
                 </text>
@@ -3020,6 +3126,7 @@ export function Session() {
                         detail={workstationState().approvalSummary.topReason}
                         actionLabel={workstationState().approvalSummary.pendingCount > 0 ? "Open approvals" : undefined}
                         onPress={workstationState().approvalSummary.pendingCount > 0 ? openApprovalsReview : undefined}
+                        focused={focusedPane() === "approvals"}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3035,6 +3142,7 @@ export function Session() {
                           setPaneMode(() => "artifact")
                           if (paneVisibility() === "hidden") setPaneVisibility(() => "auto")
                         }}
+                        focused={focusedPane() === "artifacts"}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3054,6 +3162,7 @@ export function Session() {
                               }
                             : undefined
                         }
+                        focused={focusedPane() === "audit"}
                       />
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                         <For each={visiblePaneModes()}>
@@ -3970,7 +4079,12 @@ export function Session() {
               />
             </box>
             <Show when={!sidebarVisible() || !wide()}>
-              <Footer lifecycleLabel={workstationState().lifecycleLabel} trustLabel={workstationState().trustLabel} />
+              <Footer
+                lifecycleLabel={workstationState().lifecycleLabel}
+                trustLabel={workstationState().trustLabel}
+                focusLabel={footerFocus().label}
+                focusHints={footerFocus().hints}
+              />
             </Show>
           <Toast />
         </box>
