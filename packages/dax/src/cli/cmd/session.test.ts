@@ -370,6 +370,7 @@ describe("session timeline helpers", () => {
         verification_result: "verification_passed",
         trust_posture: "verified",
         write_governance_status: "none",
+        write_outcome: "none",
         checks: [],
         blocking_factors: [],
         degrading_factors: [],
@@ -747,6 +748,7 @@ describe("session timeline helpers", () => {
         verification_result: "verification_passed",
         trust_posture: "verified",
         write_governance_status: "governed",
+        write_outcome: "governed_completed",
         checks: [
           {
             id: "approvals",

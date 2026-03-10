@@ -11,6 +11,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "governed",
+      write_outcome: "governed_completed",
       write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 2,
@@ -32,6 +33,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_failed",
       trust_posture: "review_needed",
       write_governance_status: "governed",
+      write_outcome: "governed_completed",
       write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 1,
@@ -54,6 +56,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "blocked",
+      write_outcome: "blocked",
       write_risk_bucket: "governed_project_write",
       approval_count: 1,
       artifact_count: 2,
@@ -75,6 +78,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_incomplete",
       trust_posture: "review_needed",
       write_governance_status: "none",
+      write_outcome: "none",
       write_risk_bucket: undefined,
       approval_count: 0,
       artifact_count: 1,
@@ -99,6 +103,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "governed",
+      write_outcome: "governed_completed",
       write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 0,
@@ -122,6 +127,7 @@ describe("session release evaluator", () => {
         verification_result: "verification_passed",
         trust_posture: "verified",
         write_governance_status: "governed",
+        write_outcome: "governed_completed",
         write_risk_bucket: "governed_project_write",
         approval_count: 0,
         artifact_count: 2,
@@ -148,6 +154,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_degraded",
       trust_posture: "policy_clean",
       write_governance_status: "ungated",
+      write_outcome: "completed_ungated",
       write_risk_bucket: "project_artifact",
       approval_count: 0,
       artifact_count: 2,
@@ -171,6 +178,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_degraded",
       trust_posture: "policy_clean",
       write_governance_status: "ungated",
+      write_outcome: "completed_ungated",
       write_risk_bucket: "governed_project_write",
       approval_count: 0,
       artifact_count: 1,
@@ -194,6 +202,7 @@ describe("session release evaluator", () => {
       verification_result: "verification_passed",
       trust_posture: "verified",
       write_governance_status: "ungated",
+      write_outcome: "completed_ungated",
       write_risk_bucket: "harmless_local",
       approval_count: 0,
       artifact_count: 1,
@@ -205,6 +214,54 @@ describe("session release evaluator", () => {
     expect(summary.release_readiness).toBe("handoff_ready")
     expect(summary.missing_evidence).toContain(
       "Retained writes only touched harmless local paths, so governance evidence is optional for readiness.",
+    )
+  })
+
+  test("surfaces partial write outcomes as blocked stronger-readiness evidence", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_partial_write",
+      lifecycle_state: "active",
+      lifecycle_terminal: false,
+      lifecycle_requires_reconciliation: true,
+      verification_result: "verification_incomplete",
+      trust_posture: "review_needed",
+      write_governance_status: "ungated",
+      write_outcome: "partial",
+      write_risk_bucket: "project_artifact",
+      approval_count: 0,
+      artifact_count: 2,
+      override_count: 0,
+      audit_posture: "clear",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("not_ready")
+    expect(summary.missing_evidence).toContain(
+      "Retained writes were recorded, but the write path did not complete cleanly under governance, so stronger readiness is blocked pending review.",
+    )
+  })
+
+  test("surfaces write attempts with no durable result as review-needed evidence", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_write_no_durable_result",
+      lifecycle_state: "completed",
+      lifecycle_terminal: true,
+      lifecycle_requires_reconciliation: false,
+      verification_result: "verification_incomplete",
+      trust_posture: "review_needed",
+      write_governance_status: "none",
+      write_outcome: "no_durable_result",
+      write_risk_bucket: undefined,
+      approval_count: 0,
+      artifact_count: 0,
+      override_count: 0,
+      audit_posture: "clear",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("review_ready")
+    expect(summary.missing_evidence).toContain(
+      "Write-capable execution occurred without any durable retained workspace write artifacts, so stronger readiness still needs review.",
     )
   })
 })

@@ -1,6 +1,13 @@
 import path from "path"
 
 export type WriteGovernanceStatus = "none" | "governed" | "blocked" | "ungated"
+export type WriteOutcome =
+  | "none"
+  | "governed_completed"
+  | "completed_ungated"
+  | "blocked"
+  | "partial"
+  | "no_durable_result"
 export type WriteRiskBucket =
   | "harmless_local"
   | "project_artifact"
@@ -9,10 +16,13 @@ export type WriteRiskBucket =
 export type WriteGovernanceExpectation = "optional" | "expected" | "required"
 
 export type WriteGovernanceSignals = {
+  write_intent_detected: boolean
   workspace_write_artifact_count: number
   pending_approval_count: number
   override_count: number
   policy_evaluated: boolean
+  lifecycle_terminal: boolean
+  lifecycle_requires_reconciliation: boolean
 }
 
 export type WriteGovernanceClassification = {
@@ -26,6 +36,15 @@ export function deriveWriteGovernanceStatus(input: WriteGovernanceSignals): Writ
   if (input.pending_approval_count > 0) return "blocked"
   if (input.policy_evaluated || input.override_count > 0) return "governed"
   return "ungated"
+}
+
+export function deriveWriteOutcome(input: WriteGovernanceSignals): WriteOutcome {
+  if (!input.write_intent_detected && input.workspace_write_artifact_count <= 0) return "none"
+  if (input.workspace_write_artifact_count <= 0) return "no_durable_result"
+  if (input.pending_approval_count > 0) return "blocked"
+  if (!input.lifecycle_terminal || input.lifecycle_requires_reconciliation) return "partial"
+  if (input.policy_evaluated || input.override_count > 0) return "governed_completed"
+  return "completed_ungated"
 }
 
 export function classifyWritePathRisk(input: {

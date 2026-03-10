@@ -1041,6 +1041,7 @@ function fallbackVerification(sessionID: string): SessionVerification {
     verification_result: "verification_incomplete",
     trust_posture: "review_needed",
     write_governance_status: "none",
+    write_outcome: "none",
     checks: [],
     blocking_factors: [],
     degrading_factors: ["Verification could not be collected for this session."],
