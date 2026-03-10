@@ -65,6 +65,7 @@ Use this index based on your role and goal.
 - [DAX_OPERATOR_SURFACE_EXPOSURE.md](DAX_OPERATOR_SURFACE_EXPOSURE.md): operator-surface decision for what belongs in list, show, inspect, judgment, and later workstation defaults
 - [DAX_WORKSTATION_MOCKUP_VARIANTS.md](DAX_WORKSTATION_MOCKUP_VARIANTS.md): three grounded workstation directions: operator-minimal, balanced, and governance-heavy
 - [DAX_WORKSTATION_SIDEBAR_SPEC.md](DAX_WORKSTATION_SIDEBAR_SPEC.md): sidebar contract for card order, state rules, clickability, and default operator truth in the balanced workstation
+- [DAX_WORKSTATION_STREAM_SPEC.md](DAX_WORKSTATION_STREAM_SPEC.md): center-stream contract for allowed message classes, forbidden message classes, interruptions, and short outcome behavior
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution

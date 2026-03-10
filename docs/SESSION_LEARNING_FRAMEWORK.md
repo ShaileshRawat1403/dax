@@ -314,6 +314,21 @@ Why it worked:
 - it prevented drilldown behavior from shaping card semantics prematurely
 - it gave the workstation a stable operator scan order before visual refinement
 
+#### Pattern 14: Define the stream as event narrative, not system reasoning
+
+Better sequence:
+
+1. lock center vs sidebar invariant
+2. define sidebar truth rules
+3. define allowed and forbidden stream message classes
+4. only then design overlay detail and shortcut behavior
+
+Why it worked:
+
+- it protected the center from becoming a dashboard or compliance feed
+- it made interruptions explicit without turning them into explanations
+- it preserved the stream as a chronological execution story
+
 Useful distinction:
 
 - risk bucket answers `what kind of path was written?`
