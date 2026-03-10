@@ -1299,3 +1299,16 @@ For write governance specifically, that means:
 - avoid mixing UI or approval-flow redesign into the same slice
 
 This keeps governance corrections narrow and makes it easier to tell whether the next issue is enforcement logic or surface design.
+
+## Session Pattern: Refine Policy Depth Before Surface Expansion
+
+Once governance visibility exists, the next useful move is often not more exposure. It is better severity discrimination.
+
+For write governance, that means:
+
+- distinguish harmless writes from meaningful project writes
+- separate sensitive writes from normal workspace edits
+- define what partial writes mean
+- tune trust and readiness severity before pushing the signal into broader operator surfaces
+
+This prevents UI and summary layers from hard-coding governance language before the policy distinctions are stable.
