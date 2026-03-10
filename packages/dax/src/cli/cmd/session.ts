@@ -1040,6 +1040,7 @@ function fallbackVerification(sessionID: string): SessionVerification {
     lifecycle_requires_reconciliation: false,
     verification_result: "verification_incomplete",
     trust_posture: "review_needed",
+    write_governance_status: "none",
     checks: [],
     blocking_factors: [],
     degrading_factors: ["Verification could not be collected for this session."],

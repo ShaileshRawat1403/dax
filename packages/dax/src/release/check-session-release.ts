@@ -3,6 +3,7 @@ import { collectSessionShowSummary } from "../cli/cmd/session"
 import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "../trust/verify-session"
 import type { SessionLifecycleState } from "../session/lifecycle"
 import { withLockedRetry } from "../util/locked-retry"
+import type { WriteGovernanceStatus } from "../trust/write-governance"
 
 export type ReleaseReadiness =
   | "not_ready"
@@ -16,6 +17,7 @@ export type ReleaseCheckID =
   | "lifecycle_terminal"
   | "verification_passed"
   | "approvals_complete"
+  | "write_governance"
   | "artifacts_present"
   | "blocking_findings_absent"
   | "overrides_justified"
@@ -52,6 +54,7 @@ export async function collectSessionReleaseCheck(sessionID: string): Promise<Ses
     lifecycle_requires_reconciliation: verification.lifecycle_requires_reconciliation,
     verification_result: verification.verification_result,
     trust_posture: verification.trust_posture,
+    write_governance_status: verification.write_governance_status,
     approval_count: summary.approval_count,
     artifact_count: summary.artifact_count,
     override_count: summary.override_count,
@@ -67,6 +70,7 @@ export function evaluateSessionReleaseCheck(input: {
   lifecycle_requires_reconciliation: boolean
   verification_result: VerificationResult
   trust_posture: VerificationTrustPosture
+  write_governance_status: WriteGovernanceStatus
   approval_count: number
   artifact_count: number
   override_count: number
@@ -77,6 +81,7 @@ export function evaluateSessionReleaseCheck(input: {
     buildLifecycleCheck(input.lifecycle_state, input.lifecycle_terminal, input.lifecycle_requires_reconciliation),
     buildVerificationCheck(input.verification_result),
     buildApprovalsCheck(input.approval_count),
+    buildWriteGovernanceCheck(input.write_governance_status),
     buildArtifactsCheck(input.artifact_count),
     buildFindingsCheck(input.audit_posture),
     buildOverridesCheck(input.override_count),
@@ -214,6 +219,39 @@ function buildApprovalsCheck(approvalCount: number): ReleaseCheck {
     label: "Approvals complete",
     status: "pass",
     summary: "No pending approvals remain.",
+  }
+}
+
+function buildWriteGovernanceCheck(status: WriteGovernanceStatus): ReleaseCheck {
+  switch (status) {
+    case "none":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "pass",
+        summary: "No governed write activity detected.",
+      }
+    case "governed":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "pass",
+        summary: "Retained workspace writes have matching governance evidence.",
+      }
+    case "blocked":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "fail",
+        summary: "Write-capable work is still blocked on governance resolution.",
+      }
+    case "ungated":
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "incomplete",
+        summary: "Retained workspace writes were recorded without visible governance evidence.",
+      }
   }
 }
 
