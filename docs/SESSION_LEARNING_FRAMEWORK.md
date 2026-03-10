@@ -331,6 +331,66 @@ Why it worked:
 - it keeps the workstation feeling more intentional without overreaching
 - it makes the next implementation slice mechanical instead of exploratory
 
+## Session 004: Normalize Overlays as Workstation Subviews
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted the next TUI slice to improve coherence without pushing further on focus. The next inconsistency was the overlay layer: approvals, permission prompts, diff dialogs, and audit-oriented detail views still reflected older interaction patterns.
+
+### What The Session Revealed
+
+The correct next step after pane focus is not more navigation. It is overlay normalization.
+
+The workstation now has a coherent base screen, so the next requirement is that overlays feel like focused subviews of that workstation rather than separate mini-apps.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 13: Move from structured screens to structured interaction systems
+
+Once the base layout and pane focus are stable, the next question is not:
+
+- what new feature should be added?
+
+It is:
+
+- where does interaction still feel inconsistent?
+
+Why it worked:
+
+- it shifted attention from feature growth to experiential coherence
+- it identified overlays as the next highest-value inconsistency
+- it kept the refactor aligned with product feel rather than implementation novelty
+
+#### Pattern 14: Normalize overlay ownership before redesigning overlay logic
+
+The correct Pass 4 framing was:
+
+- define overlay taxonomy
+- define ownership priority
+- define return behavior
+- define footer ownership
+- preserve existing local overlay logic underneath
+
+Why it worked:
+
+- it avoids rewriting working approval/question/permission behavior too early
+- it gives the workstation a coherent subview model
+- it keeps the slice narrow and structurally valuable
+
+#### Pattern 15: Treat close behavior as part of product trust
+
+The most important overlay rule was:
+
+- closing an overlay should return to the pane that opened it
+
+Why it worked:
+
+- it preserves operator orientation
+- it makes overlays feel integrated with the workstation
+- it prevents “where am I now?” confusion after modal interactions
+
 #### Pattern 10: Convert the new grammar into a contributor-facing contract
 
 After `plan`, `run`, and `approvals` became real surfaces, the next useful move was not another feature.
