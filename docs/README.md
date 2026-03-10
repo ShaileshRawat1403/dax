@@ -62,6 +62,7 @@ Use this index based on your role and goal.
 - [DAX_WRITE_GOVERNANCE_ENFORCEMENT_IMPLEMENTATION.md](DAX_WRITE_GOVERNANCE_ENFORCEMENT_IMPLEMENTATION.md): narrow implementation bridge for surfacing governed, blocked, and ungated writes in trust and readiness
 - [DAX_WRITE_GOVERNANCE_POLICY_REFINEMENT.md](DAX_WRITE_GOVERNANCE_POLICY_REFINEMENT.md): policy refinement for distinguishing harmless, governed, sensitive, and partial writes
 - [DAX_WRITE_GOVERNANCE_PARTIAL_BLOCKED.md](DAX_WRITE_GOVERNANCE_PARTIAL_BLOCKED.md): policy pass for distinguishing completed ungated writes from blocked, partial, and no-durable-result write outcomes
+- [DAX_OPERATOR_SURFACE_EXPOSURE.md](DAX_OPERATOR_SURFACE_EXPOSURE.md): operator-surface decision for what belongs in list, show, inspect, judgment, and later workstation defaults
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
