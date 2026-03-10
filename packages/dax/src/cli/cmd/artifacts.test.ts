@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { buildArtifactsForSession, formatArtifactTable, type ArtifactRow } from "./artifacts"
 import type { Session } from "../../session"
 import type { MessageV2 } from "../../session/message-v2"
+import { tmpdir } from "os"
+import path from "path"
 
 describe("artifacts command helpers", () => {
   test("formats empty artifact state for operators", () => {
@@ -96,5 +98,64 @@ describe("artifacts command helpers", () => {
     expect(rendered).toContain("Kind: Attachment")
     expect(rendered).toContain("Related session: session_123")
     expect(rendered).toContain("Reference: release-notes.md")
+  })
+
+  test("indexes durable write outputs inside the session workspace as retained artifacts", async () => {
+    const directory = path.join(tmpdir(), `dax-artifacts-${Date.now()}`)
+    const filepath = path.join(directory, "artifacts", "write-output.txt")
+    await Bun.write(filepath, "ok")
+
+    const session = {
+      id: "session_write",
+      parentID: undefined,
+      slug: "write-eval",
+      projectID: "project_write",
+      directory,
+      title: "Write eval",
+      version: "test",
+      time: { created: 1_700_000_000_000, updated: 1_700_000_100_000 },
+      summary: { additions: 0, deletions: 0, files: 0 },
+    } as Session.Info
+
+    const messages = [
+      {
+        info: {
+          id: "message_write",
+          sessionID: "session_write",
+          role: "assistant",
+        },
+        parts: [
+          {
+            id: "part_write",
+            messageID: "message_write",
+            sessionID: "session_write",
+            type: "tool",
+            callID: "call_write",
+            tool: "write",
+            state: {
+              status: "completed",
+              input: {},
+              output: "done",
+              title: filepath,
+              metadata: {
+                filepath,
+                exists: false,
+                diagnostics: {},
+              },
+              time: {
+                start: 1_700_000_000_100,
+                end: 1_700_000_000_200,
+              },
+            },
+          },
+        ],
+      },
+    ] as unknown as MessageV2.WithParts[]
+
+    const rows = buildArtifactsForSession(session, messages, [] as any)
+
+    expect(rows.map((row) => row.kind)).toEqual(["workspace_file"])
+    expect(rows[0]?.label).toBe("write-output.txt")
+    expect(rows[0]?.reference).toBe(path.join("artifacts", "write-output.txt"))
   })
 })
