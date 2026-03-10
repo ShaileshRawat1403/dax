@@ -239,6 +239,21 @@ Why it worked:
 - it preserved future room for verification without forcing it into v1
 - read-only constraints during planning
 
+#### Pattern 10: Add history only after session, timeline, and verification are real
+
+The correct sequence for durable record navigation was:
+
+1. define session as a runtime primitive
+2. define timeline as meaningful progression
+3. define audit and verify separately
+4. only then design session history
+
+Why it worked:
+
+- it prevented history from becoming a vague transcript archive
+- it made history a navigation layer over already-defined session surfaces
+- it kept workstation concerns separate from record-browsing concerns
+
 Why it worked:
 
 - it grounded the design in the current architecture
