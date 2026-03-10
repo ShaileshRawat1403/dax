@@ -773,3 +773,21 @@ Why it worked:
 - it kept sessions as runtime primitives instead of UI-only concepts
 - it ensured trust would attach to durable work lifecycles rather than isolated commands
 - it created a stable object model for future timeline, handoff, and release-readiness work
+
+#### Pattern 18: Define trust as a session property before designing verification
+
+After the session model is explicit, the next move is not to jump straight into `audit verify`.
+
+The correct move is:
+
+- define trust inputs
+- define trust signals
+- define a posture ladder
+- define how trust degrades
+- attach all of it to the session
+
+Why it worked:
+
+- it kept trust from collapsing into command behavior or UI labels
+- it made audit a surface over trust rather than the owner of trust
+- it created a clean foundation for later release-readiness and verification design
