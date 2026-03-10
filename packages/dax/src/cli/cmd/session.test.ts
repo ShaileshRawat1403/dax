@@ -463,6 +463,31 @@ describe("session timeline helpers", () => {
     expect(lifecycle.terminal).toBe(true)
   })
 
+  test("derives completed lifecycle for tool-driven artifact-heavy execution without final conversational stop", () => {
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      pendingApprovalCount: 0,
+      retainedArtifactCount: 3,
+      messages: [
+        {
+          info: { role: "user", time: { created: 1 } },
+          parts: [{ type: "text" }],
+        },
+        {
+          info: { role: "assistant", finish: "tool-calls", time: { created: 2, completed: 3 } },
+          parts: [{ type: "tool", state: { status: "completed" } }, { type: "step-finish" }],
+        },
+        {
+          info: { role: "assistant", finish: "tool-calls", time: { created: 4, completed: 5 } },
+          parts: [{ type: "tool", state: { status: "completed" } }, { type: "step-finish" }],
+        },
+      ] as any,
+    })
+
+    expect(lifecycle.lifecycle_state).toBe("completed")
+    expect(lifecycle.terminal).toBe(true)
+    expect(lifecycle.requires_reconciliation).toBe(false)
+  })
+
   test("formats session history rows as a compact record browser", () => {
     const rendered = formatSessionTable([
       {
