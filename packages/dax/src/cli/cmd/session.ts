@@ -86,6 +86,15 @@ export type SessionShowSummary = {
   latest_activity_at?: number
 }
 
+export type SessionInspectSummary = {
+  type: "session_inspect"
+  summary: SessionShowSummary
+  timeline: SessionTimelineRow[]
+  artifacts: ArtifactRow[]
+  audit: Awaited<ReturnType<typeof buildAuditSummary>>
+  verification: SessionVerification
+}
+
 type TimelineApproval = {
   id: string
   createdAt: number
@@ -125,6 +134,7 @@ export const SessionCommand = cmd({
     yargs
       .command(SessionListCommand)
       .command(SessionShowCommand)
+      .command(SessionInspectCommand)
       .command(SessionTimelineCommand)
       .command(SessionPruneCommand)
       .demandCommand(),
@@ -279,6 +289,36 @@ export const SessionShowCommand = cmd({
       }
 
       console.log(formatSessionShowSummary(summary))
+    })
+  },
+})
+
+export const SessionInspectCommand = cmd({
+  command: "inspect <session-id>",
+  describe: "inspect a session's durable record across timeline, artifacts, audit, and verification",
+  builder: (yargs: Argv) =>
+    yargs
+      .positional("session-id", {
+        describe: "session id to inspect",
+        type: "string",
+      })
+      .option("format", {
+        describe: "output format",
+        type: "string",
+        choices: ["table", "json"],
+        default: "table",
+      }),
+  handler: async (args) => {
+    await bootstrap(process.cwd(), async () => {
+      const sessionID = String(args["session-id"])
+      const summary = await collectSessionInspectSummary(sessionID)
+
+      if (args.format === "json") {
+        console.log(JSON.stringify(summary, null, 2))
+        return
+      }
+
+      console.log(formatSessionInspectSummary(summary))
     })
   },
 })
@@ -466,6 +506,27 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
     timeline_count: timeline.length,
     audit_posture: auditSummary.posture,
     latest_activity_at: verification.latest_activity_at ?? auditSummary.latest_activity_at,
+  }
+}
+
+export async function collectSessionInspectSummary(sessionID: string): Promise<SessionInspectSummary> {
+  const session = await Session.get(sessionID)
+  const [messages, diffs, timeline, verification, audit, summary] = await Promise.all([
+    Session.messages({ sessionID }),
+    Session.diff(sessionID),
+    collectSessionTimeline(sessionID),
+    collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
+    buildAuditSummary({ sessionID }),
+    collectSessionShowSummary(sessionID),
+  ])
+
+  return {
+    type: "session_inspect",
+    summary,
+    timeline,
+    artifacts: buildArtifactsForSession(session, messages, diffs),
+    audit,
+    verification,
   }
 }
 
@@ -667,6 +728,53 @@ export function formatSessionShowSummary(summary: SessionShowSummary) {
   ]
     .filter(Boolean)
     .join(EOL)
+}
+
+export function formatSessionInspectSummary(summary: SessionInspectSummary) {
+  const artifactPreview =
+    summary.artifacts.length === 0
+      ? ["- No retained artifacts."]
+      : summary.artifacts
+          .slice(0, 5)
+          .map((artifact) => `- ${artifact.label} (${artifact.kind})`)
+          .concat(summary.artifacts.length > 5 ? [`- ... and ${summary.artifacts.length - 5} more`] : [])
+
+  const verificationPreview =
+    summary.verification.checks.length === 0
+      ? ["- No verification checks recorded."]
+      : summary.verification.checks.map(
+          (check) => `- ${check.label}: ${check.status}${check.summary ? ` — ${check.summary}` : ""}`,
+        )
+
+  return [
+    formatSessionShowSummary(summary.summary),
+    "",
+    "Timeline",
+    summary.timeline.length === 0
+      ? "No timeline events recorded for this session."
+      : summary.timeline
+          .map((row) => {
+            const bits = [`- ${Locale.todayTimeOrDateTime(row.timestamp)} ${row.summary}`]
+            if (row.reference) bits.push(`  Reference: ${row.reference}`)
+            if (row.state_effect) bits.push(`  Effect: ${row.state_effect}`)
+            return bits.join(EOL)
+          })
+          .join(EOL),
+    "",
+    "Artifacts",
+    ...artifactPreview,
+    "",
+    "Audit",
+    `- Posture: ${formatAuditPosture(summary.audit.posture)}`,
+    `- Pending approvals: ${summary.audit.approvals.requested}`,
+    `- Overrides: ${summary.audit.approvals.overrides}`,
+    `- Findings: ${summary.audit.findings.status.toUpperCase()} (${summary.audit.findings.blocker_count} blockers, ${summary.audit.findings.warning_count} warnings, ${summary.audit.findings.info_count} info)`,
+    "",
+    "Verification",
+    `- Result: ${formatVerificationResultLabel(summary.verification.verification_result)}`,
+    `- Trust posture: ${formatSessionTrustPosture(summary.verification.trust_posture)}`,
+    ...verificationPreview,
+  ].join(EOL)
 }
 
 function formatTimelineType(type: SessionTimelineEventType) {
