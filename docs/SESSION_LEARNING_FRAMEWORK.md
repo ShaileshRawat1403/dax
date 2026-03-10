@@ -219,6 +219,56 @@ It was to read the existing runtime and see that DAX already has:
 - plan-mode entry and exit tools
 - a real plan file path
 
+## Session 003: Finish Session Depth Before Defining Release Judgment
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted DAX to move from session depth into the next meaningful operational layer without drifting into UI work too early.
+
+### What The Session Revealed
+
+Release readiness only became designable after DAX had already defined:
+
+- session as a durable record
+- trust posture as a session property
+- verification as trust judgment
+- history surfaces for browsing and inspection
+
+That sequence mattered more than speed.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 9: Finish the record surface before adding higher judgment
+
+The strong sequence was:
+
+1. define session history surface
+2. implement `session list`
+3. implement `session show`
+4. implement `session inspect`
+5. only then define release readiness
+
+Why it worked:
+
+- it prevented release readiness from being abstract or hand-wavy
+- it forced readiness to depend on real inspectable session records
+- it kept the product layered and legible
+
+#### Pattern 10: Distinguish trust judgment from operational readiness
+
+Important boundary:
+
+- `verify` decides whether a session can be trusted
+- release readiness decides whether a trusted session is operationally complete
+
+Why it worked:
+
+- it stopped verification from absorbing deployment or handoff semantics
+- it made readiness a downstream consequence instead of a mixed trust label
+- it preserved clean product language for later CLI and UI surfaces
+
 #### Pattern 9: Define trust surfaces from operator questions, not legacy command names
 
 For the trust layer, the right move was not:
