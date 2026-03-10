@@ -731,3 +731,28 @@ Why it worked:
 - it prevents polish from turning into stealth interaction redesign
 - it keeps the pass focused on calmness and scanability
 - it protects the already-stable focus and overlay ownership model
+
+#### Pattern 16: Stop UI iteration when the next problem is product depth
+
+Once the workstation can clearly answer:
+
+- what is this session trying to do?
+- what is happening now?
+- what needs operator input?
+- what was produced?
+- what is the current trust posture?
+
+the next move should not be more incremental UI work.
+
+The correct move is to decide the next product layer explicitly:
+
+- session depth
+- trust depth
+- workstation IA expansion
+- long-term surface strategy
+
+Why it worked:
+
+- it prevented diminishing-return UI churn
+- it turned a pause into an architectural checkpoint
+- it kept the next phase anchored to product questions instead of implementation momentum
