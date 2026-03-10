@@ -562,3 +562,21 @@ Why it worked:
 - it separated orientation, action, state, and recovery cleanly
 - it gave each pane one editorial job
 - it kept the workstation legible without turning it into a dashboard
+
+#### Pattern 14: Write one refactor spec when component structure, state, and navigation are coupled
+
+For the workstation refactor, the right move was not:
+
+- separate component notes
+- separate keyboard notes
+- separate state notes
+
+It was:
+
+- define component structure, state machine, keyboard model, and migration passes in one implementation-ready spec
+
+Why it worked:
+
+- it kept the session workstation coherent
+- it reduced the risk of local UI decisions drifting from the full model
+- it made the next refactor phase pass-based instead of exploratory

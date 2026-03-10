@@ -33,6 +33,7 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_UI_BLUEPRINT.md](DAX_WORKSTATION_UI_BLUEPRINT.md): session-centered workstation model for plan, run, approvals, artifacts, and audit
 - [DAX_TUI_WORKSTATION_ARCHITECTURE.md](DAX_TUI_WORKSTATION_ARCHITECTURE.md): recommended TUI layout and pane roles for the DAX session workstation
 - [DAX_TUI_DITA_PANE_MODEL.md](DAX_TUI_DITA_PANE_MODEL.md): DITA-informed information architecture for DAX TUI panes
+- [DAX_TUI_REFACTOR_SPEC.md](DAX_TUI_REFACTOR_SPEC.md): implementation-ready refactor spec for the existing session-centric TUI
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
 - [DAX_PLAN_DESIGN.md](DAX_PLAN_DESIGN.md): command contract and behavior map for `dax plan`

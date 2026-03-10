@@ -14,9 +14,10 @@ type HeaderAction = {
 }
 
 export function Header(props: {
-  stageLabel: string
-  stageReason: string
-  detail?: string
+  sessionLabel?: string
+  lifecycleLabel: string
+  currentStep?: string
+  trustLabel?: string
   emphasis?: "normal" | "muted"
   actions?: HeaderAction[]
 }) {
@@ -26,10 +27,10 @@ export function Header(props: {
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 
-  const stageColor = createMemo(() => {
-    if (props.stageLabel.includes("Waiting")) return theme.warning
-    if (props.stageLabel.includes("Complete") || props.stageLabel.includes("Done")) return theme.success
-    if (props.stageLabel.includes("Understanding")) return theme.secondary
+  const lifecycleColor = createMemo(() => {
+    if (/approval/i.test(props.lifecycleLabel)) return theme.warning
+    if (/blocked|failed/i.test(props.lifecycleLabel)) return theme.error
+    if (/completed|ready/i.test(props.lifecycleLabel)) return theme.success
     return theme.accent
   })
   const sessionIntent = createMemo(() => {
@@ -48,12 +49,7 @@ export function Header(props: {
     if (text.length <= 44) return text
     return `${text.slice(0, 41)}...`
   })
-  const title = createMemo(() => sessionIntent())
-  const headline = createMemo(() => {
-    const reason = props.stageReason?.trim()
-    if (!reason) return props.stageLabel
-    return reason[0].toUpperCase() + reason.slice(1)
-  })
+  const title = createMemo(() => props.sessionLabel ?? sessionIntent())
   const shellIntensity = createMemo(() => {
     const last = messages().findLast((x) => x.role === "assistant") as AssistantMessage | undefined
     if (!last) return "guided" as const
@@ -84,8 +80,9 @@ export function Header(props: {
   const tiny = createMemo(() => width() < 60)
   const wide = createMemo(() => width() >= 90)
   const showSessionTitle = createMemo(() => shellIntensity() === "operational" && wide())
-  const showHeadline = createMemo(() => shellIntensity() !== "light" || props.emphasis === "normal" || !!props.detail)
-  const showStageBadge = createMemo(() => shellIntensity() !== "light" && props.stageLabel !== "Complete")
+  const showLifecycle = createMemo(
+    () => shellIntensity() !== "light" || props.emphasis === "normal" || !!props.currentStep || !!props.trustLabel,
+  )
   const detailColor = createMemo(() => (props.emphasis === "muted" ? theme.textMuted : theme.warning))
 
   return (
@@ -104,19 +101,19 @@ export function Header(props: {
                 <text fg={theme.textMuted}>·</text>
               </>
             </Show>
-            <Show when={showHeadline()}>
+            <Show when={showLifecycle()}>
               <text fg={shellIntensity() === "light" ? theme.textMuted : theme.text} attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}>
-                {headline()}
+                {props.lifecycleLabel}
               </text>
             </Show>
-            <Show when={showStageBadge()}>
+            <Show when={!!props.currentStep}>
               <text fg={theme.textMuted}>·</text>
-              <text fg={stageColor()}>{props.stageLabel}</text>
+              <text fg={lifecycleColor()}>{props.currentStep}</text>
             </Show>
-            <Show when={!tiny() && props.detail}>
+            <Show when={!tiny() && props.trustLabel}>
               <text fg={theme.textMuted}>·</text>
               <text fg={detailColor()} attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}>
-                {props.detail}
+                Audit: {props.trustLabel}
               </text>
             </Show>
           </box>

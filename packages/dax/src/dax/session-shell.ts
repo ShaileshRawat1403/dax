@@ -1,17 +1,17 @@
 import type { KeybindsConfig } from "@dax-ai/sdk/v2"
 
 export const SESSION_SHELL_ROLES = {
-  actionStrip: "What to do now",
+  actionStrip: "Alerts",
   navigator: "Move through this session",
-  reviewBar: "Review and inspect",
-  sidebar: "Workspace status",
+  reviewBar: "Operator controls",
+  sidebar: "Operator overview",
 } as const
 
 export const SESSION_COMMAND_LABELS = {
-  reviewApprovals: "Review approvals",
-  reviewDiff: "Review diff",
+  reviewApprovals: "Open approvals",
+  reviewDiff: "Inspect evidence",
   inspectMcp: "Inspect MCP",
-  reviewDocs: "Review docs",
+  reviewDocs: "Open audit",
   jumpTimeline: "Jump to transcript",
   jumpLastRequest: "Jump to request",
   jumpLive: "Jump live",
