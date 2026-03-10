@@ -31,8 +31,24 @@ describe("session release evaluator", () => {
     })
 
     expect(summary.release_readiness).toBe("not_ready")
-    expect(summary.blocking_factors).toContain("Trust verification failed.")
+    expect(summary.blocking_factors).toContain("Verification failed, so this session is not ready for handoff or release.")
     expect(summary.blocking_factors).toContain("Blocking audit findings still need resolution.")
+  })
+
+  test("treats pending approvals as a hard readiness blocker", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_pending_approval",
+      verification_result: "verification_passed",
+      trust_posture: "verified",
+      approval_count: 1,
+      artifact_count: 2,
+      override_count: 0,
+      audit_posture: "clear",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("not_ready")
+    expect(summary.blocking_factors).toContain("1 pending approval still block handoff or release.")
   })
 
   test("returns review_ready when verification is not yet complete", () => {
@@ -48,7 +64,9 @@ describe("session release evaluator", () => {
     })
 
     expect(summary.release_readiness).toBe("review_ready")
-    expect(summary.missing_evidence).toContain("Trust verification is incomplete.")
+    expect(summary.missing_evidence).toContain(
+      "Verification is incomplete, so this session is only ready for human review.",
+    )
   })
 
   test("returns handoff_ready when verification passed but completeness gaps remain", () => {
@@ -83,9 +101,9 @@ describe("session release evaluator", () => {
     )
 
     expect(rendered).toContain("Session: session_rendered")
-    expect(rendered).toContain("Readiness: Release ready")
+    expect(rendered).toContain("Readiness: release_ready")
     expect(rendered).toContain("Verification: Passed")
-    expect(rendered).toContain("Checks")
+    expect(rendered).toContain("Signals")
     expect(rendered).toContain("Summary")
   })
 })

@@ -34,13 +34,12 @@ export type SessionReleaseCheck = {
   checks: ReleaseCheck[]
   blocking_factors: string[]
   missing_evidence: string[]
+  passing_signals: string[]
 }
 
 export async function collectSessionReleaseCheck(sessionID: string): Promise<SessionReleaseCheck> {
-  const [verification, summary] = await Promise.all([
-    collectSessionVerification(sessionID),
-    collectSessionShowSummary(sessionID),
-  ])
+  const verification = await withLockedRetry(() => collectSessionVerification(sessionID))
+  const summary = await withLockedRetry(() => collectSessionShowSummary(sessionID))
 
   return evaluateSessionReleaseCheck({
     session_id: sessionID,
@@ -75,6 +74,7 @@ export function evaluateSessionReleaseCheck(input: {
 
   const blocking_factors = checks.filter((check) => check.status === "fail").map((check) => check.summary)
   const missing_evidence = checks.filter((check) => check.status === "incomplete").map((check) => check.summary)
+  const passing_signals = checks.filter((check) => check.status === "pass").map((check) => check.summary)
 
   return {
     type: "session_release_check",
@@ -85,33 +85,39 @@ export function evaluateSessionReleaseCheck(input: {
     checks,
     blocking_factors,
     missing_evidence,
+    passing_signals,
   }
 }
 
 export function formatSessionReleaseCheck(summary: SessionReleaseCheck) {
   const lines = [
     `Session: ${summary.session_id}`,
-    `Readiness: ${formatReleaseReadiness(summary.release_readiness)}`,
+    `Readiness: ${summary.release_readiness}`,
     `Trust posture: ${formatTrustPosture(summary.trust_posture)}`,
     `Verification: ${formatVerificationResult(summary.verification_result)}`,
     "",
-    "Checks",
-    ...summary.checks.map((check) => `- ${check.label}: ${formatCheckStatus(check.status)}${check.summary ? ` — ${check.summary}` : ""}`),
   ]
 
-  const summaryLines =
-    summary.blocking_factors.length > 0
-      ? summary.blocking_factors
-      : summary.missing_evidence.length > 0
-        ? summary.missing_evidence
-        : ["All readiness checks passed."]
+  if (summary.blocking_factors.length > 0) {
+    lines.push("Blockers", ...summary.blocking_factors.map((line) => `- ${line}`), "")
+  }
 
-  return [...lines, "", "Summary", ...summaryLines.map((line) => `- ${line}`)].join(EOL)
+  if (summary.missing_evidence.length > 0) {
+    lines.push("Missing evidence", ...summary.missing_evidence.map((line) => `- ${line}`), "")
+  }
+
+  if (summary.passing_signals.length > 0) {
+    lines.push("Signals", ...summary.passing_signals.map((line) => `- ${line}`), "")
+  }
+
+  lines.push("Summary", `- ${formatReadinessSummary(summary)}`)
+
+  return lines.join(EOL)
 }
 
 function deriveReleaseReadiness(checks: ReleaseCheck[], verificationResult: VerificationResult): ReleaseReadiness {
   if (checks.some((check) => check.status === "fail")) return "not_ready"
-  if (verificationResult !== "verification_passed") return "review_ready"
+  if (verificationResult === "verification_incomplete" || verificationResult === "verification_degraded") return "review_ready"
   if (checks.some((check) => check.status === "incomplete")) return "handoff_ready"
   return "release_ready"
 }
@@ -130,21 +136,21 @@ function buildVerificationCheck(result: VerificationResult): ReleaseCheck {
         id: "verification_passed",
         label: "Verification passed",
         status: "incomplete",
-        summary: "Trust verification is degraded and still needs review before release.",
+        summary: "Verification still needs human review before this session can move beyond review readiness.",
       }
     case "verification_incomplete":
       return {
         id: "verification_passed",
         label: "Verification passed",
         status: "incomplete",
-        summary: "Trust verification is incomplete.",
+        summary: "Verification is incomplete, so this session is only ready for human review.",
       }
     case "verification_failed":
       return {
         id: "verification_passed",
         label: "Verification passed",
         status: "fail",
-        summary: "Trust verification failed.",
+        summary: "Verification failed, so this session is not ready for handoff or release.",
       }
   }
 }
@@ -154,8 +160,8 @@ function buildApprovalsCheck(approvalCount: number): ReleaseCheck {
     return {
       id: "approvals_complete",
       label: "Approvals complete",
-      status: "incomplete",
-      summary: `${approvalCount} pending approval${approvalCount === 1 ? "" : "s"} still block readiness.`,
+      status: "fail",
+      summary: `${approvalCount} pending approval${approvalCount === 1 ? "" : "s"} still block handoff or release.`,
     }
   }
 
@@ -218,7 +224,7 @@ function buildOverridesCheck(overrideCount: number): ReleaseCheck {
       id: "overrides_justified",
       label: "Overrides justified",
       status: "incomplete",
-      summary: `${overrideCount} override${overrideCount === 1 ? "" : "s"} still require operator review before release.`,
+      summary: `${overrideCount} override${overrideCount === 1 ? "" : "s"} still require review before stronger readiness.`,
     }
   }
 
@@ -248,16 +254,16 @@ function buildTraceCheck(traceContinuityOk: boolean): ReleaseCheck {
   }
 }
 
-function formatReleaseReadiness(readiness: ReleaseReadiness) {
-  switch (readiness) {
+function formatReadinessSummary(summary: SessionReleaseCheck) {
+  switch (summary.release_readiness) {
     case "not_ready":
-      return "Not ready"
+      return "This session is not ready because blocking issues still prevent handoff or shipping."
     case "review_ready":
-      return "Review ready"
+      return "This session is ready for human review, but trust or evidence still needs work before handoff."
     case "handoff_ready":
-      return "Handoff ready"
+      return "This session is ready for handoff, but some non-blocking release evidence is still missing."
     case "release_ready":
-      return "Release ready"
+      return "This session is ready to ship."
   }
 }
 
@@ -285,13 +291,18 @@ function formatVerificationResult(result: VerificationResult) {
   }
 }
 
-function formatCheckStatus(status: ReleaseCheckStatus) {
-  switch (status) {
-    case "pass":
-      return "pass"
-    case "fail":
-      return "fail"
-    case "incomplete":
-      return "incomplete"
+async function withLockedRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    if (
+      retries > 0 &&
+      error instanceof Error &&
+      /database is locked/i.test(error.message)
+    ) {
+      await Bun.sleep(100)
+      return withLockedRetry(fn, retries - 1)
+    }
+    throw error
   }
 }
