@@ -273,6 +273,58 @@ Why it worked:
   - bridge
   - code
 
+## Session 004: Fix Execution Truth Before Fixing Artifact Truth
+
+Date: March 10, 2026
+
+### Starting User Intent
+
+The user wanted the post-validation corrections applied in the right order, with runtime lifecycle fixed before write-governance and artifact visibility.
+
+### What The Session Revealed
+
+Once lifecycle truth was corrected, the remaining gap became much clearer:
+
+- write-intent sessions could complete
+- real project files could exist
+- but canonical artifact surfaces could still report `artifact_count = 0`
+
+That meant the next move was not another lifecycle pass and not TUI work.
+
+It was a write-governance implementation bridge focused on artifact truth propagation.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 11: Remove one ambiguity layer before diagnosing the next
+
+Better sequence:
+
+1. correct lifecycle truth
+2. rerun real-session checks
+3. isolate the remaining artifact-visibility gap
+4. only then write the implementation bridge for write governance
+
+Why it worked:
+
+- it prevented mixing runtime and artifact bugs together
+- it made the next implementation boundary obvious
+- it kept the product semantics coherent
+
+#### Pattern 12: Treat read-model truth as a first-class correction
+
+The next bridge did not start with UI or policy redesign.
+
+It started with a read-model correction:
+
+- if governed execution creates durable project files,
+  canonical artifact surfaces must see them
+
+Why it worked:
+
+- it focused on operator-visible truth
+- it kept the first slice narrow
+- it aligned trust, readiness, and history on the same artifact evidence
+
 ## Session 003: Finish Session Depth Before Defining Release Judgment
 
 Date: March 10, 2026
