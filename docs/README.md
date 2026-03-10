@@ -43,6 +43,7 @@ Use this index based on your role and goal.
 - [DAX_SESSION_TIMELINE.md](DAX_SESSION_TIMELINE.md): append-oriented timeline model for meaningful session progression over time
 - [DAX_AUDIT_VERIFICATION.md](DAX_AUDIT_VERIFICATION.md): verification model for evaluating session trust posture and evidence
 - [DAX_SESSION_TIMELINE_SURFACE.md](DAX_SESSION_TIMELINE_SURFACE.md): first operator-facing surface contract for readable session progression
+- [DAX_SESSION_TIMELINE_DENSITY_REVIEW.md](DAX_SESSION_TIMELINE_DENSITY_REVIEW.md): real-session review of timeline density, wording, and grouping gaps
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
 - [DAX_PLAN_DESIGN.md](DAX_PLAN_DESIGN.md): command contract and behavior map for `dax plan`

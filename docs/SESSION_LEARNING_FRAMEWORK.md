@@ -841,3 +841,17 @@ Why it worked:
 - it turned the new depth model into product behavior with low interaction risk
 - it validated session progression as a usable surface before policy expansion
 - it kept DAX grounded in accountable progression rather than jumping too early into formal release gates
+## Session Pattern: Validate Surface Density Against Real Sessions
+
+When a new operator-facing surface is implemented from a clean model, validate it against real sessions before expanding the UI around it.
+
+Sequence:
+
+- model the runtime object
+- define the operator-facing surface contract
+- implement the narrowest useful surface
+- inspect real sessions
+- record density, wording, and grouping problems
+- refine the surface before adding more presentation layers
+
+This prevents workstation or release-oriented design from being built on top of a surface that still reads like implementation exhaust.
