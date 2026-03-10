@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import { deriveWriteGovernanceStatus } from "./write-governance"
+import {
+  classifyWritePathRisk,
+  deriveWriteGovernanceStatus,
+  governanceExpectationForBucket,
+} from "./write-governance"
 
 describe("write governance derivation", () => {
   test("returns none when no workspace write artifacts exist", () => {
@@ -55,5 +59,81 @@ describe("write governance derivation", () => {
         policy_evaluated: false,
       }),
     ).toBe("ungated")
+  })
+})
+
+describe("write risk classification", () => {
+  test("classifies temporary local writes as harmless_local", () => {
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: "tmp/cache.txt",
+      }),
+    ).toEqual({
+      path: "tmp/cache.txt",
+      bucket: "harmless_local",
+      governance_expectation: "optional",
+    })
+  })
+
+  test("classifies generated artifact outputs as project_artifact", () => {
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: "artifacts/eval-burst/result.json",
+      }),
+    ).toEqual({
+      path: "artifacts/eval-burst/result.json",
+      bucket: "project_artifact",
+      governance_expectation: "expected",
+    })
+  })
+
+  test("classifies source and docs edits as governed_project_write", () => {
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: "src/index.ts",
+      }).bucket,
+    ).toBe("governed_project_write")
+
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: "docs/guide.md",
+      }).bucket,
+    ).toBe("governed_project_write")
+  })
+
+  test("classifies sensitive and escaping paths as sensitive_or_system_write", () => {
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: "package.json",
+      }).bucket,
+    ).toBe("sensitive_or_system_write")
+
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: ".env",
+      }).bucket,
+    ).toBe("sensitive_or_system_write")
+
+    expect(
+      classifyWritePathRisk({
+        sessionDirectory: "/repo",
+        reference: "../outside.txt",
+      }).bucket,
+    ).toBe("sensitive_or_system_write")
+  })
+})
+
+describe("governance expectation", () => {
+  test("maps risk buckets to stable expectations", () => {
+    expect(governanceExpectationForBucket("harmless_local")).toBe("optional")
+    expect(governanceExpectationForBucket("project_artifact")).toBe("expected")
+    expect(governanceExpectationForBucket("governed_project_write")).toBe("expected")
+    expect(governanceExpectationForBucket("sensitive_or_system_write")).toBe("required")
   })
 })
