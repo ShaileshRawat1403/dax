@@ -91,6 +91,7 @@ export type SessionShowSummary = {
 export type SessionInspectSummary = {
   type: "session_inspect"
   summary: SessionShowSummary
+  stages_reached: SDLCStage[]
   timeline: SessionTimelineRow[]
   artifacts: ArtifactRow[]
   audit: Awaited<ReturnType<typeof buildAuditSummary>>
@@ -531,6 +532,7 @@ export async function collectSessionInspectSummary(sessionID: string): Promise<S
   return {
     type: "session_inspect",
     summary,
+    stages_reached: deriveStagesReached(timeline, summary.stage),
     timeline,
     artifacts: buildArtifactsForSession(session, messages, diffs),
     audit,
@@ -757,6 +759,10 @@ export function formatSessionInspectSummary(summary: SessionInspectSummary) {
 
   return [
     formatSessionShowSummary(summary.summary),
+    "",
+    "Stage progression",
+    `- Current stage: ${formatSessionStage(summary.summary.stage)}`,
+    `- Stages reached: ${summary.stages_reached.map(formatSessionStage).join(" -> ")}`,
     "",
     "Timeline",
     summary.timeline.length === 0
@@ -1079,6 +1085,42 @@ export function deriveSessionStage(input: {
     default:
       return "discovery"
   }
+}
+
+export function deriveStagesReached(timeline: SessionTimelineRow[], currentStage: SDLCStage): SDLCStage[] {
+  const stages: SDLCStage[] = []
+  const seen = new Set<SDLCStage>()
+
+  const push = (stage: SDLCStage) => {
+    if (seen.has(stage)) return
+    seen.add(stage)
+    stages.push(stage)
+  }
+
+  for (const row of timeline) {
+    switch (row.type) {
+      case "session_created":
+        push("discovery")
+        break
+      case "plan_generated":
+        push("planning")
+        break
+      case "execution_started":
+      case "execution_completed":
+      case "artifact_produced":
+        push("implementation")
+        break
+      case "approval_requested":
+      case "approval_resolved":
+      case "audit_finding_recorded":
+      case "trust_posture_changed":
+        push("review")
+        break
+    }
+  }
+
+  push(currentStage)
+  return stages
 }
 
 function formatSessionStage(stage: SDLCStage) {
