@@ -58,6 +58,7 @@ Use this index based on your role and goal.
 - [DAX_RUN_LIFECYCLE_REFINEMENT_2.md](DAX_RUN_LIFECYCLE_REFINEMENT_2.md): second lifecycle refinement bridge for distinguishing unfinished lightweight runs from completed artifact-heavy executions
 - [DAX_WRITE_GOVERNANCE_MODEL.md](DAX_WRITE_GOVERNANCE_MODEL.md): evidence-driven model for write intent, approvals, artifact detection, and trust-surface visibility
 - [DAX_WRITE_GOVERNANCE_IMPLEMENTATION.md](DAX_WRITE_GOVERNANCE_IMPLEMENTATION.md): implementation bridge for making created project files visible as canonical retained artifacts across history, verification, and readiness
+- [DAX_WRITE_GOVERNANCE_ENFORCEMENT.md](DAX_WRITE_GOVERNANCE_ENFORCEMENT.md): governance-enforcement model for safe writes, approval-gated writes, anomalies, and trust consequences
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution

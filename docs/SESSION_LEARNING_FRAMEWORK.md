@@ -1273,3 +1273,16 @@ As trust surfaces mature, keep the product language clean:
 - `verify` judges whether trust signals justify stronger posture
 
 This prevents audit from absorbing verification semantics and keeps verification from turning into another history or findings browser.
+
+## Session Pattern: Fix Governance Truth Before Reopening Surfaces
+
+When validation isolates a remaining trust gap, define that enforcement layer explicitly before returning to UI or ergonomics work.
+
+Applied sequence in DAX:
+
+- lifecycle truth
+- artifact truth
+- inspection reliability
+- write-governance enforcement
+
+This keeps workstation and operator-surface design downstream of stable semantics instead of forcing UI to guess at runtime truth.
