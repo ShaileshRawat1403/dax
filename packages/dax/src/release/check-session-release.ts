@@ -2,6 +2,7 @@ import { EOL } from "os"
 import { collectSessionShowSummary } from "../cli/cmd/session"
 import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "../trust/verify-session"
 import type { SessionLifecycleState } from "../session/lifecycle"
+import { withLockedRetry } from "../util/locked-retry"
 
 export type ReleaseReadiness =
   | "not_ready"
@@ -346,21 +347,5 @@ function formatVerificationResult(result: VerificationResult) {
       return "Incomplete"
     case "verification_degraded":
       return "Degraded"
-  }
-}
-
-async function withLockedRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (
-      retries > 0 &&
-      error instanceof Error &&
-      /database is locked/i.test(error.message)
-    ) {
-      await Bun.sleep(100)
-      return withLockedRetry(fn, retries - 1)
-    }
-    throw error
   }
 }
