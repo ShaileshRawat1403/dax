@@ -269,6 +269,22 @@ Why it worked:
 - it made readiness a downstream consequence instead of a mixed trust label
 - it preserved clean product language for later CLI and UI surfaces
 
+#### Pattern 11: Add one surface bridge before implementing a new judgment layer
+
+Once release readiness was modeled, the next step was not command work.
+
+It was:
+
+1. define the readiness surface
+2. decide the first command shape
+3. keep CLI and UI concerns separate
+
+Why it worked:
+
+- it prevented release readiness from drifting into vague operator language
+- it forced a clear product separation between `verify` and `release`
+- it kept the next implementation slice narrow and inspect-first
+
 #### Pattern 9: Define trust surfaces from operator questions, not legacy command names
 
 For the trust layer, the right move was not:
