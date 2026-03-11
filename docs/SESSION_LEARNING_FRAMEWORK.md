@@ -1908,3 +1908,22 @@ Why it worked:
 - it improved execution understanding in monorepos without drowning the report in helper imports
 - it kept Explore focused on handoffs that shape runtime behavior
 - it preserved the rule that unexplained chains stay `inferred` or `unknown`
+
+## Session Pattern: Promote A Capability Only After It Is Honest On Weak Cases
+
+Explore became ready for broader plumbing only after three things were true at once:
+
+- it was strong on DAX-shaped repos
+- it materially improved on a hard workspace case like `soothsayer`
+- it stayed honestly thin on weaker-evidence repos like `dao` and `pruningmypothos`
+
+Why it worked:
+
+- capability promotion was based on evidence, not momentum
+- honest thin output was treated as a success condition, not a failure to hide
+- the product decision changed naturally from “improve the engine” to “promote the engine”
+
+This is an important general DAX rule:
+
+- do not promote a capability when it is merely noisy
+- promote it when it is useful where evidence exists and honest where evidence is weak
