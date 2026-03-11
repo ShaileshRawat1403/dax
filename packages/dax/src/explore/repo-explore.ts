@@ -1828,3 +1828,19 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
     unknowns_follow_up_targets: unknowns,
   }
 }
+export function parseExploreArguments(args: string) {
+  const parts = args.split(" ").filter(Boolean)
+  const eli12 = parts.includes("--eli12")
+  const formatIndex = parts.indexOf("--format")
+  let format: "table" | "json" = "table"
+  if (formatIndex !== -1 && parts[formatIndex + 1]) {
+    const val = parts[formatIndex + 1]
+    if (val === "json") format = "json"
+  }
+  const cleanParts = parts.filter(
+    (p, i, arr) => p !== "--eli12" && p !== "--format" && (i === 0 || arr[i - 1] !== "--format"),
+  )
+  const pathArg = cleanParts.length > 0 ? cleanParts[0] : "."
+
+  return { pathArg, format, eli12 }
+}
