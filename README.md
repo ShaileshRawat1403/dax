@@ -188,6 +188,14 @@ bun install
 bun run dev
 ```
 
+### Run The Repo-Local Build
+
+Use the repo-local launcher when you want the current source tree plus `.dax/dax.jsonc`:
+
+```bash
+bun run dax:local
+```
+
 ### Useful First Commands
 
 ```bash
@@ -230,7 +238,7 @@ bun run release
 ### Install Peer Build (No Source Checkout)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.7 bash
 ```
 
 Why this URL:

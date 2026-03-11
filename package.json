@@ -7,6 +7,7 @@
   "packageManager": "bun@1.3.8",
   "scripts": {
     "dev": "bun run --cwd packages/dax src/index.ts",
+    "dax:local": "./script/dax-local.sh",
     "typecheck": "bun turbo typecheck",
     "typecheck:dax": "bun run --cwd packages/dax typecheck",
     "test": "bun --cwd packages/dax test",

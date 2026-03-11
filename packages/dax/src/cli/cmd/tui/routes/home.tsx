@@ -573,9 +573,34 @@ export function Home() {
                 <box flexDirection="row" gap={2} flexWrap="wrap">
                   <For each={compactReadiness()}>
                     {(item) => (
-                      <text fg={item.value === "connected" ? theme.success : item.value === "failed" ? theme.error : item.value === "blocked" ? theme.warning : theme.textMuted}>
-                        {productStateIcon(item.value)} {item.label} {labelProductState(item.value)}
-                      </text>
+                      <box flexDirection="row" gap={1}>
+                        <text
+                          fg={
+                            item.value === "connected"
+                              ? theme.success
+                              : item.value === "failed"
+                                ? theme.error
+                                : item.value === "blocked"
+                                  ? theme.warning
+                                  : theme.textMuted
+                          }
+                        >
+                          {productStateIcon(item.value)}
+                        </text>
+                        <text
+                          fg={
+                            item.value === "connected"
+                              ? theme.success
+                              : item.value === "failed"
+                                ? theme.error
+                                : item.value === "blocked"
+                                  ? theme.warning
+                                  : theme.textMuted
+                          }
+                        >
+                          {`${item.label} ${labelProductState(item.value)}`}
+                        </text>
+                      </box>
                     )}
                   </For>
                 </box>
@@ -701,7 +726,10 @@ export function Home() {
                         flexDirection="row"
                         justifyContent="space-between"
                       >
-                        <text fg={theme.text}>▸ {s.title.length > 50 ? s.title.slice(0, 47) + "..." : s.title}</text>
+                        <box flexDirection="row" gap={1}>
+                          <text fg={theme.text}>▸</text>
+                          <text fg={theme.text}>{s.title.length > 50 ? s.title.slice(0, 47) + "..." : s.title}</text>
+                        </box>
                         <text fg={theme.textMuted}>{new Date(s.time.updated).toLocaleDateString()}</text>
                       </box>
                     )}
@@ -765,6 +793,7 @@ function StageIndicator(props: { stages: readonly string[]; current: number; the
         {(stage, index) => {
           const isActive = () => index() === props.current
           const isDone = () => index() < props.current
+          const icon = () => (isDone() ? "●" : isActive() ? "●" : "○")
 
           return (
             <box flexDirection="row" gap={0} alignItems="center">
@@ -772,14 +801,13 @@ function StageIndicator(props: { stages: readonly string[]; current: number; the
                 fg={isDone() ? doneColor() : isActive() ? activeColor() : pendingColor()}
                 attributes={isActive() ? TextAttributes.BOLD : undefined}
               >
-                {isDone() ? "●" : isActive() ? "●" : "○"}
+                {icon()}
               </text>
               <text
                 fg={isActive() ? activeColor() : pendingColor()}
                 attributes={isActive() ? TextAttributes.BOLD : undefined}
               >
-                {" "}
-                {stage}
+                {` ${stage}`}
               </text>
               <Show when={index() !== props.stages.length - 1}>
                 <text fg={pendingColor()}> ·</text>

@@ -36,9 +36,10 @@ export function Tips() {
 
   return (
     <box flexDirection="row" maxWidth="100%">
-      <text flexShrink={0} style={{ fg: theme.warning }}>
-        ● Tip{" "}
-      </text>
+      <box flexShrink={0} flexDirection="row">
+        <text fg={theme.warning}>●</text>
+        <text fg={theme.warning}> Tip </text>
+      </box>
       <box flexDirection="row" flexShrink={1}>
         <For each={parts}>
           {(part) => <text fg={part.highlight ? theme.text : theme.textMuted}>{part.text}</text>}
@@ -88,7 +89,7 @@ const TIPS = [
   "Override any keybind in config via the {highlight}keybinds{/highlight} section",
   "Set any keybind to {highlight}none{/highlight} to disable it completely",
   "Configure local or remote MCP servers in the {highlight}mcp{/highlight} config section",
-  "Dax auto-handles OAuth for remote MCP servers requiring auth",
+  "DAX auto-handles OAuth for remote MCP servers requiring auth",
   "Add {highlight}.md{/highlight} files to {highlight}.dax/command/{/highlight} to define reusable custom prompts",
   "Use {highlight}$ARGUMENTS{/highlight}, {highlight}$1{/highlight}, {highlight}$2{/highlight} in custom commands for dynamic input",
   "Use backticks in commands to inject shell output (e.g., {highlight}`git status`{/highlight})",
@@ -97,20 +98,20 @@ const TIPS = [
   'Use patterns like {highlight}"git *": "allow"{/highlight} for granular bash permissions',
   'Set {highlight}"rm -rf *": "deny"{/highlight} to block destructive commands',
   'Configure {highlight}"git push": "ask"{/highlight} to require approval before pushing',
-  "Dax auto-formats files using prettier, gofmt, ruff, and more",
+  "DAX auto-formats files using prettier, gofmt, ruff, and more",
   'Set {highlight}"formatter": false{/highlight} in config to disable all auto-formatting',
   "Define custom formatter commands with file extensions in config",
-  "Dax uses LSP servers for intelligent code analysis",
+  "DAX uses LSP servers for intelligent code analysis",
   "Create {highlight}.ts{/highlight} files in {highlight}.dax/tools/{/highlight} to define new LLM tools",
   "Tool definitions can invoke scripts written in Python, Go, etc",
   "Add {highlight}.ts{/highlight} files to {highlight}.dax/plugin/{/highlight} for event hooks",
   "Use plugins to send OS notifications when sessions complete",
-  "Create a plugin to prevent Dax from reading sensitive files",
+  "Create a plugin to prevent DAX from reading sensitive files",
   "Use {highlight}dax run{/highlight} for non-interactive scripting",
   "Use {highlight}dax --continue{/highlight} to resume the last session",
   "Use {highlight}dax run -f file.ts{/highlight} to attach files via CLI",
   "Use {highlight}--format json{/highlight} for machine-readable output in scripts",
-  "Run {highlight}dax serve{/highlight} for headless API access to Dax",
+  "Run {highlight}dax serve{/highlight} for headless API access to DAX",
   "Use {highlight}dax run --attach{/highlight} to connect to a running server",
   "Run {highlight}dax upgrade{/highlight} to update to the latest version",
   "Run {highlight}dax auth list{/highlight} to see all configured providers",
@@ -143,7 +144,7 @@ const TIPS = [
   "Enable {highlight}tui.scroll_acceleration{/highlight} for smooth macOS-style scrolling",
   "Toggle username display in chat via command palette ({highlight}Ctrl+P{/highlight})",
   "Run {highlight}docker run -it --rm ghcr.io/dax-ai/dax{/highlight} for containerized use",
-  "Use {highlight}/connect{/highlight} with Dax Zen for curated, tested models",
+  "Use {highlight}/connect{/highlight} with DAX Zen for curated, tested models",
   "Commit your project's {highlight}AGENTS.md{/highlight} file to Git for team sharing",
   "Run {highlight}/help{/highlight} or {highlight}Ctrl+X H{/highlight} to show the help dialog",
   "Use {highlight}Ctrl+P{/highlight} and search \"tool details\" to toggle execution details visibility",
