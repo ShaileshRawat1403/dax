@@ -2,9 +2,13 @@ import { describe, expect, it } from "bun:test"
 import {
   buildExploreResult,
   createEmptyExplorePassOutputs,
+  mergeExplorePassOutputs,
   renderExploreResult,
+  runBoundaryPass,
   type RepoExplorePassOutputs,
 } from "./repo-explore"
+import path from "path"
+import os from "os"
 
 describe("repo explore scaffolding", () => {
   it("builds the fixed section order required by the Explore output contract", () => {
@@ -82,4 +86,33 @@ describe("repo explore scaffolding", () => {
     expect(rendered).toContain("Suggested reading order")
     expect(rendered).toContain("Unknowns / follow-up targets")
   })
+
+  it("detects repo shape signals and workspace boundaries in the boundary pass", async () => {
+    const root = await mkdtemp()
+
+    await Bun.write(path.join(root, "package.json"), JSON.stringify({ name: "repo" }))
+    await Bun.write(path.join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n  - apps/*\n")
+    await Bun.write(path.join(root, "turbo.json"), JSON.stringify({ pipeline: {} }))
+
+    await Bun.write(path.join(root, "packages", "dax", "package.json"), JSON.stringify({ name: "dax" }))
+    await Bun.write(path.join(root, "apps", "web", "package.json"), JSON.stringify({ name: "web" }))
+
+    const delta = await runBoundaryPass(root)
+    const outputs = mergeExplorePassOutputs(createEmptyExplorePassOutputs(), delta)
+
+    expect(outputs.repository_shape.confidence).toBe("high_confidence")
+    expect(outputs.repository_shape.findings.some((finding) => finding.summary.includes("repo root contains package.json, pnpm-workspace.yaml, turbo.json"))).toBe(true)
+    expect(outputs.repository_shape.findings.some((finding) => finding.summary.includes("workspace tooling detected: pnpm workspace, turborepo"))).toBe(true)
+    expect(outputs.repository_shape.findings.some((finding) => finding.summary.includes("workspace boundaries detected under packages/dax, apps/web"))).toBe(true)
+    expect(outputs.repository_shape.findings.some((finding) => finding.summary.includes("language and build domains detected: node"))).toBe(true)
+    expect(outputs.important_files.map((file) => file.path)).toEqual(["package.json", "pnpm-workspace.yaml", "turbo.json", "packages/dax", "apps/web"])
+  })
 })
+
+async function mkdtemp() {
+  const root = await Bun.$`mktemp -d ${path.join(os.tmpdir(), "dax-explore-boundary-XXXXXX")}`.text()
+  const dir = root.trim()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "dax")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "apps", "web")}`.quiet()
+  return dir
+}
