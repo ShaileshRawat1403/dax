@@ -258,6 +258,113 @@ Why it worked:
 
 - it prevents later UI drift
 - it gives implementation a concrete review bar
+
+## Session 004: Promote Explore Only After Weak Cases Stay Honest
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted Explore validated as a real DAX capability rather than polished endlessly as an internal engine.
+
+### What The Session Revealed
+
+The right promotion rule is:
+
+- refine until weak cases are honest
+- validate across different repo shapes
+- only then broaden the plumbing
+
+That stopped Explore from drifting into endless engine work.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 10: Validate after a refinement cluster, not after every micro-tweak
+
+The useful sequence was:
+
+1. runtime-entry refinement
+2. workspace-flow refinement
+3. integration-signal refinement
+4. real-repo validation batch
+
+Why it worked:
+
+- it made patterns visible
+- it prevented overreacting to one repo
+- it showed when Explore was good enough to promote
+
+#### Pattern 11: Weak cases must be honest, not deep
+
+The right bar for weak repos was not:
+
+- deep understanding everywhere
+
+It was:
+
+- useful where structure exists
+- honest where evidence is weak
+
+Why it worked:
+
+- it kept Explore evidence-grounded
+- it prevented fake confidence
+- it gave a clean promotion threshold
+
+## Session 005: Validate New Surfaces In Their Native Path
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted `/explore` validated in real session use, not only through direct CLI calls.
+
+### What The Session Revealed
+
+A new surface should be validated through the path users will actually feel:
+
+- session-native command path first
+- direct CLI second
+
+For Explore, that meant using:
+
+- `run --command explore ...`
+
+instead of treating `dax explore` as the whole story.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 12: Validate a promoted capability inside the host system, not beside it
+
+The most useful questions were:
+
+- does it feel native in-session
+- does the output fit session use
+- does the modifier actually change meaning
+- does follow-on work still feel coherent
+
+Why it worked:
+
+- it exposed real ergonomics
+- it separated command-surface fit from engine correctness
+- it showed that Explore was native enough even before workstation exposure
+
+#### Pattern 13: Accept one small polish pass instead of reopening the engine
+
+The session validation showed one clear weak point:
+
+- `ELI12` was too weak for populated Explore results
+
+The correct response is not to reopen the Explore engine. It is to allow at most one small polish pass around:
+
+- session-sized output shaping
+- clearer Explore `ELI12` summaries
+
+Why it worked:
+
+- it preserves the engine gains
+- it keeps the next step proportionate to the evidence
+- it prevents polish churn from becoming architecture churn
 - it keeps stream, sidebar, and overlay roles from collapsing into assistant chatter
 
 ## Session 004: Validate Explore Before Expanding Mode Plumbing
