@@ -47,6 +47,28 @@ describe("session release evaluator", () => {
     expect(summary.blocking_factors).toContain("Blocking audit findings still need resolution.")
   })
 
+  test("treats failed lifecycle as a readiness blocker", () => {
+    const summary = evaluateSessionReleaseCheck({
+      session_id: "session_failed_lifecycle",
+      lifecycle_state: "failed",
+      lifecycle_terminal: true,
+      lifecycle_requires_reconciliation: false,
+      verification_result: "verification_failed",
+      trust_posture: "review_needed",
+      write_governance_status: "none",
+      write_outcome: "none",
+      write_risk_bucket: undefined,
+      approval_count: 0,
+      artifact_count: 0,
+      override_count: 0,
+      audit_posture: "review_needed",
+      trace_continuity_ok: true,
+    })
+
+    expect(summary.release_readiness).toBe("not_ready")
+    expect(summary.blocking_factors).toContain("Session execution terminated with an unrecovered failure.")
+  })
+
   test("treats pending approvals as a hard readiness blocker", () => {
     const summary = evaluateSessionReleaseCheck({
       session_id: "session_pending_approval",

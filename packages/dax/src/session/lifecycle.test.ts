@@ -69,4 +69,24 @@ describe("session lifecycle derivation", () => {
     expect(lifecycle.terminal).toBe(true)
     expect(lifecycle.requires_reconciliation).toBe(false)
   })
+
+  test("marks unrecovered assistant errors as terminal failed lifecycle", () => {
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      pendingApprovalCount: 0,
+      messages: [
+        {
+          info: { role: "user", time: { created: 1 } },
+          parts: [{ type: "text" }],
+        },
+        {
+          info: { role: "assistant", error: { name: "APIError" }, time: { created: 2 } },
+          parts: [{ type: "step-start" }],
+        },
+      ] as any,
+    })
+
+    expect(lifecycle.lifecycle_state).toBe("failed")
+    expect(lifecycle.terminal).toBe(true)
+    expect(lifecycle.requires_reconciliation).toBe(false)
+  })
 })

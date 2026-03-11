@@ -31,6 +31,7 @@ type PlanPreview = {
   steps: string[]
   content_source: "plan_file" | "assistant_output" | "none"
   note?: string
+  error?: string
 }
 
 const INTERACTIVE_RULES: PermissionNext.Ruleset = [
@@ -157,6 +158,7 @@ export const PlanCommand = cmd({
         sessionID,
         intent,
         suppressedInteractiveGate,
+        unexpectedError,
       })
 
       if (args.format === "json") {
@@ -219,10 +221,11 @@ export function createPlanPreview(input: {
   planPath?: string
   suppressedInteractiveGate?: boolean
   contentSource?: PlanPreview["content_source"]
+  error?: string
 }): PlanPreview {
   const content = input.content?.trim() ?? ""
   const steps = content ? extractPlanSteps(content) : []
-  const summary = content ? extractPlanSummary(content) : "No plan was produced."
+  const summary = content ? extractPlanSummary(content) : input.error ? "Planning failed before a plan was produced." : "No plan was produced."
   const readiness: PlanReadiness = (() => {
     if (!content) return "blocked"
     if (steps.length === 0) return "incomplete"
@@ -241,6 +244,7 @@ export function createPlanPreview(input: {
     note: input.suppressedInteractiveGate
       ? "Planning reached an interactive checkpoint; review the plan before execution."
       : undefined,
+    error: input.error,
   }
 }
 
@@ -258,6 +262,7 @@ export function formatPlanPreview(preview: PlanPreview) {
   } else {
     lines.push("Steps: none extracted")
   }
+  if (preview.error) lines.push(`Error: ${preview.error}`)
   if (preview.note) lines.push(`Note: ${preview.note}`)
   return lines.join(EOL)
 }
@@ -266,6 +271,7 @@ async function buildPlanPreview(input: {
   sessionID: string
   intent: string
   suppressedInteractiveGate: boolean
+  unexpectedError?: string
 }): Promise<PlanPreview> {
   const session = await Session.get(input.sessionID)
   const planFile = Session.plan(session)
@@ -297,6 +303,7 @@ async function buildPlanPreview(input: {
     content: assistantText,
     suppressedInteractiveGate: input.suppressedInteractiveGate,
     contentSource: assistantText ? "assistant_output" : "none",
+    error: !assistantText ? input.unexpectedError : undefined,
   })
 }
 

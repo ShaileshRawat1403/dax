@@ -59,7 +59,7 @@ type SessionSummary = {
   directory: string
 }
 
-export type SessionHistoryOutcome = "active" | "blocked" | "completed" | "archived"
+export type SessionHistoryOutcome = "active" | "blocked" | "completed" | "failed" | "archived"
 export type SDLCStage = "discovery" | "planning" | "implementation" | "verification" | "review" | "release_preparation"
 
 export type SessionHistoryRow = {
@@ -1043,6 +1043,7 @@ export function deriveSessionHistoryOutcome(
 ): SessionHistoryOutcome {
   if (session.time.archived) return "archived"
   if (timeline.some((row) => row.type === "approval_requested")) return "blocked"
+  if (lifecycle.lifecycle_state === "failed") return "failed"
   if (lifecycle.lifecycle_state === "completed") return "completed"
   return "active"
 }
@@ -1073,6 +1074,8 @@ function formatSessionOutcome(outcome: SessionHistoryOutcome) {
       return "Blocked"
     case "completed":
       return "Completed"
+    case "failed":
+      return "Failed"
     case "archived":
       return "Archived"
   }
@@ -1090,6 +1093,8 @@ function formatSessionLifecycleState(state: SessionLifecycleState) {
       return "Interrupted"
     case "abandoned":
       return "Abandoned"
+    case "failed":
+      return "Failed"
   }
 }
 

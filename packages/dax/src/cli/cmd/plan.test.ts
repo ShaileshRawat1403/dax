@@ -60,6 +60,19 @@ Review the approval surfaces before execution.
     expect(preview.summary).toBe("No plan was produced.")
   })
 
+  test("surfaces planning errors when no plan content was produced", () => {
+    const preview = createPlanPreview({
+      sessionID: "session_plan",
+      intent: "Review governance gaps",
+      error: "Provider model was not found.",
+    })
+
+    expect(preview.readiness).toBe("blocked")
+    expect(preview.summary).toBe("Planning failed before a plan was produced.")
+    expect(preview.error).toBe("Provider model was not found.")
+    expect(formatPlanPreview(preview)).toContain("Error: Provider model was not found.")
+  })
+
   test("formats a readable plan preview for operators", () => {
     const rendered = formatPlanPreview(
       createPlanPreview({

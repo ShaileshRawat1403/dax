@@ -273,6 +273,15 @@ function buildLifecycleCheck(
   terminal: boolean,
   requiresReconciliation: boolean,
 ): VerificationCheck {
+  if (state === "failed") {
+    return {
+      id: "lifecycle_state",
+      label: "Lifecycle state",
+      status: "fail",
+      summary: "Session execution terminated with an unrecovered failure.",
+    }
+  }
+
   if (terminal && !requiresReconciliation) {
     return {
       id: "lifecycle_state",
@@ -607,6 +616,8 @@ function formatLifecycleState(state: SessionLifecycleState) {
       return "Interrupted"
     case "abandoned":
       return "Abandoned"
+    case "failed":
+      return "Failed"
   }
 }
 

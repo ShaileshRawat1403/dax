@@ -661,7 +661,7 @@ describe("session timeline helpers", () => {
       expect(typeof summary.artifact_count).toBe("number")
       expect(typeof summary.approval_count).toBe("number")
       expect(typeof summary.override_count).toBe("number")
-      expect(["active", "blocked", "completed", "archived"]).toContain(summary.outcome)
+      expect(["active", "blocked", "completed", "failed", "archived"]).toContain(summary.outcome)
       expect(["discovery", "planning", "implementation", "verification", "review", "release_preparation"]).toContain(
         summary.stage,
       )
