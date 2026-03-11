@@ -365,6 +365,21 @@ export function renderExploreResult(
   return lines.join("\n").trimEnd()
 }
 
+export async function exploreRepository(root: string) {
+  const outputs = mergeExplorePassOutputs(
+    mergeExplorePassOutputs(
+      mergeExplorePassOutputs(
+        mergeExplorePassOutputs(createEmptyExplorePassOutputs(), await runBoundaryPass(root)),
+        await runEntryPointPass(root),
+      ),
+      await runIntegrationPass(root),
+    ),
+    await runExecutionFlowPass(root),
+  )
+
+  return buildExploreResult(outputs)
+}
+
 const REPO_SHAPE_SIGNALS = [
   "package.json",
   "pnpm-workspace.yaml",
