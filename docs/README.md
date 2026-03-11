@@ -74,6 +74,10 @@ Use this index based on your role and goal.
 - [DAX_TERMINAL_CONSTRAINTS.md](DAX_TERMINAL_CONSTRAINTS.md): width tiers, sidebar collapse behavior, overlay sizing, scrolling, and resize rules for the workstation
 - [DAX_TUI_IMPLEMENTATION_PLAN.md](DAX_TUI_IMPLEMENTATION_PLAN.md): final bridge from workstation design into TUI layout regions, component boundaries, overlay routing, resize handling, and event-loop responsibilities
 - [DAX_EXECUTION_OPERATOR_TONE.md](DAX_EXECUTION_OPERATOR_TONE.md): hard voice contract for DAX as a calm execution operator across stream, sidebar, and overlays
+- [DAX_MODE_MODEL.md](DAX_MODE_MODEL.md): mode inheritance model for Operator, ELI12, and Explore without breaking the execution-operator identity
+- [DAX_SUBAGENT_MODEL.md](DAX_SUBAGENT_MODEL.md): specialist-operator model for Git, Explore, Verify, Release, and Artifact without separate personalities
+- [DAX_SKILLS_MODEL.md](DAX_SKILLS_MODEL.md): skills as reusable capability packs for prompts, tools, checks, workflows, and output contracts
+- [DAX_EXPLORE_MODE.md](DAX_EXPLORE_MODE.md): structured repository-understanding mode that returns maps, entry points, reading order, unknowns, and follow-up targets
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution

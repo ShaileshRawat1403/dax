@@ -289,6 +289,76 @@ Why it worked:
 - it stops reasoning language from leaking into the stream
 - it gives each surface a distinct job
 
+## Session 004: Lock Modes Before Explore, Sub-Agents, And Skills
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted to design modes, sub-agents, skills, and Explore mode without destabilizing the workstation, interaction model, or execution-operator voice.
+
+### What The Session Revealed
+
+The correct dependency order is:
+
+1. mode model
+2. sub-agent model
+3. skills model
+4. Explore mode
+
+This prevents Explore from turning into shallow summarization and prevents sub-agents from becoming competing personas.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 12: Lock inheritance rules before specialist features
+
+The strongest move was to define what modes are allowed to change before defining what sub-agents or skills can do.
+
+Why it worked:
+
+- it protected the stream persona
+- it protected the sidebar contract
+- it reduced later UI and behavior drift
+
+#### Pattern 13: Treat ELI12 as an explanation modifier, not a narration mode
+
+This was an important clarification.
+
+Why it worked:
+
+- it preserves the execution-operator stream
+- it keeps overlays and guided help as the right place for simplification
+- it avoids splitting the product into multiple voices
+
+#### Pattern 14: Treat skills as capability packs, not personalities
+
+Defining skills as prompts, tools, checks, workflow steps, and output contracts keeps them operational.
+
+Why it worked:
+
+- it keeps tone centralized
+- it keeps reuse practical
+- it stops skills from fragmenting the system identity
+
+#### Pattern 15: Make Explore produce structured repo understanding, not prose impressions
+
+The strongest Explore contract is file-grounded and output-shaped:
+
+- entry points
+- execution flow
+- orchestration loop
+- integration map
+- important files
+- reading order
+- unknowns
+- follow-up targets
+
+Why it worked:
+
+- it makes Explore actually useful for engineering work
+- it prevents README paraphrasing
+- it aligns Explore with the control-plane product, not a summarizer product
+
 ## Session 003: Settle Write Outcome Semantics Before Surface Expansion
 
 Date: March 10, 2026
