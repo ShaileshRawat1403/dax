@@ -5,6 +5,7 @@ import { HELP_GROUPS } from "../help"
 import { bootstrap } from "../bootstrap"
 import { aggregateDoctorReport } from "@/doctor"
 import { MCP } from "@/mcp"
+import { Command } from "@/command"
 
 const repoRoot = path.resolve(import.meta.dir, "../../../..")
 const repoConfig = path.join(repoRoot, ".dax", "dax.jsonc")
@@ -44,6 +45,17 @@ describe("operator contract coverage", () => {
     async () => {
       const report = await withRepoConfig(() => bootstrap(repoRoot, () => aggregateDoctorReport(repoRoot)))
       expect(report.sections.map((item) => item.id)).toEqual(["auth", "mcp", "env", "project"])
+    },
+    40000,
+  )
+
+  test(
+    "session command catalog includes explore as a first-class operator entry",
+    async () => {
+      const commands = await withRepoConfig(() => bootstrap(repoRoot, () => Command.list()))
+      const explore = commands.find((item) => item.name === Command.Default.EXPLORE)
+      expect(explore?.description).toContain("/explore")
+      expect(explore?.hints).toContain("--eli12")
     },
     40000,
   )

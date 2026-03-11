@@ -1,8 +1,7 @@
 import type { Argv } from "yargs"
-import path from "path"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
-import { exploreRepository, renderExploreResult } from "../../explore/repo-explore"
+import { runExploreOperator } from "../../explore/operator"
 
 export const ExploreCommand = cmd({
   command: "explore [path]",
@@ -26,16 +25,15 @@ export const ExploreCommand = cmd({
         default: false,
       }),
   handler: async (args) => {
-    const target = path.resolve(process.cwd(), String(args.path ?? "."))
+    const target = String(args.path ?? ".")
     await bootstrap(target, async () => {
-      const result = await exploreRepository(target)
-
-      if (args.format === "json") {
-        console.log(JSON.stringify(result, null, 2))
-        return
-      }
-
-      console.log(renderExploreResult(result, { eli12: Boolean(args.eli12) }))
+      const output = await runExploreOperator({
+        baseDir: process.cwd(),
+        pathArg: target,
+        format: args.format === "json" ? "json" : "table",
+        eli12: Boolean(args.eli12),
+      })
+      console.log(output.rendered)
     })
   },
 })

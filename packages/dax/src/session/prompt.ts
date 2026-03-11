@@ -52,6 +52,7 @@ import { Audit } from "@/audit"
 import { Config } from "@/config/config"
 import { DocOps } from "@/docops"
 import { buildPreferredNamePrompt } from "@/dax/user-profile"
+import { parseExploreArguments, runExploreOperator } from "@/explore/operator"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -1700,6 +1701,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
       return result
     }
+    if (input.command === Command.Default.EXPLORE) {
+      const result = await commandExplore(input)
+      Bus.publish(Command.Event.Executed, {
+        name: input.command,
+        sessionID: input.sessionID,
+        arguments: input.arguments,
+        messageID: result.info.id,
+      })
+      return result
+    }
     const command = await Command.get(input.command)
     const agentName = command.agent ?? input.agent ?? (await Agent.defaultAgent())
 
@@ -2105,6 +2116,25 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       input,
       commandName: Command.Default.DOCS,
       text,
+    })
+  }
+
+  async function commandExplore(input: CommandInput): Promise<MessageV2.WithParts> {
+    const parsed = parseExploreArguments(input.arguments)
+    const output = await runExploreOperator({
+      baseDir: Instance.worktree,
+      pathArg: parsed.pathArg,
+      format: parsed.format,
+      eli12: parsed.eli12,
+    })
+
+    return respondCommandText({
+      input: {
+        ...input,
+        agent: "explore",
+      },
+      commandName: Command.Default.EXPLORE,
+      text: output.rendered,
     })
   }
 
