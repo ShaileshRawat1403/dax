@@ -85,6 +85,66 @@ The first useful version should stay small:
 
 That is enough to validate whether session learning is genuinely useful before expanding it into a larger product surface.
 
+## Automatic Extraction Direction
+
+The long-term value is not manual notes.
+
+The long-term value is automatic signal extraction from governed sessions.
+
+### Target Rule
+
+Session learning should eventually be derived from session evidence, not written as generic advice.
+
+### Candidate Learning Event Shape
+
+```text
+learning_event
+  session_id
+  category
+  signal
+  evidence
+  confidence
+```
+
+Example categories:
+
+- prompt-pattern
+- execution-pattern
+- friction-pattern
+- approval-bottleneck
+- feature-opportunity
+
+Example evidence:
+
+- commands executed
+- files touched
+- artifacts produced
+- approvals requested
+- lifecycle outcomes
+- verification/readiness results
+
+### Candidate Future Surfaces
+
+- `dax learn`
+- `dax learn repo`
+- `dax learn export`
+- `dax learn suggest`
+
+### Product Rule
+
+Learning must remain:
+
+- structured
+- evidence-grounded
+- session-linked
+- confidence-labeled
+
+It must not become:
+
+- generic tips
+- chatty coaching
+- untraceable summaries
+
 ## Product Rule
 
 Only lessons grounded in real session evidence should become durable learning.
