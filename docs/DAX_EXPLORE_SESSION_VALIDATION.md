@@ -84,25 +84,22 @@ Current judgment:
 
 ### 3. ELI12 Behavior
 
-Result: weak
+Initial result: weak
 
-`--eli12` currently does not materially simplify populated Explore results.
+The first validation pass showed that `--eli12` did not materially simplify populated Explore results.
 
-Observed behavior:
+Follow-on polish pass:
 
-- empty or uncertain wording is somewhat softer
-- non-empty sections still read very similarly to the normal Explore output
+- section openings now explain what each section is for
+- findings compress path noise instead of dumping full path lists
+- reading order now stays on one line in `ELI12`
+- follow-up items now read as clearer next checks
 
 Current judgment:
 
-- `ELI12` is not broken
-- but it is not yet doing enough to justify itself as a strong Explore modifier
-
-Likely next action if a polish pass is chosen:
-
-- simplify section summaries and reading-order language
-- preserve evidence markers and structure
-- avoid collapsing into vague repo-summary prose
+- `ELI12` is now useful enough to keep
+- it stays structured instead of becoming a fluffy repo summary
+- it still preserves evidence markers and honesty
 
 ### 4. JSON In Session
 
@@ -181,6 +178,6 @@ Choose one of two paths:
 
 Current recommendation:
 
-- allow at most one small polish pass
+- freeze Explore after this polish pass
 - do not reopen broader engine refinement
 - do not move to workstation Explore exposure yet
