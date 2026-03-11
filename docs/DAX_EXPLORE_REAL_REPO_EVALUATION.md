@@ -11,6 +11,8 @@ Status:
   - runtime entry classification refinement
   - workspace execution-flow tracing refinement
   - integration signal quality refinement
+- third validation batch recorded after:
+  - targeted workspace execution-flow refinement for generic bootstrap and workspace-package handoff detection
 
 ## Repo Set
 
@@ -350,3 +352,97 @@ Do not shift to:
 - another broad integration pass
 
 until that workspace-flow refinement has been validated against the same repo set.
+
+## Third Validation Batch
+
+Date: March 11, 2026
+
+This third batch reran the same five local repos after the targeted workspace-flow refinement that added:
+
+- app/service source scanning in the execution-flow pass
+- generic bootstrap-to-module detection
+- worker bootstrap and inline orchestration detection
+- workspace package-name import tracing
+
+### What Improved
+
+#### `soothsayer`
+
+- this is the clearest improvement in the batch
+- execution graph is no longer thin:
+  - worker dispatch is now surfaced from `apps/worker/src/main.ts`
+  - web bootstrap handoff is now surfaced from `apps/web/src/main.tsx -> apps/web/src/App.tsx`
+- orchestration loop is now no longer `unknown`:
+  - worker orchestration is detected from the multi-worker inline runtime
+  - API bootstrap handoff into `AppModule` and websocket/runtime boundaries is detected from `apps/api/src/main.ts`
+- important files now include actual orchestration files instead of only roots and candidate runtime manifests
+
+Interpretation:
+
+- the refinement fixed the right thing
+- Explore is now materially better on multi-surface workspaces where orchestration lives in app/service bootstraps rather than only in shared packages
+
+#### `dax`
+
+- remains a strong Explore target
+- no regression from the new generic bootstrap heuristics
+- execution graph and orchestration loop remain strong
+- worker/TUI flow continues to read like a real runtime map
+
+Interpretation:
+
+- the refinement generalized without breaking the repo it was originally tuned around
+
+#### `dax-cli`
+
+- remains strong
+- execution graph still reads clearly across CLI, TUI, server, and session surfaces
+- generic bootstrap detection adds useful server-flow visibility instead of noise
+
+Interpretation:
+
+- broader bootstrap detection is still helping more than hurting on DAX-shaped workspaces
+
+### What Did Not Improve Much
+
+#### `dao`
+
+- still honest but thin
+- entry remains correct
+- execution graph and orchestration loop are still unconfirmed
+
+Interpretation:
+
+- the remaining gap is still mixed-language runtime tracing, not output shape
+
+#### `pruningmypothos`
+
+- still mostly shape + CI + unknowns
+- the new flow heuristics do not invent a runtime chain, which is the correct behavior
+
+Interpretation:
+
+- this remains an honest limit of current file-grounded runtime detection
+
+### New Cross-Repo Pattern
+
+The refinement confirms a useful Explore rule:
+
+- execution-flow quality improves most when DAX can recognize runtime bootstraps and workspace package-name handoffs
+- once that works, large workspaces stop looking “thin by accident”
+- repos that remain thin after that are usually thin because evidence is genuinely weak, not because the output model is wrong
+
+### Updated Recommendation
+
+Explore is now closer to product-ready for CLI use, but not yet ready for broader plumbing.
+
+The next choice should be:
+
+1. one more narrow validation-informed refinement only if a repeated pattern remains
+2. otherwise start defining broader Explore plumbing from a now-stable engine
+
+Current evidence suggests:
+
+- `soothsayer` no longer justifies another broad workspace-flow rewrite
+- `dao` and `pruningmypothos` are mostly honest-evidence limits
+- the next Explore decision can shift from engine correctness toward product-surface readiness

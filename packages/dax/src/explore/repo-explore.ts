@@ -543,6 +543,13 @@ type IntegrationCandidate = {
 
 type PackageRuntimeIntent = "runtime" | "library" | "unknown"
 type PackageFlowRole = "runtime_surface" | "orchestration_core" | "supporting_library" | "unknown"
+type PackageDescriptor = {
+  absoluteRoot: string
+  relativeRoot: string
+  packageName?: string
+  intent: PackageRuntimeIntent
+  role: PackageFlowRole
+}
 
 type ExecutionFlowCandidate = {
   label: ExecutionFlowLabel
@@ -771,19 +778,73 @@ async function resolveRelativeImport(baseFile: string, specifier: string) {
 
 async function extractRelativeImports(absoluteFile: string, content: string) {
   const imports = new Set<string>()
+  for (const specifier of extractImportSpecifiers(content)) {
+    if (!specifier.startsWith(".")) continue
+    const resolved = await resolveRelativeImport(absoluteFile, specifier)
+    if (resolved) imports.add(resolved)
+  }
+
+  return [...imports]
+}
+
+function extractImportSpecifiers(content: string) {
+  const specifiers: string[] = []
   const patterns = [
-    /import\s+(?:[^'"]+?\s+from\s+)?["'](\.[^"']+)["']/g,
-    /await\s+import\(["'](\.[^"']+)["']\)/g,
+    /import\s+(?:[^'"]+?\s+from\s+)?["']([^"']+)["']/g,
+    /await\s+import\(["']([^"']+)["']\)/g,
   ]
 
   for (const pattern of patterns) {
     for (const match of content.matchAll(pattern)) {
       const specifier = match[1]
-      const resolved = await resolveRelativeImport(absoluteFile, specifier)
-      if (resolved) imports.add(resolved)
+      if (specifier) specifiers.push(specifier)
     }
   }
 
+  return specifiers
+}
+
+async function resolveWorkspacePackageImport(root: string, specifier: string, packageDescriptors: PackageDescriptor[]) {
+  const descriptor = packageDescriptors
+    .filter((item) => item.packageName)
+    .sort((a, b) => (b.packageName?.length ?? 0) - (a.packageName?.length ?? 0))
+    .find((item) => specifier === item.packageName || specifier.startsWith(`${item.packageName}/`))
+
+  if (!descriptor || !descriptor.packageName) return undefined
+
+  const subpath = specifier.slice(descriptor.packageName.length).replace(/^\/+/, "")
+  const candidates = subpath
+    ? [
+        path.join(descriptor.absoluteRoot, "src", `${subpath}.ts`),
+        path.join(descriptor.absoluteRoot, "src", `${subpath}.tsx`),
+        path.join(descriptor.absoluteRoot, "src", subpath, "index.ts"),
+        path.join(descriptor.absoluteRoot, "src", subpath, "index.tsx"),
+        path.join(descriptor.absoluteRoot, `${subpath}.ts`),
+        path.join(descriptor.absoluteRoot, `${subpath}.tsx`),
+        path.join(descriptor.absoluteRoot, subpath, "index.ts"),
+        path.join(descriptor.absoluteRoot, subpath, "index.tsx"),
+      ]
+    : [
+        path.join(descriptor.absoluteRoot, "src", "index.ts"),
+        path.join(descriptor.absoluteRoot, "src", "index.tsx"),
+      ]
+
+  for (const candidate of candidates) {
+    if (await Filesystem.exists(candidate)) {
+      return path.relative(root, candidate).replace(/\\/g, "/")
+    }
+  }
+
+  return descriptor.relativeRoot
+}
+
+async function extractWorkspacePackageImports(root: string, content: string, packageDescriptors: PackageDescriptor[]) {
+  const imports = new Set<string>()
+  for (const specifier of extractImportSpecifiers(content)) {
+    if (specifier.startsWith(".")) continue
+    const resolved = await resolveWorkspacePackageImport(root, specifier, packageDescriptors)
+    if (resolved) imports.add(resolved)
+  }
   return [...imports]
 }
 
@@ -853,6 +914,37 @@ function looksExecutionSurfaceFile(relativePath: string) {
 
 function looksOrchestrationFile(relativePath: string) {
   return /(session|runtime|workflow|dispatch|processor|prompt|approval|govern|orchestrat|execute|runner)/i.test(relativePath)
+}
+
+function looksExecutionContractFile(relativePath: string) {
+  return /(app\.module|\.module|\.service|\.controller|websocket|redis-io\.adapter|lib\/api|domain\/workflow|domain\/tool|api\/workflows|api\/commands|personas|prompts|models)/i.test(
+    relativePath,
+  )
+}
+
+function detectExecutionSurfaceKind(relativePath: string, content: string) {
+  const lower = content.toLowerCase()
+  if (lower.includes("new worker(") || lower.includes("queue.process") || /(^|\/)worker\.[^/]+$/i.test(relativePath)) {
+    return "worker"
+  }
+  if (lower.includes("nestfactory.create(") || /(^|\/)main\.ts$/i.test(relativePath) || /(^|\/)server\.[^/]+$/i.test(relativePath)) {
+    return "server"
+  }
+  if (lower.includes("createroot(") || lower.includes("reactdom.createroot(") || /(^|\/)main\.tsx$/i.test(relativePath)) {
+    return "web"
+  }
+  if (lower.includes("yargs") || lower.includes("commander") || /\/cli\/cmd\//.test(relativePath)) {
+    return "cli"
+  }
+  return "runtime"
+}
+
+function selectBootstrapTargets(relativeFile: string, importRelatives: string[]) {
+  const preferred = importRelatives.filter((item) =>
+    looksOrchestrationFile(item) || looksExecutionContractFile(item) || looksExecutionSurfaceFile(item),
+  )
+  if (preferred.length > 0) return preferred
+  return importRelatives.filter((item) => item !== relativeFile && !isTestPath(item) && !isExploreSelfPath(item))
 }
 
 function packageRelativeRootForFile(relativePath: string, packageRoots: string[]) {
@@ -1346,13 +1438,16 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
     packageRoots.map(async (packageRoot) => {
       const relativeRoot = path.relative(resolvedRoot, packageRoot).replace(/\\/g, "/") || "."
       const packageJson = await readJsonIfExists(path.join(packageRoot, "package.json"))
+      const packageRecord =
+        packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined
       const intent = inferPackageRuntimeIntent(
         relativeRoot,
-        packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined,
+        packageRecord,
       )
       return {
         absoluteRoot: packageRoot,
         relativeRoot,
+        packageName: typeof packageRecord?.name === "string" ? packageRecord.name : undefined,
         intent,
         role: classifyPackageFlowRole(relativeRoot, intent),
       }
@@ -1382,17 +1477,33 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
     for (const item of candidate.paths) addImportantFile(item, candidate.role)
   }
 
-  const sourceFiles = await listExistingFiles(resolvedRoot, ["packages/**/src/**/*.ts", "packages/**/src/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"])
+  const sourceFiles = await listExistingFiles(resolvedRoot, [
+    "packages/**/src/**/*.ts",
+    "packages/**/src/**/*.tsx",
+    "apps/**/src/**/*.ts",
+    "apps/**/src/**/*.tsx",
+    "services/**/src/**/*.ts",
+    "services/**/src/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+  ])
   const repoFiles = sourceFiles.map((relative) => path.join(resolvedRoot, relative))
 
   for (const absoluteFile of repoFiles) {
     const relativeFile = path.relative(resolvedRoot, absoluteFile).replace(/\\/g, "/")
     const content = await readTextIfExists(absoluteFile)
     if (!content) continue
-    const imports = await extractRelativeImports(absoluteFile, content)
-    const importRelatives = imports.map((item) => path.relative(resolvedRoot, item).replace(/\\/g, "/"))
+    const relativeImports = await extractRelativeImports(absoluteFile, content)
+    const workspaceImports = await extractWorkspacePackageImports(resolvedRoot, content, packageDescriptors)
+    const importRelatives = [
+      ...new Set([
+        ...relativeImports.map((item) => path.relative(resolvedRoot, item).replace(/\\/g, "/")),
+        ...workspaceImports,
+      ]),
+    ]
     const sourcePackageRoot = packageRelativeRootForFile(relativeFile, packageRelativeRoots)
     const sourcePackage = packageDescriptors.find((item) => item.relativeRoot === sourcePackageRoot)
+    const executionSurfaceKind = detectExecutionSurfaceKind(relativeFile, content)
     const crossPackageTargets = importRelatives
       .map((targetPath) => {
         const targetPackageRoot = packageRelativeRootForFile(targetPath, packageRelativeRoots)
@@ -1403,6 +1514,7 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
         }
       })
       .filter((item) => item.packageRoot !== sourcePackageRoot && !isTestPath(item.path) && !isExploreSelfPath(item.path))
+    const localBootstrapTargets = selectBootstrapTargets(relativeFile, importRelatives).slice(0, 3)
 
     if (relativeFile.endsWith("src/index.ts") && content.includes(".command(")) {
       const commandTargets = importRelatives.filter((item) => item.includes("/cli/cmd/"))
@@ -1425,6 +1537,58 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
           paths: [relativeFile],
           reason: "command registration detected but downstream handler file was not confirmed",
           role: "execution flow surface",
+        })
+      }
+    }
+
+    if ((executionSurfaceKind === "server" || executionSurfaceKind === "web") && looksExecutionSurfaceFile(relativeFile)) {
+      if (localBootstrapTargets.length > 0) {
+        const hasConfirmedBoundary = localBootstrapTargets.some(
+          (item) => looksOrchestrationFile(item) || looksExecutionContractFile(item),
+        )
+        addFlow({
+          label: executionSurfaceKind === "server" ? "server_request_flow" : "workspace_handoff_flow",
+          section: hasConfirmedBoundary ? "orchestration_loop" : "execution_graph",
+          kind: hasConfirmedBoundary ? "observed" : "inferred",
+          summary:
+            executionSurfaceKind === "server"
+              ? "server bootstrap hands control into application modules and runtime boundaries"
+              : "web bootstrap hands control into the application shell and runtime boundaries",
+          paths: [relativeFile, ...localBootstrapTargets],
+          reason:
+            executionSurfaceKind === "server"
+              ? "bootstrap file imports concrete modules, adapters, or services that shape request handling"
+              : "bootstrap file imports the application shell or runtime client boundaries that shape frontend execution",
+          role: hasConfirmedBoundary ? "orchestration loop surface" : "execution flow surface",
+        })
+      }
+    }
+
+    if (executionSurfaceKind === "worker" && looksExecutionSurfaceFile(relativeFile)) {
+      if (content.includes("new Worker(") || content.includes("queue.process")) {
+        addFlow({
+          label: "worker_dispatch_flow",
+          section: "execution_graph",
+          kind: "observed",
+          summary: "worker bootstrap registers async job handlers and dispatch boundaries",
+          paths: [relativeFile, ...localBootstrapTargets.slice(0, 2)],
+          reason: "worker definitions or queue processing were detected in a runtime bootstrap",
+          role: "execution flow surface",
+        })
+      }
+      if (
+        (content.match(/new Worker\(/g)?.length ?? 0) >= 2 ||
+        (content.includes("job.data") &&
+          (content.toLowerCase().includes("workflow step") || content.includes("switch (") || content.includes("switch(")))
+      ) {
+        addFlow({
+          label: "worker_dispatch_flow",
+          section: "orchestration_loop",
+          kind: "observed",
+          summary: "worker runtime coordinates multiple async execution paths",
+          paths: [relativeFile],
+          reason: "multiple worker registrations or inline workflow/job coordination signals were detected together",
+          role: "orchestration loop surface",
         })
       }
     }
@@ -1525,30 +1689,50 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
 
     const relevantCrossPackageTargets = crossPackageTargets.filter((item) => {
       const targetRole = item.descriptor?.role ?? "unknown"
-      if (targetRole === "supporting_library") return false
-      return looksOrchestrationFile(item.path) || looksExecutionSurfaceFile(relativeFile) || sourcePackage?.role === "runtime_surface"
+      if (targetRole === "supporting_library") {
+        return looksExecutionContractFile(item.path) && (sourcePackage?.role === "runtime_surface" || looksExecutionSurfaceFile(relativeFile))
+      }
+      return (
+        looksOrchestrationFile(item.path) ||
+        looksExecutionContractFile(item.path) ||
+        looksExecutionSurfaceFile(relativeFile) ||
+        sourcePackage?.role === "runtime_surface"
+      )
     })
 
     for (const target of relevantCrossPackageTargets.slice(0, 2)) {
       const targetRole = target.descriptor?.role ?? "unknown"
+      const isContractTarget = looksExecutionContractFile(target.path)
       const handoffKind: ExploreEvidenceKind =
-        targetRole === "orchestration_core" || looksOrchestrationFile(target.path) ? "observed" : "inferred"
+        targetRole === "orchestration_core" || looksOrchestrationFile(target.path) || isContractTarget
+          ? "observed"
+          : "inferred"
       const handoffSummary =
         targetRole === "orchestration_core"
           ? "runtime surface hands execution into workspace orchestration package"
+          : targetRole === "supporting_library" && isContractTarget
+            ? "runtime surface relies on a workspace contract or runtime boundary package"
           : "runtime surface likely hands execution into another workspace runtime boundary"
       const handoffReason =
         targetRole === "orchestration_core"
           ? "cross-package import points from a runtime surface into an orchestration file"
+          : targetRole === "supporting_library" && isContractTarget
+            ? "cross-package import points from a runtime surface into workflow, tool, model, persona, or api contract files"
           : "cross-package import points into a runtime-adjacent package, but the final orchestration role is not fully confirmed"
       addFlow({
         label: "workspace_handoff_flow",
-        section: targetRole === "orchestration_core" || looksOrchestrationFile(target.path) ? "orchestration_loop" : "execution_graph",
+        section:
+          targetRole === "orchestration_core" || looksOrchestrationFile(target.path) || (targetRole === "supporting_library" && isContractTarget)
+            ? "orchestration_loop"
+            : "execution_graph",
         kind: handoffKind,
         summary: handoffSummary,
         paths: [relativeFile, target.path],
         reason: handoffReason,
-        role: targetRole === "orchestration_core" ? "orchestration loop surface" : "execution flow surface",
+        role:
+          targetRole === "orchestration_core" || (targetRole === "supporting_library" && isContractTarget)
+            ? "orchestration loop surface"
+            : "execution flow surface",
       })
     }
   }

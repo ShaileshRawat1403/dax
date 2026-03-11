@@ -317,7 +317,7 @@ describe("repo explore scaffolding", () => {
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("cli_command_flow: cli bootstrap dispatches into command handlers"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("tui_action_flow: tui action submits work into session runtime"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("session_execution_flow: session surface hands work into the prompt runtime"))).toBe(true)
-    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("worker_dispatch_flow: tui thread hands execution into a worker rpc boundary"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("worker_dispatch_flow: worker bootstrap registers async job handlers and dispatch boundaries"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: packages/app acts as a runtime surface package"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: packages/runtime acts as an orchestration package"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: packages/utils acts as a supporting library-only package"))).toBe(true)
@@ -326,6 +326,78 @@ describe("repo explore scaffolding", () => {
     expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: runtime surface hands execution into workspace orchestration package"))).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "packages/runtime/src/session/index.ts")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "packages/runtime/src/session/processor.ts")).toBe(true)
+  })
+
+  it("traces workspace package imports and generic bootstraps in multi-surface repos", async () => {
+    const root = await mkdtemp()
+
+    await Bun.write(path.join(root, "apps", "api", "package.json"), JSON.stringify({ name: "@repo/api", scripts: { dev: "nest start" } }))
+    await Bun.write(path.join(root, "apps", "web", "package.json"), JSON.stringify({ name: "@repo/web", scripts: { dev: "vite" } }))
+    await Bun.write(path.join(root, "services", "worker", "package.json"), JSON.stringify({ name: "@repo/worker", scripts: { dev: "tsx src/main.ts" } }))
+    await Bun.write(path.join(root, "packages", "types", "package.json"), JSON.stringify({ name: "@repo/types", main: "./dist/index.js", types: "./dist/index.d.ts" }))
+
+    await Bun.write(
+      path.join(root, "apps", "api", "src", "main.ts"),
+      [
+        `import { NestFactory } from "@nestjs/core"`,
+        `import { AppModule } from "./app.module"`,
+        `async function bootstrap() {`,
+        `  const app = await NestFactory.create(AppModule)`,
+        `  await app.listen(3000)`,
+        `}`,
+      ].join("\n"),
+    )
+    await Bun.write(
+      path.join(root, "apps", "api", "src", "app.module.ts"),
+      `import { WorkflowsModule } from "./modules/workflows/workflows.module"\nexport class AppModule {}\n`,
+    )
+    await Bun.write(
+      path.join(root, "apps", "api", "src", "modules", "workflows", "workflows.module.ts"),
+      `import { WorkflowsService } from "./workflows.service"\nexport class WorkflowsModule {}\n`,
+    )
+    await Bun.write(
+      path.join(root, "apps", "api", "src", "modules", "workflows", "workflows.service.ts"),
+      `import type { Workflow } from "@repo/types/domain/workflow"\nexport class WorkflowsService {}\n`,
+    )
+
+    await Bun.write(
+      path.join(root, "apps", "web", "src", "main.tsx"),
+      [
+        `import ReactDOM from "react-dom/client"`,
+        `import App from "./App"`,
+        `ReactDOM.createRoot(document.getElementById("root")!).render(<App />)`,
+      ].join("\n"),
+    )
+    await Bun.write(path.join(root, "apps", "web", "src", "App.tsx"), `import { api } from "./lib/api"\nexport default function App() { return null }\n`)
+    await Bun.write(path.join(root, "apps", "web", "src", "lib", "api.ts"), `import axios from "axios"\nexport const api = axios.create({})\n`)
+
+    await Bun.write(
+      path.join(root, "services", "worker", "src", "main.ts"),
+      [
+        `import { Worker } from "bullmq"`,
+        `import type { WorkflowRun } from "@repo/types/api/workflows"`,
+        `const workflowWorker = new Worker("workflow", async (job) => {`,
+        `  const payload: WorkflowRun = job.data`,
+        `  switch (payload.status) {`,
+        `    case "running": return payload`,
+        `  }`,
+        `})`,
+      ].join("\n"),
+    )
+
+    await Bun.write(path.join(root, "packages", "types", "src", "domain", "workflow.ts"), `export type Workflow = { id: string }\n`)
+    await Bun.write(path.join(root, "packages", "types", "src", "api", "workflows.ts"), `export type WorkflowRun = { status: "running" }\n`)
+    await Bun.write(path.join(root, "packages", "types", "src", "index.ts"), `export * from "./domain/workflow"\n`)
+
+    const delta = await runExecutionFlowPass(root)
+    const outputs = mergeExplorePassOutputs(createEmptyExplorePassOutputs(), delta)
+
+    expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("server_request_flow: server bootstrap hands control into application modules and runtime boundaries"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: web bootstrap hands control into the application shell and runtime boundaries"))).toBe(true)
+    expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: runtime surface relies on a workspace contract or runtime boundary package"))).toBe(true)
+    expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("worker_dispatch_flow: worker runtime coordinates multiple async execution paths"))).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "apps/api/src/app.module.ts")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "packages/types/src/domain/workflow.ts")).toBe(true)
   })
 
   it("synthesizes ranked important files, reading order, and follow-up targets from real pass evidence", () => {
@@ -501,6 +573,8 @@ async function mkdtemp() {
   await Bun.$`mkdir -p ${path.join(dir, "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "bin")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "apps", "api", "src")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "apps", "api", "src", "modules", "workflows")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "apps", "web", "src", "lib")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "services", "worker", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "console", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "lib")}`.quiet()
@@ -509,6 +583,8 @@ async function mkdtemp() {
   await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "session")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "runtime", "src", "session")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "utils", "src")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "types", "src", "domain")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "types", "src", "api")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, ".github", "workflows")}`.quiet()
   return dir
 }
