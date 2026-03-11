@@ -10,6 +10,12 @@ export function Footer(props?: {
   trustLabel?: string
   focusLabel?: string
   focusHints?: string[]
+  onOpenTimeline?: () => void
+  onOpenArtifacts?: () => void
+  onOpenVerify?: () => void
+  onOpenRelease?: () => void
+  onOpenInspect?: () => void
+  onOpenApprovals?: () => void
 }) {
   const { theme } = useTheme()
   const sync = useSync()
@@ -26,6 +32,19 @@ export function Footer(props?: {
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
   const compactHints = createMemo(() => (props?.focusHints ?? []).slice(0, small() ? 2 : 3))
+  const footerActions = createMemo(() => {
+    const actions: Array<{ label: string; onPress?: () => void }> = [
+      { label: tiny() ? "[t]" : "[t] timeline", onPress: props?.onOpenTimeline },
+      { label: tiny() ? "[a]" : "[a] artifacts", onPress: props?.onOpenArtifacts },
+      { label: tiny() ? "[v]" : "[v] verify", onPress: props?.onOpenVerify },
+      { label: tiny() ? "[r]" : "[r] release", onPress: props?.onOpenRelease },
+      { label: tiny() ? "[i]" : "[i] inspect", onPress: props?.onOpenInspect },
+    ]
+    if (permissions().length > 0) {
+      actions.push({ label: tiny() ? "[p]" : "[p] approvals", onPress: props?.onOpenApprovals })
+    }
+    return actions.filter((action) => !!action.onPress)
+  })
 
   const mode = createMemo(() => {
     if (route.data.type !== "session") return "Launch"
@@ -88,6 +107,17 @@ export function Footer(props?: {
                   </Show>
                   <text fg={theme.textMuted}>{hint}</text>
                 </>
+              )}
+            </For>
+          </box>
+        </Show>
+        <Show when={footerActions().length > 0}>
+          <box gap={1} flexDirection="row" alignItems="center" flexWrap="wrap">
+            <For each={footerActions()}>
+              {(action) => (
+                <box onMouseUp={() => action.onPress?.()}>
+                  <text fg={theme.textMuted}>{action.label}</text>
+                </box>
               )}
             </For>
           </box>
