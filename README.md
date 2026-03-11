@@ -89,13 +89,14 @@ The scaffold paths are retained only as quarantined legacy material until they a
 - `dax audit` exposes trust posture by summarizing approvals, overrides, evidence presence, and audit findings.
 - `dax verify` judges whether a session has enough evidence and governance signal to reach a stronger trust posture.
 - `dax release check` judges whether a trusted session is ready for review, handoff, or shipping.
+- `dax explore <path>` inspects a repository and returns structured execution-oriented understanding instead of a generic summary.
 - Session personalization with `/name`, plus session cleanup with `dax session prune`.
 - Theme system with quick-switch profiles.
 - Open customization via tools, plugins, agents, and policy/config packs.
 
 ## Canonical Workflows
 
-- Start or continue governed work: `dax`, `dax plan`, `dax run`
+- Start or continue governed work: `dax`, `dax plan`, `dax run`, `dax explore`
 - Review and inspect: `dax docs`, `dax mcp`, `dax approvals`, `dax artifacts`, `dax audit`, `dax verify`, `dax release`, in-session review surfaces for approvals, changes, context, and docs
 - Diagnose and configure: `dax doctor`, `dax auth`, `dax models`
 - Automate and export: `dax serve`, `dax export`, `dax import`, `dax session prune`
