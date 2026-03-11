@@ -878,6 +878,48 @@ function describeToolFocus(part: ToolPart) {
   }
 }
 
+function partToOrchestrationPhase(part: ToolPart): OrchestrationPhase {
+  if (PLAN_TOOLS.has(part.tool)) return "plan"
+  if (EXECUTE_TOOLS.has(part.tool)) return "execute"
+  if (VERIFY_TOOLS.has(part.tool)) return "verify"
+  if (EXPLORE_TOOLS.has(part.tool)) return "understand"
+  return "execute"
+}
+
+function describeOperationalLeadRow(args: {
+  hasError: boolean
+  pendingTool?: ToolPart
+  hasReasoning: boolean
+  completedToolCount: number
+  hasOutcome: boolean
+}) {
+  if (args.hasError) return "Execution hit an error"
+  if (args.pendingTool) {
+    const phase = partToOrchestrationPhase(args.pendingTool)
+    if (phase === "understand") return "Understanding your request"
+    if (phase === "plan") return "Planning the next step"
+    if (phase === "execute") return "Executing the workflow"
+    if (phase === "verify") return "Verifying the result"
+  }
+  if (args.hasReasoning) return "Understanding your request"
+  if (args.completedToolCount === 0 && !args.hasOutcome) return "Working on your request"
+  return undefined
+}
+
+function hasToolDetail(part: ToolPart) {
+  if (part.state.status !== "completed") return false
+  if (typeof part.state.output === "string" && part.state.output.trim()) return true
+  if (part.state.output && typeof part.state.output === "object") return true
+  const metadata = (part.state.metadata ?? {}) as Record<string, any>
+  if (typeof metadata.output === "string" && metadata.output.trim()) return true
+  return false
+}
+
+type AssistantTimelineRow =
+  | { kind: "opener"; label: string; phase: OrchestrationPhase }
+  | { kind: "divider"; label: string; phase: OrchestrationPhase }
+  | { kind: "event"; label: string; phase: OrchestrationPhase; detailHint?: string; terminal?: boolean }
+
 function describeOperationalMilestone(args: {
   asked: string
   completedTools: ToolPart[]
@@ -5203,6 +5245,33 @@ function StageTimeline(props: StageTimelineProps) {
   )
 }
 
+function StreamStageDivider(props: { label: string }) {
+  const { theme } = useTheme()
+  return (
+    <box paddingLeft={3} paddingRight={1} marginTop={1}>
+      <text fg={theme.textMuted}>│──────── {props.label} ────────</text>
+    </box>
+  )
+}
+
+function StreamTimelineRow(props: { prefix: string; label: string; detailHint?: string }) {
+  const { theme } = useTheme()
+  return (
+    <box paddingLeft={3} paddingRight={1} marginTop={1} flexDirection="column">
+      <text fg={theme.text} wrapMode="word">
+        {props.prefix} {props.label}
+      </text>
+      <Show when={props.detailHint}>
+        {(hint) => (
+          <text fg={theme.textMuted} wrapMode="word">
+            │  {hint()}
+          </text>
+        )}
+      </Show>
+    </box>
+  )
+}
+
 function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; last: boolean }) {
   const ctx = use()
   const local = useLocal()
@@ -5317,6 +5386,51 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     if (traceSummary().reads > 0) return "Inspection step completed"
     return final() || props.message.time.completed ? "Run completed" : undefined
   })
+  const timelineRows = createMemo<AssistantTimelineRow[]>(() => {
+    if (narrativeIntensity() !== "operational") return []
+    if (ctx.showDetails()) return []
+
+    const rows: AssistantTimelineRow[] = []
+    const outcome = streamOutcome()
+    const lead = describeOperationalLeadRow({
+      hasError: !!props.message.error,
+      pendingTool: pendingTool(),
+      hasReasoning: hasReasoning(),
+      completedToolCount: completedToolParts().length,
+      hasOutcome: !!outcome,
+    })
+
+    if (lead) {
+      rows.push({ kind: "opener", label: lead, phase: pendingTool() ? partToOrchestrationPhase(pendingTool()!) : "understand" })
+    }
+
+    let previousPhase = rows.at(-1)?.phase
+    for (const part of completedToolParts()) {
+      const phase = partToOrchestrationPhase(part)
+      if (previousPhase && previousPhase !== phase) {
+        rows.push({ kind: "divider", label: labelOrchestrationPhase(phase, explainMode()), phase })
+      }
+      rows.push({
+        kind: "event",
+        label: describeToolFinding(part) ?? "Step completed",
+        phase,
+        detailHint: hasToolDetail(part) ? "Open detail" : undefined,
+      })
+      previousPhase = phase
+    }
+
+    if (outcome) {
+      rows.push({ kind: "event", label: outcome, phase: "complete", terminal: true })
+    }
+
+    const eventIndexes = rows.flatMap((row, index) => (row.kind === "event" ? [index] : []))
+    const lastEventIndex = eventIndexes.at(-1)
+    if (lastEventIndex !== undefined) {
+      rows[lastEventIndex] = { ...(rows[lastEventIndex] as Extract<AssistantTimelineRow, { kind: "event" }>), terminal: true }
+    }
+
+    return rows
+  })
 
   const duration = createMemo(() => {
     if (!final()) return 0
@@ -5400,14 +5514,26 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
         )}
       </Show>
-      <Show when={narrativeIntensity() === "operational" && streamOutcome()}>
-        {(line) => (
-          <box paddingTop={1} paddingBottom={0} paddingLeft={3} paddingRight={1} marginTop={0}>
-            <text fg={theme.text} wrapMode="word">
-              {line()}
-            </text>
-          </box>
-        )}
+      <Show when={timelineRows().length > 0}>
+        <For each={timelineRows()}>
+          {(row) => (
+            <Switch>
+              <Match when={row.kind === "divider"}>
+                <StreamStageDivider label={(row as Extract<AssistantTimelineRow, { kind: "divider" }>).label} />
+              </Match>
+              <Match when={row.kind === "opener"}>
+                <StreamTimelineRow prefix="│" label={(row as Extract<AssistantTimelineRow, { kind: "opener" }>).label} />
+              </Match>
+              <Match when={row.kind === "event"}>
+                <StreamTimelineRow
+                  prefix={(row as Extract<AssistantTimelineRow, { kind: "event" }>).terminal ? "└─" : "├─"}
+                  label={(row as Extract<AssistantTimelineRow, { kind: "event" }>).label}
+                  detailHint={(row as Extract<AssistantTimelineRow, { kind: "event" }>).detailHint}
+                />
+              </Match>
+            </Switch>
+          )}
+        </For>
       </Show>
 
       <For each={props.parts}>
