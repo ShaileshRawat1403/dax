@@ -42,7 +42,10 @@ export async function runGraph(
       
       try {
         const operator = await router.route(task);
-        const result = await operator.execute(task, ctx);
+        const result = await operator.execute(task, {
+          ...ctx,
+          graph,
+        });
 
         // --- RAO Governance Boundary ---
         if (result.requiresApproval) {

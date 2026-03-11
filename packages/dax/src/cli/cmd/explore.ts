@@ -31,9 +31,9 @@ export const ExploreCommand = cmd({
         default: false,
       }),
   handler: async (args) => {
-    const target = String(args.path ?? ".")
-    await bootstrap(target, async () => {
-      const resolvedTarget = path.resolve(process.cwd(), target)
+    const target = String(args.path ?? ".").replace(/\0/g, "")
+    const resolvedTarget = path.resolve(target)
+    await bootstrap(resolvedTarget, async () => {
 
       // 1. Intent Interpreter
       const intent = await interpretIntent(`explore ${target}`, { cwd: resolvedTarget })
