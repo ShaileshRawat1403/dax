@@ -1859,3 +1859,52 @@ Why it worked:
 - it converts design into implementable structure without reopening semantics
 - it gives implementation a fixed north star for architecture and sequencing
 - it cleanly marks the end of the workstation design phase
+
+## Session Pattern: Validate After A Refinement Cluster, Not Every Micro-Tweak
+
+For Explore, the strongest signal did not come from validating after every small heuristic change.
+
+It came from clustering several related refinements first:
+
+- runtime entry classification
+- workspace execution-flow tracing
+- integration signal quality
+
+and then rerunning the same mixed repo set.
+
+Why it worked:
+
+- it made the before/after comparison meaningful
+- it separated broad output-shape issues from real evidence limits
+- it prevented overreacting to noise from any one small heuristic
+
+## Session Pattern: Fix The Invisible Scope Boundary First
+
+In the targeted Explore workspace-flow refinement, the highest-leverage improvement was not a new heuristic.
+
+It was finding the invisible scope bug:
+
+- the execution-flow pass was still scanning `packages/**` and root `src/**`
+- app/service bootstraps in repos like `soothsayer` were therefore invisible
+
+Why it worked:
+
+- fixing scan scope immediately unlocked better server, worker, and web flow visibility
+- it made later heuristics meaningful because the right files were finally being analyzed
+- it is a reminder that weak output can come from omitted evidence, not weak reasoning
+
+## Session Pattern: Prefer Workspace Package-Name Handoffs Over Generic Import Expansion
+
+The next Explore gain came from tracing local workspace package imports, not from broadening into a generic import graph.
+
+Examples:
+
+- app package importing a local contract package
+- worker package importing workflow/api types from another workspace package
+- web package importing local application-shell boundaries
+
+Why it worked:
+
+- it improved execution understanding in monorepos without drowning the report in helper imports
+- it kept Explore focused on handoffs that shape runtime behavior
+- it preserved the rule that unexplained chains stay `inferred` or `unknown`
