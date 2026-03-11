@@ -199,6 +199,13 @@ type WorkstationOverlayState = {
   token: number
 }
 
+type ActionStripState = {
+  state: string
+  detail: string
+  primaryLabel: string
+  primaryAction: () => void
+}
+
 function SessionQuickAction(props: {
   theme: ThemeShape
   label: string
@@ -2129,26 +2136,39 @@ export function Session() {
   const transcriptNavigatorVisible = createMemo(
     () => pendingUpdates() > 0 || (!transcriptPosition().live && transcriptPosition().total > 10),
   )
-  const actionStripState = createMemo(() => {
+  const approvalInterruptionReason = createMemo(() => {
+    const first = permissions()[0]
+    if (first && typeof first.metadata?.description === "string" && first.metadata.description.trim()) {
+      return first.metadata.description.trim()
+    }
+    if (first) return "A governed action is waiting for operator review."
+    if (questions().length > 0) return "Execution is waiting for your input."
+    return undefined
+  })
+  const actionStripState = createMemo<ActionStripState | undefined>(() => {
     if (permissions().length > 0) {
+      const reason = approvalInterruptionReason() ?? "A governed action is waiting for operator review."
       return {
-        state: "approval required",
-        detail: `${permissions().length} request${permissions().length === 1 ? "" : "s"} waiting`,
+        state: "Approval required",
+        detail:
+          permissions().length === 1
+            ? `${reason} Execution paused.`
+            : `${permissions().length} approval requests are waiting. Execution paused.`,
         primaryLabel: SESSION_COMMAND_LABELS.reviewApprovals,
         primaryAction: openApprovalsReview,
       }
     }
     if (questions().length > 0) {
       return {
-        state: "blocked",
-        detail: `${questions().length} question${questions().length === 1 ? "" : "s"} waiting`,
+        state: "Input required",
+        detail: `${questions().length} question${questions().length === 1 ? "" : "s"} waiting. Execution paused.`,
         primaryLabel: SESSION_COMMAND_LABELS.reviewApprovals,
         primaryAction: openApprovalsReview,
       }
     }
     if (sessionStatusType() === "retry") {
       return {
-        state: "blocked",
+        state: "Blocked",
         detail: nextActionForErrorMessage((sync.data.session_status?.[route.sessionID] as { message?: string } | undefined)?.message),
         primaryLabel: SESSION_COMMAND_LABELS.jumpTimeline,
         primaryAction: openTimelineReview,
@@ -2156,7 +2176,7 @@ export function Session() {
     }
     if (pendingUpdates() > 0 && paneFollowMode() === "smart" && !smartFollowActive()) {
       return {
-        state: "waiting",
+        state: "Updates waiting",
         detail: `${pendingUpdates()} new update${pendingUpdates() === 1 ? "" : "s"} ready`,
         primaryLabel: SESSION_COMMAND_LABELS.jumpLive,
         primaryAction: jumpToLive,
@@ -2164,7 +2184,7 @@ export function Session() {
     }
     if (pending() || sessionStatusType() === "busy") {
       return {
-        state: "waiting",
+        state: "Executing",
         detail: `DAX is ${streamStatus()}`,
         primaryLabel: SESSION_COMMAND_LABELS.jumpTimeline,
         primaryAction: openTimelineReview,
@@ -3115,7 +3135,7 @@ export function Session() {
         reason:
           typeof request.metadata?.description === "string" && request.metadata.description.trim()
             ? request.metadata.description.trim()
-            : "approval required before execution",
+            : "Execution is paused until this action is approved.",
       })),
       questions: questions().length,
       artifacts: liveArtifact().active
@@ -3138,9 +3158,9 @@ export function Session() {
       alert: actionStripState()
         ? {
             level:
-              actionStripState()!.state === "blocked"
+              actionStripState()!.state === "Blocked"
                 ? "error"
-                : actionStripState()!.state === "approval required"
+                : actionStripState()!.state === "Approval required"
                   ? "warning"
                   : "info",
             message: actionStripState()!.detail,
@@ -3197,7 +3217,9 @@ export function Session() {
     }
     return {
       summary: `${pendingCount} pending`,
-      detail: workstationState().approvalSummary.topReason ?? "Operator approval is required before execution continues.",
+      detail:
+        workstationState().approvalSummary.topReason ??
+        "Execution is paused until the blocked action is approved or denied.",
       tone: "warning" as const,
     }
   })
@@ -3222,8 +3244,8 @@ export function Session() {
   const writeGovernanceCard = createMemo(() => {
     if (permissions().length > 0) {
       return {
-        summary: "Awaiting approval",
-        detail: "A governed write is waiting for operator review.",
+        summary: "Approval paused",
+        detail: "A governed write is paused until operator review is complete.",
         tone: "warning" as const,
       }
     }
@@ -4798,9 +4820,9 @@ export function Session() {
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                       <text
                         fg={
-                          strip().state === "approval required"
+                          strip().state === "Approval required"
                             ? theme.warning
-                            : strip().state === "blocked"
+                            : strip().state === "Blocked"
                               ? theme.error
                               : theme.accent
                         }
@@ -4816,16 +4838,16 @@ export function Session() {
                         onPress={strip().primaryAction}
                         primary
                       />
-                      <Show when={strip().state !== "connected" && sessionDiffs().length > 0}>
+                      <Show when={strip().state !== "Executing" && sessionDiffs().length > 0}>
                         <SessionQuickAction theme={theme} label={SESSION_COMMAND_LABELS.reviewDiff} onPress={openDiffReview} />
                       </Show>
-                      <Show when={strip().state === "blocked" && todo().length > 0}>
+                      <Show when={strip().state === "Blocked" && todo().length > 0}>
                         <SessionQuickAction theme={theme} label={`Open ${memoryLabel(explainMode())}`} onPress={openPmPane} />
                       </Show>
-                      <Show when={strip().state === "blocked" && Object.keys(sync.data.mcp).length > 0}>
+                      <Show when={strip().state === "Blocked" && Object.keys(sync.data.mcp).length > 0}>
                         <SessionQuickAction theme={theme} label={SESSION_COMMAND_LABELS.inspectMcp} onPress={openMcpInspect} />
                       </Show>
-                      <Show when={strip().state === "blocked" && auditPaneEnabled()}>
+                      <Show when={strip().state === "Blocked" && auditPaneEnabled()}>
                         <SessionQuickAction theme={theme} label={SESSION_COMMAND_LABELS.reviewDocs} onPress={openDocsReview} />
                       </Show>
                       <Show when={pendingUpdates() > 0 || !smartFollowActive()}>

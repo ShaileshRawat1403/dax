@@ -300,10 +300,10 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             <Prompt
               title={
                 risk().level === "critical"
-                  ? "Critical approval required"
+                  ? "Critical approval"
                   : risk().level === "privacy"
-                    ? "Privacy approval required"
-                    : "Approval required before execution"
+                    ? "Privacy-sensitive approval"
+                    : "Approve blocked action"
               }
               body={
                 <box flexDirection="column" gap={1}>
@@ -383,7 +383,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               options={
                 elevated()
                   ? { approve: "Approve once", always: "Always allow", reject: "Deny" }
-                  : { once: "Allow once", always: "Allow always", reject: "Reject" }
+                  : { once: "Approve once", always: "Always allow", reject: "Deny" }
               }
               escapeKey="reject"
               fullscreen
