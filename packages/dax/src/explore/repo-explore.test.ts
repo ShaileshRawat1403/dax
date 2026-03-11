@@ -197,6 +197,9 @@ describe("repo explore scaffolding", () => {
           "bullmq": "1.0.0",
           "@ai-sdk/azure": "1.0.0",
         },
+        devDependencies: {
+          "@actions/core": "1.0.0",
+        },
       }),
     )
     await Bun.write(
@@ -210,6 +213,21 @@ describe("repo explore scaffolding", () => {
         `const db = "pm.sqlite"`,
         `await fetch("https://api.example.com/status")`,
         `const region = process.env.AWS_REGION`,
+      ].join("\n"),
+    )
+    await Bun.write(
+      path.join(root, "src", "types.ts"),
+      [
+        `export const AUTH_MODE = "none"`,
+        `export const PLATFORM = "vercel"`,
+        `export const call = () => fetch("/local")`,
+      ].join("\n"),
+    )
+    await Bun.write(
+      path.join(root, "src", "__tests__", "integrations.test.ts"),
+      [
+        `const token = process.env.TEST_TOKEN`,
+        `const host = "https://api.example.test"`,
       ].join("\n"),
     )
     await Bun.write(
@@ -228,6 +246,8 @@ describe("repo explore scaffolding", () => {
     expect(outputs.integrations.findings.some((finding) => finding.summary.includes("CI or automation integration detected: github actions workflow detected"))).toBe(true)
     expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Auth or secrets boundary detected: runtime auth or env configuration signals detected"))).toBe(true)
     expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Platform or cloud integration detected"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.paths?.includes("src/types.ts"))).toBe(false)
+    expect(outputs.integrations.findings.some((finding) => finding.paths?.includes("src/__tests__/integrations.test.ts"))).toBe(false)
     expect(outputs.important_files.some((file) => file.path === "package.json" && file.role === "provider integration manifest")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "src/integrations.ts" && file.role === "mcp integration surface")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === ".github/workflows/ci.yml" && file.role === "ci or automation workflow")).toBe(true)
