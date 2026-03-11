@@ -39,7 +39,7 @@ describe("assistant narrative contract", () => {
     })
   })
 
-  it("uses a guided preamble for normal non-tool work", () => {
+  it("keeps simple self-introduction prompts direct", () => {
     const narrative = buildAssistantNarrative({
       asked: "tell me about yourself",
       mode: "plan",
@@ -54,9 +54,28 @@ describe("assistant narrative contract", () => {
       doing: "Understanding the request and preparing the next step.",
       next: "Continue with a follow-up request.",
     })
-    expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("practical")
+    expect(narrative?.intensity).toBe("light")
+    expect(narrative?.preamble).toBeUndefined()
     expect(narrative?.showWorkingNote).toBe(false)
+  })
+
+  it("keeps simple help prompts direct even when the model reasons briefly", () => {
+    const narrative = buildAssistantNarrative({
+      asked: "what can you do",
+      mode: "plan",
+      hasPendingTool: false,
+      hasToolActivity: false,
+      toolCount: 0,
+      hasExecuteTool: false,
+      hasVerifyTool: false,
+      hasReasoning: true,
+      hasError: false,
+      completed: false,
+      doing: "Understanding the request and preparing the next step.",
+      next: "Continue with a follow-up request.",
+    })
+    expect(narrative?.intensity).toBe("light")
+    expect(narrative?.preamble).toBeUndefined()
   })
 
   it("adapts guided preambles to repo review work", () => {
@@ -76,6 +95,25 @@ describe("assistant narrative contract", () => {
     })
     expect(narrative?.intensity).toBe("guided")
     expect(narrative?.preamble).toContain("repo safely")
+  })
+
+  it("drops meta preambles for direct docs asks", () => {
+    const narrative = buildAssistantNarrative({
+      asked: "review this repo readme",
+      mode: "plan",
+      hasPendingTool: false,
+      hasToolActivity: false,
+      toolCount: 0,
+      hasExecuteTool: false,
+      hasVerifyTool: false,
+      hasReasoning: true,
+      hasError: false,
+      completed: false,
+      doing: "Understanding the request and preparing the next step.",
+      next: "Continue with a follow-up request.",
+    })
+    expect(narrative?.intensity).toBe("guided")
+    expect(narrative?.preamble).toBeUndefined()
   })
 
   it("adapts guided preambles to release-readiness work", () => {

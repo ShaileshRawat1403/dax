@@ -56,9 +56,7 @@ function buildGuidedPreamble(input: AssistantNarrativeInput) {
   }
 
   if (/readme|docs|documentation|audit/.test(asked)) {
-    return input.completed
-      ? "I checked the docs and code context together so the answer stays accurate and useful."
-      : "I’m checking the docs and code context together so the answer stays accurate and useful."
+    return undefined
   }
 
   if (/architecture|design|system|workflow|orchestration|boundary|boundaries|data flow|control flow/.test(asked)) {
@@ -74,9 +72,7 @@ function buildGuidedPreamble(input: AssistantNarrativeInput) {
   }
 
   if (/what('?s| is) your name|tell me about yourself|who are you|what can you do|how can you help|help me/.test(asked)) {
-    return input.completed
-      ? "I’m answering this as your engineering teammate here, so I’ll keep it practical, specific, and useful."
-      : "I’m answering this directly and keeping it practical for how I can help in this repo."
+    return undefined
   }
 
   if (/review|summarize|analy[sz]e|read( me)?|repo|repository|architecture/.test(asked)) {
@@ -100,11 +96,21 @@ function isLightRequest(asked: string) {
   const trimmed = asked.trim()
   if (!trimmed) return true
   if (LIGHT_REQUEST.test(trimmed)) return true
+  if (
+    /review|read|readme|docs|documentation|repo|repository|summarize|analy[sz]e|debug|fix|release|readiness|stream|streaming|architecture|explain|audit|plan/.test(
+      trimmed,
+    )
+  ) {
+    return false
+  }
   const words = trimmed.split(/\s+/).length
   return words <= 5 && !/[/?]/.test(trimmed)
 }
 
 export function classifyAssistantNarrativeIntensity(input: AssistantNarrativeInput): AssistantNarrativeIntensity {
+  if (!input.hasPendingTool && !input.hasToolActivity && !input.hasExecuteTool && !input.hasError && isLightRequest(input.asked)) {
+    return "light"
+  }
   if (input.hasError) return "operational"
   if (input.hasPendingTool) return "operational"
   if (input.hasExecuteTool) return "operational"
@@ -114,7 +120,6 @@ export function classifyAssistantNarrativeIntensity(input: AssistantNarrativeInp
     if (input.hasVerifyTool && toolCount > 1) return "operational"
     return "guided"
   }
-  if (!input.hasReasoning && isLightRequest(input.asked)) return "light"
   return "guided"
 }
 
