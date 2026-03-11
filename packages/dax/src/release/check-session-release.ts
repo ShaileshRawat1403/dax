@@ -142,6 +142,15 @@ function buildLifecycleCheck(
   lifecycleTerminal: boolean,
   lifecycleRequiresReconciliation: boolean,
 ): ReleaseCheck {
+  if (lifecycleState === "failed") {
+    return {
+      id: "lifecycle_terminal",
+      label: "Lifecycle complete",
+      status: "fail",
+      summary: "Session execution terminated with an unrecovered failure.",
+    }
+  }
+
   if (lifecycleTerminal && !lifecycleRequiresReconciliation) {
     return {
       id: "lifecycle_terminal",
@@ -407,6 +416,8 @@ function formatLifecycleState(state: SessionLifecycleState) {
       return "Interrupted"
     case "abandoned":
       return "Abandoned"
+    case "failed":
+      return "Failed"
   }
 }
 

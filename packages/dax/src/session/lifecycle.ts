@@ -1,6 +1,6 @@
 import type { MessageV2 } from "./message-v2"
 
-export type SessionLifecycleState = "active" | "executing" | "completed" | "interrupted" | "abandoned"
+export type SessionLifecycleState = "active" | "executing" | "completed" | "interrupted" | "abandoned" | "failed"
 
 export type SessionLifecycleSummary = {
   lifecycle_state: SessionLifecycleState
@@ -53,6 +53,7 @@ export function evaluateSessionLifecycle(input: {
       signal.finish === "cancelled" ||
       signal.finish === "canceled",
   )
+  const hasFailureSignal = assistantSignals.some((signal) => signal.errorName && signal.errorName !== "MessageAbortedError")
   const hasVisibleTerminalOutput = assistantSignals.some((signal) => signal.finish === "stop" && typeof signal.completedAt === "number")
   const completedToolSignalCount = assistantSignals.filter((signal) => signal.hasToolActivity && !signal.hasPendingToolActivity).length
   const hasRetainedOutputEvidence = (input.retainedArtifactCount ?? 0) > 0 || (input.diffCount ?? 0) > 0
@@ -76,6 +77,16 @@ export function evaluateSessionLifecycle(input: {
       requires_reconciliation: false,
       execution_started: executionStarted,
       completion_reason: "execution_interrupted",
+    }
+  }
+
+  if (hasFailureSignal && !hasPendingToolActivity && input.pendingApprovalCount === 0) {
+    return {
+      lifecycle_state: "failed",
+      terminal: true,
+      requires_reconciliation: false,
+      execution_started: executionStarted,
+      completion_reason: "execution_failed",
     }
   }
 

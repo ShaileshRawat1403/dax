@@ -83,6 +83,42 @@ describe("session verification evaluator", () => {
     expect(summary.blocking_factors).toContain("1 blocking finding still need resolution.")
   })
 
+  test("treats failed lifecycle as a verification failure", () => {
+    const summary = evaluateSessionVerification({
+      session_id: "session_failed_lifecycle",
+      lifecycle: {
+        state: "failed",
+        terminal: true,
+        requires_reconciliation: false,
+      },
+      approvals: { pending_count: 0 },
+      write_governance: {
+        status: "none",
+        outcome: "none",
+        workspace_write_artifact_count: 0,
+      },
+      overrides: { count: 0 },
+      evidence: {
+        diff_present: false,
+        artifacts_present: false,
+        artifact_count: 0,
+      },
+      audit: {
+        present: false,
+        blocker_count: 0,
+        warning_count: 0,
+        info_count: 0,
+      },
+      trace: {
+        assistant_message_count: 1,
+        latest_activity_at: 1_700_000_000_000,
+      },
+    } as any)
+
+    expect(summary.verification_result).toBe("verification_failed")
+    expect(summary.blocking_factors).toContain("Session execution terminated with an unrecovered failure.")
+  })
+
   test("returns verification_incomplete when evidence and approvals are still missing", () => {
     const summary = evaluateSessionVerification({
       session_id: "session_incomplete",
