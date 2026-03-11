@@ -522,6 +522,7 @@ type ExecutionFlowLabel =
   | "session_execution_flow"
   | "approval_interruption_flow"
   | "tui_action_flow"
+  | "workspace_handoff_flow"
 
 type EntryPointCandidate = {
   type: RuntimeEntryType
@@ -541,6 +542,7 @@ type IntegrationCandidate = {
 }
 
 type PackageRuntimeIntent = "runtime" | "library" | "unknown"
+type PackageFlowRole = "runtime_surface" | "orchestration_core" | "supporting_library" | "unknown"
 
 type ExecutionFlowCandidate = {
   label: ExecutionFlowLabel
@@ -783,6 +785,54 @@ async function extractRelativeImports(absoluteFile: string, content: string) {
   }
 
   return [...imports]
+}
+
+function classifyPackageFlowRole(relativeRoot: string, intent: PackageRuntimeIntent): PackageFlowRole {
+  const normalized = relativeRoot.replace(/\\/g, "/")
+
+  if (intent === "library") return "supporting_library"
+  if (/(^|\/)(core|runtime|session|engine|kernel|workflow|orchestration|governance|server|worker|service)(\/|$)/i.test(normalized)) {
+    return "orchestration_core"
+  }
+  if (/(^|\/)(cli|console|web|app|api|tui|frontend|ui)(\/|$)/i.test(normalized)) {
+    return "runtime_surface"
+  }
+  if (/(^|\/)(types|utils|config|shared|common|lib)(\/|$)/i.test(normalized)) {
+    return "supporting_library"
+  }
+  if (intent === "runtime") return "runtime_surface"
+  return "unknown"
+}
+
+function packageRoleSummary(relativeRoot: string, role: PackageFlowRole) {
+  switch (role) {
+    case "runtime_surface":
+      return `${relativeRoot} acts as a runtime surface package`
+    case "orchestration_core":
+      return `${relativeRoot} acts as an orchestration package`
+    case "supporting_library":
+      return `${relativeRoot} acts as a supporting library-only package`
+    case "unknown":
+      return `${relativeRoot} package role is not yet confirmed`
+  }
+}
+
+function looksExecutionSurfaceFile(relativePath: string) {
+  return /(\/|^)(index|main|server|worker|app|cli)\.[^/]+$/i.test(relativePath) || /\/cli\/cmd\//.test(relativePath) || /\/routes?\//.test(relativePath)
+}
+
+function looksOrchestrationFile(relativePath: string) {
+  return /(session|runtime|workflow|dispatch|processor|prompt|approval|govern|orchestrat|execute|runner)/i.test(relativePath)
+}
+
+function packageRelativeRootForFile(relativePath: string, packageRoots: string[]) {
+  const normalized = relativePath.replace(/\\/g, "/")
+  return (
+    packageRoots
+      .slice()
+      .sort((a, b) => b.length - a.length)
+      .find((root) => root !== "." && (normalized === root || normalized.startsWith(`${root}/`))) ?? "."
+  )
 }
 
 function classifyEntryFile(relativePath: string, content: string | undefined): EntryPointCandidate | undefined {
@@ -1261,6 +1311,25 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
   const unknowns: ExploreFollowUp[] = []
   const seenFindingKeys = new Set<string>()
   const seenImportantFiles = new Set<string>()
+  const packageRoots = await listPackageRoots(resolvedRoot)
+  const packageDescriptors = await Promise.all(
+    packageRoots.map(async (packageRoot) => {
+      const relativeRoot = path.relative(resolvedRoot, packageRoot).replace(/\\/g, "/") || "."
+      const packageJson = await readJsonIfExists(path.join(packageRoot, "package.json"))
+      const intent = inferPackageRuntimeIntent(
+        relativeRoot,
+        packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined,
+      )
+      return {
+        absoluteRoot: packageRoot,
+        relativeRoot,
+        intent,
+        role: classifyPackageFlowRole(relativeRoot, intent),
+      }
+    }),
+  )
+  const packageRelativeRoots = packageDescriptors.map((item) => item.relativeRoot)
+  const packageRoleEvidence = new Set<string>()
 
   const addImportantFile = (relativePath: string, role: string) => {
     const key = `${relativePath}:${role}`
@@ -1292,6 +1361,18 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
     if (!content) continue
     const imports = await extractRelativeImports(absoluteFile, content)
     const importRelatives = imports.map((item) => path.relative(resolvedRoot, item).replace(/\\/g, "/"))
+    const sourcePackageRoot = packageRelativeRootForFile(relativeFile, packageRelativeRoots)
+    const sourcePackage = packageDescriptors.find((item) => item.relativeRoot === sourcePackageRoot)
+    const crossPackageTargets = importRelatives
+      .map((targetPath) => {
+        const targetPackageRoot = packageRelativeRootForFile(targetPath, packageRelativeRoots)
+        return {
+          path: targetPath,
+          packageRoot: targetPackageRoot,
+          descriptor: packageDescriptors.find((item) => item.relativeRoot === targetPackageRoot),
+        }
+      })
+      .filter((item) => item.packageRoot !== sourcePackageRoot && !isTestPath(item.path) && !isExploreSelfPath(item.path))
 
     if (relativeFile.endsWith("src/index.ts") && content.includes(".command(")) {
       const commandTargets = importRelatives.filter((item) => item.includes("/cli/cmd/"))
@@ -1394,6 +1475,50 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
         paths: [relativeFile],
         reason: "worker bootstrap and rpc client handoff were detected together",
         role: "execution flow surface",
+      })
+    }
+
+    if (sourcePackage && sourcePackage.relativeRoot !== ".") {
+      const packageRoleKey = `${sourcePackage.relativeRoot}:${sourcePackage.role}`
+      if (!packageRoleEvidence.has(packageRoleKey) && sourcePackage.role !== "unknown") {
+        packageRoleEvidence.add(packageRoleKey)
+        executionFindings.push({
+          kind: sourcePackage.role === "supporting_library" ? "inferred" : "observed",
+          summary: `workspace_handoff_flow: ${packageRoleSummary(sourcePackage.relativeRoot, sourcePackage.role)}`,
+          paths: [sourcePackage.relativeRoot],
+        })
+        if (sourcePackage.role !== "supporting_library") {
+          addImportantFile(sourcePackage.relativeRoot, "package boundary")
+        }
+      }
+    }
+
+    const relevantCrossPackageTargets = crossPackageTargets.filter((item) => {
+      const targetRole = item.descriptor?.role ?? "unknown"
+      if (targetRole === "supporting_library") return false
+      return looksOrchestrationFile(item.path) || looksExecutionSurfaceFile(relativeFile) || sourcePackage?.role === "runtime_surface"
+    })
+
+    for (const target of relevantCrossPackageTargets.slice(0, 2)) {
+      const targetRole = target.descriptor?.role ?? "unknown"
+      const handoffKind: ExploreEvidenceKind =
+        targetRole === "orchestration_core" || looksOrchestrationFile(target.path) ? "observed" : "inferred"
+      const handoffSummary =
+        targetRole === "orchestration_core"
+          ? "runtime surface hands execution into workspace orchestration package"
+          : "runtime surface likely hands execution into another workspace runtime boundary"
+      const handoffReason =
+        targetRole === "orchestration_core"
+          ? "cross-package import points from a runtime surface into an orchestration file"
+          : "cross-package import points into a runtime-adjacent package, but the final orchestration role is not fully confirmed"
+      addFlow({
+        label: "workspace_handoff_flow",
+        section: targetRole === "orchestration_core" || looksOrchestrationFile(target.path) ? "orchestration_loop" : "execution_graph",
+        kind: handoffKind,
+        summary: handoffSummary,
+        paths: [relativeFile, target.path],
+        reason: handoffReason,
+        role: targetRole === "orchestration_core" ? "orchestration loop surface" : "execution flow surface",
       })
     }
   }
