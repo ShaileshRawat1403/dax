@@ -305,6 +305,14 @@ type IntegrationCategory =
   | "platform"
   | "auth"
 
+type ExecutionFlowLabel =
+  | "cli_command_flow"
+  | "server_request_flow"
+  | "worker_dispatch_flow"
+  | "session_execution_flow"
+  | "approval_interruption_flow"
+  | "tui_action_flow"
+
 type EntryPointCandidate = {
   type: RuntimeEntryType
   kind: ExploreEvidenceKind
@@ -315,6 +323,16 @@ type EntryPointCandidate = {
 
 type IntegrationCandidate = {
   category: IntegrationCategory
+  kind: ExploreEvidenceKind
+  summary: string
+  paths: string[]
+  reason: string
+  role: string
+}
+
+type ExecutionFlowCandidate = {
+  label: ExecutionFlowLabel
+  section: "execution_graph" | "orchestration_loop"
   kind: ExploreEvidenceKind
   summary: string
   paths: string[]
@@ -515,6 +533,44 @@ async function listExistingFiles(root: string, patterns: string[]) {
     }
   }
   return matches
+}
+
+async function resolveRelativeImport(baseFile: string, specifier: string) {
+  const baseDir = path.dirname(baseFile)
+  const candidates = [
+    path.resolve(baseDir, specifier),
+    path.resolve(baseDir, `${specifier}.ts`),
+    path.resolve(baseDir, `${specifier}.tsx`),
+    path.resolve(baseDir, `${specifier}.js`),
+    path.resolve(baseDir, `${specifier}.jsx`),
+    path.resolve(baseDir, specifier, "index.ts"),
+    path.resolve(baseDir, specifier, "index.tsx"),
+    path.resolve(baseDir, specifier, "index.js"),
+    path.resolve(baseDir, specifier, "index.jsx"),
+  ]
+
+  for (const candidate of candidates) {
+    if (await Filesystem.exists(candidate)) return candidate
+  }
+  return undefined
+}
+
+async function extractRelativeImports(absoluteFile: string, content: string) {
+  const imports = new Set<string>()
+  const patterns = [
+    /import\s+(?:[^'"]+?\s+from\s+)?["'](\.[^"']+)["']/g,
+    /await\s+import\(["'](\.[^"']+)["']\)/g,
+  ]
+
+  for (const pattern of patterns) {
+    for (const match of content.matchAll(pattern)) {
+      const specifier = match[1]
+      const resolved = await resolveRelativeImport(absoluteFile, specifier)
+      if (resolved) imports.add(resolved)
+    }
+  }
+
+  return [...imports]
 }
 
 function classifyEntryFile(relativePath: string, content: string | undefined): EntryPointCandidate | undefined {
@@ -933,6 +989,191 @@ export async function runIntegrationPass(root: string): Promise<RepoExplorePassD
     integrations: {
       confidence,
       findings,
+    },
+    important_files: importantFiles,
+    unknowns_follow_up_targets: unknowns,
+  }
+}
+
+export async function runExecutionFlowPass(root: string): Promise<RepoExplorePassDelta> {
+  const resolvedRoot = path.resolve(root)
+  const executionFindings: ExploreFinding[] = []
+  const orchestrationFindings: ExploreFinding[] = []
+  const importantFiles: ExploreImportantFile[] = []
+  const unknowns: ExploreFollowUp[] = []
+  const seenFindingKeys = new Set<string>()
+  const seenImportantFiles = new Set<string>()
+
+  const addImportantFile = (relativePath: string, role: string) => {
+    const key = `${relativePath}:${role}`
+    if (seenImportantFiles.has(key)) return
+    seenImportantFiles.add(key)
+    importantFiles.push({ path: relativePath, role })
+  }
+
+  const addFlow = (candidate: ExecutionFlowCandidate) => {
+    const key = `${candidate.section}:${candidate.label}:${candidate.paths.join(",")}`
+    if (seenFindingKeys.has(key)) return
+    seenFindingKeys.add(key)
+    const finding: ExploreFinding = {
+      kind: candidate.kind,
+      summary: `${candidate.label}: ${candidate.summary}; ${candidate.reason}`,
+      paths: candidate.paths,
+    }
+    if (candidate.section === "execution_graph") executionFindings.push(finding)
+    else orchestrationFindings.push(finding)
+    for (const item of candidate.paths) addImportantFile(item, candidate.role)
+  }
+
+  const sourceFiles = await listExistingFiles(resolvedRoot, ["packages/**/src/**/*.ts", "packages/**/src/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"])
+  const repoFiles = sourceFiles.map((relative) => path.join(resolvedRoot, relative))
+
+  for (const absoluteFile of repoFiles) {
+    const relativeFile = path.relative(resolvedRoot, absoluteFile).replace(/\\/g, "/")
+    const content = await readTextIfExists(absoluteFile)
+    if (!content) continue
+    const imports = await extractRelativeImports(absoluteFile, content)
+    const importRelatives = imports.map((item) => path.relative(resolvedRoot, item).replace(/\\/g, "/"))
+
+    if (relativeFile.endsWith("src/index.ts") && content.includes(".command(")) {
+      const commandTargets = importRelatives.filter((item) => item.includes("/cli/cmd/"))
+      if (commandTargets.length > 0) {
+        addFlow({
+          label: "cli_command_flow",
+          section: "execution_graph",
+          kind: "observed",
+          summary: "cli bootstrap dispatches into command handlers",
+          paths: [relativeFile, ...commandTargets.slice(0, 3)],
+          reason: "yargs command registration points to concrete command modules",
+          role: "execution flow surface",
+        })
+      } else {
+        addFlow({
+          label: "cli_command_flow",
+          section: "execution_graph",
+          kind: "inferred",
+          summary: "cli bootstrap likely dispatches into command handlers",
+          paths: [relativeFile],
+          reason: "command registration detected but downstream handler file was not confirmed",
+          role: "execution flow surface",
+        })
+      }
+    }
+
+    if (
+      content.includes("sdk.client.session.command(") ||
+      content.includes("sdk.client.session.prompt(") ||
+      content.includes("sdk.client.session.shell(")
+    ) {
+      const sessionTargets = importRelatives.filter((item) => item.includes("/session/") || item.includes("/cli/cmd/tui/"))
+      addFlow({
+        label: "tui_action_flow",
+        section: "execution_graph",
+        kind: sessionTargets.length > 0 ? "observed" : "inferred",
+        summary: "tui action submits work into session runtime",
+        paths: sessionTargets.length > 0 ? [relativeFile, ...sessionTargets.slice(0, 2)] : [relativeFile],
+        reason: "tui prompt dispatches prompt, command, or shell actions into session APIs",
+        role: "execution flow surface",
+      })
+    }
+
+    if (content.includes("SessionPrompt.command(") || content.includes("SessionPrompt.prompt(")) {
+      const promptTargets = importRelatives.filter((item) => item.includes("/session/prompt"))
+      addFlow({
+        label: "session_execution_flow",
+        section: "execution_graph",
+        kind: promptTargets.length > 0 ? "observed" : "inferred",
+        summary: "session surface hands work into the prompt runtime",
+        paths: promptTargets.length > 0 ? [relativeFile, ...promptTargets.slice(0, 1)] : [relativeFile],
+        reason: "session API calls into the prompt loop",
+        role: "execution flow surface",
+      })
+    }
+
+    if (content.includes("while (true)") && content.includes("SessionStatus.set(") && content.includes("LLM.stream(")) {
+      addFlow({
+        label: "session_execution_flow",
+        section: "orchestration_loop",
+        kind: "observed",
+        summary: "session runtime maintains the main execution loop",
+        paths: [relativeFile],
+        reason: "busy/idle status updates and llm stream loop were detected together",
+        role: "orchestration loop surface",
+      })
+    }
+
+    if (content.includes("PermissionNext.ask(") || content.includes("approval") || content.includes("abort(")) {
+      if (content.includes("PermissionNext.ask(")) {
+        addFlow({
+          label: "approval_interruption_flow",
+          section: "orchestration_loop",
+          kind: "observed",
+          summary: "approval checks can interrupt and gate execution",
+          paths: [relativeFile],
+          reason: "permission handoff is explicitly requested from the execution path",
+          role: "approval interruption surface",
+        })
+      }
+      if (content.includes("abort(") && (content.includes("session.abort") || content.includes("abort.abort()"))) {
+        addFlow({
+          label: "approval_interruption_flow",
+          section: "orchestration_loop",
+          kind: "inferred",
+          summary: "control can pause or stop through abort transitions",
+          paths: [relativeFile],
+          reason: "abort transition detected in a live execution path",
+          role: "control transition surface",
+        })
+      }
+    }
+
+    if ((content.includes("new Worker(") || content.includes("Rpc.client")) && content.includes("client.call(\"server\"")) {
+      addFlow({
+        label: "worker_dispatch_flow",
+        section: "execution_graph",
+        kind: "observed",
+        summary: "tui thread hands execution into a worker rpc boundary",
+        paths: [relativeFile],
+        reason: "worker bootstrap and rpc client handoff were detected together",
+        role: "execution flow surface",
+      })
+    }
+  }
+
+  if (executionFindings.length === 0) {
+    unknowns.push({
+      kind: "unknown",
+      summary: "primary execution handoff not confirmed from scanned files",
+    })
+  }
+  if (orchestrationFindings.length === 0) {
+    unknowns.push({
+      kind: "unknown",
+      summary: "orchestration loop not confirmed from scanned files",
+    })
+  }
+
+  const executionConfidence: ExploreConfidence =
+    executionFindings.filter((item) => item.kind === "observed").length >= 2
+      ? "high_confidence"
+      : executionFindings.length > 0
+        ? "medium_confidence"
+        : "unknown"
+  const orchestrationConfidence: ExploreConfidence =
+    orchestrationFindings.some((item) => item.kind === "observed")
+      ? "high_confidence"
+      : orchestrationFindings.length > 0
+        ? "medium_confidence"
+        : "unknown"
+
+  return {
+    execution_graph: {
+      confidence: executionConfidence,
+      findings: executionFindings,
+    },
+    orchestration_loop: {
+      confidence: orchestrationConfidence,
+      findings: orchestrationFindings,
     },
     important_files: importantFiles,
     unknowns_follow_up_targets: unknowns,
