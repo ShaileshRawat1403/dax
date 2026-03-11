@@ -27,6 +27,33 @@ import { BashTool } from "../../tool/bash"
 import { TodoWriteTool } from "../../tool/todo"
 import { Locale } from "../../util/locale"
 
+type RunArgs = {
+  message: string[]
+  "--"?: string[]
+  command?: string
+  continue?: boolean
+  session?: string
+  fork?: boolean
+  share?: boolean
+  model?: string
+  agent?: string
+  format: "default" | "json"
+  file?: string[]
+  title?: string
+  attach?: string
+  port?: number
+  variant?: string
+  thinking?: boolean
+}
+
+type ExecutionPreview = {
+  mode: "intent" | "workflow_command"
+  title: string
+  detail: string
+  validation: string
+  attachmentCount: number
+}
+
 type ToolProps<T extends Tool.Info> = {
   input: Tool.InferParameters<T>
   metadata: Tool.InferMetadata<T>
@@ -212,86 +239,127 @@ function normalizePath(input?: string) {
   return input
 }
 
-export const RunCommand = cmd({
-  command: "run [message..]",
-  describe: "run dax with a message",
-  builder: (yargs: Argv) => {
-    return yargs
-      .positional("message", {
-        describe: "message to send",
-        type: "string",
-        array: true,
-        default: [],
-      })
-      .option("command", {
-        describe: "the command to run, use message for args",
-        type: "string",
-      })
-      .option("continue", {
-        alias: ["c"],
-        describe: "continue the last session",
-        type: "boolean",
-      })
-      .option("session", {
-        alias: ["s"],
-        describe: "session id to continue",
-        type: "string",
-      })
-      .option("fork", {
-        describe: "fork the session before continuing (requires --continue or --session)",
-        type: "boolean",
-      })
-      .option("share", {
-        type: "boolean",
-        describe: "share the session",
-      })
-      .option("model", {
-        type: "string",
-        alias: ["m"],
-        describe: "model to use in the format of provider/model",
-      })
-      .option("agent", {
-        type: "string",
-        describe: "agent to use",
-      })
-      .option("format", {
-        type: "string",
-        choices: ["default", "json"],
-        default: "default",
-        describe: "format: default (formatted) or json (raw JSON events)",
-      })
-      .option("file", {
-        alias: ["f"],
-        type: "string",
-        array: true,
-        describe: "file(s) to attach to message",
-      })
-      .option("title", {
-        type: "string",
-        describe: "title for the session (uses truncated prompt if no value provided)",
-      })
-      .option("attach", {
-        type: "string",
-        describe: "attach to a running dax server (e.g., http://localhost:4096)",
-      })
-      .option("port", {
-        type: "number",
-        describe: "port for the local server (defaults to random port if no value provided)",
-      })
-      .option("variant", {
-        type: "string",
-        describe: "model variant (provider-specific reasoning effort, e.g., high, max, minimal)",
-      })
-      .option("thinking", {
-        type: "boolean",
-        describe: "show thinking blocks",
-        default: false,
-      })
-  },
-  handler: async (args) => {
-    let message = [...args.message, ...(args["--"] || [])]
+export function buildRunOptions(yargs: Argv) {
+  return yargs
+    .positional("message", {
+      describe: "execution intent or workflow arguments",
+      type: "string",
+      array: true,
+      default: [],
+    })
+    .option("command", {
+      describe: "workflow command to execute; positional input becomes command arguments",
+      type: "string",
+    })
+    .option("continue", {
+      alias: ["c"],
+      describe: "continue the last session",
+      type: "boolean",
+    })
+    .option("session", {
+      alias: ["s"],
+      describe: "session id to continue",
+      type: "string",
+    })
+    .option("fork", {
+      describe: "fork the session before continuing (requires --continue or --session)",
+      type: "boolean",
+    })
+    .option("share", {
+      type: "boolean",
+      describe: "share the session",
+    })
+    .option("model", {
+      type: "string",
+      alias: ["m"],
+      describe: "model to use in the format of provider/model",
+    })
+    .option("agent", {
+      type: "string",
+      describe: "agent to use",
+    })
+    .option("format", {
+      type: "string",
+      choices: ["default", "json"],
+      default: "default",
+      describe: "format: default (formatted) or json (raw JSON events)",
+    })
+    .option("file", {
+      alias: ["f"],
+      type: "string",
+      array: true,
+      describe: "file(s) to attach to the execution request",
+    })
+    .option("title", {
+      type: "string",
+      describe: "title for the execution session (uses truncated intent if no value provided)",
+    })
+    .option("attach", {
+      type: "string",
+      describe: "attach to a running dax server (e.g., http://localhost:4096)",
+    })
+    .option("port", {
+      type: "number",
+      describe: "port for the local server (defaults to random port if no value provided)",
+    })
+    .option("variant", {
+      type: "string",
+      describe: "model variant (provider-specific reasoning effort, e.g., high, max, minimal)",
+    })
+    .option("thinking", {
+      type: "boolean",
+      describe: "show reasoning blocks when available",
+      default: false,
+    })
+}
+
+export function buildExecutionPreview(input: {
+  command?: string
+  intent: string
+  files: { filename: string }[]
+}): ExecutionPreview {
+  const trimmedIntent = input.intent.trim()
+  const attachmentCount = input.files.length
+  if (input.command) {
+    const detail = trimmedIntent ? `${input.command} ${trimmedIntent}`.trim() : input.command
+    return {
+      mode: "workflow_command",
+      title: `Workflow command: ${input.command}`,
+      detail,
+      validation: `Execution request validated${attachmentCount > 0 ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} ready` : ""}`,
+      attachmentCount,
+    }
+  }
+
+  return {
+    mode: "intent",
+    title: "Execution intent",
+    detail: trimmedIntent || "No explicit intent provided",
+    validation: `Intent packaged for governed execution${attachmentCount > 0 ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} ready` : ""}`,
+    attachmentCount,
+  }
+}
+
+function renderExecutionPreview(preview: ExecutionPreview) {
+  UI.empty()
+  UI.println(UI.Style.TEXT_INFO_BOLD + "~", UI.Style.TEXT_NORMAL + preview.title)
+  UI.println(UI.Style.TEXT_DIM + preview.detail + UI.Style.TEXT_NORMAL)
+  UI.println(UI.Style.TEXT_DIM + preview.validation + UI.Style.TEXT_NORMAL)
+  UI.empty()
+}
+
+export async function executeRun(args: RunArgs, options?: { defaultCommand?: string }) {
+  const rawMessage = [...args.message, ...(args["--"] || [])].join(" ").trim()
+  let message = [...args.message, ...(args["--"] || [])]
       .map((arg) => (arg.includes(" ") ? `"${arg.replace(/"/g, '\\"')}"` : arg))
       .join(" ")
+
+    let command = args.command ?? options?.defaultCommand
+    const slashDocs = !command ? rawMessage.match(/^\/docs(?:\s+(.*))?$/s) : undefined
+    if (slashDocs) {
+      command = "docs"
+      message = (slashDocs[1] ?? "").trim()
+    }
 
     const files: { type: "file"; url: string; filename: string; mime: string }[] = []
     if (args.file) {
@@ -324,7 +392,7 @@ export const RunCommand = cmd({
 
     if (!process.stdin.isTTY) message += "\n" + (await Bun.stdin.text())
 
-    if (message.trim().length === 0 && !args.command) {
+    if (message.trim().length === 0 && !command) {
       UI.error("You must provide a message or a command")
       process.exit(1)
     }
@@ -555,17 +623,40 @@ export const RunCommand = cmd({
       }
       await share(sdk, sessionID)
 
+      const preview = buildExecutionPreview({
+        command,
+        intent: message,
+        files,
+      })
+
+      if (args.format === "json") {
+        process.stdout.write(
+          JSON.stringify({
+            type: "execution_start",
+            timestamp: Date.now(),
+            sessionID,
+            mode: preview.mode,
+            title: preview.title,
+            detail: preview.detail,
+            validation: preview.validation,
+            attachmentCount: preview.attachmentCount,
+          }) + EOL,
+        )
+      } else {
+        renderExecutionPreview(preview)
+      }
+
       loop().catch((e) => {
         console.error(e)
         process.exit(1)
       })
 
-      if (args.command) {
+      if (command) {
         await sdk.session.command({
           sessionID,
           agent,
           model: args.model,
-          command: args.command,
+          command,
           arguments: message,
           variant: args.variant,
         })
@@ -594,5 +685,13 @@ export const RunCommand = cmd({
       const sdk = createDaxClient({ baseUrl: "http://dax.internal", fetch: fetchFn })
       await execute(sdk)
     })
+}
+
+export const RunCommand = cmd({
+  command: "run [message..]",
+  describe: "submit governed work for execution from an intent or workflow command",
+  builder: (yargs: Argv) => buildRunOptions(yargs),
+  handler: async (args) => {
+    await executeRun(args as RunArgs)
   },
 })

@@ -4,19 +4,25 @@ This guide explains how to fork and extend DAX for your own product/workflow.
 
 ## Extension Areas
 
-- Providers and model routing
-- RAO policy behavior
-- Prompt assembly and memory behavior
-- TUI interaction and panes
-- Release/distribution channels
+- Tool packs
+- Agent and prompt packs
+- Policy and config packs
+- Provider and model routing
+- Release and distribution channels
 
 ## Local Dev Setup
 
 ```bash
-git clone https://github.com/ShaileshRawat1403/dax-tui.git
-cd dax-tui
+git clone https://github.com/dax-ai/dax.git
+cd dax
 bun install
 bun run dev
+```
+
+If you want to prevent DAX from installing plugin dependencies into discovered config directories during packaged runs:
+
+```bash
+export DAX_DISABLE_CONFIG_AUTO_INSTALL=1
 ```
 
 Verification:
@@ -31,22 +37,25 @@ bun run release:verify
 
 - CLI bootstrap: `packages/dax/src/index.ts`
 - Provider logic: `packages/dax/src/provider/`
-- Auth diagnostics: `packages/dax/src/cli/cmd/auth/`
+- Auth diagnostics: `packages/dax/src/cli/cmd/auth.ts`
 - TUI flow: `packages/dax/src/cli/cmd/tui/`
 - Release build: `packages/dax/script/build.ts`
 
 Read first:
 
-- [ARCHITECTURE.md](/Users/Shailesh/MYAIAGENTS/dax/ARCHITECTURE.md)
-- [PROVIDERS.md](/Users/Shailesh/MYAIAGENTS/dax/docs/PROVIDERS.md)
-- [distribution.md](/Users/Shailesh/MYAIAGENTS/dax/docs/distribution.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [PROVIDERS.md](PROVIDERS.md)
+- [distribution.md](distribution.md)
 
 ## Recommended Customization Sequence
 
 1. Keep core release flow unchanged until your first stable release.
-2. Add provider/policy customizations behind feature flags.
-3. Add your own docs examples and troubleshooting.
-4. Add CI checks for any custom auth or distribution behavior.
+2. Start with one supported customization pattern:
+   - tool pack
+   - agent/prompt pack
+   - policy/config pack
+3. Add provider or policy customizations behind explicit configuration.
+4. Add CI checks for any custom auth, policy, or distribution behavior.
 
 ## Release Strategy For Forks
 
@@ -73,14 +82,10 @@ Capture:
 
 ### 2) Release assets
 
-![GitHub release page showing DAX release assets](./images/build-on-dax-02-release-assets.png)
-
 Capture:
 - Release page asset list with `.tar.gz`, `.zip`, `install.sh`, `manifest.json`
 
 ### 3) Distribution workflow success
-
-![GitHub Actions run showing Homebrew or Winget workflow success](./images/build-on-dax-03-distribution-workflow-success.png)
 
 Capture:
 - Green success state for Homebrew or Winget workflow run

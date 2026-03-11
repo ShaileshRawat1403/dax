@@ -39,6 +39,24 @@ export namespace MCP {
     .meta({ ref: "McpResource" })
   export type Resource = z.infer<typeof Resource>
 
+  export const ToolSummary = z
+    .object({
+      server: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+    })
+    .meta({ ref: "McpToolSummary" })
+  export type ToolSummary = z.infer<typeof ToolSummary>
+
+  export const PromptSummary = z
+    .object({
+      server: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+    })
+    .meta({ ref: "McpPromptSummary" })
+  export type PromptSummary = z.infer<typeof PromptSummary>
+
   export const ToolsChanged = BusEvent.define(
     "mcp.tools.changed",
     z.object({
@@ -107,6 +125,30 @@ export namespace MCP {
       ref: "MCPStatus",
     })
   export type Status = z.infer<typeof Status>
+
+  export const Ping = z
+    .object({
+      name: z.string(),
+      status: Status,
+      latency_ms: z.number(),
+      tools: z.number(),
+      prompts: z.number(),
+      resources: z.number(),
+      detail: z.string().optional(),
+    })
+    .meta({ ref: "McpPing" })
+  export type Ping = z.infer<typeof Ping>
+
+  export const Inspect = z
+    .object({
+      name: z.string(),
+      status: Status,
+      tools: ToolSummary.array(),
+      prompts: PromptSummary.array(),
+      resources: Resource.array(),
+    })
+    .meta({ ref: "McpInspect" })
+  export type Inspect = z.infer<typeof Inspect>
 
   // Register notification handlers for MCP client
   function registerNotificationHandlers(client: MCPClient, serverName: string) {
@@ -642,6 +684,102 @@ export namespace MCP {
     )
 
     return result
+  }
+
+  export async function toolCatalog(name?: string) {
+    const clientsSnapshot = await clients()
+    const entries = name ? Object.entries(clientsSnapshot).filter(([key]) => key === name) : Object.entries(clientsSnapshot)
+    const result: ToolSummary[] = []
+
+    for (const [server, client] of entries) {
+      const tools = await client.listTools().catch((e) => {
+        log.error("failed to get tools", { server, error: e.message })
+        return undefined
+      })
+      if (!tools) continue
+      for (const item of tools.tools) {
+        result.push({
+          server,
+          name: item.name,
+          description: item.description,
+        })
+      }
+    }
+
+    return result
+  }
+
+  export async function promptCatalog(name?: string) {
+    const all = await prompts()
+    return Object.values(all)
+      .filter((item) => !name || item.client === name)
+      .map((item) => ({
+        server: item.client,
+        name: item.name,
+        description: item.description,
+      }))
+  }
+
+  export async function resourceCatalog(name?: string) {
+    const all = await resources()
+    return Object.values(all).filter((item) => !name || item.client === name)
+  }
+
+  export async function inspect(name: string): Promise<Inspect> {
+    const statuses = await status()
+    return {
+      name,
+      status: statuses[name] ?? { status: "disabled" },
+      tools: await toolCatalog(name),
+      prompts: await promptCatalog(name),
+      resources: await resourceCatalog(name),
+    }
+  }
+
+  export async function ping(name: string): Promise<Ping> {
+    const statuses = await status()
+    const current = statuses[name]
+    if (!current) {
+      return {
+        name,
+        status: { status: "failed", error: `MCP server not found: ${name}` },
+        latency_ms: 0,
+        tools: 0,
+        prompts: 0,
+        resources: 0,
+        detail: "Server is not configured.",
+      }
+    }
+
+    if (current.status !== "connected") {
+      return {
+        name,
+        status: current,
+        latency_ms: 0,
+        tools: 0,
+        prompts: 0,
+        resources: 0,
+        detail: current.status === "failed" ? current.error : undefined,
+      }
+    }
+
+    const started = performance.now()
+    const [tools, promptInfo, resourceInfo] = await Promise.all([
+      toolCatalog(name),
+      promptCatalog(name),
+      resourceCatalog(name),
+    ])
+    const latency = Math.round(performance.now() - started)
+
+    return {
+      name,
+      status: current,
+      latency_ms: latency,
+      tools: tools.length,
+      prompts: promptInfo.length,
+      resources: resourceInfo.length,
+      detail: latency > 0 ? `Round-trip inventory completed in ${latency}ms.` : undefined,
+    }
   }
 
   export async function getPrompt(clientName: string, name: string, args?: Record<string, string>) {

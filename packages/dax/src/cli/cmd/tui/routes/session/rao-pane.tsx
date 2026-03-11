@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useKeyboard } from "@opentui/solid"
 import type { TextareaRenderable } from "@opentui/core"
@@ -114,7 +114,12 @@ function filetype(input?: string) {
   return language
 }
 
-export function RAOPane(props: { permissions: PermissionRequest[]; questions: QuestionRequest[]; sessionID: string }) {
+export function RAOPane(props: {
+  permissions: PermissionRequest[]
+  questions: QuestionRequest[]
+  sessionID: string
+  initialRequestID?: string
+}) {
   const sdk = useSDK()
   const kv = useKV()
   const themeState = useTheme()
@@ -145,6 +150,15 @@ export function RAOPane(props: { permissions: PermissionRequest[]; questions: Qu
   let textarea: TextareaRenderable | undefined
 
   const profile = createMemo<PolicyProfile>(() => parsePolicyProfile(kv.get(DAX_SETTING.policy_profile, "balanced")))
+
+  createEffect(() => {
+    const requestID = props.initialRequestID
+    if (!requestID) return
+    const index = items().findIndex((item) => item.data.id === requestID)
+    if (index >= 0 && index !== selectedIndex()) {
+      setSelectedIndex(index)
+    }
+  })
 
   function handlePermissionReply(requestID: string, reply: "once" | "always" | "reject", message?: string) {
     sdk.client.permission.reply({

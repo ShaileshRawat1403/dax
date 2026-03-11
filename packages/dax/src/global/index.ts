@@ -51,6 +51,8 @@ if (version !== CACHE_VERSION) {
         }),
       ),
     )
-  } catch (e) {}
+  } catch (e) {
+    /* Intentionally ignored: cache directory might be empty or inaccessible. */
+  }
   await Bun.file(path.join(Global.Path.cache, "version")).write(CACHE_VERSION)
 }

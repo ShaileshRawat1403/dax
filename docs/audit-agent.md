@@ -27,11 +27,31 @@ export DAX_AUDIT_AUTOTRIGGERS=before_release,after_pr_review
 CLI equivalents:
 
 ```bash
+dax audit
 dax audit run --profile strict
 dax audit gate --profile strict
 dax audit explain <finding_id>
 dax audit profile balanced
+dax audit events --type audit
 ```
+
+## Trust Summary
+
+`dax audit` is the default trust surface.
+
+It summarizes:
+
+- pending approvals
+- recorded overrides
+- evidence presence
+- audit findings and posture
+
+Use it when the operator question is:
+
+- what happened that matters for trust?
+- is this execution trail reviewable?
+
+Use `dax audit events` only when low-level RAO event history is needed.
 
 ## Profiles
 
@@ -73,16 +93,12 @@ If blockers are non-zero, resolve those first.
 
 ### 1) Audit pass
 
-![Audit pane showing pass status with zero blockers](./images/audit-01-pass.png)
-
 Capture:
 - Right pane in `audit` mode
 - `status: pass`
 - zero blockers visible
 
 ### 2) Audit fail with blockers
-
-![Audit pane showing blocker findings in strict profile](./images/audit-02-fail-blockers.png)
 
 Capture:
 - `status: fail`
@@ -91,9 +107,6 @@ Capture:
 
 ### 3) Profile switch flow
 
-![Command flow showing /audit profile and subsequent /audit gate](./images/audit-03-profile-switch.png)
-
 Capture:
 - `/audit profile strict|balanced|advisory`
 - follow-up `/audit gate` output
-

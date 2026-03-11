@@ -68,9 +68,10 @@ export function DialogPrompt(props: DialogPromptProps) {
         />
       </box>
       <box paddingBottom={1} gap={1} flexDirection="row">
-        <text fg={theme.text}>
-          enter <span style={{ fg: theme.textMuted }}>submit</span>
-        </text>
+        <box flexDirection="row" gap={1}>
+          <text fg={theme.text}>enter</text>
+          <text fg={theme.textMuted}>submit</text>
+        </box>
       </box>
     </box>
   )

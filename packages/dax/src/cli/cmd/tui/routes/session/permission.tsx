@@ -300,10 +300,10 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             <Prompt
               title={
                 risk().level === "critical"
-                  ? "Critical approval required"
+                  ? "Critical approval"
                   : risk().level === "privacy"
-                    ? "Privacy approval required"
-                    : "Permission required"
+                    ? "Privacy-sensitive approval"
+                    : "Approve blocked action"
               }
               body={
                 <box flexDirection="column" gap={1}>
@@ -383,7 +383,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               options={
                 elevated()
                   ? { approve: "Approve once", always: "Always allow", reject: "Deny" }
-                  : { once: "Allow once", always: "Allow always", reject: "Reject" }
+                  : { once: "Approve once", always: "Always allow", reject: "Deny" }
               }
               escapeKey="reject"
               fullscreen
@@ -478,12 +478,14 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
           keyBindings={textareaKeybindings()}
         />
         <box flexDirection="row" gap={2} flexShrink={0}>
-          <text fg={theme.text}>
-            enter <span style={{ fg: theme.textMuted }}>confirm</span>
-          </text>
-          <text fg={theme.text}>
-            esc <span style={{ fg: theme.textMuted }}>cancel</span>
-          </text>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>enter</text>
+            <text fg={theme.textMuted}>confirm</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>esc</text>
+            <text fg={theme.textMuted}>cancel</text>
+          </box>
         </box>
       </box>
     </box>
@@ -605,16 +607,19 @@ function Prompt<const T extends Record<string, string>>(props: {
         </box>
         <box flexDirection="row" gap={2} flexShrink={0}>
           <Show when={props.fullscreen}>
-            <text fg={theme.text}>
-              {"ctrl+f"} <span style={{ fg: theme.textMuted }}>{hint()}</span>
-            </text>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.text}>ctrl+f</text>
+              <text fg={theme.textMuted}>{hint()}</text>
+            </box>
           </Show>
-          <text fg={theme.text}>
-            {"⇆"} <span style={{ fg: theme.textMuted }}>select</span>
-          </text>
-          <text fg={theme.text}>
-            enter <span style={{ fg: theme.textMuted }}>confirm</span>
-          </text>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>⇆</text>
+            <text fg={theme.textMuted}>select</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>enter</text>
+            <text fg={theme.textMuted}>confirm</text>
+          </box>
         </box>
       </box>
     </box>
