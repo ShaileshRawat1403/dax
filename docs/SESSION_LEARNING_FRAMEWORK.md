@@ -2224,3 +2224,20 @@ Why it worked:
 - it protects the invariant that the stream is narrative rather than a chat feed
 - it prevents local rendering tweaks from drifting into new interaction patterns
 - it gives the next TUI slice a fixed contract before code changes land
+
+## Session Pattern: Build a Deterministic Agent Spine Before LLM Orchestration
+
+Once the workstation UI and evidence rendering model are locked, the shift to a "true agent" requires a deterministic execution engine, not an open-ended LLM chat loop.
+
+The correct structural sequence is:
+1. Intent Interpreter (turns prompt into structured intent)
+2. Planner (turns intent into a deterministic task graph)
+3. Operator Router (assigns specialists to task nodes)
+4. Runtime Execution Loop (processes runnable tasks, enforces RAO governance between steps)
+
+Why it worked:
+- it avoids the "tool-call chaos" and hallucinated loops common to naive agent frameworks
+- it strictly separates "what to do" (intent/planner) from "how to do it" (operator/skill)
+- it guarantees that operators only produce results, while the centralized runtime loop mutates session state and handles governance
+- it natively supports pausing for approvals, parallel tasks, and exact milestone reporting to the UI
+

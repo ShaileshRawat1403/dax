@@ -1,7 +1,13 @@
 import type { Argv } from "yargs"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
-import { runExploreOperator } from "../../explore/operator"
+import path from "path"
+import { interpretIntent } from "../../intent/interpret"
+import { createPlan } from "../../planner/planner"
+import { runGraph } from "../../execution/run-graph"
+import { OperatorRouter } from "../../operators/router"
+import { ExploreOperator } from "../../operators/explore"
+import { renderExploreResult, type RepoExploreResult } from "../../explore/repo-explore"
 
 export const ExploreCommand = cmd({
   command: "explore [path]",
@@ -27,13 +33,41 @@ export const ExploreCommand = cmd({
   handler: async (args) => {
     const target = String(args.path ?? ".")
     await bootstrap(target, async () => {
-      const output = await runExploreOperator({
-        baseDir: process.cwd(),
-        pathArg: target,
-        format: args.format === "json" ? "json" : "table",
-        eli12: Boolean(args.eli12),
-      })
-      console.log(output.rendered)
+      const resolvedTarget = path.resolve(process.cwd(), target)
+
+      // 1. Intent Interpreter
+      const intent = await interpretIntent(`explore ${target}`, { cwd: resolvedTarget })
+      
+      // 2. Planner
+      const graph = await createPlan(intent, {})
+      
+      // 3. Setup router and operator
+      const router = new OperatorRouter()
+      router.register(new ExploreOperator())
+      
+      // 4. Run the Agent Graph
+      const result = await runGraph(graph, { cwd: resolvedTarget, sessionId: "cli-explore" }, router)
+      
+      if (!result.success) {
+        console.error("Explore execution failed:", result.failedTasks)
+        for (const taskId of result.failedTasks) {
+          const task = graph.tasks.get(taskId)
+          if (task?.error) {
+            console.error(`Task ${taskId} error:`, task.error)
+          }
+        }
+        process.exit(1)
+      }
+
+      // 5. Output
+      const reportTask = graph.tasks.get('task_generate_report')
+      const exploreResult = reportTask?.result as RepoExploreResult
+
+      if (args.format === "json") {
+        console.log(JSON.stringify(exploreResult, null, 2))
+      } else {
+        console.log(renderExploreResult(exploreResult, { eli12: Boolean(args.eli12) }))
+      }
     })
   },
 })
