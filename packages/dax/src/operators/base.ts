@@ -4,6 +4,7 @@ export interface OperatorContext {
   sessionId: string;
   cwd: string;
   graph?: TaskGraph;
+  reportMilestone?: (input: { taskID: string; label: string }) => Promise<void> | void;
   // Can add references to tools, session state, governance, etc.
 }
 

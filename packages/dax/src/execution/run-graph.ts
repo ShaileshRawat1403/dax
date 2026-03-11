@@ -8,6 +8,14 @@ export interface GraphRunResult {
   failedTasks: string[];
 }
 
+const milestoneLabels: Record<string, string> = {
+  task_detect_boundaries: "Boundary pass completed",
+  task_detect_entrypoints: "Entry-point pass completed",
+  task_trace_execution_flow: "Execution-flow pass completed",
+  task_detect_integrations: "Integrations pass completed",
+  task_generate_report: "Report prepared",
+};
+
 /**
  * The core DAX runtime loop.
  * Executes the task graph deterministically, routing tasks to their assigned operators,
@@ -37,9 +45,6 @@ export async function runGraph(
         const result = await operator.execute(task, ctx);
 
         // --- RAO Governance Boundary ---
-        // Between operator result and marking the task complete, 
-        // we check for required approvals or trust violations.
-
         if (result.requiresApproval) {
           task.status = 'blocked';
           blockedTasks.push(task.id);
@@ -59,6 +64,13 @@ export async function runGraph(
         task.result = result.output;
         
         // TODO: recordArtifacts(result.artifacts) to session state
+
+        if (ctx.reportMilestone) {
+          const label = milestoneLabels[task.id];
+          if (label) {
+            await ctx.reportMilestone({ taskID: task.id, label });
+          }
+        }
 
       } catch (err) {
         task.status = 'failed';
