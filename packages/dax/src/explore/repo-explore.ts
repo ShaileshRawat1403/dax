@@ -108,15 +108,35 @@ export function mergeExplorePassOutputs(
   base: RepoExplorePassOutputs,
   delta: RepoExplorePassDelta,
 ): RepoExplorePassOutputs {
+  const mergeUniqueBy = <T>(items: T[], next: T[] | undefined, key: (item: T) => string) => {
+    const merged = [...items]
+    const seen = new Set(items.map(key))
+    for (const item of next ?? []) {
+      const id = key(item)
+      if (seen.has(id)) continue
+      seen.add(id)
+      merged.push(item)
+    }
+    return merged
+  }
+
   return {
     repository_shape: delta.repository_shape ?? base.repository_shape,
     entry_points: delta.entry_points ?? base.entry_points,
     execution_graph: delta.execution_graph ?? base.execution_graph,
     orchestration_loop: delta.orchestration_loop ?? base.orchestration_loop,
     integrations: delta.integrations ?? base.integrations,
-    important_files: delta.important_files ?? base.important_files,
-    suggested_reading_order: delta.suggested_reading_order ?? base.suggested_reading_order,
-    unknowns_follow_up_targets: delta.unknowns_follow_up_targets ?? base.unknowns_follow_up_targets,
+    important_files: mergeUniqueBy(base.important_files, delta.important_files, (item) => `${item.path}:${item.role}`),
+    suggested_reading_order: mergeUniqueBy(
+      base.suggested_reading_order,
+      delta.suggested_reading_order,
+      (item) => `${item.path}:${item.reason}`,
+    ),
+    unknowns_follow_up_targets: mergeUniqueBy(
+      base.unknowns_follow_up_targets,
+      delta.unknowns_follow_up_targets,
+      (item) => `${item.kind}:${item.summary}`,
+    ),
   }
 }
 
@@ -248,6 +268,161 @@ const REPO_SHAPE_SIGNALS = [
 ] as const
 
 const CONTAINER_DIR_NAMES = ["packages", "apps", "services"] as const
+const ENTRY_POINT_FILENAMES = [
+  "index.ts",
+  "index.tsx",
+  "cli.ts",
+  "cli.tsx",
+  "main.ts",
+  "main.tsx",
+  "server.ts",
+  "server.tsx",
+  "app.ts",
+  "app.tsx",
+  "worker.ts",
+  "worker.tsx",
+  "src/index.ts",
+  "src/index.tsx",
+  "src/cli.ts",
+  "src/cli.tsx",
+  "src/main.ts",
+  "src/main.tsx",
+  "src/server.ts",
+  "src/server.tsx",
+  "src/app.ts",
+  "src/app.tsx",
+  "src/worker.ts",
+  "src/worker.tsx",
+] as const
+
+type RuntimeEntryType = "cli" | "server" | "worker" | "tui"
+
+type EntryPointCandidate = {
+  type: RuntimeEntryType
+  kind: ExploreEvidenceKind
+  summary: string
+  paths: string[]
+  reason: string
+}
+
+async function readTextIfExists(file: string) {
+  if (!(await Filesystem.exists(file))) return undefined
+  return Bun.file(file).text()
+}
+
+async function readJsonIfExists(file: string) {
+  if (!(await Filesystem.exists(file))) return undefined
+  try {
+    return await Bun.file(file).json()
+  } catch {
+    return undefined
+  }
+}
+
+async function listPackageRoots(root: string) {
+  const resolvedRoot = path.resolve(root)
+  const results = [resolvedRoot]
+  for (const containerName of CONTAINER_DIR_NAMES) {
+    const containerPath = path.join(resolvedRoot, containerName)
+    if (!(await Filesystem.isDir(containerPath))) continue
+
+    const childEntries = await Array.fromAsync(
+      new Bun.Glob("*").scan({
+        cwd: containerPath,
+        onlyFiles: false,
+        absolute: false,
+        followSymlinks: false,
+        dot: false,
+      }),
+    )
+
+    for (const child of childEntries) {
+      const childPath = path.join(containerPath, child)
+      if (!(await Filesystem.isDir(childPath))) continue
+      if (
+        (await Filesystem.exists(path.join(childPath, "package.json"))) ||
+        (await Filesystem.exists(path.join(childPath, "go.mod"))) ||
+        (await Filesystem.exists(path.join(childPath, "Cargo.toml"))) ||
+        (await Filesystem.exists(path.join(childPath, "pyproject.toml")))
+      ) {
+        results.push(childPath)
+      }
+    }
+  }
+  return results
+}
+
+function classifyEntryFile(relativePath: string, content: string | undefined): EntryPointCandidate | undefined {
+  if (!content) return undefined
+  const lowerPath = relativePath.toLowerCase()
+  const lower = content.toLowerCase()
+
+  if (
+    lower.includes("yargs") ||
+    lower.includes("commander") ||
+    lower.includes("import { cmd }") ||
+    lower.includes("scriptname(") ||
+    lowerPath.includes("/cli") ||
+    lowerPath.endsWith("src/index.ts")
+  ) {
+    return {
+      type: "cli",
+      kind: "observed",
+      summary: "CLI entry point detected",
+      paths: [relativePath],
+      reason: "cli bootstrap signals detected",
+    }
+  }
+
+  if (
+    lower.includes("bun.serve(") ||
+    lower.includes("createserver(") ||
+    lower.includes(".listen(") ||
+    lower.includes("serve(") ||
+    lowerPath.includes("/server")
+  ) {
+    return {
+      type: "server",
+      kind: "observed",
+      summary: "Server entry point detected",
+      paths: [relativePath],
+      reason: "server bootstrap signals detected",
+    }
+  }
+
+  if (
+    lower.includes("@opentui/") ||
+    lower.includes("tui(") ||
+    lower.includes("start dax tui") ||
+    lowerPath.includes("/tui/")
+  ) {
+    return {
+      type: "tui",
+      kind: "observed",
+      summary: "TUI entry point detected",
+      paths: [relativePath],
+      reason: "tui bootstrap signals detected",
+    }
+  }
+
+  if (
+    lower.includes("new worker(") ||
+    lower.includes("queue.process") ||
+    lower.includes("scheduler") ||
+    lower.includes("cron") ||
+    lowerPath.includes("worker")
+  ) {
+    return {
+      type: "worker",
+      kind: "observed",
+      summary: "Worker or background entry point detected",
+      paths: [relativePath],
+      reason: "background execution signals detected",
+    }
+  }
+
+  return undefined
+}
 
 export async function runBoundaryPass(root: string): Promise<RepoExplorePassDelta> {
   const resolvedRoot = path.resolve(root)
@@ -372,6 +547,115 @@ export async function runBoundaryPass(root: string): Promise<RepoExplorePassDelt
 
   return {
     repository_shape: {
+      confidence,
+      findings,
+    },
+    important_files: importantFiles,
+  }
+}
+
+export async function runEntryPointPass(root: string): Promise<RepoExplorePassDelta> {
+  const resolvedRoot = path.resolve(root)
+  const findings: ExploreFinding[] = []
+  const importantFiles: ExploreImportantFile[] = []
+  const seenImportantFiles = new Set<string>()
+  const seenFindingKeys = new Set<string>()
+  const packageRoots = await listPackageRoots(resolvedRoot)
+
+  const addImportantFile = (relativePath: string, role: string) => {
+    const key = `${relativePath}:${role}`
+    if (seenImportantFiles.has(key)) return
+    seenImportantFiles.add(key)
+    importantFiles.push({ path: relativePath, role })
+  }
+
+  const addFinding = (candidate: EntryPointCandidate) => {
+    const key = `${candidate.type}:${candidate.summary}:${candidate.paths.join(",")}`
+    if (seenFindingKeys.has(key)) return
+    seenFindingKeys.add(key)
+    findings.push({
+      kind: candidate.kind,
+      summary: `${candidate.summary}: ${candidate.reason}`,
+      paths: candidate.paths,
+    })
+  }
+
+  for (const packageRoot of packageRoots) {
+    const relativeRoot = path.relative(resolvedRoot, packageRoot) || "."
+    const packageJsonPath = path.join(packageRoot, "package.json")
+    const packageJson = await readJsonIfExists(packageJsonPath)
+
+    if (packageJson && typeof packageJson === "object") {
+      if (packageJson.bin && typeof packageJson.bin === "object") {
+        for (const value of Object.values(packageJson.bin as Record<string, unknown>)) {
+          if (typeof value !== "string") continue
+          const entryFile = path.normalize(path.join(relativeRoot, value)).replace(/\\/g, "/")
+          addFinding({
+            type: "cli",
+            kind: "observed",
+            summary: "CLI entry point detected",
+            paths: [relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json"), entryFile],
+            reason: "package.json bin mapping points to runtime bootstrap",
+          })
+          addImportantFile(relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json"), "runtime package manifest")
+          addImportantFile(entryFile, "cli bootstrap")
+        }
+      }
+
+      if (typeof packageJson.main === "string") {
+        const mainTarget = path.normalize(path.join(relativeRoot, packageJson.main)).replace(/\\/g, "/")
+        addFinding({
+          type: "cli",
+          kind: "inferred",
+          summary: "Candidate runtime entry point detected",
+          paths: [relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json"), mainTarget],
+          reason: "package.json main field points to a likely runtime entry",
+        })
+        addImportantFile(mainTarget, "candidate runtime bootstrap")
+      }
+    }
+
+    let packageHadRuntime = false
+    for (const candidateFile of ENTRY_POINT_FILENAMES) {
+      const absolute = path.join(packageRoot, candidateFile)
+      const content = await readTextIfExists(absolute)
+      const relativePath = path
+        .relative(resolvedRoot, absolute)
+        .replace(/\\/g, "/")
+      const candidate = classifyEntryFile(relativePath, content)
+      if (!candidate) continue
+      packageHadRuntime = true
+      addFinding(candidate)
+      addImportantFile(
+        relativePath,
+        candidate.type === "cli"
+          ? "cli bootstrap"
+          : candidate.type === "server"
+            ? "server bootstrap"
+            : candidate.type === "tui"
+              ? "tui bootstrap"
+              : "worker bootstrap",
+      )
+    }
+
+    if (!packageHadRuntime && relativeRoot !== ".") {
+      findings.push({
+        kind: "unknown",
+        summary: `no clear runtime entry point confirmed under ${relativeRoot}`,
+        paths: [relativeRoot],
+      })
+    }
+  }
+
+  const confidence: ExploreConfidence =
+    findings.filter((item) => item.kind === "observed").length >= 3
+      ? "high_confidence"
+      : findings.length > 0
+        ? "medium_confidence"
+        : "unknown"
+
+  return {
+    entry_points: {
       confidence,
       findings,
     },
