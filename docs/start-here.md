@@ -13,7 +13,7 @@ This is the fastest path to first success with DAX.
 For beta releases:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.7 bash
 ```
 
 Check install:
@@ -28,6 +28,12 @@ Start DAX:
 
 ```bash
 dax
+```
+
+If you are developing inside this repo and want the repo-local config plus MCP setup:
+
+```bash
+bun run dax:local
 ```
 
 Then:
@@ -63,11 +69,11 @@ Capture:
 
 ### 2) Session screen + panes
 
-![DAX session screen with artifact, diff, rao, and pm panes](./images/start-here-02-session-panes.png)
+![DAX session screen with Plan, Review, Changes, Context, and Docs panes](./images/start-here-02-session-panes.png)
 
 Capture:
 - One submitted prompt and response visible
-- Side panes (`artifact`, `diff`, `rao`, `pm`) visible
+- Side panes (`Plan`, `Review`, `Changes`, `Context`, `Docs`) visible
 - Session review surfaces visible:
   - `What to do now`
   - `Move through this session`

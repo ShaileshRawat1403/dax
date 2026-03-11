@@ -219,19 +219,19 @@ function App() {
     if (!terminalTitleEnabled() || Flag.DAX_DISABLE_TERMINAL_TITLE) return
 
     if (route.data.type === "home") {
-      renderer.setTerminalTitle("Dax")
+      renderer.setTerminalTitle("DAX")
       return
     }
 
     if (route.data.type === "session") {
       const session = sync.session.get(route.data.sessionID)
       if (!session || SessionApi.isDefaultTitle(session.title)) {
-        renderer.setTerminalTitle("Dax")
+        renderer.setTerminalTitle("DAX")
         return
       }
 
       const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
-      renderer.setTerminalTitle(`Dax | ${title}`)
+      renderer.setTerminalTitle(`DAX | ${title}`)
     }
   })
 
