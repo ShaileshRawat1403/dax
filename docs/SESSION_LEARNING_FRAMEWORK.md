@@ -480,6 +480,65 @@ Why it worked:
 - it grounds product judgment in actual user-facing surfaces
 - it makes the “control plane” category testable
 - it gives the next implementation layer a real quality bar
+
+## Session 008: Lock The Final Screen Layout Before Resuming TUI Coding
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted one final workstation screen-layout artifact before more TUI implementation resumed.
+
+### What The Session Revealed
+
+Once the workstation design stack is complete, the next useful artifact is not another principle document.
+
+It is:
+
+- a final screen layout spec concrete enough to implement from directly
+
+That means locking:
+
+- region order
+- proportions
+- width-tier changes
+- overlay placement
+- one canonical mockup
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 18: Convert layered design rules into one implementation-facing screen contract
+
+The right move was to gather the already-set rules from:
+
+- sidebar contract
+- stream contract
+- overlay layout contract
+- terminal constraints
+
+and turn them into one final screen document.
+
+Why it worked:
+
+- it reduces implementation drift
+- it prevents reinterpreting earlier design docs ad hoc
+- it creates a direct comparison target for the current TUI
+
+#### Pattern 19: Freeze the screen before polishing interaction details
+
+The correct sequence is:
+
+1. final screen layout
+2. overlay open/close refinement
+3. focus and pane ownership refinement
+4. collapse/degradation behavior
+5. approval interruption polish
+
+Why it worked:
+
+- it keeps interaction work anchored to one stable frame
+- it stops layout churn from leaking into behavior work
+- it makes the next TUI phase implementation-first
 - it keeps stream, sidebar, and overlay roles from collapsing into assistant chatter
 
 ## Session 004: Validate Explore Before Expanding Mode Plumbing

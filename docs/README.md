@@ -72,6 +72,7 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_OVERLAY_LAYOUTS.md](DAX_WORKSTATION_OVERLAY_LAYOUTS.md): internal layout contract for verify, release, artifacts, timeline, inspect, and approvals overlays
 - [DAX_WORKSTATION_INTERACTION_SPEC.md](DAX_WORKSTATION_INTERACTION_SPEC.md): focus, open-close, and shortcut behavior across stream, sidebar, and overlays
 - [DAX_WORKSTATION_REFINED_MOCKUP.md](DAX_WORKSTATION_REFINED_MOCKUP.md): single committed balanced-workstation direction combining stream, sidebar, overlays, and footer
+- [DAX_WORKSTATION_SCREEN_LAYOUT.md](DAX_WORKSTATION_SCREEN_LAYOUT.md): final terminal screen layout spec for the balanced workstation, including regions, proportions, width tiers, overlay placement, and canonical mockup
 - [DAX_APPROVAL_INTERRUPTION_SPEC.md](DAX_APPROVAL_INTERRUPTION_SPEC.md): how approvals interrupt the workstation through stream events, sidebar state, and a focused decision overlay
 - [DAX_TERMINAL_CONSTRAINTS.md](DAX_TERMINAL_CONSTRAINTS.md): width tiers, sidebar collapse behavior, overlay sizing, scrolling, and resize rules for the workstation
 - [DAX_TUI_IMPLEMENTATION_PLAN.md](DAX_TUI_IMPLEMENTATION_PLAN.md): final bridge from workstation design into TUI layout regions, component boundaries, overlay routing, resize handling, and event-loop responsibilities
