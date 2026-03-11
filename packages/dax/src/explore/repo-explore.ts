@@ -296,6 +296,14 @@ const ENTRY_POINT_FILENAMES = [
 ] as const
 
 type RuntimeEntryType = "cli" | "server" | "worker" | "tui"
+type IntegrationCategory =
+  | "provider"
+  | "mcp"
+  | "storage"
+  | "queue"
+  | "ci"
+  | "platform"
+  | "auth"
 
 type EntryPointCandidate = {
   type: RuntimeEntryType
@@ -304,6 +312,147 @@ type EntryPointCandidate = {
   paths: string[]
   reason: string
 }
+
+type IntegrationCandidate = {
+  category: IntegrationCategory
+  kind: ExploreEvidenceKind
+  summary: string
+  paths: string[]
+  reason: string
+  role: string
+}
+
+const PACKAGE_INTEGRATION_PATTERNS: Array<{
+  match: RegExp
+  candidate: Omit<IntegrationCandidate, "paths">
+}> = [
+  {
+    match: /^@ai-sdk\//,
+    candidate: {
+      category: "provider",
+      kind: "observed",
+      summary: "Provider integration detected",
+      reason: "ai provider sdk dependency declared",
+      role: "provider integration manifest",
+    },
+  },
+  {
+    match: /^@modelcontextprotocol\/sdk$/,
+    candidate: {
+      category: "mcp",
+      kind: "observed",
+      summary: "MCP integration detected",
+      reason: "mcp sdk dependency declared",
+      role: "mcp integration manifest",
+    },
+  },
+  {
+    match: /^@octokit\/|^@actions\//,
+    candidate: {
+      category: "ci",
+      kind: "observed",
+      summary: "CI or automation integration detected",
+      reason: "github automation sdk dependency declared",
+      role: "automation integration manifest",
+    },
+  },
+  {
+    match: /redis|postgres|pg$|mongodb|mongoose|sqlite|better-sqlite|mysql|prisma/i,
+    candidate: {
+      category: "storage",
+      kind: "observed",
+      summary: "Storage integration detected",
+      reason: "database or persistence dependency declared",
+      role: "storage integration manifest",
+    },
+  },
+  {
+    match: /bull|agenda|bee-queue|sqs|queue/i,
+    candidate: {
+      category: "queue",
+      kind: "observed",
+      summary: "Queue or async integration detected",
+      reason: "queue or async dependency declared",
+      role: "queue integration manifest",
+    },
+  },
+  {
+    match: /aws|azure|google-vertex|gcp|vercel/i,
+    candidate: {
+      category: "platform",
+      kind: "observed",
+      summary: "Platform or cloud integration detected",
+      reason: "cloud platform dependency declared",
+      role: "platform integration manifest",
+    },
+  },
+]
+
+const CONTENT_INTEGRATION_PATTERNS: Array<{
+  match: RegExp
+  candidate: Omit<IntegrationCandidate, "paths">
+}> = [
+  {
+    match: /fetch\(|axios|@octokit\/|https:\/\/api\./i,
+    candidate: {
+      category: "provider",
+      kind: "inferred",
+      summary: "External api integration boundary detected",
+      reason: "network client usage detected",
+      role: "external api integration",
+    },
+  },
+  {
+    match: /mcp|modelcontextprotocol/i,
+    candidate: {
+      category: "mcp",
+      kind: "observed",
+      summary: "MCP integration detected",
+      reason: "mcp references detected in runtime code",
+      role: "mcp integration surface",
+    },
+  },
+  {
+    match: /sqlite|redis|postgres|mongodb|prisma|database_url|pm\.sqlite/i,
+    candidate: {
+      category: "storage",
+      kind: "observed",
+      summary: "Storage integration detected",
+      reason: "storage backend usage detected",
+      role: "storage integration surface",
+    },
+  },
+  {
+    match: /queue\.process|scheduler|cron|background/i,
+    candidate: {
+      category: "queue",
+      kind: "observed",
+      summary: "Queue or async integration detected",
+      reason: "background or queue signals detected",
+      role: "queue or async integration surface",
+    },
+  },
+  {
+    match: /process\.env|dotenv|oauth|auth/i,
+    candidate: {
+      category: "auth",
+      kind: "inferred",
+      summary: "Auth or secrets boundary detected",
+      reason: "runtime auth or env configuration signals detected",
+      role: "auth or secrets boundary",
+    },
+  },
+  {
+    match: /aws_|azure|google_vertex|vercel|bedrock|gcp/i,
+    candidate: {
+      category: "platform",
+      kind: "inferred",
+      summary: "Platform or cloud integration detected",
+      reason: "cloud platform signals detected in runtime code",
+      role: "platform integration surface",
+    },
+  },
+]
 
 async function readTextIfExists(file: string) {
   if (!(await Filesystem.exists(file))) return undefined
@@ -350,6 +499,22 @@ async function listPackageRoots(root: string) {
     }
   }
   return results
+}
+
+async function listExistingFiles(root: string, patterns: string[]) {
+  const matches: string[] = []
+  for (const pattern of patterns) {
+    for await (const match of new Bun.Glob(pattern).scan({
+      cwd: root,
+      onlyFiles: true,
+      absolute: false,
+      followSymlinks: false,
+      dot: true,
+    })) {
+      matches.push(match.replace(/\\/g, "/"))
+    }
+  }
+  return matches
 }
 
 function classifyEntryFile(relativePath: string, content: string | undefined): EntryPointCandidate | undefined {
@@ -660,5 +825,116 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
       findings,
     },
     important_files: importantFiles,
+  }
+}
+
+export async function runIntegrationPass(root: string): Promise<RepoExplorePassDelta> {
+  const resolvedRoot = path.resolve(root)
+  const findings: ExploreFinding[] = []
+  const importantFiles: ExploreImportantFile[] = []
+  const unknowns: ExploreFollowUp[] = []
+  const seenFindingKeys = new Set<string>()
+  const seenImportantFiles = new Set<string>()
+  const packageRoots = await listPackageRoots(resolvedRoot)
+
+  const addImportantFile = (relativePath: string, role: string) => {
+    const key = `${relativePath}:${role}`
+    if (seenImportantFiles.has(key)) return
+    seenImportantFiles.add(key)
+    importantFiles.push({ path: relativePath, role })
+  }
+
+  const addIntegration = (candidate: IntegrationCandidate) => {
+    const key = `${candidate.category}:${candidate.summary}:${candidate.paths.join(",")}`
+    if (seenFindingKeys.has(key)) return
+    seenFindingKeys.add(key)
+    findings.push({
+      kind: candidate.kind,
+      summary: `${candidate.summary}: ${candidate.reason}`,
+      paths: candidate.paths,
+    })
+    for (const item of candidate.paths) addImportantFile(item, candidate.role)
+  }
+
+  for (const packageRoot of packageRoots) {
+    const relativeRoot = path.relative(resolvedRoot, packageRoot) || "."
+    const packageJsonPath = path.join(packageRoot, "package.json")
+    const packageJson = await readJsonIfExists(packageJsonPath)
+    if (packageJson && typeof packageJson === "object") {
+      const deps = {
+        ...(packageJson.dependencies ?? {}),
+        ...(packageJson.devDependencies ?? {}),
+      } as Record<string, unknown>
+
+      for (const depName of Object.keys(deps)) {
+        for (const rule of PACKAGE_INTEGRATION_PATTERNS) {
+          if (!rule.match.test(depName)) continue
+          addIntegration({
+            ...rule.candidate,
+            paths: [relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json")],
+          })
+        }
+      }
+    }
+
+    const sourceFiles = await listExistingFiles(packageRoot, [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "*.ts",
+      "*.tsx",
+    ])
+
+    for (const relativeFile of sourceFiles) {
+      const absolute = path.join(packageRoot, relativeFile)
+      const content = await readTextIfExists(absolute)
+      if (!content) continue
+      const repoRelative = path.relative(resolvedRoot, absolute).replace(/\\/g, "/")
+      for (const rule of CONTENT_INTEGRATION_PATTERNS) {
+        if (!rule.match.test(content)) continue
+        addIntegration({
+          ...rule.candidate,
+          paths: [repoRelative],
+        })
+      }
+    }
+  }
+
+  const workflowFiles = await listExistingFiles(resolvedRoot, [".github/workflows/*.yml", ".github/workflows/*.yaml"])
+  for (const workflowFile of workflowFiles) {
+    addIntegration({
+      category: "ci",
+      kind: "observed",
+      summary: "CI or automation integration detected",
+      reason: "github actions workflow detected",
+      paths: [workflowFile],
+      role: "ci or automation workflow",
+    })
+  }
+
+  if (!findings.some((item) => item.summary.includes("Storage integration detected"))) {
+    unknowns.push({
+      kind: "unknown",
+      summary: "storage backend not confirmed from scanned files",
+    })
+  }
+
+  if (!findings.some((item) => item.summary.includes("Queue or async integration detected"))) {
+    unknowns.push({
+      kind: "unknown",
+      summary: "queue backend not confirmed from scanned files",
+    })
+  }
+
+  const observedCount = findings.filter((item) => item.kind === "observed").length
+  const confidence: ExploreConfidence =
+    observedCount >= 3 ? "high_confidence" : findings.length > 0 ? "medium_confidence" : "unknown"
+
+  return {
+    integrations: {
+      confidence,
+      findings,
+    },
+    important_files: importantFiles,
+    unknowns_follow_up_targets: unknowns,
   }
 }
