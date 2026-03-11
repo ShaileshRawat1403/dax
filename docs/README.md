@@ -18,6 +18,7 @@ Use this index based on your role and goal.
 - [CONTRIBUTOR_START_HERE.md](CONTRIBUTOR_START_HERE.md): canonical product surface and contribution entrypoint
 - [SESSION_LEARNING_FRAMEWORK.md](SESSION_LEARNING_FRAMEWORK.md): living prompt-engineering and session-learning artifact
 - [DAX_SESSION_LEARNING_FEATURE.md](DAX_SESSION_LEARNING_FEATURE.md): how session learning can evolve from a living artifact into a reusable DAX feature
+- [DAX_PRODUCT_VALIDATION.md](DAX_PRODUCT_VALIDATION.md): as-is vs to-be review of DAX as a working product system before further implementation
 - [build-on-dax.md](build-on-dax.md): fork, customize, and ship
 - [PROVIDERS.md](PROVIDERS.md): provider setup and auth matrix
 - [prerelease.md](prerelease.md): beta install and validation
