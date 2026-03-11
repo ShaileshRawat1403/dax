@@ -387,6 +387,63 @@ function DialogArtifactDetail(props: { title: string; body: string }) {
   )
 }
 
+function DialogResponseDetail(props: {
+  title: string
+  summary?: string
+  body: string
+  markdown?: boolean
+}) {
+  const { theme, syntax } = useTheme()
+  return (
+    <WorkstationOverlayPanel
+      title={props.title}
+      footer="esc close"
+      width={72}
+      body={
+        <>
+          <Show when={props.summary}>
+            <text fg={theme.textMuted} wrapMode="word">
+              {props.summary}
+            </text>
+          </Show>
+          <scrollbox height={18}>
+            <Switch>
+              <Match when={props.markdown}>
+                <markdown syntaxStyle={syntax()} streaming={false} content={props.body} conceal={false} />
+              </Match>
+              <Match when={true}>
+                <text fg={theme.text} wrapMode="word">
+                  {props.body}
+                </text>
+              </Match>
+            </Switch>
+          </scrollbox>
+        </>
+      }
+    />
+  )
+}
+
+function isBulkyResponseText(text: string) {
+  const body = text.trim()
+  if (!body) return false
+  const lines = body.split("\n")
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0)
+  const paragraphs = body.split(/\n\s*\n/).filter((part) => part.trim().length > 0)
+  return body.length > 420 || nonEmptyLines.length > 8 || paragraphs.length > 2
+}
+
+function compactResponsePreview(text: string, limit = 96) {
+  const first = text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+    ?.replace(/^[-*#>\s]+/, "")
+    .replace(/\s+/g, " ")
+  if (!first) return "Detail available"
+  return first.length <= limit ? first : first.slice(0, limit - 3) + "..."
+}
+
 function DialogVerifyDetail(props: {
   trustLabel: string
   summary: string
@@ -5457,31 +5514,65 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage }) {
   const ctx = use()
   const { theme, syntax } = useTheme()
+  const dialog = useDialog()
+  const renderer = useRenderer()
+  const content = createMemo(() => props.part.text.trim())
+  const bulky = createMemo(() => !ctx.showDetails() && isBulkyResponseText(content()))
+  const preview = createMemo(() => compactResponsePreview(content()))
   return (
-    <Show when={props.part.text.trim()}>
-      <box id={"text-" + props.part.id} paddingLeft={3} paddingRight={1} marginTop={1} flexShrink={0}>
-        <Switch>
-          <Match when={Flag.DAX_EXPERIMENTAL_MARKDOWN}>
-            <markdown
-              syntaxStyle={syntax()}
-              streaming={true}
-              content={props.part.text.trim()}
-              conceal={ctx.conceal()}
-            />
-          </Match>
-          <Match when={!Flag.DAX_EXPERIMENTAL_MARKDOWN}>
-            <code
-              filetype="markdown"
-              drawUnstyledText={false}
-              streaming={true}
-              syntaxStyle={syntax()}
-              content={props.part.text.trim()}
-              conceal={ctx.conceal()}
-              fg={theme.text}
-            />
-          </Match>
-        </Switch>
-      </box>
+    <Show when={content()}>
+      <Switch>
+        <Match when={bulky()}>
+          <box
+            id={"text-" + props.part.id}
+            paddingLeft={3}
+            paddingRight={1}
+            marginTop={1}
+            flexShrink={0}
+            border={["left"]}
+            borderColor={theme.borderSubtle}
+            customBorderChars={SplitBorder.customBorderChars}
+            onMouseUp={() => {
+              if (renderer.getSelection()?.getSelectedText()) return
+              dialog.replace(() => (
+                <DialogResponseDetail
+                  title="Response detail"
+                  summary={preview()}
+                  body={content()}
+                  markdown
+                />
+              ))
+            }}
+          >
+            <box paddingLeft={2} paddingTop={1} paddingBottom={1} flexDirection="column" gap={1}>
+              <text fg={theme.text} wrapMode="word">
+                {preview()}
+              </text>
+              <text fg={theme.textMuted}>Open detail</text>
+            </box>
+          </box>
+        </Match>
+        <Match when={true}>
+          <box id={"text-" + props.part.id} paddingLeft={3} paddingRight={1} marginTop={1} flexShrink={0}>
+            <Switch>
+              <Match when={Flag.DAX_EXPERIMENTAL_MARKDOWN}>
+                <markdown syntaxStyle={syntax()} streaming={true} content={content()} conceal={ctx.conceal()} />
+              </Match>
+              <Match when={!Flag.DAX_EXPERIMENTAL_MARKDOWN}>
+                <code
+                  filetype="markdown"
+                  drawUnstyledText={false}
+                  streaming={true}
+                  syntaxStyle={syntax()}
+                  content={content()}
+                  conceal={ctx.conceal()}
+                  fg={theme.text}
+                />
+              </Match>
+            </Switch>
+          </box>
+        </Match>
+      </Switch>
     </Show>
   )
 }
@@ -5750,14 +5841,14 @@ function toolAccentColor(tool: string, theme: ThemeShape) {
 function Bash(props: ToolProps<typeof BashTool>) {
   const { theme } = useTheme()
   const sync = useSync()
+  const dialog = useDialog()
   const isRunning = createMemo(() => props.part.state.status === "running")
   const output = createMemo(() => stripAnsi(props.metadata.output?.trim() ?? ""))
-  const [expanded, setExpanded] = createSignal(false)
   const lines = createMemo(() => output().split("\n"))
-  const overflow = createMemo(() => lines().length > 10)
-  const limited = createMemo(() => {
-    if (expanded() || !overflow()) return output()
-    return [...lines().slice(0, 10), "…"].join("\n")
+  const overflow = createMemo(() => lines().length > 10 || output().length > 240)
+  const preview = createMemo(() => {
+    if (!overflow()) return output()
+    return [...lines().slice(0, 3), "…"].join("\n")
   })
 
   const workdirDisplay = createMemo(() => {
@@ -5785,6 +5876,12 @@ function Bash(props: ToolProps<typeof BashTool>) {
     return `# ${desc} in ${wd}`
   })
 
+  const detailBody = createMemo(() => {
+    const command = props.input.command ? `$ ${props.input.command}` : "$ command"
+    if (!output()) return command
+    return `${command}\n\n${output()}`
+  })
+
   return (
     <Switch>
       <Match when={props.metadata.output !== undefined}>
@@ -5792,15 +5889,26 @@ function Bash(props: ToolProps<typeof BashTool>) {
           title={title()}
           part={props.part}
           spinner={isRunning()}
-          onClick={overflow() ? () => setExpanded((prev) => !prev) : undefined}
+          onClick={
+            overflow()
+              ? () =>
+                  dialog.replace(() => (
+                    <DialogResponseDetail
+                      title={title().replace(/^# /, "")}
+                      summary="Shell output available"
+                      body={detailBody()}
+                    />
+                  ))
+              : undefined
+          }
         >
           <box gap={1}>
             <text fg={theme.text}>$ {props.input.command}</text>
             <Show when={output()}>
-              <text fg={theme.text}>{limited()}</text>
+              <text fg={theme.text}>{preview()}</text>
             </Show>
             <Show when={overflow()}>
-              <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : "Click to expand"}</text>
+              <text fg={theme.textMuted}>Open detail</text>
             </Show>
           </box>
         </BlockTool>
