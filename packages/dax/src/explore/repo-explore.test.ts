@@ -236,10 +236,15 @@ describe("repo explore scaffolding", () => {
   it("detects primary execution flows, orchestration loops, and approval interruptions in the execution-flow pass", async () => {
     const root = await mkdtemp()
 
+    await Bun.write(path.join(root, "packages", "app", "package.json"), JSON.stringify({ name: "app", bin: "./bin/app" }))
+    await Bun.write(path.join(root, "packages", "runtime", "package.json"), JSON.stringify({ name: "runtime" }))
+    await Bun.write(path.join(root, "packages", "utils", "package.json"), JSON.stringify({ name: "utils", types: "dist/index.d.ts" }))
+
     await Bun.write(
       path.join(root, "packages", "app", "src", "index.ts"),
       [
         `const { RunCommand } = await import("./cli/cmd/run")`,
+        `import "../../runtime/src/session/index"`,
         `const cli = yargs([])`,
         `cli.command(RunCommand)`,
       ].join("\n"),
@@ -258,11 +263,11 @@ describe("repo explore scaffolding", () => {
 
     await Bun.write(
       path.join(root, "packages", "app", "src", "session", "index.ts"),
-      [`import { SessionPrompt } from "./prompt"`, `await SessionPrompt.command({})`].join("\n"),
+      [`import { SessionPrompt } from "../../runtime/src/prompt"`, `await SessionPrompt.command({})`].join("\n"),
     )
 
     await Bun.write(
-      path.join(root, "packages", "app", "src", "session", "processor.ts"),
+      path.join(root, "packages", "runtime", "src", "session", "processor.ts"),
       [
         `while (true) {`,
         `  SessionStatus.set(sessionID, { type: "busy" })`,
@@ -270,6 +275,18 @@ describe("repo explore scaffolding", () => {
         `  await PermissionNext.ask({})`,
         `}`,
       ].join("\n"),
+    )
+    await Bun.write(
+      path.join(root, "packages", "runtime", "src", "session", "index.ts"),
+      [`import { SessionPrompt } from "../prompt"`, `import "./processor"`].join("\n"),
+    )
+    await Bun.write(
+      path.join(root, "packages", "runtime", "src", "prompt.ts"),
+      `export const SessionPrompt = { async command() {} }\n`,
+    )
+    await Bun.write(
+      path.join(root, "packages", "utils", "src", "index.ts"),
+      `export const helper = () => "ok"\n`,
     )
 
     const delta = await runExecutionFlowPass(root)
@@ -281,9 +298,14 @@ describe("repo explore scaffolding", () => {
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("tui_action_flow: tui action submits work into session runtime"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("session_execution_flow: session surface hands work into the prompt runtime"))).toBe(true)
     expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("worker_dispatch_flow: tui thread hands execution into a worker rpc boundary"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: packages/app acts as a runtime surface package"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: packages/runtime acts as an orchestration package"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: packages/utils acts as a supporting library-only package"))).toBe(true)
     expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("session_execution_flow: session runtime maintains the main execution loop"))).toBe(true)
     expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("approval_interruption_flow: approval checks can interrupt and gate execution"))).toBe(true)
-    expect(outputs.important_files.some((file) => file.path === "packages/app/src/session/processor.ts")).toBe(true)
+    expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("workspace_handoff_flow: runtime surface hands execution into workspace orchestration package"))).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "packages/runtime/src/session/index.ts")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "packages/runtime/src/session/processor.ts")).toBe(true)
   })
 
   it("synthesizes ranked important files, reading order, and follow-up targets from real pass evidence", () => {
@@ -465,6 +487,8 @@ async function mkdtemp() {
   await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "cli", "cmd", "tui", "component", "prompt")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "cli", "cmd")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "session")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "runtime", "src", "session")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "utils", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, ".github", "workflows")}`.quiet()
   return dir
 }
