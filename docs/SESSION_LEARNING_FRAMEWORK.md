@@ -219,6 +219,76 @@ It was to read the existing runtime and see that DAX already has:
 - plan-mode entry and exit tools
 - a real plan file path
 
+## Session 003: Lock DAX Voice Before The Workstation Drifts
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted to finalize the workstation voice before more TUI implementation drifted toward generic AI-assistant language.
+
+### What The Session Revealed
+
+Once the workstation model is stable, tone stops being a branding detail and becomes an interaction contract.
+
+The wrong voice would break:
+
+- the stream as narrative
+- the sidebar as truth
+- the overlays as evidence
+
+The correct persona is not "teammate."
+
+It is:
+
+- execution operator
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 9: Lock voice as a product rule, not a style preference
+
+The strongest move was to define:
+
+- persona statement
+- hard tone rules
+- forbidden phrases
+- surface-specific guidance
+
+Why it worked:
+
+- it prevents later UI drift
+- it gives implementation a concrete review bar
+- it keeps DAX aligned with the control-plane product identity
+
+#### Pattern 10: Use verb-first phrasing to preserve operator tone
+
+Best examples:
+
+- `Scanning repository`
+- `Producing report artifact`
+- `Approval required`
+- `Execution paused`
+
+Why it worked:
+
+- it keeps the stream concise
+- it removes chatbot framing
+- it makes the center read like execution, not conversation
+
+#### Pattern 11: Separate narration from explanation at the voice level too
+
+The same model that works structurally also works tonally:
+
+- stream narrates
+- sidebar states
+- overlays explain
+
+Why it worked:
+
+- it keeps voice and information architecture aligned
+- it stops reasoning language from leaking into the stream
+- it gives each surface a distinct job
+
 ## Session 003: Settle Write Outcome Semantics Before Surface Expansion
 
 Date: March 10, 2026
