@@ -141,32 +141,143 @@ export function mergeExplorePassOutputs(
 }
 
 export function buildExploreResult(outputs: RepoExplorePassOutputs): RepoExploreResult {
+  const synthesized = synthesizeExploreOutputs(outputs)
   return {
     sections: [
       ...((["repository_shape", "entry_points", "execution_graph", "orchestration_loop", "integrations"] as ExploreSectionKey[]).map(
         (key) => ({
           key,
           title: SECTION_TITLES[key],
-          confidence: outputs[key].confidence,
-          findings: outputs[key].findings,
+          confidence: synthesized[key].confidence,
+          findings: synthesized[key].findings,
         }),
       )),
       {
         key: "important_files",
         title: "Important files" as const,
-        files: outputs.important_files,
+        files: synthesized.important_files,
       },
       {
         key: "suggested_reading_order",
         title: "Suggested reading order" as const,
-        steps: outputs.suggested_reading_order,
+        steps: synthesized.suggested_reading_order,
       },
       {
         key: "unknowns_follow_up_targets",
         title: "Unknowns / follow-up targets" as const,
-        items: outputs.unknowns_follow_up_targets,
+        items: synthesized.unknowns_follow_up_targets,
       },
     ],
+  }
+}
+
+function importantFilePriority(role: string) {
+  if (role.includes("root repo-shape signal")) return 100
+  if (role.includes("runtime package manifest")) return 96
+  if (role.includes("bootstrap")) return 92
+  if (role.includes("execution flow surface")) return 88
+  if (role.includes("orchestration loop surface")) return 87
+  if (role.includes("approval interruption surface")) return 86
+  if (role.includes("control transition surface")) return 85
+  if (role.includes("boundary")) return 80
+  if (role.includes("integration")) return 74
+  if (role.includes("candidate runtime")) return 72
+  return 60
+}
+
+function importanceReason(role: string) {
+  if (role.includes("root repo-shape signal") || role.includes("runtime package manifest")) {
+    return "Establishes repository shape and workspace boundaries."
+  }
+  if (role.includes("bootstrap")) {
+    return "Shows where runtime execution starts."
+  }
+  if (role.includes("execution flow surface")) {
+    return "Shows the first concrete execution handoff."
+  }
+  if (role.includes("orchestration loop surface")) {
+    return "Shows where the main orchestration loop coordinates work."
+  }
+  if (role.includes("approval interruption surface") || role.includes("control transition surface")) {
+    return "Shows where execution can pause, gate, or resume."
+  }
+  if (role.includes("integration")) {
+    return "Shows the external boundary this runtime depends on."
+  }
+  if (role.includes("boundary")) {
+    return "Helps establish package or workspace ownership."
+  }
+  return "Provides supporting evidence for how this repository runs."
+}
+
+function normalizeFollowUp(summary: string): string {
+  return summary.replace(/^no clear runtime entry point confirmed under /, "Confirm runtime start under ")
+}
+
+export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoExplorePassOutputs {
+  const importantFiles = [...outputs.important_files]
+    .sort((a, b) => {
+      const diff = importantFilePriority(b.role) - importantFilePriority(a.role)
+      if (diff !== 0) return diff
+      const pathDiff = a.path.length - b.path.length
+      if (pathDiff !== 0) return pathDiff
+      return a.path.localeCompare(b.path)
+    })
+    .filter((item, index, array) => array.findIndex((candidate) => candidate.path === item.path) === index)
+    .slice(0, 10)
+
+  const readingOrder: ExploreReadingStep[] =
+    outputs.suggested_reading_order.length > 0
+      ? outputs.suggested_reading_order
+      : importantFiles.slice(0, 6).map((file) => ({
+          path: file.path,
+          reason: importanceReason(file.role),
+        }))
+
+  const derivedFollowUps: ExploreFollowUp[] = []
+  const derivedKeys = new Set<string>()
+  const pushDerived = (item: ExploreFollowUp) => {
+    const key = `${item.kind}:${item.summary}`
+    if (derivedKeys.has(key)) return
+    derivedKeys.add(key)
+    derivedFollowUps.push(item)
+  }
+
+  for (const section of [
+    outputs.repository_shape,
+    outputs.entry_points,
+    outputs.execution_graph,
+    outputs.orchestration_loop,
+    outputs.integrations,
+  ]) {
+    for (const finding of section.findings) {
+      if (finding.kind === "unknown") {
+        pushDerived({
+          kind: "unknown",
+          summary: normalizeFollowUp(finding.summary),
+        })
+      }
+      if (finding.kind === "inferred") {
+        pushDerived({
+          kind: "follow_up",
+          summary: `Confirm inferred boundary: ${finding.summary}`,
+        })
+      }
+    }
+  }
+
+  const unknownsFollowUpTargets = [...outputs.unknowns_follow_up_targets]
+  for (const item of derivedFollowUps) {
+    if (!unknownsFollowUpTargets.some((candidate) => candidate.kind === item.kind && candidate.summary === item.summary)) {
+      unknownsFollowUpTargets.push(item)
+    }
+  }
+
+  return {
+    ...outputs,
+    important_files: importantFiles,
+    suggested_reading_order: readingOrder,
+    unknowns_follow_up_targets: unknownsFollowUpTargets.slice(0, 10),
   }
 }
 

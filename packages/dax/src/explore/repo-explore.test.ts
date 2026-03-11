@@ -8,6 +8,7 @@ import {
   runEntryPointPass,
   runExecutionFlowPass,
   runIntegrationPass,
+  synthesizeExploreOutputs,
   type RepoExplorePassOutputs,
 } from "./repo-explore"
 import path from "path"
@@ -275,6 +276,87 @@ describe("repo explore scaffolding", () => {
     expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("session_execution_flow: session runtime maintains the main execution loop"))).toBe(true)
     expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("approval_interruption_flow: approval checks can interrupt and gate execution"))).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "packages/app/src/session/processor.ts")).toBe(true)
+  })
+
+  it("synthesizes ranked important files, reading order, and follow-up targets from real pass evidence", () => {
+    const synthesized = synthesizeExploreOutputs(
+      mergeExplorePassOutputs(
+        mergeExplorePassOutputs(
+          mergeExplorePassOutputs(createEmptyExplorePassOutputs(), {
+            repository_shape: {
+              confidence: "high_confidence",
+              findings: [{ kind: "observed", summary: "repo root contains package.json", paths: ["package.json"] }],
+            },
+            important_files: [
+              { path: "package.json", role: "root repo-shape signal" },
+              { path: "packages/app", role: "package boundary" },
+            ],
+          }),
+          {
+            entry_points: {
+              confidence: "medium_confidence",
+              findings: [
+                { kind: "observed", summary: "CLI entry point detected", paths: ["packages/app/src/index.ts"] },
+                { kind: "unknown", summary: "no clear runtime entry point confirmed under packages/lib", paths: ["packages/lib"] },
+              ],
+            },
+            important_files: [
+              { path: "packages/app/src/index.ts", role: "cli bootstrap" },
+              { path: "packages/lib", role: "package boundary" },
+            ],
+          },
+        ),
+        {
+          execution_graph: {
+            confidence: "high_confidence",
+            findings: [{ kind: "observed", summary: "session_execution_flow: session surface hands work into the prompt runtime", paths: ["packages/app/src/session/index.ts"] }],
+          },
+          orchestration_loop: {
+            confidence: "high_confidence",
+            findings: [{ kind: "inferred", summary: "approval_interruption_flow: control can pause or stop through abort transitions", paths: ["packages/app/src/session/processor.ts"] }],
+          },
+          integrations: {
+            confidence: "medium_confidence",
+            findings: [{ kind: "observed", summary: "Provider integration detected", paths: ["packages/app/package.json"] }],
+          },
+          important_files: [
+            { path: "packages/app/src/session/index.ts", role: "execution flow surface" },
+            { path: "packages/app/src/session/processor.ts", role: "orchestration loop surface" },
+            { path: "packages/app/package.json", role: "provider integration manifest" },
+          ],
+        },
+      ),
+    )
+
+    expect(synthesized.important_files.map((file) => file.path)).toEqual([
+      "package.json",
+      "packages/app/src/index.ts",
+      "packages/app/src/session/index.ts",
+      "packages/app/src/session/processor.ts",
+      "packages/app",
+      "packages/lib",
+      "packages/app/package.json",
+    ])
+    expect(synthesized.suggested_reading_order[0]).toEqual({
+      path: "package.json",
+      reason: "Establishes repository shape and workspace boundaries.",
+    })
+    expect(synthesized.suggested_reading_order[1]).toEqual({
+      path: "packages/app/src/index.ts",
+      reason: "Shows where runtime execution starts.",
+    })
+    expect(
+      synthesized.unknowns_follow_up_targets.some(
+        (item) => item.kind === "unknown" && item.summary === "Confirm runtime start under packages/lib",
+      ),
+    ).toBe(true)
+    expect(
+      synthesized.unknowns_follow_up_targets.some(
+        (item) =>
+          item.kind === "follow_up" &&
+          item.summary.includes("Confirm inferred boundary: approval_interruption_flow: control can pause or stop through abort transitions"),
+      ),
+    ).toBe(true)
   })
 })
 
