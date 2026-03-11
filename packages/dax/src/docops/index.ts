@@ -111,7 +111,8 @@ export namespace DocOps {
     while ((m = re.exec(text))) {
       const value = m[1]?.trim()
       if (!value) continue
-      if (value.startsWith("/") || value.includes("/") || value.endsWith(".md") || value.endsWith(".ts")) out.push(value)
+      if (value.startsWith("/") || value.includes("/") || value.endsWith(".md") || value.endsWith(".ts"))
+        out.push(value)
     }
     return out
   }
@@ -156,12 +157,7 @@ export namespace DocOps {
     return found.exitCode === 0
   }
 
-  function checkMarkdownFile(input: {
-    root: string
-    file: string
-    requiredHeadings?: string[]
-    checks: Check[]
-  }) {
+  function checkMarkdownFile(input: { root: string; file: string; requiredHeadings?: string[]; checks: Check[] }) {
     const fullPath = path.join(input.root, input.file)
     if (!existsSync(fullPath)) {
       input.checks.push({
@@ -505,7 +501,12 @@ export namespace DocOps {
         checkMarkdownFile({
           root: ctx.root,
           file: "docs/README.md",
-          requiredHeadings: ["Start Here", "Non-Developers", "Developers"],
+          requiredHeadings: [
+            "Start Here",
+            "Non-Developers",
+            "Shipped Product Docs",
+            "Contributor / Current Merge Target",
+          ],
           checks,
         }),
         checkMarkdownFile({
@@ -525,7 +526,12 @@ export namespace DocOps {
         `- info: ${qa.info_count}`,
         "",
         ...(checks.length
-          ? ["### Findings", ...checks.map((c) => `- [${c.blocking ? "BLOCKER" : c.severity.toUpperCase()}] ${c.title}: ${c.evidence}`)]
+          ? [
+              "### Findings",
+              ...checks.map(
+                (c) => `- [${c.blocking ? "BLOCKER" : c.severity.toUpperCase()}] ${c.title}: ${c.evidence}`,
+              ),
+            ]
           : ["No documentation issues detected in baseline checks."]),
       ].join("\n")
     }

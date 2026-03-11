@@ -33,7 +33,7 @@ DAX features that are implemented and ready for production use.
 
 Active development tracks and merge planning for contributors.
 
-- [DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md](DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md): merge order and explicit deferrals for `feature/dax-execution-control-plane`
+- [DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md](DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md): merge order and explicit deferrals for the execution-control-plane branch
 - [CONTRIBUTOR_START_HERE.md](CONTRIBUTOR_START_HERE.md): canonical product surface and contribution entrypoint
 - [SESSION_LEARNING_FRAMEWORK.md](SESSION_LEARNING_FRAMEWORK.md): living prompt-engineering and session-learning artifact
 - [DAX_SESSION_LEARNING_FEATURE.md](DAX_SESSION_LEARNING_FEATURE.md): how session learning can evolve from a living artifact into a reusable DAX feature
