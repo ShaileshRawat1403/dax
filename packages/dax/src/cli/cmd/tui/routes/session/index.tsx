@@ -4717,7 +4717,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const kv = useKV()
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const showEli12Summary = createMemo(() => kv.get(DAX_SETTING.eli12_summary_visibility, false))
   const parent = createMemo(() => messages().find((x) => x.id === props.message.parentID && x.role === "user"))
   const asked = createMemo(() => {
     const id = parent()?.id
@@ -4769,29 +4768,9 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     }
     return undefined
   })
-  const operationalMilestone = createMemo(() =>
-    describeOperationalMilestone({
-      asked: asked(),
-      completedTools: completedToolParts(),
-      pendingTool: pendingTool(),
-      hasReasoning: hasReasoning(),
-      explainMode: explainMode(),
-    }),
-  )
   const errorMessage = createMemo(() => {
     const value = props.message.error?.data.message
     return typeof value === "string" ? value : undefined
-  })
-  const changeSummary = createMemo(() => {
-    const summary = parent()?.summary
-    const diffs = summary && typeof summary === "object" && "diffs" in summary && Array.isArray(summary.diffs) ? summary.diffs : []
-    return {
-      diffs,
-      files: diffs.length,
-      additions: diffs.reduce((sum: number, item) => sum + item.additions, 0),
-      deletions: diffs.reduce((sum: number, item) => sum + item.deletions, 0),
-      topFiles: diffs.slice(0, 3),
-    }
   })
   const hasNativeEli12 = createMemo(() =>
     props.parts.some(
@@ -4800,7 +4779,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         /\b(you asked|what i'm doing|what happens next|your options)\b/i.test((x as TextPart).text ?? ""),
     ),
   )
-  const showSummary = createMemo(() => explainMode() && showEli12Summary() && props.last && !hasNativeEli12())
   const narrative = createMemo(() =>
     buildAssistantNarrative({
       asked: asked(),
@@ -4815,61 +4793,36 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       completed: !!props.message.time.completed || !!final(),
       doing: doing(),
       next: next(),
-      liveStep:
-        liveNarrativeStep() ??
-        (operationalMilestone().checking || operationalMilestone().next
-          ? {
-              now: operationalMilestone().checking ?? doing(),
-              next: operationalMilestone().next ?? next(),
-            }
-          : undefined),
+      liveStep: liveNarrativeStep(),
     }),
   )
   const narrativeIntensity = createMemo<AssistantNarrativeIntensity>(() => narrative()?.intensity ?? "guided")
-  const [traceExpanded, setTraceExpanded] = createSignal(false)
   const traceSummary = createMemo(() => {
     const tools = completedToolParts()
     const reads = tools.filter((part) => EXPLORE_TOOLS.has(part.tool)).length
     const plans = tools.filter((part) => PLAN_TOOLS.has(part.tool)).length
     const writes = tools.filter((part) => EXECUTE_TOOLS.has(part.tool)).length
     const verifies = tools.filter((part) => VERIFY_TOOLS.has(part.tool)).length
-    const shell = tools.filter((part) => part.tool === "bash").length
-    const notable = Array.from(new Set(tools.map((part) => part.tool))).slice(0, 4)
-    const phases = [
-      reads > 0 ? "inspect" : undefined,
-      plans > 0 ? "plan" : undefined,
-      writes > 0 || shell > 0 ? "execute" : undefined,
-      verifies > 0 ? "verify" : undefined,
-    ].filter(Boolean) as string[]
     return {
-      total: tools.length,
       reads,
       plans,
       writes,
       verifies,
-      shell,
-      notable,
-      phases,
     }
   })
-  const operationalSummary = createMemo(() => {
-    if (narrativeIntensity() !== "operational") return undefined
-    if (!props.message.time.completed && !final()) return undefined
-    return describeOperationalCompletion({
-      asked: asked(),
-      phases: traceSummary().phases,
-      writes: traceSummary().writes,
-      verifies: traceSummary().verifies,
-      hasError: !!props.message.error,
-    })
+  const streamOutcome = createMemo(() => {
+    if (pendingTool()) return undefined
+    if (!props.message.time.completed && !final() && !props.message.error) return undefined
+    if (props.message.error?.name === "MessageAbortedError") return "Execution interrupted"
+    if (props.message.error) return "Execution failed"
+    if (traceSummary().writes > 0 && traceSummary().verifies > 0) return "Changes applied and verification finished"
+    if (traceSummary().writes > 0) return "Changes applied"
+    if (traceSummary().verifies > 0) return "Verification finished"
+    if (traceSummary().plans > 0 && traceSummary().reads > 0) return "Plan reviewed and execution prepared"
+    if (traceSummary().plans > 0) return "Plan completed"
+    if (traceSummary().reads > 0) return "Inspection step completed"
+    return final() || props.message.time.completed ? "Run completed" : undefined
   })
-  const showCollapsedTrace = createMemo(
-    () =>
-      narrativeIntensity() === "operational" &&
-      !!props.message.time.completed &&
-      completedToolParts().length > 0 &&
-      (completedToolParts().length >= 3 || traceSummary().writes > 0 || traceSummary().verifies > 0),
-  )
 
   const duration = createMemo(() => {
     if (!final()) return 0
@@ -4922,10 +4875,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       }
 
       const hasPendingTool = !!pendingTool()
-      const hasVisibleNarrative =
-        !!operationalSummary() ||
-        (!props.message.time.completed &&
-          !!(operationalMilestone().found || operationalMilestone().checking || operationalMilestone().next))
+      const hasVisibleNarrative = !!streamOutcome()
 
       if (!props.last && !props.message.error && !hasTextContent() && !hasPendingTool && !hasVisibleNarrative) {
         return false
@@ -4956,52 +4906,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
         )}
       </Show>
-      <Show
-        when={
-          narrative()?.intensity === "operational" &&
-          !props.message.time.completed &&
-          (operationalMilestone().found || operationalMilestone().checking || operationalMilestone().next)
-        }
-      >
-        <box
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={2}
-          marginTop={0}
-          flexDirection="column"
-          gap={0}
-          backgroundColor={tint(theme.backgroundPanel, theme.secondary, 0.08)}
-          border={["left", "top"]}
-          borderColor={theme.secondary}
-        >
-          <Show when={operationalMilestone().found}>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>Found</text>
-              <text fg={theme.text} wrapMode="word">
-                {operationalMilestone().found}
-              </text>
-            </box>
-          </Show>
-          <Show when={operationalMilestone().checking}>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>{explainMode() ? "Checking now" : "Checking"}</text>
-              <text fg={theme.secondary} wrapMode="word">
-                {operationalMilestone().checking}
-              </text>
-            </box>
-          </Show>
-          <Show when={operationalMilestone().next}>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>Next</text>
-              <text fg={theme.text} wrapMode="word">
-                {operationalMilestone().next}
-              </text>
-            </box>
-          </Show>
-        </box>
-      </Show>
-      <Show when={operationalSummary()}>
+      <Show when={narrativeIntensity() === "operational" && streamOutcome()}>
         {(line) => (
           <box paddingTop={1} paddingBottom={0} paddingLeft={3} paddingRight={1} marginTop={0}>
             <text fg={theme.text} wrapMode="word">
@@ -5010,110 +4915,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
         )}
       </Show>
-      <Show when={showCollapsedTrace() && !traceExpanded()}>
-        <box
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={2}
-          marginTop={0}
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="center"
-          backgroundColor={tint(theme.backgroundPanel, theme.borderSubtle, 0.08)}
-          border={["left"]}
-          borderColor={theme.borderSubtle}
-          onMouseUp={() => setTraceExpanded(true)}
-        >
-          <box flexDirection="column" gap={0}>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.text}>Trace {traceSummary().total} actions</text>
-              <Show when={traceSummary().reads > 0}>
-                <text fg={theme.textMuted}>· {traceSummary().reads} reads/searches</text>
-              </Show>
-              <Show when={traceSummary().plans > 0}>
-                <text fg={theme.textMuted}>· {traceSummary().plans} planning steps</text>
-              </Show>
-              <Show when={traceSummary().writes > 0}>
-                <text fg={theme.textMuted}>· {traceSummary().writes} changes</text>
-              </Show>
-              <Show when={traceSummary().verifies > 0}>
-                <text fg={theme.textMuted}>· {traceSummary().verifies} verification steps</text>
-              </Show>
-            </box>
-            <Show when={traceSummary().notable.length > 0}>
-              <text fg={theme.textMuted}>Includes: {traceSummary().notable.join(", ")}</text>
-            </Show>
-              <Show when={traceSummary().phases.length > 0}>
-              <text fg={theme.textMuted}>Milestones: {traceSummary().phases.map(formatMilestoneName).join(" → ")}</text>
-            </Show>
-          </box>
-          <text fg={theme.secondary}>Show trace</text>
-        </box>
-      </Show>
-      <Show when={showSummary()}>
-        <box
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={2}
-          marginTop={1}
-          backgroundColor={tint(theme.backgroundPanel, theme.accent, 0.06)}
-        >
-          <box flexDirection="column" gap={0}>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-                ELI12
-              </text>
-              <text fg={theme.text}>summary</text>
-            </box>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>You asked:</text>
-              <text fg={theme.text}>{asked()}</text>
-            </box>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>DAX did:</text>
-              <text fg={theme.text}>{doing()}</text>
-            </box>
-            <box flexDirection="row" gap={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>Next step:</text>
-              <text fg={theme.text}>{next()}</text>
-            </box>
-            <Show when={changeSummary().files > 0}>
-              <box flexDirection="row" gap={1} flexWrap="wrap">
-                <text fg={theme.textMuted}>Changed:</text>
-                <text fg={theme.text}>{changeSummary().files} files,</text>
-                <text fg={theme.diffAdded}>+{changeSummary().additions}</text>
-                <text fg={theme.text}>and</text>
-                <text fg={theme.diffRemoved}>-{changeSummary().deletions}</text>
-              </box>
-              <For each={changeSummary().topFiles}>
-                {(item) => (
-                  <box flexDirection="row" gap={1} flexWrap="wrap">
-                    <text fg={theme.textMuted}>• {item.file} (</text>
-                    <text fg={theme.diffAdded}>+{item.additions}</text>
-                    <text fg={theme.textMuted}>/</text>
-                    <text fg={theme.diffRemoved}>-{item.deletions}</text>
-                    <text fg={theme.textMuted}>)</text>
-                  </box>
-                )}
-              </For>
-            </Show>
-          </box>
-        </box>
-      </Show>
-
-      <Show when={narrativeIntensity() === "operational" && (traceExpanded() || !!props.message.error)}>
-        <box flexDirection="row" gap={1} alignItems="center" marginTop={1} marginBottom={0} paddingLeft={2}>
-          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-            DAX
-          </text>
-          <text fg={theme.textMuted}>·</text>
-          <text fg={theme.textMuted}>{Locale.titlecase(props.message.mode)}</text>
-          <text fg={theme.textMuted}>·</text>
-          <text fg={theme.textMuted}>{props.message.modelID}</text>
-        </box>
-      </Show>
 
       <For each={props.parts}>
         {(part, index) => {
@@ -5121,9 +4922,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           const shouldRenderPart = createMemo(() => {
             if (narrativeIntensity() !== "operational") return true
             if (ctx.showDetails()) return true
-            if (traceExpanded()) return true
-            if (part.type === "text") return true
-            if (part.type === "tool") return false
+            if (part.type === "text") return false
+            if (part.type === "tool") return part.state.status !== "completed"
             if (part.type === "reasoning") return false
             return true
           })
@@ -5139,11 +4939,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           )
         }}
       </For>
-      <Show when={showCollapsedTrace() && traceExpanded()}>
-        <box paddingLeft={2} marginTop={0} onMouseUp={() => setTraceExpanded(false)}>
-          <text fg={theme.secondary}>Hide trace</text>
-        </box>
-      </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         <box
           paddingTop={1}
@@ -5159,50 +4954,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </text>
         </box>
       </Show>
-      <Switch>
-        <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <Show when={narrativeIntensity() === "operational" && (traceExpanded() || !!props.message.error)}>
-            <box
-              flexDirection="row"
-              gap={1}
-              alignItems="center"
-              marginTop={1}
-              marginBottom={1}
-              paddingLeft={2}
-              flexWrap="wrap"
-            >
-              <text
-                fg={
-                  props.message.error?.name === "MessageAbortedError"
-                    ? theme.textMuted
-                    : local.agent.color(props.message.agent)
-                }
-              >
-                {props.last && !props.message.time.completed ? "◉" : "●"}
-              </text>
-              <text fg={theme.text}>{Locale.titlecase(props.message.mode)}</text>
-              <text fg={theme.textMuted}>·</text>
-              <text fg={theme.textMuted}>{props.message.modelID}</text>
-              <Show when={duration()}>
-                <text fg={theme.textMuted}>·</text>
-                <text fg={theme.textMuted}>{Locale.duration(duration())}</text>
-              </Show>
-              <Show when={generatedTokens() > 0}>
-                <text fg={theme.textMuted}>·</text>
-                <text fg={theme.textMuted}>{`${generatedTokens().toLocaleString()} tok`}</text>
-              </Show>
-              <Show when={tokensPerSecond() > 0}>
-                <text fg={theme.textMuted}>·</text>
-                <text fg={theme.textMuted}>{`${tokensPerSecond().toFixed(0)}/s`}</text>
-              </Show>
-              <Show when={props.message.error?.name === "MessageAbortedError"}>
-                <text fg={theme.textMuted}>·</text>
-                <text fg={theme.textMuted}>interrupted</text>
-              </Show>
-            </box>
-          </Show>
-        </Match>
-      </Switch>
     </Show>
   )
 }
