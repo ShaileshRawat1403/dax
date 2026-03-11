@@ -326,3 +326,27 @@ Reason:
 
 - the remaining weakness is no longer mostly surface noise
 - it is now primarily execution-flow depth in larger workspaces and non-DAX-shaped repos
+
+## Held Next Step
+
+The next Explore slice should stay narrow:
+
+1. targeted workspace execution-flow refinement
+2. use `soothsayer` as the primary stress-case repo
+3. rerun the same five-repo validation batch
+
+Focus:
+
+- package-to-package handoffs
+- runtime-surface to orchestration-core transitions
+- session / workflow / tool-routing boundaries
+- stronger confirmation of cross-package execution chains
+
+Do not shift to:
+
+- broader Explore mode plumbing
+- TUI Explore exposure
+- generic output reshaping
+- another broad integration pass
+
+until that workspace-flow refinement has been validated against the same repo set.
