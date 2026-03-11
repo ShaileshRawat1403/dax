@@ -365,6 +365,65 @@ Why it worked:
 - it preserves the engine gains
 - it keeps the next step proportionate to the evidence
 - it prevents polish churn from becoming architecture churn
+
+## Session 006: Freeze A Capability After One Evidence-Grounded Polish Pass
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted one small final Explore polish pass, limited to:
+
+- `ELI12` usefulness
+- session-sized output shaping
+
+and then wanted Explore frozen.
+
+### What The Session Revealed
+
+Once the model, engine, routing, and real-session fit are already good, the final improvement should happen only in the presentation layer.
+
+For Explore, the right seam was:
+
+- the shared human renderer
+
+not:
+
+- pass logic
+- mode plumbing
+- workstation exposure
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 14: Do the last-mile fix at the narrowest possible seam
+
+The correct move was:
+
+1. keep the Explore engine untouched
+2. improve section leads
+3. compress noisy path output
+4. tighten reading-order rendering
+5. stop
+
+Why it worked:
+
+- it improved real usability without destabilizing the capability
+- it kept the change proportional to the evidence
+- it made freezing the feature credible
+
+#### Pattern 15: Let validation reveal hidden durability bugs and fix them at the source
+
+During session validation, the real issue that surfaced was not Explore wording. It was that durable session views assumed every session had a stored diff file.
+
+The correct response was:
+
+- fix `Session.diff()` to treat missing diff storage as empty evidence
+
+Why it worked:
+
+- it hardens every history and verification surface downstream
+- it keeps validation grounded in real usage
+- it turns a side effect of validation into a durable product fix
 - it keeps stream, sidebar, and overlay roles from collapsing into assistant chatter
 
 ## Session 004: Validate Explore Before Expanding Mode Plumbing

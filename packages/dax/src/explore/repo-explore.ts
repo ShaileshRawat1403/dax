@@ -389,15 +389,61 @@ function formatFindingKind(kind: ExploreEvidenceKind) {
   }
 }
 
-function formatFinding(finding: ExploreFinding) {
-  const suffix =
-    finding.paths && finding.paths.length > 0 ? ` (${finding.paths.join(", ")})` : ""
+function formatPathList(paths: string[] | undefined, options?: { compact?: boolean }) {
+  if (!paths || paths.length === 0) return ""
+  if (!options?.compact) return paths.join(", ")
+  if (paths.length === 1) return paths[0]
+  if (paths.length === 2) return `${paths[0]}, ${paths[1]}`
+  return `${paths[0]}, ${paths[1]} (+${paths.length - 2} more)`
+}
+
+function formatFinding(
+  finding: ExploreFinding,
+  options?: {
+    eli12?: boolean
+    compact?: boolean
+  },
+) {
+  const pathList = formatPathList(finding.paths, { compact: options?.compact })
+  const suffix = pathList ? ` (${pathList})` : ""
+  if (options?.eli12) {
+    const label =
+      finding.kind === "observed" ? "Confirmed" : finding.kind === "inferred" ? "Likely" : "Unknown"
+    return `- ${label}: ${finding.summary}${suffix}`
+  }
   return `- ${formatFindingKind(finding.kind)}: ${finding.summary}${suffix}`
 }
 
 function formatUnknownOrFollowUp(item: ExploreFollowUp) {
   const label = item.kind === "unknown" ? "Unknown" : "Follow-up"
   return `- ${label}: ${item.summary}`
+}
+
+function formatUnknownOrFollowUpEli12(item: ExploreFollowUp) {
+  if (item.kind === "unknown") return `- Unknown: ${item.summary}`
+  return `- Next check: ${item.summary}`
+}
+
+function sectionLead(title: string, options?: { eli12?: boolean }) {
+  if (!options?.eli12) return undefined
+  switch (title) {
+    case "Repository shape":
+      return "What kind of repo this looks like."
+    case "Entry points":
+      return "Where runtime work appears to start."
+    case "Execution graph":
+      return "How work seems to get handed off after startup."
+    case "Orchestration loop":
+      return "Where the main coordination loop appears to live."
+    case "Integrations":
+      return "Which external systems look important to runtime behavior."
+    case "Important files":
+      return "The files worth reading first."
+    case "Suggested reading order":
+      return "A practical order for reading the repo."
+    case "Unknowns / follow-up targets":
+      return "What still needs confirmation."
+  }
 }
 
 export function renderExploreResult(
@@ -411,6 +457,8 @@ export function renderExploreResult(
 
   for (const section of result.sections) {
     lines.push(section.title)
+    const lead = sectionLead(section.title, { eli12 })
+    if (lead) lines.push(lead)
 
     if ("confidence" in section) {
       lines.push(`Confidence: ${formatConfidence(section.confidence)}`)
@@ -418,7 +466,7 @@ export function renderExploreResult(
       if (section.findings.length === 0) {
         lines.push(eli12 ? "- Unknown: DAX could not confirm this section yet." : "- Unknown: no confirmed findings yet")
       } else {
-        lines.push(...section.findings.map(formatFinding))
+        lines.push(...section.findings.map((finding) => formatFinding(finding, { eli12, compact: true })))
       }
     } else if ("files" in section) {
       if (section.files.length === 0) {
@@ -431,16 +479,20 @@ export function renderExploreResult(
         lines.push("- Unknown: no reading order confirmed yet")
       } else {
         lines.push(
-          ...section.steps.flatMap((step, index) => [
-            `${index + 1}. ${step.path}`,
-            `   Reason: ${step.reason}`,
-          ]),
+          ...section.steps.flatMap((step, index) =>
+            eli12
+              ? [`${index + 1}. ${step.path} — ${step.reason}`]
+              : [
+                  `${index + 1}. ${step.path}`,
+                  `   Reason: ${step.reason}`,
+                ],
+          ),
         )
       }
     } else if (section.items.length === 0) {
       lines.push("- None")
     } else {
-      lines.push(...section.items.map(formatUnknownOrFollowUp))
+      lines.push(...section.items.map((item) => (eli12 ? formatUnknownOrFollowUpEli12(item) : formatUnknownOrFollowUp(item))))
     }
 
     lines.push("")

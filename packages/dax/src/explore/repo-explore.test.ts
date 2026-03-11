@@ -84,11 +84,51 @@ describe("repo explore scaffolding", () => {
     const rendered = renderExploreResult(buildExploreResult(createEmptyExplorePassOutputs()), { eli12: true })
 
     expect(rendered).toContain("Repository shape")
+    expect(rendered).toContain("What kind of repo this looks like.")
     expect(rendered).toContain("Confidence: unknown")
     expect(rendered).toContain("- Unknown: DAX could not confirm this section yet.")
     expect(rendered).toContain("Important files")
     expect(rendered).toContain("Suggested reading order")
     expect(rendered).toContain("Unknowns / follow-up targets")
+  })
+
+  it("keeps populated eli12 output structured while making it easier to scan", () => {
+    const outputs: RepoExplorePassOutputs = {
+      repository_shape: {
+        confidence: "high_confidence",
+        findings: [{ kind: "observed", summary: "monorepo layout detected", paths: ["package.json", "pnpm-workspace.yaml", "turbo.json"] }],
+      },
+      entry_points: {
+        confidence: "medium_confidence",
+        findings: [{ kind: "inferred", summary: "worker bootstrap appears under apps/worker/src/main.ts", paths: ["apps/worker/src/main.ts"] }],
+      },
+      execution_graph: {
+        confidence: "unknown",
+        findings: [],
+      },
+      orchestration_loop: {
+        confidence: "medium_confidence",
+        findings: [{ kind: "observed", summary: "session runtime coordinates the main loop", paths: ["packages/dax/src/session/index.ts"] }],
+      },
+      integrations: {
+        confidence: "low_confidence",
+        findings: [{ kind: "unknown", summary: "queue backend not confirmed" }],
+      },
+      important_files: [{ path: "package.json", role: "root repo-shape signal" }],
+      suggested_reading_order: [
+        { path: "package.json", reason: "Establishes repository shape and workspace boundaries." },
+        { path: "apps/worker/src/main.ts", reason: "Shows where runtime execution starts." },
+      ],
+      unknowns_follow_up_targets: [{ kind: "follow_up", summary: "inspect worker queue ownership" }],
+    }
+
+    const rendered = renderExploreResult(buildExploreResult(outputs), { eli12: true })
+
+    expect(rendered).toContain("- Confirmed: monorepo layout detected (package.json, pnpm-workspace.yaml (+1 more))")
+    expect(rendered).toContain("- Likely: worker bootstrap appears under apps/worker/src/main.ts (apps/worker/src/main.ts)")
+    expect(rendered).toContain("1. apps/worker/src/main.ts — Shows where runtime execution starts.")
+    expect(rendered).toContain("2. package.json — Establishes repository shape and workspace boundaries.")
+    expect(rendered).toContain("- Next check: inspect worker queue ownership")
   })
 
   it("merges important files and follow-up structures across passes without overwriting earlier evidence", () => {
