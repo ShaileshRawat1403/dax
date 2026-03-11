@@ -181,6 +181,7 @@ type TranscriptPosition = {
 }
 
 type FocusedPane = "activity" | "plan" | "approvals" | "artifacts" | "audit"
+type WorkstationFocusOwner = "prompt" | "stream" | "sidebar" | "overlay"
 type WorkstationOverlayKind =
   | "approval_dialog"
   | "timeline_detail"
@@ -255,9 +256,11 @@ function WorkstationRegion(props: {
   children: JSX.Element
   flexGrow?: number
   minHeight?: number
+  onMouseUp?: () => void
 }) {
   return (
     <box
+      onMouseUp={props.onMouseUp}
       flexDirection="column"
       gap={1}
       flexGrow={props.flexGrow}
@@ -1342,6 +1345,7 @@ export function Session() {
   }
 
   function jumpToLive() {
+    enterPaneFocus("activity")
     setSmartFollowActive(true)
     setPendingUpdates(0)
     setTimeout(() => {
@@ -1420,14 +1424,34 @@ export function Session() {
   }
   const paneOrder: FocusedPane[] = ["activity", "plan", "approvals", "artifacts", "audit"]
   let overlayToken = 0
+  const isSidebarPane = (pane: FocusedPane) => pane === "approvals" || pane === "artifacts" || pane === "audit"
+  const focusOwner = createMemo<WorkstationFocusOwner>(() => {
+    if (overlayState()) return "overlay"
+    if (!paneKeyboardMode()) return "prompt"
+    return isSidebarPane(focusedPane()) ? "sidebar" : "stream"
+  })
+
+  function enterPromptFocus() {
+    setPaneKeyboardMode(false)
+    if (promptDisabled()) return
+    setTimeout(() => {
+      if (!prompt) return
+      prompt.focus()
+    }, 0)
+  }
+
+  function enterPaneFocus(pane: FocusedPane) {
+    setFocusedPane(pane)
+    setPaneKeyboardMode(true)
+    prompt?.blur()
+  }
+
   function cycleFocusedPane(step: 1 | -1) {
     const current = focusedPane()
     const index = paneOrder.indexOf(current)
     const next = paneOrder[(Math.max(index, 0) + step + paneOrder.length) % paneOrder.length]
     if (!next) return
-    setFocusedPane(next)
-    setPaneKeyboardMode(true)
-    prompt?.blur()
+    enterPaneFocus(next)
   }
 
   // Allow exit when in child session (prompt is hidden)
@@ -1450,7 +1474,7 @@ export function Session() {
       return
     }
     if (keybind.leader) return
-    if (evt.ctrl || evt.meta || evt.super || evt.shift || evt.alt) return
+    if (evt.ctrl || evt.meta || evt.super || evt.shift) return
     if (!paneKeyboardMode() && !(overlayState() && dialog.stack.length > 0)) return
 
     switch (evt.name) {
@@ -1497,6 +1521,12 @@ export function Session() {
 
     if (!paneKeyboardMode()) return
 
+    if (evt.name === "escape") {
+      evt.preventDefault()
+      enterPromptFocus()
+      return
+    }
+
     if (evt.name === "return") {
       evt.preventDefault()
       activateFocusedPane()
@@ -1506,8 +1536,7 @@ export function Session() {
     const isTypingKey =
       (!!evt.name && evt.name.length === 1 && !evt.ctrl && !evt.meta && !evt.super) || evt.name === "backspace"
     if (isTypingKey) {
-      setPaneKeyboardMode(false)
-      keepPromptFocused()
+      enterPromptFocus()
     }
   })
 
@@ -1544,6 +1573,7 @@ export function Session() {
 
   // Helper: Scroll to message in direction or fallback to page scroll
   const scrollToMessageDirect = (direction: "next" | "prev") => {
+    enterPaneFocus("activity")
     const targetID = findNextVisibleMessage(direction)
 
     if (!targetID) {
@@ -1561,6 +1591,7 @@ export function Session() {
   }
 
   const jumpToLastUserMessage = () => {
+    enterPaneFocus("activity")
     const messageList = sync.data.message[route.sessionID]
     if (!messageList || !messageList.length) return
 
@@ -3336,41 +3367,37 @@ export function Session() {
       }
     }
 
-    switch (focusedPane()) {
-      case "activity":
+    switch (focusOwner()) {
+      case "prompt":
         return {
-          label: "Activity",
-          hints: ["tab switch panes", "enter prompt"],
+          label: "Prompt",
+          hints: ["type to work", "tab move into workstation"],
         }
-      case "plan":
+      case "stream":
         return {
-          label: "Plan",
-          hints: ["tab switch panes", "goal and steps"],
+          label: focusedPane() === "plan" ? "Task / Context" : "Live stream",
+          hints: ["tab switch panes", "esc prompt"],
         }
-      case "approvals":
+      case "sidebar":
         return {
-          label: "Approvals",
-          hints: ["tab switch panes", "enter open approvals"],
+          label:
+            focusedPane() === "approvals"
+              ? "Sidebar • Approvals"
+              : focusedPane() === "artifacts"
+                ? "Sidebar • Artifacts"
+                : "Sidebar • Audit",
+          hints: ["enter open detail", "esc prompt"],
         }
-      case "artifacts":
+      case "overlay":
         return {
-          label: "Artifacts",
-          hints: ["tab switch panes", "enter open artifacts"],
-        }
-      case "audit":
-        return {
-          label: "Audit",
-          hints: ["tab switch panes", "enter open audit"],
+          label: "Overlay",
+          hints: ["esc close"],
         }
     }
   })
 
   const keepPromptFocused = () => {
-    if (promptDisabled()) return
-    setTimeout(() => {
-      if (!prompt) return
-      prompt.focus()
-    }, 0)
+    enterPromptFocus()
   }
 
   // snap to bottom when session changes
@@ -3415,6 +3442,7 @@ export function Session() {
     on(
       [paneVisibility, paneMode, paneFollowMode, showDetails, slowStream, selectedTheme, sidebarVisible],
       () => {
+        if (focusOwner() !== "prompt") return
         keepPromptFocused()
       },
       { defer: true },
@@ -3446,7 +3474,12 @@ export function Session() {
             emphasis={hasRaoNeed() || pendingUpdates() > 0 ? "normal" : "muted"}
             actions={headerActions()}
           />
-          <WorkstationRegion theme={theme} title="Task / Context" focused={focusedPane() === "plan"}>
+          <WorkstationRegion
+            theme={theme}
+            title="Task / Context"
+            focused={focusOwner() === "stream" && focusedPane() === "plan"}
+            onMouseUp={() => enterPaneFocus("plan")}
+          >
             <Show
               when={workstationState().planSummary.steps.length > 0 || workstationState().planSummary.goal}
               fallback={
@@ -3487,8 +3520,15 @@ export function Session() {
             </Show>
           </WorkstationRegion>
           <box flexGrow={1} minHeight={0} flexDirection="row" gap={1}>
-            <WorkstationRegion theme={theme} title="Live stream" focused={focusedPane() === "activity"} flexGrow={1} minHeight={0}>
-              <WorkstationSection theme={theme} title="Activity" focused={focusedPane() === "activity"}>
+            <WorkstationRegion
+              theme={theme}
+              title="Live stream"
+              focused={focusOwner() === "stream"}
+              flexGrow={1}
+              minHeight={0}
+              onMouseUp={() => enterPaneFocus("activity")}
+            >
+              <WorkstationSection theme={theme} title="Activity" focused={focusOwner() === "stream" && focusedPane() === "activity"}>
                 <Show
                   when={workstationState().activitySummary.current || workstationState().activitySummary.items.length > 0}
                   fallback={
@@ -3787,9 +3827,10 @@ export function Session() {
                   <WorkstationRegion
                     theme={theme}
                     title="Session truth"
-                    focused={focusedPane() === "approvals" || focusedPane() === "artifacts" || focusedPane() === "audit"}
+                    focused={focusOwner() === "sidebar"}
                     flexGrow={sidePaneGrow()}
                     minHeight={0}
+                    onMouseUp={() => enterPaneFocus(isSidebarPane(focusedPane()) ? focusedPane() : "approvals")}
                   >
                     <scrollbox
                       flexGrow={1}
@@ -3823,7 +3864,7 @@ export function Session() {
                         }
                         actionLabel={auditPaneEnabled() ? "Open verify" : undefined}
                         onPress={auditPaneEnabled() ? openVerifyDetail : undefined}
-                        focused={focusedPane() === "audit"}
+                        focused={focusOwner() === "sidebar" && focusedPane() === "audit"}
                         tone={trustCardTone()}
                       />
                       <WorkstationSummaryCard
@@ -3842,7 +3883,7 @@ export function Session() {
                         detail={approvalsCard().detail}
                         actionLabel={workstationState().approvalSummary.pendingCount > 0 ? "Open approvals" : undefined}
                         onPress={workstationState().approvalSummary.pendingCount > 0 ? openApprovalsReview : undefined}
-                        focused={focusedPane() === "approvals"}
+                        focused={focusOwner() === "sidebar" && focusedPane() === "approvals"}
                         tone={approvalsCard().tone}
                       />
                       <WorkstationSummaryCard
@@ -3852,7 +3893,7 @@ export function Session() {
                         detail={artifactsCard().detail}
                         actionLabel="Open detail"
                         onPress={openArtifactDetail}
-                        focused={focusedPane() === "artifacts"}
+                        focused={focusOwner() === "sidebar" && focusedPane() === "artifacts"}
                         tone={artifactsCard().tone}
                       />
                       <WorkstationSummaryCard
