@@ -625,7 +625,7 @@ const CONTENT_INTEGRATION_PATTERNS: Array<{
   candidate: Omit<IntegrationCandidate, "paths">
 }> = [
   {
-    match: /fetch\(|axios|@octokit\/|https:\/\/api\./i,
+    match: /fetch\(\s*["'`]https?:\/\/|axios(?:\.create)?\(|@octokit\/|https:\/\/api\.|openai|anthropic|gemini|vertex/i,
     candidate: {
       category: "provider",
       kind: "inferred",
@@ -665,7 +665,7 @@ const CONTENT_INTEGRATION_PATTERNS: Array<{
     },
   },
   {
-    match: /process\.env|dotenv|oauth|auth/i,
+    match: /process\.env\.[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)|dotenv(?:\/config)?|oauth|authorization|bearer\s+/i,
     candidate: {
       category: "auth",
       kind: "inferred",
@@ -675,7 +675,7 @@ const CONTENT_INTEGRATION_PATTERNS: Array<{
     },
   },
   {
-    match: /aws_|azure|google_vertex|vercel|bedrock|gcp/i,
+    match: /aws_|@aws-sdk|aws-sdk|azure\/identity|google[_-]?cloud|google_vertex|vercel|bedrock|gcp/i,
     candidate: {
       category: "platform",
       kind: "inferred",
@@ -785,6 +785,36 @@ async function extractRelativeImports(absoluteFile: string, content: string) {
   }
 
   return [...imports]
+}
+
+function isRuntimeRelevantIntegrationFile(relativePath: string) {
+  if (isTestPath(relativePath) || isExploreSelfPath(relativePath)) return false
+  return (
+    looksExecutionSurfaceFile(relativePath) ||
+    looksOrchestrationFile(relativePath) ||
+    /(integrations?|providers?|storage|redis|database|db|queue|worker|server|api|client|auth|mcp|config|adapter)/i.test(relativePath)
+  )
+}
+
+function shouldAcceptContentIntegration(category: IntegrationCategory, relativePath: string, content: string) {
+  if (!isRuntimeRelevantIntegrationFile(relativePath)) return false
+
+  switch (category) {
+    case "provider":
+      return /fetch\(\s*["'`]https?:\/\/|axios(?:\.create)?\(|@octokit\/|https:\/\/api\.|openai|anthropic|gemini|vertex/i.test(content)
+    case "mcp":
+      return /mcp|modelcontextprotocol/i.test(content)
+    case "storage":
+      return /sqlite|redis|postgres|mongodb|prisma|database_url|pm\.sqlite/i.test(content)
+    case "queue":
+      return /queue\.process|scheduler|cron|background/i.test(content)
+    case "auth":
+      return /process\.env\.[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)|dotenv(?:\/config)?|oauth|authorization|bearer\s+/i.test(content)
+    case "platform":
+      return /aws_|@aws-sdk|aws-sdk|azure\/identity|google[_-]?cloud|google_vertex|vercel|bedrock|gcp/i.test(content)
+    case "ci":
+      return true
+  }
 }
 
 function classifyPackageFlowRole(relativeRoot: string, intent: PackageRuntimeIntent): PackageFlowRole {
@@ -1227,7 +1257,6 @@ export async function runIntegrationPass(root: string): Promise<RepoExplorePassD
     if (packageJson && typeof packageJson === "object") {
       const deps = {
         ...(packageJson.dependencies ?? {}),
-        ...(packageJson.devDependencies ?? {}),
       } as Record<string, unknown>
 
       for (const depName of Object.keys(deps)) {
@@ -1255,6 +1284,7 @@ export async function runIntegrationPass(root: string): Promise<RepoExplorePassD
       const repoRelative = path.relative(resolvedRoot, absolute).replace(/\\/g, "/")
       for (const rule of CONTENT_INTEGRATION_PATTERNS) {
         if (!rule.match.test(content)) continue
+        if (!shouldAcceptContentIntegration(rule.candidate.category, repoRelative, content)) continue
         addIntegration({
           ...rule.candidate,
           paths: [repoRelative],
