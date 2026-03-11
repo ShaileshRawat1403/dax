@@ -192,6 +192,12 @@ type WorkstationOverlayKind =
   | "audit_events"
   | "diff_detail"
 
+type WorkstationOverlayState = {
+  kind: WorkstationOverlayKind
+  returnPane: FocusedPane
+  token: number
+}
+
 function SessionQuickAction(props: {
   theme: ThemeShape
   label: string
@@ -1065,13 +1071,7 @@ export function Session() {
   const [raoFocusRequestID, setRaoFocusRequestID] = createSignal<string | undefined>(undefined)
   const [focusedPane, setFocusedPane] = createSignal<FocusedPane>("activity")
   const [paneKeyboardMode, setPaneKeyboardMode] = createSignal(false)
-  const [overlayState, setOverlayState] = createSignal<
-    | {
-        kind: WorkstationOverlayKind
-        returnPane: FocusedPane
-      }
-    | undefined
-  >(undefined)
+  const [overlayState, setOverlayState] = createSignal<WorkstationOverlayState | undefined>(undefined)
   const { currentPun } = useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const promptDisabled = createMemo(() => !!session()?.parentID)
@@ -1419,6 +1419,7 @@ export function Session() {
     return printed ? `[${printed}]` : ""
   }
   const paneOrder: FocusedPane[] = ["activity", "plan", "approvals", "artifacts", "audit"]
+  let overlayToken = 0
   function cycleFocusedPane(step: 1 | -1) {
     const current = focusedPane()
     const index = paneOrder.indexOf(current)
@@ -1440,6 +1441,40 @@ export function Session() {
         `  ${UI.Style.TEXT_DIM}resume: dax -s ${session()?.id}${UI.Style.TEXT_NORMAL}`,
       ].join("\n"),
     )
+  })
+
+  useKeyboard((evt) => {
+    if (overlayState() && dialog.stack.length > 0 && evt.name === "escape") {
+      evt.preventDefault()
+      closeWorkstationOverlay()
+      return
+    }
+    if (keybind.leader) return
+    if (evt.ctrl || evt.meta || evt.super || evt.shift || evt.alt) return
+    if (!paneKeyboardMode() && !(overlayState() && dialog.stack.length > 0)) return
+
+    switch (evt.name) {
+      case "v":
+        evt.preventDefault()
+        openVerifyDetail()
+        return
+      case "r":
+        evt.preventDefault()
+        openReleaseDetail()
+        return
+      case "a":
+        evt.preventDefault()
+        openArtifactDetail()
+        return
+      case "t":
+        evt.preventDefault()
+        openTimelineReview()
+        return
+      case "i":
+        evt.preventDefault()
+        openInspectDetail()
+        return
+    }
   })
 
   useKeyboard((evt) => {
@@ -1874,7 +1909,7 @@ export function Session() {
 
   const command = useCommandDialog()
   const openApprovalsReview = () => {
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "approval_dialog",
       <DialogApprovals
         permissions={permissions()}
@@ -1892,7 +1927,7 @@ export function Session() {
   }
   const openDiffReview = () => {
     const diffs = sync.data.session_diff[route.sessionID] ?? []
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "diff_detail",
       <DialogDiff
         diffs={diffs}
@@ -1906,7 +1941,7 @@ export function Session() {
     )
   }
   const openTimelineReview = () => {
-    replaceWorkstationOverlay("timeline_detail", <DialogTimeline sessionID={route.sessionID} />)
+    openWorkstationOverlay("timeline_detail", <DialogTimeline sessionID={route.sessionID} />)
   }
   const openPmPane = () => {
     setPaneMode(() => "pm")
@@ -1919,14 +1954,14 @@ export function Session() {
     keepPromptFocused()
   }
   const openArtifactDetail = () => {
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "artifact_detail",
       <DialogArtifactDetail title={liveArtifact().title} body={liveArtifact().body} />,
       "artifacts",
     )
   }
   const openVerifyDetail = () => {
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "verify_detail",
       <DialogVerifyDetail
         trustLabel={workstationState().trustLabel}
@@ -1937,7 +1972,7 @@ export function Session() {
     )
   }
   const openReleaseDetail = () => {
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "release_detail",
       <DialogReleaseDetail
         result={releaseOverlayModel().result}
@@ -1950,7 +1985,7 @@ export function Session() {
     )
   }
   const openInspectDetail = () => {
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "inspect_detail",
       <DialogInspectDetail
         lifecycle={inspectOverlayModel().lifecycle}
@@ -1966,10 +2001,10 @@ export function Session() {
     )
   }
   const openAuditEvents = () => {
-    replaceWorkstationOverlay("audit_events", <DialogAuditEvents findings={auditFindings()} />, "audit")
+    openWorkstationOverlay("audit_events", <DialogAuditEvents findings={auditFindings()} />, "audit")
   }
   const openAuditDetail = () => {
-    replaceWorkstationOverlay(
+    openWorkstationOverlay(
       "audit_detail",
       <DialogAuditDetail
         trustLabel={workstationState().trustLabel}
@@ -3220,17 +3255,29 @@ export function Session() {
 
   const dialog = useDialog()
   const renderer = useRenderer()
-  function replaceWorkstationOverlay(kind: WorkstationOverlayKind, element: JSX.Element, returnPane = focusedPane()) {
-    dialog.replace(() => element, () => {
-      const nextPane = overlayState()?.returnPane ?? returnPane
-      setOverlayState(undefined)
-      setFocusedPane(nextPane)
-      setPaneKeyboardMode(true)
-    })
+  function openWorkstationOverlay(kind: WorkstationOverlayKind, element: JSX.Element, returnPane = focusedPane()) {
+    const token = ++overlayToken
+    setFocusedPane(returnPane)
+    setPaneKeyboardMode(true)
+    prompt?.blur()
     setOverlayState({
       kind,
       returnPane,
+      token,
     })
+    dialog.replace(() => element, () => {
+      const active = overlayState()
+      if (!active || active.token !== token) return
+      setOverlayState(undefined)
+      setFocusedPane(active.returnPane)
+      setPaneKeyboardMode(true)
+      prompt?.blur()
+    })
+  }
+
+  function closeWorkstationOverlay() {
+    if (!overlayState()) return
+    dialog.clear()
   }
   const footerFocus = createMemo(() => {
     const activeOverlay = overlayState()
