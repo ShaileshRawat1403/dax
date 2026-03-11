@@ -23,6 +23,7 @@ export namespace Terminal {
       let background: RGBA | null = null
       let foreground: RGBA | null = null
       const paletteColors: RGBA[] = []
+      // eslint-disable-next-line prefer-const
       let timeout: NodeJS.Timeout
 
       const cleanup = () => {

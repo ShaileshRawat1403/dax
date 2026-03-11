@@ -410,7 +410,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             const fresh = await latestOAuth(getAuth)
             let access = fresh?.access ?? current.access
-            let refresh = fresh?.refresh ?? current.refresh
+            const refresh = fresh?.refresh ?? current.refresh
             let expires = fresh?.expires ?? current.expires
             const quotaProjectID = fresh?.quotaProjectID
 

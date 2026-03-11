@@ -1,0 +1,121 @@
+import type { Operator, OperatorContext, OperatorResult } from './base';
+import type { PlannedTask } from '../planner/task-graph';
+import {
+  runBoundaryPass,
+  runEntryPointPass,
+  runIntegrationPass,
+  runExecutionFlowPass,
+  mergeExplorePassOutputs,
+  createEmptyExplorePassOutputs,
+  buildExploreResult,
+  type RepoExplorePassOutputs
+} from '../explore/repo-explore';
+
+export class ExploreOperator implements Operator {
+  type = 'explore';
+
+  async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
+    try {
+      switch (task.id) {
+        case 'task_detect_boundaries':
+          return await this.exploreBoundaries(ctx);
+          
+        case 'task_detect_entrypoints':
+          return await this.detectEntrypoints(ctx);
+          
+        case 'task_map_architecture':
+        case 'task_trace_execution_flow':
+          return await this.traceExecution(ctx);
+          
+        case 'task_detect_integrations':
+          return await this.detectIntegrations(ctx);
+          
+        case 'task_generate_report':
+          return await this.generateReport(task, ctx);
+
+        default:
+          return {
+            success: false,
+            output: null,
+            error: new Error(`ExploreOperator does not support task ID: ${task.id}`)
+          };
+      }
+    } catch (err) {
+      return {
+        success: false,
+        output: null,
+        error: err instanceof Error ? err : new Error(String(err))
+      };
+    }
+  }
+
+  private async exploreBoundaries(ctx: OperatorContext): Promise<OperatorResult> {
+    const delta = await runBoundaryPass(ctx.cwd);
+    return {
+      success: true,
+      output: delta
+    };
+  }
+
+  private async detectEntrypoints(ctx: OperatorContext): Promise<OperatorResult> {
+    const delta = await runEntryPointPass(ctx.cwd);
+    return {
+      success: true,
+      output: delta
+    };
+  }
+
+  private async traceExecution(ctx: OperatorContext): Promise<OperatorResult> {
+    const delta = await runExecutionFlowPass(ctx.cwd);
+    return {
+      success: true,
+      output: delta
+    };
+  }
+
+  private async detectIntegrations(ctx: OperatorContext): Promise<OperatorResult> {
+    const delta = await runIntegrationPass(ctx.cwd);
+    return {
+      success: true,
+      output: delta
+    };
+  }
+
+  private async generateReport(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
+    if (!ctx.graph) {
+      return {
+        success: false,
+        output: null,
+        error: new Error('Cannot generate report: OperatorContext is missing TaskGraph')
+      };
+    }
+
+    // Collect the accumulated outputs from previous task results
+    const boundaries = ctx.graph.tasks.get('task_detect_boundaries')?.result as Partial<RepoExplorePassOutputs> | undefined;
+    const entrypoints = ctx.graph.tasks.get('task_detect_entrypoints')?.result as Partial<RepoExplorePassOutputs> | undefined;
+    const executionFlow = ctx.graph.tasks.get('task_trace_execution_flow')?.result as Partial<RepoExplorePassOutputs> | undefined;
+    const integrations = ctx.graph.tasks.get('task_detect_integrations')?.result as Partial<RepoExplorePassOutputs> | undefined;
+
+    const merged = mergeExplorePassOutputs(
+      mergeExplorePassOutputs(
+        mergeExplorePassOutputs(
+          mergeExplorePassOutputs(createEmptyExplorePassOutputs(), boundaries ?? {}),
+          entrypoints ?? {}
+        ),
+        integrations ?? {}
+      ),
+      executionFlow ?? {}
+    );
+
+    const result = buildExploreResult(merged);
+
+    return {
+      success: true,
+      output: result,
+      artifacts: ['explore_report.json'] // Marker that we generated a report artifact
+    };
+  }
+}
+
+
+

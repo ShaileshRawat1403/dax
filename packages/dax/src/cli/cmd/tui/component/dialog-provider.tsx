@@ -256,14 +256,24 @@ function AutoMethod(props: AutoMethodProps) {
         <text fg={theme.error}>{error()}</text>
       </Show>
       <text fg={theme.textMuted}>Waiting for authorization...</text>
-      <text fg={theme.text}>
-        c <span style={{ fg: theme.textMuted }}>copy</span>
-      </text>
-      <text fg={theme.text}>
-        <Show when={!fatal()} fallback={<span style={{ fg: theme.textMuted }}>restart sign-in</span>}>
-          r <span style={{ fg: theme.textMuted }}>retry</span>
-        </Show>
-      </text>
+      <box flexDirection="row" gap={1}>
+        <text fg={theme.text}>c</text>
+        <text fg={theme.textMuted}>copy</text>
+      </box>
+      <Show
+        when={!fatal()}
+        fallback={
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>r</text>
+            <text fg={theme.textMuted}>restart sign-in</text>
+          </box>
+        }
+      >
+        <box flexDirection="row" gap={1}>
+          <text fg={theme.text}>r</text>
+          <text fg={theme.textMuted}>retry</text>
+        </box>
+      </Show>
     </box>
   )
 }
@@ -334,7 +344,7 @@ function ApiMethod(props: ApiMethodProps) {
                   Dax Zen gives you access to all the best coding models at the cheapest prices with a single API key.
                 </text>
                 <text fg={theme.text}>
-                  Go to <span style={{ fg: theme.primary }}>https://dax.ai/zen</span> to get a key
+                  Go to https://dax.ai/zen to get a key
                 </text>
               </box>
             )

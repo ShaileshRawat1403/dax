@@ -11,10 +11,10 @@ import { Global } from "../../global"
 import { Plugin } from "../../plugin"
 import { Instance } from "../../project/instance"
 import type { Hooks } from "@dax-ai/plugin"
-import { diagnoseProviderAuth, expectedGoogleOauthClientIds } from "../../provider/auth-preflight"
 import { Provider } from "../../provider/provider"
 import { bootstrap } from "../bootstrap"
 import open from "open"
+import { doctorExitCode, formatDoctorSection, authSection } from "@/doctor"
 
 type PluginAuth = NonNullable<Hooks["auth"]>
 
@@ -168,50 +168,31 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
 
 export const AuthDoctorCommand = cmd({
   command: "doctor [model]",
-  describe: "show effective auth mode and missing requirements for Google/Gemini providers",
+  describe: "show provider authentication readiness (compatibility alias for `dax doctor auth`)",
   builder: (yargs) =>
-    yargs.positional("model", {
-      describe: "Optional model in provider/model format, e.g. google/gemini-2.5-flash",
-      type: "string",
-      array: false,
-    }),
+    yargs
+      .positional("model", {
+        describe: "Optional model in provider/model format, e.g. google/gemini-2.5-flash",
+        type: "string",
+        array: false,
+      })
+      .option("json", {
+        describe: "output machine-readable JSON",
+        type: "boolean",
+        default: false,
+      }),
   async handler(args) {
     await bootstrap(process.cwd(), async () => {
-        const checks: string[] = []
-        if (args.model) {
-          const parsed = Provider.parseModel(args.model)
-          if (!parsed.providerID) throw new Error(`Invalid model format: ${args.model}`)
-          checks.push(parsed.providerID)
-        } else {
-          checks.push("google", "google-vertex", "google-vertex-anthropic")
-        }
-
+      const section = await authSection(args.model)
+      if (args.json) {
+        process.stdout.write(JSON.stringify(section, null, 2) + "\n")
+      } else {
         prompts.intro("Auth doctor")
-        for (const providerID of checks) {
-          const report = await diagnoseProviderAuth(providerID)
-          const status = report.ok
-            ? `${UI.Style.TEXT_SUCCESS}OK${UI.Style.TEXT_NORMAL}`
-            : `${UI.Style.TEXT_DANGER}FAIL${UI.Style.TEXT_NORMAL}`
-          prompts.log.info(`${providerID}: ${status} (${report.mode})`)
-          if (report.requiredEnv.length > 0) {
-            prompts.log.message(`  required: ${report.requiredEnv.join("; ")}`)
-          }
-          if (report.missingEnv.length > 0) {
-            prompts.log.warn(`  missing: ${report.missingEnv.join("; ")}`)
-          }
-          for (const item of report.details) {
-            prompts.log.message(`  detail: ${item}`)
-          }
-          if (report.error) {
-            prompts.log.error(`  fix: ${report.error}`)
-          }
-        }
-
-        const audiences = expectedGoogleOauthClientIds()
-        if (audiences.length > 0) {
-          prompts.log.message(`Google OAuth client ids in play: ${audiences.join(", ")}`)
-        }
+        prompts.log.warn("Compatibility mode. Prefer `dax doctor auth` for the canonical operator flow.")
+        prompts.log.message(formatDoctorSection(section))
         prompts.outro("Done")
+      }
+      process.exitCode = doctorExitCode(section.state)
     })
   },
 })

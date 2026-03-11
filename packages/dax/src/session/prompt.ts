@@ -51,6 +51,13 @@ import { formatPMList, formatPMRules } from "@/pm/format"
 import { Audit } from "@/audit"
 import { Config } from "@/config/config"
 import { DocOps } from "@/docops"
+import { buildPreferredNamePrompt } from "@/dax/user-profile"
+import { interpretIntent } from "@/intent/interpret"
+import { createPlan } from "@/planner/planner"
+import { runGraph } from "@/execution/run-graph"
+import { OperatorRouter } from "@/operators/router"
+import { ExploreOperator } from "@/operators/explore"
+import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -152,6 +159,13 @@ export namespace SessionPrompt {
   export type PromptInput = z.infer<typeof PromptInput>
 
   export const prompt = fn(PromptInput, async (input) => {
+    const cfg = await Config.get()
+    const preferredNamePrompt =
+      cfg.username && cfg.username !== os.userInfo().username ? buildPreferredNamePrompt(cfg.username) : undefined
+    if (preferredNamePrompt) {
+      input.system = [input.system, preferredNamePrompt].filter(Boolean).join("\n\n")
+    }
+
     const session = await Session.get(input.sessionID)
     await SessionRevert.cleanup(session)
 
@@ -305,7 +319,7 @@ export namespace SessionPrompt {
       let lastUser: MessageV2.User | undefined
       let lastAssistant: MessageV2.Assistant | undefined
       let lastFinished: MessageV2.Assistant | undefined
-      let tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
+      const tasks: (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] = []
       for (let i = msgs.length - 1; i >= 0; i--) {
         const msg = msgs[i]
         if (!lastUser && msg.info.role === "user") lastUser = msg.info as MessageV2.User
@@ -371,7 +385,7 @@ export namespace SessionPrompt {
             created: Date.now(),
           },
         })) as MessageV2.Assistant
-        let part = (await Session.updatePart({
+        const part = (await Session.updatePart({
           id: Identifier.ascending("part"),
           messageID: assistantMessage.id,
           sessionID: assistantMessage.sessionID,
@@ -1692,6 +1706,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
       return result
     }
+    if (input.command === Command.Default.EXPLORE) {
+      const result = await commandExplore(input)
+      Bus.publish(Command.Event.Executed, {
+        name: input.command,
+        sessionID: input.sessionID,
+        arguments: input.arguments,
+        messageID: result.info.id,
+      })
+      return result
+    }
     const command = await Command.get(input.command)
     const agentName = command.agent ?? input.agent ?? (await Agent.defaultAgent())
 
@@ -2098,6 +2122,153 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       commandName: Command.Default.DOCS,
       text,
     })
+  }
+
+  async function commandExplore(input: CommandInput): Promise<MessageV2.WithParts> {
+    const { parseExploreArguments } = await import("@/explore/repo-explore")
+    const parsed = parseExploreArguments(input.arguments)
+    const resolvedTarget = path.resolve(Instance.worktree, parsed.pathArg)
+    const model = input.model ? Provider.parseModel(input.model) : await lastModel(input.sessionID)
+    const agent = input.agent ?? "explore"
+
+    const user: MessageV2.User = {
+      id: Identifier.ascending("message"),
+      sessionID: input.sessionID,
+      time: {
+        created: Date.now(),
+      },
+      role: "user",
+      agent,
+      model: {
+        providerID: model.providerID,
+        modelID: model.modelID,
+      },
+      variant: input.variant,
+    }
+    await Session.updateMessage(user)
+    await Session.updatePart({
+      type: "text",
+      id: Identifier.ascending("part"),
+      messageID: user.id,
+      sessionID: user.sessionID,
+      text: `/${Command.Default.EXPLORE} ${input.arguments}`.trim(),
+    })
+
+    const assistant: MessageV2.Assistant = {
+      id: Identifier.ascending("message"),
+      sessionID: input.sessionID,
+      parentID: user.id,
+      mode: agent,
+      agent,
+      cost: 0,
+      path: {
+        cwd: Instance.directory,
+        root: Instance.worktree,
+      },
+      time: {
+        created: Date.now(),
+      },
+      role: "assistant",
+      tokens: {
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        cache: { read: 0, write: 0 },
+      },
+      modelID: model.modelID,
+      providerID: model.providerID,
+      finish: "stop",
+    }
+    await Session.updateMessage(assistant)
+
+    const parts: MessageV2.TextPart[] = []
+
+    async function appendAssistantText(
+      text: string,
+      options?: {
+        synthetic?: boolean
+        metadata?: Record<string, any>
+      },
+    ) {
+      const part: MessageV2.TextPart = {
+        type: "text",
+        id: Identifier.ascending("part"),
+        messageID: assistant.id,
+        sessionID: assistant.sessionID,
+        text,
+        synthetic: options?.synthetic,
+        metadata: options?.metadata,
+        time: {
+          start: Date.now(),
+          end: Date.now(),
+        },
+      }
+      await Session.updatePart(part)
+      parts.push(part)
+      return part
+    }
+
+    try {
+      const intent = await interpretIntent(`explore ${parsed.pathArg}`, {
+        cwd: resolvedTarget,
+        session_id: input.sessionID,
+      })
+      await appendAssistantText("Intent interpreted", {
+        synthetic: true,
+        metadata: { milestone: true, phase: "intent" },
+      })
+
+      const graph = await createPlan(intent, {})
+      await appendAssistantText("Plan created", {
+        synthetic: true,
+        metadata: { milestone: true, phase: "plan" },
+      })
+
+      const router = new OperatorRouter()
+      router.register(new ExploreOperator())
+
+      const runResult = await runGraph(
+        graph,
+        {
+          cwd: resolvedTarget,
+          sessionId: input.sessionID,
+          graph,
+          reportMilestone: async ({ taskID, label }) => {
+            await appendAssistantText(label, {
+              synthetic: true,
+              metadata: { milestone: true, taskID },
+            })
+          },
+        },
+        router,
+      )
+
+      let text = "Explore execution failed."
+      if (runResult.success) {
+        const reportTask = graph.tasks.get("task_generate_report")
+        const exploreResult = reportTask?.result as RepoExploreResult
+        text =
+          parsed.format === "json"
+            ? "```json\n" + JSON.stringify(exploreResult, null, 2) + "\n```"
+            : renderExploreResult(exploreResult, { eli12: parsed.eli12 })
+      } else {
+        log.error("Explore execution failed:", { failedTasks: runResult.failedTasks })
+        text += ` Failed tasks: ${runResult.failedTasks.join(", ")}`
+      }
+
+      await appendAssistantText(text)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error("Explore session execution failed:", { error: message })
+      await appendAssistantText(`Explore execution failed. ${message}`)
+    }
+
+    assistant.time.completed = Date.now()
+    await Session.updateMessage(assistant)
+    return {
+      info: assistant,
+      parts,
+    }
   }
 
   async function maybeAutoAuditFromCommand(input: CommandInput) {

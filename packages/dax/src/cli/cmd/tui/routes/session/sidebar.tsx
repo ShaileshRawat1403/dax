@@ -7,18 +7,54 @@ import path from "path"
 import type { AssistantMessage } from "@dax-ai/sdk/v2"
 import { Global } from "@/global"
 import { Installation } from "@/installation"
-import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { TodoItem } from "../../component/todo-item"
+import { SESSION_COMMAND_LABELS, SESSION_SHELL_ROLES } from "@/dax/session-shell"
 
-export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
+function SidebarAction(props: { label: string; onPress: () => void; muted?: boolean; hint?: string }) {
+  const { theme } = useTheme()
+  return (
+    <box onMouseUp={props.onPress} paddingRight={1} flexDirection="row" gap={1}>
+      <text fg={props.muted ? theme.textMuted : theme.primary}>{props.label}</text>
+      <Show when={props.hint}>
+        <text fg={theme.textMuted}>{props.hint}</text>
+      </Show>
+    </box>
+  )
+}
+
+export function Sidebar(props: {
+  sessionID: string
+  overlay?: boolean
+  onInspectApprovals?: () => void
+  onInspectDiff?: () => void
+  onInspectMcp?: () => void
+  onOpenPm?: () => void
+  onOpenTimeline?: () => void
+  onJumpLive?: () => void
+  onNavigateMessage?: (direction: "prev" | "next") => void
+  onJumpLastUser?: () => void
+  timelineHint?: string
+  prevHint?: string
+  nextHint?: string
+  lastUserHint?: string
+  commandHint?: string
+}) {
   const sync = useSync()
   const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
+  const runtimeStatus = createMemo(() => sync.data.session_status[props.sessionID] ?? { type: "idle" as const })
+  const approvalCount = createMemo(() => (sync.data.permission[props.sessionID] ?? []).length)
+  const questionCount = createMemo(() => (sync.data.question[props.sessionID] ?? []).length)
+  const retryMessage = createMemo(() => {
+    const status = runtimeStatus()
+    if (status.type !== "retry") return undefined
+    return status.message
+  })
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
@@ -92,7 +128,42 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             </box>
             <box>
               <text fg={theme.text}>
-                <b>Context</b>
+                <b>Runtime</b>
+              </text>
+              <text fg={theme.textMuted}>
+                {runtimeStatus().type === "busy"
+                  ? "waiting"
+                  : runtimeStatus().type === "retry"
+                    ? "blocked"
+                    : "connected"}
+              </text>
+              <Show when={runtimeStatus().type === "retry"}>
+                <text fg={theme.warning}>{retryMessage()}</text>
+              </Show>
+              <Show when={approvalCount() > 0 || questionCount() > 0}>
+                <text fg={theme.warning}>
+                  {approvalCount() > 0 ? `${approvalCount()} awaiting operator decision` : ""}
+                  {approvalCount() > 0 && questionCount() > 0 ? " · " : ""}
+                  {questionCount() > 0 ? `${questionCount()} blocked by question` : ""}
+                </text>
+              </Show>
+              <box flexDirection="row" gap={1} flexWrap="wrap">
+                <Show when={approvalCount() > 0 || questionCount() > 0}>
+                  <SidebarAction
+                    label={SESSION_COMMAND_LABELS.reviewApprovals.toLowerCase()}
+                    onPress={() => props.onInspectApprovals?.()}
+                    hint={props.commandHint}
+                  />
+                </Show>
+                <Show when={runtimeStatus().type === "busy" || runtimeStatus().type === "retry"}>
+                  <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive.toLowerCase()} onPress={() => props.onJumpLive?.()} />
+                </Show>
+                <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline.toLowerCase()} onPress={() => props.onOpenTimeline?.()} muted hint={props.timelineHint} />
+              </box>
+            </box>
+            <box>
+              <text fg={theme.text}>
+                <b>Context usage</b>
               </text>
               <box flexDirection="row" gap={1}>
                 <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
@@ -122,21 +193,25 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                   <Show when={mcpEntries().length > 2}>
                     <text fg={theme.text}>{expanded.mcp ? "▼" : "▶"}</text>
                   </Show>
-                  <text fg={theme.text}>
-                    <b>MCP</b>
+                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                    <text fg={theme.text}>
+                      <b>MCP</b>
+                    </text>
                     <Show when={!expanded.mcp}>
-                      <span style={{ fg: theme.textMuted }}>
-                        {" "}
+                      <text fg={theme.textMuted}>
                         ({connectedMcpCount()} active
                         {errorMcpCount() > 0 ? `, ${errorMcpCount()} error${errorMcpCount() > 1 ? "s" : ""}` : ""})
-                      </span>
+                      </text>
                     </Show>
-                  </text>
+                  </box>
+                </box>
+                <box flexDirection="row" gap={1} flexWrap="wrap">
+                  <SidebarAction label={SESSION_COMMAND_LABELS.inspectMcp} onPress={() => props.onInspectMcp?.()} hint={props.commandHint} />
                 </box>
                 <Show when={mcpEntries().length <= 2 || expanded.mcp}>
                   <For each={mcpEntries()}>
                     {([key, item]) => (
-                      <box flexDirection="row" gap={1}>
+                      <box flexDirection="row" gap={1} onMouseUp={() => props.onInspectMcp?.()}>
                         <text
                           flexShrink={0}
                           style={{
@@ -153,20 +228,22 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                         >
                           •
                         </text>
-                        <text fg={theme.text} wrapMode="word">
-                          {key}{" "}
-                          <span style={{ fg: theme.textMuted }}>
+                        <box flexDirection="column">
+                          <text fg={theme.text} wrapMode="word">
+                            {key}
+                          </text>
+                          <text fg={theme.textMuted} wrapMode="word">
                             <Switch fallback={item.status}>
-                              <Match when={item.status === "connected"}>Connected</Match>
-                              <Match when={item.status === "failed" && item}>{(val) => <i>{val().error}</i>}</Match>
-                              <Match when={item.status === "disabled"}>Disabled</Match>
-                              <Match when={(item.status as string) === "needs_auth"}>Needs auth</Match>
+                              <Match when={item.status === "connected"}>connected</Match>
+                              <Match when={item.status === "failed" && item}>{(val) => val().error}</Match>
+                              <Match when={item.status === "disabled"}>waiting</Match>
+                              <Match when={(item.status as string) === "needs_auth"}>blocked: needs auth</Match>
                               <Match when={(item.status as string) === "needs_client_registration"}>
-                                Needs client ID
+                                blocked: needs client ID
                               </Match>
                             </Switch>
-                          </span>
-                        </text>
+                          </text>
+                        </box>
                       </box>
                     )}
                   </For>
@@ -230,8 +307,17 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                     <b>Todo</b>
                   </text>
                 </box>
+                <box flexDirection="row" gap={1} flexWrap="wrap">
+                  <SidebarAction label="open plan" onPress={() => props.onOpenPm?.()} hint={props.commandHint} />
+                </box>
                 <Show when={todo().length <= 2 || expanded.todo}>
-                  <For each={todo()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
+                  <For each={todo()}>
+                    {(todo) => (
+                      <box onMouseUp={() => props.onOpenPm?.()}>
+                        <TodoItem status={todo.status} content={todo.content} />
+                      </box>
+                    )}
+                  </For>
                 </Show>
               </box>
             </Show>
@@ -249,11 +335,14 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                     <b>Modified Files</b>
                   </text>
                 </box>
+                <box flexDirection="row" gap={1} flexWrap="wrap">
+                  <SidebarAction label={SESSION_COMMAND_LABELS.reviewDiff.toLowerCase()} onPress={() => props.onInspectDiff?.()} hint={props.commandHint} />
+                </box>
                 <Show when={diff().length <= 2 || expanded.diff}>
                   <For each={diff() || []}>
                     {(item) => {
                       return (
-                        <box flexDirection="row" gap={1} justifyContent="space-between">
+                        <box flexDirection="row" gap={1} justifyContent="space-between" onMouseUp={() => props.onInspectDiff?.()}>
                           <text fg={theme.textMuted} wrapMode="none">
                             {item.file}
                           </text>
@@ -272,6 +361,23 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </Show>
               </box>
             </Show>
+            <box>
+              <text fg={theme.text}>
+                <b>{SESSION_SHELL_ROLES.navigator}</b>
+              </text>
+              <box flexDirection="row" gap={1} flexWrap="wrap">
+                <SidebarAction label={SESSION_COMMAND_LABELS.previous.toLowerCase()} onPress={() => props.onNavigateMessage?.("prev")} muted hint={props.prevHint} />
+                <SidebarAction label={SESSION_COMMAND_LABELS.next.toLowerCase()} onPress={() => props.onNavigateMessage?.("next")} muted hint={props.nextHint} />
+                <SidebarAction
+                  label={SESSION_COMMAND_LABELS.jumpLastRequest.toLowerCase()}
+                  onPress={() => props.onJumpLastUser?.()}
+                  muted
+                  hint={props.lastUserHint}
+                />
+                <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline.toLowerCase()} onPress={() => props.onOpenTimeline?.()} muted hint={props.timelineHint} />
+                <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive.toLowerCase()} onPress={() => props.onJumpLive?.()} muted />
+              </box>
+            </box>
           </box>
         </scrollbox>
 
@@ -309,14 +415,17 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
               </box>
             </box>
           </Show>
-          <text>
-            <span style={{ fg: theme.textMuted }}>{directory().split("/").slice(0, -1).join("/")}/</span>
-            <span style={{ fg: theme.text }}>{directory().split("/").at(-1)}</span>
-          </text>
-          <text fg={theme.textMuted}>
-            <span style={{ fg: theme.success }}>•</span> <b>DAX</b>{" "}
-            <span>{Installation.VERSION}</span>
-          </text>
+          <box flexDirection="row" gap={0}>
+            <text fg={theme.textMuted}>{directory().split("/").slice(0, -1).join("/")}/</text>
+            <text fg={theme.text}>{directory().split("/").at(-1)}</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.success}>•</text>
+            <text fg={theme.textMuted}>
+              <b>DAX</b>
+            </text>
+            <text fg={theme.textMuted}>{Installation.VERSION}</text>
+          </box>
         </box>
       </box>
     </Show>

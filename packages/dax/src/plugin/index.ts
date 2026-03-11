@@ -17,7 +17,9 @@ export namespace Plugin {
 
   const BUILTIN: string[] = []
 
-  // Built-in plugins that are directly imported (not installed from npm)
+  // Built-in plugins that are directly imported (not installed from npm).
+  // Most plugin hooks remain experimental unless they are called out in docs
+  // as a supported customization path.
   const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, GeminiAuthPlugin]
 
   const state = Instance.state(async () => {

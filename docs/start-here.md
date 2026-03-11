@@ -13,7 +13,7 @@ This is the fastest path to first success with DAX.
 For beta releases:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
+curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.6 bash
 ```
 
 Check install:
@@ -33,18 +33,23 @@ dax
 Then:
 
 1. Choose provider/model.
-2. Enter a small request, for example: `summarize this repository structure`.
-3. Watch the stream stages and response.
+2. Enter a small execution intent, for example: `summarize this repository structure`.
+3. Review the execution preview DAX shows before work begins.
+4. Watch the stream stages and result.
 
 ## First Real Task
 
 Try:
 
-1. `find all TODO comments and group by file`
-2. `propose a safe cleanup plan`
-3. `apply the first small cleanup and show the diff`
+1. `dax plan "find all TODO comments and group by file, then propose a safe cleanup plan"`
+2. Review the plan preview and readiness state.
+3. `dax run "apply the first small cleanup and show the diff"`
+4. `dax artifacts`
+5. `dax audit`
+6. `dax verify <session-id>`
+7. `dax release check <session-id>`
 
-This gives you a full Run -> Audit -> Override loop with low risk.
+This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit -> Verify -> Release Check loop.
 
 ## Screenshots
 
@@ -63,6 +68,10 @@ Capture:
 Capture:
 - One submitted prompt and response visible
 - Side panes (`artifact`, `diff`, `rao`, `pm`) visible
+- Session review surfaces visible:
+  - `What to do now`
+  - `Move through this session`
+  - `Review and inspect`
 
 ### 3) Diff review
 
@@ -85,8 +94,8 @@ dax auth list
 For Google-specific auth issues:
 
 ```bash
-dax auth doctor
-dax auth doctor google/gemini-2.5-flash
+dax doctor auth
+dax doctor auth google/gemini-2.5-flash
 ```
 
-Next guide: [non-dev-quickstart.md](/Users/Shailesh/MYAIAGENTS/dax/docs/non-dev-quickstart.md)
+Next guide: [non-dev-quickstart.md](non-dev-quickstart.md)

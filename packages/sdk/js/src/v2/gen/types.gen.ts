@@ -745,15 +745,15 @@ export type EventCommandExecuted = {
   }
 }
 
-export type PermissionAction = "allow" | "deny" | "ask"
+export type PolicyAction = "allow" | "deny" | "ask"
 
-export type PermissionRule = {
+export type PolicyRule = {
   permission: string
   pattern: string
-  action: PermissionAction
+  action: PolicyAction
 }
 
-export type PermissionRuleset = Array<PermissionRule>
+export type PolicyRuleset = Array<PolicyRule>
 
 export type Session = {
   id: string
@@ -778,7 +778,7 @@ export type Session = {
     compacting?: number
     archived?: number
   }
-  permission?: PermissionRuleset
+  permission?: PolicyRuleset
   revert?: {
     messageID: string
     partID?: string
@@ -986,6 +986,18 @@ export type KeybindsConfig = {
    * Show session timeline
    */
   session_timeline?: string
+  /**
+   * Inspect approvals and questions
+   */
+  session_approvals?: string
+  /**
+   * Inspect session diff summary
+   */
+  session_diff?: string
+  /**
+   * Inspect MCP for the current session
+   */
+  session_mcp?: string
   /**
    * Fork session from message
    */
@@ -1380,7 +1392,7 @@ export type PermissionConfig =
   | PermissionActionConfig
 
 export type AgentConfig = {
-  model?: string
+  model?: Model
   /**
    * Default model variant for this agent (applies only when using the agent's configured model).
    */
@@ -1422,6 +1434,7 @@ export type AgentConfig = {
   permission?: PermissionConfig
   [key: string]:
     | unknown
+    | Model
     | string
     | number
     | {
@@ -1651,7 +1664,7 @@ export type Config = {
       template: string
       description?: string
       agent?: string
-      model?: string
+      model?: Model
       subtask?: boolean
     }
   }
@@ -1693,14 +1706,8 @@ export type Config = {
    * When set, ONLY these providers will be enabled. All other providers will be ignored
    */
   enabled_providers?: Array<string>
-  /**
-   * Model to use in the format of provider/model, eg anthropic/claude-2
-   */
-  model?: string
-  /**
-   * Small model to use for tasks like title generation in the format of provider/model
-   */
-  small_model?: string
+  model?: Model
+  small_model?: Model
   /**
    * Default agent to use when none is specified. Must be a primary agent. Falls back to 'build' if not set or if the specified agent is invalid.
    */
@@ -1728,6 +1735,7 @@ export type Config = {
     title?: AgentConfig
     summary?: AgentConfig
     compaction?: AgentConfig
+    audit?: AgentConfig
     [key: string]: AgentConfig | undefined
   }
   /**
@@ -1782,6 +1790,30 @@ export type Config = {
    * Additional instruction files or patterns to include
    */
   instructions?: Array<string>
+  /**
+   * Optional host allowlist for remote instruction URLs (exact host, *.suffix, or full https:// URL)
+   */
+  instruction_url_allowlist?: Array<string>
+  /**
+   * Audit engine controls (beta): profile, triggers, and gating behavior.
+   */
+  audit?: {
+    enabled?: boolean
+    profile?: "strict" | "balanced" | "advisory"
+    auto_triggers?: Array<string>
+    fail_on?: Array<string>
+  }
+  /**
+   * Integration settings for external systems (GitHub first).
+   */
+  integration?: {
+    github?: {
+      enabled?: boolean
+      checks?: boolean
+      pr_comment?: boolean
+      issue_annotations?: boolean
+    }
+  }
   layout?: LayoutConfig
   permission?: PermissionConfig
   tools?: {
@@ -1860,7 +1892,15 @@ export type WellKnownAuth = {
   token: string
 }
 
-export type Auth = OAuth | ApiAuth | WellKnownAuth
+export type Auth =
+  | OAuth
+  | ApiAuth
+  | WellKnownAuth
+  | {
+      type: "oauth-custom"
+      clientID: string
+      clientSecret: string
+    }
 
 export type NotFoundError = {
   name: "NotFoundError"
@@ -2128,6 +2168,36 @@ export type McpStatus =
   | McpStatusNeedsAuth
   | McpStatusNeedsClientRegistration
 
+export type McpToolSummary = {
+  server: string
+  name: string
+  description?: string
+}
+
+export type McpPromptSummary = {
+  server: string
+  name: string
+  description?: string
+}
+
+export type McpInspect = {
+  name: string
+  status: McpStatus
+  tools: Array<McpToolSummary>
+  prompts: Array<McpPromptSummary>
+  resources: Array<McpResource>
+}
+
+export type McpPing = {
+  name: string
+  status: McpStatus
+  latency_ms: number
+  tools: number
+  prompts: number
+  resources: number
+  detail?: string
+}
+
 export type Path = {
   home: string
   state: string
@@ -2160,7 +2230,7 @@ export type Agent = {
   topP?: number
   temperature?: number
   color?: string
-  permission: PermissionRuleset
+  permission: PolicyRuleset
   model?: {
     modelID: string
     providerID: string
@@ -2874,7 +2944,7 @@ export type SessionCreateData = {
   body?: {
     parentID?: string
     title?: string
-    permission?: PermissionRuleset
+    permission?: PolicyRuleset
   }
   path?: never
   query?: {
@@ -4315,6 +4385,106 @@ export type McpAddResponses = {
 }
 
 export type McpAddResponse = McpAddResponses[keyof McpAddResponses]
+
+export type McpInspectData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/mcp/{name}/inspect"
+}
+
+export type McpInspectResponses = {
+  /**
+   * Detailed MCP server inspection
+   */
+  200: McpInspect
+}
+
+export type McpInspectResponse = McpInspectResponses[keyof McpInspectResponses]
+
+export type McpToolsData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/mcp/{name}/tools"
+}
+
+export type McpToolsResponses = {
+  /**
+   * MCP tool catalog
+   */
+  200: Array<McpToolSummary>
+}
+
+export type McpToolsResponse = McpToolsResponses[keyof McpToolsResponses]
+
+export type McpResourcesData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/mcp/{name}/resources"
+}
+
+export type McpResourcesResponses = {
+  /**
+   * MCP resource catalog
+   */
+  200: Array<McpResource>
+}
+
+export type McpResourcesResponse = McpResourcesResponses[keyof McpResourcesResponses]
+
+export type McpPromptsData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/mcp/{name}/prompts"
+}
+
+export type McpPromptsResponses = {
+  /**
+   * MCP prompt catalog
+   */
+  200: Array<McpPromptSummary>
+}
+
+export type McpPromptsResponse = McpPromptsResponses[keyof McpPromptsResponses]
+
+export type McpPingData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/mcp/{name}/ping"
+}
+
+export type McpPingResponses = {
+  /**
+   * MCP ping response
+   */
+  200: McpPing
+}
+
+export type McpPingResponse = McpPingResponses[keyof McpPingResponses]
 
 export type McpAuthRemoveData = {
   body?: never

@@ -417,12 +417,10 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
               const answered = () => Boolean(value())
               return (
                 <box paddingLeft={1}>
-                  <text>
-                    <span style={{ fg: theme.textMuted }}>{q.header}:</span>{" "}
-                    <span style={{ fg: answered() ? theme.text : theme.error }}>
-                      {answered() ? value() : "(not answered)"}
-                    </span>
-                  </text>
+                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                    <text fg={theme.textMuted}>{q.header}:</text>
+                    <text fg={answered() ? theme.text : theme.error}>{answered() ? value() : "(not answered)"}</text>
+                  </box>
                 </box>
               )
             }}
@@ -440,25 +438,26 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
       >
         <box flexDirection="row" gap={2}>
           <Show when={!single()}>
-            <text fg={theme.text}>
-              {"⇆"} <span style={{ fg: theme.textMuted }}>tab</span>
-            </text>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.text}>⇆</text>
+              <text fg={theme.textMuted}>tab</text>
+            </box>
           </Show>
           <Show when={!confirm()}>
-            <text fg={theme.text}>
-              {"↑↓"} <span style={{ fg: theme.textMuted }}>select</span>
-            </text>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.text}>↑↓</text>
+              <text fg={theme.textMuted}>select</text>
+            </box>
           </Show>
-          <text fg={theme.text}>
-            enter{" "}
-            <span style={{ fg: theme.textMuted }}>
-              {confirm() ? "submit" : multi() ? "toggle" : single() ? "submit" : "confirm"}
-            </span>
-          </text>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>enter</text>
+            <text fg={theme.textMuted}>{confirm() ? "submit" : multi() ? "toggle" : single() ? "submit" : "confirm"}</text>
+          </box>
 
-          <text fg={theme.text}>
-            esc <span style={{ fg: theme.textMuted }}>dismiss</span>
-          </text>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>esc</text>
+            <text fg={theme.textMuted}>dismiss</text>
+          </box>
         </box>
       </box>
     </box>

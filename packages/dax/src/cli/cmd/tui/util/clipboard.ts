@@ -38,6 +38,7 @@ export namespace Clipboard {
         const buffer = await file.arrayBuffer()
         return { data: Buffer.from(buffer).toString("base64"), mime: "image/png" }
       } catch {
+        // Intentionally ignored: no image on clipboard or file access error.
       } finally {
         await $`rm -f "${tmpfile}"`.nothrow().quiet()
       }

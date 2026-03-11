@@ -1369,7 +1369,7 @@
                     "type": "string"
                   },
                   "permission": {
-                    "$ref": "#/components/schemas/PermissionRuleset"
+                    "$ref": "#/components/schemas/PolicyRuleset"
                   }
                 }
               }
@@ -4628,6 +4628,225 @@
           {
             "lang": "js",
             "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.mcp.add({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/mcp/{name}/inspect": {
+      "get": {
+        "operationId": "mcp.inspect",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Inspect MCP server",
+        "description": "Get MCP server status plus available tools, prompts, and resources.",
+        "responses": {
+          "200": {
+            "description": "Detailed MCP server inspection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpInspect"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.mcp.inspect({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/mcp/{name}/tools": {
+      "get": {
+        "operationId": "mcp.tools",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "List MCP tools",
+        "description": "List tools exposed by one MCP server.",
+        "responses": {
+          "200": {
+            "description": "MCP tool catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpToolSummary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.mcp.tools({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/mcp/{name}/resources": {
+      "get": {
+        "operationId": "mcp.resources",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "List MCP resources",
+        "description": "List resources exposed by one MCP server.",
+        "responses": {
+          "200": {
+            "description": "MCP resource catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpResource"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.mcp.resources({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/mcp/{name}/prompts": {
+      "get": {
+        "operationId": "mcp.prompts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "List MCP prompts",
+        "description": "List prompts exposed by one MCP server.",
+        "responses": {
+          "200": {
+            "description": "MCP prompt catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpPromptSummary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.mcp.prompts({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/mcp/{name}/ping": {
+      "get": {
+        "operationId": "mcp.ping",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Ping MCP server",
+        "description": "Measure MCP inventory round-trip and summarize server readiness.",
+        "responses": {
+          "200": {
+            "description": "MCP ping response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpPing"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.mcp.ping({\n  ...\n})"
           }
         ]
       }
@@ -8475,7 +8694,7 @@
           "properties"
         ]
       },
-      "PermissionAction": {
+      "PolicyAction": {
         "type": "string",
         "enum": [
           "allow",
@@ -8483,7 +8702,7 @@
           "ask"
         ]
       },
-      "PermissionRule": {
+      "PolicyRule": {
         "type": "object",
         "properties": {
           "permission": {
@@ -8493,7 +8712,7 @@
             "type": "string"
           },
           "action": {
-            "$ref": "#/components/schemas/PermissionAction"
+            "$ref": "#/components/schemas/PolicyAction"
           }
         },
         "required": [
@@ -8502,10 +8721,10 @@
           "action"
         ]
       },
-      "PermissionRuleset": {
+      "PolicyRuleset": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/PermissionRule"
+          "$ref": "#/components/schemas/PolicyRule"
         }
       },
       "Session": {
@@ -8592,7 +8811,7 @@
             ]
           },
           "permission": {
-            "$ref": "#/components/schemas/PermissionRuleset"
+            "$ref": "#/components/schemas/PolicyRuleset"
           },
           "revert": {
             "type": "object",
@@ -9753,7 +9972,7 @@
         "type": "object",
         "properties": {
           "model": {
-            "type": "string"
+            "$ref": "#/components/schemas/Model"
           },
           "variant": {
             "description": "Default model variant for this agent (applies only when using the agent's configured model).",
@@ -10314,7 +10533,7 @@
                   "type": "string"
                 },
                 "model": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Model"
                 },
                 "subtask": {
                   "type": "boolean"
@@ -10405,12 +10624,10 @@
             }
           },
           "model": {
-            "description": "Model to use in the format of provider/model, eg anthropic/claude-2",
-            "type": "string"
+            "$ref": "#/components/schemas/Model"
           },
           "small_model": {
-            "description": "Small model to use for tasks like title generation in the format of provider/model",
-            "type": "string"
+            "$ref": "#/components/schemas/Model"
           },
           "default_agent": {
             "description": "Default agent to use when none is specified. Must be a primary agent. Falls back to 'build' if not set or if the specified agent is invalid.",
@@ -10458,6 +10675,9 @@
                 "$ref": "#/components/schemas/AgentConfig"
               },
               "compaction": {
+                "$ref": "#/components/schemas/AgentConfig"
+              },
+              "audit": {
                 "$ref": "#/components/schemas/AgentConfig"
               }
             },
@@ -10625,6 +10845,65 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "instruction_url_allowlist": {
+            "description": "Optional host allowlist for remote instruction URLs (exact host, *.suffix, or full https:// URL)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audit": {
+            "description": "Audit engine controls (beta): profile, triggers, and gating behavior.",
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "profile": {
+                "type": "string",
+                "enum": [
+                  "strict",
+                  "balanced",
+                  "advisory"
+                ]
+              },
+              "auto_triggers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fail_on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "integration": {
+            "description": "Integration settings for external systems (GitHub first).",
+            "type": "object",
+            "properties": {
+              "github": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "checks": {
+                    "type": "boolean"
+                  },
+                  "pr_comment": {
+                    "type": "boolean"
+                  },
+                  "issue_annotations": {
+                    "type": "boolean"
+                  }
+                }
+              }
             }
           },
           "layout": {
@@ -10805,6 +11084,26 @@
           },
           {
             "$ref": "#/components/schemas/WellKnownAuth"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "oauth-custom"
+              },
+              "clientID": {
+                "type": "string"
+              },
+              "clientSecret": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "clientID",
+              "clientSecret"
+            ]
           }
         ]
       },
@@ -11746,6 +12045,112 @@
           }
         ]
       },
+      "McpToolSummary": {
+        "type": "object",
+        "properties": {
+          "server": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "server",
+          "name"
+        ]
+      },
+      "McpPromptSummary": {
+        "type": "object",
+        "properties": {
+          "server": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "server",
+          "name"
+        ]
+      },
+      "McpInspect": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MCPStatus"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpToolSummary"
+            }
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpPromptSummary"
+            }
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpResource"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "tools",
+          "prompts",
+          "resources"
+        ]
+      },
+      "McpPing": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MCPStatus"
+          },
+          "latency_ms": {
+            "type": "number"
+          },
+          "tools": {
+            "type": "number"
+          },
+          "prompts": {
+            "type": "number"
+          },
+          "resources": {
+            "type": "number"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "latency_ms",
+          "tools",
+          "prompts",
+          "resources"
+        ]
+      },
       "Path": {
         "type": "object",
         "properties": {
@@ -11866,7 +12271,7 @@
             "type": "string"
           },
           "permission": {
-            "$ref": "#/components/schemas/PermissionRuleset"
+            "$ref": "#/components/schemas/PolicyRuleset"
           },
           "model": {
             "type": "object",

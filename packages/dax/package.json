@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "build": "bun run script/build.ts",
-    "dev": "bun run --conditions=browser ./src/index.ts"
+    "dev": "bun run --conditions=browser ./src/index.ts",
+    "lint": "eslint src/ --ext .ts,.tsx,.js,.jsx"
   },
   "bin": {
     "dax": "./bin/dax"
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@dax-ai/script": "workspace:*",
+    "@eslint/js": "^10.0.1",
     "@octokit/webhooks-types": "7.6.1",
     "@parcel/watcher": "^2.5.6",
     "@parcel/watcher-darwin-arm64": "2.5.1",
@@ -32,7 +34,12 @@
     "@types/bun": "catalog:",
     "@types/turndown": "^5.0.6",
     "@types/yargs": "17.0.33",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0",
     "typescript": "catalog:",
+    "typescript-eslint": "^8.56.1",
     "vscode-languageserver-types": "^3.17.5",
     "why-is-node-running": "3.2.2"
   },

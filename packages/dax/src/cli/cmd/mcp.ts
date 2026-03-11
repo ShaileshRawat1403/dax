@@ -49,20 +49,6 @@ function isMcpRemote(config: McpEntry): config is McpRemote {
   return isMcpConfigured(config) && config.type === "remote"
 }
 
-export const McpCommand = cmd({
-  command: "mcp",
-  describe: "manage MCP (Model Context Protocol) servers",
-  builder: (yargs) =>
-    yargs
-      .command(McpAddCommand)
-      .command(McpListCommand)
-      .command(McpAuthCommand)
-      .command(McpLogoutCommand)
-      .command(McpDebugCommand)
-      .demandCommand(),
-  async handler() {},
-})
-
 export const McpListCommand = cmd({
   command: "list",
   aliases: ["ls"],
@@ -131,6 +117,200 @@ export const McpListCommand = cmd({
         prompts.outro(`${servers.length} server(s)`)
       },
     })
+  },
+})
+
+type McpInspectArgs = {
+  name: string
+  json?: boolean
+}
+
+function printJson(value: unknown) {
+  process.stdout.write(JSON.stringify(value, null, 2) + "\n")
+}
+
+async function withMcpInspect<T>(args: McpInspectArgs, title: string, fn: () => Promise<T>, render: (value: T) => void) {
+  return Instance.provide({
+    directory: process.cwd(),
+    async fn() {
+      const result = await fn()
+      if (args.json) {
+        printJson(result)
+        return result
+      }
+      UI.empty()
+      prompts.intro(title)
+      render(result)
+      prompts.outro("Done")
+      return result
+    },
+  })
+}
+
+export const McpToolsCommand = cmd({
+  command: "tools <name>",
+  describe: "list tools exposed by an MCP server",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        describe: "name of the MCP server",
+        type: "string",
+        demandOption: true,
+      })
+      .option("json", {
+        describe: "output machine-readable JSON",
+        type: "boolean",
+        default: false,
+      }),
+  async handler(args) {
+    await withMcpInspect(args, "MCP tools", () => MCP.toolCatalog(args.name), (items) => {
+      if (items.length === 0) {
+        prompts.log.warn(`No tools available for ${args.name}`)
+        return
+      }
+      for (const item of items) {
+        prompts.log.info(`${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+      }
+      prompts.log.message(`${items.length} tool(s)`)
+    })
+  },
+})
+
+export const McpInspectCommand = cmd({
+  command: "inspect <name>",
+  describe: "inspect one MCP server and summarize status, tools, resources, and prompts",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        describe: "name of the MCP server",
+        type: "string",
+        demandOption: true,
+      })
+      .option("json", {
+        describe: "output machine-readable JSON",
+        type: "boolean",
+        default: false,
+      }),
+  async handler(args) {
+    const result = await withMcpInspect(args, "MCP inspect", () => MCP.inspect(args.name), (result) => {
+      prompts.log.info(`${result.name}: ${result.status.status}`)
+      if (result.status.status === "failed") {
+        prompts.log.error(result.status.error)
+      }
+      if (result.status.status === "needs_client_registration") {
+        prompts.log.error(result.status.error)
+      }
+      if (result.status.status === "needs_auth") {
+        prompts.log.warn(`Run: dax mcp auth ${result.name}`)
+      }
+      prompts.log.message(`tools: ${result.tools.length}`)
+      for (const item of result.tools.slice(0, 8)) {
+        prompts.log.info(`  tool: ${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+      }
+      prompts.log.message(`resources: ${result.resources.length}`)
+      for (const item of result.resources.slice(0, 5)) {
+        prompts.log.info(`  resource: ${item.name} ${UI.Style.TEXT_DIM}${item.uri}`)
+      }
+      prompts.log.message(`prompts: ${result.prompts.length}`)
+      for (const item of result.prompts.slice(0, 5)) {
+        prompts.log.info(`  prompt: ${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+      }
+    })
+    process.exitCode = result.status.status === "connected" ? 0 : 1
+  },
+})
+
+export const McpResourcesCommand = cmd({
+  command: "resources <name>",
+  describe: "list resources exposed by an MCP server",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        describe: "name of the MCP server",
+        type: "string",
+        demandOption: true,
+      })
+      .option("json", {
+        describe: "output machine-readable JSON",
+        type: "boolean",
+        default: false,
+      }),
+  async handler(args) {
+    await withMcpInspect(args, "MCP resources", () => MCP.resourceCatalog(args.name), (items) => {
+      if (items.length === 0) {
+        prompts.log.warn(`No resources available for ${args.name}`)
+        return
+      }
+      for (const item of items) {
+        prompts.log.info(`${item.name} ${UI.Style.TEXT_DIM}${item.uri}`)
+      }
+      prompts.log.message(`${items.length} resource(s)`)
+    })
+  },
+})
+
+export const McpPromptsCommand = cmd({
+  command: "prompts <name>",
+  describe: "list prompts exposed by an MCP server",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        describe: "name of the MCP server",
+        type: "string",
+        demandOption: true,
+      })
+      .option("json", {
+        describe: "output machine-readable JSON",
+        type: "boolean",
+        default: false,
+      }),
+  async handler(args) {
+    await withMcpInspect(args, "MCP prompts", () => MCP.promptCatalog(args.name), (items) => {
+      if (items.length === 0) {
+        prompts.log.warn(`No prompts available for ${args.name}`)
+        return
+      }
+      for (const item of items) {
+        prompts.log.info(`${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+      }
+      prompts.log.message(`${items.length} prompt(s)`)
+    })
+  },
+})
+
+export const McpPingCommand = cmd({
+  command: "ping <name>",
+  describe: "measure MCP inventory round-trip and summarize readiness",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        describe: "name of the MCP server",
+        type: "string",
+        demandOption: true,
+      })
+      .option("json", {
+        describe: "output machine-readable JSON",
+        type: "boolean",
+        default: false,
+      }),
+  async handler(args) {
+    const result = await withMcpInspect(args, "MCP ping", () => MCP.ping(args.name), (result) => {
+      prompts.log.info(`${result.name}: ${result.status.status}`)
+      if (result.detail) {
+        prompts.log.message(`  ${result.detail}`)
+      }
+      prompts.log.message(`  latency: ${result.latency_ms}ms`)
+      prompts.log.message(`  tools: ${result.tools}`)
+      prompts.log.message(`  prompts: ${result.prompts}`)
+      prompts.log.message(`  resources: ${result.resources}`)
+      if (result.status.status === "failed") {
+        prompts.log.error(`  ${result.status.error}`)
+      }
+      if (result.status.status === "needs_client_registration") {
+        prompts.log.error(`  ${result.status.error}`)
+      }
+    })
+    process.exitCode = result.status.status === "connected" ? 0 : 1
   },
 })
 
@@ -752,4 +932,23 @@ export const McpDebugCommand = cmd({
       },
     })
   },
+})
+
+export const McpCommand = cmd({
+  command: "mcp",
+  describe: "manage MCP (Model Context Protocol) servers",
+  builder: (yargs) =>
+    yargs
+      .command(McpAddCommand)
+      .command(McpListCommand)
+      .command(McpInspectCommand)
+      .command(McpToolsCommand)
+      .command(McpResourcesCommand)
+      .command(McpPromptsCommand)
+      .command(McpPingCommand)
+      .command(McpAuthCommand)
+      .command(McpLogoutCommand)
+      .command(McpDebugCommand)
+      .demandCommand(),
+  async handler() {},
 })

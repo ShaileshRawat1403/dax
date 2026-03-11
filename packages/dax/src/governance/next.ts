@@ -28,6 +28,7 @@ export namespace PermissionNext {
   export const Request = z
     .object({
       id: Identifier.schema("permission"),
+      createdAt: z.number().int().nonnegative(),
       sessionID: Identifier.schema("session"),
       permission: z.string(),
       patterns: z.string().array(),
@@ -45,6 +46,29 @@ export namespace PermissionNext {
     })
 
   export type Request = z.infer<typeof Request>
+
+  export const AskInput = z
+    .object({
+      id: Identifier.schema("permission").optional(),
+      createdAt: z.number().int().nonnegative().optional(),
+      sessionID: Identifier.schema("session"),
+      permission: z.string(),
+      patterns: z.string().array(),
+      metadata: z.record(z.string(), z.any()),
+      always: z.string().array(),
+      tool: z
+        .object({
+          messageID: z.string(),
+          callID: z.string(),
+        })
+        .optional(),
+      ruleset: Ruleset,
+    })
+    .meta({
+      ref: "PermissionAskInput",
+    })
+
+  export type AskInput = z.infer<typeof AskInput>
 
   export const Reply = z.enum(["once", "always", "reject"])
   export type Reply = z.infer<typeof Reply>
@@ -85,11 +109,7 @@ export namespace PermissionNext {
     }
   })
 
-  export const ask = fn(
-    Request.partial({ id: true }).extend({
-      ruleset: Ruleset,
-    }),
-    async (input) => {
+  export const ask = fn(AskInput, async (input) => {
       const s = await state()
       const { ruleset, ...request } = input
       for (const pattern of request.patterns ?? []) {
@@ -114,6 +134,7 @@ export namespace PermissionNext {
           return new Promise<void>((resolve, reject) => {
             const info: Request = {
               id,
+              createdAt: input.createdAt ?? Date.now(),
               ...request,
             }
             s.pending[id] = {

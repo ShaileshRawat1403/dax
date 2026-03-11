@@ -5,6 +5,7 @@ import { useDialog } from "@tui/ui/dialog"
 import { useSync } from "@tui/context/sync"
 import { For, Match, Switch, Show, createMemo, createSignal } from "solid-js"
 import { Installation } from "@/installation"
+import { nextActionForMcpStatus } from "@/dax/status"
 
 export type DialogStatusProps = {}
 
@@ -58,44 +59,49 @@ export function DialogStatus() {
           <text fg={hover() ? theme.selectedListItemText : theme.textMuted}>esc</text>
         </box>
       </box>
-      <text fg={theme.textMuted}>Dax v{Installation.VERSION}</text>
+      <text fg={theme.textMuted}>DAX v{Installation.VERSION}</text>
       <Show when={Object.keys(sync.data.mcp).length > 0} fallback={<text fg={theme.text}>No MCP Servers</text>}>
         <box>
           <text fg={theme.text}>{Object.keys(sync.data.mcp).length} MCP Servers</text>
           <For each={Object.entries(sync.data.mcp)}>
             {([key, item]) => (
-              <box flexDirection="row" gap={1}>
-                <text
-                  flexShrink={0}
-                  style={{
-                    fg: (
-                      {
-                        connected: theme.success,
-                        failed: theme.error,
-                        disabled: theme.textMuted,
-                        needs_auth: theme.warning,
-                        needs_client_registration: theme.error,
-                      } as Record<string, typeof theme.success>
-                    )[item.status],
-                  }}
-                >
-                  •
-                </text>
-                <text fg={theme.text} wrapMode="word">
-                  <b>{key}</b>{" "}
-                  <span style={{ fg: theme.textMuted }}>
-                    <Switch fallback={item.status}>
-                      <Match when={item.status === "connected"}>Connected</Match>
-                      <Match when={item.status === "failed" && item}>{(val) => val().error}</Match>
-                      <Match when={item.status === "disabled"}>Disabled in configuration</Match>
-                      <Match when={(item.status as string) === "needs_auth"}>
-                        Needs authentication (run: dax mcp auth {key})
-                      </Match>
-                      <Match when={(item.status as string) === "needs_client_registration" && item}>
-                        {(val) => (val() as { error: string }).error}
-                      </Match>
-                    </Switch>
-                  </span>
+              <box flexDirection="column">
+                <box flexDirection="row" gap={1}>
+                  <text
+                    flexShrink={0}
+                    style={{
+                      fg: (
+                        {
+                          connected: theme.success,
+                          failed: theme.error,
+                          disabled: theme.textMuted,
+                          needs_auth: theme.warning,
+                          needs_client_registration: theme.error,
+                        } as Record<string, typeof theme.success>
+                      )[item.status],
+                    }}
+                  >
+                    •
+                  </text>
+                  <box flexDirection="column">
+                    <text fg={theme.text} wrapMode="word">
+                      <b>{key}</b>
+                    </text>
+                    <text fg={theme.textMuted} wrapMode="word">
+                      <Switch fallback={item.status}>
+                        <Match when={item.status === "connected"}>Connected</Match>
+                        <Match when={item.status === "failed" && item}>{(val) => val().error}</Match>
+                        <Match when={item.status === "disabled"}>Waiting (disabled in configuration)</Match>
+                        <Match when={(item.status as string) === "needs_auth"}>Blocked: needs authentication</Match>
+                        <Match when={(item.status as string) === "needs_client_registration" && item}>
+                          {(val) => (val() as { error: string }).error}
+                        </Match>
+                      </Switch>
+                    </text>
+                  </box>
+                </box>
+                <text fg={theme.textMuted} wrapMode="word">
+                  {"  "}Next: {nextActionForMcpStatus(key, item as any)}
                 </text>
               </box>
             )}
@@ -119,9 +125,14 @@ export function DialogStatus() {
                 >
                   •
                 </text>
-                <text fg={theme.text} wrapMode="word">
-                  <b>{item.id}</b> <span style={{ fg: theme.textMuted }}>{item.root}</span>
-                </text>
+                <box flexDirection="column">
+                  <text fg={theme.text} wrapMode="word">
+                    <b>{item.id}</b>
+                  </text>
+                  <text fg={theme.textMuted} wrapMode="word">
+                    {item.root}
+                  </text>
+                </box>
               </box>
             )}
           </For>
@@ -163,10 +174,16 @@ export function DialogStatus() {
                 >
                   •
                 </text>
-                <text wrapMode="word" fg={theme.text}>
-                  <b>{item.name}</b>
-                  {item.version && <span style={{ fg: theme.textMuted }}> @{item.version}</span>}
-                </text>
+                <box flexDirection="row" gap={0}>
+                  <text wrapMode="word" fg={theme.text}>
+                    <b>{item.name}</b>
+                  </text>
+                  <Show when={item.version}>
+                    <text wrapMode="word" fg={theme.textMuted}>
+                      {" "}@{item.version}
+                    </text>
+                  </Show>
+                </box>
               </box>
             )}
           </For>
