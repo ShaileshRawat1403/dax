@@ -359,6 +359,47 @@ Why it worked:
 - it prevents README paraphrasing
 - it aligns Explore with the control-plane product, not a summarizer product
 
+#### Pattern 16: Use ordered passes to turn repo exploration into evidence
+
+The strongest Explore workflow is not one-shot analysis.
+
+It is:
+
+1. boundary pass
+2. entry-point pass
+3. execution-flow pass
+4. integration pass
+5. evidence pass
+
+Why it worked:
+
+- it makes investigation reproducible
+- it gives each claim a better evidence trail
+- it prevents premature architectural storytelling
+
+#### Pattern 17: Distinguish observed, inferred, and unknown explicitly
+
+This is critical for repo exploration.
+
+Why it worked:
+
+- it keeps Explore honest
+- it makes partial understanding useful instead of misleading
+- it gives follow-up investigation a clean target
+
+#### Pattern 18: Separate Explore method from Explore deliverable
+
+The cleanest Explore design uses two contracts:
+
+- execution graph = how Explore investigates
+- output contract = what Explore must return
+
+Why it worked:
+
+- it separates internal tracing from user-facing consistency
+- it makes implementation easier to test
+- it reduces the chance of Explore drifting into ad hoc prose
+
 ## Session 003: Settle Write Outcome Semantics Before Surface Expansion
 
 Date: March 10, 2026

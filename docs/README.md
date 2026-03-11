@@ -78,6 +78,8 @@ Use this index based on your role and goal.
 - [DAX_SUBAGENT_MODEL.md](DAX_SUBAGENT_MODEL.md): specialist-operator model for Git, Explore, Verify, Release, and Artifact without separate personalities
 - [DAX_SKILLS_MODEL.md](DAX_SKILLS_MODEL.md): skills as reusable capability packs for prompts, tools, checks, workflows, and output contracts
 - [DAX_EXPLORE_MODE.md](DAX_EXPLORE_MODE.md): structured repository-understanding mode that returns maps, entry points, reading order, unknowns, and follow-up targets
+- [DAX_EXPLORE_EXECUTION_GRAPH.md](DAX_EXPLORE_EXECUTION_GRAPH.md): five-pass Explore workflow for tracing repository boundaries, entry points, execution flow, integrations, and evidence with confidence
+- [DAX_EXPLORE_OUTPUT_CONTRACT.md](DAX_EXPLORE_OUTPUT_CONTRACT.md): stable Explore deliverable covering required sections, confidence labels, evidence markers, citations, and follow-up targets
 - [DAX_INSPECTION_LOCK_RESILIENCE.md](DAX_INSPECTION_LOCK_RESILIENCE.md): reliability bridge for making inspection paths tolerate transient database lock contention
 - [CANONICAL_OPERATOR_FLOW.md](CANONICAL_OPERATOR_FLOW.md): product contract for `plan`, `run`, and `approvals`
 - [PLANNING_EXECUTION_DECISION.md](PLANNING_EXECUTION_DECISION.md): why planning should become a first-class command separate from execution
