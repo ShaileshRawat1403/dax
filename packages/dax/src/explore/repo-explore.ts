@@ -185,6 +185,65 @@ function importantFilePriority(role: string) {
   return 60
 }
 
+function isTestPath(filePath: string) {
+  return /(^|\/)(test|tests|__tests__)\b/.test(filePath) || /\.test\.[^/]+$/.test(filePath) || /\.spec\.[^/]+$/.test(filePath)
+}
+
+function isExploreSelfPath(filePath: string) {
+  return (
+    filePath.includes("/explore/") ||
+    filePath.endsWith("src/explore/repo-explore.ts") ||
+    filePath.endsWith("src/cli/cmd/explore.ts") ||
+    filePath.endsWith("src/cli/cmd/explore.test.ts")
+  )
+}
+
+function filteredPathPriority(filePath: string) {
+  if (isExploreSelfPath(filePath)) return -100
+  if (isTestPath(filePath)) return -10
+  return 0
+}
+
+function normalizeFindingPaths(paths: string[] | undefined) {
+  if (!paths || paths.length === 0) return undefined
+  const filtered = [...paths]
+    .sort((a, b) => {
+      const diff = filteredPathPriority(b) - filteredPathPriority(a)
+      if (diff !== 0) return diff
+      const testDiff = Number(isTestPath(a)) - Number(isTestPath(b))
+      if (testDiff !== 0) return testDiff
+      return a.localeCompare(b)
+    })
+    .filter((filePath, index, all) => all.indexOf(filePath) === index)
+    .filter((filePath) => !isExploreSelfPath(filePath))
+
+  const productionFirst = filtered.filter((filePath) => !isTestPath(filePath))
+  if (productionFirst.length > 0) return productionFirst
+  return filtered.slice(0, 1)
+}
+
+function sanitizeSection(section: ExploreEvidenceSection): ExploreEvidenceSection {
+  const findings = section.findings
+    .map((finding) => ({
+      ...finding,
+      paths: normalizeFindingPaths(finding.paths),
+    }))
+    .filter((finding) => {
+      if (!finding.paths || finding.paths.length > 0) return true
+      return finding.kind === "unknown"
+    })
+
+  const observedCount = findings.filter((finding) => finding.kind === "observed").length
+  const inferredCount = findings.filter((finding) => finding.kind === "inferred").length
+  const confidence: ExploreConfidence =
+    observedCount >= 2 ? "high_confidence" : observedCount >= 1 ? "medium_confidence" : inferredCount >= 1 ? "low_confidence" : "unknown"
+
+  return {
+    confidence,
+    findings,
+  }
+}
+
 function importanceReason(role: string) {
   if (role.includes("root repo-shape signal") || role.includes("runtime package manifest")) {
     return "Establishes repository shape and workspace boundaries."
@@ -215,10 +274,22 @@ function normalizeFollowUp(summary: string): string {
 }
 
 export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoExplorePassOutputs {
+  const repository_shape = sanitizeSection(outputs.repository_shape)
+  const entry_points = sanitizeSection(outputs.entry_points)
+  const execution_graph = sanitizeSection(outputs.execution_graph)
+  const orchestration_loop = sanitizeSection(outputs.orchestration_loop)
+  const integrations = sanitizeSection(outputs.integrations)
+
   const importantFiles = [...outputs.important_files]
+    .filter((item) => !isExploreSelfPath(item.path))
     .sort((a, b) => {
-      const diff = importantFilePriority(b.role) - importantFilePriority(a.role)
+      const diff =
+        importantFilePriority(b.role) +
+        filteredPathPriority(b.path) -
+        (importantFilePriority(a.role) + filteredPathPriority(a.path))
       if (diff !== 0) return diff
+      const testDiff = Number(isTestPath(a.path)) - Number(isTestPath(b.path))
+      if (testDiff !== 0) return testDiff
       const pathDiff = a.path.length - b.path.length
       if (pathDiff !== 0) return pathDiff
       return a.path.localeCompare(b.path)
@@ -229,6 +300,12 @@ export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoE
   const readingOrder: ExploreReadingStep[] =
     outputs.suggested_reading_order.length > 0
       ? outputs.suggested_reading_order
+          .filter((step) => !isExploreSelfPath(step.path))
+          .sort((a, b) => {
+            const testDiff = Number(isTestPath(a.path)) - Number(isTestPath(b.path))
+            if (testDiff !== 0) return testDiff
+            return a.path.localeCompare(b.path)
+          })
       : importantFiles.slice(0, 6).map((file) => ({
           path: file.path,
           reason: importanceReason(file.role),
@@ -244,11 +321,11 @@ export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoE
   }
 
   for (const section of [
-    outputs.repository_shape,
-    outputs.entry_points,
-    outputs.execution_graph,
-    outputs.orchestration_loop,
-    outputs.integrations,
+    repository_shape,
+    entry_points,
+    execution_graph,
+    orchestration_loop,
+    integrations,
   ]) {
     for (const finding of section.findings) {
       if (finding.kind === "unknown") {
@@ -275,6 +352,11 @@ export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoE
 
   return {
     ...outputs,
+    repository_shape,
+    entry_points,
+    execution_graph,
+    orchestration_loop,
+    integrations,
     important_files: importantFiles,
     suggested_reading_order: readingOrder,
     unknowns_follow_up_targets: unknownsFollowUpTargets.slice(0, 10),

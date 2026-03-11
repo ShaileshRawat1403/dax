@@ -69,7 +69,7 @@ describe("repo explore scaffolding", () => {
     const rendered = renderExploreResult(buildExploreResult(outputs))
 
     expect(rendered).toContain("Repository shape")
-    expect(rendered).toContain("Confidence: high confidence")
+    expect(rendered).toContain("Confidence: medium confidence")
     expect(rendered).toContain("- Observed: canonical runtime under packages/dax (packages/dax)")
     expect(rendered).toContain("- Observed: CLI entry point (packages/dax/src/index.ts)")
     expect(rendered).toContain("- Inferred: session runtime coordinates the main execution flow (packages/dax/src/session/index.ts)")
@@ -357,6 +357,85 @@ describe("repo explore scaffolding", () => {
           item.summary.includes("Confirm inferred boundary: approval_interruption_flow: control can pause or stop through abort transitions"),
       ),
     ).toBe(true)
+  })
+
+  it("filters self-referential Explore files and down-ranks test-only evidence during synthesis", () => {
+    const synthesized = synthesizeExploreOutputs({
+      repository_shape: {
+        confidence: "high_confidence",
+        findings: [
+          { kind: "observed", summary: "repo root contains package.json", paths: ["package.json"] },
+          { kind: "observed", summary: "self analyzer noise", paths: ["src/explore/repo-explore.ts"] },
+        ],
+      },
+      entry_points: {
+        confidence: "high_confidence",
+        findings: [
+          { kind: "observed", summary: "CLI entry point detected", paths: ["src/index.ts", "src/cli/cmd/explore.test.ts"] },
+          { kind: "observed", summary: "test-only candidate", paths: ["src/cli/cmd/explore.test.ts"] },
+        ],
+      },
+      execution_graph: {
+        confidence: "high_confidence",
+        findings: [
+          {
+            kind: "observed",
+            summary: "session_execution_flow: runtime handoff",
+            paths: ["src/session/prompt.ts", "src/explore/repo-explore.test.ts"],
+          },
+        ],
+      },
+      orchestration_loop: {
+        confidence: "medium_confidence",
+        findings: [
+          {
+            kind: "inferred",
+            summary: "approval_interruption_flow: candidate loop seen in tests",
+            paths: ["src/explore/repo-explore.test.ts"],
+          },
+        ],
+      },
+      integrations: {
+        confidence: "medium_confidence",
+        findings: [
+          { kind: "observed", summary: "MCP integration detected", paths: ["src/index.ts", "src/explore/repo-explore.ts"] },
+        ],
+      },
+      important_files: [
+        { path: "src/explore/repo-explore.ts", role: "execution flow surface" },
+        { path: "src/explore/repo-explore.test.ts", role: "orchestration loop surface" },
+        { path: "src/index.ts", role: "cli bootstrap" },
+        { path: "src/session/prompt.ts", role: "orchestration loop surface" },
+        { path: "src/session/prompt.test.ts", role: "execution flow surface" },
+        { path: "package.json", role: "root repo-shape signal" },
+      ],
+      suggested_reading_order: [
+        { path: "src/explore/repo-explore.ts", reason: "self reference" },
+        { path: "src/session/prompt.test.ts", reason: "test evidence" },
+        { path: "package.json", reason: "repo root" },
+        { path: "src/index.ts", reason: "runtime start" },
+      ],
+      unknowns_follow_up_targets: [],
+    })
+
+    expect(synthesized.repository_shape.findings.some((finding) => finding.paths?.includes("src/explore/repo-explore.ts"))).toBe(false)
+    expect(synthesized.entry_points.findings.some((finding) => finding.summary.includes("test-only candidate"))).toBe(false)
+    expect(synthesized.execution_graph.findings[0]?.paths).toEqual(["src/session/prompt.ts"])
+    expect(synthesized.orchestration_loop.confidence).toBe("unknown")
+    expect(synthesized.integrations.findings[0]?.paths).toEqual(["src/index.ts"])
+
+    expect(synthesized.important_files.map((file) => file.path)).toEqual([
+      "package.json",
+      "src/index.ts",
+      "src/session/prompt.ts",
+      "src/session/prompt.test.ts",
+    ])
+
+    expect(synthesized.suggested_reading_order.map((step) => step.path)).toEqual([
+      "package.json",
+      "src/index.ts",
+      "src/session/prompt.test.ts",
+    ])
   })
 })
 
