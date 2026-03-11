@@ -69,6 +69,8 @@ Use this index based on your role and goal.
 - [DAX_WORKSTATION_SIDEBAR_SPEC.md](DAX_WORKSTATION_SIDEBAR_SPEC.md): sidebar contract for card order, state rules, clickability, and default operator truth in the balanced workstation
 - [DAX_WORKSTATION_STREAM_SPEC.md](DAX_WORKSTATION_STREAM_SPEC.md): center-stream contract for allowed message classes, forbidden message classes, interruptions, and short outcome behavior
 - [DAX_STREAM_SPINE_AND_STAGE_DIVIDERS.md](DAX_STREAM_SPINE_AND_STAGE_DIVIDERS.md): rendering contract for execution spine rows and quiet stage dividers in the workstation stream
+- [DAX_TUI_FIXED_MOCKUP.md](DAX_TUI_FIXED_MOCKUP.md): single fixed user-testable workstation mockup for this branch across normal, compact, and narrow terminal widths
+- [DAX_TUI_USER_TEST_SCRIPT.md](DAX_TUI_USER_TEST_SCRIPT.md): first user-test runbook for validating the workstation and `/explore` as the first true agentized TUI flow
 - [DAX_WORKSTATION_OVERLAY_SPEC.md](DAX_WORKSTATION_OVERLAY_SPEC.md): evidence-layer contract for verify, release, artifacts, timeline, and inspect overlays
 - [DAX_WORKSTATION_OVERLAY_LAYOUTS.md](DAX_WORKSTATION_OVERLAY_LAYOUTS.md): internal layout contract for verify, release, artifacts, timeline, inspect, and approvals overlays
 - [DAX_WORKSTATION_INTERACTION_SPEC.md](DAX_WORKSTATION_INTERACTION_SPEC.md): focus, open-close, and shortcut behavior across stream, sidebar, and overlays
