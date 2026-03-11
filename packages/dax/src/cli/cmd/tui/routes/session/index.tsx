@@ -185,6 +185,9 @@ type WorkstationOverlayKind =
   | "approval_dialog"
   | "timeline_detail"
   | "artifact_detail"
+  | "verify_detail"
+  | "release_detail"
+  | "inspect_detail"
   | "audit_detail"
   | "audit_events"
   | "diff_detail"
@@ -361,6 +364,170 @@ function DialogArtifactDetail(props: { title: string; body: string }) {
               {props.body}
             </text>
           </scrollbox>
+        </>
+      }
+    />
+  )
+}
+
+function DialogVerifyDetail(props: {
+  trustLabel: string
+  summary: string
+  checks: Array<{ label: string; value: string; tone?: "normal" | "warning" | "critical" | "success" }>
+}) {
+  const { theme } = useTheme()
+  const valueColor = (tone?: "normal" | "warning" | "critical" | "success") =>
+    tone === "critical"
+      ? theme.error
+      : tone === "warning"
+        ? theme.warning
+        : tone === "success"
+          ? theme.success
+          : theme.text
+
+  return (
+    <WorkstationOverlayPanel
+      title="Verify"
+      footer="esc close"
+      body={
+        <>
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            {`Trust posture: ${props.trustLabel}`}
+          </text>
+          <text fg={theme.text}>{props.summary}</text>
+          <box flexDirection="column" gap={1}>
+            <For each={props.checks}>
+              {(check) => (
+                <box flexDirection="column" gap={0}>
+                  <text fg={theme.textMuted}>{check.label}</text>
+                  <text fg={valueColor(check.tone)} wrapMode="word">
+                    {check.value}
+                  </text>
+                </box>
+              )}
+            </For>
+          </box>
+        </>
+      }
+    />
+  )
+}
+
+function DialogReleaseDetail(props: {
+  result: string
+  summary: string
+  blockers: string[]
+  missingEvidence: string[]
+  signals: string[]
+}) {
+  const { theme } = useTheme()
+  return (
+    <WorkstationOverlayPanel
+      title="Release readiness"
+      footer="esc close"
+      body={
+        <>
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            {props.result}
+          </text>
+          <text fg={theme.text}>{props.summary}</text>
+          <box flexDirection="column" gap={1}>
+            <text fg={theme.textMuted}>Blockers</text>
+            <Show when={props.blockers.length > 0} fallback={<text fg={theme.text}>None</text>}>
+              <For each={props.blockers}>
+                {(item) => (
+                  <text fg={theme.error} wrapMode="word">
+                    {item}
+                  </text>
+                )}
+              </For>
+            </Show>
+          </box>
+          <box flexDirection="column" gap={1}>
+            <text fg={theme.textMuted}>Missing evidence</text>
+            <Show when={props.missingEvidence.length > 0} fallback={<text fg={theme.text}>None</text>}>
+              <For each={props.missingEvidence}>
+                {(item) => (
+                  <text fg={theme.warning} wrapMode="word">
+                    {item}
+                  </text>
+                )}
+              </For>
+            </Show>
+          </box>
+          <box flexDirection="column" gap={1}>
+            <text fg={theme.textMuted}>Signals</text>
+            <For each={props.signals}>
+              {(item) => (
+                <text fg={theme.text} wrapMode="word">
+                  {item}
+                </text>
+              )}
+            </For>
+          </box>
+        </>
+      }
+    />
+  )
+}
+
+function DialogInspectDetail(props: {
+  lifecycle: string
+  stage: string
+  trust: string
+  release: string
+  approvals: string
+  artifacts: string
+  writeGovernance: string
+  summary: string[]
+}) {
+  const { theme } = useTheme()
+  return (
+    <WorkstationOverlayPanel
+      title="Session inspect"
+      footer="esc close"
+      body={
+        <>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Lifecycle</text>
+            <text fg={theme.text}>{props.lifecycle}</text>
+          </box>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Stage</text>
+            <text fg={theme.text}>{props.stage}</text>
+          </box>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Trust</text>
+            <text fg={theme.text}>{props.trust}</text>
+          </box>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Release</text>
+            <text fg={theme.text}>{props.release}</text>
+          </box>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Approvals</text>
+            <text fg={theme.text}>{props.approvals}</text>
+          </box>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Artifacts</text>
+            <text fg={theme.text}>{props.artifacts}</text>
+          </box>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Write governance</text>
+            <text fg={theme.text}>{props.writeGovernance}</text>
+          </box>
+          <Show when={props.summary.length > 0}>
+            <box flexDirection="column" gap={1}>
+              <text fg={theme.textMuted}>Session summary</text>
+              <For each={props.summary}>
+                {(item) => (
+                  <text fg={theme.text} wrapMode="word">
+                    {item}
+                  </text>
+                )}
+              </For>
+            </box>
+          </Show>
         </>
       }
     />
@@ -1758,6 +1925,46 @@ export function Session() {
       "artifacts",
     )
   }
+  const openVerifyDetail = () => {
+    replaceWorkstationOverlay(
+      "verify_detail",
+      <DialogVerifyDetail
+        trustLabel={workstationState().trustLabel}
+        summary={verifyOverlayModel().summary}
+        checks={verifyOverlayModel().checks}
+      />,
+      "audit",
+    )
+  }
+  const openReleaseDetail = () => {
+    replaceWorkstationOverlay(
+      "release_detail",
+      <DialogReleaseDetail
+        result={releaseOverlayModel().result}
+        summary={releaseOverlayModel().summary}
+        blockers={releaseOverlayModel().blockers}
+        missingEvidence={releaseOverlayModel().missingEvidence}
+        signals={releaseOverlayModel().signals}
+      />,
+      "audit",
+    )
+  }
+  const openInspectDetail = () => {
+    replaceWorkstationOverlay(
+      "inspect_detail",
+      <DialogInspectDetail
+        lifecycle={inspectOverlayModel().lifecycle}
+        stage={inspectOverlayModel().stage}
+        trust={inspectOverlayModel().trust}
+        release={inspectOverlayModel().release}
+        approvals={inspectOverlayModel().approvals}
+        artifacts={inspectOverlayModel().artifacts}
+        writeGovernance={inspectOverlayModel().writeGovernance}
+        summary={inspectOverlayModel().summary}
+      />,
+      "audit",
+    )
+  }
   const openAuditEvents = () => {
     replaceWorkstationOverlay("audit_events", <DialogAuditEvents findings={auditFindings()} />, "audit")
   }
@@ -2951,6 +3158,65 @@ export function Session() {
       tone: "normal" as const,
     }
   })
+  const verifyOverlayModel = createMemo(() => {
+    const findingsCount = workstationState().auditSummary.findingsCount
+    return {
+      summary:
+        workstationState().trustPosture === "blocked"
+          ? "Verification is blocked by current trust issues."
+          : workstationState().trustPosture === "review_needed"
+            ? "Verification is still incomplete."
+            : "Verification signals are currently healthy.",
+      checks: [
+        { label: "Lifecycle", value: workstationState().lifecycleLabel, tone: lifecycleCardTone() },
+        { label: "Approvals", value: approvalsCard().summary, tone: approvalsCard().tone },
+        { label: "Artifacts", value: artifactsCard().summary, tone: artifactsCard().tone },
+        { label: "Write governance", value: writeGovernanceCard().summary, tone: writeGovernanceCard().tone },
+        {
+          label: "Audit findings",
+          value: findingsCount > 0 ? `${findingsCount} recorded` : "No findings recorded",
+          tone: findingsCount > 0 ? ("warning" as const) : ("success" as const),
+        },
+      ],
+    }
+  })
+  const releaseOverlayModel = createMemo(() => {
+    const blockers: string[] = []
+    const missingEvidence: string[] = []
+    const signals: string[] = [
+      `Lifecycle: ${workstationState().lifecycleLabel}`,
+      `Trust: ${workstationState().trustLabel}`,
+      `Artifacts: ${artifactsCard().summary}`,
+      `Write governance: ${writeGovernanceCard().summary}`,
+    ]
+
+    if (releaseCard().tone === "critical") blockers.push(releaseCard().detail)
+    if (workstationState().approvalSummary.pendingCount > 0) blockers.push(approvalsCard().detail)
+    if (releaseCard().tone === "warning") missingEvidence.push(releaseCard().detail)
+    if (workstationState().auditSummary.findingsCount > 0) {
+      missingEvidence.push(
+        `${workstationState().auditSummary.findingsCount} audit finding${workstationState().auditSummary.findingsCount === 1 ? "" : "s"} recorded`,
+      )
+    }
+
+    return {
+      result: releaseCard().summary,
+      summary: releaseCard().detail,
+      blockers,
+      missingEvidence,
+      signals,
+    }
+  })
+  const inspectOverlayModel = createMemo(() => ({
+    lifecycle: workstationState().lifecycleLabel,
+    stage: stageCard().summary,
+    trust: workstationState().trustLabel,
+    release: releaseCard().summary,
+    approvals: approvalsCard().summary,
+    artifacts: artifactsCard().summary,
+    writeGovernance: writeGovernanceCard().summary,
+    summary: [stageCard().detail, artifactsCard().detail, writeGovernanceCard().detail].filter(Boolean) as string[],
+  }))
 
   const dialog = useDialog()
   const renderer = useRenderer()
@@ -2978,6 +3244,21 @@ export function Session() {
         case "artifact_detail":
           return {
             label: "Artifact detail",
+            hints: ["esc close"],
+          }
+        case "verify_detail":
+          return {
+            label: "Verify",
+            hints: ["esc close"],
+          }
+        case "release_detail":
+          return {
+            label: "Release readiness",
+            hints: ["esc close"],
+          }
+        case "inspect_detail":
+          return {
+            label: "Session inspect",
             hints: ["esc close"],
           }
         case "timeline_detail":
@@ -3494,7 +3775,7 @@ export function Session() {
                             : "Current trust posture for this session."
                         }
                         actionLabel={auditPaneEnabled() ? "Open verify" : undefined}
-                        onPress={auditPaneEnabled() ? openAuditDetail : undefined}
+                        onPress={auditPaneEnabled() ? openVerifyDetail : undefined}
                         focused={focusedPane() === "audit"}
                         tone={trustCardTone()}
                       />
@@ -3503,6 +3784,8 @@ export function Session() {
                         title="Release"
                         summary={releaseCard().summary}
                         detail={releaseCard().detail}
+                        actionLabel="Open release"
+                        onPress={openReleaseDetail}
                         tone={releaseCard().tone}
                       />
                       <WorkstationSummaryCard
@@ -3530,6 +3813,8 @@ export function Session() {
                         title="Write governance"
                         summary={writeGovernanceCard().summary}
                         detail={writeGovernanceCard().detail}
+                        actionLabel="Open inspect"
+                        onPress={openInspectDetail}
                         tone={writeGovernanceCard().tone}
                       />
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
@@ -4455,6 +4740,12 @@ export function Session() {
                 trustLabel={workstationState().trustLabel}
                 focusLabel={footerFocus().label}
                 focusHints={footerFocus().hints}
+                onOpenTimeline={openTimelineReview}
+                onOpenArtifacts={openArtifactDetail}
+                onOpenVerify={openVerifyDetail}
+                onOpenRelease={openReleaseDetail}
+                onOpenInspect={openInspectDetail}
+                onOpenApprovals={permissions().length > 0 || questions().length > 0 ? openApprovalsReview : undefined}
               />
             </Show>
           <Toast />
