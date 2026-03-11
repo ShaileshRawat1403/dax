@@ -2128,45 +2128,147 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     const { parseExploreArguments } = await import("@/explore/repo-explore")
     const parsed = parseExploreArguments(input.arguments)
     const resolvedTarget = path.resolve(Instance.worktree, parsed.pathArg)
+    const model = input.model ? Provider.parseModel(input.model) : await lastModel(input.sessionID)
+    const agent = input.agent ?? "explore"
 
-    // 1. Intent Interpreter
-    const intent = await interpretIntent(`explore ${parsed.pathArg}`, { cwd: resolvedTarget, session_id: input.sessionID })
-    
-    // 2. Planner
-    const graph = await createPlan(intent, {})
-    
-    // 3. Setup router and operator
-    const router = new OperatorRouter()
-    router.register(new ExploreOperator())
-    
-    // 4. Run the Agent Graph
-    // In a real session context, runGraph should eventually yield real stream updates.
-    // For now, we wait for the final execution to finish and construct the response.
-    const runResult = await runGraph(graph, { cwd: resolvedTarget, sessionId: input.sessionID, graph }, router)
+    const user: MessageV2.User = {
+      id: Identifier.ascending("message"),
+      sessionID: input.sessionID,
+      time: {
+        created: Date.now(),
+      },
+      role: "user",
+      agent,
+      model: {
+        providerID: model.providerID,
+        modelID: model.modelID,
+      },
+      variant: input.variant,
+    }
+    await Session.updateMessage(user)
+    await Session.updatePart({
+      type: "text",
+      id: Identifier.ascending("part"),
+      messageID: user.id,
+      sessionID: user.sessionID,
+      text: `/${Command.Default.EXPLORE} ${input.arguments}`.trim(),
+    })
 
-    let text = "Explore execution failed."
-    if (runResult.success) {
-      const reportTask = graph.tasks.get('task_generate_report')
-      const exploreResult = reportTask?.result as RepoExploreResult
+    const assistant: MessageV2.Assistant = {
+      id: Identifier.ascending("message"),
+      sessionID: input.sessionID,
+      parentID: user.id,
+      mode: agent,
+      agent,
+      cost: 0,
+      path: {
+        cwd: Instance.directory,
+        root: Instance.worktree,
+      },
+      time: {
+        created: Date.now(),
+      },
+      role: "assistant",
+      tokens: {
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        cache: { read: 0, write: 0 },
+      },
+      modelID: model.modelID,
+      providerID: model.providerID,
+      finish: "stop",
+    }
+    await Session.updateMessage(assistant)
 
-      if (parsed.format === "json") {
-        text = "```json\n" + JSON.stringify(exploreResult, null, 2) + "\n```"
-      } else {
-        text = renderExploreResult(exploreResult, { eli12: parsed.eli12 })
+    const parts: MessageV2.TextPart[] = []
+
+    async function appendAssistantText(
+      text: string,
+      options?: {
+        synthetic?: boolean
+        metadata?: Record<string, any>
+      },
+    ) {
+      const part: MessageV2.TextPart = {
+        type: "text",
+        id: Identifier.ascending("part"),
+        messageID: assistant.id,
+        sessionID: assistant.sessionID,
+        text,
+        synthetic: options?.synthetic,
+        metadata: options?.metadata,
+        time: {
+          start: Date.now(),
+          end: Date.now(),
+        },
       }
-    } else {
-      log.error("Explore execution failed:", { failedTasks: runResult.failedTasks })
-      text += ` Failed tasks: ${runResult.failedTasks.join(', ')}`
+      await Session.updatePart(part)
+      parts.push(part)
+      return part
     }
 
-    return respondCommandText({
-      input: {
-        ...input,
-        agent: "explore",
-      },
-      commandName: Command.Default.EXPLORE,
-      text,
-    })
+    try {
+      const intent = await interpretIntent(`explore ${parsed.pathArg}`, {
+        cwd: resolvedTarget,
+        session_id: input.sessionID,
+      })
+      await appendAssistantText("Intent interpreted", {
+        synthetic: true,
+        metadata: { milestone: true, phase: "intent" },
+      })
+
+      const graph = await createPlan(intent, {})
+      await appendAssistantText("Plan created", {
+        synthetic: true,
+        metadata: { milestone: true, phase: "plan" },
+      })
+
+      const router = new OperatorRouter()
+      router.register(new ExploreOperator())
+
+      const runResult = await runGraph(
+        graph,
+        {
+          cwd: resolvedTarget,
+          sessionId: input.sessionID,
+          graph,
+          reportMilestone: async ({ taskID, label }) => {
+            await appendAssistantText(label, {
+              synthetic: true,
+              metadata: { milestone: true, taskID },
+            })
+          },
+        },
+        router,
+      )
+
+      let text = "Explore execution failed."
+      if (runResult.success) {
+        const reportTask = graph.tasks.get("task_generate_report")
+        const exploreResult = reportTask?.result as RepoExploreResult
+        text =
+          parsed.format === "json"
+            ? "```json\n" + JSON.stringify(exploreResult, null, 2) + "\n```"
+            : renderExploreResult(exploreResult, { eli12: parsed.eli12 })
+      } else {
+        log.error("Explore execution failed:", { failedTasks: runResult.failedTasks })
+        text += ` Failed tasks: ${runResult.failedTasks.join(", ")}`
+      }
+
+      await appendAssistantText(text)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error("Explore session execution failed:", { error: message })
+      await appendAssistantText(`Explore execution failed. ${message}`)
+    }
+
+    assistant.time.completed = Date.now()
+    await Session.updateMessage(assistant)
+    return {
+      info: assistant,
+      parts,
+    }
   }
 
   async function maybeAutoAuditFromCommand(input: CommandInput) {
