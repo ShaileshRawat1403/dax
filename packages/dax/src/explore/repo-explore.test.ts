@@ -5,6 +5,7 @@ import {
   mergeExplorePassOutputs,
   renderExploreResult,
   runBoundaryPass,
+  runEntryPointPass,
   type RepoExplorePassOutputs,
 } from "./repo-explore"
 import path from "path"
@@ -87,6 +88,28 @@ describe("repo explore scaffolding", () => {
     expect(rendered).toContain("Unknowns / follow-up targets")
   })
 
+  it("merges important files and follow-up structures across passes without overwriting earlier evidence", () => {
+    const merged = mergeExplorePassOutputs(
+      mergeExplorePassOutputs(createEmptyExplorePassOutputs(), {
+        important_files: [{ path: "package.json", role: "root signal" }],
+        unknowns_follow_up_targets: [{ kind: "unknown", summary: "queue backend not confirmed" }],
+      }),
+      {
+        important_files: [{ path: "src/index.ts", role: "cli bootstrap" }],
+        unknowns_follow_up_targets: [{ kind: "follow_up", summary: "inspect server bootstrap" }],
+      },
+    )
+
+    expect(merged.important_files).toEqual([
+      { path: "package.json", role: "root signal" },
+      { path: "src/index.ts", role: "cli bootstrap" },
+    ])
+    expect(merged.unknowns_follow_up_targets).toEqual([
+      { kind: "unknown", summary: "queue backend not confirmed" },
+      { kind: "follow_up", summary: "inspect server bootstrap" },
+    ])
+  })
+
   it("detects repo shape signals and workspace boundaries in the boundary pass", async () => {
     const root = await mkdtemp()
 
@@ -107,6 +130,46 @@ describe("repo explore scaffolding", () => {
     expect(outputs.repository_shape.findings.some((finding) => finding.summary.includes("language and build domains detected: node"))).toBe(true)
     expect(outputs.important_files.map((file) => file.path)).toEqual(["package.json", "pnpm-workspace.yaml", "turbo.json", "packages/dax", "apps/web"])
   })
+
+  it("detects observed runtime entry points and candidate packages in the entry-point pass", async () => {
+    const root = await mkdtemp()
+
+    await Bun.write(
+      path.join(root, "package.json"),
+      JSON.stringify({
+        name: "repo",
+        bin: { dax: "./bin/dax" },
+      }),
+    )
+    await Bun.write(path.join(root, "src", "index.ts"), `import yargs from "yargs"\nyargs([]).scriptName("repo")\n`)
+    await Bun.write(path.join(root, "bin", "dax"), "#!/usr/bin/env bun\n")
+
+    await Bun.write(path.join(root, "apps", "api", "package.json"), JSON.stringify({ name: "api" }))
+    await Bun.write(path.join(root, "apps", "api", "src", "server.ts"), `const server = Bun.serve({ fetch() { return new Response("ok") } })\n`)
+
+    await Bun.write(path.join(root, "services", "worker", "package.json"), JSON.stringify({ name: "worker" }))
+    await Bun.write(path.join(root, "services", "worker", "src", "main.ts"), `queue.process("jobs", async () => {})\n`)
+
+    await Bun.write(path.join(root, "packages", "console", "package.json"), JSON.stringify({ name: "console" }))
+    await Bun.write(path.join(root, "packages", "console", "src", "app.tsx"), `import "@opentui/solid"\nexport const app = () => null\n`)
+
+    await Bun.write(path.join(root, "packages", "lib", "package.json"), JSON.stringify({ name: "lib" }))
+
+    const delta = await runEntryPointPass(root)
+    const outputs = mergeExplorePassOutputs(createEmptyExplorePassOutputs(), delta)
+
+    expect(outputs.entry_points.confidence).toBe("high_confidence")
+    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("CLI entry point detected: package.json bin mapping points to runtime bootstrap"))).toBe(true)
+    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("CLI entry point detected: cli bootstrap signals detected"))).toBe(true)
+    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("Server entry point detected: server bootstrap signals detected"))).toBe(true)
+    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("Worker or background entry point detected: background execution signals detected"))).toBe(true)
+    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("TUI entry point detected: tui bootstrap signals detected"))).toBe(true)
+    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("no clear runtime entry point confirmed under packages/lib"))).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "src/index.ts" && file.role === "cli bootstrap")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "apps/api/src/server.ts" && file.role === "server bootstrap")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "services/worker/src/main.ts" && file.role === "worker bootstrap")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "packages/console/src/app.tsx" && file.role === "tui bootstrap")).toBe(true)
+  })
 })
 
 async function mkdtemp() {
@@ -114,5 +177,11 @@ async function mkdtemp() {
   const dir = root.trim()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "dax")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "apps", "web")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "src")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "bin")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "apps", "api", "src")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "services", "worker", "src")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "console", "src")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "lib")}`.quiet()
   return dir
 }
