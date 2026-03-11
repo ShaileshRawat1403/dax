@@ -258,6 +258,116 @@ Why it worked:
 
 - it prevents later UI drift
 - it gives implementation a concrete review bar
+- it keeps stream, sidebar, and overlay roles from collapsing into assistant chatter
+
+## Session 004: Validate Explore Before Expanding Mode Plumbing
+
+Date: March 11, 2026
+
+### Starting User Intent
+
+The user wanted Explore to become a real repository-understanding capability, but only after its output was trustworthy on real repos.
+
+### What The Session Revealed
+
+The correct sequencing was:
+
+1. define the Explore execution graph
+2. define the fixed Explore output contract
+3. build the internal pass pipeline
+4. expose one narrow `dax explore` command
+5. validate it on real repos
+6. refine signal quality before adding broader mode plumbing
+
+This kept Explore from becoming a vague repo summarizer.
+
+### Prompt Engineering Patterns That Worked
+
+#### Pattern 10: Build the internal truth before the user-facing mode
+
+Better sequence:
+
+1. evidence model
+2. section renderer
+3. pass outputs
+4. command surface
+5. mode plumbing later
+
+Why it worked:
+
+- it prevented a hollow `explore` mode
+- it made real-repo validation possible early
+- it forced quality work to happen before surface expansion
+
+#### Pattern 11: Validate with intentionally different repo shapes
+
+The strongest Explore evaluation came from using a mixed local repo set:
+
+- single-surface CLI/runtime repos
+- workspaces/monorepos
+- content/web repos
+- mixed-language repos
+- unfamiliar repos
+
+Why it worked:
+
+- repeated failure modes became obvious
+- weak heuristics stopped hiding behind one “good fit” repo
+- refinement priority became evidence-driven instead of taste-driven
+
+#### Pattern 12: Treat unknown as a valid product outcome
+
+The useful correction was not “make Explore say more.”
+
+It was:
+
+- reduce false positives
+- down-rank noise
+- preserve `observed`
+- use `inferred` carefully
+- let unresolved areas stay `unknown`
+
+Why it worked:
+
+- it made Explore more trustworthy
+- it kept reading order cleaner
+- it made future refinement targets concrete
+
+## Session Learning As A Product Feature
+
+The framework should not stay docs-only forever.
+
+There is now enough repeated evidence that DAX can eventually expose session learning as a first-class product capability.
+
+### What Session Learning Could Become
+
+Potential product surfaces:
+
+1. session replay with extracted patterns
+2. reusable prompt and execution lessons
+3. “what worked / what failed” summaries
+4. feature candidates derived from repeated friction
+5. team-level learning packs from real governed work
+
+### Candidate Artifacts Per Session
+
+For each important session, DAX should eventually be able to derive:
+
+- intent evolution
+- clarification path
+- constraint patterns
+- execution sequencing lesson
+- anti-patterns
+- feature opportunities
+
+### Current Product Rule
+
+Until there is a dedicated feature surface, keep enriching this framework whenever work reveals:
+
+- a repeatable prompt pattern
+- a repeatable execution pattern
+- a stable design rule
+- a productizable lesson
 - it keeps DAX aligned with the control-plane product identity
 
 #### Pattern 10: Use verb-first phrasing to preserve operator tone
