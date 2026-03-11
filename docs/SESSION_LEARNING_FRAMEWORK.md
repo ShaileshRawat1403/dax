@@ -2208,3 +2208,19 @@ This is an important general DAX rule:
 
 - do not promote a capability when it is merely noisy
 - promote it when it is useful where evidence exists and honest where evidence is weak
+
+## Session Pattern: Lock Visual Cognition Rules Before Rendering Tweaks
+
+Once the workstation layout and evidence separation were stable, the next gains came from visual cognition rules, not new surfaces.
+
+Examples:
+
+- add a quiet execution spine so the stream reads like a run, not stacked text
+- add stage dividers only on real lifecycle transitions
+- keep stage dividers structurally quieter than event rows
+
+Why it worked:
+
+- it protects the invariant that the stream is narrative rather than a chat feed
+- it prevents local rendering tweaks from drifting into new interaction patterns
+- it gives the next TUI slice a fixed contract before code changes land
