@@ -270,7 +270,9 @@ function importanceReason(role: string) {
 }
 
 function normalizeFollowUp(summary: string): string {
-  return summary.replace(/^no clear runtime entry point confirmed under /, "Confirm runtime start under ")
+  return summary
+    .replace(/^no clear runtime entry point confirmed under /, "Confirm runtime start under ")
+    .replace(/^package appears library-only; no clear runtime entry point confirmed under /, "Confirm library-only package under ")
 }
 
 export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoExplorePassOutputs {
@@ -538,6 +540,8 @@ type IntegrationCandidate = {
   role: string
 }
 
+type PackageRuntimeIntent = "runtime" | "library" | "unknown"
+
 type ExecutionFlowCandidate = {
   label: ExecutionFlowLabel
   section: "execution_graph" | "orchestration_loop"
@@ -791,8 +795,7 @@ function classifyEntryFile(relativePath: string, content: string | undefined): E
     lower.includes("commander") ||
     lower.includes("import { cmd }") ||
     lower.includes("scriptname(") ||
-    lowerPath.includes("/cli") ||
-    lowerPath.endsWith("src/index.ts")
+    lowerPath.includes("/cli")
   ) {
     return {
       type: "cli",
@@ -851,6 +854,49 @@ function classifyEntryFile(relativePath: string, content: string | undefined): E
   }
 
   return undefined
+}
+
+function inferPackageRuntimeIntent(relativeRoot: string, packageJson: Record<string, unknown> | undefined): PackageRuntimeIntent {
+  if (!packageJson) return "unknown"
+
+  const scripts = packageJson.scripts
+  const scriptKeys =
+    scripts && typeof scripts === "object" ? Object.keys(scripts as Record<string, unknown>).map((key) => key.toLowerCase()) : []
+  const hasRuntimeScripts = scriptKeys.some((key) =>
+    ["start", "dev", "serve", "worker", "cli", "daemon", "scheduler"].includes(key),
+  )
+
+  if (packageJson.bin && typeof packageJson.bin === "object") return "runtime"
+  if (hasRuntimeScripts) return "runtime"
+  if (relativeRoot.startsWith("apps/") || relativeRoot.startsWith("services/")) return "runtime"
+
+  const hasLibrarySurface =
+    typeof packageJson.main === "string" ||
+    typeof packageJson.module === "string" ||
+    typeof packageJson.types === "string" ||
+    typeof packageJson.exports === "object"
+
+  if (relativeRoot.startsWith("packages/") && hasLibrarySurface) return "library"
+  return "unknown"
+}
+
+function shouldTreatMainAsRuntimeCandidate(
+  relativeRoot: string,
+  packageJson: Record<string, unknown> | undefined,
+  mainField: string,
+) {
+  const intent = inferPackageRuntimeIntent(relativeRoot, packageJson)
+  if (intent === "library") return false
+  if (intent === "runtime") return true
+
+  const lower = mainField.toLowerCase()
+  return (
+    lower.includes("/cli") ||
+    lower.includes("/server") ||
+    lower.includes("/worker") ||
+    lower.includes("/app") ||
+    lower.includes("/main")
+  )
 }
 
 export async function runBoundaryPass(root: string): Promise<RepoExplorePassDelta> {
@@ -1031,7 +1077,7 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
         }
       }
 
-      if (typeof packageJson.main === "string") {
+      if (typeof packageJson.main === "string" && shouldTreatMainAsRuntimeCandidate(relativeRoot, packageJson as Record<string, unknown>, packageJson.main)) {
         const mainTarget = path.normalize(path.join(relativeRoot, packageJson.main)).replace(/\\/g, "/")
         addFinding({
           type: "cli",
@@ -1068,9 +1114,13 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
     }
 
     if (!packageHadRuntime && relativeRoot !== ".") {
+      const intent = inferPackageRuntimeIntent(relativeRoot, packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined)
       findings.push({
         kind: "unknown",
-        summary: `no clear runtime entry point confirmed under ${relativeRoot}`,
+        summary:
+          intent === "library"
+            ? `package appears library-only; no clear runtime entry point confirmed under ${relativeRoot}`
+            : `no clear runtime entry point confirmed under ${relativeRoot}`,
         paths: [relativeRoot],
       })
     }

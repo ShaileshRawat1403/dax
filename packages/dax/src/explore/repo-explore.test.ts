@@ -156,7 +156,10 @@ describe("repo explore scaffolding", () => {
     await Bun.write(path.join(root, "packages", "console", "package.json"), JSON.stringify({ name: "console" }))
     await Bun.write(path.join(root, "packages", "console", "src", "app.tsx"), `import "@opentui/solid"\nexport const app = () => null\n`)
 
-    await Bun.write(path.join(root, "packages", "lib", "package.json"), JSON.stringify({ name: "lib" }))
+    await Bun.write(
+      path.join(root, "packages", "lib", "package.json"),
+      JSON.stringify({ name: "lib", main: "dist/index.js", types: "dist/index.d.ts" }),
+    )
 
     const delta = await runEntryPointPass(root)
     const outputs = mergeExplorePassOutputs(createEmptyExplorePassOutputs(), delta)
@@ -167,11 +170,16 @@ describe("repo explore scaffolding", () => {
     expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("Server entry point detected: server bootstrap signals detected"))).toBe(true)
     expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("Worker or background entry point detected: background execution signals detected"))).toBe(true)
     expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("TUI entry point detected: tui bootstrap signals detected"))).toBe(true)
-    expect(outputs.entry_points.findings.some((finding) => finding.summary.includes("no clear runtime entry point confirmed under packages/lib"))).toBe(true)
+    expect(
+      outputs.entry_points.findings.some((finding) =>
+        finding.summary.includes("package appears library-only; no clear runtime entry point confirmed under packages/lib"),
+      ),
+    ).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "src/index.ts" && file.role === "cli bootstrap")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "apps/api/src/server.ts" && file.role === "server bootstrap")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "services/worker/src/main.ts" && file.role === "worker bootstrap")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "packages/console/src/app.tsx" && file.role === "tui bootstrap")).toBe(true)
+    expect(outputs.entry_points.findings.some((finding) => finding.paths?.includes("packages/lib/dist/index.js"))).toBe(false)
   })
 
   it("detects provider, mcp, storage, queue, ci, and auth/platform boundaries in the integration pass", async () => {
@@ -296,10 +304,14 @@ describe("repo explore scaffolding", () => {
             entry_points: {
               confidence: "medium_confidence",
               findings: [
-                { kind: "observed", summary: "CLI entry point detected", paths: ["packages/app/src/index.ts"] },
-                { kind: "unknown", summary: "no clear runtime entry point confirmed under packages/lib", paths: ["packages/lib"] },
-              ],
-            },
+          { kind: "observed", summary: "CLI entry point detected", paths: ["packages/app/src/index.ts"] },
+          {
+            kind: "unknown",
+            summary: "package appears library-only; no clear runtime entry point confirmed under packages/lib",
+            paths: ["packages/lib"],
+          },
+        ],
+      },
             important_files: [
               { path: "packages/app/src/index.ts", role: "cli bootstrap" },
               { path: "packages/lib", role: "package boundary" },
@@ -347,7 +359,7 @@ describe("repo explore scaffolding", () => {
     })
     expect(
       synthesized.unknowns_follow_up_targets.some(
-        (item) => item.kind === "unknown" && item.summary === "Confirm runtime start under packages/lib",
+        (item) => item.kind === "unknown" && item.summary === "Confirm library-only package under packages/lib",
       ),
     ).toBe(true)
     expect(
