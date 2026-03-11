@@ -11,6 +11,7 @@ type ApprovalItem =
       id: string
       title: string
       summary: string
+      reason?: string
       detail: string[]
     }
   | {
@@ -18,18 +19,26 @@ type ApprovalItem =
       id: string
       title: string
       summary: string
+      reason?: string
       detail: string[]
     }
 
 function permissionItem(item: PermissionRequest): ApprovalItem {
   const patterns = item.patterns.length > 0 ? item.patterns.join(", ") : "none"
+  const reason =
+    typeof item.metadata?.description === "string" && item.metadata.description.trim()
+      ? item.metadata.description.trim()
+      : undefined
   const toolInfo = item.tool ? `tool call ${item.tool.callID}` : "manual gate"
   return {
     kind: "permission",
     id: item.id,
-    title: `${item.permission} pending approval`,
-    summary: `${toolInfo} · patterns: ${patterns}`,
+    title: item.permission,
+    summary: reason ?? `${toolInfo} · patterns: ${patterns}`,
+    reason,
     detail: [
+      `Action: ${item.permission}`,
+      `Governance class: permission gate`,
       `Permission: ${item.permission}`,
       `Patterns: ${patterns}`,
       `Always-allow options: ${item.always.length > 0 ? item.always.join(", ") : "none"}`,
@@ -101,14 +110,14 @@ export function DialogApprovals(props: {
   })
 
   const current = createMemo(() => items()[selected()])
-  const title = createMemo(() => (props.explainMode ? "Approval review" : "Pending approvals"))
+  const title = createMemo(() => (props.explainMode ? "Execution paused for approval" : "Approvals"))
   const footer = createMemo(() =>
     props.explainMode
-      ? "Open live review so DAX can continue the blocked step safely."
-      : "Open live review to resolve the blocked approval in the workstation.",
+      ? "Open the approval surface to review the blocked action and continue safely."
+      : "Open the approval surface to approve or deny the blocked action.",
   )
   const emptyState = createMemo(() =>
-    props.explainMode ? "No operator decision is required right now." : "No pending approvals or questions.",
+    props.explainMode ? "No execution step is waiting on your decision right now." : "No approvals or questions are waiting.",
   )
 
   return (
@@ -135,7 +144,7 @@ export function DialogApprovals(props: {
                   onMouseUp={() => setSelected(index())}
                 >
                   <text fg={selected() === index() ? theme.selectedListItemText : item.kind === "permission" ? theme.warning : theme.accent}>
-                    {item.kind === "permission" ? "?" : "…"} {item.title}
+                    {item.kind === "permission" ? "Approve" : "Answer"} · {item.title}
                   </text>
                 </box>
               )}
@@ -150,8 +159,13 @@ export function DialogApprovals(props: {
               <Show when={props.explainMode}>
                 <text fg={theme.text}>
                   {current()!.kind === "permission"
-                    ? "DAX is awaiting your approval before it can continue this step."
-                    : "DAX is awaiting your answer before it can continue this step."}
+                    ? "Execution is paused until you approve or deny this action."
+                    : "Execution is paused until you answer this question."}
+                </text>
+              </Show>
+              <Show when={current()!.kind === "permission" && current()!.reason}>
+                <text fg={theme.text} wrapMode="word">
+                  {current()!.reason}
                 </text>
               </Show>
               <text fg={theme.textMuted} wrapMode="word">

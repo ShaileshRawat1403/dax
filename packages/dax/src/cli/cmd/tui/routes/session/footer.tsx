@@ -69,7 +69,7 @@ export function Footer(props?: {
       </box>
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
         <Show when={permissions().length > 0}>
-          <text fg={theme.warning}>{`${permissions().length} approval${permissions().length === 1 ? "" : "s"} waiting`}</text>
+          <text fg={theme.warning}>{`${permissions().length} approval${permissions().length === 1 ? "" : "s"} pending`}</text>
         </Show>
         <Show when={!tiny() && props?.trustLabel}>
           <text
