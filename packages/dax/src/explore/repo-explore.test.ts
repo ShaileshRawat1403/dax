@@ -6,6 +6,7 @@ import {
   renderExploreResult,
   runBoundaryPass,
   runEntryPointPass,
+  runIntegrationPass,
   type RepoExplorePassOutputs,
 } from "./repo-explore"
 import path from "path"
@@ -170,6 +171,57 @@ describe("repo explore scaffolding", () => {
     expect(outputs.important_files.some((file) => file.path === "services/worker/src/main.ts" && file.role === "worker bootstrap")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === "packages/console/src/app.tsx" && file.role === "tui bootstrap")).toBe(true)
   })
+
+  it("detects provider, mcp, storage, queue, ci, and auth/platform boundaries in the integration pass", async () => {
+    const root = await mkdtemp()
+
+    await Bun.write(
+      path.join(root, "package.json"),
+      JSON.stringify({
+        name: "repo",
+        dependencies: {
+          "@ai-sdk/openai": "1.0.0",
+          "@modelcontextprotocol/sdk": "1.0.0",
+          "@octokit/rest": "1.0.0",
+          "ioredis": "1.0.0",
+          "bullmq": "1.0.0",
+          "@ai-sdk/azure": "1.0.0",
+        },
+      }),
+    )
+    await Bun.write(
+      path.join(root, "src", "integrations.ts"),
+      [
+        `import "@modelcontextprotocol/sdk"`,
+        `import "dotenv/config"`,
+        `const queue = { process() {} }`,
+        `queue.process("jobs", async () => {})`,
+        `const auth = process.env.OPENAI_API_KEY`,
+        `const db = "pm.sqlite"`,
+        `await fetch("https://api.example.com/status")`,
+        `const region = process.env.AWS_REGION`,
+      ].join("\n"),
+    )
+    await Bun.write(
+      path.join(root, ".github", "workflows", "ci.yml"),
+      `name: CI\non:\n  workflow_dispatch:\n`,
+    )
+
+    const delta = await runIntegrationPass(root)
+    const outputs = mergeExplorePassOutputs(createEmptyExplorePassOutputs(), delta)
+
+    expect(outputs.integrations.confidence).toBe("high_confidence")
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Provider integration detected: ai provider sdk dependency declared"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("MCP integration detected: mcp sdk dependency declared"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Storage integration detected: database or persistence dependency declared"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Queue or async integration detected: queue or async dependency declared"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("CI or automation integration detected: github actions workflow detected"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Auth or secrets boundary detected: runtime auth or env configuration signals detected"))).toBe(true)
+    expect(outputs.integrations.findings.some((finding) => finding.summary.includes("Platform or cloud integration detected"))).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "package.json" && file.role === "provider integration manifest")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "src/integrations.ts" && file.role === "mcp integration surface")).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === ".github/workflows/ci.yml" && file.role === "ci or automation workflow")).toBe(true)
+  })
 })
 
 async function mkdtemp() {
@@ -183,5 +235,6 @@ async function mkdtemp() {
   await Bun.$`mkdir -p ${path.join(dir, "services", "worker", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "console", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "lib")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, ".github", "workflows")}`.quiet()
   return dir
 }
