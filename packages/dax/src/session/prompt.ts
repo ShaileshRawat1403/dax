@@ -52,7 +52,12 @@ import { Audit } from "@/audit"
 import { Config } from "@/config/config"
 import { DocOps } from "@/docops"
 import { buildPreferredNamePrompt } from "@/dax/user-profile"
-import { parseExploreArguments, runExploreOperator } from "@/explore/operator"
+import { interpretIntent } from "@/intent/interpret"
+import { createPlan } from "@/planner/planner"
+import { runGraph } from "@/execution/run-graph"
+import { OperatorRouter } from "@/operators/router"
+import { ExploreOperator } from "@/operators/explore"
+import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -2120,13 +2125,39 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   }
 
   async function commandExplore(input: CommandInput): Promise<MessageV2.WithParts> {
+    const { parseExploreArguments } = await import("@/explore/repo-explore")
     const parsed = parseExploreArguments(input.arguments)
-    const output = await runExploreOperator({
-      baseDir: Instance.worktree,
-      pathArg: parsed.pathArg,
-      format: parsed.format,
-      eli12: parsed.eli12,
-    })
+    const resolvedTarget = path.resolve(Instance.worktree, parsed.pathArg)
+
+    // 1. Intent Interpreter
+    const intent = await interpretIntent(`explore ${parsed.pathArg}`, { cwd: resolvedTarget, session_id: input.sessionID })
+    
+    // 2. Planner
+    const graph = await createPlan(intent, {})
+    
+    // 3. Setup router and operator
+    const router = new OperatorRouter()
+    router.register(new ExploreOperator())
+    
+    // 4. Run the Agent Graph
+    // In a real session context, runGraph should eventually yield real stream updates.
+    // For now, we wait for the final execution to finish and construct the response.
+    const runResult = await runGraph(graph, { cwd: resolvedTarget, sessionId: input.sessionID, graph }, router)
+
+    let text = "Explore execution failed."
+    if (runResult.success) {
+      const reportTask = graph.tasks.get('task_generate_report')
+      const exploreResult = reportTask?.result as RepoExploreResult
+
+      if (parsed.format === "json") {
+        text = "```json\n" + JSON.stringify(exploreResult, null, 2) + "\n```"
+      } else {
+        text = renderExploreResult(exploreResult, { eli12: parsed.eli12 })
+      }
+    } else {
+      log.error("Explore execution failed:", { failedTasks: runResult.failedTasks })
+      text += ` Failed tasks: ${runResult.failedTasks.join(', ')}`
+    }
 
     return respondCommandText({
       input: {
@@ -2134,7 +2165,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         agent: "explore",
       },
       commandName: Command.Default.EXPLORE,
-      text: output.rendered,
+      text,
     })
   }
 
