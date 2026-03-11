@@ -57,6 +57,7 @@ export namespace Command {
     PM: "pm",
     AUDIT: "audit",
     DOCS: "docs",
+    EXPLORE: "explore",
   } as const
 
   const state = Instance.state(async () => {
@@ -102,6 +103,13 @@ export namespace Command {
         source: "command",
         template: "docs",
         hints: ["guide", "spec", "release-notes", "prd", "rfc", "runbook", "incident", "qa"],
+      },
+      [Default.EXPLORE]: {
+        name: Default.EXPLORE,
+        description: "inspect a repository: /explore [path] [--eli12] [--format=json]",
+        source: "command",
+        template: "explore",
+        hints: ["[path]", "--eli12", "--json", "--format=json"],
       },
     }
 
