@@ -291,6 +291,7 @@ function WorkstationSummaryCard(props: {
   onPress?: () => void
   focused?: boolean
   tone?: "normal" | "warning" | "critical" | "success"
+  compact?: boolean
 }) {
   const summaryColor = () =>
     props.tone === "critical"
@@ -307,7 +308,7 @@ function WorkstationSummaryCard(props: {
       backgroundColor={props.focused ? tint(props.theme.backgroundElement, props.theme.primary, 0.12) : props.theme.backgroundElement}
       border={props.focused ? ["left"] : []}
       borderColor={props.focused ? props.theme.primary : undefined}
-      padding={1}
+      padding={props.compact ? 0 : 1}
     >
       <text fg={props.focused ? props.theme.primary : props.theme.text} attributes={TextAttributes.BOLD}>
         {props.title}
@@ -315,14 +316,14 @@ function WorkstationSummaryCard(props: {
       <text fg={summaryColor()} wrapMode="word" attributes={props.tone ? TextAttributes.BOLD : undefined}>
         {props.summary}
       </text>
-      <Show when={props.detail}>
+      <Show when={props.detail && (!props.compact || props.focused)}>
         <text fg={props.theme.textMuted} wrapMode="word">
           {props.detail}
         </text>
       </Show>
       <Show when={props.actionLabel && props.onPress}>
         <box onMouseUp={props.onPress!}>
-          <text fg={props.theme.primary}>{props.actionLabel}</text>
+          <text fg={props.theme.primary}>{props.compact ? "Open" : props.actionLabel}</text>
         </box>
       </Show>
     </box>
@@ -1203,7 +1204,16 @@ export function Session() {
     live: true,
   })
 
-  const wide = createMemo(() => dimensions().width > 120)
+  const terminalWidth = createMemo(() => dimensions().width)
+  const workstationTier = createMemo<"full" | "compact" | "collapsed">(() => {
+    const width = terminalWidth()
+    if (width >= 120) return "full"
+    if (width >= 100) return "compact"
+    return "collapsed"
+  })
+  const wide = createMemo(() => terminalWidth() >= 120)
+  const compactWorkstation = createMemo(() => workstationTier() === "compact")
+  const collapsedWorkstation = createMemo(() => workstationTier() === "collapsed")
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
@@ -1213,8 +1223,9 @@ export function Session() {
     if (sidebar() === "auto" && wide()) return true
     return false
   })
+  const persistentSidebarVisible = createMemo(() => sidebarVisible() && wide())
   const showTimestamps = createMemo(() => timestamps() === "show")
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  const contentWidth = createMemo(() => terminalWidth() - (persistentSidebarVisible() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 90)
   const stripCompact = createMemo(() => contentWidth() < 112)
   const stripTight = createMemo(() => contentWidth() < 132)
@@ -1235,6 +1246,12 @@ export function Session() {
   })
   const revertDiffReady = createMemo(() => !!session()?.revert?.diff)
   const paneWidthProfile = createMemo(() => {
+    if (collapsedWorkstation()) {
+      return { main: 1, side: 0, fraction: 0 }
+    }
+    if (compactWorkstation()) {
+      return { main: 5, side: 1, fraction: 0.2 }
+    }
     if (liveStacked()) {
       return { main: 7, side: 3, fraction: 0.32 }
     }
@@ -1262,6 +1279,12 @@ export function Session() {
     if (diffStyle === "stacked") return "unified"
     const availableWidth = liveStacked() ? contentWidth() : livePaneWidth()
     return availableWidth > 120 ? "split" : "unified"
+  })
+  createEffect(() => {
+    if (!collapsedWorkstation()) return
+    if (focusOwner() === "sidebar") {
+      enterPaneFocus("activity")
+    }
   })
   const followEnabled = createMemo(() => paneFollowMode() === "live" || smartFollowActive())
   const sessionPartCount = createMemo(() =>
@@ -3824,11 +3847,12 @@ export function Session() {
                       </For>
                     </scrollbox>
                   </box>
+                  <Show when={!collapsedWorkstation()}>
                   <WorkstationRegion
                     theme={theme}
-                    title="Session truth"
+                    title={compactWorkstation() ? "Truth" : "Session truth"}
                     focused={focusOwner() === "sidebar"}
-                    flexGrow={sidePaneGrow()}
+                    flexGrow={compactWorkstation() ? 1 : sidePaneGrow()}
                     minHeight={0}
                     onMouseUp={() => enterPaneFocus(isSidebarPane(focusedPane()) ? focusedPane() : "approvals")}
                   >
@@ -3845,6 +3869,7 @@ export function Session() {
                         summary={workstationState().lifecycleLabel}
                         detail={workstationState().currentStep ?? "Current execution state"}
                         tone={lifecycleCardTone()}
+                        compact={compactWorkstation()}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3852,6 +3877,7 @@ export function Session() {
                         summary={stageCard().summary}
                         detail={stageCard().detail}
                         tone={stageCard().tone}
+                        compact={compactWorkstation()}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3866,6 +3892,7 @@ export function Session() {
                         onPress={auditPaneEnabled() ? openVerifyDetail : undefined}
                         focused={focusOwner() === "sidebar" && focusedPane() === "audit"}
                         tone={trustCardTone()}
+                        compact={compactWorkstation()}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3875,6 +3902,7 @@ export function Session() {
                         actionLabel="Open release"
                         onPress={openReleaseDetail}
                         tone={releaseCard().tone}
+                        compact={compactWorkstation()}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3885,6 +3913,7 @@ export function Session() {
                         onPress={workstationState().approvalSummary.pendingCount > 0 ? openApprovalsReview : undefined}
                         focused={focusOwner() === "sidebar" && focusedPane() === "approvals"}
                         tone={approvalsCard().tone}
+                        compact={compactWorkstation()}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3895,6 +3924,7 @@ export function Session() {
                         onPress={openArtifactDetail}
                         focused={focusOwner() === "sidebar" && focusedPane() === "artifacts"}
                         tone={artifactsCard().tone}
+                        compact={compactWorkstation()}
                       />
                       <WorkstationSummaryCard
                         theme={theme}
@@ -3904,7 +3934,9 @@ export function Session() {
                         actionLabel="Open inspect"
                         onPress={openInspectDetail}
                         tone={writeGovernanceCard().tone}
+                        compact={compactWorkstation()}
                       />
+                      <Show when={!compactWorkstation()}>
                       <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                         <For each={visiblePaneModes()}>
                           {(mode) => (
@@ -3949,6 +3981,8 @@ export function Session() {
                           </box>
                         </Show>
                       </box>
+                      </Show>
+                      <Show when={!compactWorkstation()}>
                       <Switch>
                         <Match when={activePaneMode() === "artifact"}>
                           <Show
@@ -4609,9 +4643,11 @@ export function Session() {
                           </Show>
                         </Match>
                       </Switch>
+                      </Show>
                       </box>
                     </scrollbox>
                   </WorkstationRegion>
+                  </Show>
                 </box>
               </Match>
               <Match when={true}>
