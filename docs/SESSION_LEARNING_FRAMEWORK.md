@@ -368,6 +368,21 @@ Until there is a dedicated feature surface, keep enriching this framework whenev
 - a repeatable execution pattern
 - a stable design rule
 - a productizable lesson
+
+#### Pattern 13: Validate after a refinement cluster, not after every micro-tweak
+
+For Explore, the useful sequence was:
+
+1. runtime entry refinement
+2. workspace flow refinement
+3. integration signal refinement
+4. real-repo validation batch
+
+Why it worked:
+
+- it reduced churn between evaluation runs
+- it made cross-repo patterns easier to see
+- it produced evidence strong enough to choose the next layer instead of reacting to one noisy repo
 - it keeps DAX aligned with the control-plane product identity
 
 #### Pattern 10: Use verb-first phrasing to preserve operator tone

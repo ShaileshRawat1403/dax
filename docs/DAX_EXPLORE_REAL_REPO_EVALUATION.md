@@ -4,6 +4,14 @@ Date: March 11, 2026
 
 This evaluation validates `dax explore <path>` against local repositories under `/Users/Shared/MYAIAGENTS` before broader Explore mode plumbing.
 
+Status:
+
+- baseline batch recorded before the latest Explore refinements
+- second validation batch recorded after:
+  - runtime entry classification refinement
+  - workspace execution-flow tracing refinement
+  - integration signal quality refinement
+
 ## Repo Set
 
 - `dao`
@@ -222,3 +230,99 @@ The right next step is another narrow Explore quality pass focused on:
 - workspace execution-flow tracing
 
 After that, rerun this evaluation on the same repo mix and look for repeated improvements before widening Explore into broader mode/session plumbing.
+
+## Second Validation Batch
+
+Date: March 11, 2026
+
+This second batch reran the same repo set after the latest three Explore refinements.
+
+### What Improved
+
+#### `dax`
+
+- remains a strong Explore target
+- library-only workspace packages are now classified more honestly
+- execution graph and orchestration loop remain strong
+- output still reads like a real runtime map rather than a summary
+
+#### `dax-cli`
+
+- remains a strong Explore target
+- execution-flow tracing is still one of the clearest outputs in the set
+- workspace package role reporting is now better separated between runtime surfaces and supporting libraries
+
+#### `soothsayer`
+
+- integration noise is lower than before
+- workspace role separation is clearer:
+  - supporting-library packages are now surfaced more honestly
+- API and worker bootstraps are still found correctly
+
+### What Did Not Improve Enough
+
+#### `dao`
+
+- still honest, but thin
+- execution graph and orchestration loop remain unknown
+- reading order is still shape-first and CI-heavy after the bootstrap
+
+Interpretation:
+
+- Explore is behaving honestly here
+- the main gap is still mixed-language runtime tracing, not formatting
+
+#### `pruningmypothos`
+
+- still the weakest fit in the set
+- no meaningful runtime start was confirmed
+- output remains shape + CI + unknowns
+
+Interpretation:
+
+- this is not a noise problem anymore
+- it is a repo-shape/runtime-detection limit
+
+#### `soothsayer`
+
+- still exposes the clearest remaining weakness
+- entry points are better, but packages like `types` and `utils` still generate unresolved runtime-candidate noise
+- execution graph is still too weak relative to the visible workspace shape
+- some runtime-adjacent integration findings are still low-value:
+  - auth/platform/provider hints inside package internals
+
+Interpretation:
+
+- the next gains are more likely to come from better workspace/runtime tracing than from another broad output cleanup pass
+
+## Second-Batch Cross-Repo Summary
+
+### Stable strengths now
+
+- repository shape detection is consistently reliable
+- explicit CLI/server/worker starts are usually found correctly
+- Explore now stays much more honest about supporting-library packages
+- self-referential and test-heavy noise is materially lower
+- the fixed output contract is holding across very different repos
+
+### Repeated limits now
+
+- mixed-language repos still lack meaningful flow tracing
+- content/web repos without explicit server/runtime surfaces still collapse into shape + CI + unknowns
+- workspace execution-flow tracing is still weaker than repo-shape detection in large repos
+- integration noise is lower, but not fully solved in runtime-adjacent internal packages
+
+## Updated Recommendation
+
+Do not broaden Explore mode plumbing yet.
+
+The evidence now suggests the next best Explore move is:
+
+1. one more targeted workspace execution-flow refinement
+2. then another real-repo validation pass
+3. then decide whether broader Explore plumbing is finally justified
+
+Reason:
+
+- the remaining weakness is no longer mostly surface noise
+- it is now primarily execution-flow depth in larger workspaces and non-DAX-shaped repos
