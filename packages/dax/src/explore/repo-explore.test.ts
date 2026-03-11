@@ -6,6 +6,7 @@ import {
   renderExploreResult,
   runBoundaryPass,
   runEntryPointPass,
+  runExecutionFlowPass,
   runIntegrationPass,
   type RepoExplorePassOutputs,
 } from "./repo-explore"
@@ -222,6 +223,59 @@ describe("repo explore scaffolding", () => {
     expect(outputs.important_files.some((file) => file.path === "src/integrations.ts" && file.role === "mcp integration surface")).toBe(true)
     expect(outputs.important_files.some((file) => file.path === ".github/workflows/ci.yml" && file.role === "ci or automation workflow")).toBe(true)
   })
+
+  it("detects primary execution flows, orchestration loops, and approval interruptions in the execution-flow pass", async () => {
+    const root = await mkdtemp()
+
+    await Bun.write(
+      path.join(root, "packages", "app", "src", "index.ts"),
+      [
+        `const { RunCommand } = await import("./cli/cmd/run")`,
+        `const cli = yargs([])`,
+        `cli.command(RunCommand)`,
+      ].join("\n"),
+    )
+    await Bun.write(path.join(root, "packages", "app", "src", "cli", "cmd", "run.ts"), `export const RunCommand = {}\n`)
+
+    await Bun.write(
+      path.join(root, "packages", "app", "src", "cli", "cmd", "tui", "thread.ts"),
+      [`const worker = new Worker("worker.js")`, `const client = Rpc.client(worker)`, `await client.call("server", {})`].join("\n"),
+    )
+
+    await Bun.write(
+      path.join(root, "packages", "app", "src", "cli", "cmd", "tui", "component", "prompt", "index.tsx"),
+      [`sdk.client.session.prompt({})`, `sdk.client.session.command({})`, `sdk.client.session.shell({})`].join("\n"),
+    )
+
+    await Bun.write(
+      path.join(root, "packages", "app", "src", "session", "index.ts"),
+      [`import { SessionPrompt } from "./prompt"`, `await SessionPrompt.command({})`].join("\n"),
+    )
+
+    await Bun.write(
+      path.join(root, "packages", "app", "src", "session", "processor.ts"),
+      [
+        `while (true) {`,
+        `  SessionStatus.set(sessionID, { type: "busy" })`,
+        `  const stream = await LLM.stream({})`,
+        `  await PermissionNext.ask({})`,
+        `}`,
+      ].join("\n"),
+    )
+
+    const delta = await runExecutionFlowPass(root)
+    const outputs = mergeExplorePassOutputs(createEmptyExplorePassOutputs(), delta)
+
+    expect(outputs.execution_graph.confidence).toBe("high_confidence")
+    expect(outputs.orchestration_loop.confidence).toBe("high_confidence")
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("cli_command_flow: cli bootstrap dispatches into command handlers"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("tui_action_flow: tui action submits work into session runtime"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("session_execution_flow: session surface hands work into the prompt runtime"))).toBe(true)
+    expect(outputs.execution_graph.findings.some((finding) => finding.summary.includes("worker_dispatch_flow: tui thread hands execution into a worker rpc boundary"))).toBe(true)
+    expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("session_execution_flow: session runtime maintains the main execution loop"))).toBe(true)
+    expect(outputs.orchestration_loop.findings.some((finding) => finding.summary.includes("approval_interruption_flow: approval checks can interrupt and gate execution"))).toBe(true)
+    expect(outputs.important_files.some((file) => file.path === "packages/app/src/session/processor.ts")).toBe(true)
+  })
 })
 
 async function mkdtemp() {
@@ -235,6 +289,9 @@ async function mkdtemp() {
   await Bun.$`mkdir -p ${path.join(dir, "services", "worker", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "console", "src")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, "packages", "lib")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "cli", "cmd", "tui", "component", "prompt")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "cli", "cmd")}`.quiet()
+  await Bun.$`mkdir -p ${path.join(dir, "packages", "app", "src", "session")}`.quiet()
   await Bun.$`mkdir -p ${path.join(dir, ".github", "workflows")}`.quiet()
   return dir
 }
