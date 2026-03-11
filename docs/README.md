@@ -15,6 +15,10 @@ Use this index based on your role and goal.
 
 ## Developers
 
+### Current Merge Target
+
+- [DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md](DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md): merge order and explicit deferrals for `feature/dax-execution-control-plane`
+
 - [CONTRIBUTOR_START_HERE.md](CONTRIBUTOR_START_HERE.md): canonical product surface and contribution entrypoint
 - [SESSION_LEARNING_FRAMEWORK.md](SESSION_LEARNING_FRAMEWORK.md): living prompt-engineering and session-learning artifact
 - [DAX_SESSION_LEARNING_FEATURE.md](DAX_SESSION_LEARNING_FEATURE.md): how session learning can evolve from a living artifact into a reusable DAX feature

@@ -5,7 +5,7 @@ If you are new to DAX, start with these files in order:
 1. `README.md`
 2. `ARCHITECTURE.md`
 3. `docs/REPO_BOUNDARIES.md`
-4. `docs/DAX_OVERHAUL_PLAN.md`
+4. `docs/DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md`
 
 ## Canonical Product Surface
 
@@ -39,3 +39,13 @@ Prefer these supported customization surfaces:
 - policy and config packs
 
 Use the public docs before reaching for internal runtime hooks.
+
+## Current Branch Rule
+
+If you are working on `feature/dax-execution-control-plane`, treat the first merge target as:
+
+- Explore operator flow
+- transcript-first TUI/session UX
+- product-facing review surfaces
+
+Do not expand the first merge slice with speculative orchestration or framework-only abstractions.
