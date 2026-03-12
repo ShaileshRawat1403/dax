@@ -346,7 +346,6 @@ export function Session() {
   const [streamParts, setStreamParts] = createSignal<Record<string, Part[]>>({})
 
   const wide = createMemo(() => dimensions().width > 120)
-  const extraWide = createMemo(() => dimensions().width > 165)
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
