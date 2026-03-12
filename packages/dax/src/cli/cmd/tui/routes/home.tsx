@@ -146,7 +146,8 @@ export function Home() {
     }
 
     return {
-      explore: "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
+      explore:
+        "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
       plan: "Plan the next safe implementation steps for this project.",
       audit: "Audit this repository for the most important release, policy, test, and documentation risks.",
       docs: "Read the documentation and summarize the product surface, architecture, and operator flow.",
@@ -263,7 +264,9 @@ export function Home() {
       setTimeout(() => {
         let message = ""
         if (isFirstTimeUser()) {
-          message = WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)] ?? "Welcome to DAX."
+          message =
+            WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)] ??
+            "Welcome to DAX."
         } else {
           const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
           const sessionInfo = sessionCount() > 0 ? ` (${sessionCount()} sessions)` : ""
@@ -342,21 +345,26 @@ export function Home() {
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
-                <ActionChip label="Explore" theme={theme} onPress={() => setPromptDraft(promptText("explore"), false, "explore")} />
-                <ActionChip label="Plan" theme={theme} onPress={() => setPromptDraft(promptText("plan"), false, "plan")} />
-                <ActionChip label="Audit" theme={theme} onPress={() => setPromptDraft(promptText("audit"), false, "audit")} />
-                <ActionChip label="Docs" theme={theme} onPress={() => setPromptDraft(promptText("docs"), false, "docs")} />
                 <ActionChip
-                  label="Tips"
-                  active={showTips()}
+                  label="Explore"
                   theme={theme}
-                  onPress={() => command.trigger("tips.toggle")}
+                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
                 />
-                <ActionChip label="Theme" theme={theme} onPress={() => cycleTheme(1)} />
-                <ActionChip label="Env" theme={theme} onPress={() => command.trigger("env.doctor")} />
-                <ActionChip label="Policy" theme={theme} onPress={() => command.trigger("policy.profile.toggle")} />
-                <ActionChip label="Status" theme={theme} onPress={() => command.trigger("dax.status")} />
-                <ActionChip label="Connect" theme={theme} onPress={() => command.trigger("provider.connect")} />
+                <ActionChip
+                  label="Plan"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
+                />
+                <ActionChip
+                  label="Audit"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("audit"), false, "audit")}
+                />
+                <ActionChip
+                  label="Docs"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
+                />
               </box>
             </Show>
 
@@ -372,11 +380,27 @@ export function Home() {
 
             <Show when={!tiny()}>
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
-                <text fg={theme.textMuted}>Start with</text>
-                <PromptStarter label="Explore repo" theme={theme} onPress={() => setPromptDraft(promptText("explore"), false, "explore")} />
-                <PromptStarter label="Plan next step" theme={theme} onPress={() => setPromptDraft(promptText("plan"), false, "plan")} />
-                <PromptStarter label="Audit risks" theme={theme} onPress={() => setPromptDraft(promptText("audit"), false, "audit")} />
-                <PromptStarter label="Summarize docs" theme={theme} onPress={() => setPromptDraft(promptText("docs"), false, "docs")} />
+                <text fg={theme.textMuted}>Quick:</text>
+                <PromptStarter
+                  label="Explore"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
+                />
+                <PromptStarter
+                  label="Plan"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
+                />
+                <PromptStarter
+                  label="Audit"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("audit"), false, "audit")}
+                />
+                <PromptStarter
+                  label="Docs"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
+                />
               </box>
             </Show>
 
