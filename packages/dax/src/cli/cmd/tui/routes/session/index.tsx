@@ -99,6 +99,7 @@ import {
 } from "@/dax/presentation/pane"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
+import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
 
 addDefaultParsers(parsers.parsers)
 
@@ -146,6 +147,7 @@ const context = createContext<{
   showThinking: () => boolean
   showTimestamps: () => boolean
   showDetails: () => boolean
+  showAssistantMetadata: () => boolean
   diffWrapMode: () => "word" | "none"
   sync: ReturnType<typeof useSync>
 }>()
@@ -357,7 +359,7 @@ export function Session() {
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
-  const liveStacked = createMemo(() => contentWidth() < 90)
+  const liveStacked = createMemo(() => contentWidth() < 104)
   const stripCompact = createMemo(() => contentWidth() < 112)
   const stripTight = createMemo(() => contentWidth() < 132)
   const stripInnerWidth = createMemo(() => Math.max(0, contentWidth()))
@@ -376,10 +378,11 @@ export function Session() {
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
-    return Math.max(34, Math.floor((total - gapAndBorders) * 0.26))
+    const target = Math.floor((total - gapAndBorders) * 0.3)
+    return Math.max(38, Math.min(58, target))
   })
-  const mainPaneGrow = createMemo(() => (liveStacked() ? 7 : 7))
-  const sidePaneGrow = createMemo(() => (liveStacked() ? 3 : 3))
+  const mainPaneGrow = createMemo(() => (liveStacked() ? 1 : 7))
+  const sidePaneGrow = createMemo(() => (liveStacked() ? 1 : 3))
   const paneDiffView = createMemo(() => {
     const diffStyle = sync.data.config.tui?.diff_style
     if (diffStyle === "stacked") return "unified"
@@ -390,11 +393,40 @@ export function Session() {
   const sessionPartCount = createMemo(() =>
     messages().reduce((acc, msg) => acc + (sync.data.part[msg.id]?.length ?? 0), 0),
   )
+  const sessionTurnCount = createMemo(() => messages().filter((message) => message.role === "user").length)
+  const sessionTokenCount = createMemo(() => sessionTokenTotal(messages()))
+  const sessionCostLabel = createMemo(() => formatUsd(sessionCostTotal(messages())))
+  const contextUsage = createMemo(() => latestContextUsage(messages(), sync.data.provider))
+  const connectedMcpCount = createMemo(
+    () => Object.values(sync.data.mcp).filter((item) => item.status === "connected").length,
+  )
   const selectedTheme = createMemo(() => themeState.selected)
   const selectedThemeShort = createMemo(() => {
     const name = selectedTheme()
     if (name.length <= 14) return name
     return `${name.slice(0, 11)}...`
+  })
+  const headerStats = createMemo(() => {
+    const items: { label: string; color?: RGBA }[] = [
+      { label: `stage ${stageLabel().toLowerCase()}`, color: stageColor() },
+    ]
+    const usage = contextUsage()
+    if (usage) {
+      items.push({
+        label: usage.percentage !== null ? `ctx ${usage.percentage}%` : `ctx ${usage.tokens.toLocaleString()}`,
+      })
+    }
+    if (!stripCompact()) {
+      items.push({ label: `tok ${sessionTokenCount().toLocaleString()}` })
+      items.push({ label: `turns ${sessionTurnCount()}` })
+      items.push({ label: `cost ${sessionCostLabel()}` })
+    } else {
+      items.push({ label: `${sessionTurnCount()} turns` })
+    }
+    if (!stripTight() && connectedMcpCount() > 0) {
+      items.push({ label: `mcp ${connectedMcpCount()}` })
+    }
+    return items
   })
   let lastUpdateKey = ""
 
@@ -753,19 +785,25 @@ export function Session() {
 
     const trimmed = raw.trim()
     if (!trimmed.startsWith("/")) return
-    if (trimmed.startsWith("/audit")) setWorkflowMode(() => "audit")
+    const isAuditCommand = trimmed.startsWith("/audit")
+    if (isAuditCommand) {
+      setWorkflowMode(() => "audit")
+      local.agent.set("audit")
+    }
     const commandLine = trimmed.slice(1)
     const [name, ...rest] = commandLine.split(" ")
     if (!name) return
     const variant = local.model.variant.current()
     const args = rest.join(" ").trim()
 
+    const commandAgent = isAuditCommand ? "audit" : local.agent.current().name
+
     await sdk.client.session
       .command({
         sessionID: route.sessionID,
         command: name,
         arguments: args,
-        agent: local.agent.current().name,
+        agent: commandAgent,
         model: `${selectedModel.providerID}/${selectedModel.modelID}`,
         messageID: Identifier.ascending("message"),
         variant,
@@ -1882,6 +1920,7 @@ export function Session() {
         showThinking: () => showThinking() && !explainMode(),
         showTimestamps,
         showDetails,
+        showAssistantMetadata,
         diffWrapMode,
         sync,
       }}
@@ -1896,34 +1935,45 @@ export function Session() {
             gap={0}
             flexShrink={0}
             alignItems="stretch"
-            backgroundColor={theme.backgroundPanel}
-            border={["top", "right", "bottom", "left"]}
+            border={["bottom"]}
             borderColor={theme.borderSubtle}
-            paddingLeft={1}
-            paddingRight={1}
+            paddingLeft={0}
+            paddingRight={0}
             paddingTop={0}
-            paddingBottom={0}
+            paddingBottom={1}
           >
-            <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                DAX
-              </text>
-              <Show when={!stripTight() && session()}>
-                <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="truncate-end">
-                  {session()!.title}
+            <box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
+              <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                  DAX
                 </text>
-              </Show>
-              <text fg={stageColor()}>{stageLabel()}</text>
-              <Show when={!stripCompact()}>
-                <text fg={theme.textMuted}>·</text>
-                <text fg={theme.textMuted}>{streamStatus()}</text>
-              </Show>
-              <Show when={pending()}>
-                <Spinner />
-              </Show>
+                <Show when={session()}>
+                  <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="truncate-end">
+                    {session()!.title}
+                  </text>
+                </Show>
+                <Show when={!stripCompact()}>
+                  <text fg={theme.textMuted}>·</text>
+                  <text fg={theme.textMuted}>{streamStatus()}</text>
+                </Show>
+                <Show when={pending()}>
+                  <Spinner />
+                </Show>
+              </box>
+              <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+                <For each={headerStats()}>
+                  {(item, index) => (
+                    <>
+                      <Show when={index() > 0}>
+                        <text fg={theme.textMuted}>·</text>
+                      </Show>
+                      <text fg={item.color ?? theme.textMuted}>{item.label}</text>
+                    </>
+                  )}
+                </For>
+              </box>
             </box>
-            <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1} flexWrap="wrap">
-              <text fg={theme.textMuted}>◈</text>
+            <box flexDirection="row" gap={2} alignItems="center" paddingTop={1} paddingBottom={1} flexWrap="wrap">
               <For each={["plan", "build", "explore", "docs", "audit"] as WorkflowMode[]}>
                 {(mode) => (
                   <box onMouseUp={() => selectWorkflowMode(mode)}>
@@ -1937,106 +1987,40 @@ export function Session() {
                 )}
               </For>
             </box>
-            <box
-              flexDirection="row"
-              flexWrap="wrap"
-              gap={stripGap()}
-              alignItems="flex-start"
-              width="100%"
-              paddingRight={0}
-            >
-              <Show
-                when={stripColumns() === 1}
-                fallback={
-                  <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
-                    <box flexDirection="row" gap={1} alignItems="center">
-                      <text fg={theme.textMuted}>⊞</text>
-                      <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                        <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>auto</text>
-                      </box>
-                      <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                        <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>pin</text>
-                      </box>
-                      <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                        <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>hide</text>
-                      </box>
-                    </box>
-
-                    <box flexDirection="row" gap={1} alignItems="center">
-                      <text fg={theme.textMuted}>◎</text>
-                      <box
-                        onMouseUp={() => {
-                          setPaneFollowMode(() => "smart")
-                          setSmartFollowActive(true)
-                          setPendingUpdates(0)
-                        }}
-                      >
-                        <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>smart</text>
-                      </box>
-                      <box
-                        onMouseUp={() => {
-                          setPaneFollowMode(() => "live")
-                          setSmartFollowActive(true)
-                          setPendingUpdates(0)
-                        }}
-                      >
-                        <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>live</text>
-                      </box>
-                      <box onMouseUp={() => setShowDetails((prev) => !prev)}>
-                        <text fg={showDetails() ? theme.primary : theme.textMuted}>trace</text>
-                      </box>
-                      <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                        <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
-                      </box>
-                    </box>
-
-                    <box flexDirection="row" gap={1} alignItems="center">
-                      <text fg={theme.textMuted}>🎨</text>
-                      <box onMouseUp={() => cycleTheme(-1)}>
-                        <text fg={theme.textMuted}>-</text>
-                      </box>
-                      <text fg={theme.primary}>{selectedThemeShort()}</text>
-                      <box onMouseUp={() => cycleTheme(1)}>
-                        <text fg={theme.textMuted}>+</text>
-                      </box>
-                    </box>
-                  </box>
-                }
+            <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" width="100%" paddingBottom={0}>
+              <text fg={theme.textMuted}>pane</text>
+              <box onMouseUp={cyclePaneVisibility}>
+                <text fg={theme.textMuted}>
+                  {paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}
+                </text>
+              </box>
+              <text fg={theme.textMuted}>·</text>
+              <box
+                onMouseUp={() => {
+                  const next = paneFollowMode() === "smart" ? "live" : "smart"
+                  setPaneFollowMode(() => next)
+                  setSmartFollowActive(true)
+                  setPendingUpdates(0)
+                }}
               >
-                <box width="100%" flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" paddingBottom={1}>
-                  <text fg={theme.textMuted}>p</text>
-                  <box onMouseUp={cyclePaneVisibility}>
-                    <text fg={theme.primary}>
-                      [{paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}]
-                    </text>
-                  </box>
-                  <text fg={theme.textMuted}>f</text>
-                  <box
-                    onMouseUp={() => {
-                      const next = paneFollowMode() === "smart" ? "live" : "smart"
-                      setPaneFollowMode(() => next)
-                      setSmartFollowActive(true)
-                      setPendingUpdates(0)
-                    }}
-                  >
-                    <text fg={theme.accent}>[{paneFollowMode()}]</text>
-                  </box>
-                  <box onMouseUp={() => setShowDetails((prev) => !prev)}>
-                    <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
-                  </box>
-                  <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                    <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
-                  </box>
-                  <text fg={theme.textMuted}>t</text>
-                  <box onMouseUp={() => cycleTheme(-1)}>
-                    <text fg={theme.textMuted}>[-]</text>
-                  </box>
-                  <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                  <box onMouseUp={() => cycleTheme(1)}>
-                    <text fg={theme.textMuted}>[+]</text>
-                  </box>
-                </box>
-              </Show>
+                <text fg={theme.textMuted}>follow {paneFollowMode()}</text>
+              </box>
+              <text fg={theme.textMuted}>·</text>
+              <box onMouseUp={() => setShowDetails((prev) => !prev)}>
+                <text fg={showDetails() ? theme.text : theme.textMuted}>trace</text>
+              </box>
+              <text fg={theme.textMuted}>·</text>
+              <box onMouseUp={() => setSlowStream((prev) => !prev)}>
+                <text fg={slowStream() ? theme.text : theme.textMuted}>slow</text>
+              </box>
+              <text fg={theme.textMuted}>·</text>
+              <box onMouseUp={() => cycleTheme(-1)}>
+                <text fg={theme.textMuted}>theme</text>
+              </box>
+              <text fg={theme.text}>{selectedThemeShort()}</text>
+              <box onMouseUp={() => cycleTheme(1)}>
+                <text fg={theme.textMuted}>+</text>
+              </box>
             </box>
           </box>
           <box flexGrow={1} minHeight={0}>
@@ -2083,6 +2067,7 @@ export function Session() {
                   >
                     <box
                       flexGrow={mainPaneGrow()}
+                      width={liveStacked() ? "100%" : Math.max(48, contentWidth() - livePaneWidth() - 3)}
                       minHeight={0}
                       border={liveStacked() ? ["bottom"] : ["right"]}
                       borderColor={theme.borderSubtle}
@@ -2216,13 +2201,14 @@ export function Session() {
                     </box>
                     <scrollbox
                       flexGrow={sidePaneGrow()}
+                      width={liveStacked() ? "100%" : livePaneWidth()}
                       minHeight={0}
                       backgroundColor={theme.backgroundPanel}
                       scrollAcceleration={scrollAcceleration()}
                     >
                       <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
                         <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                          <text fg={theme.textMuted}>❖</text>
+                          <text fg={theme.textMuted}>pane</text>
                           <For each={PANE_MODES}>
                             {(mode) => (
                               <box
@@ -2232,9 +2218,12 @@ export function Session() {
                                     setPaneVisibility(() => "pinned")
                                   }
                                 }}
-                                backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
+                                paddingRight={1}
                               >
-                                <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>
+                                <text
+                                  fg={activePaneMode() === mode ? theme.text : theme.textMuted}
+                                  attributes={activePaneMode() === mode ? TextAttributes.BOLD : undefined}
+                                >
                                   {paneLabel(mode)}
                                 </text>
                               </box>
@@ -2669,14 +2658,7 @@ export function Session() {
             />
           </box>
           <Show when={!sidebarVisible() || !wide()}>
-            <Footer
-              lifecycleLabel={labelStage(stageState().stage, explainMode())}
-              onOpenTimeline={openTimelineDialog}
-              onOpenPm={openPmPane}
-              onOpenInspect={openStatusDialog}
-              onOpenApprovals={permissions().length + questions().length > 0 ? openApprovalsDialog : undefined}
-              onOpenDiff={revert()?.diffFiles?.length ? openDiffDialog : undefined}
-            />
+            <Footer lifecycleLabel={labelStage(stageState().stage, explainMode())} />
           </Show>
           <Toast />
         </box>
@@ -2785,7 +2767,9 @@ function UserMessage(props: {
                 </text>
               </Show>
             </box>
-            <text fg={theme.text}>{text()?.text}</text>
+            <text fg={theme.text} wrapMode="word">
+              {text()?.text}
+            </text>
             <Show when={files().length}>
               <box flexDirection="row" paddingTop={1} gap={1} flexWrap="wrap">
                 <For each={files()}>
@@ -2835,8 +2819,6 @@ function StageTimeline(props: StageTimelineProps) {
   const showFlow = createMemo(() => PRIMARY_STAGE_FLOW.includes(props.stageState.stage))
   const stageNames = createMemo(() => PRIMARY_STAGE_FLOW.map((stage) => labelStage(stage, props.explainMode)))
   const activeIndex = createMemo(() => PRIMARY_STAGE_FLOW.indexOf(props.stageState.stage))
-  const statusText = createMemo(() => (props.streamStatus === "idle" ? undefined : props.streamStatus))
-  const reason = createMemo(() => props.stageState.reason)
   const baseBackground = createMemo(() => theme.backgroundElement ?? theme.backgroundPanel ?? theme.background)
 
   return (
@@ -2891,15 +2873,6 @@ function StageTimeline(props: StageTimelineProps) {
             </box>
           </Match>
         </Switch>
-        <box flexDirection="row" gap={1} flexWrap="wrap">
-          <text fg={props.stageColor}>{props.stageLabel}</text>
-          <Show when={reason()}>
-            <text fg={theme.textMuted}>· {reason()}</text>
-          </Show>
-          <Show when={statusText()}>
-            <text fg={theme.textMuted}>· {statusText()}</text>
-          </Show>
-        </box>
       </box>
     </Show>
   )
@@ -2942,11 +2915,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     if (props.message.error) return "Retry, or adjust your request and run again."
     if (props.last && !props.message.time.completed) return "Wait for completion or press esc twice to stop."
     return "Continue with a follow-up request."
-  })
-  const choice = createMemo(() => {
-    if (props.message.error) return "1) Retry  2) Change request  3) Stop"
-    if (props.last && !props.message.time.completed) return "1) Wait  2) Interrupt  3) Add guidance"
-    return "1) Ask next step  2) Refine output  3) /undo"
   })
   const hasNativeEli12 = createMemo(() =>
     props.parts.some(
@@ -3003,6 +2971,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     }),
   )
   const shouldRender = createMemo(() => hasRenderablePart() || !!props.message.error || final() || props.last)
+  const showMetadata = createMemo(() => ctx.showAssistantMetadata())
 
   return (
     <Show when={shouldRender()}>
@@ -3042,15 +3011,46 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </box>
       </Show>
 
-      <box flexDirection="row" gap={1} alignItems="center" marginTop={1} marginBottom={1} paddingLeft={2}>
-        <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-          DAX
-        </text>
-        <text fg={theme.textMuted}>·</text>
-        <text fg={theme.textMuted}>{Locale.titlecase(props.message.mode)}</text>
-        <text fg={theme.textMuted}>·</text>
-        <text fg={theme.textMuted}>{props.message.modelID}</text>
-      </box>
+      <Show when={props.last && !props.message.time.completed}>
+        <box
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          marginTop={1}
+          marginBottom={1}
+          paddingLeft={2}
+          paddingRight={2}
+          flexWrap="wrap"
+        >
+          <text fg={theme.accent}>working</text>
+          <Show when={showMetadata()}>
+            <>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{props.message.modelID}</text>
+            </>
+          </Show>
+        </box>
+      </Show>
+      <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
+        <box
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          marginTop={1}
+          marginBottom={1}
+          paddingLeft={2}
+          paddingRight={2}
+          flexWrap="wrap"
+        >
+          <text fg={theme.error}>error</text>
+          <Show when={showMetadata()}>
+            <>
+              <text fg={theme.textMuted}>·</text>
+              <text fg={theme.textMuted}>{props.message.modelID}</text>
+            </>
+          </Show>
+        </box>
+      </Show>
 
       <For each={props.parts}>
         {(part, index) => {
@@ -3080,14 +3080,20 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </box>
       </Show>
       <Switch>
-        <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
+        <Match
+          when={
+            (showMetadata() || props.message.error || props.last) &&
+            (props.last || final() || props.message.error?.name === "MessageAbortedError")
+          }
+        >
           <box
             flexDirection="row"
             gap={1}
             alignItems="center"
-            marginTop={2}
+            marginTop={1}
             marginBottom={1}
             paddingLeft={2}
+            paddingRight={2}
             flexWrap="wrap"
           >
             <text
@@ -3108,7 +3114,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
             </Show>
             <Show when={generatedTokens() > 0}>
               <text fg={theme.textMuted}>·</text>
-              <text fg={theme.textMuted}>{`${generatedTokens().toLocaleString()} tok`}</text>
+              <text fg={theme.textMuted}>{`${totalTokens().toLocaleString()} tok`}</text>
             </Show>
             <Show when={tokensPerSecond() > 0}>
               <text fg={theme.textMuted}>·</text>
@@ -3170,7 +3176,7 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   const { theme, syntax } = useTheme()
   return (
     <Show when={props.part.text.trim()}>
-      <box id={"text-" + props.part.id} paddingLeft={3} marginTop={1} flexShrink={0}>
+      <box id={"text-" + props.part.id} paddingLeft={2} paddingRight={2} marginTop={1} flexShrink={0}>
         <Switch>
           <Match when={Flag.DAX_EXPERIMENTAL_MARKDOWN}>
             <markdown

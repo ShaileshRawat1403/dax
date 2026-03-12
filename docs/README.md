@@ -21,6 +21,7 @@ DAX features that are implemented and ready for production use.
 - [PROVIDERS.md](PROVIDERS.md): provider setup and auth matrix
 - [prerelease.md](prerelease.md): beta install and validation
 - [audit-agent.md](audit-agent.md): audit profiles, findings, and release gating
+- [DAX_POSITIONING.md](DAX_POSITIONING.md): final USP, category, and market positioning for DAX
 - [integrations-github-ci.md](integrations-github-ci.md): CI artifact + GitHub automation
 - [WORKSPACE_DECISION_RECORD.md](WORKSPACE_DECISION_RECORD.md): product ownership and workspace roles
 - [REPO_BOUNDARIES.md](REPO_BOUNDARIES.md): canonical DAX runtime surface and quarantined legacy paths

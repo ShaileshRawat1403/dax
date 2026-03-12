@@ -1,19 +1,11 @@
-import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { createMemo, Match, Show, Switch } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useSync } from "../../context/sync"
 import { useDirectory } from "../../context/directory"
 import { useRoute } from "../../context/route"
 import { useTerminalDimensions } from "@opentui/solid"
-import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
 
-export function Footer(props?: {
-  lifecycleLabel?: string
-  onOpenTimeline?: () => void
-  onOpenPm?: () => void
-  onOpenInspect?: () => void
-  onOpenApprovals?: () => void
-  onOpenDiff?: () => void
-}) {
+export function Footer(props?: { lifecycleLabel?: string }) {
   const { theme } = useTheme()
   const sync = useSync()
   const route = useRoute()
@@ -36,22 +28,6 @@ export function Footer(props?: {
     if (route.data.type !== "session") return "Launch"
     return props?.lifecycleLabel ?? "Execute"
   })
-  const footerActions = createMemo(() => {
-    const actions: Array<{ label: string; onPress?: () => void }> = [
-      { label: tiny() ? "[t]" : `[t] ${SESSION_COMMAND_LABELS.jumpTimeline.toLowerCase()}`, onPress: props?.onOpenTimeline },
-      { label: tiny() ? "[p]" : "[p] pm", onPress: props?.onOpenPm },
-      { label: tiny() ? "[m]" : "[m] mcp", onPress: props?.onOpenInspect },
-      { label: tiny() ? "[d]" : "[d] diff", onPress: props?.onOpenDiff },
-    ]
-    if (permissions().length > 0) {
-      actions.push({
-        label: tiny() ? "[a]" : `[a] ${SESSION_COMMAND_LABELS.reviewApprovals.toLowerCase()}`,
-        onPress: props?.onOpenApprovals,
-      })
-    }
-    return actions.filter((item) => item.onPress)
-  })
-
   return (
     <box flexDirection="row" justifyContent="space-between" gap={1} flexShrink={0} paddingLeft={1} paddingRight={1}>
       <box flexDirection="row" gap={1}>
@@ -83,16 +59,14 @@ export function Footer(props?: {
         <Show when={!tiny()}>
           <text fg={theme.textMuted}>[help:?]</text>
         </Show>
-        <Show when={footerActions().length > 0}>
-          <box gap={1} flexDirection="row" alignItems="center" flexWrap="wrap">
-            <For each={footerActions()}>
-              {(action) => (
-                <box onMouseUp={() => action.onPress?.()}>
-                  <text fg={theme.textMuted}>{action.label}</text>
-                </box>
-              )}
-            </For>
-          </box>
+        <Show when={!tiny()}>
+          <text fg={theme.textMuted}>[t] timeline</text>
+        </Show>
+        <Show when={permissions().length > 0 && !tiny()}>
+          <text fg={theme.warning}>{`[a] approvals:${permissions().length}`}</text>
+        </Show>
+        <Show when={!small()}>
+          <text fg={theme.textMuted}>[m] inspect</text>
         </Show>
       </box>
     </box>
