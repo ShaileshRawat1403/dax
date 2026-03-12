@@ -1,11 +1,19 @@
 import { createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
-import type { FileDiff } from "@dax-ai/sdk/v2"
 import { useDialog } from "@tui/ui/dialog"
 import { useTheme } from "../context/theme"
 
-export function DialogDiff(props: { diffs: FileDiff[]; onOpenPane?: () => void; explainMode?: boolean }) {
+export type DialogDiffItem = {
+  file: string
+  additions: number
+  deletions: number
+  status?: string
+  before?: string
+  after?: string
+}
+
+export function DialogDiff(props: { diffs: DialogDiffItem[]; onOpenPane?: () => void; explainMode?: boolean }) {
   const dialog = useDialog()
   const { theme } = useTheme()
   const [selected, setSelected] = createSignal(0)
@@ -47,8 +55,8 @@ export function DialogDiff(props: { diffs: FileDiff[]; onOpenPane?: () => void; 
   const title = createMemo(() => (props.explainMode ? "Evidence review" : "Evidence detail"))
   const footer = createMemo(() =>
     props.explainMode
-      ? "Open the evidence pane to inspect the live file-by-file change summary."
-      : "Open the evidence pane for the live change summary while you continue the session.",
+      ? "Open the diff pane to inspect the live file-by-file change summary."
+      : "Open the diff pane for the live change summary while the session continues.",
   )
   const emptyState = createMemo(() =>
     props.explainMode ? "No tracked file changes yet for this work." : "No tracked file changes yet.",
@@ -82,9 +90,7 @@ export function DialogDiff(props: { diffs: FileDiff[]; onOpenPane?: () => void; 
                   backgroundColor={selected() === index() ? theme.primary : undefined}
                   onMouseUp={() => setSelected(index())}
                 >
-                  <text fg={selected() === index() ? theme.selectedListItemText : theme.text}>
-                    {item.file}
-                  </text>
+                  <text fg={selected() === index() ? theme.selectedListItemText : theme.text}>{item.file}</text>
                 </box>
               )}
             </For>
@@ -96,9 +102,7 @@ export function DialogDiff(props: { diffs: FileDiff[]; onOpenPane?: () => void; 
                 <b>{current()!.file}</b>
               </text>
               <Show when={props.explainMode}>
-                <text fg={theme.text}>
-                  DAX updated this file during the session.
-                </text>
+                <text fg={theme.text}>DAX updated this file during the session.</text>
               </Show>
               <text fg={theme.textMuted}>Status: {current()!.status ?? "modified"}</text>
               <box flexDirection="row" gap={1} flexWrap="wrap">

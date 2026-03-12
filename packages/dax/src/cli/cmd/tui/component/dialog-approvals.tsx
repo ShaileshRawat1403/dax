@@ -24,7 +24,8 @@ type ApprovalItem =
     }
 
 function permissionItem(item: PermissionRequest): ApprovalItem {
-  const patterns = item.patterns.length > 0 ? item.patterns.join(", ") : "none"
+  const patterns = Array.isArray(item.patterns) && item.patterns.length > 0 ? item.patterns.join(", ") : "none"
+  const always = Array.isArray(item.always) && item.always.length > 0 ? item.always.join(", ") : "none"
   const reason =
     typeof item.metadata?.description === "string" && item.metadata.description.trim()
       ? item.metadata.description.trim()
@@ -39,9 +40,8 @@ function permissionItem(item: PermissionRequest): ApprovalItem {
     detail: [
       `Action: ${item.permission}`,
       `Governance class: permission gate`,
-      `Permission: ${item.permission}`,
       `Patterns: ${patterns}`,
-      `Always-allow options: ${item.always.length > 0 ? item.always.join(", ") : "none"}`,
+      `Always-allow options: ${always}`,
       `Session: ${item.sessionID}`,
     ],
   }
@@ -56,10 +56,7 @@ function questionItem(item: QuestionRequest): ApprovalItem {
     summary: headers,
     detail: item.questions.flatMap((question, index) => {
       const options = question.options.map((option) => `${option.label}: ${option.description}`)
-      return [
-        `${index + 1}. ${question.question}`,
-        ...options.map((option) => `   - ${option}`),
-      ]
+      return [`${index + 1}. ${question.question}`, ...options.map((option) => `   - ${option}`)]
     }),
   }
 }
@@ -113,8 +110,8 @@ export function DialogApprovals(props: {
   const title = createMemo(() => (props.explainMode ? "Execution paused for approval" : "Approvals"))
   const footer = createMemo(() =>
     props.explainMode
-      ? "Open the approval surface to review the blocked action and continue safely."
-      : "Open the approval surface to approve or deny the blocked action.",
+      ? "Open the approval pane to review the blocked action and continue safely."
+      : "Open the approval pane to approve or deny the blocked action.",
   )
   const emptyState = createMemo(() =>
     props.explainMode ? "No execution step is waiting on your decision right now." : "No approvals or questions are waiting.",
@@ -129,10 +126,7 @@ export function DialogApprovals(props: {
         <text fg={theme.textMuted}>up/down move • enter open live review • esc close</text>
       </box>
 
-      <Show
-        when={items().length > 0}
-        fallback={<text fg={theme.textMuted}>{emptyState()}</text>}
-      >
+      <Show when={items().length > 0} fallback={<text fg={theme.textMuted}>{emptyState()}</text>}>
         <box flexDirection="row" gap={2} height={18}>
           <box width={28} flexDirection="column">
             <For each={items()}>
@@ -143,7 +137,9 @@ export function DialogApprovals(props: {
                   backgroundColor={selected() === index() ? theme.primary : undefined}
                   onMouseUp={() => setSelected(index())}
                 >
-                  <text fg={selected() === index() ? theme.selectedListItemText : item.kind === "permission" ? theme.warning : theme.accent}>
+                  <text
+                    fg={selected() === index() ? theme.selectedListItemText : item.kind === "permission" ? theme.warning : theme.accent}
+                  >
                     {item.kind === "permission" ? "Approve" : "Answer"} · {item.title}
                   </text>
                 </box>

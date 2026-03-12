@@ -1,11 +1,6 @@
 export type PMListRow = { day: string; title: string; tags: string[] }
 export type PMRuleRow = { ruleType: string; pattern: string; action: "allow" | "deny" | "ask"; source?: string }
 
-export function formatPMList(rows: PMListRow[]): string {
-  if (rows.length === 0) return "No DSR notes found."
-  return rows.map((x) => `- ${x.day} | ${x.title}${x.tags.length ? ` [${x.tags.join(", ")}]` : ""}`).join("\n")
-}
-
 export function parsePMList(text: string): { rows: PMListRow[]; info?: string } {
   const trimmed = text.trim()
   if (!trimmed) return { rows: [], info: "Run /pm list to load notes." }
@@ -23,13 +18,9 @@ export function parsePMList(text: string): { rows: PMListRow[]; info?: string } 
       tags: match[3] ? match[3].split(",").map((tag) => tag.trim()).filter(Boolean) : [],
     })
   }
+
   if (!rows.length) return { rows, info: trimmed }
   return { rows }
-}
-
-export function formatPMRules(rows: PMRuleRow[]): string {
-  if (rows.length === 0) return "No PM rules set."
-  return rows.map((x) => `- ${x.ruleType} ${x.pattern} -> ${x.action}${x.source ? ` (${x.source})` : ""}`).join("\n")
 }
 
 export function parsePMRules(text: string): { rows: PMRuleRow[]; info?: string } {
@@ -50,6 +41,7 @@ export function parsePMRules(text: string): { rows: PMRuleRow[]; info?: string }
       source: match[4],
     })
   }
+
   if (!rows.length) return { rows, info: trimmed }
   return { rows }
 }

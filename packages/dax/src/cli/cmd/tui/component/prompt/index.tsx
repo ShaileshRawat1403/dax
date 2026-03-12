@@ -1,14 +1,4 @@
-import {
-  BoxRenderable,
-  TextareaRenderable,
-  MouseEvent,
-  PasteEvent,
-  KeyEvent,
-  TextAttributes,
-  t,
-  dim,
-  fg,
-} from "@opentui/core"
+import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, KeyEvent, t, dim, fg } from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
@@ -43,7 +33,6 @@ import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
-import { buildPreferredNamePrompt, resolvePreferredName, sessionPreferredNameKey } from "@/dax/user-profile"
 import { createColors } from "../../ui/spinner.ts"
 
 export type PromptProps = {
@@ -69,6 +58,7 @@ export type PromptRef = {
 
 const PLACEHOLDERS = ["Plan this project in plain language", "Ship one safe improvement", "Find the best next step"]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
+const WORKFLOW_AGENT_MODES = new Set(["plan", "build", "explore", "docs", "audit"])
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
 
 You are DAX.
@@ -154,13 +144,6 @@ export function Prompt(props: PromptProps) {
   const { theme, syntax } = useTheme()
   const kv = useKV()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const preferredName = createMemo(() =>
-    resolvePreferredName({
-      sessionID: props.sessionID,
-      configUsername: sync.data.config.username,
-      kvGet: kv.get,
-    }),
-  )
 
   const setExplainMode = (enabled: boolean) => {
     kv.set(DAX_SETTING.explain_mode, enabled ? "eli12" : "normal")
@@ -225,46 +208,6 @@ export function Prompt(props: PromptProps) {
       handled: true as const,
       submitText: `Please explain this:\n${payload}`,
     }
-  }
-
-  const applyNameCommand = (text: string) => {
-    if (!/^\/name(\s|$)/i.test(text)) return { handled: false as const }
-    const stripped = text.replace(/^\/name\s*/i, "").trim()
-    const targetKey = props.sessionID ? sessionPreferredNameKey(props.sessionID) : DAX_SETTING.preferred_name_default
-
-    if (!stripped || /^status$/i.test(stripped)) {
-      const current = preferredName()
-      toast.show({
-        variant: "info",
-        message: current ? `Preferred name: ${current}` : "No preferred name set for this scope",
-        duration: 2200,
-      })
-      clearPrompt()
-      return { handled: true as const }
-    }
-
-    if (/^(off|clear|reset|none)$/i.test(stripped)) {
-      kv.set(targetKey, "")
-      toast.show({
-        variant: "info",
-        message: props.sessionID ? "Cleared session preferred name" : "Cleared default preferred name",
-        duration: 2200,
-      })
-      clearPrompt()
-      return { handled: true as const }
-    }
-
-    const nextName = stripped.replace(/\s+/g, " ").trim()
-    kv.set(targetKey, nextName)
-    toast.show({
-      variant: "success",
-      message: props.sessionID
-        ? `DAX will address you as ${nextName} in this session`
-        : `DAX will address you as ${nextName} by default`,
-      duration: 2200,
-    })
-    clearPrompt()
-    return { handled: true as const }
   }
 
   function promptModelWarning() {
@@ -344,6 +287,9 @@ export function Prompt(props: PromptProps) {
       const isPrimaryAgent = local.agent.list().some((x) => x.name === msg.agent)
       if (msg.agent && isPrimaryAgent) {
         local.agent.set(msg.agent)
+        if (WORKFLOW_AGENT_MODES.has(msg.agent)) {
+          kv.set(DAX_SETTING.session_workflow_mode, msg.agent)
+        }
         if (msg.model) local.model.set(msg.model)
         if (msg.variant) local.model.variant.set(msg.variant)
       }
@@ -560,24 +506,6 @@ export function Prompt(props: PromptProps) {
           dialog.clear()
         },
       },
-      {
-        title: preferredName() ? `Set preferred name (${preferredName()})` : "Set preferred name",
-        value: "prompt.name",
-        category: "Prompt",
-        slash: {
-          name: "name",
-        },
-        onSelect: (dialog) => {
-          const prefix = preferredName() ? `/name ${preferredName()}` : "/name "
-          input.setText(prefix)
-          setStore("prompt", {
-            input: prefix,
-            parts: [],
-          })
-          input.gotoBufferEnd()
-          dialog.clear()
-        },
-      },
     ]
   })
 
@@ -770,8 +698,6 @@ export function Prompt(props: PromptProps) {
       exit()
       return
     }
-    const nameCommand = applyNameCommand(trimmed)
-    if (nameCommand.handled) return
     const eli12Command = applyELI12Command(trimmed)
     if (eli12Command.handled && !eli12Command.submitText) return
     const selectedModel = local.model.current()
@@ -822,10 +748,6 @@ export function Prompt(props: PromptProps) {
 
     if (!isSlashCommand && (explainMode() || eli12Command.handled)) {
       inputSystem = ELI12_PREFIX
-    }
-    const preferredNamePrompt = buildPreferredNamePrompt(preferredName())
-    if (!isSlashCommand && preferredNamePrompt) {
-      inputSystem = [inputSystem, preferredNamePrompt].filter(Boolean).join("\n\n")
     }
 
     // Filter out text parts (pasted content) since they're now expanded inline
@@ -1221,9 +1143,7 @@ export function Prompt(props: PromptProps) {
                           return
                         }
                       }
-                    } catch {
-                      /* Intentionally ignored: file might not exist or be accessible. */
-                    }
+                    } catch {}
                   }
 
                   const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
@@ -1264,16 +1184,20 @@ export function Prompt(props: PromptProps) {
             </box>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
-                {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}
+                {store.mode === "shell"
+                  ? "Shell"
+                  : Locale.titlecase(kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))}{" "}
               </text>
               <Show when={store.mode === "normal"}>
-                <box flexDirection="row" gap={1} flexWrap="wrap">
+                <box flexDirection="row" gap={1}>
                   <text flexShrink={0} fg={keybind.leader ? theme.textMuted : theme.text}>
-                    {local.model.parsed().provider}/{local.model.parsed().model}
+                    {local.model.parsed().model}
                   </text>
+                  <text fg={theme.textMuted}>{local.model.parsed().provider}</text>
                   <Show when={showVariant()}>
-                    <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-                      [{local.model.variant.current()}]
+                    <text fg={theme.textMuted}>·</text>
+                    <text>
+                      <span style={{ fg: theme.warning, bold: true }}>{local.model.variant.current()}</span>
                     </text>
                   </Show>
                 </box>
@@ -1372,9 +1296,9 @@ export function Prompt(props: PromptProps) {
                   })()}
                 </box>
               </box>
-              <box flexDirection="row" gap={1}>
-                <text fg={store.interrupt > 0 ? theme.primary : theme.text}>esc</text>
-                <text fg={store.interrupt > 0 ? theme.primary : theme.textMuted}>
+              <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
+                esc{" "}
+                <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
                   {store.interrupt > 0
                     ? explainMode()
                       ? "again to stop"
@@ -1382,45 +1306,45 @@ export function Prompt(props: PromptProps) {
                     : explainMode()
                       ? "stop"
                       : "interrupt"}
-                </text>
-              </box>
+                </span>
+              </text>
             </box>
           </Show>
           <Show when={status().type !== "retry"}>
-            <box gap={2} flexDirection="row" flexWrap="wrap" justifyContent="flex-end">
+            <box gap={2} flexDirection="row">
               <Switch>
                 <Match when={store.mode === "normal"}>
-                  <box flexDirection="row" gap={1}>
-                    <text fg={theme.text}>{keybind.print("command_list")}</text>
-                    <text fg={theme.textMuted}>{explainMode() ? "Commands" : "Commands"}</text>
-                  </box>
-                  <Show when={local.model.variant.list().length > 0 && !explainMode()}>
-                    <box flexDirection="row" gap={1}>
-                      <text fg={theme.text}>{keybind.print("variant_cycle")}</text>
-                      <text fg={theme.textMuted}>Variant</text>
-                    </box>
+                  <Show when={local.model.variant.list().length > 0}>
+                    <text fg={theme.text}>
+                      {keybind.print("variant_cycle")}{" "}
+                      <span style={{ fg: theme.textMuted }}>{explainMode() ? "model modes" : "variants"}</span>
+                    </text>
                   </Show>
-                  <Show when={!explainMode()}>
-                    <box flexDirection="row" gap={1}>
-                      <text fg={theme.text}>{keybind.print("agent_cycle")}</text>
-                      <text fg={theme.textMuted}>Agent</text>
-                    </box>
-                  </Show>
+                  <text fg={theme.text}>
+                    {keybind.print("agent_cycle")}{" "}
+                    <span style={{ fg: theme.textMuted }}>{explainMode() ? "assistants" : "agents"}</span>
+                  </text>
+                  <text fg={theme.text}>
+                    {keybind.print("command_list")}{" "}
+                    <span style={{ fg: theme.textMuted }}>{explainMode() ? "menu" : "commands"}</span>
+                  </text>
                   <box
                     onMouseOver={() => setEli12Hover(true)}
                     onMouseOut={() => setEli12Hover(false)}
                     onMouseUp={() => setExplainMode(!explainMode())}
                   >
                     <text fg={explainMode() || eli12Hover() ? theme.success : theme.textMuted}>
-                      {explainMode() ? "ELI12 on" : "ELI12"}
+                      <span style={{ bold: true }}>ELI12</span> {explainMode() ? "on" : "off"}
                     </text>
                   </box>
                 </Match>
                 <Match when={store.mode === "shell"}>
-                  <box flexDirection="row" gap={1}>
-                    <text fg={theme.text}>esc</text>
-                    <text fg={theme.textMuted}>{explainMode() ? "leave shell mode" : "exit shell mode"}</text>
-                  </box>
+                  <text fg={theme.text}>
+                    esc{" "}
+                    <span style={{ fg: theme.textMuted }}>
+                      {explainMode() ? "leave shell mode" : "exit shell mode"}
+                    </span>
+                  </text>
                 </Match>
               </Switch>
             </box>
