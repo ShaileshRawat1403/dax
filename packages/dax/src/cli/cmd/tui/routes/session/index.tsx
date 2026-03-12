@@ -97,6 +97,7 @@ import {
   paneLabel as daxPaneLabel,
   paneTitle as daxPaneTitle,
 } from "@/dax/presentation/pane"
+import { deriveWorkstationState } from "@/dax/presentation/workstation"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
@@ -206,7 +207,7 @@ export function Session() {
   const [conceal, setConceal] = createSignal(true)
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
-  const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
+  const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", false)
   const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
   const [showEli12Summary, setShowEli12Summary] = kv.signal(DAX_SETTING.eli12_summary_visibility, false)
   const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
@@ -244,6 +245,7 @@ export function Session() {
   const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
   const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
+  const todo = createMemo(() => sync.data.todo[route.sessionID] ?? [])
   const stageState = createMemo<{ stage: StreamStage; reason: string }>(() => {
     if (permissions().length > 0 || questions().length > 0) {
       return {
@@ -732,6 +734,17 @@ export function Session() {
       info: parsed.info ?? "",
     }
   })
+  const pendingRaoCount = createMemo(() => permissions().length + questions().length)
+  const pmSummary = createMemo(() => {
+    const recent = recentPmCommands()
+    return {
+      recent,
+      recentCount: recent.length,
+      noteCount: parsedPmList().rows.length,
+      ruleCount: parsedPmRules().rows.length,
+      latestCommand: recent[0]?.text,
+    }
+  })
 
   const auditHistory = createMemo(() => {
     const messageList = messages()
@@ -921,9 +934,58 @@ export function Session() {
 
   const hasDiffNeed = createMemo(() => !!revert()?.diff)
   const hasArtifactNeed = createMemo(() => liveArtifact().active && chatActive())
+  const recentTools = createMemo(() => {
+    const items: Array<{ tool: string; status: string; label: string }> = []
+    for (const msg of [...messages()].reverse()) {
+      if (msg.role !== "assistant") continue
+      for (const part of [...(sync.data.part[msg.id] ?? [])].reverse()) {
+        if (part.type !== "tool") continue
+        const input = (part.state.input ?? {}) as Record<string, any>
+        const target = input.path || input.file || input.filename || input.target || input.command || ""
+        items.push({
+          tool: part.tool,
+          status: part.state.status,
+          label: target ? `${part.tool} · ${String(target)}` : part.tool,
+        })
+        if (items.length >= 5) return items
+      }
+    }
+    return items
+  })
+  const paneBadge = (mode: PaneMode) => {
+    switch (mode) {
+      case "diff": {
+        const count = revert()?.diffFiles?.length ?? 0
+        return count > 0 ? String(count) : undefined
+      }
+      case "rao":
+        return String(pendingRaoCount())
+      case "pm":
+        return pmSummary().recentCount > 0 ? String(pmSummary().recentCount) : undefined
+      default:
+        return undefined
+    }
+  }
+  const workstationState = createMemo(() =>
+    deriveWorkstationState({
+      stage: stageState().stage,
+      stageReason: stageState().reason,
+      sessionStatusType: sessionStatusType(),
+      goal: session()?.title,
+      todo: todo(),
+      approvals: permissions().map((permission) => ({
+        label: permission.permission ?? permission.tool?.callID ?? "approval",
+        reason: permission.patterns?.[0],
+      })),
+      questions: questions().length,
+      artifacts: liveArtifact().active ? [{ label: liveArtifact().title, kind: "latest" }] : [],
+      diffCount: revert()?.diffFiles?.length ?? 0,
+    }),
+  )
   const showPane = createMemo(() => {
     if (paneVisibility() === "hidden") return false
     if (paneVisibility() === "pinned") return true
+    if (!liveStacked()) return true
     return hasRaoNeed() || hasDiffNeed() || hasArtifactNeed()
   })
   const activePaneMode = createMemo<PaneMode>(() => {
@@ -2225,6 +2287,12 @@ export function Session() {
                                   attributes={activePaneMode() === mode ? TextAttributes.BOLD : undefined}
                                 >
                                   {paneLabel(mode)}
+                                  <Show when={paneBadge(mode)}>
+                                    <span style={{ fg: activePaneMode() === mode ? theme.primary : theme.textMuted }}>
+                                      {" "}
+                                      {paneBadge(mode)}
+                                    </span>
+                                  </Show>
                                 </text>
                               </box>
                             )}
@@ -2232,10 +2300,129 @@ export function Session() {
                         </box>
                         <Switch>
                           <Match when={activePaneMode() === "artifact"}>
-                            <text fg={theme.primary}>{liveArtifact().title}</text>
-                            <text fg={theme.textMuted} wrapMode="word">
-                              {liveArtifact().body}
-                            </text>
+                            <box flexDirection="column" gap={1}>
+                              <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                                {workstationState().lifecycleLabel}
+                              </text>
+                              <Show when={workstationState().currentStep}>
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  {workstationState().currentStep}
+                                </text>
+                              </Show>
+                              <box
+                                border={["top"]}
+                                borderColor={theme.borderSubtle}
+                                paddingTop={1}
+                                flexDirection="column"
+                                gap={1}
+                              >
+                                <text fg={theme.text}>Review and memory</text>
+                                <text
+                                  fg={pendingRaoCount() > 0 ? theme.primary : theme.textMuted}
+                                  wrapMode="word"
+                                >
+                                  RAO {pendingRaoCount()}{" "}
+                                  {pendingRaoCount() > 0
+                                    ? `pending${workstationState().approvalSummary.topLabel ? ` · ${workstationState().approvalSummary.topLabel}` : ""}`
+                                    : "clear"}
+                                </text>
+                                <text
+                                  fg={pmSummary().recentCount > 0 || pmSummary().noteCount > 0 || pmSummary().ruleCount > 0 ? theme.text : theme.textMuted}
+                                  wrapMode="word"
+                                >
+                                  PM{" "}
+                                  {pmSummary().latestCommand
+                                    ? pmSummary().latestCommand
+                                    : pmSummary().noteCount > 0 || pmSummary().ruleCount > 0
+                                      ? `${pmSummary().noteCount} notes · ${pmSummary().ruleCount} rules`
+                                      : "ready for /pm note, /pm list, /pm rules"}
+                                </text>
+                              </box>
+                              <Show when={todo().length > 0}>
+                                <box
+                                  border={["top"]}
+                                  borderColor={theme.borderSubtle}
+                                  paddingTop={1}
+                                  flexDirection="column"
+                                  gap={1}
+                                >
+                                  <text fg={theme.text}>Todo</text>
+                                  <For each={workstationState().planSummary.steps.slice(0, 4)}>
+                                    {(step) => (
+                                      <text
+                                        fg={step.status === "active" ? theme.primary : theme.textMuted}
+                                        wrapMode="word"
+                                      >
+                                        {step.status === "done" ? "[x]" : step.status === "active" ? "[/]" : "[ ]"}{" "}
+                                        {step.label}
+                                      </text>
+                                    )}
+                                  </For>
+                                </box>
+                              </Show>
+                              <Show when={recentTools().length > 0}>
+                                <box
+                                  border={["top"]}
+                                  borderColor={theme.borderSubtle}
+                                  paddingTop={1}
+                                  flexDirection="column"
+                                  gap={1}
+                                >
+                                  <text fg={theme.text}>Tool activity</text>
+                                  <For each={recentTools()}>
+                                    {(item) => (
+                                      <text
+                                        fg={
+                                          item.status === "error"
+                                            ? theme.error
+                                            : item.status === "pending" || item.status === "running"
+                                              ? theme.primary
+                                              : theme.textMuted
+                                        }
+                                        wrapMode="word"
+                                      >
+                                        {item.label}
+                                      </text>
+                                    )}
+                                  </For>
+                                </box>
+                              </Show>
+                              <Show when={pmSummary().recentCount > 0 && !liveArtifact().active}>
+                                <box
+                                  border={["top"]}
+                                  borderColor={theme.borderSubtle}
+                                  paddingTop={1}
+                                  flexDirection="column"
+                                  gap={1}
+                                >
+                                  <text fg={theme.text}>Recent PM commands</text>
+                                  <For each={pmSummary().recent.slice(0, 3)}>
+                                    {(entry) => (
+                                      <text fg={theme.textMuted} wrapMode="word">
+                                        {entry.text}
+                                      </text>
+                                    )}
+                                  </For>
+                                </box>
+                              </Show>
+                              <Show when={liveArtifact().active}>
+                                <box
+                                  border={["top"]}
+                                  borderColor={theme.borderSubtle}
+                                  paddingTop={1}
+                                  flexDirection="column"
+                                  gap={1}
+                                >
+                                  <text fg={theme.text}>Latest artifact</text>
+                                  <text fg={theme.primary} wrapMode="word">
+                                    {liveArtifact().title}
+                                  </text>
+                                  <text fg={theme.textMuted} wrapMode="word">
+                                    {liveArtifact().body.split("\n").slice(0, 8).join("\n")}
+                                  </text>
+                                </box>
+                              </Show>
+                            </box>
                           </Match>
                           <Match when={activePaneMode() === "diff"}>
                             <Show
