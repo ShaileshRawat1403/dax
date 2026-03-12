@@ -398,6 +398,21 @@ export function Session() {
   const sessionTurnCount = createMemo(() => messages().filter((message) => message.role === "user").length)
   const sessionTokenCount = createMemo(() => sessionTokenTotal(messages()))
   const sessionCostLabel = createMemo(() => formatUsd(sessionCostTotal(messages())))
+  const sessionGeneratedTokenCount = createMemo(() =>
+    messages().reduce((sum, message) => {
+      if (message.role !== "assistant") return sum
+      const tokens = message.tokens
+      if (!tokens) return sum
+      return sum + (tokens.output ?? 0) + (tokens.reasoning ?? 0)
+    }, 0),
+  )
+  const sessionElapsedLabel = createMemo(() => {
+    const currentSession = session()
+    if (!currentSession) return undefined
+    const duration = Math.max(0, (currentSession.time.updated ?? currentSession.time.created) - currentSession.time.created)
+    if (!duration) return undefined
+    return Locale.duration(duration)
+  })
   const contextUsage = createMemo(() => latestContextUsage(messages(), sync.data.provider))
   const connectedMcpCount = createMemo(
     () => Object.values(sync.data.mcp).filter((item) => item.status === "connected").length,
@@ -410,18 +425,23 @@ export function Session() {
   })
   const headerStats = createMemo(() => {
     const items: { label: string; color?: RGBA }[] = [
-      { label: `stage ${stageLabel().toLowerCase()}`, color: stageColor() },
+      { label: stageLabel().toLowerCase(), color: stageColor() },
     ]
     const usage = contextUsage()
     if (usage) {
       items.push({
-        label: usage.percentage !== null ? `ctx ${usage.percentage}%` : `ctx ${usage.tokens.toLocaleString()}`,
+        label: usage.percentage !== null ? `C:${usage.percentage}%` : `C:${usage.tokens.toLocaleString()}`,
       })
     }
     if (!stripCompact()) {
-      items.push({ label: `tok ${sessionTokenCount().toLocaleString()}` })
-      items.push({ label: `turns ${sessionTurnCount()}` })
-      items.push({ label: `cost ${sessionCostLabel()}` })
+      items.push({ label: `${sessionTokenCount().toLocaleString()}t` })
+      if (sessionGeneratedTokenCount() > 0) {
+        items.push({ label: `G:${sessionGeneratedTokenCount().toLocaleString()}` })
+      }
+      if (sessionElapsedLabel()) {
+        items.push({ label: sessionElapsedLabel()! })
+      }
+      items.push({ label: sessionCostLabel() })
     } else {
       items.push({ label: `${sessionTurnCount()} turns` })
     }

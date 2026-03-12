@@ -2,7 +2,6 @@ import { useSync } from "@tui/context/sync"
 import { createMemo, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
-import type { AssistantMessage } from "@dax-ai/sdk/v2"
 import { Installation } from "@/installation"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
@@ -11,7 +10,6 @@ import { TodoItem } from "../../component/todo-item"
 import { DAX_SETTING } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
-import { formatUsd, latestContextUsage, sessionCostTotal } from "@/dax/session-metrics"
 
 function SidebarAction(props: { label: string; onPress?: () => void; muted?: boolean; hint?: string }) {
   const { theme } = useTheme()
@@ -86,18 +84,6 @@ export function Sidebar(props: {
       ).length,
   )
 
-  const cost = createMemo(() => {
-    return formatUsd(sessionCostTotal(messages()))
-  })
-
-  const context = createMemo(() => {
-    const usage = latestContextUsage(messages() as AssistantMessage[], sync.data.provider)
-    if (!usage) return
-    return {
-      tokens: usage.tokens.toLocaleString(),
-      percentage: usage.percentage,
-    }
-  })
   const incompleteTodoCount = createMemo(() => todo().filter((item) => item.status !== "completed").length)
   const userTurnCount = createMemo(() => messages().filter((item) => item.role === "user").length)
 
@@ -308,28 +294,6 @@ export function Sidebar(props: {
                   </box>
                 )}
               </Show>
-            </box>
-            <box marginTop={1}>
-              <SectionHeading title="Usage" />
-              <box flexDirection="row" gap={1} marginTop={1}>
-                <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
-                <Show when={context()}>
-                  {(c) => {
-                    const p = c().percentage
-                    if (p === null) return <></>
-                    const filled = Math.floor(p / 10)
-                    const empty = 10 - filled
-                    return (
-                      <text fg={p > 80 ? theme.error : theme.success}>
-                        [{filled === 0 ? "░".repeat(10) : "▓".repeat(filled) + "░".repeat(empty)}] {p}%
-                      </text>
-                    )
-                  }}
-                </Show>
-              </box>
-              <box flexDirection="row" gap={1}>
-                <text fg={theme.textMuted}>{cost()} spent</text>
-              </box>
             </box>
             <Show when={mcpEntries().length > 0}>
               <box>
