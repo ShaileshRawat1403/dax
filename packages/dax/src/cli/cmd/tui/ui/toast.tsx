@@ -7,6 +7,8 @@ import z from "zod"
 import { TuiEvent } from "../event"
 
 export type ToastOptions = z.infer<typeof TuiEvent.ToastShow.properties>
+export type ToastPosition = "top-left" | "top-center" | "top-right"
+export type ToastStyle = "pill" | "band" | "card"
 
 export function Toast() {
   const toast = useToast()
@@ -24,7 +26,13 @@ export function Toast() {
           justifyContent="center"
           alignItems="flex-start"
           top={1}
-          left={Math.max(1, Math.floor((dimensions().width - Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))) / 2))}
+          left={Math.max(
+            1,
+            Math.floor(
+              (dimensions().width - Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))) /
+                2,
+            ),
+          )}
           width={Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))}
           maxWidth={Math.min(72, dimensions().width - 4)}
           paddingLeft={2}

@@ -1,3 +1,43 @@
+export type ProductState = "connected" | "waiting" | "blocked" | "needs_approval" | "failed"
+
+export function labelProductState(state: ProductState): string {
+  switch (state) {
+    case "connected":
+      return "Connected"
+    case "waiting":
+      return "Waiting"
+    case "blocked":
+      return "Blocked"
+    case "needs_approval":
+      return "Needs Approval"
+    case "failed":
+      return "Failed"
+  }
+}
+
+export function productStateIcon(state: ProductState): string {
+  switch (state) {
+    case "connected":
+      return "●"
+    case "waiting":
+      return "○"
+    case "blocked":
+      return "◐"
+    case "needs_approval":
+      return "◑"
+    case "failed":
+      return "✕"
+  }
+}
+
+export function aggregateProductState(states: ProductState[]): ProductState {
+  if (states.includes("failed")) return "failed"
+  if (states.includes("blocked")) return "blocked"
+  if (states.includes("needs_approval")) return "needs_approval"
+  if (states.includes("waiting")) return "waiting"
+  return "connected"
+}
+
 export function nextActionForMcpStatus(
   name: string,
   status: { status: "connected" | "disabled" | "failed" | "needs_auth" | "needs_client_registration"; error?: string },
