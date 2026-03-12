@@ -350,10 +350,10 @@ export function Session() {
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
-    // Preserve room by default, but allow context to stay visible on extra-wide terminals.
-    if (paneVisibility() !== "hidden" && !sidebarOpen() && !extraWide()) return false
+    // Always show sidebar on wide terminals (>120), like OG beta6 design
+    if (wide()) return true
+    // On narrow terminals, show if explicitly opened
     if (sidebarOpen()) return true
-    if (sidebar() === "auto" && wide()) return true
     return false
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
