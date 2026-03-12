@@ -7,15 +7,6 @@ function truthy(key: string) {
   return value === "true" || value === "1"
 }
 
-function csv(key: string) {
-  const value = readEnv(key)
-  if (!value) return []
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
 export namespace Flag {
   export const DAX_AUTO_SHARE = truthy("DAX_AUTO_SHARE")
   export const DAX_GIT_BASH_PATH = readEnv("DAX_GIT_BASH_PATH")
@@ -28,25 +19,14 @@ export namespace Flag {
   export const DAX_PERMISSION = readEnv("DAX_PERMISSION")
   export const DAX_DISABLE_SHARE = truthy("DAX_DISABLE_SHARE")
   export const DAX_DISABLE_DEFAULT_PLUGINS = truthy("DAX_DISABLE_DEFAULT_PLUGINS")
-  export const DAX_DISABLE_CONFIG_AUTO_INSTALL = truthy("DAX_DISABLE_CONFIG_AUTO_INSTALL")
   export const DAX_DISABLE_LSP_DOWNLOAD = truthy("DAX_DISABLE_LSP_DOWNLOAD")
   export const DAX_ENABLE_EXPERIMENTAL_MODELS = truthy("DAX_ENABLE_EXPERIMENTAL_MODELS")
   export const DAX_DISABLE_AUTOCOMPACT = truthy("DAX_DISABLE_AUTOCOMPACT")
   export const DAX_DISABLE_MODELS_FETCH = truthy("DAX_DISABLE_MODELS_FETCH")
   export const DAX_DISABLE_CLAUDE_CODE = truthy("DAX_DISABLE_CLAUDE_CODE")
-  export const DAX_DISABLE_CLAUDE_CODE_PROMPT =
-    DAX_DISABLE_CLAUDE_CODE || truthy("DAX_DISABLE_CLAUDE_CODE_PROMPT")
-  export const DAX_DISABLE_CLAUDE_CODE_SKILLS =
-    DAX_DISABLE_CLAUDE_CODE || truthy("DAX_DISABLE_CLAUDE_CODE_SKILLS")
-  export const DAX_DISABLE_EXTERNAL_SKILLS =
-    DAX_DISABLE_CLAUDE_CODE_SKILLS || truthy("DAX_DISABLE_EXTERNAL_SKILLS")
-  // When true, do not auto-inject external_directory allow wildcard into agent permissions.
-  // This enables stricter permission postures for locked-down environments.
-  export const DAX_STRICT_EXTERNAL_DIRECTORY = truthy("DAX_STRICT_EXTERNAL_DIRECTORY")
-  export const DAX_INSTRUCTION_URL_ALLOWLIST = csv("DAX_INSTRUCTION_URL_ALLOWLIST")
-  export const DAX_AUDIT_BETA = truthy("DAX_AUDIT_BETA")
-  export const DAX_AUDIT_PROFILE = readEnv("DAX_AUDIT_PROFILE")
-  export const DAX_AUDIT_AUTOTRIGGERS = readEnv("DAX_AUDIT_AUTOTRIGGERS")
+  export const DAX_DISABLE_CLAUDE_CODE_PROMPT = DAX_DISABLE_CLAUDE_CODE || truthy("DAX_DISABLE_CLAUDE_CODE_PROMPT")
+  export const DAX_DISABLE_CLAUDE_CODE_SKILLS = DAX_DISABLE_CLAUDE_CODE || truthy("DAX_DISABLE_CLAUDE_CODE_SKILLS")
+  export const DAX_DISABLE_EXTERNAL_SKILLS = DAX_DISABLE_CLAUDE_CODE_SKILLS || truthy("DAX_DISABLE_EXTERNAL_SKILLS")
   export declare const DAX_DISABLE_PROJECT_CONFIG: boolean
   export const DAX_FAKE_VCS = readEnv("DAX_FAKE_VCS")
   export declare const DAX_CLIENT: string
@@ -58,11 +38,9 @@ export namespace Flag {
   export const DAX_EXPERIMENTAL = truthy("DAX_EXPERIMENTAL")
   export const DAX_EXPERIMENTAL_FILEWATCHER = truthy("DAX_EXPERIMENTAL_FILEWATCHER")
   export const DAX_EXPERIMENTAL_DISABLE_FILEWATCHER = truthy("DAX_EXPERIMENTAL_DISABLE_FILEWATCHER")
-  export const DAX_EXPERIMENTAL_ICON_DISCOVERY =
-    DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_ICON_DISCOVERY")
+  export const DAX_EXPERIMENTAL_ICON_DISCOVERY = DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_ICON_DISCOVERY")
   export const DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT = truthy("DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT")
-  export const DAX_ENABLE_EXA =
-    truthy("DAX_ENABLE_EXA") || DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_EXA")
+  export const DAX_ENABLE_EXA = truthy("DAX_ENABLE_EXA") || DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_EXA")
   export const DAX_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS = number("DAX_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS")
   export const DAX_EXPERIMENTAL_OUTPUT_TOKEN_MAX = number("DAX_EXPERIMENTAL_OUTPUT_TOKEN_MAX")
   export const DAX_EXPERIMENTAL_OXFMT = DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_OXFMT")
@@ -70,7 +48,7 @@ export namespace Flag {
   export const DAX_EXPERIMENTAL_LSP_TOOL = DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_LSP_TOOL")
   export const DAX_DISABLE_FILETIME_CHECK = truthy("DAX_DISABLE_FILETIME_CHECK")
   export const DAX_EXPERIMENTAL_PLAN_MODE = DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_PLAN_MODE")
-  export const DAX_EXPERIMENTAL_MARKDOWN = truthy("DAX_EXPERIMENTAL_MARKDOWN")
+  export const DAX_EXPERIMENTAL_MARKDOWN = DAX_EXPERIMENTAL || truthy("DAX_EXPERIMENTAL_MARKDOWN")
   export const DAX_MODELS_URL = readEnv("DAX_MODELS_URL")
   export const DAX_MODELS_PATH = readEnv("DAX_MODELS_PATH")
 
