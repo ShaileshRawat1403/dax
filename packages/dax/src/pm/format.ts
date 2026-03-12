@@ -15,7 +15,12 @@ export function parsePMList(text: string): { rows: PMListRow[]; info?: string } 
     rows.push({
       day: match[1]!,
       title: match[2]!,
-      tags: match[3] ? match[3].split(",").map((tag) => tag.trim()).filter(Boolean) : [],
+      tags: match[3]
+        ? match[3]
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        : [],
     })
   }
 
@@ -44,4 +49,14 @@ export function parsePMRules(text: string): { rows: PMRuleRow[]; info?: string }
 
   if (!rows.length) return { rows, info: trimmed }
   return { rows }
+}
+
+export function formatPMList(rows: PMListRow[]): string {
+  if (!rows.length) return "No DSR notes found."
+  return rows.map((r) => `- ${r.day} | ${r.title}${r.tags.length ? ` [${r.tags.join(", ")}]` : ""}`).join("\n")
+}
+
+export function formatPMRules(rows: PMRuleRow[]): string {
+  if (!rows.length) return "No PM rules set."
+  return rows.map((r) => `- ${r.ruleType} ${r.pattern} -> ${r.action}${r.source ? ` (${r.source})` : ""}`).join("\n")
 }

@@ -191,7 +191,11 @@ export namespace Config {
         }
       }
 
-      if (!Installation.isLocal() && !Flag.DAX_DISABLE_CONFIG_AUTO_INSTALL && result.experimental?.auto_install_config_dependencies !== false) {
+      if (
+        !Installation.isLocal() &&
+        !Flag.DAX_DISABLE_CONFIG_AUTO_INSTALL &&
+        result.experimental?.auto_install_config_dependencies !== false
+      ) {
         deps.push(
           iife(async () => {
             const shouldInstall = await needsInstall(dir)

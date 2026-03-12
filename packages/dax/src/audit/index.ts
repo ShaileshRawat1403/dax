@@ -66,7 +66,12 @@ export namespace Audit {
   export type Result = z.infer<typeof Result>
 
   const DEFAULT_FAIL_ON = ["security", "auth", "policy", "release", "test", "documentation"]
-  const REQUIRED_RELEASE_FILES = ["packages/dax/script/build.ts", "script/install.sh", "README.md", "docs/prerelease.md"]
+  const REQUIRED_RELEASE_FILES = [
+    "packages/dax/script/build.ts",
+    "script/install.sh",
+    "README.md",
+    "docs/prerelease.md",
+  ]
 
   function parseProfile(value: string | undefined): Profile | undefined {
     if (!value) return
@@ -85,9 +90,9 @@ export namespace Audit {
 
   export function resolveSettings(config: Config.Info) {
     const profile =
-      parseProfile(Flag.DAX_AUDIT_PROFILE) ?? parseProfile(config.audit?.profile) ?? ("strict" satisfies Profile)
+      parseProfile(Flag.DAX_AUDIT_PROFILE ?? "") ?? parseProfile(config.audit?.profile) ?? ("strict" satisfies Profile)
     const auto_triggers = Array.from(
-      new Set([...(config.audit?.auto_triggers ?? []), ...csv(Flag.DAX_AUDIT_AUTOTRIGGERS)]),
+      new Set([...(config.audit?.auto_triggers ?? []), ...csv(Flag.DAX_AUDIT_AUTOTRIGGERS ?? "")]),
     ).filter((t) => Trigger.safeParse(t).success)
     const fail_on = config.audit?.fail_on?.length ? config.audit.fail_on : DEFAULT_FAIL_ON
     const enabled = Flag.DAX_AUDIT_BETA || config.audit?.enabled === true
@@ -122,11 +127,7 @@ export namespace Audit {
     }
   }
 
-  export async function run(input?: {
-    trigger?: Trigger
-    profile?: Profile
-    config?: Config.Info
-  }): Promise<Result> {
+  export async function run(input?: { trigger?: Trigger; profile?: Profile; config?: Config.Info }): Promise<Result> {
     const trigger = input?.trigger ?? "manual"
     const config = input?.config ?? (await Config.get())
     const settings = resolveSettings(config)
@@ -172,7 +173,7 @@ export namespace Audit {
     } else {
       const pkg = await Bun.file(pkgPath)
         .json()
-        .catch(() => ({} as any))
+        .catch(() => ({}) as any)
       const scripts = (pkg as any).scripts ?? {}
       for (const requiredScript of ["test", "typecheck:dax", "release:verify"]) {
         if (typeof scripts[requiredScript] !== "string") {
@@ -218,7 +219,7 @@ export namespace Audit {
       (item) => item.startsWith("https://") || item.startsWith("http://"),
     )
     const hasInstructionAllowlist =
-      (config.instruction_url_allowlist?.length ?? 0) > 0 || Flag.DAX_INSTRUCTION_URL_ALLOWLIST.length > 0
+      (config.instruction_url_allowlist?.length ?? 0) > 0 || (Flag.DAX_INSTRUCTION_URL_ALLOWLIST?.length ?? 0) > 0
     if (hasRemoteInstructionURL && !hasInstructionAllowlist) {
       findings.push(
         finding({
@@ -263,7 +264,10 @@ export namespace Audit {
     if (docsQA) {
       for (const check of docsQA.checks) {
         const mappedSeverity: Severity =
-          check.severity === "critical" || check.severity === "high" || check.severity === "medium" || check.severity === "low"
+          check.severity === "critical" ||
+          check.severity === "high" ||
+          check.severity === "medium" ||
+          check.severity === "low"
             ? check.severity
             : "info"
         findings.push(
@@ -309,11 +313,7 @@ export namespace Audit {
           severity: "high",
           category: "release",
           title: "Working tree has uncommitted changes before release",
-          evidence: gitStatus
-            .trim()
-            .split("\n")
-            .slice(0, 8)
-            .join("; "),
+          evidence: gitStatus.trim().split("\n").slice(0, 8).join("; "),
           impact: "Release reproducibility and traceability are reduced.",
           fix: "Commit/stash/clean local changes before publish.",
           owner_hint: "release engineering",
@@ -328,7 +328,10 @@ export namespace Audit {
     const info_count = findings.filter((item) => item.severity === "info").length
     const status: Status = blocker_count > 0 ? "fail" : warning_count > 0 ? "warn" : "pass"
     const next_actions = [
-      ...findings.filter((item) => item.blocking).slice(0, 3).map((item) => `Resolve blocker: ${item.title}`),
+      ...findings
+        .filter((item) => item.blocking)
+        .slice(0, 3)
+        .map((item) => `Resolve blocker: ${item.title}`),
       ...(blocker_count === 0 && warning_count > 0 ? ["Resolve warnings before next release cut."] : []),
       ...(findings.length === 0 ? ["No issues found. Keep release verification in CI."] : []),
     ]

@@ -8,4 +8,8 @@ export const DAX_SETTING = {
   session_workflow_mode: "session_workflow_mode",
   session_pm_tab: "session_pm_tab",
   session_stream_slow: "session_stream_slow",
+  toast_position: "toast_position",
+  toast_style: "toast_style",
+  session_preferred_name_prefix: "session_preferred_name_prefix",
+  preferred_name_default: "preferred_name_default",
 } as const

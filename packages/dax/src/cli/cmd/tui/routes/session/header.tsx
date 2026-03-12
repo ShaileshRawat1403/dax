@@ -15,7 +15,7 @@ type HeaderAction = {
 
 export function Header(props: {
   sessionLabel?: string
-  lifecycleLabel: string
+  lifecycleLabel?: string
   currentStep?: string
   trustLabel?: string
   emphasis?: "normal" | "muted"
@@ -28,9 +28,10 @@ export function Header(props: {
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 
   const lifecycleColor = createMemo(() => {
-    if (/approval/i.test(props.lifecycleLabel)) return theme.warning
-    if (/blocked|failed/i.test(props.lifecycleLabel)) return theme.error
-    if (/completed|ready/i.test(props.lifecycleLabel)) return theme.success
+    const label = props.lifecycleLabel ?? ""
+    if (/approval/i.test(label)) return theme.warning
+    if (/blocked|failed/i.test(label)) return theme.error
+    if (/completed|ready/i.test(label)) return theme.success
     return theme.accent
   })
   const sessionIntent = createMemo(() => {
@@ -55,8 +56,7 @@ export function Header(props: {
     if (!last) return "guided" as const
     const parent = last.parentID ? messages().find((x) => x.id === last.parentID && x.role === "user") : undefined
     const askedPart =
-      parent &&
-      (sync.data.part[parent.id] ?? []).find((x) => x.type === "text" && "text" in x && x.text.trim())
+      parent && (sync.data.part[parent.id] ?? []).find((x) => x.type === "text" && "text" in x && x.text.trim())
     const asked = askedPart && "text" in askedPart ? askedPart.text : ""
     const parts = sync.data.part[last.id] ?? []
     return classifyAssistantNarrativeIntensity({
@@ -65,7 +65,9 @@ export function Header(props: {
       hasPendingTool: parts.some((part) => part.type === "tool" && part.state.status === "pending"),
       hasToolActivity: parts.some((part) => part.type === "tool"),
       toolCount: parts.filter((part) => part.type === "tool").length,
-      hasExecuteTool: parts.some((part) => part.type === "tool" && ["write", "edit", "apply_patch", "bash"].includes(part.tool)),
+      hasExecuteTool: parts.some(
+        (part) => part.type === "tool" && ["write", "edit", "apply_patch", "bash"].includes(part.tool),
+      ),
       hasVerifyTool: parts.some((part) => part.type === "tool" && ["read", "grep", "list", "glob"].includes(part.tool)),
       hasReasoning: parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0),
       hasError: !!last.error,
@@ -96,14 +98,15 @@ export function Header(props: {
             </text>
             <Show when={showSessionTitle()}>
               <>
-                <text fg={theme.textMuted}>
-                  {title()}
-                </text>
+                <text fg={theme.textMuted}>{title()}</text>
                 <text fg={theme.textMuted}>·</text>
               </>
             </Show>
             <Show when={showLifecycle()}>
-              <text fg={shellIntensity() === "light" ? theme.textMuted : theme.text} attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}>
+              <text
+                fg={shellIntensity() === "light" ? theme.textMuted : theme.text}
+                attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}
+              >
                 {props.lifecycleLabel}
               </text>
             </Show>

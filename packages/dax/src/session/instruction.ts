@@ -34,18 +34,13 @@ async function resolveRelative(instruction: string): Promise<string[]> {
     return Filesystem.globUp(instruction, Instance.directory, Instance.worktree).catch(() => [])
   }
   if (!Flag.DAX_CONFIG_DIR) {
-    log.warn(
-      `Skipping relative instruction "${instruction}" - no DAX_CONFIG_DIR set while project config is disabled`,
-    )
+    log.warn(`Skipping relative instruction "${instruction}" - no DAX_CONFIG_DIR set while project config is disabled`)
     return []
   }
   return Filesystem.globUp(instruction, Flag.DAX_CONFIG_DIR, Flag.DAX_CONFIG_DIR).catch(() => [])
 }
 
-export function isAllowedInstructionURL(input: {
-  url: string
-  allowlist: string[]
-}): boolean {
+export function isAllowedInstructionURL(input: { url: string; allowlist: string[] }): boolean {
   if (input.allowlist.length === 0) return true
 
   const parsed = new URL(input.url)
@@ -156,7 +151,7 @@ export namespace InstructionPrompt {
     const config = await Config.get()
     const paths = await systemPaths()
     const urlAllowlist = Array.from(
-      new Set([...(config.instruction_url_allowlist ?? []), ...Flag.DAX_INSTRUCTION_URL_ALLOWLIST]),
+      new Set([...(config.instruction_url_allowlist ?? []), ...(Flag.DAX_INSTRUCTION_URL_ALLOWLIST ?? "")]),
     )
 
     const files = Array.from(paths)
@@ -183,10 +178,10 @@ export namespace InstructionPrompt {
     const fetches = Array.from(urls)
       .sort()
       .map((url) =>
-      fetch(url, { signal: AbortSignal.timeout(5000) })
-        .then((res) => (res.ok ? res.text() : ""))
-        .catch(() => "")
-        .then((x) => (x ? "Instructions from: " + url + "\n" + truncateInstruction(url, x) : "")),
+        fetch(url, { signal: AbortSignal.timeout(5000) })
+          .then((res) => (res.ok ? res.text() : ""))
+          .catch(() => "")
+          .then((x) => (x ? "Instructions from: " + url + "\n" + truncateInstruction(url, x) : "")),
       )
 
     return Promise.all([...files, ...fetches]).then((result) => result.filter(Boolean))
