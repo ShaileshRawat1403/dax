@@ -19,6 +19,7 @@ import { isEli12Mode, nextIntentMode } from "@/dax/intent"
 import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
 import { useToast } from "../ui/toast"
+import { useLocal } from "../context/local"
 
 const WELCOME_MESSAGES = {
   firstTime: [
@@ -91,6 +92,14 @@ function ActionChip(props: { label: string; active?: boolean; onPress: () => voi
   )
 }
 
+function PromptStarter(props: { label: string; onPress: () => void; theme: any }) {
+  return (
+    <box onMouseUp={props.onPress} paddingLeft={1} paddingRight={1} backgroundColor={props.theme.backgroundElement}>
+      <text fg={props.theme.textMuted}>{props.label}</text>
+    </box>
+  )
+}
+
 export function Home() {
   const sync = useSync()
   const kv = useKV()
@@ -103,6 +112,7 @@ export function Home() {
   const promptRef = usePromptRef()
   const command = useCommandDialog()
   const toast = useToast()
+  const local = useLocal()
   const dimensions = useTerminalDimensions()
   const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
   const mcpError = createMemo(() => Object.values(sync.data.mcp).some((x) => x.status === "failed"))
@@ -124,6 +134,34 @@ export function Home() {
   })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const stages = createMemo(() => (explainMode() ? HOME_STAGE_ELI12 : HOME_STAGE))
+
+  function promptText(kind: "explore" | "plan" | "audit" | "docs") {
+    if (explainMode()) {
+      return {
+        explore: "Explore this repository and explain the main parts in simple language.",
+        plan: "Plan the safest next steps for this project in simple language.",
+        audit: "Audit this repository for the most important release, policy, and quality risks in simple language.",
+        docs: "Read the docs and explain what this project does in simple language.",
+      }[kind]
+    }
+
+    return {
+      explore: "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
+      plan: "Plan the next safe implementation steps for this project.",
+      audit: "Audit this repository for the most important release, policy, test, and documentation risks.",
+      docs: "Read the documentation and summarize the product surface, architecture, and operator flow.",
+    }[kind]
+  }
+
+  function setPromptDraft(text: string, submit = false, mode?: "plan" | "build" | "explore" | "docs" | "audit") {
+    if (mode) {
+      local.agent.set(mode)
+      kv.set(DAX_SETTING.session_workflow_mode, mode)
+    }
+    prompt.set({ input: text, parts: [] })
+    prompt.focus()
+    if (submit) prompt.submit()
+  }
 
   function cycleTheme(step: 1 | -1) {
     const themes = Object.keys(themeState.all()).sort()
@@ -157,6 +195,42 @@ export function Home() {
         dialog.clear()
       },
     },
+    {
+      title: "Start Explore prompt",
+      value: "dax.explore.start",
+      category: "Workflows",
+      onSelect: (dialog) => {
+        setPromptDraft(promptText("explore"), false, "explore")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Start Plan prompt",
+      value: "dax.plan.start",
+      category: "Workflows",
+      onSelect: (dialog) => {
+        setPromptDraft(promptText("plan"), false, "plan")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Start Audit prompt",
+      value: "dax.audit.start",
+      category: "Workflows",
+      onSelect: (dialog) => {
+        setPromptDraft(promptText("audit"), false, "audit")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Start Docs prompt",
+      value: "dax.docs.start",
+      category: "Workflows",
+      onSelect: (dialog) => {
+        setPromptDraft(promptText("docs"), false, "docs")
+        dialog.clear()
+      },
+    },
   ])
 
   const Hint = (
@@ -165,10 +239,10 @@ export function Home() {
         <box flexDirection="row" gap={1}>
           <Switch>
             <Match when={mcpError()}>
-              <span style={{ fg: theme.error }}>!</span>
+              <text fg={theme.error}>!</text>
             </Match>
             <Match when={true}>
-              <span style={{ fg: theme.success }}>●</span>
+              <text fg={theme.success}>●</text>
             </Match>
           </Switch>
           <text fg={theme.textMuted}>{Locale.pluralize(connectedMcpCount(), "{} mcp", "{} mcp")}</text>
@@ -179,7 +253,6 @@ export function Home() {
 
   let prompt: PromptRef
   const args = useArgs()
-  const [welcomeBanner, setWelcomeBanner] = createSignal<string | undefined>()
 
   onMount(() => {
     if (once) return
@@ -188,17 +261,21 @@ export function Home() {
     if (!welcomeShown) {
       welcomeShown = true
       setTimeout(() => {
+        let message = ""
         if (isFirstTimeUser()) {
-          const msg = WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)]
-          setWelcomeBanner(msg)
+          message = WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)] ?? "Welcome to DAX."
         } else {
           const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
           const sessionInfo = sessionCount() > 0 ? ` (${sessionCount()} sessions)` : ""
-          setWelcomeBanner(msg + sessionInfo)
+          message = (msg ?? "Welcome back to DAX.") + sessionInfo
         }
+        toast.show({
+          title: "Welcome",
+          message,
+          variant: "info",
+          duration: 4200,
+        })
       }, 500)
-      const hide = setTimeout(() => setWelcomeBanner(undefined), 4200)
-      onCleanup(() => clearTimeout(hide))
     }
 
     if (route.initialPrompt) {
@@ -232,27 +309,6 @@ export function Home() {
 
   return (
     <>
-      <Show when={welcomeBanner()}>
-        {(msg) => (
-          <box
-            position="absolute"
-            top={2}
-            left={2}
-            width={Math.min(58, dimensions().width - 6)}
-            paddingLeft={2}
-            paddingRight={2}
-            paddingTop={1}
-            paddingBottom={1}
-            backgroundColor={theme.backgroundPanel}
-            border={["top"]}
-            borderColor={theme.accent}
-          >
-            <text fg={theme.text} wrapMode="word">
-              {msg()}
-            </text>
-          </box>
-        )}
-      </Show>
       <box
         flexGrow={1}
         justifyContent="center"
@@ -286,6 +342,10 @@ export function Home() {
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
+                <ActionChip label="Explore" theme={theme} onPress={() => setPromptDraft(promptText("explore"), false, "explore")} />
+                <ActionChip label="Plan" theme={theme} onPress={() => setPromptDraft(promptText("plan"), false, "plan")} />
+                <ActionChip label="Audit" theme={theme} onPress={() => setPromptDraft(promptText("audit"), false, "audit")} />
+                <ActionChip label="Docs" theme={theme} onPress={() => setPromptDraft(promptText("docs"), false, "docs")} />
                 <ActionChip
                   label="Tips"
                   active={showTips()}
@@ -309,6 +369,16 @@ export function Home() {
                 hint={Hint}
               />
             </box>
+
+            <Show when={!tiny()}>
+              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
+                <text fg={theme.textMuted}>Start with</text>
+                <PromptStarter label="Explore repo" theme={theme} onPress={() => setPromptDraft(promptText("explore"), false, "explore")} />
+                <PromptStarter label="Plan next step" theme={theme} onPress={() => setPromptDraft(promptText("plan"), false, "plan")} />
+                <PromptStarter label="Audit risks" theme={theme} onPress={() => setPromptDraft(promptText("audit"), false, "audit")} />
+                <PromptStarter label="Summarize docs" theme={theme} onPress={() => setPromptDraft(promptText("docs"), false, "docs")} />
+              </box>
+            </Show>
 
             <Show when={!tiny() && sessionCount() > 0}>
               <box width="100%" marginTop={1} flexDirection="column" gap={0}>
@@ -363,10 +433,10 @@ export function Home() {
             <box flexDirection="row" gap={1}>
               <Switch>
                 <Match when={mcpError()}>
-                  <span style={{ fg: theme.error }}>!</span>
+                  <text fg={theme.error}>!</text>
                 </Match>
                 <Match when={true}>
-                  <span style={{ fg: connectedMcpCount() > 0 ? theme.success : theme.textMuted }}>●</span>
+                  <text fg={connectedMcpCount() > 0 ? theme.success : theme.textMuted}>●</text>
                 </Match>
               </Switch>
               <Show when={!tiny()}>

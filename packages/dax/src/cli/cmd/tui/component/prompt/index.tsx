@@ -58,6 +58,7 @@ export type PromptRef = {
 
 const PLACEHOLDERS = ["Plan this project in plain language", "Ship one safe improvement", "Find the best next step"]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
+const WORKFLOW_AGENT_MODES = new Set(["plan", "build", "explore", "docs", "audit"])
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
 
 You are DAX.
@@ -286,6 +287,9 @@ export function Prompt(props: PromptProps) {
       const isPrimaryAgent = local.agent.list().some((x) => x.name === msg.agent)
       if (msg.agent && isPrimaryAgent) {
         local.agent.set(msg.agent)
+        if (WORKFLOW_AGENT_MODES.has(msg.agent)) {
+          kv.set(DAX_SETTING.session_workflow_mode, msg.agent)
+        }
         if (msg.model) local.model.set(msg.model)
         if (msg.variant) local.model.variant.set(msg.variant)
       }
@@ -1180,7 +1184,9 @@ export function Prompt(props: PromptProps) {
             </box>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
               <text fg={highlight()}>
-                {store.mode === "shell" ? "Shell" : Locale.titlecase(local.agent.current().name)}{" "}
+                {store.mode === "shell"
+                  ? "Shell"
+                  : Locale.titlecase(kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))}{" "}
               </text>
               <Show when={store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>

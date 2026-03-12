@@ -13,6 +13,19 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 
+const WORKFLOW_AGENT_ORDER = ["plan", "build", "explore", "docs", "audit"] as const
+
+function sortWorkflowAgents<T extends { name: string }>(agents: T[]) {
+  return [...agents].sort((a, b) => {
+    const aIndex = WORKFLOW_AGENT_ORDER.indexOf(a.name as (typeof WORKFLOW_AGENT_ORDER)[number])
+    const bIndex = WORKFLOW_AGENT_ORDER.indexOf(b.name as (typeof WORKFLOW_AGENT_ORDER)[number])
+    const aRank = aIndex === -1 ? WORKFLOW_AGENT_ORDER.length : aIndex
+    const bRank = bIndex === -1 ? WORKFLOW_AGENT_ORDER.length : bIndex
+    if (aRank !== bRank) return aRank - bRank
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
   init: () => {
@@ -34,7 +47,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const agent = iife(() => {
-      const agents = createMemo(() => sync.data.agent.filter((x) => x.mode !== "subagent" && !x.hidden))
+      const agents = createMemo(() =>
+        sortWorkflowAgents(sync.data.agent.filter((x) => x.mode !== "subagent" && !x.hidden)),
+      )
       const visibleAgents = createMemo(() => sync.data.agent.filter((x) => !x.hidden))
       const [agentStore, setAgentStore] = createStore<{
         current: string

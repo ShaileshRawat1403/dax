@@ -62,6 +62,9 @@ import { DialogConfirm } from "@tui/ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
+import { DialogApprovals } from "../../component/dialog-approvals"
+import { DialogDiff } from "../../component/dialog-diff"
+import { DialogStatus } from "../../component/dialog-status"
 import { Sidebar } from "./sidebar"
 import { Flag } from "@/flag/flag"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
@@ -77,6 +80,7 @@ import { useExit } from "../../context/exit"
 import { useUIActivity } from "../../context/activity"
 import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
+import { Identifier } from "@/id/id"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
@@ -84,6 +88,7 @@ import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
 import { labelStage, type StreamStage } from "@/dax/workflow/stage"
+import { parsePMList, parsePMRules } from "@/pm/format"
 import {
   PANE_MODE,
   type PaneFollowMode,
@@ -91,8 +96,6 @@ import {
   type PaneVisibility,
   paneLabel as daxPaneLabel,
   paneTitle as daxPaneTitle,
-  insightsLabel,
-  memoryLabel,
 } from "@/dax/presentation/pane"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
@@ -104,6 +107,25 @@ const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
 const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
 const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
 const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
+type PMTab = "note" | "list" | "rules"
+type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
+const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
+type AuditResult = {
+  run_id: string
+  timestamp: string
+  profile: "strict" | "balanced" | "advisory"
+  status: "pass" | "warn" | "fail"
+  findings: unknown[]
+  summary: {
+    blocker_count: number
+    warning_count: number
+    info_count: number
+  }
+  next_actions: string[]
+  metadata: {
+    trigger: string
+  }
+}
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -177,7 +199,7 @@ export function Session() {
   })
 
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "hide")
+  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
@@ -191,10 +213,20 @@ export function Session() {
   const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(DAX_SETTING.session_pane_visibility, "auto")
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "artifact")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
+  const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
-  const { currentPun } = useUIActivity()
+  useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const promptDisabled = createMemo(() => !!session()?.parentID)
+  createEffect(() => {
+    const mode = workflowMode()
+    if (!WORKFLOW_AGENT_MODES.has(mode)) return
+    const availableAgents = local.agent.list()
+    if (availableAgents.length === 0) return
+    if (local.agent.current()?.name === mode) return
+    if (!availableAgents.some((a) => a.name === mode)) return
+    local.agent.set(mode)
+  })
   onCleanup(() => {
     promptRef.set(undefined)
   })
@@ -314,11 +346,12 @@ export function Session() {
   const [streamParts, setStreamParts] = createSignal<Record<string, Part[]>>({})
 
   const wide = createMemo(() => dimensions().width > 120)
+  const extraWide = createMemo(() => dimensions().width > 165)
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
-    // Preserve horizontal room by default when side pane is active.
-    if (paneVisibility() !== "hidden" && !sidebarOpen()) return false
+    // Preserve room by default, but allow context to stay visible on extra-wide terminals.
+    if (paneVisibility() !== "hidden" && !sidebarOpen() && !extraWide()) return false
     if (sidebarOpen()) return true
     if (sidebar() === "auto" && wide()) return true
     return false
@@ -344,10 +377,10 @@ export function Session() {
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
-    return Math.max(38, Math.floor((total - gapAndBorders) * 0.3))
+    return Math.max(34, Math.floor((total - gapAndBorders) * 0.26))
   })
-  const mainPaneGrow = createMemo(() => (liveStacked() ? 6 : 7))
-  const sidePaneGrow = createMemo(() => (liveStacked() ? 4 : 3))
+  const mainPaneGrow = createMemo(() => (liveStacked() ? 7 : 8))
+  const sidePaneGrow = createMemo(() => (liveStacked() ? 3 : 3))
   const paneDiffView = createMemo(() => {
     const diffStyle = sync.data.config.tui?.diff_style
     if (diffStyle === "stacked") return "unified"
@@ -420,14 +453,6 @@ export function Session() {
     setPaneVisibility(() => next)
   }
 
-  function cyclePaneMode() {
-    const modes = PANE_MODES
-    const i = modes.indexOf(paneMode())
-    const next = modes[(i + 1) % modes.length]
-    if (!next) return
-    setPaneMode(() => next)
-  }
-
   function pauseSmartFollow() {
     if (paneFollowMode() !== "smart") return
     if (!smartFollowActive()) return
@@ -491,9 +516,11 @@ export function Session() {
 
     if (part.tool === "plan_exit") {
       local.agent.set("build")
+      setWorkflowMode(() => "build")
       lastSwitch = part.id
     } else if (part.tool === "plan_enter") {
       local.agent.set("plan")
+      setWorkflowMode(() => "plan")
       lastSwitch = part.id
     }
   })
@@ -576,6 +603,370 @@ export function Session() {
   }
 
   const local = useLocal()
+  const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
+
+  const messageText = (messageID: string) => {
+    const parts = sync.data.part[messageID] ?? []
+    let text = ""
+    for (const part of parts) {
+      if (part.type !== "text" || part.synthetic) continue
+      text += part.text
+    }
+    return text.trim()
+  }
+
+  const pmHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      subcommand: PMTab | "help"
+      responseText: string
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/pm")) continue
+      const subcommand = (commandText.split(/\s+/)[1]?.toLowerCase() ?? "help") as PMTab | "help"
+      const response = messageList.find(
+        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
+      )
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+
+      items.push({
+        commandText,
+        subcommand: ["note", "list", "rules"].includes(subcommand) ? (subcommand as PMTab) : "help",
+        responseText,
+        createdAt: response.time.created,
+      })
+    }
+
+    return items
+  })
+
+  const parseAuditResult = (text: string): AuditResult | undefined => {
+    if (!text) return
+    const fenced = text.match(/```json\\s*([\\s\\S]*?)```/i)?.[1]
+    const candidate = fenced ?? text
+    try {
+      const parsed = JSON.parse(candidate) as AuditResult
+      if (!parsed || !Array.isArray(parsed.findings) || !parsed.summary) return
+      return parsed
+    } catch {
+      return
+    }
+  }
+
+  const recentPmCommands = createMemo(() =>
+    messages()
+      .filter((message) => message.role === "user")
+      .map((message) => ({
+        id: message.id,
+        text: messageText(message.id),
+      }))
+      .filter((entry) => entry.text.startsWith("/pm "))
+      .slice(-6)
+      .reverse(),
+  )
+
+  const latestPmListResponse = createMemo(() => pmHistory().findLast((entry) => entry.subcommand === "list"))
+  const latestPmRulesResponse = createMemo(() =>
+    pmHistory().findLast((entry) => entry.subcommand === "rules" && entry.commandText.trim() === "/pm rules"),
+  )
+  const latestPmRulesAddResponse = createMemo(() =>
+    pmHistory().findLast(
+      (entry) => entry.subcommand === "rules" && entry.commandText.trim().startsWith("/pm rules add "),
+    ),
+  )
+
+  const parsedPmList = createMemo(() => {
+    const responseText = latestPmListResponse()?.responseText
+    const parsed = parsePMList(responseText ?? "")
+    return {
+      rows: parsed.rows,
+      empty: parsed.rows.length === 0,
+      info: parsed.info ?? "",
+    }
+  })
+
+  const parsedPmRules = createMemo(() => {
+    const responseText = latestPmRulesResponse()?.responseText
+    const parsed = parsePMRules(responseText ?? "")
+    return {
+      rows: parsed.rows,
+      empty: parsed.rows.length === 0,
+      info: parsed.info ?? "",
+    }
+  })
+
+  const auditHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      responseText: string
+      result?: AuditResult
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/audit")) continue
+      const response = messageList.find(
+        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
+      )
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+      items.push({
+        commandText,
+        responseText,
+        result: parseAuditResult(responseText),
+        createdAt: response.time.created,
+      })
+    }
+
+    return items
+  })
+
+  const latestAudit = createMemo(() => auditHistory().findLast((entry) => entry.result !== undefined))
+
+  const prefillPmNote = () => {
+    prompt?.set({
+      input: "/pm note Project constants | Product codename is ... | release,context",
+      parts: [],
+    })
+  }
+
+  const runSessionSlashCommand = async (raw: string) => {
+    const selectedModel = local.model.current()
+    if (!selectedModel) {
+      toast.show({
+        variant: "warning",
+        message: "Select a model before running commands",
+        duration: 3000,
+      })
+      return
+    }
+
+    const trimmed = raw.trim()
+    if (!trimmed.startsWith("/")) return
+    if (trimmed.startsWith("/audit")) setWorkflowMode(() => "audit")
+    const commandLine = trimmed.slice(1)
+    const [name, ...rest] = commandLine.split(" ")
+    if (!name) return
+    const variant = local.model.variant.current()
+    const args = rest.join(" ").trim()
+
+    await sdk.client.session
+      .command({
+        sessionID: route.sessionID,
+        command: name,
+        arguments: args,
+        agent: local.agent.current().name,
+        model: `${selectedModel.providerID}/${selectedModel.modelID}`,
+        messageID: Identifier.ascending("message"),
+        variant,
+        parts: [],
+      })
+      .then(() => {
+        setPaneVisibility(() => "pinned")
+        toast.show({ message: `Queued ${trimmed}`, variant: "success", duration: 1600 })
+        toBottom()
+      })
+      .catch((error) => {
+        toast.error(error)
+      })
+  }
+
+  const runPmCommand = async (raw: string) => runSessionSlashCommand(raw)
+  const runAuditCommand = async (raw: string) => runSessionSlashCommand(raw)
+
+  const selectWorkflowMode = (mode: WorkflowMode) => {
+    const availableAgents = local.agent.list()
+    if (!availableAgents.some((a) => a.name === mode)) {
+      toast.show({
+        variant: "warning",
+        message: `Mode "${mode}" not available. Agents loading...`,
+        duration: 3000,
+      })
+      return
+    }
+    setWorkflowMode(() => mode)
+    local.agent.set(mode)
+    prompt?.focus()
+  }
+
+  const revertInfo = createMemo(() => session()?.revert)
+  const revertMessageID = createMemo(() => revertInfo()?.messageID)
+
+  const revertDiffFiles = createMemo(() => {
+    const diffText = revertInfo()?.diff ?? ""
+    if (!diffText) return []
+
+    try {
+      const patches = parsePatch(diffText)
+      return patches.map((patch) => {
+        const filename = patch.newFileName || patch.oldFileName || "unknown"
+        const cleanFilename = filename.replace(/^[ab]\//, "")
+        return {
+          filename: cleanFilename,
+          additions: patch.hunks.reduce(
+            (sum, hunk) => sum + hunk.lines.filter((line) => line.startsWith("+")).length,
+            0,
+          ),
+          deletions: patch.hunks.reduce(
+            (sum, hunk) => sum + hunk.lines.filter((line) => line.startsWith("-")).length,
+            0,
+          ),
+        }
+      })
+    } catch {
+      return []
+    }
+  })
+
+  const revertRevertedMessages = createMemo(() => {
+    const messageID = revertMessageID()
+    if (!messageID) return []
+    return messages().filter((x) => x.id >= messageID && x.role === "user")
+  })
+
+  const revert = createMemo(() => {
+    const info = revertInfo()
+    if (!info?.messageID) return
+    return {
+      messageID: info.messageID,
+      reverted: revertRevertedMessages(),
+      diff: info.diff,
+      diffFiles: revertDiffFiles(),
+    }
+  })
+
+  const paneDiffFiletype = createMemo(() => {
+    const files = revert()?.diffFiles
+    if (!files?.length) return "none"
+    return filetype(files[0].filename)
+  })
+
+  const liveArtifact = createMemo(() => {
+    for (const msg of [...messages()].reverse()) {
+      if (msg.role !== "assistant") continue
+      const tool = [...(sync.data.part[msg.id] ?? [])].reverse().find((x): x is ToolPart => x.type === "tool")
+      if (!tool) continue
+      const input = (tool.state.input ?? {}) as Record<string, any>
+      const pathHint = input.path || input.file || input.filename || input.target || ""
+      const output = tool.state.status === "completed" ? tool.state.output : tool.state.input
+      let body = ""
+      if (typeof output === "string") body = output
+      else {
+        try {
+          body = JSON.stringify(output ?? {}, null, 2)
+        } catch {
+          body = ""
+        }
+      }
+      return {
+        active: true,
+        title: pathHint ? `${tool.tool} · ${pathHint}` : `${tool.tool} · latest`,
+        body: body || (tool.state.status === "completed" ? "Completed." : "Running..."),
+      }
+    }
+    return {
+      active: false,
+      title: "No active artifact",
+      body: "Ask DAX to make a change and this pane will display the generated artifact stream.",
+    }
+  })
+
+  const hasDiffNeed = createMemo(() => !!revert()?.diff)
+  const hasArtifactNeed = createMemo(() => liveArtifact().active && chatActive())
+  const showPane = createMemo(() => {
+    if (paneVisibility() === "hidden") return false
+    if (paneVisibility() === "pinned") return true
+    return hasRaoNeed() || hasDiffNeed() || hasArtifactNeed()
+  })
+  const activePaneMode = createMemo<PaneMode>(() => {
+    if (paneVisibility() === "pinned") return paneMode()
+    if (hasRaoNeed()) return "rao"
+    if (hasDiffNeed()) return "diff"
+    if (hasArtifactNeed()) return "artifact"
+    return paneMode()
+  })
+
+  const openApprovalsDialog = () => {
+    if (permissions().length + questions().length === 0) return
+    dialog.replace(() => (
+      <DialogApprovals
+        permissions={permissions()}
+        questions={questions()}
+        explainMode={explainMode()}
+        onOpenLive={() => {
+          setPaneMode(() => "rao")
+          setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+          dialog.clear()
+        }}
+      />
+    ))
+  }
+
+  const openDiffDialog = () => {
+    if (!revert()?.diffFiles?.length) return
+    dialog.replace(() => (
+      <DialogDiff
+        explainMode={explainMode()}
+        diffs={(revert()?.diffFiles ?? []).map((file) => ({
+          file: file.filename,
+          additions: file.additions,
+          deletions: file.deletions,
+        }))}
+        onOpenPane={() => {
+          setPaneMode(() => "diff")
+          setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+          dialog.clear()
+        }}
+      />
+    ))
+  }
+
+  const openTimelineDialog = () => {
+    dialog.replace(() => (
+      <DialogTimeline
+        onMove={(messageID) => {
+          const child = scroll.getChildren().find((child) => child.id === messageID)
+          if (child) scroll.scrollBy(child.y - scroll.y - 1)
+        }}
+        sessionID={route.sessionID}
+        setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+      />
+    ))
+  }
+
+  const openStatusDialog = () => {
+    dialog.replace(() => <DialogStatus />)
+  }
+
+  const openPmPane = () => {
+    setPaneMode(() => "pm")
+    setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+  }
+
+  const jumpLastUserMessage = () => {
+    const messageList = sync.data.message[route.sessionID]
+    if (!messageList?.length) return
+    for (let i = messageList.length - 1; i >= 0; i--) {
+      const message = messageList[i]
+      if (!message || message.role !== "user") continue
+      const parts = sync.data.part[message.id]
+      if (!parts?.some((part) => part && part.type === "text" && !part.synthetic && !part.ignored)) continue
+      const child = scroll.getChildren().find((entry) => entry.id === message.id)
+      if (child) scroll.scrollBy(child.y - scroll.y - 1)
+      break
+    }
+  }
 
   function moveChild(direction: number) {
     if (children().length === 1) return
@@ -592,6 +983,24 @@ export function Session() {
 
   const command = useCommandDialog()
   command.register(() => [
+    {
+      title: "Review approvals",
+      value: "session.approvals.review",
+      category: "Review",
+      enabled: permissions().length + questions().length > 0,
+      onSelect: (dialog) => {
+        openApprovalsDialog()
+      },
+    },
+    {
+      title: "Review diff",
+      value: "session.diff.review",
+      category: "Review",
+      enabled: !!revert()?.diffFiles?.length,
+      onSelect: (dialog) => {
+        openDiffDialog()
+      },
+    },
     {
       title: "Share session",
       value: "session.share",
@@ -632,18 +1041,7 @@ export function Session() {
       keybind: "session_timeline",
       category: "Session",
       onSelect: (dialog) => {
-        dialog.replace(() => (
-          <DialogTimeline
-            onMove={(messageID) => {
-              const child = scroll.getChildren().find((child) => {
-                return child.id === messageID
-              })
-              if (child) scroll.scrollBy(child.y - scroll.y - 1)
-            }}
-            sessionID={route.sessionID}
-            setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-          />
-        ))
+        openTimelineDialog()
       },
     },
     {
@@ -869,6 +1267,83 @@ export function Session() {
         setPaneMode(() => "pm")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
         toast.show({ message: `Pane mode: ${paneLabel("pm")}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Mode: ${workflowMode() === "build" ? "Build (active)" : "Build"}`,
+      value: "session.mode.build",
+      category: "Mode",
+      onSelect: (dialog) => {
+        selectWorkflowMode("build")
+        toast.show({ message: "Mode: Build", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Mode: ${workflowMode() === "plan" ? "Plan (active)" : "Plan"}`,
+      value: "session.mode.plan",
+      category: "Mode",
+      onSelect: (dialog) => {
+        selectWorkflowMode("plan")
+        toast.show({ message: "Mode: Plan", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Mode: ${workflowMode() === "explore" ? "Explore (active)" : "Explore"}`,
+      value: "session.mode.explore",
+      category: "Mode",
+      onSelect: (dialog) => {
+        selectWorkflowMode("explore")
+        toast.show({ message: "Mode: Explore", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Mode: ${workflowMode() === "docs" ? "Docs (active)" : "Docs"}`,
+      value: "session.mode.docs",
+      category: "Mode",
+      onSelect: (dialog) => {
+        selectWorkflowMode("docs")
+        toast.show({ message: "Mode: Docs", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Mode: ${workflowMode() === "audit" ? "Audit (active)" : "Audit"}`,
+      value: "session.mode.audit",
+      category: "Mode",
+      onSelect: (dialog) => {
+        selectWorkflowMode("audit")
+        toast.show({ message: "Mode: Audit", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Audit: Run",
+      value: "session.audit.run",
+      category: "Mode",
+      onSelect: (dialog) => {
+        runAuditCommand("/audit")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Audit: Gate",
+      value: "session.audit.gate",
+      category: "Mode",
+      onSelect: (dialog) => {
+        runAuditCommand("/audit gate")
+        dialog.clear()
+      },
+    },
+    {
+      title: `Audit: Profile ${latestAudit()?.result?.profile ? `(latest ${latestAudit()!.result!.profile})` : "strict"}`,
+      value: "session.audit.profile.strict",
+      category: "Mode",
+      onSelect: (dialog) => {
+        runAuditCommand("/audit profile strict")
         dialog.clear()
       },
     },
@@ -1150,29 +1625,7 @@ export function Session() {
       category: "Session",
       hidden: true,
       onSelect: () => {
-        const messages = sync.data.message[route.sessionID]
-        if (!messages || !messages.length) return
-
-        // Find the most recent user message with non-ignored, non-synthetic text parts
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const message = messages[i]
-          if (!message || message.role !== "user") continue
-
-          const parts = sync.data.part[message.id]
-          if (!parts || !Array.isArray(parts)) continue
-
-          const hasValidTextPart = parts.some(
-            (part) => part && part.type === "text" && !part.synthetic && !part.ignored,
-          )
-
-          if (hasValidTextPart) {
-            const child = scroll.getChildren().find((child) => {
-              return child.id === message.id
-            })
-            if (child) scroll.scrollBy(child.y - scroll.y - 1)
-            break
-          }
-        }
+        jumpLastUserMessage()
       },
     },
     {
@@ -1365,102 +1818,6 @@ export function Session() {
     },
   ])
 
-  const revertInfo = createMemo(() => session()?.revert)
-  const revertMessageID = createMemo(() => revertInfo()?.messageID)
-
-  const revertDiffFiles = createMemo(() => {
-    const diffText = revertInfo()?.diff ?? ""
-    if (!diffText) return []
-
-    try {
-      const patches = parsePatch(diffText)
-      return patches.map((patch) => {
-        const filename = patch.newFileName || patch.oldFileName || "unknown"
-        const cleanFilename = filename.replace(/^[ab]\//, "")
-        return {
-          filename: cleanFilename,
-          additions: patch.hunks.reduce(
-            (sum, hunk) => sum + hunk.lines.filter((line) => line.startsWith("+")).length,
-            0,
-          ),
-          deletions: patch.hunks.reduce(
-            (sum, hunk) => sum + hunk.lines.filter((line) => line.startsWith("-")).length,
-            0,
-          ),
-        }
-      })
-    } catch (error) {
-      return []
-    }
-  })
-
-  const revertRevertedMessages = createMemo(() => {
-    const messageID = revertMessageID()
-    if (!messageID) return []
-    return messages().filter((x) => x.id >= messageID && x.role === "user")
-  })
-
-  const revert = createMemo(() => {
-    const info = revertInfo()
-    if (!info) return
-    if (!info.messageID) return
-    return {
-      messageID: info.messageID,
-      reverted: revertRevertedMessages(),
-      diff: info.diff,
-      diffFiles: revertDiffFiles(),
-    }
-  })
-  const paneDiffFiletype = createMemo(() => {
-    const files = revert()?.diffFiles
-    if (!files?.length) return "none"
-    return filetype(files[0].filename)
-  })
-
-  const liveArtifact = createMemo(() => {
-    for (const msg of [...messages()].reverse()) {
-      if (msg.role !== "assistant") continue
-      const tool = [...(sync.data.part[msg.id] ?? [])].reverse().find((x): x is ToolPart => x.type === "tool")
-      if (!tool) continue
-      const input = (tool.state.input ?? {}) as Record<string, any>
-      const pathHint = input.path || input.file || input.filename || input.target || ""
-      const output = tool.state.status === "completed" ? tool.state.output : tool.state.input
-      let body = ""
-      if (typeof output === "string") body = output
-      else {
-        try {
-          body = JSON.stringify(output ?? {}, null, 2)
-        } catch {
-          body = ""
-        }
-      }
-      return {
-        active: true,
-        title: pathHint ? `${tool.tool} · ${pathHint}` : `${tool.tool} · latest`,
-        body: body || (tool.state.status === "completed" ? "Completed." : "Running..."),
-      }
-    }
-    return {
-      active: false,
-      title: "No active artifact",
-      body: "Ask DAX to make a change and this pane will display the generated artifact stream.",
-    }
-  })
-  const hasDiffNeed = createMemo(() => !!revert()?.diff)
-  const hasArtifactNeed = createMemo(() => liveArtifact().active && chatActive())
-  const showPane = createMemo(() => {
-    if (paneVisibility() === "hidden") return false
-    if (paneVisibility() === "pinned") return true
-    return hasRaoNeed() || hasDiffNeed() || hasArtifactNeed()
-  })
-  const activePaneMode = createMemo<PaneMode>(() => {
-    if (paneVisibility() === "pinned") return paneMode()
-    if (hasRaoNeed()) return "rao"
-    if (hasDiffNeed()) return "diff"
-    if (hasArtifactNeed()) return "artifact"
-    return paneMode()
-  })
-
   const dialog = useDialog()
   const renderer = useRenderer()
 
@@ -1538,645 +1895,805 @@ export function Session() {
           <box
             flexDirection="column"
             gap={0}
-              flexShrink={0}
-              alignItems="stretch"
-              backgroundColor={theme.backgroundPanel}
-              border={["top", "right", "bottom", "left"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-              paddingTop={0}
-              paddingBottom={0}
-            >
-              <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  DAX
+            flexShrink={0}
+            alignItems="stretch"
+            backgroundColor={theme.backgroundPanel}
+            border={["top", "right", "bottom", "left"]}
+            borderColor={theme.borderSubtle}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={0}
+            paddingBottom={0}
+          >
+            <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                DAX
+              </text>
+              <Show when={!stripTight() && session()}>
+                <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="truncate-end">
+                  {session()!.title}
                 </text>
-                <Show when={!stripTight()}>
-                  <text fg={theme.textMuted}>workspace</text>
-                </Show>
-                <Show when={!stripCompact()}>
-                  <text fg={permissions().length > 0 || questions().length > 0 ? theme.warning : theme.success}>
-                    {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
-                  </text>
-                  <text fg={theme.text}>{memoryLabel(explainMode())}</text>
-                </Show>
-              </box>
-              <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
-                <text fg={stageColor()}>{stageLabel()}</text>
+              </Show>
+              <text fg={stageColor()}>{stageLabel()}</text>
+              <Show when={!stripCompact()}>
                 <text fg={theme.textMuted}>·</text>
                 <text fg={theme.textMuted}>{streamStatus()}</text>
-                <Show when={pending()}>
-                  <Spinner />
-                </Show>
-              </box>
-              <box
-                flexDirection="row"
-                flexWrap="wrap"
-                gap={stripGap()}
-                alignItems="flex-start"
-                width="100%"
-                paddingRight={0}
-              >
-                <Show
-                  when={stripColumns() === 1}
-                  fallback={
-                    <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
-                      <box flexDirection="row" gap={1} alignItems="center">
-                        <text fg={theme.textMuted}>⊞</text>
-                        <box onMouseUp={() => setPaneVisibility(() => "auto")}>
-                          <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>auto</text>
-                        </box>
-                        <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
-                          <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>pin</text>
-                        </box>
-                        <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
-                          <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>hide</text>
-                        </box>
-                      </box>
-
-                      <box flexDirection="row" gap={1} alignItems="center">
-                        <text fg={theme.textMuted}>◎</text>
-                        <box
-                          onMouseUp={() => {
-                            setPaneFollowMode(() => "smart")
-                            setSmartFollowActive(true)
-                            setPendingUpdates(0)
-                          }}
-                        >
-                          <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>smart</text>
-                        </box>
-                        <box
-                          onMouseUp={() => {
-                            setPaneFollowMode(() => "live")
-                            setSmartFollowActive(true)
-                            setPendingUpdates(0)
-                          }}
-                        >
-                          <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>live</text>
-                        </box>
-                        <box onMouseUp={() => setShowDetails((prev) => !prev)}>
-                          <text fg={showDetails() ? theme.primary : theme.textMuted}>trace</text>
-                        </box>
-                        <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                          <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
-                        </box>
-                      </box>
-
-                      <box flexDirection="row" gap={1} alignItems="center">
-                        <text fg={theme.textMuted}>❖</text>
-                        <For each={PANE_MODES}>
-                          {(mode) => (
-                            <box onMouseUp={() => setPaneMode(() => mode)}>
-                              <text
-                                fg={paneMode() === mode ? theme.accent : theme.textMuted}
-                                attributes={paneMode() === mode ? TextAttributes.BOLD : undefined}
-                              >
-                                {paneLabel(mode)}
-                              </text>
-                            </box>
-                          )}
-                        </For>
-                      </box>
-
-                      <box flexDirection="row" gap={1} alignItems="center">
-                        <text fg={theme.textMuted}>🎨</text>
-                        <box onMouseUp={() => cycleTheme(-1)}>
-                          <text fg={theme.textMuted}>-</text>
-                        </box>
-                        <text fg={theme.primary}>{selectedThemeShort()}</text>
-                        <box onMouseUp={() => cycleTheme(1)}>
-                          <text fg={theme.textMuted}>+</text>
-                        </box>
-                      </box>
-                    </box>
-                  }
-                >
-                  <box width="100%" flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" paddingBottom={1}>
-                    <text fg={theme.textMuted}>p</text>
-                    <box onMouseUp={cyclePaneVisibility}>
-                      <text fg={theme.primary}>
-                        [{paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}]
-                      </text>
-                    </box>
-                    <text fg={theme.textMuted}>f</text>
-                    <box
-                      onMouseUp={() => {
-                        const next = paneFollowMode() === "smart" ? "live" : "smart"
-                        setPaneFollowMode(() => next)
-                        setSmartFollowActive(true)
-                        setPendingUpdates(0)
-                      }}
-                    >
-                      <text fg={theme.accent}>[{paneFollowMode()}]</text>
-                    </box>
-                    <box onMouseUp={() => setShowDetails((prev) => !prev)}>
-                      <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
-                    </box>
-                    <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                      <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
-                    </box>
-                    <text fg={theme.textMuted}>m</text>
-                    <box onMouseUp={cyclePaneMode}>
-                      <text fg={theme.accent}>[{paneLabel(paneMode())}]</text>
-                    </box>
-                    <text fg={theme.textMuted}>t</text>
-                    <box onMouseUp={() => cycleTheme(-1)}>
-                      <text fg={theme.textMuted}>[-]</text>
-                    </box>
-                    <text fg={theme.primary}>[{selectedThemeShort()}]</text>
-                    <box onMouseUp={() => cycleTheme(1)}>
-                      <text fg={theme.textMuted}>[+]</text>
-                    </box>
-                  </box>
-                </Show>
-              </box>
+              </Show>
+              <Show when={pending()}>
+                <Spinner />
+              </Show>
             </box>
-            <box flexGrow={1} minHeight={0}>
-              <ErrorBoundary
-                fallback={(error, reset) => (
-                  <box
-                    flexGrow={1}
-                    minHeight={0}
-                    flexDirection="column"
-                    gap={1}
-                    border={["top", "right", "bottom", "left"]}
-                    borderColor={theme.error}
-                    backgroundColor={tint(theme.backgroundPanel, theme.error, 0.12)}
-                    padding={2}
-                  >
-                    <text fg={theme.error} attributes={TextAttributes.BOLD}>
-                      Session pane recovered from an error
-                    </text>
-                    <text fg={theme.textMuted} wrapMode="word">
-                      {String(error)}
-                    </text>
-                    <box
-                      onMouseUp={() => {
-                        reset()
-                        keepPromptFocused()
-                      }}
-                      backgroundColor={theme.primary}
-                      paddingLeft={1}
-                      paddingRight={1}
+            <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1} flexWrap="wrap">
+              <text fg={theme.textMuted}>◈</text>
+              <For each={["plan", "build", "explore", "docs", "audit"] as WorkflowMode[]}>
+                {(mode) => (
+                  <box onMouseUp={() => selectWorkflowMode(mode)}>
+                    <text
+                      fg={workflowMode() === mode ? theme.accent : theme.textMuted}
+                      attributes={workflowMode() === mode ? TextAttributes.BOLD : undefined}
                     >
-                      <text fg={theme.background}>Reset pane</text>
-                    </box>
+                      {mode}
+                    </text>
                   </box>
                 )}
+              </For>
+            </box>
+            <box
+              flexDirection="row"
+              flexWrap="wrap"
+              gap={stripGap()}
+              alignItems="flex-start"
+              width="100%"
+              paddingRight={0}
+            >
+              <Show
+                when={stripColumns() === 1}
+                fallback={
+                  <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
+                    <box flexDirection="row" gap={1} alignItems="center">
+                      <text fg={theme.textMuted}>⊞</text>
+                      <box onMouseUp={() => setPaneVisibility(() => "auto")}>
+                        <text fg={paneVisibility() === "auto" ? theme.primary : theme.textMuted}>auto</text>
+                      </box>
+                      <box onMouseUp={() => setPaneVisibility(() => "pinned")}>
+                        <text fg={paneVisibility() === "pinned" ? theme.primary : theme.textMuted}>pin</text>
+                      </box>
+                      <box onMouseUp={() => setPaneVisibility(() => "hidden")}>
+                        <text fg={paneVisibility() === "hidden" ? theme.primary : theme.textMuted}>hide</text>
+                      </box>
+                    </box>
+
+                    <box flexDirection="row" gap={1} alignItems="center">
+                      <text fg={theme.textMuted}>◎</text>
+                      <box
+                        onMouseUp={() => {
+                          setPaneFollowMode(() => "smart")
+                          setSmartFollowActive(true)
+                          setPendingUpdates(0)
+                        }}
+                      >
+                        <text fg={paneFollowMode() === "smart" ? theme.accent : theme.textMuted}>smart</text>
+                      </box>
+                      <box
+                        onMouseUp={() => {
+                          setPaneFollowMode(() => "live")
+                          setSmartFollowActive(true)
+                          setPendingUpdates(0)
+                        }}
+                      >
+                        <text fg={paneFollowMode() === "live" ? theme.accent : theme.textMuted}>live</text>
+                      </box>
+                      <box onMouseUp={() => setShowDetails((prev) => !prev)}>
+                        <text fg={showDetails() ? theme.primary : theme.textMuted}>trace</text>
+                      </box>
+                      <box onMouseUp={() => setSlowStream((prev) => !prev)}>
+                        <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
+                      </box>
+                    </box>
+
+                    <box flexDirection="row" gap={1} alignItems="center">
+                      <text fg={theme.textMuted}>🎨</text>
+                      <box onMouseUp={() => cycleTheme(-1)}>
+                        <text fg={theme.textMuted}>-</text>
+                      </box>
+                      <text fg={theme.primary}>{selectedThemeShort()}</text>
+                      <box onMouseUp={() => cycleTheme(1)}>
+                        <text fg={theme.textMuted}>+</text>
+                      </box>
+                    </box>
+                  </box>
+                }
               >
-                <Switch>
-                  <Match when={showPane()}>
+                <box width="100%" flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" paddingBottom={1}>
+                  <text fg={theme.textMuted}>p</text>
+                  <box onMouseUp={cyclePaneVisibility}>
+                    <text fg={theme.primary}>
+                      [{paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}]
+                    </text>
+                  </box>
+                  <text fg={theme.textMuted}>f</text>
+                  <box
+                    onMouseUp={() => {
+                      const next = paneFollowMode() === "smart" ? "live" : "smart"
+                      setPaneFollowMode(() => next)
+                      setSmartFollowActive(true)
+                      setPendingUpdates(0)
+                    }}
+                  >
+                    <text fg={theme.accent}>[{paneFollowMode()}]</text>
+                  </box>
+                  <box onMouseUp={() => setShowDetails((prev) => !prev)}>
+                    <text fg={showDetails() ? theme.primary : theme.textMuted}>[trace]</text>
+                  </box>
+                  <box onMouseUp={() => setSlowStream((prev) => !prev)}>
+                    <text fg={slowStream() ? theme.primary : theme.textMuted}>[slow]</text>
+                  </box>
+                  <text fg={theme.textMuted}>t</text>
+                  <box onMouseUp={() => cycleTheme(-1)}>
+                    <text fg={theme.textMuted}>[-]</text>
+                  </box>
+                  <text fg={theme.primary}>[{selectedThemeShort()}]</text>
+                  <box onMouseUp={() => cycleTheme(1)}>
+                    <text fg={theme.textMuted}>[+]</text>
+                  </box>
+                </box>
+              </Show>
+            </box>
+          </box>
+          <box flexGrow={1} minHeight={0}>
+            <ErrorBoundary
+              fallback={(error, reset) => (
                 <box
                   flexGrow={1}
-                  flexDirection={liveStacked() ? "column" : "row"}
                   minHeight={0}
+                  flexDirection="column"
+                  gap={1}
                   border={["top", "right", "bottom", "left"]}
-                  borderColor={theme.borderSubtle}
+                  borderColor={theme.error}
+                  backgroundColor={tint(theme.backgroundPanel, theme.error, 0.12)}
+                  padding={2}
                 >
+                  <text fg={theme.error} attributes={TextAttributes.BOLD}>
+                    Session pane recovered from an error
+                  </text>
+                  <text fg={theme.textMuted} wrapMode="word">
+                    {String(error)}
+                  </text>
                   <box
-                    flexGrow={mainPaneGrow()}
-                    minHeight={0}
-                    border={liveStacked() ? ["bottom"] : ["right"]}
-                    borderColor={theme.borderSubtle}
-                    padding={0}
+                    onMouseUp={() => {
+                      reset()
+                      keepPromptFocused()
+                    }}
+                    backgroundColor={theme.primary}
+                    paddingLeft={1}
+                    paddingRight={1}
                   >
+                    <text fg={theme.background}>Reset pane</text>
+                  </box>
+                </box>
+              )}
+            >
+              <Switch>
+                <Match when={showPane()}>
+                  <box
+                    flexGrow={1}
+                    flexDirection={liveStacked() ? "column" : "row"}
+                    minHeight={0}
+                    border={["top", "right", "bottom", "left"]}
+                    borderColor={theme.borderSubtle}
+                  >
+                    <box
+                      flexGrow={mainPaneGrow()}
+                      minHeight={0}
+                      border={liveStacked() ? ["bottom"] : ["right"]}
+                      borderColor={theme.borderSubtle}
+                      padding={0}
+                    >
+                      <scrollbox
+                        ref={(r: ScrollBoxRenderable | undefined) => {
+                          if (r) scroll = r
+                        }}
+                        onMouseDown={pauseSmartFollow}
+                        viewportOptions={{
+                          paddingRight: showScrollbar() ? 1 : 0,
+                        }}
+                        verticalScrollbarOptions={{
+                          paddingLeft: 1,
+                          visible: showScrollbar(),
+                          trackOptions: {
+                            backgroundColor: theme.backgroundElement,
+                            foregroundColor: theme.border,
+                          },
+                        }}
+                        stickyScroll={followEnabled()}
+                        stickyStart="bottom"
+                        flexGrow={1}
+                        scrollAcceleration={scrollAcceleration()}
+                      >
+                        <For each={messages()}>
+                          {(message, index) => (
+                            <Switch>
+                              <Match when={message.id === revert()?.messageID}>
+                                {(function () {
+                                  const command = useCommandDialog()
+                                  const [hover, setHover] = createSignal(false)
+                                  const dialog = useDialog()
+
+                                  const handleUnrevert = async () => {
+                                    const confirmed = await DialogConfirm.show(
+                                      dialog,
+                                      "Confirm Redo",
+                                      "Are you sure you want to restore the reverted messages?",
+                                    )
+                                    if (confirmed) {
+                                      command.trigger("session.redo")
+                                    }
+                                  }
+
+                                  return (
+                                    <box
+                                      onMouseOver={() => setHover(true)}
+                                      onMouseOut={() => setHover(false)}
+                                      onMouseUp={handleUnrevert}
+                                      marginTop={1}
+                                      flexShrink={0}
+                                      border={["left"]}
+                                      customBorderChars={SplitBorder.customBorderChars}
+                                      borderColor={theme.backgroundPanel}
+                                    >
+                                      <box
+                                        paddingTop={1}
+                                        paddingBottom={1}
+                                        paddingLeft={2}
+                                        backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                      >
+                                        <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                        <text fg={theme.textMuted}>
+                                          <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> to
+                                          restore
+                                        </text>
+                                        <Show when={revert()!.diffFiles?.length}>
+                                          <box marginTop={1}>
+                                            <For each={revert()!.diffFiles}>
+                                              {(file) => (
+                                                <text fg={theme.text}>
+                                                  {file.filename}
+                                                  <Show when={file.additions > 0}>
+                                                    <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                                  </Show>
+                                                  <Show when={file.deletions > 0}>
+                                                    <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                                  </Show>
+                                                </text>
+                                              )}
+                                            </For>
+                                          </box>
+                                        </Show>
+                                      </box>
+                                    </box>
+                                  )
+                                })()}
+                              </Match>
+                              <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
+                                <></>
+                              </Match>
+                              <Match when={message.role === "user"}>
+                                <UserMessage
+                                  index={index()}
+                                  onMouseUp={() => {
+                                    if (renderer.getSelection()?.getSelectedText()) return
+                                    dialog.replace(() => (
+                                      <DialogMessage
+                                        messageID={message.id}
+                                        sessionID={route.sessionID}
+                                        setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+                                      />
+                                    ))
+                                  }}
+                                  message={message as UserMessage}
+                                  parts={renderParts(message)}
+                                  pending={pending()}
+                                />
+                              </Match>
+                              <Match when={message.role === "assistant"}>
+                                <StageTimeline
+                                  visible={message.id === pending()}
+                                  stageState={displayStageState()}
+                                  stageLabel={stageLabel()}
+                                  stageColor={stageColor()}
+                                  streamStatus={streamStatus()}
+                                  explainMode={explainMode()}
+                                />
+                                <AssistantMessage
+                                  last={lastAssistant()?.id === message.id}
+                                  message={message as AssistantMessage}
+                                  parts={renderParts(message)}
+                                />
+                              </Match>
+                            </Switch>
+                          )}
+                        </For>
+                      </scrollbox>
+                    </box>
                     <scrollbox
-                      ref={(r: ScrollBoxRenderable | undefined) => {
-                        if (r) scroll = r
-                      }}
-                      onMouseDown={pauseSmartFollow}
-                      viewportOptions={{
-                        paddingRight: showScrollbar() ? 1 : 0,
-                      }}
-                      verticalScrollbarOptions={{
-                        paddingLeft: 1,
-                        visible: showScrollbar(),
-                        trackOptions: {
-                          backgroundColor: theme.backgroundElement,
-                          foregroundColor: theme.border,
-                        },
-                      }}
-                      stickyScroll={followEnabled()}
-                      stickyStart="bottom"
-                      flexGrow={1}
+                      flexGrow={sidePaneGrow()}
+                      minHeight={0}
+                      backgroundColor={theme.backgroundPanel}
                       scrollAcceleration={scrollAcceleration()}
                     >
-                      <For each={messages()}>
-                        {(message, index) => (
-                          <Switch>
-                            <Match when={message.id === revert()?.messageID}>
-                              {(function () {
-                                const command = useCommandDialog()
-                                const [hover, setHover] = createSignal(false)
-                                const dialog = useDialog()
-
-                                const handleUnrevert = async () => {
-                                  const confirmed = await DialogConfirm.show(
-                                    dialog,
-                                    "Confirm Redo",
-                                    "Are you sure you want to restore the reverted messages?",
-                                  )
-                                  if (confirmed) {
-                                    command.trigger("session.redo")
+                      <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
+                        <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                          <text fg={theme.textMuted}>❖</text>
+                          <For each={PANE_MODES}>
+                            {(mode) => (
+                              <box
+                                onMouseUp={() => {
+                                  setPaneMode(() => mode)
+                                  if (paneVisibility() === "hidden") {
+                                    setPaneVisibility(() => "pinned")
                                   }
-                                }
-
-                                return (
-                                  <box
-                                    onMouseOver={() => setHover(true)}
-                                    onMouseOut={() => setHover(false)}
-                                    onMouseUp={handleUnrevert}
-                                    marginTop={1}
-                                    flexShrink={0}
-                                    border={["left"]}
-                                    customBorderChars={SplitBorder.customBorderChars}
-                                    borderColor={theme.backgroundPanel}
-                                  >
+                                }}
+                                backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
+                              >
+                                <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>
+                                  {paneLabel(mode)}
+                                </text>
+                              </box>
+                            )}
+                          </For>
+                        </box>
+                        <Switch>
+                          <Match when={activePaneMode() === "artifact"}>
+                            <text fg={theme.primary}>{liveArtifact().title}</text>
+                            <text fg={theme.textMuted} wrapMode="word">
+                              {liveArtifact().body}
+                            </text>
+                          </Match>
+                          <Match when={activePaneMode() === "diff"}>
+                            <Show
+                              when={revert()?.diff}
+                              fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}
+                            >
+                              <box flexDirection="column" gap={1} flexGrow={1} width="100%">
+                                <Show when={revert()?.diffFiles?.length}>
+                                  <box flexDirection="column" gap={0}>
+                                    <For each={revert()?.diffFiles ?? []}>
+                                      {(file) => (
+                                        <text fg={theme.text}>
+                                          {file.filename}
+                                          <Show when={file.additions > 0}>
+                                            <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                          </Show>
+                                          <Show when={file.deletions > 0}>
+                                            <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                          </Show>
+                                        </text>
+                                      )}
+                                    </For>
+                                  </box>
+                                </Show>
+                                <box
+                                  flexGrow={1}
+                                  border={["top"]}
+                                  borderColor={theme.borderSubtle}
+                                  paddingTop={1}
+                                  width="100%"
+                                >
+                                  <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
+                                    <diff
+                                      diff={revert()!.diff ?? ""}
+                                      view={paneDiffView()}
+                                      filetype={paneDiffFiletype()}
+                                      syntaxStyle={syntax()}
+                                      showLineNumbers={true}
+                                      width="100%"
+                                      wrapMode={diffWrapMode()}
+                                      fg={theme.text}
+                                      addedBg={theme.diffAddedBg}
+                                      removedBg={theme.diffRemovedBg}
+                                      contextBg={theme.diffContextBg}
+                                      addedSignColor={theme.diffHighlightAdded}
+                                      removedSignColor={theme.diffHighlightRemoved}
+                                      lineNumberFg={theme.diffLineNumber}
+                                      lineNumberBg={theme.diffContextBg}
+                                      addedLineNumberBg={theme.diffAddedLineNumberBg}
+                                      removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                                    />
+                                  </scrollbox>
+                                </box>
+                              </box>
+                            </Show>
+                          </Match>
+                          <Match when={activePaneMode() === "rao"}>
+                            <box flexGrow={1} minHeight={0}>
+                              <RAOPane
+                                permissions={permissions()}
+                                questions={questions()}
+                                sessionID={route.sessionID}
+                              />
+                            </box>
+                          </Match>
+                          <Match when={activePaneMode() === "pm"}>
+                            <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
+                              <text fg={theme.text}>Project Memory</text>
+                              <box flexDirection="row" gap={1} flexWrap="wrap">
+                                <For each={["note", "list", "rules"] as PMTab[]}>
+                                  {(tab) => (
                                     <box
-                                      paddingTop={1}
-                                      paddingBottom={1}
-                                      paddingLeft={2}
-                                      backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                      onMouseUp={() => setPmTab(() => tab)}
+                                      backgroundColor={pmTab() === tab ? theme.backgroundElement : undefined}
+                                      paddingLeft={1}
+                                      paddingRight={1}
                                     >
-                                      <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
-                                      <text fg={theme.textMuted}>
-                                        <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> to
-                                        restore
+                                      <text
+                                        fg={pmTab() === tab ? theme.primary : theme.textMuted}
+                                        attributes={pmTab() === tab ? TextAttributes.BOLD : undefined}
+                                      >
+                                        /pm {tab}
                                       </text>
-                                      <Show when={revert()!.diffFiles?.length}>
-                                        <box marginTop={1}>
-                                          <For each={revert()!.diffFiles}>
-                                            {(file) => (
-                                              <text fg={theme.text}>
-                                                {file.filename}
-                                                <Show when={file.additions > 0}>
-                                                  <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                                </Show>
-                                                <Show when={file.deletions > 0}>
-                                                  <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                                </Show>
-                                              </text>
-                                            )}
-                                          </For>
-                                        </box>
-                                      </Show>
+                                    </box>
+                                  )}
+                                </For>
+                              </box>
+                              <Switch>
+                                <Match when={pmTab() === "note"}>
+                                  <text fg={theme.textMuted} wrapMode="word">
+                                    Save product constraints and handoff context that should survive across sessions.
+                                  </text>
+                                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                                    <box
+                                      onMouseUp={prefillPmNote}
+                                      backgroundColor={theme.backgroundElement}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.primary}>Template</text>
+                                    </box>
+                                    <box
+                                      onMouseUp={() => runPmCommand("/pm note")}
+                                      backgroundColor={theme.backgroundElement}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.accent}>Run /pm note</text>
                                     </box>
                                   </box>
-                                )
-                              })()}
-                            </Match>
-                            <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
-                              <></>
-                            </Match>
-                            <Match when={message.role === "user"}>
-                              <UserMessage
-                                index={index()}
-                                onMouseUp={() => {
-                                  if (renderer.getSelection()?.getSelectedText()) return
-                                  dialog.replace(() => (
-                                    <DialogMessage
-                                      messageID={message.id}
-                                      sessionID={route.sessionID}
-                                      setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-                                    />
-                                  ))
-                                }}
-                                message={message as UserMessage}
-                                parts={renderParts(message)}
-                                pending={pending()}
-                              />
-                            </Match>
-                            <Match when={message.role === "assistant"}>
-                              <StageTimeline
-                                visible={message.id === pending()}
-                                stageState={displayStageState()}
-                                stageLabel={stageLabel()}
-                                stageColor={stageColor()}
-                                streamStatus={streamStatus()}
-                                explainMode={explainMode()}
-                              />
-                              <AssistantMessage
-                                last={lastAssistant()?.id === message.id}
-                                message={message as AssistantMessage}
-                                parts={renderParts(message)}
-                              />
-                            </Match>
-                          </Switch>
-                        )}
-                      </For>
-                    </scrollbox>
-                  </box>
-                  <scrollbox
-                    flexGrow={sidePaneGrow()}
-                    minHeight={0}
-                    backgroundColor={theme.backgroundPanel}
-                    scrollAcceleration={scrollAcceleration()}
-                  >
-                    <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
-                      <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                        <text fg={theme.textMuted}>⊞</text>
-                        <For each={["auto", "pin", "hide"] as const}>
-                          {(mode) => (
-                            <box
-                              onMouseUp={() => {
-                                if (mode === "auto") setPaneVisibility(() => "auto")
-                                if (mode === "pin") setPaneVisibility(() => "pinned")
-                                if (mode === "hide") setPaneVisibility(() => "hidden")
-                              }}
-                              backgroundColor={
-                                (mode === "auto" && paneVisibility() === "auto") ||
-                                (mode === "pin" && paneVisibility() === "pinned") ||
-                                (mode === "hide" && paneVisibility() === "hidden")
-                                  ? theme.backgroundElement
-                                  : undefined
-                              }
-                            >
-                              <text
-                                fg={
-                                  (mode === "auto" && paneVisibility() === "auto") ||
-                                  (mode === "pin" && paneVisibility() === "pinned") ||
-                                  (mode === "hide" && paneVisibility() === "hidden")
-                                    ? theme.primary
-                                    : theme.textMuted
-                                }
-                              >
-                                {mode}
-                              </text>
-                            </box>
-                          )}
-                        </For>
-                        <text fg={theme.textMuted}>· ❖</text>
-                        <For each={PANE_MODES}>
-                          {(mode) => (
-                            <box
-                              onMouseUp={() => {
-                                setPaneMode(() => mode)
-                                if (paneVisibility() === "hidden") {
-                                  setPaneVisibility(() => "pinned")
-                                }
-                              }}
-                              backgroundColor={activePaneMode() === mode ? theme.backgroundElement : undefined}
-                            >
-                              <text fg={activePaneMode() === mode ? theme.primary : theme.textMuted}>
-                                {paneLabel(mode)}
-                              </text>
-                            </box>
-                          )}
-                        </For>
-                        <text fg={theme.textMuted}>·</text>
-                        <text fg={theme.textMuted}>
-                          {`${insightsLabel(explainMode())} ${permissions().length + questions().length}`}
-                        </text>
-                        <text fg={theme.textMuted}>·</text>
-                        <text fg={stageColor()}>{stageLabel()}</text>
-                        <text fg={theme.textMuted}>
-                          ({isThinking() ? `Thinking: ${currentPun()}` : displayStageState().reason || "Idle"})
-                        </text>
-                      </box>
-                      <Switch>
-                        <Match when={activePaneMode() === "artifact"}>
-                          <text fg={theme.primary}>{liveArtifact().title}</text>
-                          <text fg={theme.textMuted} wrapMode="word">
-                            {liveArtifact().body}
-                          </text>
-                        </Match>
-                        <Match when={activePaneMode() === "diff"}>
-                          <Show
-                            when={revert()?.diff}
-                            fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}
-                          >
-                            <box flexDirection="column" gap={1} flexGrow={1} width="100%">
-                              <Show when={revert()?.diffFiles?.length}>
-                                <box flexDirection="column" gap={0}>
-                                  <For each={revert()?.diffFiles ?? []}>
-                                    {(file) => (
-                                      <text fg={theme.text}>
-                                        {file.filename}
-                                        <Show when={file.additions > 0}>
-                                          <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                        </Show>
-                                        <Show when={file.deletions > 0}>
-                                          <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                        </Show>
-                                      </text>
-                                    )}
-                                  </For>
-                                </box>
-                              </Show>
-                              <box
-                                flexGrow={1}
-                                border={["top"]}
-                                borderColor={theme.borderSubtle}
-                                paddingTop={1}
-                                width="100%"
-                              >
-                                <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
-                                  <diff
-                                    diff={revert()!.diff ?? ""}
-                                    view={paneDiffView()}
-                                    filetype={paneDiffFiletype()}
-                                    syntaxStyle={syntax()}
-                                    showLineNumbers={true}
-                                    width="100%"
-                                    wrapMode={diffWrapMode()}
-                                    fg={theme.text}
-                                    addedBg={theme.diffAddedBg}
-                                    removedBg={theme.diffRemovedBg}
-                                    contextBg={theme.diffContextBg}
-                                    addedSignColor={theme.diffHighlightAdded}
-                                    removedSignColor={theme.diffHighlightRemoved}
-                                    lineNumberFg={theme.diffLineNumber}
-                                    lineNumberBg={theme.diffContextBg}
-                                    addedLineNumberBg={theme.diffAddedLineNumberBg}
-                                    removedLineNumberBg={theme.diffRemovedLineNumberBg}
-                                  />
-                                </scrollbox>
-                              </box>
-                            </box>
-                          </Show>
-                        </Match>
-                        <Match when={activePaneMode() === "rao"}>
-                          <box flexGrow={1} minHeight={0}>
-                            <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
-                          </box>
-                        </Match>
-                        <Match when={activePaneMode() === "pm"}>
-                          <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
-                            <text fg={theme.text}>Project Memory</text>
-                            <text fg={theme.textMuted}>/pm note /pm list /pm rules</text>
-                            <text fg={theme.textMuted} wrapMode="word">
-                              Capture constraints and handoff context so execution stays consistent across sessions.
-                            </text>
-                          </box>
-                        </Match>
-                      </Switch>
-                    </box>
-                  </scrollbox>
-                </box>
-              </Match>
-              <Match when={true}>
-                <scrollbox
-                  ref={(r: ScrollBoxRenderable | undefined) => {
-                    if (r) scroll = r
-                  }}
-                  onMouseDown={pauseSmartFollow}
-                  viewportOptions={{
-                    paddingRight: showScrollbar() ? 1 : 0,
-                  }}
-                  verticalScrollbarOptions={{
-                    paddingLeft: 1,
-                    visible: showScrollbar(),
-                    trackOptions: {
-                      backgroundColor: theme.backgroundElement,
-                      foregroundColor: theme.border,
-                    },
-                  }}
-                  stickyScroll={followEnabled()}
-                  stickyStart="bottom"
-                  flexGrow={1}
-                  scrollAcceleration={scrollAcceleration()}
-                >
-                  <For each={messages()}>
-                    {(message, index) => (
-                      <Switch>
-                        <Match when={message.id === revert()?.messageID}>
-                          {(function () {
-                            const command = useCommandDialog()
-                            const [hover, setHover] = createSignal(false)
-                            const dialog = useDialog()
-
-                            const handleUnrevert = async () => {
-                              const confirmed = await DialogConfirm.show(
-                                dialog,
-                                "Confirm Redo",
-                                "Are you sure you want to restore the reverted messages?",
-                              )
-                              if (confirmed) {
-                                command.trigger("session.redo")
-                              }
-                            }
-
-                            return (
-                              <box
-                                onMouseOver={() => setHover(true)}
-                                onMouseOut={() => setHover(false)}
-                                onMouseUp={handleUnrevert}
-                                marginTop={1}
-                                flexShrink={0}
-                                border={["left"]}
-                                customBorderChars={SplitBorder.customBorderChars}
-                                borderColor={theme.backgroundPanel}
-                              >
-                                <box
-                                  paddingTop={1}
-                                  paddingBottom={1}
-                                  paddingLeft={2}
-                                  backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
-                                >
-                                  <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
-                                  <text fg={theme.textMuted}>
-                                    <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> to restore
-                                  </text>
-                                  <Show when={revert()!.diffFiles?.length}>
-                                    <box marginTop={1}>
-                                      <For each={revert()!.diffFiles}>
-                                        {(file) => (
-                                          <text fg={theme.text}>
-                                            {file.filename}
-                                            <Show when={file.additions > 0}>
-                                              <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                            </Show>
-                                            <Show when={file.deletions > 0}>
-                                              <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                            </Show>
-                                          </text>
+                                  <Show when={recentPmCommands().length > 0}>
+                                    <box
+                                      border={["top"]}
+                                      borderColor={theme.borderSubtle}
+                                      paddingTop={1}
+                                      flexDirection="column"
+                                      gap={1}
+                                    >
+                                      <text fg={theme.textMuted}>Recent PM commands</text>
+                                      <For each={recentPmCommands().slice(0, 4)}>
+                                        {(entry) => (
+                                          <box
+                                            backgroundColor={theme.backgroundElement}
+                                            paddingLeft={1}
+                                            paddingRight={1}
+                                          >
+                                            <text fg={theme.text} wrapMode="truncate-end">
+                                              {entry.text}
+                                            </text>
+                                          </box>
                                         )}
                                       </For>
                                     </box>
                                   </Show>
+                                </Match>
+                                <Match when={pmTab() === "list"}>
+                                  <text fg={theme.textMuted} wrapMode="word">
+                                    List recent PM notes and tags for this workspace.
+                                  </text>
+                                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                                    <box
+                                      onMouseUp={() => runPmCommand("/pm list")}
+                                      backgroundColor={theme.backgroundElement}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.accent}>Run /pm list</text>
+                                    </box>
+                                    <Show when={latestPmListResponse()}>
+                                      {(entry) => <text fg={theme.textMuted}>Last: {entry().commandText}</text>}
+                                    </Show>
+                                  </box>
+                                  <box
+                                    border={["top"]}
+                                    borderColor={theme.borderSubtle}
+                                    paddingTop={1}
+                                    flexDirection="column"
+                                    gap={1}
+                                  >
+                                    <Show
+                                      when={!parsedPmList().empty}
+                                      fallback={
+                                        <text fg={theme.textMuted} wrapMode="word">
+                                          {parsedPmList().info}
+                                        </text>
+                                      }
+                                    >
+                                      <For each={parsedPmList().rows}>
+                                        {(row) => (
+                                          <box
+                                            flexDirection="column"
+                                            paddingLeft={1}
+                                            paddingRight={1}
+                                            backgroundColor={theme.backgroundElement}
+                                          >
+                                            <text fg={theme.text}>
+                                              {row.day} | {row.title}
+                                            </text>
+                                            <Show when={row.tags.length > 0}>
+                                              <text fg={theme.textMuted}>tags: {row.tags.join(", ")}</text>
+                                            </Show>
+                                          </box>
+                                        )}
+                                      </For>
+                                    </Show>
+                                  </box>
+                                </Match>
+                                <Match when={pmTab() === "rules"}>
+                                  <text fg={theme.textMuted} wrapMode="word">
+                                    Inspect and maintain project guardrails that should always be enforced.
+                                  </text>
+                                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                                    <box
+                                      onMouseUp={() => runPmCommand("/pm rules")}
+                                      backgroundColor={theme.backgroundElement}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.accent}>Run /pm rules</text>
+                                    </box>
+                                    <box
+                                      onMouseUp={() =>
+                                        prompt?.set({
+                                          input: "/pm rules add require_approval release:publish ask",
+                                          parts: [],
+                                        })
+                                      }
+                                      backgroundColor={theme.backgroundElement}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.primary}>Add rule template</text>
+                                    </box>
+                                  </box>
+                                  <Show when={latestPmRulesAddResponse()}>
+                                    {(entry) => (
+                                      <text fg={theme.textMuted} wrapMode="word">
+                                        Latest update: {entry().responseText}
+                                      </text>
+                                    )}
+                                  </Show>
+                                  <box
+                                    border={["top"]}
+                                    borderColor={theme.borderSubtle}
+                                    paddingTop={1}
+                                    flexDirection="column"
+                                    gap={1}
+                                  >
+                                    <Show
+                                      when={!parsedPmRules().empty}
+                                      fallback={
+                                        <text fg={theme.textMuted} wrapMode="word">
+                                          {parsedPmRules().info}
+                                        </text>
+                                      }
+                                    >
+                                      <For each={parsedPmRules().rows}>
+                                        {(row) => (
+                                          <box
+                                            flexDirection="column"
+                                            paddingLeft={1}
+                                            paddingRight={1}
+                                            backgroundColor={theme.backgroundElement}
+                                          >
+                                            <text fg={theme.text}>
+                                              {row.ruleType}
+                                              {" -> "}
+                                              {row.action}
+                                            </text>
+                                            <text fg={theme.textMuted} wrapMode="word">
+                                              {row.pattern}
+                                              <Show when={row.source}> ({row.source})</Show>
+                                            </text>
+                                          </box>
+                                        )}
+                                      </For>
+                                    </Show>
+                                  </box>
+                                </Match>
+                              </Switch>
+                            </box>
+                          </Match>
+                        </Switch>
+                      </box>
+                    </scrollbox>
+                  </box>
+                </Match>
+                <Match when={true}>
+                  <scrollbox
+                    ref={(r: ScrollBoxRenderable | undefined) => {
+                      if (r) scroll = r
+                    }}
+                    onMouseDown={pauseSmartFollow}
+                    viewportOptions={{
+                      paddingRight: showScrollbar() ? 1 : 0,
+                    }}
+                    verticalScrollbarOptions={{
+                      paddingLeft: 1,
+                      visible: showScrollbar(),
+                      trackOptions: {
+                        backgroundColor: theme.backgroundElement,
+                        foregroundColor: theme.border,
+                      },
+                    }}
+                    stickyScroll={followEnabled()}
+                    stickyStart="bottom"
+                    flexGrow={1}
+                    scrollAcceleration={scrollAcceleration()}
+                  >
+                    <For each={messages()}>
+                      {(message, index) => (
+                        <Switch>
+                          <Match when={message.id === revert()?.messageID}>
+                            {(function () {
+                              const command = useCommandDialog()
+                              const [hover, setHover] = createSignal(false)
+                              const dialog = useDialog()
+
+                              const handleUnrevert = async () => {
+                                const confirmed = await DialogConfirm.show(
+                                  dialog,
+                                  "Confirm Redo",
+                                  "Are you sure you want to restore the reverted messages?",
+                                )
+                                if (confirmed) {
+                                  command.trigger("session.redo")
+                                }
+                              }
+
+                              return (
+                                <box
+                                  onMouseOver={() => setHover(true)}
+                                  onMouseOut={() => setHover(false)}
+                                  onMouseUp={handleUnrevert}
+                                  marginTop={1}
+                                  flexShrink={0}
+                                  border={["left"]}
+                                  customBorderChars={SplitBorder.customBorderChars}
+                                  borderColor={theme.backgroundPanel}
+                                >
+                                  <box
+                                    paddingTop={1}
+                                    paddingBottom={1}
+                                    paddingLeft={2}
+                                    backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                  >
+                                    <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                    <text fg={theme.textMuted}>
+                                      <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> to
+                                      restore
+                                    </text>
+                                    <Show when={revert()!.diffFiles?.length}>
+                                      <box marginTop={1}>
+                                        <For each={revert()!.diffFiles}>
+                                          {(file) => (
+                                            <text fg={theme.text}>
+                                              {file.filename}
+                                              <Show when={file.additions > 0}>
+                                                <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                              </Show>
+                                              <Show when={file.deletions > 0}>
+                                                <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                              </Show>
+                                            </text>
+                                          )}
+                                        </For>
+                                      </box>
+                                    </Show>
+                                  </box>
                                 </box>
-                              </box>
-                            )
-                          })()}
-                        </Match>
-                        <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
-                          <></>
-                        </Match>
-                        <Match when={message.role === "user"}>
-                          <UserMessage
-                            index={index()}
-                            onMouseUp={() => {
-                              if (renderer.getSelection()?.getSelectedText()) return
-                              dialog.replace(() => (
-                                <DialogMessage
-                                  messageID={message.id}
-                                  sessionID={route.sessionID}
-                                  setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-                                />
-                              ))
-                            }}
-                            message={message as UserMessage}
-                            parts={renderParts(message)}
-                            pending={pending()}
-                          />
-                        </Match>
-                        <Match when={message.role === "assistant"}>
-                          <StageTimeline
-                            visible={message.id === pending()}
-                            stageState={displayStageState()}
-                            stageLabel={stageLabel()}
-                            stageColor={stageColor()}
-                            streamStatus={streamStatus()}
-                            explainMode={explainMode()}
-                          />
-                          <AssistantMessage
-                            last={lastAssistant()?.id === message.id}
-                            message={message as AssistantMessage}
-                            parts={renderParts(message)}
-                          />
-                        </Match>
-                      </Switch>
-                    )}
-                  </For>
-                </scrollbox>
-              </Match>
-                </Switch>
-              </ErrorBoundary>
-            </box>
-            <box flexShrink={0}>
-              <Show when={promptDisabled()}>
-                <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
-                  <text fg={theme.warning}>
-                    Input disabled while viewing a delegated session. Switch back to the parent to continue typing.
-                  </text>
-                </box>
-              </Show>
-              <Prompt
-                ref={(r) => {
-                  prompt = r
-                  promptRef.set(r)
-                  // Apply initial prompt when prompt component mounts (e.g., from fork)
-                  if (route.initialPrompt) {
-                    r.set(route.initialPrompt)
-                  }
-                }}
-                disabled={promptDisabled()}
-                onSubmit={() => {
-                  toBottom()
-                }}
-                sessionID={route.sessionID}
-              />
-            </box>
-            <Show when={!sidebarVisible() || !wide()}>
-              <Footer />
+                              )
+                            })()}
+                          </Match>
+                          <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
+                            <></>
+                          </Match>
+                          <Match when={message.role === "user"}>
+                            <UserMessage
+                              index={index()}
+                              onMouseUp={() => {
+                                if (renderer.getSelection()?.getSelectedText()) return
+                                dialog.replace(() => (
+                                  <DialogMessage
+                                    messageID={message.id}
+                                    sessionID={route.sessionID}
+                                    setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+                                  />
+                                ))
+                              }}
+                              message={message as UserMessage}
+                              parts={renderParts(message)}
+                              pending={pending()}
+                            />
+                          </Match>
+                          <Match when={message.role === "assistant"}>
+                            <StageTimeline
+                              visible={message.id === pending()}
+                              stageState={displayStageState()}
+                              stageLabel={stageLabel()}
+                              stageColor={stageColor()}
+                              streamStatus={streamStatus()}
+                              explainMode={explainMode()}
+                            />
+                            <AssistantMessage
+                              last={lastAssistant()?.id === message.id}
+                              message={message as AssistantMessage}
+                              parts={renderParts(message)}
+                            />
+                          </Match>
+                        </Switch>
+                      )}
+                    </For>
+                  </scrollbox>
+                </Match>
+              </Switch>
+            </ErrorBoundary>
+          </box>
+          <box flexShrink={0}>
+            <Show when={promptDisabled()}>
+              <box paddingLeft={2} paddingRight={2} paddingBottom={1}>
+                <text fg={theme.warning}>
+                  Input disabled while viewing a delegated session. Switch back to the parent to continue typing.
+                </text>
+              </box>
             </Show>
+            <Prompt
+              ref={(r) => {
+                prompt = r
+                promptRef.set(r)
+                // Apply initial prompt when prompt component mounts (e.g., from fork)
+                if (route.initialPrompt) {
+                  r.set(route.initialPrompt)
+                }
+              }}
+              disabled={promptDisabled()}
+              onSubmit={() => {
+                toBottom()
+              }}
+              sessionID={route.sessionID}
+            />
+          </box>
+          <Show when={!sidebarVisible() || !wide()}>
+            <Footer
+              lifecycleLabel={labelStage(stageState().stage, explainMode())}
+              onOpenTimeline={openTimelineDialog}
+              onOpenPm={openPmPane}
+              onOpenInspect={openStatusDialog}
+              onOpenApprovals={permissions().length + questions().length > 0 ? openApprovalsDialog : undefined}
+              onOpenDiff={revert()?.diffFiles?.length ? openDiffDialog : undefined}
+            />
+          </Show>
           <Toast />
         </box>
         <Show when={sidebarVisible()}>
           <Switch>
             <Match when={wide()}>
-              <Sidebar sessionID={route.sessionID} />
+              <Sidebar
+                sessionID={route.sessionID}
+                onInspectApprovals={openApprovalsDialog}
+                onInspectDiff={openDiffDialog}
+                onInspectMcp={openStatusDialog}
+                onOpenPm={openPmPane}
+                onOpenTimeline={openTimelineDialog}
+                onJumpLive={toBottom}
+                onJumpLastUser={jumpLastUserMessage}
+              />
             </Match>
             <Match when={!wide()}>
               <box
@@ -2188,7 +2705,16 @@ export function Session() {
                 alignItems="flex-end"
                 backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
               >
-                <Sidebar sessionID={route.sessionID} />
+                <Sidebar
+                  sessionID={route.sessionID}
+                  onInspectApprovals={openApprovalsDialog}
+                  onInspectDiff={openDiffDialog}
+                  onInspectMcp={openStatusDialog}
+                  onOpenPm={openPmPane}
+                  onOpenTimeline={openTimelineDialog}
+                  onJumpLive={toBottom}
+                  onJumpLastUser={jumpLastUserMessage}
+                />
               </box>
             </Match>
           </Switch>
@@ -2488,24 +3014,31 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           paddingLeft={2}
           paddingRight={2}
           marginTop={1}
+          borderColor={theme.accent}
+          borderStyle="round"
           backgroundColor={theme.backgroundPanel}
         >
           <box flexDirection="column" gap={0}>
-            <text fg={theme.text}>
-              <span style={{ fg: theme.accent, bold: true }}>ELI12</span> summary
-            </text>
-            <text fg={theme.text}>
-              <span style={{ fg: theme.textMuted }}>Asked: </span>
-              {asked()}
-            </text>
-            <text fg={theme.text}>
-              <span style={{ fg: theme.textMuted }}>Doing: </span>
-              {doing()}
-            </text>
-            <text fg={theme.text}>
-              <span style={{ fg: theme.textMuted }}>Next: </span>
-              {next()}
-            </text>
+            <box flexDirection="row" gap={1} alignItems="center">
+              <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                ◆
+              </text>
+              <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                ELI12 Summary
+              </text>
+            </box>
+            <box flexDirection="row" gap={1} marginTop={1}>
+              <text fg={theme.success}>▸ Asked:</text>
+              <text fg={theme.text}>{asked()}</text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.warning}>▸ Doing:</text>
+              <text fg={theme.text}>{doing()}</text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.info}>▸ Next:</text>
+              <text fg={theme.text}>{next()}</text>
+            </box>
           </box>
         </box>
       </Show>
