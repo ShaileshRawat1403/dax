@@ -353,11 +353,7 @@ export function Session() {
   const hasRaoNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
-    // Always show sidebar on wide terminals (>120), like OG beta6 design
-    if (wide()) return true
-    // On narrow terminals, show if explicitly opened
-    if (sidebarOpen()) return true
-    return false
+    return sidebarOpen()
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
@@ -396,6 +392,7 @@ export function Session() {
     messages().reduce((acc, msg) => acc + (sync.data.part[msg.id]?.length ?? 0), 0),
   )
   const sessionTurnCount = createMemo(() => messages().filter((message) => message.role === "user").length)
+  const incompleteTodoCount = createMemo(() => todo().filter((item) => item.status !== "completed").length)
   const sessionTokenCount = createMemo(() => sessionTokenTotal(messages()))
   const sessionCostLabel = createMemo(() => formatUsd(sessionCostTotal(messages())))
   const sessionGeneratedTokenCount = createMemo(() =>
@@ -2336,6 +2333,26 @@ export function Session() {
                                 flexDirection="column"
                                 gap={1}
                               >
+                                <text fg={theme.text}>Runtime</text>
+                                <text fg={theme.textMuted}>
+                                  {sessionStatusType() === "retry"
+                                    ? "blocked"
+                                    : chatActive()
+                                      ? "working"
+                                      : "connected"}
+                                </text>
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  {workflowMode()} · {sessionTurnCount()} turns
+                                  <Show when={incompleteTodoCount() > 0}> · {incompleteTodoCount()} todos</Show>
+                                </text>
+                              </box>
+                              <box
+                                border={["top"]}
+                                borderColor={theme.borderSubtle}
+                                paddingTop={1}
+                                flexDirection="column"
+                                gap={1}
+                              >
                                 <text fg={theme.text}>Review and memory</text>
                                 <text
                                   fg={pendingRaoCount() > 0 ? theme.primary : theme.textMuted}
@@ -2407,6 +2424,50 @@ export function Session() {
                                   </For>
                                 </box>
                               </Show>
+                              <box
+                                border={["top"]}
+                                borderColor={theme.borderSubtle}
+                                paddingTop={1}
+                                flexDirection="column"
+                                gap={1}
+                              >
+                                <text fg={theme.text}>MCP</text>
+                                <Show
+                                  when={connectedMcpCount() > 0}
+                                  fallback={<text fg={theme.textMuted}>No connected MCP servers</text>}
+                                >
+                                  <text fg={theme.textMuted}>
+                                    {connectedMcpCount()} connected
+                                  </text>
+                                </Show>
+                              </box>
+                              <box
+                                border={["top"]}
+                                borderColor={theme.borderSubtle}
+                                paddingTop={1}
+                                flexDirection="column"
+                                gap={1}
+                              >
+                                <text fg={theme.text}>LSP</text>
+                                <Show
+                                  when={sync.data.lsp.length > 0}
+                                  fallback={
+                                    <text fg={theme.textMuted}>
+                                      {sync.data.config.lsp === false
+                                        ? "LSP disabled"
+                                        : "Activates as files are read"}
+                                    </text>
+                                  }
+                                >
+                                  <For each={sync.data.lsp.slice(0, 3)}>
+                                    {(item) => (
+                                      <text fg={theme.textMuted} wrapMode="word">
+                                        {item.id}
+                                      </text>
+                                    )}
+                                  </For>
+                                </Show>
+                              </box>
                               <Show when={pmSummary().recentCount > 0 && !liveArtifact().active}>
                                 <box
                                   border={["top"]}
