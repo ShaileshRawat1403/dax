@@ -2,7 +2,6 @@ import { createContext, useContext, type ParentProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "@tui/context/theme"
 import { useTerminalDimensions } from "@opentui/solid"
-import { SplitBorder } from "../component/border"
 import { TextAttributes } from "@opentui/core"
 import z from "zod"
 import { TuiEvent } from "../event"
@@ -24,25 +23,18 @@ export function Toast() {
           position="absolute"
           justifyContent="center"
           alignItems="flex-start"
-          top={2}
-          left={2}
-          maxWidth={Math.min(60, dimensions().width - 6)}
+          top={1}
+          left={Math.max(1, Math.floor((dimensions().width - Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))) / 2))}
+          width={Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))}
+          maxWidth={Math.min(72, dimensions().width - 4)}
           paddingLeft={2}
           paddingRight={2}
-          paddingTop={1}
-          paddingBottom={1}
-          backgroundColor={theme.backgroundPanel}
-          borderColor={theme[current().variant]}
-          border={["left", "right"]}
-          customBorderChars={SplitBorder.customBorderChars}
+          paddingTop={0}
+          paddingBottom={0}
+          backgroundColor={theme[current().variant]}
         >
-          <Show when={current().title}>
-            <text attributes={TextAttributes.BOLD} marginBottom={1} fg={theme.text}>
-              {current().title}
-            </text>
-          </Show>
-          <text fg={theme.text} wrapMode="word" width="100%">
-            {current().message}
+          <text fg={theme.background} attributes={TextAttributes.BOLD} wrapMode="word" width="100%">
+            {current().title ? `${current().title}: ${current().message}` : current().message}
           </text>
         </box>
       )}

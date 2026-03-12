@@ -236,7 +236,13 @@ function App() {
   const args = useArgs()
   onMount(() => {
     batch(() => {
-      if (args.agent) local.agent.set(args.agent)
+      if (args.agent) {
+        local.agent.set(args.agent)
+        kv.set(DAX_SETTING.session_workflow_mode, args.agent)
+      } else {
+        local.agent.set("plan")
+        kv.set(DAX_SETTING.session_workflow_mode, "plan")
+      }
       if (args.model) {
         const { providerID, modelID } = Provider.parseModel(args.model)
         if (!providerID || !modelID)
@@ -423,12 +429,12 @@ function App() {
       },
     },
     {
-      title: "Switch agent",
+      title: "Select mode",
       value: "agent.list",
       keybind: "agent_list",
       category: "Agent",
       slash: {
-        name: "agents",
+        name: "mode",
       },
       onSelect: () => {
         dialog.replace(() => <DialogAgent />)

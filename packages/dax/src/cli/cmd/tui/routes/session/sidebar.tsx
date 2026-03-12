@@ -10,15 +10,50 @@ import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
+import { useLocal } from "../../context/local"
 import { TodoItem } from "../../component/todo-item"
+import { DAX_SETTING } from "@/dax/settings"
+import { nextActionForErrorMessage } from "@/dax/status"
+import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
 
-export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
+function SidebarAction(props: { label: string; onPress?: () => void; muted?: boolean; hint?: string }) {
+  const { theme } = useTheme()
+  return (
+    <Show when={props.onPress}>
+      <box onMouseUp={() => props.onPress?.()} paddingRight={1} flexDirection="row" gap={1}>
+        <text fg={props.muted ? theme.textMuted : theme.primary}>{props.label}</text>
+        <Show when={props.hint}>
+          <text fg={theme.textMuted}>{props.hint}</text>
+        </Show>
+      </box>
+    </Show>
+  )
+}
+
+export function Sidebar(props: {
+  sessionID: string
+  overlay?: boolean
+  onInspectApprovals?: () => void
+  onInspectDiff?: () => void
+  onInspectMcp?: () => void
+  onOpenPm?: () => void
+  onOpenTimeline?: () => void
+  onJumpLive?: () => void
+  onJumpLastUser?: () => void
+}) {
   const sync = useSync()
   const { theme } = useTheme()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
+  const permissions = createMemo(() => sync.data.permission[props.sessionID] ?? [])
+  const questions = createMemo(() => sync.data.question[props.sessionID] ?? [])
+  const runtimeStatus = createMemo(() => sync.data.session_status[props.sessionID] ?? { type: "idle" as const })
+  const retryMessage = createMemo(() => {
+    const status = runtimeStatus()
+    return status.type === "retry" ? status.message : undefined
+  })
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
@@ -59,9 +94,49 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
       percentage: model?.limit.context ? Math.round((total / model.limit.context) * 100) : null,
     }
   })
+  const incompleteTodoCount = createMemo(() => todo().filter((item) => item.status !== "completed").length)
+  const userTurnCount = createMemo(() => messages().filter((item) => item.role === "user").length)
 
   const directory = useDirectory()
   const kv = useKV()
+  const local = useLocal()
+  const workflowMode = createMemo(() => kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))
+
+  const latestAudit = createMemo(() => {
+    const messageList = messages()
+    for (let i = messageList.length - 1; i >= 0; i--) {
+      const message = messageList[i]
+      if (message.role !== "user") continue
+      const parts = sync.data.part[message.id] ?? []
+      const commandText = parts
+        .filter(
+          (part): part is Extract<(typeof parts)[number], { type: "text" }> => part.type === "text" && !part.synthetic,
+        )
+        .map((part) => part.text)
+        .join("")
+        .trim()
+      if (!commandText.startsWith("/audit")) continue
+      const response = messageList.findLast(
+        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
+      )
+      if (!response) return { command: commandText, status: "queued" as const }
+      const responseText = (sync.data.part[response.id] ?? [])
+        .filter(
+          (part): part is Extract<(typeof parts)[number], { type: "text" }> => part.type === "text" && !part.synthetic,
+        )
+        .map((part) => part.text)
+        .join("")
+        .trim()
+      const fenced = responseText.match(/```json\s*([\s\S]*?)```/i)?.[1]
+      const candidate = fenced ?? responseText
+      try {
+        const parsed = JSON.parse(candidate) as { status?: string }
+        if (parsed?.status) return { command: commandText, status: parsed.status }
+      } catch {}
+      return { command: commandText, status: "done" as const }
+    }
+    return undefined
+  })
 
   const hasProviders = createMemo(() =>
     sync.data.provider.some((x) => x.id !== "dax" || Object.values(x.models).some((y) => y.cost?.input !== 0)),
@@ -92,10 +167,102 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             </box>
             <box>
               <text fg={theme.text}>
-                <b>Context</b>
+                <b>Runtime</b>
               </text>
-              <box flexDirection="row" gap={1}>
-                <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
+              <text fg={runtimeStatus().type === "retry" ? theme.warning : theme.textMuted}>
+                {runtimeStatus().type === "busy"
+                  ? "waiting"
+                  : runtimeStatus().type === "retry"
+                    ? "blocked"
+                    : "connected"}
+              </text>
+              <Show when={retryMessage()}>
+                {(message) => (
+                  <>
+                    <text fg={theme.warning} wrapMode="word">
+                      {message()}
+                    </text>
+                    <text fg={theme.textMuted} wrapMode="word">
+                      next: {nextActionForErrorMessage(message())}
+                    </text>
+                  </>
+                )}
+              </Show>
+              <Show when={permissions().length > 0 || questions().length > 0}>
+                <text fg={theme.warning}>
+                  {permissions().length > 0
+                    ? `${permissions().length} approval${permissions().length === 1 ? "" : "s"}`
+                    : ""}
+                  {permissions().length > 0 && questions().length > 0 ? " · " : ""}
+                  {questions().length > 0 ? `${questions().length} question${questions().length === 1 ? "" : "s"}` : ""}
+                </text>
+              </Show>
+              <box flexDirection="row" gap={1} flexWrap="wrap">
+                <Show when={permissions().length > 0 || questions().length > 0}>
+                  <SidebarAction label={SESSION_COMMAND_LABELS.reviewApprovals} onPress={props.onInspectApprovals} />
+                </Show>
+                <Show when={diff().length > 0}>
+                  <SidebarAction label={SESSION_COMMAND_LABELS.reviewDiff} onPress={props.onInspectDiff} />
+                </Show>
+                <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline} onPress={props.onOpenTimeline} muted />
+                <SidebarAction label={SESSION_COMMAND_LABELS.jumpLastRequest} onPress={props.onJumpLastUser} muted />
+                <Show when={runtimeStatus().type === "busy" || runtimeStatus().type === "retry"}>
+                  <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive} onPress={props.onJumpLive} muted />
+                </Show>
+                <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
+              </box>
+            </box>
+            <box>
+              <box flexDirection="row" gap={1} alignItems="center">
+                <text fg={theme.accent}>◆</text>
+                <text fg={theme.text}>
+                  <b>Session</b>
+                </text>
+              </box>
+              <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
+                <text fg={theme.primary}>◇ {workflowMode()}</text>
+                <text fg={theme.textMuted}>•</text>
+                <text fg={theme.textMuted}>{userTurnCount()} turns</text>
+                <Show when={permissions().length + questions().length > 0}>
+                  <>
+                    <text fg={theme.textMuted}>•</text>
+                    <text fg={theme.warning}>◇ {permissions().length + questions().length} waiting</text>
+                  </>
+                </Show>
+                <Show when={incompleteTodoCount() > 0}>
+                  <>
+                    <text fg={theme.textMuted}>•</text>
+                    <text fg={theme.accent}>◇ {incompleteTodoCount()} todos</text>
+                  </>
+                </Show>
+                <Show when={diff().length > 0}>
+                  <>
+                    <text fg={theme.textMuted}>•</text>
+                    <text fg={theme.textMuted}>◇ {diff().length} files</text>
+                  </>
+                </Show>
+              </box>
+              <Show when={latestAudit()}>
+                {(audit) => (
+                  <box flexDirection="row" gap={1} marginTop={1}>
+                    <text fg={theme.info}>◇ audit:</text>
+                    <text fg={theme.textMuted}>{audit().status}</text>
+                    <Show when={audit().command !== "/audit"}>
+                      <text fg={theme.textMuted}>({audit().command})</text>
+                    </Show>
+                  </box>
+                )}
+              </Show>
+            </box>
+            <box marginTop={1}>
+              <box flexDirection="row" gap={1} alignItems="center">
+                <text fg={theme.success}>◆</text>
+                <text fg={theme.text}>
+                  <b>Usage</b>
+                </text>
+              </box>
+              <box flexDirection="row" gap={1} marginTop={1}>
+                <text fg={theme.textMuted}>◇ {context()?.tokens ?? 0} tokens</text>
                 <Show when={context()}>
                   {(c) => {
                     const p = c().percentage
@@ -103,14 +270,16 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                     const filled = Math.floor(p / 10)
                     const empty = 10 - filled
                     return (
-                      <text fg={p > 80 ? theme.error : theme.accent}>
-                        [{"■".repeat(filled)}{" ".repeat(empty)}] {p}%
+                      <text fg={p > 80 ? theme.error : theme.success}>
+                        [{filled === 0 ? "░".repeat(10) : "▓".repeat(filled) + "░".repeat(empty)}] {p}%
                       </text>
                     )
                   }}
                 </Show>
               </box>
-              <text fg={theme.textMuted}>{cost()} spent</text>
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.textMuted}>◇ {cost()} spent</text>
+              </box>
             </box>
             <Show when={mcpEntries().length > 0}>
               <box>
@@ -136,7 +305,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 <Show when={mcpEntries().length <= 2 || expanded.mcp}>
                   <For each={mcpEntries()}>
                     {([key, item]) => (
-                      <box flexDirection="row" gap={1}>
+                      <box flexDirection="row" gap={1} onMouseUp={() => props.onInspectMcp?.()}>
                         <text
                           flexShrink={0}
                           style={{
@@ -171,6 +340,9 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                     )}
                   </For>
                 </Show>
+                <box flexDirection="row" gap={1} flexWrap="wrap">
+                  <SidebarAction label={SESSION_COMMAND_LABELS.inspectMcp} onPress={props.onInspectMcp} muted />
+                </box>
               </box>
             </Show>
             <box>
@@ -253,7 +425,12 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                   <For each={diff() || []}>
                     {(item) => {
                       return (
-                        <box flexDirection="row" gap={1} justifyContent="space-between">
+                        <box
+                          flexDirection="row"
+                          gap={1}
+                          justifyContent="space-between"
+                          onMouseUp={() => props.onInspectDiff?.()}
+                        >
                           <text fg={theme.textMuted} wrapMode="none">
                             {item.file}
                           </text>
@@ -314,8 +491,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             <span style={{ fg: theme.text }}>{directory().split("/").at(-1)}</span>
           </text>
           <text fg={theme.textMuted}>
-            <span style={{ fg: theme.success }}>•</span> <b>DAX</b>{" "}
-            <span>{Installation.VERSION}</span>
+            <span style={{ fg: theme.success }}>•</span> <b>DAX</b> <span>{Installation.VERSION}</span>
           </text>
         </box>
       </box>
