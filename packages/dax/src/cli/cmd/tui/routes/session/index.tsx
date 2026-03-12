@@ -379,7 +379,7 @@ export function Session() {
     const gapAndBorders = 6
     return Math.max(34, Math.floor((total - gapAndBorders) * 0.26))
   })
-  const mainPaneGrow = createMemo(() => (liveStacked() ? 7 : 8))
+  const mainPaneGrow = createMemo(() => (liveStacked() ? 7 : 7))
   const sidePaneGrow = createMemo(() => (liveStacked() ? 3 : 3))
   const paneDiffView = createMemo(() => {
     const diffStyle = sync.data.config.tui?.diff_style
