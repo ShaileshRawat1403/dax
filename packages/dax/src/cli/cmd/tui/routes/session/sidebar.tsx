@@ -2,11 +2,8 @@ import { useSync } from "@tui/context/sync"
 import { createMemo, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
-import { Locale } from "@/util/locale"
 import type { AssistantMessage } from "@dax-ai/sdk/v2"
-import { Global } from "@/global"
 import { Installation } from "@/installation"
-import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { useLocal } from "../../context/local"
@@ -14,6 +11,7 @@ import { TodoItem } from "../../component/todo-item"
 import { DAX_SETTING } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
+import { formatUsd, latestContextUsage, sessionCostTotal } from "@/dax/session-metrics"
 
 function SidebarAction(props: { label: string; onPress?: () => void; muted?: boolean; hint?: string }) {
   const { theme } = useTheme()
@@ -26,6 +24,20 @@ function SidebarAction(props: { label: string; onPress?: () => void; muted?: boo
         </Show>
       </box>
     </Show>
+  )
+}
+
+function SectionHeading(props: { title: string; summary?: string }) {
+  const { theme } = useTheme()
+  return (
+    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+      <text fg={theme.text}>
+        <b>{props.title}</b>
+      </text>
+      <Show when={props.summary}>
+        <text fg={theme.textMuted}>{props.summary}</text>
+      </Show>
+    </box>
   )
 }
 
@@ -75,22 +87,15 @@ export function Sidebar(props: {
   )
 
   const cost = createMemo(() => {
-    const total = messages().reduce((sum, x) => sum + (x.role === "assistant" ? x.cost : 0), 0)
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(total)
+    return formatUsd(sessionCostTotal(messages()))
   })
 
   const context = createMemo(() => {
-    const last = messages().findLast((x) => x.role === "assistant" && x.tokens.output > 0) as AssistantMessage
-    if (!last) return
-    const total =
-      last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
-    const model = sync.data.provider.find((x) => x.id === last.providerID)?.models[last.modelID]
+    const usage = latestContextUsage(messages() as AssistantMessage[], sync.data.provider)
+    if (!usage) return
     return {
-      tokens: total.toLocaleString(),
-      percentage: model?.limit.context ? Math.round((total / model.limit.context) * 100) : null,
+      tokens: usage.tokens.toLocaleString(),
+      percentage: usage.percentage,
     }
   })
   const incompleteTodoCount = createMemo(() => todo().filter((item) => item.status !== "completed").length)
@@ -114,11 +119,13 @@ export function Sidebar(props: {
         .map((part) => part.text)
         .join("")
         .trim()
-      if (!commandText.startsWith("/audit")) continue
+      const isAuditTurn = message.agent === "audit" || commandText.startsWith("/audit")
+      if (!isAuditTurn) continue
+      const auditLabel = commandText || "audit"
       const response = messageList.findLast(
         (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
       )
-      if (!response) return { command: commandText, status: "queued" as const }
+      if (!response) return { command: auditLabel, status: "queued" as const }
       const responseText = (sync.data.part[response.id] ?? [])
         .filter(
           (part): part is Extract<(typeof parts)[number], { type: "text" }> => part.type === "text" && !part.synthetic,
@@ -130,9 +137,9 @@ export function Sidebar(props: {
       const candidate = fenced ?? responseText
       try {
         const parsed = JSON.parse(candidate) as { status?: string }
-        if (parsed?.status) return { command: commandText, status: parsed.status }
+        if (parsed?.status) return { command: auditLabel, status: parsed.status }
       } catch {}
-      return { command: commandText, status: "done" as const }
+      return { command: auditLabel, status: "done" as const }
     }
     return undefined
   })
@@ -211,41 +218,90 @@ export function Sidebar(props: {
                 <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
               </box>
             </box>
-            <box>
-              <box flexDirection="row" gap={1} alignItems="center">
-                <text fg={theme.accent}>◆</text>
-                <text fg={theme.text}>
-                  <b>Session</b>
-                </text>
+            <Show when={todo().length > 0 && todo().some((t) => t.status !== "completed")}>
+              <box>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  onMouseDown={() => todo().length > 2 && setExpanded("todo", !expanded.todo)}
+                >
+                  <Show when={todo().length > 2}>
+                    <text fg={theme.text}>{expanded.todo ? "▼" : "▶"}</text>
+                  </Show>
+                  <SectionHeading
+                    title="Todo"
+                    summary={incompleteTodoCount() > 0 ? `${incompleteTodoCount()} open` : undefined}
+                  />
+                </box>
+                <Show when={todo().length <= 2 || expanded.todo}>
+                  <For each={todo()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
+                </Show>
               </box>
+            </Show>
+            <Show when={diff().length > 0}>
+              <box>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  onMouseDown={() => diff().length > 2 && setExpanded("diff", !expanded.diff)}
+                >
+                  <Show when={diff().length > 2}>
+                    <text fg={theme.text}>{expanded.diff ? "▼" : "▶"}</text>
+                  </Show>
+                  <SectionHeading title="Modified Files" summary={`${diff().length} changed`} />
+                </box>
+                <Show when={diff().length <= 2 || expanded.diff}>
+                  <For each={diff() || []}>
+                    {(item) => {
+                      return (
+                        <box
+                          flexDirection="row"
+                          gap={1}
+                          justifyContent="space-between"
+                          onMouseUp={() => props.onInspectDiff?.()}
+                        >
+                          <text fg={theme.textMuted} wrapMode="none">
+                            {item.file}
+                          </text>
+                          <box flexDirection="row" gap={1} flexShrink={0}>
+                            <Show when={item.additions}>
+                              <text fg={theme.diffAdded}>+{item.additions}</text>
+                            </Show>
+                            <Show when={item.deletions}>
+                              <text fg={theme.diffRemoved}>-{item.deletions}</text>
+                            </Show>
+                          </box>
+                        </box>
+                      )
+                    }}
+                  </For>
+                </Show>
+              </box>
+            </Show>
+            <box>
+              <SectionHeading title="Session" />
               <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
-                <text fg={theme.primary}>◇ {workflowMode()}</text>
-                <text fg={theme.textMuted}>•</text>
+                <text fg={theme.primary}>{workflowMode()}</text>
+                <text fg={theme.textMuted}>·</text>
                 <text fg={theme.textMuted}>{userTurnCount()} turns</text>
                 <Show when={permissions().length + questions().length > 0}>
                   <>
-                    <text fg={theme.textMuted}>•</text>
-                    <text fg={theme.warning}>◇ {permissions().length + questions().length} waiting</text>
+                    <text fg={theme.textMuted}>·</text>
+                    <text fg={theme.warning}>{permissions().length + questions().length} waiting</text>
                   </>
                 </Show>
                 <Show when={incompleteTodoCount() > 0}>
                   <>
-                    <text fg={theme.textMuted}>•</text>
-                    <text fg={theme.accent}>◇ {incompleteTodoCount()} todos</text>
-                  </>
-                </Show>
-                <Show when={diff().length > 0}>
-                  <>
-                    <text fg={theme.textMuted}>•</text>
-                    <text fg={theme.textMuted}>◇ {diff().length} files</text>
+                    <text fg={theme.textMuted}>·</text>
+                    <text fg={theme.textMuted}>{incompleteTodoCount()} todos</text>
                   </>
                 </Show>
               </box>
               <Show when={latestAudit()}>
                 {(audit) => (
                   <box flexDirection="row" gap={1} marginTop={1}>
-                    <text fg={theme.info}>◇ audit:</text>
-                    <text fg={theme.textMuted}>{audit().status}</text>
+                    <text fg={theme.textMuted}>audit</text>
+                    <text fg={theme.text}>{audit().status}</text>
                     <Show when={audit().command !== "/audit"}>
                       <text fg={theme.textMuted}>({audit().command})</text>
                     </Show>
@@ -254,14 +310,9 @@ export function Sidebar(props: {
               </Show>
             </box>
             <box marginTop={1}>
-              <box flexDirection="row" gap={1} alignItems="center">
-                <text fg={theme.success}>◆</text>
-                <text fg={theme.text}>
-                  <b>Usage</b>
-                </text>
-              </box>
+              <SectionHeading title="Usage" />
               <box flexDirection="row" gap={1} marginTop={1}>
-                <text fg={theme.textMuted}>◇ {context()?.tokens ?? 0} tokens</text>
+                <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
                 <Show when={context()}>
                   {(c) => {
                     const p = c().percentage
@@ -277,7 +328,7 @@ export function Sidebar(props: {
                 </Show>
               </box>
               <box flexDirection="row" gap={1}>
-                <text fg={theme.textMuted}>◇ {cost()} spent</text>
+                <text fg={theme.textMuted}>{cost()} spent</text>
               </box>
             </box>
             <Show when={mcpEntries().length > 0}>
@@ -290,16 +341,14 @@ export function Sidebar(props: {
                   <Show when={mcpEntries().length > 2}>
                     <text fg={theme.text}>{expanded.mcp ? "▼" : "▶"}</text>
                   </Show>
-                  <text fg={theme.text}>
-                    <b>MCP</b>
-                    <Show when={!expanded.mcp}>
-                      <span style={{ fg: theme.textMuted }}>
-                        {" "}
-                        ({connectedMcpCount()} active
-                        {errorMcpCount() > 0 ? `, ${errorMcpCount()} error${errorMcpCount() > 1 ? "s" : ""}` : ""})
-                      </span>
-                    </Show>
-                  </text>
+                  <SectionHeading
+                    title="MCP"
+                    summary={
+                      !expanded.mcp
+                        ? `${connectedMcpCount()} active${errorMcpCount() > 0 ? `, ${errorMcpCount()} error${errorMcpCount() > 1 ? "s" : ""}` : ""}`
+                        : undefined
+                    }
+                  />
                 </box>
                 <Show when={mcpEntries().length <= 2 || expanded.mcp}>
                   <For each={mcpEntries()}>
@@ -353,9 +402,7 @@ export function Sidebar(props: {
                 <Show when={sync.data.lsp.length > 2}>
                   <text fg={theme.text}>{expanded.lsp ? "▼" : "▶"}</text>
                 </Show>
-                <text fg={theme.text}>
-                  <b>LSP</b>
-                </text>
+                <SectionHeading title="LSP" />
               </box>
               <Show when={sync.data.lsp.length <= 2 || expanded.lsp}>
                 <Show when={sync.data.lsp.length === 0}>
@@ -387,67 +434,6 @@ export function Sidebar(props: {
                 </For>
               </Show>
             </box>
-            <Show when={todo().length > 0 && todo().some((t) => t.status !== "completed")}>
-              <box>
-                <box
-                  flexDirection="row"
-                  gap={1}
-                  onMouseDown={() => todo().length > 2 && setExpanded("todo", !expanded.todo)}
-                >
-                  <Show when={todo().length > 2}>
-                    <text fg={theme.text}>{expanded.todo ? "▼" : "▶"}</text>
-                  </Show>
-                  <text fg={theme.text}>
-                    <b>Todo</b>
-                  </text>
-                </box>
-                <Show when={todo().length <= 2 || expanded.todo}>
-                  <For each={todo()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
-                </Show>
-              </box>
-            </Show>
-            <Show when={diff().length > 0}>
-              <box>
-                <box
-                  flexDirection="row"
-                  gap={1}
-                  onMouseDown={() => diff().length > 2 && setExpanded("diff", !expanded.diff)}
-                >
-                  <Show when={diff().length > 2}>
-                    <text fg={theme.text}>{expanded.diff ? "▼" : "▶"}</text>
-                  </Show>
-                  <text fg={theme.text}>
-                    <b>Modified Files</b>
-                  </text>
-                </box>
-                <Show when={diff().length <= 2 || expanded.diff}>
-                  <For each={diff() || []}>
-                    {(item) => {
-                      return (
-                        <box
-                          flexDirection="row"
-                          gap={1}
-                          justifyContent="space-between"
-                          onMouseUp={() => props.onInspectDiff?.()}
-                        >
-                          <text fg={theme.textMuted} wrapMode="none">
-                            {item.file}
-                          </text>
-                          <box flexDirection="row" gap={1} flexShrink={0}>
-                            <Show when={item.additions}>
-                              <text fg={theme.diffAdded}>+{item.additions}</text>
-                            </Show>
-                            <Show when={item.deletions}>
-                              <text fg={theme.diffRemoved}>-{item.deletions}</text>
-                            </Show>
-                          </box>
-                        </box>
-                      )
-                    }}
-                  </For>
-                </Show>
-              </box>
-            </Show>
           </box>
         </scrollbox>
 

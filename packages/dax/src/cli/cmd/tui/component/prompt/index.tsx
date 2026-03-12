@@ -272,7 +272,6 @@ export function Prompt(props: PromptProps) {
     extmarkToPartIndex: new Map(),
     interrupt: 0,
   })
-  const [eli12Hover, setEli12Hover] = createSignal(false)
   const syncedSessionIDRef = { current: undefined as string | undefined }
 
   createEffect(() => {
@@ -928,6 +927,11 @@ export function Prompt(props: PromptProps) {
     const current = local.model.variant.current()
     return !!current
   })
+  const activeWorkflowLabel = createMemo(() => {
+    const current = local.agent.current()?.name
+    if (current && WORKFLOW_AGENT_MODES.has(current)) return Locale.titlecase(current)
+    return Locale.titlecase(kv.get(DAX_SETTING.session_workflow_mode, current ?? "plan"))
+  })
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
   const homeCueFrames = createMemo(() => {
@@ -1068,6 +1072,20 @@ export function Prompt(props: PromptProps) {
                       return
                     }
                   }
+                  if (!autocomplete.visible) {
+                    const direction = keybind.match("agent_cycle", e)
+                      ? 1
+                      : keybind.match("agent_cycle_reverse", e)
+                        ? -1
+                        : 0
+                    if (direction) {
+                      local.agent.move(direction as 1 | -1)
+                      const current = local.agent.current()?.name
+                      if (current) kv.set(DAX_SETTING.session_workflow_mode, current)
+                      e.preventDefault()
+                      return
+                    }
+                  }
                   if (store.mode === "normal") autocomplete.onKeyDown(e)
                   if (!autocomplete.visible) {
                     if (
@@ -1183,11 +1201,7 @@ export function Prompt(props: PromptProps) {
               />
             </box>
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
-              <text fg={highlight()}>
-                {store.mode === "shell"
-                  ? "Shell"
-                  : Locale.titlecase(kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))}{" "}
-              </text>
+              <text fg={highlight()}>{store.mode === "shell" ? "Shell" : activeWorkflowLabel()} </text>
               <Show when={store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>
                   <text flexShrink={0} fg={keybind.leader ? theme.textMuted : theme.text}>
@@ -1314,12 +1328,6 @@ export function Prompt(props: PromptProps) {
             <box gap={2} flexDirection="row">
               <Switch>
                 <Match when={store.mode === "normal"}>
-                  <Show when={local.model.variant.list().length > 0}>
-                    <text fg={theme.text}>
-                      {keybind.print("variant_cycle")}{" "}
-                      <span style={{ fg: theme.textMuted }}>{explainMode() ? "model modes" : "variants"}</span>
-                    </text>
-                  </Show>
                   <text fg={theme.text}>
                     {keybind.print("agent_cycle")}{" "}
                     <span style={{ fg: theme.textMuted }}>{explainMode() ? "assistants" : "agents"}</span>
@@ -1328,15 +1336,9 @@ export function Prompt(props: PromptProps) {
                     {keybind.print("command_list")}{" "}
                     <span style={{ fg: theme.textMuted }}>{explainMode() ? "menu" : "commands"}</span>
                   </text>
-                  <box
-                    onMouseOver={() => setEli12Hover(true)}
-                    onMouseOut={() => setEli12Hover(false)}
-                    onMouseUp={() => setExplainMode(!explainMode())}
-                  >
-                    <text fg={explainMode() || eli12Hover() ? theme.success : theme.textMuted}>
-                      <span style={{ bold: true }}>ELI12</span> {explainMode() ? "on" : "off"}
-                    </text>
-                  </box>
+                  <Show when={explainMode()}>
+                    <text fg={theme.success}>ELI12 on</text>
+                  </Show>
                 </Match>
                 <Match when={store.mode === "shell"}>
                   <text fg={theme.text}>

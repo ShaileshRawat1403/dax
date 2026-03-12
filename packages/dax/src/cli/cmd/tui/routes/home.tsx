@@ -21,6 +21,9 @@ import { DAX_SETTING } from "@/dax/settings"
 import { useToast } from "../ui/toast"
 import { useLocal } from "../context/local"
 
+const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
+type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
+
 const WELCOME_MESSAGES = {
   firstTime: [
     "Welcome to DAX. Bring an idea, and we will turn it into real execution.",
@@ -135,9 +138,19 @@ export function Home() {
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const stages = createMemo(() => (explainMode() ? HOME_STAGE_ELI12 : HOME_STAGE))
 
-  function promptText(kind: "explore" | "plan" | "audit" | "docs") {
+  const workflowModes = createMemo(() =>
+    local.agent.list().filter((agent) => HOME_WORKFLOW_MODES.includes(agent.name as HomeWorkflowMode)),
+  )
+  const activeWorkflowMode = createMemo<HomeWorkflowMode>(() => {
+    const current = local.agent.current()?.name as HomeWorkflowMode | undefined
+    if (current && HOME_WORKFLOW_MODES.includes(current)) return current
+    return "plan"
+  })
+
+  function promptText(kind: HomeWorkflowMode) {
     if (explainMode()) {
       return {
+        build: "Build the next safe improvement for this project in simple language.",
         explore: "Explore this repository and explain the main parts in simple language.",
         plan: "Plan the safest next steps for this project in simple language.",
         audit: "Audit this repository for the most important release, policy, and quality risks in simple language.",
@@ -146,6 +159,7 @@ export function Home() {
     }
 
     return {
+      build: "Build the next safe improvement for this project and explain the implementation clearly.",
       explore:
         "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
       plan: "Plan the next safe implementation steps for this project.",
@@ -154,7 +168,7 @@ export function Home() {
     }[kind]
   }
 
-  function setPromptDraft(text: string, submit = false, mode?: "plan" | "build" | "explore" | "docs" | "audit") {
+  function setPromptDraft(text: string, submit = false, mode?: HomeWorkflowMode) {
     if (mode) {
       local.agent.set(mode)
       kv.set(DAX_SETTING.session_workflow_mode, mode)
@@ -162,6 +176,12 @@ export function Home() {
     prompt.set({ input: text, parts: [] })
     prompt.focus()
     if (submit) prompt.submit()
+  }
+
+  function selectWorkflowMode(mode: HomeWorkflowMode) {
+    local.agent.set(mode)
+    kv.set(DAX_SETTING.session_workflow_mode, mode)
+    prompt.focus()
   }
 
   function cycleTheme(step: 1 | -1) {
@@ -338,33 +358,29 @@ export function Home() {
             </Show>
 
             <Show when={!tiny() && showActions()}>
-              <box width="100%" flexDirection="row" justifyContent="center" gap={2} flexWrap="wrap" alignItems="center">
+              <box width="100%" flexDirection="column" alignItems="center" gap={1}>
+                <box flexDirection="row" justifyContent="center" gap={2} flexWrap="wrap" alignItems="center">
+                  <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                    Mode
+                  </text>
+                  <For each={workflowModes()}>
+                    {(agent) => (
+                      <ActionChip
+                        label={Locale.titlecase(agent.name)}
+                        active={activeWorkflowMode() === agent.name}
+                        theme={theme}
+                        onPress={() => selectWorkflowMode(agent.name as HomeWorkflowMode)}
+                      />
+                    )}
+                  </For>
+                </box>
                 <ActionChip
                   label="Explain"
                   active={explainMode()}
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
-                <ActionChip
-                  label="Explore"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
-                />
-                <ActionChip
-                  label="Plan"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
-                />
-                <ActionChip
-                  label="Audit"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("audit"), false, "audit")}
-                />
-                <ActionChip
-                  label="Docs"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
-                />
+                <text fg={theme.textMuted}>Tab cycles modes. Shift+Tab reverses.</text>
               </box>
             </Show>
 
@@ -382,14 +398,19 @@ export function Home() {
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
                 <text fg={theme.textMuted}>Quick:</text>
                 <PromptStarter
-                  label="Explore"
+                  label="Build"
                   theme={theme}
-                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
+                  onPress={() => setPromptDraft(promptText("build"), false, "build")}
                 />
                 <PromptStarter
                   label="Plan"
                   theme={theme}
                   onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
+                />
+                <PromptStarter
+                  label="Explore"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
                 />
                 <PromptStarter
                   label="Audit"
