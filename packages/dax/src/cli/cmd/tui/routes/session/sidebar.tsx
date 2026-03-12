@@ -15,8 +15,15 @@ function SidebarAction(props: { label: string; onPress?: () => void; muted?: boo
   const { theme } = useTheme()
   return (
     <Show when={props.onPress}>
-      <box onMouseUp={() => props.onPress?.()} paddingRight={1} flexDirection="row" gap={1}>
-        <text fg={props.muted ? theme.textMuted : theme.primary}>{props.label}</text>
+      <box
+        onMouseUp={() => props.onPress?.()}
+        paddingLeft={1}
+        paddingRight={1}
+        backgroundColor={theme.backgroundElement}
+        flexDirection="row"
+        gap={1}
+      >
+        <text fg={props.muted ? theme.textMuted : theme.primary}>› {props.label}</text>
         <Show when={props.hint}>
           <text fg={theme.textMuted}>{props.hint}</text>
         </Show>
@@ -35,6 +42,17 @@ function SectionHeading(props: { title: string; summary?: string }) {
       <Show when={props.summary}>
         <text fg={theme.textMuted}>{props.summary}</text>
       </Show>
+    </box>
+  )
+}
+
+function SidebarCard(props: { children: any }) {
+  const { theme } = useTheme()
+  return (
+    <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1}>
+      <box flexDirection="column" gap={1}>
+        {props.children}
+      </box>
     </box>
   )
 }
@@ -149,15 +167,17 @@ export function Sidebar(props: {
       >
         <scrollbox flexGrow={1}>
           <box flexShrink={0} gap={1} paddingRight={1}>
-            <box paddingRight={1}>
-              <text fg={theme.text}>
-                <b>{session().title}</b>
-              </text>
-              <Show when={session().share?.url}>
-                <text fg={theme.textMuted}>{session().share!.url}</text>
-              </Show>
-            </box>
-            <box>
+            <SidebarCard>
+              <box paddingRight={1}>
+                <text fg={theme.text}>
+                  <b>{session().title}</b>
+                </text>
+                <Show when={session().share?.url}>
+                  <text fg={theme.textMuted}>{session().share!.url}</text>
+                </Show>
+              </box>
+            </SidebarCard>
+            <SidebarCard>
               <text fg={theme.text}>
                 <b>Runtime</b>
               </text>
@@ -203,9 +223,9 @@ export function Sidebar(props: {
                 </Show>
                 <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
               </box>
-            </box>
+            </SidebarCard>
             <Show when={todo().length > 0 && todo().some((t) => t.status !== "completed")}>
-              <box>
+              <SidebarCard>
                 <box
                   flexDirection="row"
                   gap={1}
@@ -222,10 +242,10 @@ export function Sidebar(props: {
                 <Show when={todo().length <= 2 || expanded.todo}>
                   <For each={todo()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
                 </Show>
-              </box>
+              </SidebarCard>
             </Show>
             <Show when={diff().length > 0}>
-              <box>
+              <SidebarCard>
                 <box
                   flexDirection="row"
                   gap={1}
@@ -262,9 +282,9 @@ export function Sidebar(props: {
                     }}
                   </For>
                 </Show>
-              </box>
+              </SidebarCard>
             </Show>
-            <box>
+            <SidebarCard>
               <SectionHeading title="Session" />
               <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
                 <text fg={theme.primary}>{workflowMode()}</text>
@@ -294,9 +314,9 @@ export function Sidebar(props: {
                   </box>
                 )}
               </Show>
-            </box>
+            </SidebarCard>
             <Show when={mcpEntries().length > 0}>
-              <box>
+              <SidebarCard>
                 <box
                   flexDirection="row"
                   gap={1}
@@ -355,9 +375,9 @@ export function Sidebar(props: {
                 <box flexDirection="row" gap={1} flexWrap="wrap">
                   <SidebarAction label={SESSION_COMMAND_LABELS.inspectMcp} onPress={props.onInspectMcp} muted />
                 </box>
-              </box>
+              </SidebarCard>
             </Show>
-            <box>
+            <SidebarCard>
               <box
                 flexDirection="row"
                 gap={1}
@@ -397,7 +417,7 @@ export function Sidebar(props: {
                   )}
                 </For>
               </Show>
-            </box>
+            </SidebarCard>
           </box>
         </scrollbox>
 

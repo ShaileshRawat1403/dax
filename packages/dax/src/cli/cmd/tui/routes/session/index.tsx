@@ -2066,7 +2066,12 @@ export function Session() {
             <box flexDirection="row" gap={2} alignItems="center" paddingTop={1} paddingBottom={1} flexWrap="wrap">
               <For each={["plan", "build", "explore", "docs", "audit"] as WorkflowMode[]}>
                 {(mode) => (
-                  <box onMouseUp={() => selectWorkflowMode(mode)}>
+                  <box
+                    onMouseUp={() => selectWorkflowMode(mode)}
+                    paddingLeft={1}
+                    paddingRight={1}
+                    backgroundColor={workflowMode() === mode ? theme.backgroundElement : undefined}
+                  >
                     <text
                       fg={workflowMode() === mode ? theme.accent : theme.textMuted}
                       attributes={workflowMode() === mode ? TextAttributes.BOLD : undefined}
@@ -2079,8 +2084,8 @@ export function Session() {
             </box>
             <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" width="100%" paddingBottom={0}>
               <text fg={theme.textMuted}>pane</text>
-              <box onMouseUp={cyclePaneVisibility}>
-                <text fg={theme.textMuted}>
+              <box onMouseUp={cyclePaneVisibility} paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                <text fg={theme.text}>
                   {paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}
                 </text>
               </box>
@@ -2092,23 +2097,36 @@ export function Session() {
                   setSmartFollowActive(true)
                   setPendingUpdates(0)
                 }}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={theme.backgroundElement}
               >
-                <text fg={theme.textMuted}>follow {paneFollowMode()}</text>
+                <text fg={theme.text}>follow {paneFollowMode()}</text>
               </box>
               <text fg={theme.textMuted}>·</text>
-              <box onMouseUp={() => setShowDetails((prev) => !prev)}>
-                <text fg={showDetails() ? theme.text : theme.textMuted}>trace</text>
+              <box
+                onMouseUp={() => setShowDetails((prev) => !prev)}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={showDetails() ? theme.backgroundElement : undefined}
+              >
+                <text fg={showDetails() ? theme.primary : theme.textMuted}>trace</text>
               </box>
               <text fg={theme.textMuted}>·</text>
-              <box onMouseUp={() => setSlowStream((prev) => !prev)}>
-                <text fg={slowStream() ? theme.text : theme.textMuted}>slow</text>
+              <box
+                onMouseUp={() => setSlowStream((prev) => !prev)}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={slowStream() ? theme.backgroundElement : undefined}
+              >
+                <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
               </box>
               <text fg={theme.textMuted}>·</text>
-              <box onMouseUp={() => cycleTheme(-1)}>
+              <box onMouseUp={() => cycleTheme(-1)} paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
                 <text fg={theme.textMuted}>theme</text>
               </box>
               <text fg={theme.text}>{selectedThemeShort()}</text>
-              <box onMouseUp={() => cycleTheme(1)}>
+              <box onMouseUp={() => cycleTheme(1)} paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
                 <text fg={theme.textMuted}>+</text>
               </box>
             </box>
@@ -2588,7 +2606,7 @@ export function Session() {
                                   {(tab) => (
                                     <box
                                       onMouseUp={() => setPmTab(() => tab)}
-                                      backgroundColor={pmTab() === tab ? theme.backgroundElement : undefined}
+                                      backgroundColor={pmTab() === tab ? theme.backgroundElement : theme.backgroundPanel}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -2611,6 +2629,8 @@ export function Session() {
                                     <box
                                       onMouseUp={prefillPmNote}
                                       backgroundColor={theme.backgroundElement}
+                                      paddingTop={0}
+                                      paddingBottom={0}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -2619,6 +2639,8 @@ export function Session() {
                                     <box
                                       onMouseUp={() => runPmCommand("/pm note")}
                                       backgroundColor={theme.backgroundElement}
+                                      paddingTop={0}
+                                      paddingBottom={0}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -2658,6 +2680,8 @@ export function Session() {
                                     <box
                                       onMouseUp={() => runPmCommand("/pm list")}
                                       backgroundColor={theme.backgroundElement}
+                                      paddingTop={0}
+                                      paddingBottom={0}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -2710,6 +2734,8 @@ export function Session() {
                                     <box
                                       onMouseUp={() => runPmCommand("/pm rules")}
                                       backgroundColor={theme.backgroundElement}
+                                      paddingTop={0}
+                                      paddingBottom={0}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -2723,6 +2749,8 @@ export function Session() {
                                         })
                                       }
                                       backgroundColor={theme.backgroundElement}
+                                      paddingTop={0}
+                                      paddingBottom={0}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -3455,28 +3483,8 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   const { theme, syntax } = useTheme()
   return (
     <Show when={props.part.text.trim()}>
-      <box id={"text-" + props.part.id} paddingLeft={2} paddingRight={2} marginTop={1} flexShrink={0}>
-        <Switch>
-          <Match when={Flag.DAX_EXPERIMENTAL_MARKDOWN}>
-            <markdown
-              syntaxStyle={syntax()}
-              streaming={true}
-              content={props.part.text.trim()}
-              conceal={ctx.conceal()}
-            />
-          </Match>
-          <Match when={!Flag.DAX_EXPERIMENTAL_MARKDOWN}>
-            <code
-              filetype="markdown"
-              drawUnstyledText={false}
-              streaming={true}
-              syntaxStyle={syntax()}
-              content={props.part.text.trim()}
-              conceal={ctx.conceal()}
-              fg={theme.text}
-            />
-          </Match>
-        </Switch>
+      <box id={"text-" + props.part.id} paddingLeft={2} paddingRight={2} paddingBottom={1} marginTop={1} flexShrink={0}>
+        <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
       </box>
     </Show>
   )
