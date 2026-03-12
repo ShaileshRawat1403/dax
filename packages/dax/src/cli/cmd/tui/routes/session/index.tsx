@@ -762,6 +762,15 @@ export function Session() {
       latestCommand: recent[0]?.text,
     }
   })
+  const latestUserCommand = createMemo(() => {
+    for (const message of [...messages()].reverse()) {
+      if (message.role !== "user") continue
+      const text = messageText(message.id)
+      if (!text.startsWith("/")) continue
+      return text
+    }
+    return ""
+  })
 
   const auditHistory = createMemo(() => {
     const messageList = messages()
@@ -950,6 +959,7 @@ export function Session() {
   })
 
   const hasDiffNeed = createMemo(() => !!revert()?.diff)
+  const hasPmNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
   const hasArtifactNeed = createMemo(() => liveArtifact().active && chatActive())
   const recentTools = createMemo(() => {
     const items: Array<{ tool: string; status: string; label: string }> = []
@@ -1003,12 +1013,13 @@ export function Session() {
     if (paneVisibility() === "hidden") return false
     if (paneVisibility() === "pinned") return true
     if (!liveStacked()) return true
-    return hasRaoNeed() || hasDiffNeed() || hasArtifactNeed()
+    return hasRaoNeed() || hasDiffNeed() || hasPmNeed() || hasArtifactNeed()
   })
   const activePaneMode = createMemo<PaneMode>(() => {
     if (paneVisibility() === "pinned") return paneMode()
     if (hasRaoNeed()) return "rao"
     if (hasDiffNeed()) return "diff"
+    if (hasPmNeed()) return "pm"
     if (hasArtifactNeed()) return "artifact"
     return paneMode()
   })
