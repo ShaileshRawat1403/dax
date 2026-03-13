@@ -110,10 +110,67 @@ export class ReleaseOperator implements Operator {
       payload,
     }
 
+    // Generate markdown output for stream display
+    const markdownOutput = this.formatReleaseAsMarkdown(
+      status,
+      blockers,
+      warnings,
+      missingEvidence,
+      recommended_next_steps,
+    )
+
     return {
       success: true,
       output: report,
+      markdownOutput,
       artifacts: [artifact],
     }
+  }
+
+  private formatReleaseAsMarkdown(
+    status: string,
+    blockers: string[],
+    warnings: string[],
+    missingEvidence: string[],
+    nextSteps: string[],
+  ): string {
+    const statusEmoji = status === "ready" ? "✅" : status === "blocked" ? "🚫" : "⚠️"
+    const statusLabel = status === "ready" ? "RELEASE READY" : status === "blocked" ? "RELEASE BLOCKED" : "NEEDS WORK"
+
+    let md = `## Release Assessment\n\n`
+    md += `**Status:** ${statusEmoji} **${statusLabel}**\n\n`
+
+    if (blockers.length > 0) {
+      md += `### 🚫 Blockers\n`
+      for (const blocker of blockers) {
+        md += `- ${blocker}\n`
+      }
+      md += `\n`
+    }
+
+    if (missingEvidence.length > 0) {
+      md += `### 📋 Missing Evidence\n`
+      for (const evidence of missingEvidence) {
+        md += `- ${evidence}\n`
+      }
+      md += `\n`
+    }
+
+    if (warnings.length > 0) {
+      md += `### ⚠️ Warnings\n`
+      for (const warning of warnings) {
+        md += `- ${warning}\n`
+      }
+      md += `\n`
+    }
+
+    if (nextSteps.length > 0) {
+      md += `### 📝 Recommended Next Steps\n`
+      for (const step of nextSteps) {
+        md += `- ${step}\n`
+      }
+    }
+
+    return md
   }
 }

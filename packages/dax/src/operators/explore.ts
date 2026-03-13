@@ -77,6 +77,9 @@ export class ExploreOperator implements Operator {
 
     const result = buildExploreResult(merged)
 
+    // Generate markdown summary for stream display
+    const markdownOutput = this.formatExploreAsMarkdown(result)
+
     const reportArtifact: ArtifactRecord = {
       id: `art-${Math.random().toString(36).substr(2, 9)}`,
       sessionId: ctx.sessionId,
@@ -91,8 +94,42 @@ export class ExploreOperator implements Operator {
     return {
       success: true,
       output: result,
+      markdownOutput,
       artifacts: [reportArtifact],
     }
+  }
+
+  private formatExploreAsMarkdown(result: any): string {
+    let md = `## Repository Exploration\n\n`
+
+    if (result.sections) {
+      for (const section of result.sections) {
+        if (section.findings && section.findings.length > 0) {
+          md += `### ${section.title}\n`
+          for (const finding of section.findings.slice(0, 5)) {
+            md += `- ${finding}\n`
+          }
+          if (section.findings.length > 5) {
+            md += `- ... and ${section.findings.length - 5} more\n`
+          }
+          md += `\n`
+        }
+        if (section.files && section.files.length > 0) {
+          md += `### ${section.title}\n`
+          for (const file of section.files.slice(0, 8)) {
+            md += `- \`${file.path}\`\n`
+          }
+          if (section.files.length > 8) {
+            md += `- ... and ${section.files.length - 8} more files\n`
+          }
+          md += `\n`
+        }
+      }
+    }
+
+    md += `**Artifact:** \`explore_report.json\`\n`
+
+    return md
   }
 
   private async detectEntrypoints(ctx: OperatorContext): Promise<OperatorResult> {
