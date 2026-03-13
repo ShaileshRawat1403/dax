@@ -1,45 +1,64 @@
-export type IntentType =
-  | 'explore_repo'
-  | 'write_code'
-  | 'fix_bug'
-  | 'review_pr'
-  | 'generate_docs'
-  | 'general_query'
-  | 'unknown';
+import type { IntentEnvelope, IntentType } from "./types"
 
 export interface IntentContext {
-  cwd: string;
-  session_id?: string;
-  recent_history?: string[];
-}
-
-export interface Intent {
-  type: IntentType;
-  raw_prompt: string;
-  constraints: Record<string, string | boolean | number>;
-  expected_output: 'report' | 'code' | 'patch' | 'narrative';
-  context: IntentContext;
-  confidence: number;
+  cwd: string
+  session_id?: string
+  recent_history?: string[]
 }
 
 /**
- * Interpret a raw user prompt into a structured intent.
+ * Interpret a raw user prompt into a structured intent envelope.
  * This will eventually be backed by an LLM call or a robust parser.
  */
-export async function interpretIntent(prompt: string, context: IntentContext): Promise<Intent> {
-  // TODO: implement actual interpretation logic
-  // For now, simple heuristic routing
-  let type: IntentType = 'general_query';
-  if (prompt.includes('explore') || prompt.includes('read my repo')) {
-    type = 'explore_repo';
+export async function interpretIntent(prompt: string, context: IntentContext): Promise<IntentEnvelope> {
+  // TODO: implement actual interpretation logic with an LLM call.
+  // For now, simple heuristic routing.
+
+  const lowerPrompt = prompt.toLowerCase()
+  let intentType: IntentType = "general_query"
+  let suggestedOperator = "general" // Default operator
+  let requiredSkills: string[] = []
+
+  if (lowerPrompt.includes("explore") || lowerPrompt.includes("understand this repo")) {
+    intentType = "explore_repo"
+    suggestedOperator = "explore"
+    requiredSkills = ["repo-explore"]
+  } else if (
+    lowerPrompt.includes("review") &&
+    (lowerPrompt.includes("pr") || lowerPrompt.includes("pull request") || lowerPrompt.includes("diff"))
+  ) {
+    intentType = "git_review"
+    suggestedOperator = "git"
+    requiredSkills = ["git-review"]
+  } else if (lowerPrompt.includes("verify") || lowerPrompt.includes("trust")) {
+    intentType = "verify_session"
+    suggestedOperator = "verify"
+    requiredSkills = ["trust-verify"]
+  } else if (lowerPrompt.includes("release") || lowerPrompt.includes("ready to ship")) {
+    intentType = "release_readiness"
+    suggestedOperator = "release"
+    requiredSkills = ["release-readiness"]
+  } else if (lowerPrompt.includes("artifact") || lowerPrompt.includes("report")) {
+    intentType = "artifact_inspect"
+    suggestedOperator = "artifact"
+    requiredSkills = ["artifact-audit"]
+  } else if (lowerPrompt.includes("change this code") || lowerPrompt.includes("refactor")) {
+    intentType = "code_change"
+    suggestedOperator = "code" // A future operator
+  } else if (lowerPrompt.includes("generate docs") || lowerPrompt.includes("document this")) {
+    intentType = "docs_generate"
+    suggestedOperator = "docs" // A future operator
   }
 
   return {
-    type,
-    raw_prompt: prompt,
-    constraints: {},
-    expected_output: type === 'explore_repo' ? 'report' : 'narrative',
-    context,
-    confidence: 0.8,
-  };
+    intentType,
+    confidence: 0.75, // Placeholder confidence
+    activeMode: "execute", // Placeholder
+    suggestedOperator,
+    requiredSkills,
+    requestedOutput: "narrative", // Placeholder
+    riskLevel: "medium", // Placeholder
+    scope: "repo", // Placeholder
+    constraints: [], // Placeholder
+  }
 }
