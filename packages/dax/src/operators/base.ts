@@ -2,6 +2,7 @@ import type { PlannedTask, TaskGraph } from "../planner/task-graph"
 import type { ApprovalRequest } from "../governance/approval"
 import type { ArtifactRecord } from "../governance/artifact"
 import type { TrustDelta } from "../governance/trust"
+import type { Finding, Hypothesis, OpenQuestion, Risk, NextAction } from "../session/state-types"
 
 export interface OperatorContext {
   sessionId: string
@@ -10,7 +11,6 @@ export interface OperatorContext {
   reportMilestone?: (input: { taskID: string; label: string }) => Promise<void> | void
   reportArtifact?: (artifact: ArtifactRecord) => Promise<void> | void
   reportApprovalRequest?: (request: ApprovalRequest) => Promise<void> | void
-  // Can add references to tools, session state, governance, etc.
 }
 
 export interface OperatorResult {
@@ -20,6 +20,12 @@ export interface OperatorResult {
   artifacts?: ArtifactRecord[]
   approvalRequest?: ApprovalRequest
   trustDelta?: TrustDelta
+  findings?: Finding[]
+  hypotheses?: Hypothesis[]
+  openQuestions?: OpenQuestion[]
+  risks?: Risk[]
+  nextActions?: NextAction[]
+  warnings?: string[]
 }
 
 export interface Operator {

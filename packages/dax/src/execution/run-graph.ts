@@ -4,6 +4,7 @@ import type { OperatorContext } from "../operators/base"
 import type { ApprovalRequest } from "../governance/approval"
 import type { ArtifactRecord } from "../governance/artifact"
 import type { TrustDelta } from "../governance/trust"
+import { SessionStateManager } from "../session/update-state"
 
 export interface GraphRunResult {
   success: boolean
@@ -28,6 +29,7 @@ export async function runGraph(
   graph: TaskGraph,
   ctx: OperatorContext,
   router: OperatorRouter = defaultRouter,
+  stateManager?: SessionStateManager,
 ): Promise<GraphRunResult> {
   const blockedTasks: string[] = []
   const failedTasks: string[] = []
@@ -51,6 +53,71 @@ export async function runGraph(
           ...ctx,
           graph,
         })
+
+        // --- Update Session State ---
+        if (stateManager) {
+          // Add findings
+          if (result.findings) {
+            for (const finding of result.findings) {
+              stateManager.addFinding(finding)
+            }
+          }
+
+          // Add hypotheses
+          if (result.hypotheses) {
+            for (const hypothesis of result.hypotheses) {
+              stateManager.addHypothesis(hypothesis)
+            }
+          }
+
+          // Add open questions
+          if (result.openQuestions) {
+            for (const question of result.openQuestions) {
+              stateManager.addOpenQuestion(question)
+            }
+          }
+
+          // Add risks
+          if (result.risks) {
+            for (const risk of result.risks) {
+              stateManager.addRisk(risk)
+            }
+          }
+
+          // Add next actions
+          if (result.nextActions) {
+            for (const action of result.nextActions) {
+              stateManager.addNextAction(action)
+            }
+          }
+
+          // Add trust signals
+          if (result.trustDelta) {
+            stateManager.addTrustSignal({
+              source: task.id,
+              delta: result.trustDelta.change,
+              reason: result.trustDelta.reason,
+            })
+          }
+
+          // Add emitted artifacts
+          if (result.artifacts) {
+            for (const artifact of result.artifacts) {
+              stateManager.addEmittedArtifact({
+                type: artifact.type,
+                name: artifact.id,
+                path: artifact.path,
+                description: artifact.description,
+                producedBy: artifact.producingOperator,
+              })
+            }
+          }
+
+          // Handle approval requests
+          if (result.approvalRequest) {
+            stateManager.addApprovalRequest(result.approvalRequest.reason)
+          }
+        }
 
         // --- RAO Governance Boundary ---
         if (result.approvalRequest) {
