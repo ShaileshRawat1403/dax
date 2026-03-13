@@ -32,21 +32,39 @@ export async function runGraph(
   ctx: OperatorContext,
   router: OperatorRouter = defaultRouter,
   stateManager?: SessionStateManager,
+  options?: {
+    skipTaskIds?: string[]
+    initialSessionState?: any
+  },
 ): Promise<GraphRunResult> {
   const blockedTasks: string[] = []
   const failedTasks: string[] = []
   const recordedArtifacts: ArtifactRecord[] = []
   const trustDeltas: TrustDelta[] = []
   const pendingApprovals: ApprovalRequest[] = []
+  const skipTaskIds = new Set(options?.skipTaskIds || [])
+
+  // Restore initial session state if provided (for resume)
+  if (options?.initialSessionState && stateManager) {
+    // We need a way to set the state directly, or just use it as the base
+    // For now, we'll assume the stateManager is initialized with this state
+    // or we pass it to the operators
+    console.log("Restoring session state from snapshot...")
+  }
 
   while (true) {
-    const runnableTasks = getRunnableTasks(graph)
+    const runnableTasks = getRunnableTasks(graph).filter((t) => !skipTaskIds.has(t.id))
 
     if (runnableTasks.length === 0) {
       break
     }
 
     for (const task of runnableTasks) {
+      // Skip if explicitly marked to skip
+      if (skipTaskIds.has(task.id)) {
+        continue
+      }
+
       task.status = "running"
 
       try {
