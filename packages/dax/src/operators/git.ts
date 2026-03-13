@@ -30,9 +30,13 @@ export class GitOperator implements Operator {
       context: ctx.sessionId,
     }
 
+    // Generate markdown output for stream display
+    const markdownOutput = `## Git Operator\n\n**Skill:** ${skill.id}\n**Task:** ${task.id}\n\n*Git operator is a placeholder for future skill-based workflow execution.*`
+
     return {
       success: true,
       output: placeholderOutput,
+      markdownOutput,
     }
   }
 }

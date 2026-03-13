@@ -64,10 +64,49 @@ export class ArtifactOperator implements Operator {
       payload,
     }
 
+    // Generate markdown output for stream display
+    const markdownOutput = this.formatArtifactInventoryMarkdown(artifacts, byType, byOperator)
+
     return {
       success: true,
       output: report,
+      markdownOutput,
       artifacts: [artifactRecord],
     }
+  }
+
+  private formatArtifactInventoryMarkdown(
+    artifacts: any[],
+    byType: Record<string, number>,
+    byOperator: Record<string, number>,
+  ): string {
+    let md = `## Artifact Inventory\n\n`
+    md += `**Total:** ${artifacts.length} artifacts\n\n`
+
+    if (Object.keys(byType).length > 0) {
+      md += `### 📦 By Type\n`
+      for (const [type, count] of Object.entries(byType)) {
+        md += `- **${type}:** ${count}\n`
+      }
+      md += `\n`
+    }
+
+    if (Object.keys(byOperator).length > 0) {
+      md += `### 👤 By Operator\n`
+      for (const [op, count] of Object.entries(byOperator)) {
+        md += `- **${op}:** ${count}\n`
+      }
+      md += `\n`
+    }
+
+    md += `### 📋 Artifact List\n`
+    for (const artifact of artifacts.slice(0, 10)) {
+      md += `- \`${artifact.type}\` - ${artifact.path || "unknown path"}\n`
+    }
+    if (artifacts.length > 10) {
+      md += `- ... and ${artifacts.length - 10} more\n`
+    }
+
+    return md
   }
 }
