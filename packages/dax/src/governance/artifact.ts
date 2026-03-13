@@ -11,6 +11,7 @@ export interface ArtifactRecord {
     | "verification_report"
     | "explore_report"
     | "command_output"
+    | "artifact_inventory"
   description: string
   path: string // Path to the artifact on disk
   timestamp: string
