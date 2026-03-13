@@ -1875,10 +1875,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       if (!title || !note) {
         return respondCommandText({
           input,
-          text: [
-            "Usage:",
-            "/pm note <title> | <note> | <tag1,tag2>",
-          ].join("\n"),
+          text: ["Usage:", "/pm note <title> | <note> | <tag1,tag2>"].join("\n"),
         })
       }
       const tags = chunks[2]
@@ -1986,10 +1983,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return respondCommandText({
         input,
         commandName: Command.Default.AUDIT,
-        text: [
-          "Audit is disabled.",
-          "Enable it with DAX_AUDIT_BETA=1 or config.audit.enabled=true.",
-        ].join("\n"),
+        text: ["Audit is disabled.", "Enable it with DAX_AUDIT_BETA=1 or config.audit.enabled=true."].join("\n"),
       })
     }
 
@@ -2078,12 +2072,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
     }
 
-    const text = [
-      Audit.toMarkdown(result),
-      "```json",
-      JSON.stringify(result, null, 2),
-      "```",
-    ].join("\n\n")
+    const text = [Audit.toMarkdown(result), "```json", JSON.stringify(result, null, 2), "```"].join("\n\n")
     return respondCommandText({
       input,
       commandName: Command.Default.AUDIT,
@@ -2095,7 +2084,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     const tokens = input.arguments.trim().split(/\s+/).filter(Boolean)
     const sub = (tokens[0] ?? "guide").toLowerCase()
     const qa_profile =
-      sub === "qa" && (tokens.includes("--strict") || tokens.includes("strict")) ? ("strict" as const) : ("balanced" as const)
+      sub === "qa" && (tokens.includes("--strict") || tokens.includes("strict"))
+        ? ("strict" as const)
+        : ("balanced" as const)
     const topicTokens =
       sub === "qa" ? tokens.slice(1).filter((token) => token !== "--strict" && token !== "strict") : tokens.slice(1)
     const topic = topicTokens.join(" ").trim() || undefined
@@ -2110,12 +2101,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     }
 
     const result = await DocOps.run({ mode, topic, qa_profile })
-    const text = [
-      DocOps.toMarkdown(result),
-      "```json",
-      JSON.stringify(result, null, 2),
-      "```",
-    ].join("\n\n")
+    const text = [DocOps.toMarkdown(result), "```json", JSON.stringify(result, null, 2), "```"].join("\n\n")
 
     return respondCommandText({
       input,
@@ -2237,6 +2223,20 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             await appendAssistantText(label, {
               synthetic: true,
               metadata: { milestone: true, taskID },
+            })
+          },
+          reportArtifact: async (artifact) => {
+            const text = `📦 Artifact recorded: ${artifact.description} (type: ${artifact.type})`
+            await appendAssistantText(text, {
+              synthetic: true,
+              metadata: { artifact: true, artifactId: artifact.id },
+            })
+          },
+          reportApprovalRequest: async (request) => {
+            const text = `✋ Approval required: ${request.reason}`
+            await appendAssistantText(text, {
+              synthetic: true,
+              metadata: { approval: true, approvalId: request.id },
             })
           },
         },

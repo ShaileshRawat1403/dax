@@ -1,11 +1,14 @@
-import { type TaskGraph, type PlannedTask, getRunnableTasks } from '../planner/task-graph';
-import { OperatorRouter, defaultRouter } from '../operators/router';
-import type { OperatorContext } from '../operators/base';
+import { type TaskGraph, type PlannedTask, getRunnableTasks } from "../planner/task-graph"
+import { OperatorRouter, defaultRouter } from "../operators/router"
+import type { OperatorContext } from "../operators/base"
+import type { ApprovalRequest } from "../governance/approval"
+import type { ArtifactRecord } from "../governance/artifact"
+import type { TrustDelta } from "../governance/trust"
 
 export interface GraphRunResult {
-  success: boolean;
-  blockedTasks: string[];
-  failedTasks: string[];
+  success: boolean
+  blockedTasks: string[]
+  failedTasks: string[]
 }
 
 const milestoneLabels: Record<string, string> = {
@@ -14,7 +17,7 @@ const milestoneLabels: Record<string, string> = {
   task_trace_execution_flow: "Execution-flow pass completed",
   task_detect_integrations: "Integrations pass completed",
   task_generate_report: "Report prepared",
-};
+}
 
 /**
  * The core DAX runtime loop.
@@ -24,84 +27,99 @@ const milestoneLabels: Record<string, string> = {
 export async function runGraph(
   graph: TaskGraph,
   ctx: OperatorContext,
-  router: OperatorRouter = defaultRouter
+  router: OperatorRouter = defaultRouter,
 ): Promise<GraphRunResult> {
-  const blockedTasks: string[] = [];
-  const failedTasks: string[] = [];
+  const blockedTasks: string[] = []
+  const failedTasks: string[] = []
+  const recordedArtifacts: ArtifactRecord[] = []
+  const trustDeltas: TrustDelta[] = []
+  const pendingApprovals: ApprovalRequest[] = []
 
   while (true) {
-    const runnableTasks = getRunnableTasks(graph);
-    
-    // If no runnable tasks, graph is complete, blocked, or deadlocked
+    const runnableTasks = getRunnableTasks(graph)
+
     if (runnableTasks.length === 0) {
-      break;
+      break
     }
 
     for (const task of runnableTasks) {
-      task.status = 'running';
-      
+      task.status = "running"
+
       try {
-        const operator = await router.route(task);
+        const operator = await router.route(task)
         const result = await operator.execute(task, {
           ...ctx,
           graph,
-        });
+        })
 
         // --- RAO Governance Boundary ---
-        if (result.requiresApproval) {
-          task.status = 'blocked';
-          blockedTasks.push(task.id);
-          // TODO: raiseApproval(result.approvalsRequired) via session state
-          continue;
+        if (result.approvalRequest) {
+          task.status = "blocked"
+          blockedTasks.push(task.id)
+          pendingApprovals.push(result.approvalRequest)
+          if (ctx.reportApprovalRequest) {
+            await ctx.reportApprovalRequest(result.approvalRequest)
+          }
+          continue
         }
 
         if (!result.success) {
-          task.status = 'failed';
-          task.error = result.error;
-          failedTasks.push(task.id);
-          continue;
+          task.status = "failed"
+          task.error = result.error
+          failedTasks.push(task.id)
+          continue
         }
 
         // --- Execution Success ---
-        task.status = 'completed';
-        task.result = result.output;
-        
-        // TODO: recordArtifacts(result.artifacts) to session state
+        task.status = "completed"
+        task.result = result.output
 
-        if (ctx.reportMilestone) {
-          const label = milestoneLabels[task.id];
-          if (label) {
-            await ctx.reportMilestone({ taskID: task.id, label });
+        if (result.artifacts) {
+          recordedArtifacts.push(...result.artifacts)
+          if (ctx.reportArtifact) {
+            for (const artifact of result.artifacts) {
+              await ctx.reportArtifact(artifact)
+            }
           }
         }
 
+        if (result.trustDelta) {
+          trustDeltas.push(result.trustDelta)
+          console.log(`TRUST: Trust delta of ${result.trustDelta.change} for task ${task.id}`)
+        }
+
+        if (ctx.reportMilestone) {
+          const label = milestoneLabels[task.id]
+          if (label) {
+            await ctx.reportMilestone({ taskID: task.id, label })
+          }
+        }
       } catch (err) {
-        task.status = 'failed';
-        task.error = err instanceof Error ? err : new Error(String(err));
-        failedTasks.push(task.id);
+        task.status = "failed"
+        task.error = err instanceof Error ? err : new Error(String(err))
+        failedTasks.push(task.id)
       }
     }
 
-    // Stop loop if intervention is required or tasks failed
     if (blockedTasks.length > 0 || failedTasks.length > 0) {
-      break;
+      break
     }
   }
 
   // Determine final status
-  const allTasksCompleted = Array.from(graph.tasks.values()).every(t => t.status === 'completed');
+  const allTasksCompleted = Array.from(graph.tasks.values()).every((t) => t.status === "completed")
 
   if (allTasksCompleted) {
-    graph.status = 'completed';
+    graph.status = "completed"
   } else if (failedTasks.length > 0) {
-    graph.status = 'failed';
+    graph.status = "failed"
   } else if (blockedTasks.length > 0) {
-    graph.status = 'blocked';
+    graph.status = "blocked"
   }
 
   return {
     success: allTasksCompleted,
     blockedTasks,
-    failedTasks
-  };
+    failedTasks,
+  }
 }
