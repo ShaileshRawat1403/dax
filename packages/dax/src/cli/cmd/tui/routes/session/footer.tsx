@@ -33,7 +33,7 @@ export function Footer(props?: { lifecycleLabel?: string }) {
       <box flexDirection="row" gap={1}>
         <text fg={theme.primary}>{mode()}</text>
         <Show when={!small()}>
-          <text fg={theme.textMuted}>{directory()}</text>
+          <text fg={theme.textMuted}>· {directory()}</text>
         </Show>
       </box>
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
@@ -57,16 +57,19 @@ export function Footer(props?: { lifecycleLabel?: string }) {
           <text fg={theme.textMuted}>{`[sessions:${sessionCount()}]`}</text>
         </Show>
         <Show when={!tiny()}>
-          <text fg={theme.textMuted}>[help:?]</text>
+          <text fg={theme.textMuted}>·</text>
         </Show>
         <Show when={!tiny()}>
-          <text fg={theme.textMuted}>[t] timeline</text>
+          <text fg={theme.textMuted}>[?]</text>
+        </Show>
+        <Show when={!tiny()}>
+          <text fg={theme.textMuted}>[t]</text>
         </Show>
         <Show when={permissions().length > 0 && !tiny()}>
-          <text fg={theme.warning}>{`[a] approvals:${permissions().length}`}</text>
+          <text fg={theme.warning}>{`[a:${permissions().length}]`}</text>
         </Show>
         <Show when={!small()}>
-          <text fg={theme.textMuted}>[m] inspect</text>
+          <text fg={theme.textMuted}>[m]</text>
         </Show>
       </box>
     </box>
