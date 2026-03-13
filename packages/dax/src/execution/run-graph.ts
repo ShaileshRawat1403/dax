@@ -7,6 +7,7 @@ import type { TrustDelta } from "../governance/trust"
 import { SessionStateManager } from "../session/update-state"
 import { saveSnapshot } from "../session/persist-state"
 import type { GraphStatus } from "../session/snapshot-types"
+import { buildContextPack } from "../context/build-context-pack"
 
 export interface GraphRunResult {
   success: boolean
@@ -69,9 +70,16 @@ export async function runGraph(
 
       try {
         const operator = await router.route(task)
+
+        // Build context pack if state manager exists
+        const contextPack = stateManager
+          ? buildContextPack(stateManager.getState(), task.id, operator.type as any)
+          : undefined
+
         const result = await operator.execute(task, {
           ...ctx,
           graph,
+          contextPack,
         })
 
         // --- Update Session State ---
