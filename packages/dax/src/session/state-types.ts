@@ -117,7 +117,7 @@ export interface ApprovalState {
   denied: ApprovalDenied[]
 }
 
-export type SessionStatus = "active" | "paused" | "completed" | "abandoned"
+export type SessionStatus = "active" | "paused" | "completed" | "abandoned" | "failed" | "blocked"
 
 export interface Workspace {
   cwd: string
