@@ -55,6 +55,17 @@ export class SessionStateManager {
     }
   }
 
+  addHypothesis(hypothesis: Omit<Hypothesis, "id" | "timestamp">) {
+    const newHypothesis: Hypothesis = {
+      ...hypothesis,
+      id: generateId(),
+      timestamp: new Date().toISOString(),
+    }
+    this.state.hypotheses.push(newHypothesis)
+    this.state.updatedAt = new Date().toISOString()
+    return newHypothesis
+  }
+
   addOpenQuestion(question: Omit<OpenQuestion, "id" | "timestamp" | "status">) {
     const newQuestion: OpenQuestion = {
       ...question,
