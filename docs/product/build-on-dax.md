@@ -43,8 +43,8 @@ bun run release:verify
 
 Read first:
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md)
-- [PROVIDERS.md](PROVIDERS.md)
+- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
+- [providers.md](providers.md)
 - [distribution.md](distribution.md)
 
 ## Recommended Customization Sequence
@@ -77,15 +77,18 @@ Read first:
 ![DAX running locally from source using bun run dev](./images/build-on-dax-01-local-dev-run.png)
 
 Capture:
+
 - Terminal command `bun run dev`
 - DAX UI running in same screenshot
 
 ### 2) Release assets
 
 Capture:
+
 - Release page asset list with `.tar.gz`, `.zip`, `install.sh`, `manifest.json`
 
 ### 3) Distribution workflow success
 
 Capture:
+
 - Green success state for Homebrew or Winget workflow run
