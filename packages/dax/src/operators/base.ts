@@ -28,6 +28,7 @@ export interface OperatorResult {
   risks?: Risk[]
   nextActions?: NextAction[]
   warnings?: string[]
+  markdownOutput?: string
 }
 
 export interface Operator {
