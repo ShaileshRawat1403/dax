@@ -14,3 +14,6 @@ artifacts/
 # OS-specific
 .DS_Store
 *.swp
+
+# Incoming screenshots/docs (temp)
+docs/images/_incoming/

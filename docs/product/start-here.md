@@ -61,17 +61,19 @@ This gives you a low-risk Plan -> Run -> Approvals -> Artifacts -> Audit -> Veri
 
 ### 1) Home screen
 
-![DAX home screen with provider picker and prompt box](./images/start-here-01-home.png)
+![DAX home screen with provider picker and prompt box](../images/start-here-01-home.png)
 
 Capture:
+
 - First screen after running `dax`
 - Provider/model picker and prompt input both visible
 
 ### 2) Session screen + panes
 
-![DAX session screen with Plan, Review, Changes, Context, and Docs panes](./images/start-here-02-session-panes.png)
+![DAX session screen with Plan, Review, Changes, Context, and Docs panes](../images/start-here-02-session-panes.png)
 
 Capture:
+
 - One submitted prompt and response visible
 - Side panes (`Plan`, `Review`, `Changes`, `Context`, `Docs`) visible
 - Session review surfaces visible:
@@ -81,9 +83,10 @@ Capture:
 
 ### 3) Diff review
 
-![DAX diff pane showing a small approved edit](./images/start-here-03-diff-approved-edit.png)
+![DAX diff pane showing a small approved edit](../images/start-here-03-diff-approved-edit.png)
 
 Capture:
+
 - One low-risk file edit
 - Added and removed lines visible
 
@@ -104,4 +107,4 @@ dax doctor auth
 dax doctor auth google/gemini-2.5-flash
 ```
 
-Next guide: [non-dev-quickstart.md](non-dev-quickstart.md)
+Next guide: see [docs/README.md](../README.md) for all available guides.
