@@ -18,6 +18,9 @@ export class ExploreOperator implements Operator {
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
     try {
       switch (task.id) {
+        case "explore-repo":
+          return await this.exploreFullRepo(ctx)
+
         case "task_detect_boundaries":
           return await this.exploreBoundaries(ctx)
 
@@ -55,6 +58,40 @@ export class ExploreOperator implements Operator {
     return {
       success: true,
       output: delta,
+    }
+  }
+
+  private async exploreFullRepo(ctx: OperatorContext): Promise<OperatorResult> {
+    const boundaries = await runBoundaryPass(ctx.cwd)
+    const entrypoints = await runEntryPointPass(ctx.cwd)
+    const integrations = await runIntegrationPass(ctx.cwd)
+    const executionFlow = await runExecutionFlowPass(ctx.cwd)
+
+    const merged = mergeExplorePassOutputs(
+      mergeExplorePassOutputs(
+        mergeExplorePassOutputs(mergeExplorePassOutputs(createEmptyExplorePassOutputs(), boundaries), entrypoints),
+        integrations,
+      ),
+      executionFlow,
+    )
+
+    const result = buildExploreResult(merged)
+
+    const reportArtifact: ArtifactRecord = {
+      id: `art-${Math.random().toString(36).substr(2, 9)}`,
+      sessionId: ctx.sessionId,
+      taskId: "explore-repo",
+      producingOperator: this.type,
+      type: "explore_report",
+      description: "Repository exploration report",
+      path: "explore_report.json",
+      timestamp: new Date().toISOString(),
+    }
+
+    return {
+      success: true,
+      output: result,
+      artifacts: [reportArtifact],
     }
   }
 

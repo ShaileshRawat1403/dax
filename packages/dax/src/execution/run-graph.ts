@@ -172,27 +172,6 @@ export async function runGraph(
         // --- Execution Success ---
         task.status = "completed"
         task.result = result.output
-
-        if (result.artifacts) {
-          recordedArtifacts.push(...result.artifacts)
-          if (ctx.reportArtifact) {
-            for (const artifact of result.artifacts) {
-              await ctx.reportArtifact(artifact)
-            }
-          }
-        }
-
-        if (result.trustDelta) {
-          trustDeltas.push(result.trustDelta)
-          console.log(`TRUST: Trust delta of ${result.trustDelta.change} for task ${task.id}`)
-        }
-
-        if (ctx.reportMilestone) {
-          const label = milestoneLabels[task.id]
-          if (label) {
-            await ctx.reportMilestone({ taskID: task.id, label })
-          }
-        }
       } catch (err) {
         task.status = "failed"
         task.error = err instanceof Error ? err : new Error(String(err))
