@@ -2542,9 +2542,11 @@ export function Session() {
                                   <text fg={theme.primary} wrapMode="word">
                                     {liveArtifact().title}
                                   </text>
-                                  <text fg={theme.textMuted} wrapMode="word">
-                                    {liveArtifact().body.split("\n").slice(0, 8).join("\n")}
-                                  </text>
+                                  <markdown
+                                    syntaxStyle={syntax()}
+                                    streaming={false}
+                                    content={liveArtifact().body.split("\n").slice(0, 12).join("\n")}
+                                  />
                                 </box>
                               </Show>
                             </box>
