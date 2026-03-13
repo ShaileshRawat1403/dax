@@ -224,6 +224,7 @@ export function Sidebar(props: {
                 <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
               </box>
             </SidebarCard>
+            <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <Show when={todo().length > 0 && todo().some((t) => t.status !== "completed")}>
               <SidebarCard>
                 <box
@@ -244,6 +245,7 @@ export function Sidebar(props: {
                 </Show>
               </SidebarCard>
             </Show>
+            <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <Show when={diff().length > 0}>
               <SidebarCard>
                 <box
@@ -284,6 +286,7 @@ export function Sidebar(props: {
                 </Show>
               </SidebarCard>
             </Show>
+            <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <SidebarCard>
               <SectionHeading title="Session" />
               <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
@@ -315,6 +318,7 @@ export function Sidebar(props: {
                 )}
               </Show>
             </SidebarCard>
+            <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <Show when={mcpEntries().length > 0}>
               <SidebarCard>
                 <box
@@ -377,6 +381,7 @@ export function Sidebar(props: {
                 </box>
               </SidebarCard>
             </Show>
+            <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <SidebarCard>
               <box
                 flexDirection="row"

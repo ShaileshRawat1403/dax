@@ -324,6 +324,16 @@ export function Session() {
     }, remaining)
     onCleanup(() => clearTimeout(timer))
   })
+  const [previousStage, setPreviousStage] = createSignal<StreamStage | null>(null)
+  createEffect(() => {
+    const current = displayStageState().stage
+    const prev = previousStage()
+    if (prev !== null && prev !== current) {
+      setPreviousStage(current)
+    } else if (prev === null) {
+      setPreviousStage(current)
+    }
+  })
   const stageLabel = createMemo(() => {
     return labelStage(displayStageState().stage, explainMode())
   })
@@ -2308,6 +2318,11 @@ export function Session() {
                                 />
                               </Match>
                               <Match when={message.role === "assistant"}>
+                                <Show when={previousStage() !== null && previousStage() !== displayStageState().stage}>
+                                  <box paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={0} flexShrink={0}>
+                                    <text fg={theme.borderSubtle}>{"─".repeat(Math.min(40, contentWidth() - 20))}</text>
+                                  </box>
+                                </Show>
                                 <StageTimeline
                                   visible={message.id === pending()}
                                   stageState={displayStageState()}
@@ -2338,29 +2353,34 @@ export function Session() {
                         <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                           <text fg={theme.textMuted}>pane</text>
                           <For each={PANE_MODES}>
-                            {(mode) => (
-                              <box
-                                onMouseUp={() => {
-                                  setPaneMode(() => mode)
-                                  if (paneVisibility() === "hidden") {
-                                    setPaneVisibility(() => "pinned")
-                                  }
-                                }}
-                                paddingRight={1}
-                              >
-                                <text
-                                  fg={activePaneMode() === mode ? theme.text : theme.textMuted}
-                                  attributes={activePaneMode() === mode ? TextAttributes.BOLD : undefined}
+                            {(mode, modeIndex) => (
+                              <>
+                                <Show when={modeIndex() > 0}>
+                                  <text fg={theme.borderSubtle}>|</text>
+                                </Show>
+                                <box
+                                  onMouseUp={() => {
+                                    setPaneMode(() => mode)
+                                    if (paneVisibility() === "hidden") {
+                                      setPaneVisibility(() => "pinned")
+                                    }
+                                  }}
+                                  paddingRight={1}
                                 >
-                                  {paneLabel(mode)}
-                                  <Show when={paneBadge(mode)}>
-                                    <span style={{ fg: activePaneMode() === mode ? theme.primary : theme.textMuted }}>
-                                      {" "}
-                                      {paneBadge(mode)}
-                                    </span>
-                                  </Show>
-                                </text>
-                              </box>
+                                  <text
+                                    fg={activePaneMode() === mode ? theme.text : theme.textMuted}
+                                    attributes={activePaneMode() === mode ? TextAttributes.BOLD : undefined}
+                                  >
+                                    {paneLabel(mode)}
+                                    <Show when={paneBadge(mode)}>
+                                      <span style={{ fg: activePaneMode() === mode ? theme.primary : theme.textMuted }}>
+                                        {" "}
+                                        {paneBadge(mode)}
+                                      </span>
+                                    </Show>
+                                  </text>
+                                </box>
+                              </>
                             )}
                           </For>
                         </box>
@@ -3852,7 +3872,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={"◆ Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
               conceal={false}
@@ -3874,7 +3894,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
+        <InlineTool icon="◆" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
           Write {normalizePath(props.input.filePath!)}
         </InlineTool>
       </Match>
