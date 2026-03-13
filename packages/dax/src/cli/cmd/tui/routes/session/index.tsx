@@ -2047,6 +2047,10 @@ export function Session() {
                   <text fg={theme.textMuted}>·</text>
                   <text fg={theme.textMuted}>{streamStatus()}</text>
                 </Show>
+                <Show when={explainMode()}>
+                  <text fg={theme.textMuted}>·</text>
+                  <text fg={theme.success}>ELI12</text>
+                </Show>
                 <Show when={pending()}>
                   <Spinner />
                 </Show>
