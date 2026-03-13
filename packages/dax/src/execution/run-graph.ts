@@ -5,6 +5,8 @@ import type { ApprovalRequest } from "../governance/approval"
 import type { ArtifactRecord } from "../governance/artifact"
 import type { TrustDelta } from "../governance/trust"
 import { SessionStateManager } from "../session/update-state"
+import { saveSnapshot } from "../session/persist-state"
+import type { GraphStatus } from "../session/snapshot-types"
 
 export interface GraphRunResult {
   success: boolean
@@ -117,6 +119,10 @@ export async function runGraph(
           if (result.approvalRequest) {
             stateManager.addApprovalRequest(result.approvalRequest.reason)
           }
+
+          // Save snapshot after every state update
+          const graphStatus: GraphStatus = buildGraphStatus(graph)
+          saveSnapshot(ctx.sessionId, stateManager.getState(), graphStatus)
         }
 
         // --- RAO Governance Boundary ---
@@ -188,5 +194,41 @@ export async function runGraph(
     success: allTasksCompleted,
     blockedTasks,
     failedTasks,
+  }
+}
+
+function buildGraphStatus(graph: TaskGraph): GraphStatus {
+  const completedNodeIds: string[] = []
+  const blockedNodeIds: string[] = []
+  const failedNodeIds: string[] = []
+  const pendingNodeIds: string[] = []
+  let currentNodeId: string | undefined
+
+  for (const [id, task] of graph.tasks) {
+    switch (task.status) {
+      case "completed":
+        completedNodeIds.push(id)
+        break
+      case "blocked":
+        blockedNodeIds.push(id)
+        break
+      case "failed":
+        failedNodeIds.push(id)
+        break
+      case "pending":
+        pendingNodeIds.push(id)
+        break
+      case "running":
+        currentNodeId = id
+        break
+    }
+  }
+
+  return {
+    completedNodeIds,
+    blockedNodeIds,
+    failedNodeIds,
+    pendingNodeIds,
+    currentNodeId,
   }
 }
