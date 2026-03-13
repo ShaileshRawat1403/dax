@@ -406,7 +406,10 @@ export function Session() {
   const sessionElapsedLabel = createMemo(() => {
     const currentSession = session()
     if (!currentSession) return undefined
-    const duration = Math.max(0, (currentSession.time.updated ?? currentSession.time.created) - currentSession.time.created)
+    const duration = Math.max(
+      0,
+      (currentSession.time.updated ?? currentSession.time.created) - currentSession.time.created,
+    )
     if (!duration) return undefined
     return Locale.duration(duration)
   })
@@ -421,9 +424,7 @@ export function Session() {
     return `${name.slice(0, 11)}...`
   })
   const headerStats = createMemo(() => {
-    const items: { label: string; color?: RGBA }[] = [
-      { label: stageLabel().toLowerCase(), color: stageColor() },
-    ]
+    const items: { label: string; color?: RGBA }[] = [{ label: stageLabel().toLowerCase(), color: stageColor() }]
     const usage = contextUsage()
     if (usage) {
       items.push({
@@ -1597,7 +1598,7 @@ export function Session() {
       },
     },
     {
-      title: explainMode() ? "Thinking hidden in ELI12 mode" : showThinking() ? "Hide thinking" : "Show thinking",
+      title: explainMode() ? "Reasoning hidden in ELI12 mode" : showThinking() ? "Hide reasoning" : "Show reasoning",
       value: "session.toggle.thinking",
       keybind: "display_thinking",
       category: "Session",
@@ -1605,7 +1606,7 @@ export function Session() {
         if (explainMode()) {
           toast.show({
             variant: "info",
-            message: "Thinking is hidden while ELI12 mode is enabled",
+            message: "Reasoning is hidden while ELI12 mode is enabled",
             duration: 2500,
           })
           dialog.clear()
@@ -2084,7 +2085,12 @@ export function Session() {
             </box>
             <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" width="100%" paddingBottom={0}>
               <text fg={theme.textMuted}>pane</text>
-              <box onMouseUp={cyclePaneVisibility} paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+              <box
+                onMouseUp={cyclePaneVisibility}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={theme.backgroundElement}
+              >
                 <text fg={theme.text}>
                   {paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}
                 </text>
@@ -2122,11 +2128,21 @@ export function Session() {
                 <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
               </box>
               <text fg={theme.textMuted}>·</text>
-              <box onMouseUp={() => cycleTheme(-1)} paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+              <box
+                onMouseUp={() => cycleTheme(-1)}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={theme.backgroundElement}
+              >
                 <text fg={theme.textMuted}>theme</text>
               </box>
               <text fg={theme.text}>{selectedThemeShort()}</text>
-              <box onMouseUp={() => cycleTheme(1)} paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+              <box
+                onMouseUp={() => cycleTheme(1)}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={theme.backgroundElement}
+              >
                 <text fg={theme.textMuted}>+</text>
               </box>
             </box>
@@ -2364,11 +2380,7 @@ export function Session() {
                               >
                                 <text fg={theme.text}>Runtime</text>
                                 <text fg={theme.textMuted}>
-                                  {sessionStatusType() === "retry"
-                                    ? "blocked"
-                                    : chatActive()
-                                      ? "working"
-                                      : "connected"}
+                                  {sessionStatusType() === "retry" ? "blocked" : chatActive() ? "working" : "connected"}
                                 </text>
                                 <text fg={theme.textMuted} wrapMode="word">
                                   {workflowMode()} · {sessionTurnCount()} turns
@@ -2383,17 +2395,20 @@ export function Session() {
                                 gap={1}
                               >
                                 <text fg={theme.text}>Review and memory</text>
-                                <text
-                                  fg={pendingRaoCount() > 0 ? theme.primary : theme.textMuted}
-                                  wrapMode="word"
-                                >
+                                <text fg={pendingRaoCount() > 0 ? theme.primary : theme.textMuted} wrapMode="word">
                                   RAO {pendingRaoCount()}{" "}
                                   {pendingRaoCount() > 0
                                     ? `pending${workstationState().approvalSummary.topLabel ? ` · ${workstationState().approvalSummary.topLabel}` : ""}`
                                     : "clear"}
                                 </text>
                                 <text
-                                  fg={pmSummary().recentCount > 0 || pmSummary().noteCount > 0 || pmSummary().ruleCount > 0 ? theme.text : theme.textMuted}
+                                  fg={
+                                    pmSummary().recentCount > 0 ||
+                                    pmSummary().noteCount > 0 ||
+                                    pmSummary().ruleCount > 0
+                                      ? theme.text
+                                      : theme.textMuted
+                                  }
                                   wrapMode="word"
                                 >
                                   PM{" "}
@@ -2465,9 +2480,7 @@ export function Session() {
                                   when={connectedMcpCount() > 0}
                                   fallback={<text fg={theme.textMuted}>No connected MCP servers</text>}
                                 >
-                                  <text fg={theme.textMuted}>
-                                    {connectedMcpCount()} connected
-                                  </text>
+                                  <text fg={theme.textMuted}>{connectedMcpCount()} connected</text>
                                 </Show>
                               </box>
                               <box
@@ -2482,9 +2495,7 @@ export function Session() {
                                   when={sync.data.lsp.length > 0}
                                   fallback={
                                     <text fg={theme.textMuted}>
-                                      {sync.data.config.lsp === false
-                                        ? "LSP disabled"
-                                        : "Activates as files are read"}
+                                      {sync.data.config.lsp === false ? "LSP disabled" : "Activates as files are read"}
                                     </text>
                                   }
                                 >
@@ -2606,7 +2617,9 @@ export function Session() {
                                   {(tab) => (
                                     <box
                                       onMouseUp={() => setPmTab(() => tab)}
-                                      backgroundColor={pmTab() === tab ? theme.backgroundElement : theme.backgroundPanel}
+                                      backgroundColor={
+                                        pmTab() === tab ? theme.backgroundElement : theme.backgroundPanel
+                                      }
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -3469,7 +3482,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
           drawUnstyledText={false}
           streaming={true}
           syntaxStyle={subtleSyntax()}
-          content={"_Thinking:_ " + content()}
+          content={"→ " + content()}
           conceal={ctx.conceal()}
           fg={theme.secondary}
         />
