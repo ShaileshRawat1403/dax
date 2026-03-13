@@ -44,6 +44,9 @@ export class VerifyOperator implements Operator {
             : `Verification passed successfully.`,
     }
 
+    // Generate markdown output for stream display
+    const markdownOutput = this.formatVerificationAsMarkdown(checks, trustScore, blockers, warnings, evidence)
+
     const timestamp = new Date().toISOString()
 
     // Produce artifact with schema
@@ -78,6 +81,7 @@ export class VerifyOperator implements Operator {
     return {
       success: true,
       output: report,
+      markdownOutput,
       artifacts: [artifact],
       trustDelta,
       findings: blockers.map((b) => ({
@@ -99,6 +103,63 @@ export class VerifyOperator implements Operator {
         timestamp,
       })),
     }
+  }
+
+  private formatVerificationAsMarkdown(
+    checks: VerificationCheck[],
+    trustScore: number,
+    blockers: string[],
+    warnings: string[],
+    evidence: string[],
+  ): string {
+    const passedChecks = checks.filter((c) => c.passed)
+    const failedChecks = checks.filter((c) => !c.passed)
+
+    let md = `## Verification Results\n\n`
+    md += `**Trust Score:** ${Math.round(trustScore * 100)}% `
+    md += blockers.length > 0 ? `❌ BLOCKED` : warnings.length > 0 ? `⚠️ WARNING` : `✅ PASSED`
+    md += `\n\n`
+
+    if (passedChecks.length > 0) {
+      md += `### ✅ Passed Checks\n`
+      for (const check of passedChecks) {
+        md += `- ${check.name}\n`
+      }
+      md += `\n`
+    }
+
+    if (failedChecks.length > 0) {
+      md += `### ❌ Failed Checks\n`
+      for (const check of failedChecks) {
+        md += `- **${check.name}**: ${check.details}\n`
+      }
+      md += `\n`
+    }
+
+    if (blockers.length > 0) {
+      md += `### 🚫 Blockers\n`
+      for (const blocker of blockers) {
+        md += `- ${blocker}\n`
+      }
+      md += `\n`
+    }
+
+    if (warnings.length > 0) {
+      md += `### ⚠️ Warnings\n`
+      for (const warning of warnings) {
+        md += `- ${warning}\n`
+      }
+      md += `\n`
+    }
+
+    if (evidence.length > 0) {
+      md += `### 📄 Evidence\n`
+      for (const e of evidence.slice(0, 5)) {
+        md += `- \`${e}\`\n`
+      }
+    }
+
+    return md
   }
 
   private runVerificationChecks(contextPack: any): VerificationCheck[] {
