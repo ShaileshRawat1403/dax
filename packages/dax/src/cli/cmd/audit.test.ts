@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { deriveAuditPosture, formatAuditSummary, summarizeNextActions, type AuditSummary } from "./audit"
-import { Audit } from "../../audit"
+import { Audit } from "@/governance"
 
 describe("audit command helpers", () => {
   test("marks blocked posture when audit blockers are present", () => {

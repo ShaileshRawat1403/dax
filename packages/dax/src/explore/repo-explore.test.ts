@@ -332,7 +332,7 @@ describe("repo explore scaffolding", () => {
         `while (true) {`,
         `  SessionStatus.set(sessionID, { type: "busy" })`,
         `  const stream = await LLM.stream({})`,
-        `  await PermissionNext.ask({})`,
+        `  await Permission.ask({})`,
         `}`,
       ].join("\n"),
     )

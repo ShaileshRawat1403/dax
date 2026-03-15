@@ -7,10 +7,10 @@ import { fn } from "@/util/fn"
 import { Log } from "@/util/log"
 import { Wildcard } from "@/util/wildcard"
 import { RAOLedger } from "@/rao"
-import { PolicyEngine } from "@/policy"
+import { PolicyEngine } from "./policy-engine"
 import z from "zod"
 
-export namespace PermissionNext {
+export namespace Permission {
   const log = Log.create({ service: "permission" })
 
   export const Action = PolicyEngine.Action

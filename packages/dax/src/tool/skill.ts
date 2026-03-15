@@ -3,7 +3,7 @@ import { pathToFileURL } from "url"
 import z from "zod"
 import { Tool } from "./tool"
 import { Skill } from "../skill"
-import { PermissionNext } from "../governance/next"
+import { Permission } from "../governance"
 import { Ripgrep } from "../file/ripgrep"
 import { iife } from "@/util/iife"
 
@@ -14,7 +14,7 @@ export const SkillTool = Tool.define("skill", async (ctx) => {
   const agent = ctx?.agent
   const accessibleSkills = agent
     ? skills.filter((skill) => {
-        const rule = PermissionNext.evaluate("skill", skill.name, agent.permission)
+        const rule = Permission.evaluate("skill", skill.name, agent.permission)
         return rule.action !== "deny"
       })
     : skills

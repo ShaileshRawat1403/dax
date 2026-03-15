@@ -15,7 +15,7 @@ import PROMPT_DOCS from "./prompt/docs.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_AUDIT from "./prompt/audit.txt"
-import { PermissionNext } from "@/governance/next"
+import { Permission } from "../governance/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
 import path from "path"
@@ -33,7 +33,7 @@ export namespace Agent {
       topP: z.number().optional(),
       temperature: z.number().optional(),
       color: z.string().optional(),
-      permission: PermissionNext.Ruleset,
+      permission: Permission.Ruleset,
       model: z
         .object({
           modelID: z.string(),
@@ -54,7 +54,7 @@ export namespace Agent {
     const cfg = await Config.get()
 
     const skillDirs = await Skill.dirs()
-    const defaults = PermissionNext.fromConfig({
+    const defaults = Permission.fromConfig({
       "*": "allow",
       doom_loop: "ask",
       external_directory: {
@@ -73,16 +73,16 @@ export namespace Agent {
         "*.env.example": "allow",
       },
     })
-    const user = PermissionNext.fromConfig(cfg.permission ?? {})
+    const user = Permission.fromConfig(cfg.permission ?? {})
 
     const result: Record<string, Info> = {
       build: {
         name: "build",
         description: "The default agent. Executes tools based on configured permissions.",
         options: {},
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             question: "allow",
             plan_enter: "allow",
           }),
@@ -95,9 +95,9 @@ export namespace Agent {
         name: "plan",
         description: "Plan mode. Disallows all edit tools.",
         options: {},
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             question: "allow",
             plan_exit: "allow",
             external_directory: {
@@ -117,9 +117,9 @@ export namespace Agent {
       general: {
         name: "general",
         description: `General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.`,
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             todoread: "deny",
             todowrite: "deny",
           }),
@@ -131,9 +131,9 @@ export namespace Agent {
       },
       explore: {
         name: "explore",
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             "*": "deny",
             grep: "allow",
             glob: "allow",
@@ -160,9 +160,9 @@ export namespace Agent {
         description:
           "Documentation-focused agent for explaining architecture, writing specs, and producing release-ready docs without editing code.",
         prompt: PROMPT_DOCS,
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             "*": "deny",
             read: "allow",
             glob: "allow",
@@ -186,9 +186,9 @@ export namespace Agent {
         description:
           "SDLC audit agent for release readiness, policy checks, documentation quality, and delivery risk.",
         prompt: PROMPT_AUDIT,
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             "*": "deny",
             read: "allow",
             glob: "allow",
@@ -213,9 +213,9 @@ export namespace Agent {
         native: true,
         hidden: true,
         prompt: PROMPT_COMPACTION,
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             "*": "deny",
           }),
           user,
@@ -229,9 +229,9 @@ export namespace Agent {
         native: true,
         hidden: true,
         temperature: 0.5,
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             "*": "deny",
           }),
           user,
@@ -244,9 +244,9 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
-        permission: PermissionNext.merge(
+        permission: Permission.merge(
           defaults,
-          PermissionNext.fromConfig({
+          Permission.fromConfig({
             "*": "deny",
           }),
           user,
@@ -265,7 +265,7 @@ export namespace Agent {
         item = result[key] = {
           name: key,
           mode: "all",
-          permission: PermissionNext.merge(defaults, user),
+          permission: Permission.merge(defaults, user),
           options: {},
           native: false,
         }
@@ -281,7 +281,7 @@ export namespace Agent {
       item.name = value.name ?? item.name
       item.steps = value.steps ?? item.steps
       item.options = mergeDeep(item.options, value.options ?? {})
-      item.permission = PermissionNext.merge(item.permission, PermissionNext.fromConfig(value.permission ?? {}))
+      item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
     }
 
     // Ensure Truncate.GLOB is allowed unless explicitly configured
@@ -294,9 +294,9 @@ export namespace Agent {
       })
       if (explicit) continue
 
-      result[name].permission = PermissionNext.merge(
+      result[name].permission = Permission.merge(
         result[name].permission,
-        PermissionNext.fromConfig({ external_directory: { [Truncate.GLOB]: "allow" } }),
+        Permission.fromConfig({ external_directory: { [Truncate.GLOB]: "allow" } }),
       )
     }
 

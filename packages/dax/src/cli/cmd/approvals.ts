@@ -1,7 +1,7 @@
 import type { Argv } from "yargs"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
-import { PermissionNext } from "../../governance/next"
+import { Permission } from "../../governance"
 import { Locale } from "../../util/locale"
 import { EOL } from "os"
 
@@ -31,7 +31,7 @@ export const ApprovalsCommand = cmd({
       }),
   handler: async (args) => {
     await bootstrap(process.cwd(), async () => {
-      const approvals = await PermissionNext.list()
+      const approvals = await Permission.list()
       const rows = approvals
         .filter((item) => !args.session || item.sessionID === args.session)
         .map(toApprovalRow)
@@ -47,7 +47,7 @@ export const ApprovalsCommand = cmd({
   },
 })
 
-export function toApprovalRow(input: PermissionNext.Request): ApprovalRow {
+export function toApprovalRow(input: Permission.Request): ApprovalRow {
   const patterns = input.patterns.length > 0 ? input.patterns.join(", ") : "*"
   const reason = (() => {
     if (typeof input.metadata?.description === "string" && input.metadata.description.trim()) {

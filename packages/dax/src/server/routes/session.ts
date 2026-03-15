@@ -13,7 +13,7 @@ import { Todo } from "../../session/todo"
 import { Agent } from "../../agent/agent"
 import { Snapshot } from "@/snapshot"
 import { Log } from "../../util/log"
-import { PermissionNext } from "@/governance/next"
+import { Permission } from "@/governance"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 
@@ -926,10 +926,10 @@ export const SessionRoutes = lazy(() =>
           permissionID: z.string(),
         }),
       ),
-      validator("json", z.object({ response: PermissionNext.Reply })),
+      validator("json", z.object({ response: Permission.Reply })),
       async (c) => {
         const params = c.req.valid("param")
-        PermissionNext.reply({
+        Permission.reply({
           requestID: params.permissionID,
           reply: c.req.valid("json").response,
         })

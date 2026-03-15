@@ -10,7 +10,7 @@ import { createDaxClient, type DaxClient, type Message, type ToolPart } from "@d
 import { Server } from "../../server/server"
 import { Provider } from "../../provider/provider"
 import { Agent } from "../../agent/agent"
-import { PermissionNext } from "../../governance/next"
+import { Permission } from "../../governance"
 import { Tool } from "../../tool/tool"
 import { GlobTool } from "../../tool/glob"
 import { GrepTool } from "../../tool/grep"
@@ -402,7 +402,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
       process.exit(1)
     }
 
-    const rules: PermissionNext.Ruleset = [
+    const rules: Permission.Ruleset = [
       {
         permission: "question",
         action: "deny",

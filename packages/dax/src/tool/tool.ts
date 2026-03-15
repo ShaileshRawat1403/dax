@@ -1,7 +1,7 @@
 import z from "zod"
 import type { MessageV2 } from "../session/message-v2"
 import type { Agent } from "../agent/agent"
-import type { PermissionNext } from "../governance/next"
+import type { Permission } from "../governance"
 import { Truncate } from "./truncation"
 
 export namespace Tool {
@@ -22,7 +22,7 @@ export namespace Tool {
     extra?: { [key: string]: any }
     messages: MessageV2.WithParts[]
     metadata(input: { title?: string; metadata?: M }): void
-    ask(input: Omit<PermissionNext.AskInput, "id" | "createdAt" | "sessionID" | "tool" | "ruleset">): Promise<void>
+    ask(input: Omit<Permission.AskInput, "id" | "createdAt" | "sessionID" | "tool" | "ruleset">): Promise<void>
   }
   export interface Info<Parameters extends z.ZodType = z.ZodType, M extends Metadata = Metadata> {
     id: string

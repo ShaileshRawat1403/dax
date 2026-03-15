@@ -10,6 +10,59 @@ import { TodoItem } from "../../component/todo-item"
 import { DAX_SETTING } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
+import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
+
+function TelemetryPanel(props: { state: WorkstationState }) {
+  const { theme } = useTheme()
+  
+  const postureColor = () => {
+    switch (props.state.trustPosture) {
+      case "clear": return theme.success
+      case "review_needed": return theme.warning
+      case "blocked": return theme.error
+      default: return theme.text
+    }
+  }
+
+  return (
+    <box flexDirection="column" gap={1}>
+      <box flexDirection="row" justifyContent="space-between">
+        <text fg={theme.textMuted}>Trust Posture</text>
+        <text fg={postureColor()}><b>{props.state.trustLabel.toUpperCase()}</b></text>
+      </box>
+      
+      <box flexDirection="column" gap={0} paddingLeft={1} borderStyle="round" borderColor={theme.backgroundElement}>
+        <box flexDirection="row" justifyContent="space-between">
+          <text fg={theme.textMuted}>Writes</text>
+          <text fg={theme.text}>{props.state.artifactSummary.workspaceWrites}</text>
+        </box>
+        <box flexDirection="row" justifyContent="space-between">
+          <text fg={theme.textMuted}>Reports</text>
+          <text fg={theme.text}>{props.state.artifactSummary.reports}</text>
+        </box>
+        <box flexDirection="row" justifyContent="space-between">
+          <text fg={theme.textMuted}>Metadata</text>
+          <text fg={theme.text}>{props.state.artifactSummary.metadata}</text>
+        </box>
+      </box>
+
+      <Show when={props.state.auditSummary.findingsCount > 0}>
+        <box flexDirection="row" gap={1} flexWrap="wrap">
+          <Show when={props.state.auditSummary.blockerCount > 0}>
+            <text fg={theme.error}>! {props.state.auditSummary.blockerCount} Blocker</text>
+          </Show>
+          <Show when={props.state.auditSummary.warningCount > 0}>
+            <text fg={theme.warning}>? {props.state.auditSummary.warningCount} Warning</text>
+          </Show>
+        </box>
+      </Show>
+
+      <box marginTop={1} paddingTop={1} borderStyle="single" borderTop borderColor={theme.backgroundElement}>
+        <text fg={theme.textMuted} dim>ID: {props.state.sessionID.slice(0, 8)}...</text>
+      </box>
+    </box>
+  )
+}
 
 function SidebarAction(props: { label: string; onPress?: () => void; muted?: boolean; hint?: string }) {
   const { theme } = useTheme()
@@ -153,6 +206,31 @@ export function Sidebar(props: {
   )
   const gettingStartedDismissed = createMemo(() => kv.get("dismissed_getting_started", false))
 
+  const workstationState = createMemo(() => {
+    const s = session()
+    const audit = latestAudit()
+    const art = (sync.data as any).session_artifact?.[props.sessionID] ?? []
+    
+    return deriveWorkstationState({
+      sessionID: props.sessionID,
+      stage: "thinking", 
+      stageReason: "Session active",
+      sessionStatusType: runtimeStatus().type as any,
+      goal: s?.title,
+      todo: todo().map(t => ({ content: t.content, status: t.status })),
+      approvals: permissions().map(p => ({ label: p.permission, reason: p.metadata?.reason as string | undefined })),
+      questions: questions().length,
+      artifacts: art.map((a: any) => ({ label: a.path || a.id, kind: a.kind })),
+      diffCount: diff().length,
+      audit: audit && "status" in audit ? {
+        status: audit.status === "pass" ? "pass" : audit.status === "warn" ? "warn" : "fail",
+        blockerCount: 0, 
+        warningCount: 0,
+        infoCount: 0
+      } : undefined
+    })
+  })
+
   return (
     <Show when={session()}>
       <box
@@ -177,6 +255,11 @@ export function Sidebar(props: {
                 </Show>
               </box>
             </SidebarCard>
+            
+            <SidebarCard>
+              <TelemetryPanel state={workstationState()} />
+            </SidebarCard>
+
             <SidebarCard>
               <text fg={theme.text}>
                 <b>Runtime</b>

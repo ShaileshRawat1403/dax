@@ -10,8 +10,10 @@ export type WorkstationLifecycle =
 export type WorkstationTrustPosture = "clear" | "review_needed" | "blocked"
 
 export type WorkstationState = {
+  sessionID: string
   lifecycle: WorkstationLifecycle
   lifecycleLabel: string
+  phase: "understand" | "plan" | "execute" | "verify" | "complete"
   goal?: string
   currentStep?: string
   trustPosture: WorkstationTrustPosture
@@ -19,6 +21,8 @@ export type WorkstationState = {
   planSummary: {
     goal?: string
     steps: Array<{ label: string; status: "pending" | "active" | "done" }>
+    currentStepIndex: number
+    totalSteps: number
   }
   activitySummary: {
     items: string[]
@@ -31,6 +35,9 @@ export type WorkstationState = {
   }
   artifactSummary: {
     count: number
+    workspaceWrites: number
+    reports: number
+    metadata: number
     items: Array<{ label: string; kind?: string }>
     remainderCount: number
   }
@@ -39,6 +46,8 @@ export type WorkstationState = {
     overrides: number
     evidencePresent: boolean
     findingsCount: number
+    blockerCount: number
+    warningCount: number
     posture: WorkstationTrustPosture
   }
   alertSummary?: {
@@ -48,6 +57,7 @@ export type WorkstationState = {
 }
 
 export function deriveWorkstationState(input: {
+  sessionID: string
   stage: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
   stageReason: string
   sessionStatusType: "busy" | "idle" | "retry"
@@ -64,11 +74,12 @@ export function deriveWorkstationState(input: {
     infoCount: number
   }
   alert?: {
-    level: "info" | "warning" | "error"
+    level: "info" | "warning" | "error" | "none"
     message: string
   }
 }): WorkstationState {
   const currentTodo = input.todo.find((item) => item.status === "in_progress")
+  const currentTodoIndex = input.todo.findIndex((item) => item.status === "in_progress")
   const approvalsPending = input.approvals.length + input.questions
   const evidencePresent = input.artifacts.length > 0 || input.diffCount > 0
   const trustPosture = deriveTrustPosture({
@@ -81,12 +92,18 @@ export function deriveWorkstationState(input: {
     stage: input.stage,
     sessionStatusType: input.sessionStatusType,
     approvalsPending,
-    alertLevel: input.alert?.level,
+    alertLevel: input.alert?.level === "none" ? undefined : input.alert?.level,
   })
 
+  const workspaceWrites = input.artifacts.filter((a) => a.kind === "workspace_file").length
+  const reports = input.artifacts.filter((a) => a.kind === "report").length
+  const metadata = input.artifacts.filter((a) => a.kind === "metadata").length
+
   return {
+    sessionID: input.sessionID,
     lifecycle,
     lifecycleLabel: labelLifecycle(lifecycle),
+    phase: derivePhase(input.stage),
     goal: input.goal,
     currentStep: currentTodo?.content ?? input.stageReason,
     trustPosture,
@@ -97,6 +114,8 @@ export function deriveWorkstationState(input: {
         label: summarize(item.content, 60) ?? item.content,
         status: item.status === "completed" ? "done" : item.status === "in_progress" ? "active" : "pending",
       })),
+      currentStepIndex: currentTodoIndex === -1 ? 0 : currentTodoIndex + 1,
+      totalSteps: input.todo.length,
     },
     activitySummary: {
       items: compactActivityItems(input.stageReason, currentTodo?.content),
@@ -109,6 +128,9 @@ export function deriveWorkstationState(input: {
     },
     artifactSummary: {
       count: input.artifacts.length,
+      workspaceWrites,
+      reports,
+      metadata,
       items: input.artifacts.slice(0, 3).map((item) => ({
         label: summarize(item.label, 44) ?? item.label,
         kind: item.kind ? summarize(item.kind, 16) : undefined,
@@ -120,9 +142,31 @@ export function deriveWorkstationState(input: {
       overrides: 0,
       evidencePresent,
       findingsCount: (input.audit?.blockerCount ?? 0) + (input.audit?.warningCount ?? 0) + (input.audit?.infoCount ?? 0),
+      blockerCount: input.audit?.blockerCount ?? 0,
+      warningCount: input.audit?.warningCount ?? 0,
       posture: trustPosture,
     },
-    alertSummary: input.alert,
+    alertSummary: input.alert && input.alert.level !== "none" ? { ...input.alert, level: input.alert.level as any } : undefined,
+  }
+}
+
+function derivePhase(
+  stage: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done",
+): "understand" | "plan" | "execute" | "verify" | "complete" {
+  switch (stage) {
+    case "exploring":
+    case "thinking":
+      return "understand"
+    case "planning":
+      return "plan"
+    case "executing":
+    case "retrying":
+      return "execute"
+    case "verifying":
+    case "waiting":
+      return "verify"
+    case "done":
+      return "complete"
   }
 }
 

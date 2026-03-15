@@ -94,7 +94,7 @@ describe("session release evaluator", () => {
   test("returns review_ready when verification is not yet complete", () => {
     const summary = evaluateSessionReleaseCheck({
       session_id: "session_review_ready",
-      lifecycle_state: "active",
+      lifecycle_state: "executing",
       lifecycle_terminal: false,
       lifecycle_requires_reconciliation: true,
       verification_result: "verification_incomplete",
@@ -242,7 +242,7 @@ describe("session release evaluator", () => {
   test("surfaces partial write outcomes as blocked stronger-readiness evidence", () => {
     const summary = evaluateSessionReleaseCheck({
       session_id: "session_partial_write",
-      lifecycle_state: "active",
+      lifecycle_state: "executing",
       lifecycle_terminal: false,
       lifecycle_requires_reconciliation: true,
       verification_result: "verification_incomplete",

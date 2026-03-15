@@ -13,7 +13,7 @@ describe("permission approvals", () => {
 
       try {
         const { bootstrap } = await import("@/cli/bootstrap")
-        const { PermissionNext } = await import("./next")
+        const { Permission } = await import("./next")
         const { Storage } = await import("@/storage/storage")
         const { Instance } = await import("@/project/instance")
         const repoRoot = path.resolve(import.meta.dir, "../../../..")
@@ -23,43 +23,43 @@ describe("permission approvals", () => {
         await bootstrap(repoRoot, async () => {
           await Storage.remove(["permission", Instance.project.id])
 
-          const once = PermissionNext.ask({
+          const once = Permission.ask({
             sessionID: "session_once",
             permission: "bash",
             patterns: [testCommand],
             always: [testCommand],
             metadata: {},
-            ruleset: PermissionNext.fromConfig({
+            ruleset: Permission.fromConfig({
               bash: "ask",
             } as any),
           })
 
-          const pending = await PermissionNext.list()
+          const pending = await Permission.list()
           expect(pending.length).toBe(1)
           expect(pending[0]?.permission).toBe("bash")
 
-          await PermissionNext.reply({
+          await Permission.reply({
             requestID: pending[0]!.id,
             reply: "once",
           })
 
           await once
 
-          const persisted = PermissionNext.ask({
+          const persisted = Permission.ask({
             sessionID: "session_always",
             permission: "bash",
             patterns: [buildCommand],
             always: [buildCommand],
             metadata: {},
-            ruleset: PermissionNext.fromConfig({
+            ruleset: Permission.fromConfig({
               bash: "ask",
             } as any),
           })
 
-          const secondPending = await PermissionNext.list()
+          const secondPending = await Permission.list()
           expect(secondPending.length).toBe(1)
 
-          await PermissionNext.reply({
+          await Permission.reply({
             requestID: secondPending[0]!.id,
             reply: "always",
           })
@@ -67,13 +67,13 @@ describe("permission approvals", () => {
           await persisted
 
           await expect(
-            PermissionNext.ask({
+            Permission.ask({
               sessionID: "session_replay",
               permission: "bash",
               patterns: [buildCommand],
               always: [buildCommand],
               metadata: {},
-              ruleset: PermissionNext.fromConfig({
+              ruleset: Permission.fromConfig({
                 bash: "ask",
               } as any),
             }),
@@ -97,7 +97,7 @@ describe("permission approvals", () => {
 
       try {
         const { bootstrap } = await import("@/cli/bootstrap")
-        const { PermissionNext } = await import("./next")
+        const { Permission } = await import("./next")
         const { Storage } = await import("@/storage/storage")
         const { Instance } = await import("@/project/instance")
         const repoRoot = path.resolve(import.meta.dir, "../../../..")
@@ -107,27 +107,27 @@ describe("permission approvals", () => {
         await bootstrap(repoRoot, async () => {
           await Storage.remove(["permission", Instance.project.id])
 
-          const first = PermissionNext.ask({
+          const first = Permission.ask({
             sessionID: "session_reject",
             permission: "bash",
             patterns: [firstCommand],
             always: [firstCommand],
             metadata: {},
-            ruleset: PermissionNext.fromConfig({ bash: "ask" } as any),
+            ruleset: Permission.fromConfig({ bash: "ask" } as any),
           })
-          const second = PermissionNext.ask({
+          const second = Permission.ask({
             sessionID: "session_reject",
             permission: "bash",
             patterns: [secondCommand],
             always: [secondCommand],
             metadata: {},
-            ruleset: PermissionNext.fromConfig({ bash: "ask" } as any),
+            ruleset: Permission.fromConfig({ bash: "ask" } as any),
           })
 
-          const pending = await PermissionNext.list()
+          const pending = await Permission.list()
           expect(pending.length).toBe(2)
 
-          await PermissionNext.reply({
+          await Permission.reply({
             requestID: pending[0]!.id,
             reply: "reject",
             message: "Use a safer cleanup path.",
@@ -135,7 +135,7 @@ describe("permission approvals", () => {
 
           await expect(first).rejects.toThrow("Use a safer cleanup path.")
           await expect(second).rejects.toThrow("The user rejected permission")
-          expect((await PermissionNext.list()).length).toBe(0)
+          expect((await Permission.list()).length).toBe(0)
         })
       } finally {
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME

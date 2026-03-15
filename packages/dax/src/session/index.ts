@@ -20,8 +20,9 @@ import { Command } from "../command"
 import { Snapshot } from "@/snapshot"
 
 import type { Provider } from "@/provider/provider"
-import { PermissionNext } from "@/governance/next"
+import { Permission } from "@/governance"
 import { Global } from "@/global"
+import { SessionV2 } from "./model"
 
 export namespace Session {
   const log = Log.create({ service: "session" })
@@ -77,7 +78,7 @@ export namespace Session {
         compacting: z.number().optional(),
         archived: z.number().optional(),
       }),
-      permission: PermissionNext.Ruleset.optional(),
+      permission: Permission.Ruleset.optional(),
       revert: z
         .object({
           messageID: z.string(),
@@ -86,6 +87,7 @@ export namespace Session {
           diff: z.string().optional(),
         })
         .optional(),
+      state_v2: SessionV2.State.optional(),
     })
     .meta({
       ref: "Session",
@@ -208,7 +210,7 @@ export namespace Session {
     title?: string
     parentID?: string
     directory: string
-    permission?: PermissionNext.Ruleset
+    permission?: Permission.Ruleset
   }) {
     const result: Info = {
       id: Identifier.descending("session", input.id),
