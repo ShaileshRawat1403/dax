@@ -2819,20 +2819,31 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   }
 
   return (
-    <box flexDirection="column" marginTop={1} marginBottom={1}>
+    <box 
+      flexDirection="column" 
+      marginTop={1} 
+      marginBottom={1}
+      borderStyle="round"
+      borderColor={theme.backgroundElement}
+      backgroundColor={tint(theme.background, theme.backgroundElement, 0.5)}
+      paddingLeft={1}
+      paddingRight={1}
+    >
       <box 
         flexDirection="row" 
         gap={1} 
         onMouseUp={() => setExpanded(!expanded())}
-        backgroundColor={theme.backgroundElement}
-        paddingLeft={1}
-        paddingRight={1}
+        paddingTop={1}
+        paddingBottom={1}
       >
+        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1} marginRight={1}>
+          <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>BACKGROUND</text>
+        </box>
         <text fg={theme.textMuted}>{expanded() ? "▼" : "▶"}</text>
         <text fg={theme.textMuted}>{summary()}</text>
       </box>
       <Show when={expanded()}>
-        <box flexDirection="column" paddingLeft={2} borderStyle="single" borderLeft borderColor={theme.backgroundElement}>
+        <box flexDirection="column" paddingLeft={2} borderStyle="single" borderLeft borderColor={theme.backgroundElement} marginBottom={1}>
           <For each={props.tools}>
             {(tool) => (
               <box flexDirection="row" gap={1}>
@@ -3482,24 +3493,32 @@ function ReasoningPart(props: {
     <Show when={content() && ctx.showThinking()}>
       <box
         id={"text-" + props.part.id}
-        paddingLeft={2}
-        paddingRight={2}
+        paddingLeft={1}
+        paddingRight={1}
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
+        borderStyle="round"
+        borderColor={theme.backgroundElement}
+        backgroundColor={tint(theme.background, theme.primary, 0.01)}
       >
-        <box flexDirection="row" gap={1} marginBottom={0} alignItems="center">
-          <text fg={theme.primary} attributes={TextAttributes.DIM}>status reasoning active</text>
+        <box flexDirection="row" gap={1} marginBottom={0} alignItems="center" paddingTop={1} border={["bottom"]} borderColor={theme.backgroundElement} paddingBottom={1} marginBottom={1}>
+          <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
+            <text fg={theme.background} attributes={TextAttributes.BOLD}>THINKING</text>
+          </box>
+          <text fg={theme.primary} attributes={TextAttributes.DIM}>reasoning active</text>
         </box>
-        <code
-          filetype="markdown"
-          drawUnstyledText={false}
-          streaming={true}
-          syntaxStyle={subtleSyntax()}
-          content={content()}
-          conceal={ctx.conceal()}
-          fg={theme.primary}
-          attributes={TextAttributes.DIM}
-        />
+        <box paddingBottom={1}>
+          <code
+            filetype="markdown"
+            drawUnstyledText={false}
+            streaming={true}
+            syntaxStyle={subtleSyntax()}
+            content={content()}
+            conceal={ctx.conceal()}
+            fg={theme.primary}
+            attributes={TextAttributes.DIM}
+          />
+        </box>
       </box>
     </Show>
   )
