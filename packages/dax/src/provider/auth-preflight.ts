@@ -186,7 +186,11 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
   if (auth?.type === "oauth") {
     const token = await validateGoogleOAuthAccessToken(auth.access)
     const details = token.ok
-      ? [...token.details, `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`]
+      ? [
+          ...token.details,
+          `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
+          auth.accountId ? `Authenticated as: ${auth.accountId}` : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
+        ]
       : [`OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`]
     return {
       providerID,
