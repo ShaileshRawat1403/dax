@@ -10,13 +10,8 @@ import { createClient } from "@hey-api/openapi-ts"
 
 await $`bun dev generate > ${dir}/openapi.json`.cwd(path.resolve(dir, "../../dax"))
 
-await createClient({
+const commonConfig = {
   input: "./openapi.json",
-  output: {
-    path: "./src/v2/gen",
-    tsConfigPath: path.join(dir, "tsconfig.json"),
-    clean: true,
-  },
   plugins: [
     {
       name: "@hey-api/typescript",
@@ -35,6 +30,26 @@ await createClient({
       baseUrl: "http://localhost:4096",
     },
   ],
+}
+
+// Generate for v2/gen
+await createClient({
+  ...commonConfig,
+  output: {
+    path: "./src/v2/gen",
+    tsConfigPath: path.join(dir, "tsconfig.json"),
+    clean: true,
+  },
+})
+
+// Generate for src/gen (backward compatibility / main use)
+await createClient({
+  ...commonConfig,
+  output: {
+    path: "./src/gen",
+    tsConfigPath: path.join(dir, "tsconfig.json"),
+    clean: true,
+  },
 })
 
 await $`bun prettier --write src/gen`

@@ -4,7 +4,7 @@ import type {
   Project,
   Model,
   Provider,
-  Permission,
+  PermissionRequest as Permission,
   UserMessage,
   Message,
   Part,
@@ -115,6 +115,9 @@ export type AuthOuathResult = { url: string; instructions: string } & (
                 access: string
                 expires: number
                 accountId?: string
+                clientID?: string
+                clientSecret?: string
+                quotaProjectID?: string
               }
             | { key: string }
           ))
@@ -135,6 +138,9 @@ export type AuthOuathResult = { url: string; instructions: string } & (
                 access: string
                 expires: number
                 accountId?: string
+                clientID?: string
+                clientSecret?: string
+                quotaProjectID?: string
               }
             | { key: string }
           ))

@@ -7957,6 +7957,11 @@
             "type": "string",
             "pattern": "^per.*"
           },
+          "createdAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "sessionID": {
             "type": "string",
             "pattern": "^ses.*"
@@ -8001,6 +8006,7 @@
         },
         "required": [
           "id",
+          "createdAt",
           "sessionID",
           "permission",
           "patterns",
@@ -8727,6 +8733,334 @@
           "$ref": "#/components/schemas/PolicyRule"
         }
       },
+      "SessionIntent": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "intentType": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "activeMode": {
+            "type": "string"
+          },
+          "suggestedOperator": {
+            "type": "string"
+          },
+          "requiredSkills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestedOutput": {
+            "type": "string"
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contract": {
+            "type": "object",
+            "properties": {
+              "goal": {
+                "type": "string"
+              },
+              "successCriteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "explicitConstraints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "requiredFramework": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "goal",
+              "successCriteria",
+              "explicitConstraints"
+            ]
+          }
+        },
+        "required": [
+          "prompt",
+          "intentType",
+          "confidence",
+          "activeMode",
+          "suggestedOperator",
+          "requiredSkills",
+          "requestedOutput",
+          "riskLevel",
+          "scope",
+          "constraints"
+        ]
+      },
+      "PlannedTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "operator_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "completed",
+              "failed",
+              "blocked",
+              "awaiting_approval"
+            ]
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "context": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "result": {},
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "operator_type",
+          "status",
+          "dependencies",
+          "context"
+        ]
+      },
+      "SessionPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "intent_id": {
+            "type": "string"
+          },
+          "tasks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PlannedTask"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "completed",
+              "failed",
+              "blocked",
+              "awaiting_approval"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tasks",
+          "status"
+        ]
+      },
+      "TimelineEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "number"
+          },
+          "messageID": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "timestamp",
+          "payload"
+        ]
+      },
+      "ArtifactRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "created_at": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "metadata",
+          "created_at"
+        ]
+      },
+      "SessionStateV2": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/SessionIntent"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SessionPlan"
+          },
+          "activity_timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            }
+          },
+          "approvals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionRequest"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRecord"
+            }
+          },
+          "audit_findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low",
+                    "info"
+                  ]
+                },
+                "category": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "type": "string"
+                },
+                "impact": {
+                  "type": "string"
+                },
+                "fix": {
+                  "type": "string"
+                },
+                "owner_hint": {
+                  "type": "string"
+                },
+                "blocking": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "severity",
+                "category",
+                "title",
+                "evidence",
+                "impact",
+                "fix",
+                "owner_hint",
+                "blocking"
+              ]
+            }
+          },
+          "trust_posture": {}
+        },
+        "required": [
+          "activity_timeline",
+          "approvals",
+          "artifacts",
+          "audit_findings"
+        ]
+      },
       "Session": {
         "type": "object",
         "properties": {
@@ -8832,6 +9166,9 @@
             "required": [
               "messageID"
             ]
+          },
+          "state_v2": {
+            "$ref": "#/components/schemas/SessionStateV2"
           }
         },
         "required": [
@@ -9414,6 +9751,21 @@
             "default": "<leader>g",
             "type": "string"
           },
+          "session_approvals": {
+            "description": "Inspect approvals and questions",
+            "default": "<leader>p",
+            "type": "string"
+          },
+          "session_diff": {
+            "description": "Inspect session diff summary",
+            "default": "<leader>d",
+            "type": "string"
+          },
+          "session_mcp": {
+            "description": "Inspect MCP for the current session",
+            "default": "<leader>k",
+            "type": "string"
+          },
           "session_fork": {
             "description": "Fork session from message",
             "default": "none",
@@ -9822,6 +10174,11 @@
           "display_thinking": {
             "description": "Toggle thinking blocks visibility",
             "default": "none",
+            "type": "string"
+          },
+          "display_eli12": {
+            "description": "Toggle ELI12 mode",
+            "default": "ctrl+e",
             "type": "string"
           }
         },
@@ -10977,6 +11334,10 @@
               "show_all_providers": {
                 "description": "Show all providers in the TUI provider/model dialogs instead of the core-first default",
                 "type": "boolean"
+              },
+              "auto_install_config_dependencies": {
+                "description": "Allow DAX to install plugin dependencies into discovered config directories",
+                "type": "boolean"
               }
             }
           }
@@ -11028,6 +11389,15 @@
             "type": "string"
           },
           "enterpriseUrl": {
+            "type": "string"
+          },
+          "clientID": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "quotaProjectID": {
             "type": "string"
           }
         },

@@ -84,7 +84,7 @@ export namespace SessionV2 {
     approvals: Permission.Request.array(),
     artifacts: ArtifactRecord.array(),
     audit_findings: Audit.Finding.array(),
-    trust_posture: z.custom<SessionVerification>().optional(),
+    trust_posture: z.any().optional(),
   }).meta({
     ref: "SessionStateV2",
   })

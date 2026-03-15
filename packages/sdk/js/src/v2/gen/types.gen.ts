@@ -497,6 +497,7 @@ export type EventMessagePartRemoved = {
 
 export type PermissionRequest = {
   id: string
+  createdAt: number
   sessionID: string
   permission: string
   patterns: Array<string>
@@ -755,6 +756,89 @@ export type PolicyRule = {
 
 export type PolicyRuleset = Array<PolicyRule>
 
+export type SessionIntent = {
+  prompt: string
+  intentType: string
+  confidence: number
+  activeMode: string
+  suggestedOperator: string
+  requiredSkills: Array<string>
+  requestedOutput: string
+  riskLevel: "low" | "medium" | "high"
+  scope: string
+  constraints: Array<string>
+  contract?: {
+    goal: string
+    successCriteria: Array<string>
+    explicitConstraints: Array<string>
+    requiredFramework?: string
+  }
+}
+
+export type PlannedTask = {
+  id: string
+  name: string
+  description: string
+  operator_type: string
+  status: "pending" | "running" | "completed" | "failed" | "blocked" | "awaiting_approval"
+  dependencies: Array<string>
+  context: {
+    [key: string]: unknown
+  }
+  result?: unknown
+  error?: string
+}
+
+export type SessionPlan = {
+  id: string
+  intent_id?: string
+  tasks: {
+    [key: string]: PlannedTask
+  }
+  status: "pending" | "running" | "completed" | "failed" | "blocked" | "awaiting_approval"
+}
+
+export type TimelineEvent = {
+  id: string
+  type: string
+  timestamp: number
+  messageID?: string
+  payload: {
+    [key: string]: unknown
+  }
+}
+
+export type ArtifactRecord = {
+  id: string
+  kind: string
+  path?: string
+  hash?: string
+  metadata: {
+    [key: string]: unknown
+  }
+  created_at: number
+}
+
+export type SessionStateV2 = {
+  intent?: SessionIntent
+  plan?: SessionPlan
+  activity_timeline: Array<TimelineEvent>
+  approvals: Array<PermissionRequest>
+  artifacts: Array<ArtifactRecord>
+  audit_findings: Array<{
+    id: string
+    severity: "critical" | "high" | "medium" | "low" | "info"
+    category: string
+    title: string
+    evidence: string
+    impact: string
+    fix: string
+    owner_hint: string
+    blocking: boolean
+  }>
+  trust_posture?: unknown
+}
+
 export type Session = {
   id: string
   slug: string
@@ -785,6 +869,7 @@ export type Session = {
     snapshot?: string
     diff?: string
   }
+  state_v2?: SessionStateV2
 }
 
 export type EventSessionCreated = {
@@ -1326,6 +1411,10 @@ export type KeybindsConfig = {
    * Toggle thinking blocks visibility
    */
   display_thinking?: string
+  /**
+   * Toggle ELI12 mode
+   */
+  display_eli12?: string
 }
 
 /**
@@ -1861,6 +1950,10 @@ export type Config = {
      * Show all providers in the TUI provider/model dialogs instead of the core-first default
      */
     show_all_providers?: boolean
+    /**
+     * Allow DAX to install plugin dependencies into discovered config directories
+     */
+    auto_install_config_dependencies?: boolean
   }
 }
 
@@ -1879,6 +1972,9 @@ export type OAuth = {
   expires: number
   accountId?: string
   enterpriseUrl?: string
+  clientID?: string
+  clientSecret?: string
+  quotaProjectID?: string
 }
 
 export type ApiAuth = {
