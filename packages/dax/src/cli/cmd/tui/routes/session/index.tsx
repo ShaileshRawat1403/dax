@@ -3501,7 +3501,7 @@ function ReasoningPart(props: {
         borderColor={theme.backgroundElement}
         backgroundColor={tint(theme.background, theme.primary, 0.01)}
       >
-        <box flexDirection="row" gap={1} marginBottom={0} alignItems="center" paddingTop={1} border={["bottom"]} borderColor={theme.backgroundElement} paddingBottom={1} marginBottom={1}>
+        <box flexDirection="row" gap={1} alignItems="center" paddingTop={1} border={["bottom"]} borderColor={theme.backgroundElement} paddingBottom={1} marginBottom={1}>
           <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
             <text fg={theme.background} attributes={TextAttributes.BOLD}>THINKING</text>
           </box>

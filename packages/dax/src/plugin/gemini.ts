@@ -63,6 +63,7 @@ type OAuthState = {
   clientID?: string
   clientSecret?: string
   quotaProjectID?: string
+  accountId?: string
 }
 
 type TokenResponse = {
@@ -338,14 +339,14 @@ const checkTokenHealth = async (accessToken: string) => {
   const url = new URL(GOOGLE_TOKEN_INFO_URL)
   url.searchParams.set("access_token", accessToken)
   const result = await fetch(url).catch(() => undefined)
-  if (!result?.ok) return { ok: false, reason: "token_expired" }
-  const json = (await result.json().catch(() => ({}))) as { scope?: string }
+  if (!result?.ok) return { ok: false, reason: "token_expired" as const }
+  const json = (await result.json().catch(() => ({}))) as { scope?: string; email?: string }
   const scopes = json.scope ?? ""
   // Gemini OAuth tokens should include Gemini or Cloud scope.
   if (!scopes.includes(GOOGLE_SCOPE_GENERATIVE) && !scopes.includes(GOOGLE_SCOPE_CLOUD)) {
-    return { ok: false, reason: "scope_missing" }
+    return { ok: false, reason: "scope_missing" as const }
   }
-  return { ok: true }
+  return { ok: true, email: json.email }
 }
 
 const stripKey = (request: RequestInfo | URL) => {
@@ -420,12 +421,16 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 access = renewed.access
                 expires = renewed.expires
                 await input.client.auth.set({
-                  path: { id: "google" },
-                  body: {
+                  providerID: "google",
+                  auth: {
                     type: "oauth",
                     access,
                     refresh,
                     expires,
+                    clientID: fresh?.clientID,
+                    clientSecret: fresh?.clientSecret,
+                    quotaProjectID: fresh?.quotaProjectID,
+                    accountId: fresh?.accountId,
                   },
                 })
               }
@@ -446,12 +451,16 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               const renewed = await refreshGoogleToken(refresh, fresh?.clientID, fresh?.clientSecret)
               if (renewed?.access) {
                 await input.client.auth.set({
-                  path: { id: "google" },
-                  body: {
+                  providerID: "google",
+                  auth: {
                     type: "oauth",
                     access: renewed.access,
                     refresh,
                     expires: renewed.expires,
+                    clientID: fresh?.clientID,
+                    clientSecret: fresh?.clientSecret,
+                    quotaProjectID: fresh?.quotaProjectID,
+                    accountId: fresh?.accountId,
                   },
                 })
                 const retryHeaders = new Headers(init?.headers)
@@ -474,13 +483,18 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               if (!imported?.refresh) continue
               const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
               if (!renewed?.access) continue
+              const health = await checkTokenHealth(renewed.access)
               await input.client.auth.set({
-                path: { id: "google" },
-                body: {
+                providerID: "google",
+                auth: {
                   type: "oauth",
                   access: renewed.access,
                   refresh: imported.refresh,
                   expires: renewed.expires,
+                  clientID: imported.clientID,
+                  clientSecret: imported.clientSecret,
+                  quotaProjectID: imported.quotaProjectID,
+                  accountId: health.ok ? health.email : undefined,
                 },
               })
               const retryHeaders = new Headers(init?.headers)
@@ -539,7 +553,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               url: GEMINI_OAUTH_DOC,
               instructions:
                 "Run `gemini` and finish Google login, then wait here while DAX imports Gemini OAuth credentials.",
-              async callback() {
+          async callback() {
                 const creds = await waitForCreds()
                 if (!creds?.refresh) return { type: "failed" as const }
                 let access = creds.access
@@ -570,6 +584,10 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   access: access!,
                   refresh: creds.refresh,
                   expires: expires || Date.now() + 30 * 60 * 1000,
+                  clientID: creds.clientID,
+                  clientSecret: creds.clientSecret,
+                  quotaProjectID: creds.quotaProjectID,
+                  accountId: health.ok ? (health as any).email : undefined,
                 }
               },
             }
@@ -626,6 +644,9 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   access: token.access_token,
                   refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
                   expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                  clientID,
+                  clientSecret: customAuth?.clientSecret ?? local?.clientSecret,
+                  accountId: (health as any).email,
                 }
               },
             }

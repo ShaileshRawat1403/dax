@@ -225,7 +225,8 @@ export const AuthListCommand = cmd({
 
     for (const [providerID, result] of results) {
       const name = database[providerID]?.name || providerID
-      prompts.log.info(`${name} ${UI.Style.TEXT_DIM}${result.type}`)
+      const account = result.type === "oauth" && result.accountId ? ` ${UI.Style.TEXT_DIM}(${result.accountId})` : ""
+      prompts.log.info(`${name}${account} ${UI.Style.TEXT_DIM}${result.type}`)
     }
 
     prompts.outro(`${results.length} credentials`)
