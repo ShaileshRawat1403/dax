@@ -317,10 +317,23 @@ const exchangeCodeForTokens = async (
 }
 
 const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
-  const scopeMode = (Bun.env.DAX_GEMINI_OAUTH_SCOPE_MODE ?? "compat").toLowerCase()
-  const scopes = [GOOGLE_SCOPE_OPENID, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_CLOUD]
+  const scopeMode = (Bun.env.DAX_GEMINI_OAUTH_SCOPE_MODE ?? "full").toLowerCase()
+  const scopes = [GOOGLE_SCOPE_OPENID, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_CLOUD, GOOGLE_SCOPE_GENERATIVE]
   // compat mode avoids hard failures on some unverified clients that reject generative-language scope.
-  if (scopeMode !== "compat") scopes.push(GOOGLE_SCOPE_GENERATIVE)
+  if (scopeMode === "compat") {
+    // Only cloud-platform
+    return new URL(`${GOOGLE_AUTH_URL}?${new URLSearchParams({
+      access_type: "offline",
+      client_id: clientID,
+      code_challenge: pkce.challenge,
+      code_challenge_method: "S256",
+      prompt: "consent",
+      redirect_uri: redirectURI,
+      response_type: "code",
+      scope: [GOOGLE_SCOPE_OPENID, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_CLOUD].join(" "),
+      state,
+    }).toString()}`).href
+  }
   const params = new URLSearchParams({
     access_type: "offline",
     client_id: clientID,
