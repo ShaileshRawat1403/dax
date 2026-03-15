@@ -17,7 +17,7 @@ describe("session lifecycle derivation", () => {
       ] as any,
     })
 
-    expect(lifecycle.lifecycle_state).toBe("active")
+    expect(lifecycle.lifecycle_state).toBe("executing")
     expect(lifecycle.terminal).toBe(false)
     expect(lifecycle.requires_reconciliation).toBe(true)
   })

@@ -1,4 +1,4 @@
-import { Plugin } from "../plugin"
+import * as PluginModule from "../plugin"
 import { Share } from "../share/share"
 import { Format } from "../format"
 import { LSP } from "../lsp"
@@ -18,7 +18,7 @@ import { loadEnvHierarchy } from "@/env/load"
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
   loadEnvHierarchy(Instance.directory)
-  await Plugin.init()
+  await PluginModule.Plugin.init()
   Share.init()
   ShareNext.init()
   Format.init()

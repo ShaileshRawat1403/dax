@@ -19,8 +19,8 @@ import {
   type SessionVerification,
   type VerificationResult,
   type VerificationTrustPosture,
-} from "../../trust/verify-session"
-import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "../../trust/write-governance"
+} from "@/governance"
+import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "@/governance"
 import { buildAuditSummary, type AuditPosture } from "./audit"
 
 function pagerCmd(): string[] {
@@ -1003,8 +1003,8 @@ function asNumber(value: unknown) {
 }
 
 async function listTimelineApprovals(sessionID: string): Promise<TimelineApproval[]> {
-  const { PermissionNext } = await import("../../governance/next")
-  const pending = await PermissionNext.list()
+  const { Permission } = await import("../../governance")
+  const pending = await Permission.list()
   return pending.filter((item) => item.sessionID === sessionID)
 }
 
@@ -1053,7 +1053,7 @@ function fallbackVerification(sessionID: string): SessionVerification {
     type: "session_verification",
     project_id: Instance.project.id,
     session_id: sessionID,
-    lifecycle_state: "active",
+    lifecycle_state: "executing" as const,
     lifecycle_terminal: false,
     lifecycle_requires_reconciliation: false,
     verification_result: "verification_incomplete",
@@ -1083,18 +1083,25 @@ function formatSessionOutcome(outcome: SessionHistoryOutcome) {
 
 function formatSessionLifecycleState(state: SessionLifecycleState) {
   switch (state) {
-    case "active":
-      return "Active"
+    case "created":
+      return "created"
+    case "planning":
+      return "planning"
+    case "ready":
+      return "ready"
     case "executing":
-      return "Executing"
+      return "executing"
+    case "awaiting_approval":
+      return "awaiting approval"
+    case "blocked":
+      return "blocked"
     case "completed":
-      return "Completed"
-    case "interrupted":
-      return "Interrupted"
-    case "abandoned":
-      return "Abandoned"
+      return "completed"
     case "failed":
-      return "Failed"
+      return "failed"
+    case "archived":
+      return "archived"
+
   }
 }
 

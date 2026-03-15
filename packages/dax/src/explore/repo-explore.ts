@@ -1687,8 +1687,8 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       })
     }
 
-    if (content.includes("PermissionNext.ask(") || content.includes("approval") || content.includes("abort(")) {
-      if (content.includes("PermissionNext.ask(")) {
+    if (content.includes("Permission.ask(") || content.includes("approval") || content.includes("abort(")) {
+      if (content.includes("Permission.ask(")) {
         addFlow({
           label: "approval_interruption_flow",
           section: "orchestration_loop",

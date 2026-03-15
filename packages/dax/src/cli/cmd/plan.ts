@@ -7,7 +7,7 @@ import { EOL } from "os"
 import { createDaxClient } from "@dax-ai/sdk/v2"
 import { Server } from "../../server/server"
 import { Provider } from "../../provider/provider"
-import { PermissionNext } from "../../governance/next"
+import { Permission } from "../../governance"
 import { Session } from "../../session"
 import { Question } from "../../question"
 
@@ -34,7 +34,7 @@ type PlanPreview = {
   error?: string
 }
 
-const INTERACTIVE_RULES: PermissionNext.Ruleset = [
+const INTERACTIVE_RULES: Permission.Ruleset = [
   {
     permission: "question",
     action: "deny",

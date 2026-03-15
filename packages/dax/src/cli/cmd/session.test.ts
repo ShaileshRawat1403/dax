@@ -438,7 +438,7 @@ describe("session timeline helpers", () => {
       ] as any,
     })
 
-    expect(lifecycle.lifecycle_state).toBe("active")
+    expect(lifecycle.lifecycle_state).toBe("executing")
     expect(lifecycle.requires_reconciliation).toBe(true)
   })
 

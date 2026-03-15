@@ -962,6 +962,7 @@ export namespace Config {
       terminal_title_toggle: z.string().optional().default("none").describe("Toggle terminal title"),
       tips_toggle: z.string().optional().default("<leader>h").describe("Toggle tips on home screen"),
       display_thinking: z.string().optional().default("none").describe("Toggle thinking blocks visibility"),
+      display_eli12: z.string().optional().default("ctrl+e").describe("Toggle ELI12 mode"),
     })
     .strict()
     .meta({

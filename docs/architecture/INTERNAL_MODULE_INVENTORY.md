@@ -102,6 +102,6 @@ The active product surface is `packages/dax/src/**`.
 
 # Archive/Delete Candidates
 
-- [ ]
-- [ ]
-- [ ]
+- [x] `packages/dax/src/policy/`
+- [x] `tests/run.js`
+- [x] `test-stream.ts`

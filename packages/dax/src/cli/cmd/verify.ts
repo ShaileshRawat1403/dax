@@ -1,7 +1,7 @@
 import type { Argv } from "yargs"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
-import { collectSessionVerification, formatSessionVerification } from "../../trust/verify-session"
+import { collectSessionVerification, formatSessionVerification } from "@/governance"
 
 export const VerifyCommand = cmd({
   command: "verify <session-id>",

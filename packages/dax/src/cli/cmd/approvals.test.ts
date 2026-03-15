@@ -39,7 +39,7 @@ describe("approvals command", () => {
 
       try {
         const { bootstrap } = await import("@/cli/bootstrap")
-        const { PermissionNext } = await import("@/governance/next")
+        const { Permission } = await import("@/governance")
         const { Storage } = await import("@/storage/storage")
         const { Instance } = await import("@/project/instance")
 
@@ -49,16 +49,16 @@ describe("approvals command", () => {
         await bootstrap(repoRoot, async () => {
           await Storage.remove(["permission", Instance.project.id])
 
-          void PermissionNext.ask({
+          void Permission.ask({
             sessionID: "session_approval_view",
             permission: "bash",
             patterns: [approvalCommand],
             always: [approvalCommand],
             metadata: { description: "Run test suite" },
-            ruleset: PermissionNext.fromConfig({ bash: "ask" } as any),
+            ruleset: Permission.fromConfig({ bash: "ask" } as any),
           })
 
-          const pending = await PermissionNext.list()
+          const pending = await Permission.list()
           expect(pending.length).toBe(1)
 
           const row = toApprovalRow(pending[0]!)

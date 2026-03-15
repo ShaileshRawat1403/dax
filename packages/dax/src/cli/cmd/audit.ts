@@ -4,7 +4,7 @@ import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { RAOLedger } from "../../rao"
 import { Instance } from "../../project/instance"
-import { Audit } from "../../audit"
+import { Audit } from "@/governance"
 import { PM } from "../../pm"
 import { Config } from "../../config/config"
 import { Session } from "../../session"
@@ -390,8 +390,8 @@ function latestActivityTimestamp(input: {
 
 const PermissionAwareApprovals = {
   async list(sessionID?: string) {
-    const { PermissionNext } = await import("../../governance/next")
-    const pending = await PermissionNext.list()
+    const { Permission } = await import("../../governance")
+    const pending = await Permission.list()
     return pending.filter((item) => !sessionID || item.sessionID === sessionID)
   },
 }

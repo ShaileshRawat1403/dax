@@ -1,9 +1,9 @@
 import { EOL } from "os"
 import { collectSessionShowSummary } from "../cli/cmd/session"
-import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "../trust/verify-session"
+import { collectSessionVerification, type VerificationResult, type VerificationTrustPosture } from "@/governance"
 import type { SessionLifecycleState } from "../session/lifecycle"
 import { withLockedRetry } from "../util/locked-retry"
-import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "../trust/write-governance"
+import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "@/governance"
 
 export type ReleaseReadiness =
   | "not_ready"
@@ -152,6 +152,14 @@ function buildLifecycleCheck(
   }
 
   if (lifecycleTerminal && !lifecycleRequiresReconciliation) {
+    if (lifecycleState === "blocked") {
+      return {
+        id: "lifecycle_terminal",
+        label: "Lifecycle complete",
+        status: "fail",
+        summary: "Session execution was blocked or interrupted.",
+      }
+    }
     return {
       id: "lifecycle_terminal",
       label: "Lifecycle complete",
@@ -214,6 +222,13 @@ function buildVerificationCheck(result: VerificationResult): ReleaseCheck {
         status: "fail",
         summary: "Verification failed, so this session is not ready for handoff or release.",
       }
+    default:
+      return {
+        id: "verification_passed",
+        label: "Verification passed",
+        status: "incomplete",
+        summary: "Verification status is unknown.",
+      }
   }
 }
 
@@ -275,6 +290,13 @@ function buildWriteGovernanceCheck(status: WriteGovernanceStatus, outcome: Write
               ? "fail"
               : "incomplete",
         summary: formatReleaseWriteGovernanceSummary(outcome, riskBucket),
+      }
+    default:
+      return {
+        id: "write_governance",
+        label: "Write governance",
+        status: "incomplete",
+        summary: "Write governance status is unknown.",
       }
   }
 }
@@ -406,18 +428,24 @@ function formatReadinessSummary(summary: SessionReleaseCheck) {
 
 function formatLifecycleState(state: SessionLifecycleState) {
   switch (state) {
-    case "active":
-      return "Active"
+    case "created":
+      return "Created"
+    case "planning":
+      return "Planning"
+    case "ready":
+      return "Ready"
     case "executing":
       return "Executing"
+    case "awaiting_approval":
+      return "Awaiting Approval"
+    case "blocked":
+      return "Blocked"
     case "completed":
       return "Completed"
-    case "interrupted":
-      return "Interrupted"
-    case "abandoned":
-      return "Abandoned"
     case "failed":
       return "Failed"
+    case "archived":
+      return "Archived"
   }
 }
 

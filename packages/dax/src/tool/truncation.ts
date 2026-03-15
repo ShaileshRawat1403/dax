@@ -2,7 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import { Global } from "../global"
 import { Identifier } from "../id/id"
-import { PermissionNext } from "../governance/next"
+import { Permission } from "../governance"
 import type { Agent } from "../agent/agent"
 import { Scheduler } from "../scheduler"
 
@@ -43,7 +43,7 @@ export namespace Truncate {
 
   function hasTaskTool(agent?: Agent.Info): boolean {
     if (!agent?.permission) return false
-    const rule = PermissionNext.evaluate("task", "*", agent.permission)
+    const rule = Permission.evaluate("task", "*", agent.permission)
     return rule.action !== "deny"
   }
 
