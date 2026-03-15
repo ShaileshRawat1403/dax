@@ -63,7 +63,7 @@ type OAuthState = {
   clientID?: string
   clientSecret?: string
   quotaProjectID?: string
-  accountId?: string
+  accountId?: string // user email
 }
 
 type TokenResponse = {
