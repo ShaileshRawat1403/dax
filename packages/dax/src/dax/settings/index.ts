@@ -12,4 +12,5 @@ export const DAX_SETTING = {
   toast_style: "toast_style",
   session_preferred_name_prefix: "session_preferred_name_prefix",
   preferred_name_default: "preferred_name_default",
+  refine_mode: "refine_mode",
 } as const

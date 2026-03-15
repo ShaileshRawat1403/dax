@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import z from "zod"
 import { Identifier } from "../id/id"
 import { MessageV2 } from "./message-v2"
+import type { MessageV2 as MessageV2Type } from "./message-v2"
 import { Log } from "../util/log"
 import { SessionRevert } from "./revert"
 import { Session } from "."
@@ -52,7 +53,7 @@ import { Audit } from "@/governance"
 import { Config } from "@/config/config"
 import { DocOps } from "@/docops"
 import { buildPreferredNamePrompt } from "@/dax/user-profile"
-import { interpretIntent } from "@/intent/interpret"
+import { interpretIntent, refineIntent } from "@/intent/interpret"
 import { createPlan } from "@/planner/planner"
 import { runGraph } from "@/execution/run-graph"
 import { OperatorRouter } from "@/operators/router"
@@ -168,6 +169,35 @@ export namespace SessionPrompt {
 
     const session = await Session.get(input.sessionID)
     await SessionRevert.cleanup(session)
+
+    const existingMessages = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
+    if (existingMessages.length === 0) {
+      const rawPrompt = input.parts.find(p => p.type === "text")?.text || ""
+      if (rawPrompt) {
+        try {
+          const intent = await interpretIntent(rawPrompt, {
+            cwd: Instance.directory,
+            session_id: input.sessionID
+          })
+          await Session.update(input.sessionID, (draft) => {
+            draft.state_v2 = {
+              ...draft.state_v2,
+              intent: {
+                ...intent,
+                prompt: rawPrompt,
+                riskLevel: intent.riskLevel as any
+              },
+              activity_timeline: [],
+              approvals: [],
+              artifacts: [],
+              audit_findings: []
+            }
+          })
+        } catch (e) {
+          log.error("failed to interpret intent", { error: e })
+        }
+      }
+    }
 
     const message = await createUserMessage(input)
     await Session.touch(input.sessionID)
@@ -327,7 +357,7 @@ export namespace SessionPrompt {
         if (!lastFinished && msg.info.role === "assistant" && msg.info.finish)
           lastFinished = msg.info as MessageV2.Assistant
         if (lastUser && lastFinished) break
-        const task = msg.parts.filter((part) => part.type === "compaction" || part.type === "subtask")
+        const task = msg.parts.filter((part: MessageV2Type.Part) => part.type === "compaction" || part.type === "subtask")
         if (task && !lastFinished) {
           tasks.push(...task)
         }
@@ -899,7 +929,7 @@ export namespace SessionPrompt {
     using _ = defer(() => InstructionPrompt.clear(info.id))
 
     const parts = await Promise.all(
-      input.parts.map(async (part): Promise<MessageV2.Part[]> => {
+      (input.parts as any[]).map(async (part: any): Promise<MessageV2.Part[]> => {
         if (part.type === "file") {
           // before checking the protocol we check if this is an mcp resource because it needs special handling
           if (part.source?.type === "resource") {
@@ -1221,9 +1251,9 @@ export namespace SessionPrompt {
         return [
           {
             id: Identifier.ascending("part"),
-            ...part,
             messageID: info.id,
             sessionID: input.sessionID,
+            ...part,
           },
         ]
       }),
@@ -1716,6 +1746,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
       return result
     }
+    if (input.command === Command.Default.GEN_PROMPT) {
+      const result = await commandGenPrompt(input)
+      Bus.publish(Command.Event.Executed, {
+        name: input.command,
+        sessionID: input.sessionID,
+        arguments: input.arguments,
+        messageID: result.info.id,
+      })
+      return result
+    }
     const command = await Command.get(input.command)
     const agentName = command.agent ?? input.agent ?? (await Agent.defaultAgent())
 
@@ -2110,6 +2150,41 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     })
   }
 
+  async function commandGenPrompt(input: CommandInput): Promise<MessageV2.WithParts> {
+    const rawInput = input.arguments.trim()
+    if (!rawInput) {
+      return respondCommandText({
+        input,
+        commandName: Command.Default.GEN_PROMPT,
+        text: "Usage: /gen-prompt <your messy thought or request>",
+      })
+    }
+
+    const contract = await refineIntent(rawInput, {
+      cwd: Instance.directory,
+      session_id: input.sessionID,
+    })
+
+    const text = [
+      "### Structured Execution Contract",
+      `**Goal:** ${contract?.goal}`,
+      "",
+      "**Success Criteria:**",
+      ...(contract?.successCriteria.map((c) => `- ${c}`) ?? []),
+      "",
+      "**Constraints:**",
+      ...(contract?.explicitConstraints.map((c) => `- ${c}`) ?? []),
+      "",
+      "> Use this structured prompt for better deterministic results.",
+    ].join("\n")
+
+    return respondCommandText({
+      input,
+      commandName: Command.Default.GEN_PROMPT,
+      text,
+    })
+  }
+
   async function commandExplore(input: CommandInput): Promise<MessageV2.WithParts> {
     const { parseExploreArguments } = await import("@/explore/repo-explore")
     const parsed = parseExploreArguments(input.arguments)
@@ -2393,12 +2468,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
     // Find first non-synthetic user message
     const firstRealUserIdx = input.history.findIndex(
-      (m) => m.info.role === "user" && !m.parts.every((p) => "synthetic" in p && p.synthetic),
+      (m: MessageV2Type.WithParts) => m.info.role === "user" && !m.parts.every((p: MessageV2Type.Part) => "synthetic" in p && p.synthetic),
     )
     if (firstRealUserIdx === -1) return
 
     const isFirst =
-      input.history.filter((m) => m.info.role === "user" && !m.parts.every((p) => "synthetic" in p && p.synthetic))
+      input.history.filter((m: MessageV2Type.WithParts) => m.info.role === "user" && !m.parts.every((p: MessageV2Type.Part) => "synthetic" in p && p.synthetic))
         .length === 1
     if (!isFirst) return
 

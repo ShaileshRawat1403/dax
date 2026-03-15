@@ -7,16 +7,41 @@ export interface IntentContext {
 }
 
 /**
+ * Refine a raw user prompt into a structured Execution Contract.
+ * This ensures the AI understands success criteria and constraints.
+ */
+export async function refineIntent(prompt: string, context: IntentContext): Promise<IntentEnvelope["contract"]> {
+  // TODO: Implement LLM call to refine raw input into a structured contract.
+  // For now, return a basic heuristic contract based on common patterns.
+  
+  const lowerPrompt = prompt.toLowerCase()
+  
+  if (lowerPrompt.includes("explore") || lowerPrompt.includes("understand")) {
+    return {
+      goal: "Map repository structure and understand core logic",
+      successCriteria: ["File tree mapped", "Entry points identified", "Key dependencies listed"],
+      explicitConstraints: ["Read-only access preferred"],
+    }
+  }
+
+  return {
+    goal: prompt,
+    successCriteria: ["Task completed as described"],
+    explicitConstraints: [],
+  }
+}
+
+/**
  * Interpret a raw user prompt into a structured intent envelope.
- * This will eventually be backed by an LLM call or a robust parser.
+ * Coordinates between raw input refinement and intent classification.
  */
 export async function interpretIntent(prompt: string, context: IntentContext): Promise<IntentEnvelope> {
-  // TODO: implement actual interpretation logic with an LLM call.
-  // For now, simple heuristic routing.
-
+  const contract = await refineIntent(prompt, context)
+  
+  // Heuristic routing (eventually LLM-backed)
   const lowerPrompt = prompt.toLowerCase()
   let intentType: IntentType = "general_query"
-  let suggestedOperator = "general" // Default operator
+  let suggestedOperator = "general"
   let requiredSkills: string[] = []
 
   if (lowerPrompt.includes("explore") || lowerPrompt.includes("understand this repo")) {
@@ -38,27 +63,18 @@ export async function interpretIntent(prompt: string, context: IntentContext): P
     intentType = "release_readiness"
     suggestedOperator = "release"
     requiredSkills = ["release-readiness"]
-  } else if (lowerPrompt.includes("artifact") || lowerPrompt.includes("report")) {
-    intentType = "artifact_inspect"
-    suggestedOperator = "artifact"
-    requiredSkills = ["artifact-audit"]
-  } else if (lowerPrompt.includes("change this code") || lowerPrompt.includes("refactor")) {
-    intentType = "code_change"
-    suggestedOperator = "code" // A future operator
-  } else if (lowerPrompt.includes("generate docs") || lowerPrompt.includes("document this")) {
-    intentType = "docs_generate"
-    suggestedOperator = "docs" // A future operator
   }
 
   return {
     intentType,
-    confidence: 0.75, // Placeholder confidence
-    activeMode: "execute", // Placeholder
+    confidence: 0.85,
+    activeMode: "execute",
     suggestedOperator,
     requiredSkills,
-    requestedOutput: "narrative", // Placeholder
-    riskLevel: "medium", // Placeholder
-    scope: "repo", // Placeholder
-    constraints: [], // Placeholder
+    requestedOutput: "narrative",
+    riskLevel: "medium",
+    scope: "repo",
+    constraints: contract?.explicitConstraints ?? [],
+    contract,
   }
 }

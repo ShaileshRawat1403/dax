@@ -8,6 +8,13 @@ export type IntentType =
   | "code_change"
   | "general_query"
 
+export interface ExecutionContract {
+  goal: string
+  successCriteria: string[]
+  explicitConstraints: string[]
+  requiredFramework?: string // e.g., 'agile', 'lean'
+}
+
 export interface IntentEnvelope {
   intentType: IntentType
   confidence: number // A value between 0 and 1
@@ -18,4 +25,5 @@ export interface IntentEnvelope {
   riskLevel: "low" | "medium" | "high"
   scope: string // e.g., 'file', 'directory', 'repo'
   constraints: string[]
+  contract?: ExecutionContract
 }

@@ -15,6 +15,12 @@ export namespace SessionV2 {
     riskLevel: z.enum(["low", "medium", "high"]),
     scope: z.string(),
     constraints: z.string().array(),
+    contract: z.object({
+      goal: z.string(),
+      successCriteria: z.string().array(),
+      explicitConstraints: z.string().array(),
+      requiredFramework: z.string().optional(),
+    }).optional(),
   }).meta({
     ref: "SessionIntent",
   })

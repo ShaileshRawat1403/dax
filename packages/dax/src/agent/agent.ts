@@ -15,6 +15,9 @@ import PROMPT_DOCS from "./prompt/docs.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_AUDIT from "./prompt/audit.txt"
+import PROMPT_AGILE from "./prompt/agile.txt"
+import PROMPT_LEAN from "./prompt/lean.txt"
+import PROMPT_TS_EXPERT from "./prompt/ts-expert.txt"
 import { Permission } from "../governance/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -128,6 +131,51 @@ export namespace Agent {
         options: {},
         mode: "subagent",
         native: true,
+      },
+      agile: {
+        name: "agile",
+        description: "Specialized assistant for Agile SDLC and project management.",
+        options: {},
+        permission: Permission.merge(
+          defaults,
+          Permission.fromConfig({
+            question: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        prompt: PROMPT_AGILE,
+      },
+      lean: {
+        name: "lean",
+        description: "Specialized assistant for Lean optimization and waste reduction.",
+        options: {},
+        permission: Permission.merge(
+          defaults,
+          Permission.fromConfig({
+            question: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        prompt: PROMPT_LEAN,
+      },
+      "ts-expert": {
+        name: "ts-expert",
+        description: "Specialized assistant for TypeScript best practices and type safety.",
+        options: {},
+        permission: Permission.merge(
+          defaults,
+          Permission.fromConfig({
+            question: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        prompt: PROMPT_TS_EXPERT,
       },
       explore: {
         name: "explore",

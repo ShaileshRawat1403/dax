@@ -373,6 +373,8 @@ describe("session timeline helpers", () => {
         write_outcome: "none",
         checks: [],
         blocking_factors: [],
+        missing_evidence: [],
+        passing_signals: [],
         degrading_factors: [],
       },
       lifecycle: {
@@ -777,6 +779,8 @@ describe("session timeline helpers", () => {
           },
         ],
         blocking_factors: [],
+        missing_evidence: [],
+        passing_signals: [],
         degrading_factors: [],
       },
     })
