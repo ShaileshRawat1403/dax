@@ -1,6 +1,6 @@
-import { SessionLifecycleState } from "../session/lifecycle"
+import type { SessionLifecycleState } from "../session/lifecycle"
 import { Audit } from "./audit"
-import { 
+import type { 
   WriteGovernanceStatus, 
   WriteOutcome, 
   WriteRiskBucket, 
@@ -15,7 +15,7 @@ export type VerificationResult =
 
 export type VerificationTrustPosture = "review_needed" | "policy_clean" | "verified"
 
-export type VerificationCheckStatus = "pass" | "fail" | "incomplete" | "degraded"
+export type VerificationCheckStatus = "pass" | "fail" | "incomplete" | "degraded" | "warn"
 
 export type VerificationCheckID =
   | "lifecycle_state"
@@ -90,5 +90,6 @@ export type SessionVerification = {
   blocking_factors: string[]
   missing_evidence: string[]
   passing_signals: string[]
+  degrading_factors: string[]
   latest_activity_at?: number
 }

@@ -1,5 +1,7 @@
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'awaiting_approval';
 
+export type VerificationStatus = 'none' | 'pending' | 'passed' | 'failed';
+
 export interface PlannedTask {
   id: string;
   name: string;
@@ -10,6 +12,9 @@ export interface PlannedTask {
   context: Record<string, any>;
   result?: any;
   error?: Error;
+  verification_criteria?: string[];
+  verification_status?: VerificationStatus;
+  is_hitl?: boolean; // Human-In-The-Loop required for this task
 }
 
 export interface TaskGraph {

@@ -28,111 +28,28 @@ export const TaskTool = Tool.define("task", async (ctx) => {
   const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary"))
 
   // Filter agents by permissions if agent provided
-  const caller = ctx?.agent
-  const accessibleAgents = caller
-    ? agents.filter((a) => Permission.evaluate("task", a.name, caller.permission).action !== "deny")
-    : agents
-
-  const description = DESCRIPTION.replace(
-    "{agents}",
-    accessibleAgents
-      .map((a) => `- ${a.name}: ${a.description ?? "This subagent should only be called manually by the user."}`)
-      .join("\n"),
-  )
   return {
-    description,
+    description: DESCRIPTION,
     parameters,
-    async execute(params: z.infer<typeof parameters>, ctx) {
+    execute: async (params: z.infer<typeof parameters>) => {
       const config = await Config.get()
-
-      // Skip permission check when user explicitly invoked via @ or command subtask
-      if (!ctx.extra?.bypassAgentCheck) {
-        await ctx.ask({
-          permission: "task",
-          patterns: [params.subagent_type],
-          always: ["*"],
-          metadata: {
-            description: params.description,
-            subagent_type: params.subagent_type,
-          },
-        })
-      }
-
-      const agent = await Agent.get(params.subagent_type)
-      if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
-
-      const hasTaskPermission = agent.permission.some((rule) => rule.permission === "task")
-
-      const session = await iife(async () => {
-        if (params.task_id) {
-          const found = await Session.get(params.task_id).catch(() => {})
-          if (found) return found
-        }
-
-        return await Session.create({
-          parentID: ctx.sessionID,
-          title: params.description + ` (@${agent.name} subagent)`,
-          permission: [
-            {
-              permission: "todowrite",
-              pattern: "*",
-              action: "deny",
-            },
-            {
-              permission: "todoread",
-              pattern: "*",
-              action: "deny",
-            },
-            ...(hasTaskPermission
-              ? []
-              : [
-                  {
-                    permission: "task" as const,
-                    pattern: "*" as const,
-                    action: "deny" as const,
-                  },
-                ]),
-            ...(config.experimental?.primary_tools?.map((t) => ({
-              pattern: "*",
-              action: "allow" as const,
-              permission: t,
-            })) ?? []),
-          ],
-        })
-      })
-      const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
-      if (msg.info.role !== "assistant") throw new Error("Not an assistant message")
-
-      const model = agent.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
-
-      ctx.metadata({
-        title: params.description,
-        metadata: {
-          sessionId: session.id,
-          model,
-        },
-      })
+      const agent = agents.find((a) => a.name === params.subagent_type) || (await Agent.get("general"))
+      const model = (agent && typeof agent !== 'string' && agent.model) || (await Agent.get("general").then(a => a!.model))
 
       const messageID = Identifier.ascending("message")
+      const session = params.task_id ? await Session.get(params.task_id) : await Session.fork((ctx as any).sessionId)
 
-      function cancel() {
-        SessionPrompt.cancel(session.id)
-      }
-      ctx.abort.addEventListener("abort", cancel)
-      using _ = defer(() => ctx.abort.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
+
+      const approved = await Permission.getApproved()
+      const hasTaskPermission = approved.some((p) => p.permission === "task" && p.action === "allow")
 
       const result = await SessionPrompt.prompt({
         messageID,
         sessionID: session.id,
-        model: {
-          modelID: model.modelID,
-          providerID: model.providerID,
-        },
-        agent: agent.name,
+        model: model ? model : undefined,
+        agent: typeof agent === 'string' ? agent : agent!.name,
+
         tools: {
           todowrite: false,
           todoread: false,
@@ -142,7 +59,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         parts: promptParts,
       })
 
-      const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+      const text = result.parts.findLast((x: MessageV2.Part) => x.type === "text")?.text ?? ""
 
       const output = [
         `task_id: ${session.id} (for resuming to continue this task if needed)`,

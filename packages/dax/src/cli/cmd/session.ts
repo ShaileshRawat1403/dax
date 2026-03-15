@@ -1061,8 +1061,10 @@ function fallbackVerification(sessionID: string): SessionVerification {
     write_governance_status: "none",
     write_outcome: "none",
     checks: [],
-    blocking_factors: [],
-    degrading_factors: ["Verification could not be collected for this session."],
+    blocking_factors: ["Verification could not be collected for this session."],
+    missing_evidence: [],
+    passing_signals: [],
+    degrading_factors: [],
   }
 }
 

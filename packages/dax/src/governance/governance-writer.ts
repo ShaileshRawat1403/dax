@@ -29,6 +29,7 @@ export type WriteGovernanceClassification = {
   bucket: WriteRiskBucket
   governance_expectation: WriteGovernanceExpectation
   references: string[]
+  workspaceWriteCount: number
 }
 
 export function deriveWriteGovernanceStatus(input: WriteGovernanceSignals): WriteGovernanceStatus {
@@ -148,6 +149,7 @@ export function deriveWriteGovernanceClassification(input: {
     references: classified
       .filter((entry) => entry.bucket === highest.bucket)
       .map((entry) => entry.path),
+    workspaceWriteCount: classified.length,
   }
 }
 

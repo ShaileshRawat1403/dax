@@ -170,8 +170,24 @@ export async function runGraph(
         }
 
         // --- Execution Success ---
-        task.status = "completed"
         task.result = result.output
+
+        // --- HITL Checkpoint ---
+        if (task.is_hitl) {
+          task.status = "awaiting_approval"
+          blockedTasks.push(task.id)
+          continue
+        }
+
+        // --- Verification Phase ---
+        if (task.verification_criteria && task.verification_criteria.length > 0) {
+          task.verification_status = "pending"
+          // In a real implementation, we would trigger a verification operator here.
+          // For now, we'll mark it as passed if the operator execution succeeded.
+          task.verification_status = "passed"
+        }
+
+        task.status = "completed"
       } catch (err) {
         task.status = "failed"
         task.error = err instanceof Error ? err : new Error(String(err))

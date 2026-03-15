@@ -266,4 +266,8 @@ export namespace Permission {
   export async function list() {
     return state().then((x) => Object.values(x.pending).map((x) => x.info))
   }
+
+  export async function getApproved() {
+    return state().then((x) => x.approved)
+  }
 }

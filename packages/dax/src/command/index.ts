@@ -58,6 +58,7 @@ export namespace Command {
     AUDIT: "audit",
     DOCS: "docs",
     EXPLORE: "explore",
+    GEN_PROMPT: "gen-prompt",
   } as const
 
   const state = Instance.state(async () => {
@@ -110,6 +111,13 @@ export namespace Command {
         source: "command",
         template: "explore",
         hints: ["[path]", "--eli12", "--json", "--format=json"],
+      },
+      [Default.GEN_PROMPT]: {
+        name: Default.GEN_PROMPT,
+        description: "generate a structured prompt from raw input: /gen-prompt <raw_input>",
+        source: "command",
+        template: "gen-prompt",
+        hints: ["<raw_input>"],
       },
     }
 

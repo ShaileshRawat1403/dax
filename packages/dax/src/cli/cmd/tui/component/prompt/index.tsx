@@ -35,6 +35,8 @@ import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import { createColors } from "../../ui/spinner.ts"
 
+import { Log } from "@/util/log"
+
 export type PromptProps = {
   sessionID?: string
   visible?: boolean
@@ -143,7 +145,19 @@ export function Prompt(props: PromptProps) {
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const kv = useKV()
+  const log = Log.create({ service: "tui.prompt" })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const refineMode = createMemo(() => kv.get(DAX_SETTING.refine_mode, false))
+
+  const toggleRefineMode = () => {
+    const next = !refineMode()
+    kv.set(DAX_SETTING.refine_mode, next)
+    toast.show({
+      variant: next ? "success" : "info",
+      message: next ? "Auto-Refine enabled" : "Auto-Refine disabled",
+      duration: 2000,
+    })
+  }
 
   const setExplainMode = (enabled: boolean) => {
     kv.set(DAX_SETTING.explain_mode, enabled ? "eli12" : "normal")
@@ -688,6 +702,47 @@ export function Prompt(props: PromptProps) {
     },
   ])
 
+  async function handleRefine() {
+    if (props.disabled || !store.prompt.input) return
+    
+    const rawInput = store.prompt.input.trim()
+    const sessionID = props.sessionID || (await sdk.client.session.create({}).then(x => x.data!.id))
+    
+    toast.show({
+      variant: "info",
+      message: "Refining prompt...",
+      duration: 1500
+    })
+
+    try {
+      const result = await sdk.client.session.command({
+        sessionID: sessionID!,
+        command: "gen-prompt",
+        arguments: rawInput
+      })
+      // Result is a MessageV2.WithParts, we extract the text part
+      const refinedText = result.data?.parts.find(p => p.type === "text")?.text
+      if (refinedText) {
+        // We replace the current input with the refined one
+        // but keep it editable
+        setStore("prompt", "input", refinedText)
+        input.setText(refinedText)
+        toast.show({
+          variant: "success",
+          message: "Prompt refined!",
+          duration: 2000
+        })
+      }
+    } catch (e) {
+      log.error("failed to refine prompt", { error: e })
+      toast.show({
+        variant: "error",
+        message: "Failed to refine prompt",
+        duration: 3000
+      })
+    }
+  }
+
   async function submit() {
     if (props.disabled) return
     if (autocomplete?.visible) return
@@ -1025,7 +1080,14 @@ export function Prompt(props: PromptProps) {
                     e.preventDefault()
                     return
                   }
+                  if (e.name === "r" && e.ctrl) {
+                    e.preventDefault()
+                    handleRefine()
+                    return
+                  }
+
                   // Handle clipboard paste (Ctrl+V) - check for images first on Windows
+
                   // This is needed because Windows terminal doesn't properly send image data
                   // through bracketed paste, so we need to intercept the keypress and
                   // directly read from clipboard before the terminal handles it
@@ -1336,6 +1398,15 @@ export function Prompt(props: PromptProps) {
                     {keybind.print("command_list")}{" "}
                     <span style={{ fg: theme.textMuted }}>{explainMode() ? "menu" : "commands"}</span>
                   </text>
+                  <Show when={store.prompt.input.length > 0}>
+                    <box onMouseUp={handleRefine} backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1} gap={1}>
+                      <text fg={theme.secondary}>ctrl+r</text>
+                      <text fg={theme.textMuted}>refine</text>
+                    </box>
+                  </Show>
+                  <box onMouseUp={toggleRefineMode} backgroundColor={refineMode() ? theme.accent : theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                    <text fg={refineMode() ? theme.background : theme.textMuted}>✧ REFINE {refineMode() ? "ON" : "OFF"}</text>
+                  </box>
                   <Show when={explainMode()}>
                     <text fg={theme.success}>ELI12 on</text>
                   </Show>
