@@ -74,7 +74,7 @@ Read first:
 
 ### 1) Local run from source
 
-![DAX running locally from source using bun run dev](./images/build-on-dax-01-local-dev-run.png)
+![DAX running locally from source using bun run dev](../images/build-on-dax-01-local-dev-run.png)
 
 Capture:
 

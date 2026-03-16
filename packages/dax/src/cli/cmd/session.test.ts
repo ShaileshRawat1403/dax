@@ -541,7 +541,7 @@ describe("session timeline helpers", () => {
 
     expect(rendered).toContain("Session: session_show_1")
     expect(rendered).toContain("Outcome: Completed")
-    expect(rendered).toContain("Lifecycle: Completed")
+    expect(rendered).toContain("Lifecycle: completed")
     expect(rendered).toContain("Stage: Verification")
     expect(rendered).toContain("Trust posture: Verified")
     expect(rendered).toContain("Verification: Passed")
@@ -786,7 +786,7 @@ describe("session timeline helpers", () => {
     })
 
     expect(rendered).toContain("Stage progression")
-    expect(rendered).toContain("Lifecycle: Completed")
+    expect(rendered).toContain("Lifecycle: completed")
     expect(rendered).toContain("Current stage: Verification")
     expect(rendered).toContain("Stages reached: Planning -> Implementation -> Verification")
     expect(rendered).toContain("Timeline")

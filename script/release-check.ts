@@ -11,9 +11,8 @@ const requiredFiles = [
   "packages/dax/script/build.ts",
   "script/install.sh",
   "README.md",
-  "docs/prerelease.md",
-  "docs/CONTRIBUTOR_START_HERE.md",
-  "docs/LEGACY_REMOVAL_PLAN.md",
+  "docs/product/prerelease.md",
+  "docs/product/contributor-start-here.md",
 ]
 
 for (const file of requiredFiles) {
