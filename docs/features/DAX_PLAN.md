@@ -34,10 +34,10 @@ This keeps DAX aligned with the control-plane model:
 
 Canonical DAX already contains a strong planning substrate:
 
-- a dedicated `plan` agent in [packages/dax/src/agent/agent.ts](../packages/dax/src/agent/agent.ts)
-- explicit plan-mode entry and exit tools in [packages/dax/src/tool/plan.ts](../packages/dax/src/tool/plan.ts)
-- a real plan file path via [packages/dax/src/session/index.ts](../packages/dax/src/session/index.ts)
-- plan-mode execution constraints and workflow guidance in [packages/dax/src/session/prompt.ts](../packages/dax/src/session/prompt.ts)
+- a dedicated `plan` agent in [packages/dax/src/agent/agent.ts](../../packages/dax/src/agent/agent.ts)
+- explicit plan-mode entry and exit tools in [packages/dax/src/tool/plan.ts](../../packages/dax/src/tool/plan.ts)
+- a real plan file path via [packages/dax/src/session/index.ts](../../packages/dax/src/session/index.ts)
+- plan-mode execution constraints and workflow guidance in [packages/dax/src/session/prompt.ts](../../packages/dax/src/session/prompt.ts)
 
 This means `dax plan` should expose and shape existing planning behavior rather than invent a parallel planning subsystem.
 

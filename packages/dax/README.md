@@ -51,7 +51,7 @@ DAX v1 includes governance gates that can block releases:
 Start at the repository root for product docs and contribution guidance:
 
 - [README](../../README.md)
-- [Architecture](../../ARCHITECTURE.md)
-- [Contributor Start Here](../../docs/CONTRIBUTOR_START_HERE.md)
+- [Architecture](../../docs/architecture/ARCHITECTURE.md)
+- [Contributor Start Here](../../docs/product/contributor-start-here.md)
 - [Contributing](../../CONTRIBUTING.md)
 - [License](../../LICENSE)

@@ -1,6 +1,6 @@
 # DAX Write Governance Implementation
 
-This document is the implementation bridge for [DAX_WRITE_GOVERNANCE_MODEL.md](DAX_WRITE_GOVERNANCE_MODEL.md).
+This document is the implementation bridge for the DAX Write Governance Model.
 
 It translates the validated write-governance problem into a narrow implementation sequence without mixing in UI or broader workflow redesign.
 
@@ -133,13 +133,13 @@ Should stop missing artifact evidence when the retained output surface is comple
 
 The first narrow implementation likely needs to touch:
 
-- [artifacts.ts](/Users/Shared/MYAIAGENTS/dax/packages/dax/src/cli/cmd/artifacts.ts)
+- [artifacts.ts](../../packages/dax/src/cli/cmd/artifacts.ts)
   - canonical artifact read-model helpers
-- [session.ts](/Users/Shared/MYAIAGENTS/dax/packages/dax/src/cli/cmd/session.ts)
+- [session.ts](../../packages/dax/src/cli/cmd/session.ts)
   - session summary and inspect surfaces consuming artifact truth
-- [verify-session.ts](/Users/Shared/MYAIAGENTS/dax/packages/dax/src/trust/verify-session.ts)
+- [trust-verification.ts](../../packages/dax/src/governance/trust-verification.ts)
   - artifact evidence checks
-- [check-session-release.ts](/Users/Shared/MYAIAGENTS/dax/packages/dax/src/release/check-session-release.ts)
+- [check-session-release.ts](../../packages/dax/src/release/check-session-release.ts)
   - release evidence checks
 
 Depending on current runtime structure, the correction may also touch the project-file/diff discovery helpers rather than the CLI command module directly.

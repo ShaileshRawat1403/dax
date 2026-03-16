@@ -5,7 +5,6 @@ This directory contains the canonical documentation for the DAX project. The doc
 - [**Product**](./product/): Documents related to the product vision, distribution, and end-user guides.
 - [**Architecture**](./architecture/): Core architectural models and decision records that define the DAX runtime.
 - [**Features**](./features/): Detailed specifications for individual DAX features and operators.
-- [**Archive**](./archive/): Old, fragmented, or superseded design documents. Retained for historical context.
 
 ## Key Documents
 
