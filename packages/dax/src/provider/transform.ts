@@ -826,8 +826,8 @@ export namespace ProviderTransform {
     if (providerID === "google" && lower.includes("insufficient authentication scopes")) {
       return (
         "Google (Gemini API) token is missing required scopes. " +
-        "Use `GEMINI_API_KEY` (recommended) or re-login with 'Sign in with Google (email)' and include Gemini scope " +
-        "`https://www.googleapis.com/auth/generative-language.retriever`."
+        "Use `GEMINI_API_KEY` (recommended) or re-login with 'Sign in with Google (email)' and include Gemini scopes " +
+        "`https://www.googleapis.com/auth/generative-language.peruserquota` and `https://www.googleapis.com/auth/generative-language.retriever.readonly`."
       )
     }
     if (

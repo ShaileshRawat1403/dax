@@ -126,6 +126,14 @@ Primary success criteria:
 - The user can execute one step at a time without confusion.`
 const ELI12_TEMPLATE_RE = /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i
 
+const REFINE_PREFIX = `SYSTEM: DAX - Auto-Refine Mode (Structured Execution)
+
+The user has provided a raw, brief, or unstructured prompt.
+Your task is to internally refine this into a comprehensive, step-by-step execution plan before taking action.
+- Do not output the refined prompt to the user; keep it in your thoughts.
+- Execute the task using best practices, filling in any missing gaps logically.
+- Ensure all edge cases are handled before completing the task.`
+
 export function Prompt(props: PromptProps) {
   let input: TextareaRenderable
   let anchor: BoxRenderable
@@ -148,10 +156,20 @@ export function Prompt(props: PromptProps) {
   const log = Log.create({ service: "tui.prompt" })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const refineMode = createMemo(() => kv.get(DAX_SETTING.refine_mode, false))
+  const isPanePinned = createMemo(() => kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
+  const activePaneMode = createMemo(() => kv.get(DAX_SETTING.session_pane_mode))
 
   const toggleRefineMode = () => {
     const next = !refineMode()
     kv.set(DAX_SETTING.refine_mode, next)
+
+    if (next) {
+      kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+      kv.set(DAX_SETTING.session_pane_mode, "refine")
+    } else {
+      kv.set(DAX_SETTING.session_pane_mode, "plan")
+    }
+
     toast.show({
       variant: next ? "success" : "info",
       message: next ? "Auto-Refine enabled" : "Auto-Refine disabled",
@@ -259,8 +277,9 @@ export function Prompt(props: PromptProps) {
   })
 
   createEffect(() => {
+    if (!input || input.isDestroyed) return
     if (props.disabled) input.cursorColor = theme.backgroundElement
-    if (!props.disabled) input.cursorColor = theme.text
+    else input.cursorColor = theme.text
   })
 
   const lastUserMessage = createMemo(() => {
@@ -702,47 +721,6 @@ export function Prompt(props: PromptProps) {
     },
   ])
 
-  async function handleRefine() {
-    if (props.disabled || !store.prompt.input) return
-    
-    const rawInput = store.prompt.input.trim()
-    const sessionID = props.sessionID || (await sdk.client.session.create({}).then(x => x.data!.id))
-    
-    toast.show({
-      variant: "info",
-      message: "Refining prompt...",
-      duration: 1500
-    })
-
-    try {
-      const result = await sdk.client.session.command({
-        sessionID: sessionID!,
-        command: "gen-prompt",
-        arguments: rawInput
-      })
-      // Result is a MessageV2.WithParts, we extract the text part
-      const refinedText = result.data?.parts.find(p => p.type === "text")?.text
-      if (refinedText) {
-        // We replace the current input with the refined one
-        // but keep it editable
-        setStore("prompt", "input", refinedText)
-        input.setText(refinedText)
-        toast.show({
-          variant: "success",
-          message: "Prompt refined!",
-          duration: 2000
-        })
-      }
-    } catch (e) {
-      log.error("failed to refine prompt", { error: e })
-      toast.show({
-        variant: "error",
-        message: "Failed to refine prompt",
-        duration: 3000
-      })
-    }
-  }
-
   async function submit() {
     if (props.disabled) return
     if (autocomplete?.visible) return
@@ -766,6 +744,7 @@ export function Prompt(props: PromptProps) {
           return sessionID
         })()
     const messageID = Identifier.ascending("message")
+
     let inputText = eli12Command.handled ? eli12Command.submitText! : store.prompt.input
     let inputSystem: string | undefined
 
@@ -800,8 +779,17 @@ export function Prompt(props: PromptProps) {
         return sync.data.command.some((x) => x.name === command)
       })
 
-    if (!isSlashCommand && (explainMode() || eli12Command.handled)) {
-      inputSystem = ELI12_PREFIX
+    if (!isSlashCommand) {
+      if (explainMode() || eli12Command.handled) {
+        inputSystem = ELI12_PREFIX
+      } else if (refineMode()) {
+        inputSystem = REFINE_PREFIX
+        // Store the active augmented context so the Refine pane can display it
+        kv.set("dax_active_refined_prompt", `${REFINE_PREFIX}\n\n[Raw Intent]\n${inputText}`)
+        // Automatically flip to refine pane so user sees the prompt structure
+        kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+        kv.set(DAX_SETTING.session_pane_mode, "refine")
+      }
     }
 
     // Filter out text parts (pasted content) since they're now expanded inline
@@ -1042,16 +1030,15 @@ export function Prompt(props: PromptProps) {
         agentStyleId={agentStyleId}
         promptPartTypeId={() => promptPartTypeId}
       />
-      <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false}>
-        <box backgroundColor={theme.backgroundElement}>
-          <box
-            paddingLeft={2}
-            paddingRight={2}
-            paddingTop={1}
-            flexShrink={0}
-            backgroundColor={theme.backgroundElement}
-            flexGrow={1}
-          >
+      <box
+        ref={(r: BoxRenderable) => (anchor = r)}
+        visible={props.visible !== false}
+        flexShrink={0}
+        width="100%"
+        flexDirection="column"
+      >
+        <box backgroundColor={theme.backgroundElement} flexShrink={0}>
+          <box paddingLeft={2} paddingRight={2} paddingTop={1} flexShrink={0} backgroundColor={theme.backgroundElement}>
             <box flexDirection="row" gap={1} alignItems="flex-start">
               <Show when={showInputHint()}>
                 <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
@@ -1082,8 +1069,27 @@ export function Prompt(props: PromptProps) {
                   }
                   if (e.name === "r" && e.ctrl) {
                     e.preventDefault()
-                    handleRefine()
+                    toggleRefineMode()
                     return
+                  }
+
+                  // Intercept Y/N/Esc when in Approvals/Refine mode
+                  if (isPanePinned() && activePaneMode() === "approvals") {
+                    if ((e.name === "y" || e.name === "Y") && e.ctrl) {
+                      e.preventDefault()
+                      command.trigger("approvals.approve_current")
+                      return
+                    }
+                    if ((e.name === "n" || e.name === "N") && e.ctrl) {
+                      e.preventDefault()
+                      command.trigger("approvals.deny_current")
+                      return
+                    }
+                    if (e.name === "escape") {
+                      e.preventDefault()
+                      kv.set(DAX_SETTING.session_pane_mode, "plan")
+                      return
+                    }
                   }
 
                   // Handle clipboard paste (Ctrl+V) - check for images first on Windows
@@ -1387,39 +1393,64 @@ export function Prompt(props: PromptProps) {
             </box>
           </Show>
           <Show when={status().type !== "retry"}>
-            <box gap={2} flexDirection="row">
-              <Switch>
-                <Match when={store.mode === "normal"}>
-                  <text fg={theme.text}>
-                    {keybind.print("agent_cycle")}{" "}
-                    <span style={{ fg: theme.textMuted }}>{explainMode() ? "assistants" : "agents"}</span>
+            <box gap={2} flexDirection="row" justifyContent="space-between" width="100%">
+              <box flexDirection="row" gap={2}>
+                <box
+                  onMouseUp={toggleRefineMode}
+                  backgroundColor={refineMode() ? theme.accent : theme.backgroundElement}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text fg={refineMode() ? theme.background : theme.textMuted}>
+                    ✦ Auto-Refine: {refineMode() ? "ON" : "OFF"}
                   </text>
-                  <text fg={theme.text}>
-                    {keybind.print("command_list")}{" "}
-                    <span style={{ fg: theme.textMuted }}>{explainMode() ? "menu" : "commands"}</span>
+                </box>
+                <box
+                  onMouseUp={() => setExplainMode(!explainMode())}
+                  backgroundColor={explainMode() ? theme.success : theme.backgroundElement}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text fg={explainMode() ? theme.background : theme.textMuted}>
+                    📚 ELI12: {explainMode() ? "ON" : "OFF"}
                   </text>
-                  <Show when={store.prompt.input.length > 0}>
-                    <box onMouseUp={handleRefine} backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1} gap={1}>
-                      <text fg={theme.secondary}>ctrl+r</text>
-                      <text fg={theme.textMuted}>refine</text>
-                    </box>
-                  </Show>
-                  <box onMouseUp={toggleRefineMode} backgroundColor={refineMode() ? theme.accent : theme.backgroundElement} paddingLeft={1} paddingRight={1}>
-                    <text fg={refineMode() ? theme.background : theme.textMuted}>✧ REFINE {refineMode() ? "ON" : "OFF"}</text>
+                </box>
+                <box paddingLeft={1} paddingRight={1}>
+                  <text fg={theme.textMuted}>🤖 {local.model.parsed().model}</text>
+                </box>
+              </box>
+              <box flexDirection="row" gap={2}>
+                <Show when={isPanePinned() && activePaneMode() === "approvals"}>
+                  <box
+                    onMouseUp={() => command.trigger("approvals.approve_current")}
+                    backgroundColor={theme.backgroundElement}
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
+                    <text fg={theme.success}>✔ Approve [ctrl+y]</text>
                   </box>
-                  <Show when={explainMode()}>
-                    <text fg={theme.success}>ELI12 on</text>
-                  </Show>
-                </Match>
-                <Match when={store.mode === "shell"}>
-                  <text fg={theme.text}>
-                    esc{" "}
-                    <span style={{ fg: theme.textMuted }}>
-                      {explainMode() ? "leave shell mode" : "exit shell mode"}
-                    </span>
-                  </text>
-                </Match>
-              </Switch>
+                  <box
+                    onMouseUp={() => command.trigger("approvals.deny_current")}
+                    backgroundColor={theme.backgroundElement}
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
+                    <text fg={theme.error}>✖ Deny [ctrl+n]</text>
+                  </box>
+                </Show>
+                <Show when={!(isPanePinned() && activePaneMode() === "approvals")}>
+                  <box
+                    onMouseUp={submit}
+                    backgroundColor={store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
+                    <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>
+                      ↑ Submit [enter]
+                    </text>
+                  </box>
+                </Show>
+              </box>
             </box>
           </Show>
         </box>
