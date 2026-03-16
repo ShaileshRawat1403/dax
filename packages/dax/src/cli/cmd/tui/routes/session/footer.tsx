@@ -17,60 +17,76 @@ export function Footer(props?: { lifecycleLabel?: string }) {
     if (route.data.type !== "session") return []
     return sync.data.permission[route.data.sessionID] ?? []
   })
+  const questions = createMemo(() => {
+    if (route.data.type !== "session") return []
+    return sync.data.question[route.data.sessionID] ?? []
+  })
   const directory = useDirectory()
 
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
 
-  const sessionCount = createMemo(() => sync.data.session.length)
   const mode = createMemo(() => {
-    if (route.data.type !== "session") return "Launch"
-    return props?.lifecycleLabel ?? "Execute"
+    if (route.data.type !== "session") return "LAUNCH"
+    return (props?.lifecycleLabel ?? "READY").toUpperCase()
   })
+
+  const hasAwaitingAction = createMemo(() => permissions().length > 0 || questions().length > 0)
+
   return (
-    <box flexDirection="row" justifyContent="space-between" gap={1} flexShrink={0} paddingLeft={1} paddingRight={1}>
+    <box
+      flexDirection="row"
+      justifyContent="space-between"
+      gap={1}
+      flexShrink={0}
+      paddingLeft={1}
+      paddingRight={1}
+      backgroundColor={theme.backgroundPanel}
+    >
       <box flexDirection="row" gap={1}>
-        <text fg={theme.primary}>{mode()}</text>
+        <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1}>
+          <text fg={theme.background} attributes={TextAttributes.BOLD}>
+            {mode()}
+          </text>
+        </box>
         <Show when={!small()}>
-          <text fg={theme.textMuted}>· {directory()}</text>
+          <text fg={theme.textMuted}>{directory()}</text>
         </Show>
       </box>
-      <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
-        <Show when={permissions().length > 0}>
-          <text fg={theme.warning}>{`[approval:${permissions().length}]`}</text>
+
+      <box gap={2} flexDirection="row" flexShrink={0} alignItems="center">
+        <Show when={hasAwaitingAction()}>
+          <box backgroundColor={theme.warning} paddingLeft={1} paddingRight={1}>
+            <text fg={theme.background} attributes={TextAttributes.BOLD}>
+              ACTION REQUIRED
+            </text>
+          </box>
         </Show>
-        <Show when={!tiny() && lsp().length > 0}>
-          <text fg={theme.textMuted}>{`[lsp:${lsp().length}]`}</text>
-        </Show>
-        <Show when={mcp() > 0}>
-          <Switch>
-            <Match when={mcpError()}>
-              <text fg={theme.error}>{`[mcp:${mcp()}!]`}</text>
-            </Match>
-            <Match when={true}>
-              <text fg={theme.textMuted}>{`[mcp:${mcp()}]`}</text>
-            </Match>
-          </Switch>
-        </Show>
-        <Show when={!small() && sessionCount() > 0}>
-          <text fg={theme.textMuted}>{`[sessions:${sessionCount()}]`}</text>
-        </Show>
-        <Show when={!tiny()}>
-          <text fg={theme.textMuted}>·</text>
-        </Show>
-        <Show when={!tiny()}>
-          <text fg={theme.textMuted}>[?]</text>
-        </Show>
-        <Show when={!tiny()}>
-          <text fg={theme.textMuted}>[t]</text>
-        </Show>
-        <Show when={permissions().length > 0 && !tiny()}>
-          <text fg={theme.warning}>{`[a:${permissions().length}]`}</text>
-        </Show>
-        <Show when={!small()}>
-          <text fg={theme.textMuted}>[m]</text>
-        </Show>
+
+        <box flexDirection="row" gap={1}>
+          <Show
+            when={hasAwaitingAction()}
+            fallback={
+              <>
+                <text fg={theme.textMuted}>[?] Help</text>
+                <text fg={theme.textMuted}>[/] Menu</text>
+              </>
+            }
+          >
+            <text fg={theme.warning}>[Y] Approve</text>
+            <text fg={theme.warning}>[N] Reject</text>
+            <text fg={theme.textMuted}>[Esc] Cancel</text>
+          </Show>
+          <Show when={mcp() > 0}>
+            <text fg={mcpError() ? theme.error : theme.textMuted}>
+              {mcpError() ? "!" : "●"} MCP:{mcp()}
+            </text>
+          </Show>
+          <Show when={lsp().length > 0}>
+            <text fg={theme.textMuted}>● LSP:{lsp().length}</text>
+          </Show>
+        </box>
       </box>
     </box>
   )

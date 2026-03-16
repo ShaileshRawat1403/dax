@@ -2,6 +2,7 @@ import { useSync } from "@tui/context/sync"
 import { createMemo, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
+import { TextAttributes } from "@opentui/core"
 import { Installation } from "@/installation"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
@@ -14,13 +15,17 @@ import { deriveWorkstationState, type WorkstationState } from "@/dax/presentatio
 
 function TelemetryPanel(props: { state: WorkstationState }) {
   const { theme } = useTheme()
-  
+
   const postureColor = () => {
     switch (props.state.trustPosture) {
-      case "clear": return theme.success
-      case "review_needed": return theme.warning
-      case "blocked": return theme.error
-      default: return theme.text
+      case "clear":
+        return theme.success
+      case "review_needed":
+        return theme.warning
+      case "blocked":
+        return theme.error
+      default:
+        return theme.text
     }
   }
 
@@ -28,9 +33,11 @@ function TelemetryPanel(props: { state: WorkstationState }) {
     <box flexDirection="column" gap={1}>
       <box flexDirection="row" justifyContent="space-between">
         <text fg={theme.textMuted}>Trust Posture</text>
-        <text fg={postureColor()}><b>{props.state.trustLabel.toUpperCase()}</b></text>
+        <text fg={postureColor()}>
+          <b>{props.state.trustLabel.toUpperCase()}</b>
+        </text>
       </box>
-      
+
       <box flexDirection="column" gap={0} paddingLeft={1} borderStyle="round" borderColor={theme.backgroundElement}>
         <box flexDirection="row" justifyContent="space-between">
           <text fg={theme.textMuted}>Writes</text>
@@ -46,6 +53,21 @@ function TelemetryPanel(props: { state: WorkstationState }) {
         </box>
       </box>
 
+      <Show when={props.state.activitySummary.items.length > 0}>
+        <box flexDirection="column" gap={0} marginTop={1}>
+          <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+            ACTIVITY LOG
+          </text>
+          <For each={props.state.activitySummary.items.slice(-3)}>
+            {(item) => (
+              <text fg={theme.textMuted} dim wrapMode="word">
+                • {item}
+              </text>
+            )}
+          </For>
+        </box>
+      </Show>
+
       <Show when={props.state.auditSummary.findingsCount > 0}>
         <box flexDirection="row" gap={1} flexWrap="wrap">
           <Show when={props.state.auditSummary.blockerCount > 0}>
@@ -58,7 +80,9 @@ function TelemetryPanel(props: { state: WorkstationState }) {
       </Show>
 
       <box marginTop={1} paddingTop={1} borderStyle="single" borderTop borderColor={theme.backgroundElement}>
-        <text fg={theme.textMuted} dim>ID: {props.state.sessionID.slice(0, 8)}...</text>
+        <text fg={theme.textMuted} dim>
+          ID: {props.state.sessionID.slice(0, 8)}...
+        </text>
       </box>
     </box>
   )

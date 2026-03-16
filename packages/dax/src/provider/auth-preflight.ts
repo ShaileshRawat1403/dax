@@ -3,7 +3,8 @@ import { Env } from "@/env"
 
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
-const GOOGLE_SCOPE_GENERATIVE = "https://www.googleapis.com/auth/generative-language.retriever"
+const GOOGLE_SCOPE_GENERATIVE_QUOTA = "https://www.googleapis.com/auth/generative-language.peruserquota"
+const GOOGLE_SCOPE_GENERATIVE_RETRIEVER = "https://www.googleapis.com/auth/generative-language.retriever.readonly"
 const GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 
 export class ProviderAuthPreflightError extends Error {
@@ -93,14 +94,15 @@ async function validateGoogleOAuthAccessToken(token: string) {
 
   const info = (await result.json().catch(() => ({}))) as GoogleTokenInfo
   const scopeString = info.scope ?? ""
-  const hasGeminiScope = hasScope(scopeString, GOOGLE_SCOPE_GENERATIVE)
+  const hasGeminiScope =
+    hasScope(scopeString, GOOGLE_SCOPE_GENERATIVE_QUOTA) || hasScope(scopeString, GOOGLE_SCOPE_GENERATIVE_RETRIEVER)
   const hasCloudScope = hasScope(scopeString, GOOGLE_SCOPE_CLOUD)
   if (!hasGeminiScope && !hasCloudScope) {
     const health: GoogleTokenHealth = {
       ok: false as const,
       reason: "scope_missing",
       message:
-        "Google OAuth token is missing Gemini scope. Add `https://www.googleapis.com/auth/generative-language.retriever` (or cloud-platform compatibility scope) and re-authenticate.",
+        "Google OAuth token is missing Gemini scope. Add `https://www.googleapis.com/auth/generative-language.peruserquota` and `https://www.googleapis.com/auth/generative-language.retriever.readonly` (or cloud-platform compatibility scope) and re-authenticate.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -185,21 +187,25 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
 
   if (auth?.type === "oauth") {
     const token = await validateGoogleOAuthAccessToken(auth.access)
+    const hasRefresh = Boolean(auth.refresh)
     const details = token.ok
       ? [
           ...token.details,
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
           auth.accountId ? `Authenticated as: ${auth.accountId}` : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
         ]
-      : [`OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`]
+      : [
+          `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
+          hasRefresh ? "Access token expired/invalid, but refresh token is present and will be used during execution." : "Access token expired/invalid and no refresh token found."
+        ]
     return {
       providerID,
       mode: "gemini-oauth",
-      ok: token.ok,
+      ok: token.ok || hasRefresh,
       requiredEnv: ["None required for OAuth token mode"],
       missingEnv: [],
       details,
-      error: token.ok ? undefined : token.message,
+      error: (token.ok || hasRefresh) ? undefined : token.message,
     }
   }
 

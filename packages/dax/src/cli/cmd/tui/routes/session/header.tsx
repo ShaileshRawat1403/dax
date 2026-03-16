@@ -13,14 +13,14 @@ import { deriveWorkstationState, type WorkstationState } from "@/dax/presentatio
 
 function ContextBand(props: { state: WorkstationState }) {
   const { theme } = useTheme()
-  const phases: Array<{ id: typeof props.state.phase; label: string }> = [
-    { id: "understand", label: "Understand" },
-    { id: "plan", label: "Plan" },
-    { id: "execute", label: "Execute" },
-    { id: "verify", label: "Verify" },
+  const phases: Array<{ id: typeof props.state.phase; label: string; icon: string }> = [
+    { id: "understand", label: "Understand", icon: "🔍" },
+    { id: "plan", label: "Plan", icon: "📝" },
+    { id: "execute", label: "Execute", icon: "🚀" },
+    { id: "verify", label: "Verify", icon: "✅" },
   ]
 
-  const activeIndex = () => phases.findIndex(p => p.id === props.state.phase)
+  const activeIndex = () => phases.findIndex((p) => p.id === props.state.phase)
 
   return (
     <box flexDirection="column" gap={0} marginTop={1}>
@@ -32,7 +32,7 @@ function ContextBand(props: { state: WorkstationState }) {
             return (
               <box flexDirection="row" gap={1}>
                 <text fg={current ? theme.primary : active ? theme.text : theme.textMuted}>
-                  {current ? "●" : "○"} {phase.label}
+                  {current ? "●" : active ? "◉" : "○"} {phase.icon} {phase.label}
                 </text>
                 {index() < phases.length - 1 && <text fg={theme.textMuted}>→</text>}
               </box>
@@ -40,11 +40,15 @@ function ContextBand(props: { state: WorkstationState }) {
           }}
         </For>
       </box>
-      
+
       <Show when={props.state.planSummary.totalSteps > 0}>
         <box flexDirection="row" gap={1} marginTop={1}>
-          <text fg={theme.textMuted}>Step {props.state.planSummary.currentStepIndex}/{props.state.planSummary.totalSteps}:</text>
-          <text fg={theme.text}><b>{props.state.currentStep}</b></text>
+          <text fg={theme.textMuted}>
+            Step {props.state.planSummary.currentStepIndex}/{props.state.planSummary.totalSteps}:
+          </text>
+          <text fg={theme.text}>
+            <b>{props.state.currentStep}</b>
+          </text>
         </box>
       </Show>
     </box>
@@ -173,12 +177,19 @@ export function Header(props: {
                 <text fg={theme.textMuted}>·</text>
               </>
             </Show>
+            <Show when={explainMode()}>
+              <box backgroundColor={theme.success} paddingLeft={1} paddingRight={1} marginRight={1}>
+                <text fg={theme.background} attributes={TextAttributes.BOLD}>
+                  ELI12
+                </text>
+              </box>
+            </Show>
             <Show when={showLifecycle()}>
               <text
                 fg={shellIntensity() === "light" ? theme.textMuted : theme.text}
                 attributes={props.emphasis === "normal" ? TextAttributes.BOLD : undefined}
               >
-                {props.lifecycleLabel}
+                {props.lifecycleLabel?.toUpperCase()}
               </text>
             </Show>
             <Show when={!!props.currentStep}>
