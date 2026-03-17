@@ -1,4 +1,7 @@
 import type { IntentEnvelope, IntentType } from "./types"
+import { generateObject } from "ai"
+import z from "zod"
+import { Provider } from "../provider/provider"
 
 export interface IntentContext {
   cwd: string
@@ -11,23 +14,59 @@ export interface IntentContext {
  * This ensures the AI understands success criteria and constraints.
  */
 export async function refineIntent(prompt: string, context: IntentContext): Promise<IntentEnvelope["contract"]> {
-  // TODO: Implement LLM call to refine raw input into a structured contract.
-  // For now, return a basic heuristic contract based on common patterns.
-  
-  const lowerPrompt = prompt.toLowerCase()
-  
-  if (lowerPrompt.includes("explore") || lowerPrompt.includes("understand")) {
-    return {
-      goal: "Map repository structure and understand core logic",
-      successCriteria: ["File tree mapped", "Entry points identified", "Key dependencies listed"],
-      explicitConstraints: ["Read-only access preferred"],
-    }
-  }
+  try {
+    const defaultModelInfo = await Provider.defaultModel()
+    const model =
+      (await Provider.getSmallModel(defaultModelInfo.providerID)) ||
+      (await Provider.getModel(defaultModelInfo.providerID, defaultModelInfo.modelID))
+    const languageModel = await Provider.getLanguage(model)
 
-  return {
-    goal: prompt,
-    successCriteria: ["Task completed as described"],
-    explicitConstraints: [],
+    const result = await generateObject({
+      model: languageModel,
+      schema: z.object({
+        goal: z
+          .string()
+          .describe("A clear, actionable restatement of the user's intent as a concrete goal. Keep it brief."),
+        successCriteria: z
+          .array(z.string())
+          .describe("3-5 clear, testable success criteria that indicate the task is complete."),
+        explicitConstraints: z
+          .array(z.string())
+          .describe(
+            "Any rules, boundaries, or constraints implied by the request or best practices. (e.g. 'Read-only access', 'Use React/Tailwind', 'Preserve existing data')",
+          ),
+      }),
+      prompt: `You are an expert technical lead and planner. A user has provided a raw, unstructured request.
+Your job is to refine this into a crisp, actionable Execution Contract.
+
+Raw Request:
+"${prompt}"
+
+Context:
+- Working Directory: ${context.cwd}
+${context.recent_history ? `- Recent Context: ${context.recent_history.join(" | ")}` : ""}
+
+Generate a structured execution contract. Expand on vague terms. Add necessary technical constraints if implied. Keep constraints pragmatic and strictly necessary.`,
+    })
+
+    return result.object
+  } catch (error) {
+    // Fallback heuristic if LLM call fails or no provider is configured
+    const lowerPrompt = prompt.toLowerCase()
+
+    if (lowerPrompt.includes("explore") || lowerPrompt.includes("understand")) {
+      return {
+        goal: "Map repository structure and understand core logic",
+        successCriteria: ["File tree mapped", "Entry points identified", "Key dependencies listed"],
+        explicitConstraints: ["Read-only access preferred"],
+      }
+    }
+
+    return {
+      goal: prompt,
+      successCriteria: ["Task completed as described"],
+      explicitConstraints: [],
+    }
   }
 }
 
@@ -37,7 +76,7 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
  */
 export async function interpretIntent(prompt: string, context: IntentContext): Promise<IntentEnvelope> {
   const contract = await refineIntent(prompt, context)
-  
+
   // Heuristic routing (eventually LLM-backed)
   const lowerPrompt = prompt.toLowerCase()
   let intentType: IntentType = "general_query"

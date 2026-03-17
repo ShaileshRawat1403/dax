@@ -155,7 +155,6 @@ export function Prompt(props: PromptProps) {
   const kv = useKV()
   const log = Log.create({ service: "tui.prompt" })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const refineMode = createMemo(() => kv.get(DAX_SETTING.refine_mode, false))
   const isPanePinned = createMemo(() => kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
   const activePaneMode = createMemo(() => kv.get(DAX_SETTING.session_pane_mode))
 
@@ -198,24 +197,6 @@ export function Prompt(props: PromptProps) {
         duration: 3000,
       })
     }
-  }
-
-  const toggleRefineMode = () => {
-    const next = !refineMode()
-    kv.set(DAX_SETTING.refine_mode, next)
-
-    if (next) {
-      kv.set(DAX_SETTING.session_pane_visibility, "pinned")
-      kv.set(DAX_SETTING.session_pane_mode, "refine")
-    } else {
-      kv.set(DAX_SETTING.session_pane_mode, "plan")
-    }
-
-    toast.show({
-      variant: next ? "success" : "info",
-      message: next ? "Auto-Refine enabled" : "Auto-Refine disabled",
-      duration: 2000,
-    })
   }
 
   const setExplainMode = (enabled: boolean) => {
@@ -823,13 +804,6 @@ export function Prompt(props: PromptProps) {
     if (!isSlashCommand) {
       if (explainMode() || eli12Command.handled) {
         inputSystem = ELI12_PREFIX
-      } else if (refineMode()) {
-        inputSystem = REFINE_PREFIX
-        // Store the active augmented context so the Refine pane can display it
-        kv.set("dax_active_refined_prompt", `${REFINE_PREFIX}\n\n[Raw Intent]\n${inputText}`)
-        // Automatically flip to refine pane so user sees the prompt structure
-        kv.set(DAX_SETTING.session_pane_visibility, "pinned")
-        kv.set(DAX_SETTING.session_pane_mode, "refine")
       }
     }
 
@@ -1111,7 +1085,7 @@ export function Prompt(props: PromptProps) {
                   }
                   if (e.name === "r" && e.ctrl) {
                     e.preventDefault()
-                    toggleRefineMode()
+                    handleRefine()
                     return
                   }
 
@@ -1447,16 +1421,6 @@ export function Prompt(props: PromptProps) {
           <box flexShrink={0} flexDirection="row" gap={2} alignItems="center">
             <Show when={status().type !== "retry"}>
               <box flexDirection="row" gap={2}>
-                <box
-                  onMouseUp={toggleRefineMode}
-                  backgroundColor={refineMode() ? theme.accent : theme.backgroundElement}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
-                  <text fg={refineMode() ? theme.background : theme.textMuted}>
-                    ✦ Auto-Refine: {refineMode() ? "ON" : "OFF"}
-                  </text>
-                </box>
                 <Show when={store.prompt.input.length > 0}>
                   <box
                     onMouseUp={handleRefine}
@@ -1464,7 +1428,7 @@ export function Prompt(props: PromptProps) {
                     paddingLeft={1}
                     paddingRight={1}
                   >
-                    <text fg={theme.secondary}>✦ Refine Current</text>
+                    <text fg={theme.accent}>✦ Refine Current</text>
                   </box>
                 </Show>
                 <box

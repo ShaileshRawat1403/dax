@@ -2056,10 +2056,6 @@ export function Session() {
                   <text fg={theme.textMuted}>·</text>
                   <text fg={theme.success}>ELI12</text>
                 </Show>
-                <Show when={kv.get(DAX_SETTING.refine_mode, false)}>
-                  <text fg={theme.textMuted}>·</text>
-                  <text fg={theme.accent}>✧ REFINE</text>
-                </Show>
                 <Show when={pending()}>
                   <Spinner />
                 </Show>
