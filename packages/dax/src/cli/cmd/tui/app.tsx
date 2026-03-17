@@ -15,6 +15,8 @@ import {
   on,
   onCleanup,
 } from "solid-js"
+
+export const [skipRefocus, setSkipRefocus] = createSignal(false)
 import { Installation } from "@/installation"
 import { Flag } from "@/flag/flag"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
@@ -892,6 +894,10 @@ function App() {
         height={dimensions().height}
         backgroundColor={theme.background}
         onMouseUp={async () => {
+          if (skipRefocus()) {
+            setSkipRefocus(false)
+            return
+          }
           if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) {
             renderer.clearSelection()
             if (!dialog.stack.length) refocusPrompt()

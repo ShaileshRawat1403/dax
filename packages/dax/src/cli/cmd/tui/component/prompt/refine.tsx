@@ -2,6 +2,7 @@ import { useTheme } from "@tui/context/theme"
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { createSignal, createEffect, Show } from "solid-js"
 import { useTextareaKeybindings } from "../textarea-keybindings"
+import { setSkipRefocus } from "../../app"
 
 export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void }) {
   const { theme } = useTheme()
@@ -21,8 +22,17 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
 
   const hasContent = () => props.initialPrompt && props.initialPrompt.length > 10
 
+  const focusTextarea = () => {
+    setSkipRefocus(true)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        textareaRef?.focus()
+      })
+    })
+  }
+
   return (
-    <box flexDirection="column" width="100%" height="100%" gap={1}>
+    <box flexDirection="column" width="100%" height="100%" gap={1} onMouseDown={focusTextarea}>
       <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.border}>
         <text fg={theme.accent} bold>
           ✦ STRUCTURED EXECUTION CONTRACT
@@ -44,10 +54,7 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
         border={["all"]}
         borderColor={hasContent() ? theme.success : theme.border}
         padding={1}
-        onMouseUp={() => {
-          // Focus textarea when box is clicked
-          textareaRef?.focus()
-        }}
+        onMouseDown={focusTextarea}
       >
         <textarea
           ref={(r: TextareaRenderable) => {
@@ -68,12 +75,12 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
             // Pass changes back to parent
             props.onUpdate(e.plainText || "")
           }}
+          onMouseDown={focusTextarea}
           textColor={theme.text}
           focusedTextColor={theme.text}
           cursorColor={theme.primary}
           flexGrow={1}
           keyBindings={textareaKeybindings()}
-          focusable={true}
         />
       </box>
 
