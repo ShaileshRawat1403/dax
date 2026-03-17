@@ -12,6 +12,7 @@ export interface ExecutionContract {
   goal: string
   successCriteria: string[]
   explicitConstraints: string[]
+  formattedPrompt?: string // The polished markdown version
   requiredFramework?: string // e.g., 'agile', 'lean'
 }
 

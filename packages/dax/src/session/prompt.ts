@@ -172,12 +172,12 @@ export namespace SessionPrompt {
 
     const existingMessages = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
     if (existingMessages.length === 0) {
-      const rawPrompt = input.parts.find(p => p.type === "text")?.text || ""
+      const rawPrompt = input.parts.find((p) => p.type === "text")?.text || ""
       if (rawPrompt) {
         try {
           const intent = await interpretIntent(rawPrompt, {
             cwd: Instance.directory,
-            session_id: input.sessionID
+            session_id: input.sessionID,
           })
           await Session.update(input.sessionID, (draft) => {
             draft.state_v2 = {
@@ -185,12 +185,12 @@ export namespace SessionPrompt {
               intent: {
                 ...intent,
                 prompt: rawPrompt,
-                riskLevel: intent.riskLevel as any
+                riskLevel: intent.riskLevel as any,
               },
               activity_timeline: [],
               approvals: [],
               artifacts: [],
-              audit_findings: []
+              audit_findings: [],
             }
           })
         } catch (e) {
@@ -357,7 +357,9 @@ export namespace SessionPrompt {
         if (!lastFinished && msg.info.role === "assistant" && msg.info.finish)
           lastFinished = msg.info as MessageV2.Assistant
         if (lastUser && lastFinished) break
-        const task = msg.parts.filter((part: MessageV2Type.Part) => part.type === "compaction" || part.type === "subtask")
+        const task = msg.parts.filter(
+          (part: MessageV2Type.Part) => part.type === "compaction" || part.type === "subtask",
+        )
         if (task && !lastFinished) {
           tasks.push(...task)
         }
@@ -2165,18 +2167,20 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       session_id: input.sessionID,
     })
 
-    const text = [
-      "### Structured Execution Contract",
-      `**Goal:** ${contract?.goal}`,
-      "",
-      "**Success Criteria:**",
-      ...(contract?.successCriteria.map((c) => `- ${c}`) ?? []),
-      "",
-      "**Constraints:**",
-      ...(contract?.explicitConstraints.map((c) => `- ${c}`) ?? []),
-      "",
-      "> Use this structured prompt for better deterministic results.",
-    ].join("\n")
+    const text =
+      contract?.formattedPrompt ||
+      [
+        "### Structured Execution Contract",
+        `**Goal:** ${contract?.goal}`,
+        "",
+        "**Success Criteria:**",
+        ...(contract?.successCriteria.map((c) => `- ${c}`) ?? []),
+        "",
+        "**Constraints:**",
+        ...(contract?.explicitConstraints.map((c) => `- ${c}`) ?? []),
+        "",
+        "> Use this structured prompt for better deterministic results.",
+      ].join("\n")
 
     return respondCommandText({
       input,
@@ -2468,13 +2472,16 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
     // Find first non-synthetic user message
     const firstRealUserIdx = input.history.findIndex(
-      (m: MessageV2Type.WithParts) => m.info.role === "user" && !m.parts.every((p: MessageV2Type.Part) => "synthetic" in p && p.synthetic),
+      (m: MessageV2Type.WithParts) =>
+        m.info.role === "user" && !m.parts.every((p: MessageV2Type.Part) => "synthetic" in p && p.synthetic),
     )
     if (firstRealUserIdx === -1) return
 
     const isFirst =
-      input.history.filter((m: MessageV2Type.WithParts) => m.info.role === "user" && !m.parts.every((p: MessageV2Type.Part) => "synthetic" in p && p.synthetic))
-        .length === 1
+      input.history.filter(
+        (m: MessageV2Type.WithParts) =>
+          m.info.role === "user" && !m.parts.every((p: MessageV2Type.Part) => "synthetic" in p && p.synthetic),
+      ).length === 1
     if (!isFirst) return
 
     // Gather all messages up to and including the first real user message for context

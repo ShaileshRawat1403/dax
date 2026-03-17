@@ -27,7 +27,15 @@ export function PlanPane(props: { plan: PlanItem[] }) {
   }
 
   return (
-    <box flexDirection="column" width="100%" height="100%" paddingLeft={1} paddingRight={1}>
+    <box
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      paddingLeft={1}
+      paddingRight={1}
+      border={["all"]}
+      borderColor={theme.accent}
+    >
       <box
         flexDirection="row"
         border={["bottom"]}
@@ -36,7 +44,7 @@ export function PlanPane(props: { plan: PlanItem[] }) {
         marginBottom={1}
         gap={2}
       >
-        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+        <box border={["bottom"]} borderColor={theme.accent} paddingLeft={1} paddingRight={1}>
           <text fg={theme.primary} bold>
             ❖ Plan
           </text>

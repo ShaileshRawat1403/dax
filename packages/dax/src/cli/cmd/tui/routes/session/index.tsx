@@ -83,6 +83,7 @@ import { Identifier } from "@/id/id"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
+import { RefinePane } from "../../component/prompt/refine"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
@@ -220,6 +221,10 @@ export function Session() {
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+  const [refinedPrompt, setRefinedPrompt] = createSignal("")
+  createEffect(() => {
+    setRefinedPrompt(kv.get(DAX_SETTING.session_refined_prompt) || promptRef.current?.current.input || "")
+  })
   useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
@@ -360,7 +365,7 @@ export function Session() {
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() && wide() ? 42 : 0) - 4)
-  const liveStacked = createMemo(() => contentWidth() < 104)
+  const liveStacked = createMemo(() => contentWidth() < 80)
   const stripCompact = createMemo(() => contentWidth() < 112)
   const stripTight = createMemo(() => contentWidth() < 132)
   const stripInnerWidth = createMemo(() => Math.max(0, contentWidth()))
@@ -2104,7 +2109,6 @@ export function Session() {
               </For>
             </box>
             <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" width="100%" paddingBottom={0}>
-              <text fg={theme.textMuted}>pane</text>
               <box
                 onMouseUp={cyclePaneVisibility}
                 paddingLeft={1}
@@ -2127,7 +2131,7 @@ export function Session() {
                 paddingRight={1}
                 backgroundColor={theme.backgroundElement}
               >
-                <text fg={theme.text}>follow {paneFollowMode()}</text>
+                <text fg={theme.text}>{paneFollowMode()}</text>
               </box>
               <text fg={theme.textMuted}>·</text>
               <box
@@ -2195,13 +2199,13 @@ export function Session() {
                     paddingLeft={1}
                     paddingRight={1}
                   >
-                    <text fg={theme.background}>Reset pane</text>
+                    <text fg={theme.background}>Reset</text>
                   </box>
                 </box>
               )}
             >
               <Switch>
-                <Match when={showPane()}>
+                <Match when={showPane() || activePaneMode() === "refine"}>
                   <box flexGrow={1} flexDirection={liveStacked() ? "column" : "row"} minHeight={0}>
                     <box
                       flexGrow={mainPaneGrow()}
@@ -2340,7 +2344,6 @@ export function Session() {
                     >
                       <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
                         <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                          <text fg={theme.textMuted}>pane</text>
                           <For each={PANE_MODES}>
                             {(mode, modeIndex) => (
                               <>
@@ -2428,6 +2431,16 @@ export function Session() {
                                 </box>
                               </box>
                             </Show>
+                          </Match>
+                          <Match when={activePaneMode() === "refine"}>
+                            <RefinePane
+                              initialPrompt={refinedPrompt()}
+                              onUpdate={(prompt) => {
+                                setRefinedPrompt(prompt)
+                                promptRef.current?.set({ ...promptRef.current!.current, input: prompt })
+                                kv.set(DAX_SETTING.session_refined_prompt, prompt)
+                              }}
+                            />
                           </Match>
                           <Match when={activePaneMode() === "approvals"}>
                             <box flexGrow={1} minHeight={0}>
@@ -2951,7 +2964,7 @@ function UserMessage(props: {
           marginTop={1}
           marginBottom={1}
           borderStyle="round"
-          borderColor={theme.backgroundElement}
+          borderColor={theme.accent}
           backgroundColor={tint(theme.background, theme.accent, 0.02)}
           paddingLeft={1}
           paddingRight={1}
@@ -3420,7 +3433,7 @@ function AssistantMessage(props: {
         paddingRight={1}
         flexDirection="column"
         borderStyle="round"
-        borderColor={theme.backgroundElement}
+        borderColor={theme.primary}
         backgroundColor={tint(theme.background, theme.primary, 0.02)}
         marginTop={1}
         marginBottom={1}
@@ -3574,7 +3587,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
         borderStyle="round"
-        borderColor={theme.backgroundElement}
+        borderColor={theme.primary}
         backgroundColor={tint(theme.background, theme.primary, 0.01)}
       >
         <box

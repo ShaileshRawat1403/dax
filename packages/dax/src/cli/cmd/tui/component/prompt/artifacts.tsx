@@ -49,7 +49,15 @@ export function ArtifactsPane(props: { artifacts?: ArtifactItem[] }) {
   }
 
   return (
-    <box flexDirection="column" width="100%" height="100%" paddingLeft={1} paddingRight={1}>
+    <box
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      paddingLeft={1}
+      paddingRight={1}
+      border={["all"]}
+      borderColor={theme.accent}
+    >
       <box
         flexDirection="row"
         border={["bottom"]}
@@ -61,7 +69,7 @@ export function ArtifactsPane(props: { artifacts?: ArtifactItem[] }) {
         <box onMouseUp={() => kv.set(DAX_SETTING.session_pane_mode, "plan")} paddingLeft={1} paddingRight={1}>
           <text fg={theme.textMuted}>❖ Plan</text>
         </box>
-        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+        <box border={["bottom"]} borderColor={theme.accent} paddingLeft={1} paddingRight={1}>
           <text fg={theme.primary} bold>
             📦 Artifacts
           </text>

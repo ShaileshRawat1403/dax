@@ -15,7 +15,15 @@ export function ApprovalsPane(props: { approvals: ApprovalItem[] }) {
   const kv = useKV()
 
   return (
-    <box flexDirection="column" width="100%" height="100%" paddingLeft={1} paddingRight={1}>
+    <box
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      paddingLeft={1}
+      paddingRight={1}
+      border={["all"]}
+      borderColor={theme.accent}
+    >
       <box
         flexDirection="row"
         border={["bottom"]}
@@ -36,7 +44,7 @@ export function ApprovalsPane(props: { approvals: ApprovalItem[] }) {
         <box onMouseUp={() => kv.set(DAX_SETTING.session_pane_mode, "refine")} paddingLeft={1} paddingRight={1}>
           <text fg={theme.textMuted}>✦ Refine</text>
         </box>
-        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+        <box border={["bottom"]} borderColor={theme.accent} paddingLeft={1} paddingRight={1}>
           <text fg={theme.warning} bold>
             ⚠ Approvals
           </text>
