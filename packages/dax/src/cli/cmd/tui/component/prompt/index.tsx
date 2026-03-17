@@ -228,6 +228,9 @@ export function Prompt(props: PromptProps) {
       kv.set(DAX_SETTING.session_pane_mode, "refine")
       kv.set(DAX_SETTING.session_pane_visibility, "pinned")
 
+      // Force a small delay to allow UI to update
+      await new Promise((r) => setTimeout(r, 100))
+
       log.info("handleRefine: done, pane should show")
 
       toast.show({
