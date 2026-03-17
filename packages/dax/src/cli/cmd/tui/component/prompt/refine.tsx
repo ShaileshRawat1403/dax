@@ -5,24 +5,19 @@ import { createSignal, createEffect, Show } from "solid-js"
 export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void }) {
   const { theme } = useTheme()
   let textareaRef: TextareaRenderable
-  const [displayValue, setDisplayValue] = createSignal("")
+  const [isInitialized, setIsInitialized] = createSignal(false)
 
   // Force update when props change
   createEffect(() => {
     const newValue = props.initialPrompt || ""
-    setDisplayValue(newValue)
-    // Also update the textarea directly if it exists
-    if (textareaRef && newValue) {
+    // Only set text if we haven't initialized yet OR if there's new content
+    if (textareaRef && newValue && !isInitialized()) {
       textareaRef.setText(newValue)
+      setIsInitialized(true)
     }
   })
 
-  const hasContent = () => displayValue().length > 10
-
-  const handleChange = (text: string) => {
-    setDisplayValue(text)
-    props.onUpdate(text)
-  }
+  const hasContent = () => props.initialPrompt && props.initialPrompt.length > 10
 
   return (
     <box flexDirection="column" width="100%" height="100%" gap={1}>
@@ -31,7 +26,7 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
           ✦ STRUCTURED EXECUTION CONTRACT
         </text>
         <Show when={hasContent()}>
-          <text fg={theme.success}>✓ Contract ready - review and edit below</text>
+          <text fg={theme.success}>✓ Contract ready - edit below then press Enter</text>
         </Show>
         <Show when={!hasContent()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -51,13 +46,16 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
         <textarea
           ref={(r: TextareaRenderable) => {
             textareaRef = r
-            // Set initial value
+            // Set initial value when ref is available
             if (r && props.initialPrompt) {
               r.setText(props.initialPrompt)
+              setIsInitialized(true)
             }
           }}
-          value={displayValue()}
-          onContentChange={(e: any) => handleChange(e.plainText || "")}
+          onContentChange={(e: any) => {
+            // Pass changes back to parent
+            props.onUpdate(e.plainText || "")
+          }}
           textColor={theme.text}
           focusedTextColor={theme.text}
           flexGrow={1}
@@ -65,7 +63,7 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
       </box>
 
       <box paddingTop={1} border={["top"]} borderColor={theme.border}>
-        <text fg={theme.success}>👉 Press Enter to execute this contract</text>
+        <text fg={theme.success}>👉 Edit above, then press Enter to execute</text>
       </box>
     </box>
   )
