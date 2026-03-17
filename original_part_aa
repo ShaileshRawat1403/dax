@@ -1,0 +1,1000 @@
+import {
+  batch,
+  createContext,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  onCleanup,
+  onMount,
+  on,
+  Show,
+  ErrorBoundary,
+  Switch,
+  useContext,
+} from "solid-js"
+import { Dynamic } from "solid-js/web"
+import path from "path"
+import { useRoute, useRouteData } from "@tui/context/route"
+import { useSync } from "@tui/context/sync"
+import { SplitBorder } from "@tui/component/border"
+import { Spinner } from "@tui/component/spinner"
+import { useTheme, tint } from "@tui/context/theme"
+import {
+  BoxRenderable,
+  ScrollBoxRenderable,
+  addDefaultParsers,
+  MacOSScrollAccel,
+  type ScrollAcceleration,
+  TextAttributes,
+  RGBA,
+} from "@opentui/core"
+import { Prompt, type PromptRef } from "@tui/component/prompt"
+import type { AssistantMessage, Part, ToolPart, UserMessage, TextPart, ReasoningPart } from "@dax-ai/sdk/v2"
+import { useLocal } from "@tui/context/local"
+import { Locale } from "@/util/locale"
+import type { Tool } from "@/tool/tool"
+import type { ReadTool } from "@/tool/read"
+import type { WriteTool } from "@/tool/write"
+import { BashTool } from "@/tool/bash"
+import type { GlobTool } from "@/tool/glob"
+import { TodoWriteTool } from "@/tool/todo"
+import type { GrepTool } from "@/tool/grep"
+import type { ListTool } from "@/tool/ls"
+import type { EditTool } from "@/tool/edit"
+import type { ApplyPatchTool } from "@/tool/apply_patch"
+import type { WebFetchTool } from "@/tool/webfetch"
+import type { TaskTool } from "@/tool/task"
+import type { QuestionTool } from "@/tool/question"
+import type { SkillTool } from "@/tool/skill"
+import { useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
+import { useSDK } from "@tui/context/sdk"
+import { useCommandDialog } from "@tui/component/dialog-command"
+import { useKeybind } from "@tui/context/keybind"
+import { Header } from "./header"
+import { parsePatch } from "diff"
+import { useDialog } from "../../ui/dialog"
+import { TodoItem } from "../../component/todo-item"
+import { DialogMessage } from "./dialog-message"
+import type { PromptInfo } from "../../component/prompt/history"
+import { DialogConfirm } from "@tui/ui/dialog-confirm"
+import { DialogTimeline } from "./dialog-timeline"
+import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
+import { DialogSessionRename } from "../../component/dialog-session-rename"
+import { DialogDiff } from "../../component/dialog-diff"
+import { DialogStatus } from "../../component/dialog-status"
+import { Sidebar } from "./sidebar"
+import { Flag } from "@/flag/flag"
+import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
+import parsers from "../../../../../../parsers-config.ts"
+import { Clipboard } from "@tui/util/clipboard"
+import { Toast, useToast } from "../../ui/toast"
+import { useKV } from "../../context/kv.tsx"
+import { Editor } from "../../util/editor"
+import stripAnsi from "strip-ansi"
+import { Footer } from "./footer.tsx"
+import { usePromptRef } from "../../context/prompt"
+import { useExit } from "../../context/exit"
+import { useUIActivity } from "../../context/activity"
+import { Filesystem } from "@/util/filesystem"
+import { Global } from "@/global"
+import { Identifier } from "@/id/id"
+import { PermissionPrompt } from "./permission"
+import { QuestionPrompt } from "./question"
+import { RAOPane } from "./rao-pane"
+import { DialogExportOptions } from "../../ui/dialog-export-options"
+import { formatTranscript } from "../../util/transcript"
+import { UI } from "@/cli/ui.ts"
+import { labelStage, type StreamStage } from "@/dax/workflow/stage"
+import { parsePMList, parsePMRules } from "@/pm/format"
+import {
+  PANE_MODE,
+  type PaneFollowMode,
+  type PaneMode,
+  type PaneVisibility,
+  paneLabel as daxPaneLabel,
+  paneTitle as daxPaneTitle,
+} from "@/dax/presentation/pane"
+import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
+
+type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
+import { isEli12Mode } from "@/dax/intent"
+import { DAX_SETTING } from "@/dax/settings"
+import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
+
+addDefaultParsers(parsers.parsers)
+
+const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
+const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
+const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
+const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
+const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
+type PMTab = "note" | "list" | "rules"
+type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
+const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
+type AuditResult = {
+  run_id: string
+  timestamp: string
+  profile: "strict" | "balanced" | "advisory"
+  status: "pass" | "warn" | "fail"
+  findings: unknown[]
+  summary: {
+    blocker_count: number
+    warning_count: number
+    info_count: number
+  }
+  next_actions: string[]
+  metadata: {
+    trigger: string
+  }
+}
+
+type ThemeShape = ReturnType<typeof useTheme>["theme"]
+
+class CustomSpeedScroll implements ScrollAcceleration {
+  constructor(private speed: number) {}
+
+  tick(_now?: number): number {
+    return this.speed
+  }
+
+  reset(): void {}
+}
+
+const context = createContext<{
+  width: number
+  wide: boolean
+  sessionID: string
+  conceal: () => boolean
+  showThinking: () => boolean
+  showTimestamps: () => boolean
+  showDetails: () => boolean
+  showAssistantMetadata: () => boolean
+  diffWrapMode: () => "word" | "none"
+  sync: ReturnType<typeof useSync>
+}>()
+
+function use() {
+  const ctx = useContext(context)
+  if (!ctx) throw new Error("useContext must be used within a Session component")
+  return ctx
+}
+
+export function Session() {
+  const PANE_MODES = PANE_MODE
+
+  const route = useRouteData("session")
+  const { navigate } = useRoute()
+  const sync = useSync()
+  const kv = useKV()
+  const themeState = useTheme()
+  const theme = new Proxy({} as any, {
+    get: (_target, prop: string) => (themeState.theme as any)[prop],
+  })
+  const syntax = themeState.syntax
+  const promptRef = usePromptRef()
+  const session = createMemo(() => sync.session.get(route.sessionID))
+  const children = createMemo(() => {
+    const s = session()
+    if (!s) return []
+    const parentID = s.parentID ?? s.id
+    return sync.data.session
+      .filter((x) => x.parentID === parentID || x.id === parentID)
+      .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  })
+  const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
+  const permissions = createMemo(() => {
+    if (!session() || session()?.parentID) return []
+    return children().flatMap((x) => sync.data.permission[x.id] ?? [])
+  })
+  const questions = createMemo(() => {
+    if (!session() || session()?.parentID) return []
+    return children().flatMap((x) => sync.data.question[x.id] ?? [])
+  })
+
+  const pending = createMemo(() => {
+    return messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id
+  })
+
+  const chatActive = createMemo(() => pending() !== undefined)
+
+  const lastAssistant = createMemo(() => {
+    return messages().findLast((x) => x.role === "assistant")
+  })
+
+  const dimensions = useTerminalDimensions()
+  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
+  const [sidebarOpen, setSidebarOpen] = createSignal(false)
+  const [conceal, setConceal] = createSignal(true)
+  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
+  const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
+  const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", false)
+  const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
+  const [showEli12Summary, setShowEli12Summary] = kv.signal(DAX_SETTING.eli12_summary_visibility, false)
+  const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", false)
+  const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
+  const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
+  const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(DAX_SETTING.session_pane_visibility, "auto")
+  const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "diff")
+  const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
+  const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
+  const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+  useUIActivity()
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
+  const promptDisabled = createMemo(() => !!session()?.parentID)
+  createEffect(() => {
+    const mode = workflowMode()
+    if (!WORKFLOW_AGENT_MODES.has(mode)) return
+    const availableAgents = local.agent.list()
+    if (availableAgents.length === 0) return
+    if (local.agent.current()?.name === mode) return
+    if (!availableAgents.some((a) => a.name === mode)) return
+    local.agent.set(mode)
+  })
+  onCleanup(() => {
+    promptRef.set(undefined)
+  })
+
+  const isThinking = createMemo(() => {
+    const last = messages().findLast((x) => x.role === "assistant")
+    if (!last) return false
+    if (!last.time.completed) return true
+    const parts = sync.data.part[last.id] ?? []
+    return parts.some((p) => p.type === "tool" && p.state.status === "pending")
+  })
+
+  const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
+  const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
+  const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
+  const todo = createMemo(() => sync.data.todo[route.sessionID] ?? [])
+  const stageState = createMemo<{ stage: StreamStage; reason: string }>(() => {
+    if (permissions().length > 0 || questions().length > 0) {
+      return {
+        stage: "waiting",
+        reason: permissions().length > 0 ? "waiting for approval" : "waiting for user input",
+      }
+    }
+
+    if (sessionStatusType() === "retry") {
+      return { stage: "retrying", reason: "recovering from a failed attempt" }
+    }
+
+    const pendingID = pending()
+    if (pendingID) {
+      const parts = sync.data.part[pendingID] ?? []
+      const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
+      const completedExecutionInTurn = parts.some(
+        (part) => part.type === "tool" && part.state.status === "completed" && EXECUTE_TOOLS.has(part.tool),
+      )
+
+      if (pendingTool && pendingTool.type === "tool") {
+        const tool = pendingTool.tool
+        if (PLAN_TOOLS.has(tool)) return { stage: "planning", reason: `${tool} in progress` }
+        if (EXECUTE_TOOLS.has(tool)) return { stage: "executing", reason: `${tool} in progress` }
+        if (VERIFY_TOOLS.has(tool) && completedExecutionInTurn) {
+          return { stage: "verifying", reason: `${tool} after execution` }
+        }
+        if (EXPLORE_TOOLS.has(tool)) return { stage: "exploring", reason: `${tool} in progress` }
+        return { stage: "executing", reason: `${tool} in progress` }
+      }
+
+      const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
+      if (hasReasoning) return { stage: "thinking", reason: "reasoning stream active" }
+      return { stage: "thinking", reason: "response stream active" }
+    }
+
+    if (sessionStatusType() === "busy") {
+      return { stage: "thinking", reason: "session processing" }
+    }
+
+    return { stage: "done", reason: "idle" }
+  })
+  const STAGE_MIN_DWELL_MS = 1200
+  const STREAM_RENDER_CADENCE_MS = 30
+  const [displayStageState, setDisplayStageState] = createSignal(stageState())
+  const [stageLastChangedAt, setStageLastChangedAt] = createSignal(Date.now())
+  createEffect(() => {
+    const next = stageState()
+    const current = displayStageState()
+
+    if (next.stage === current.stage) {
+      if (next.reason !== current.reason) {
+        setDisplayStageState({ stage: current.stage, reason: next.reason })
+      }
+      return
+    }
+
+    const immediate = next.stage === "waiting" || next.stage === "retrying" || current.stage === "waiting"
+    if (immediate) {
+      setDisplayStageState(next)
+      setStageLastChangedAt(Date.now())
+      return
+    }
+
+    const elapsed = Date.now() - stageLastChangedAt()
+    const remaining = Math.max(0, STAGE_MIN_DWELL_MS - elapsed)
+    if (remaining === 0) {
+      setDisplayStageState(next)
+      setStageLastChangedAt(Date.now())
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setDisplayStageState(stageState())
+      setStageLastChangedAt(Date.now())
+    }, remaining)
+    onCleanup(() => clearTimeout(timer))
+  })
+  const stageLabel = createMemo(() => {
+    return labelStage(displayStageState().stage, explainMode())
+  })
+  const stageColor = createMemo(() => {
+    const stage = displayStageState().stage
+    if (stage === "waiting") return theme.warning
+    if (stage === "retrying") return theme.error
+    if (stage === "done") return theme.success
+    return theme.accent
+  })
+  const streamStatus = createMemo(() => {
+    const pendingID = pending()
+    if (!pendingID) return "idle"
+    const parts = sync.data.part[pendingID] ?? []
+    const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
+    if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} running`
+    const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
+    if (completedTool && completedTool.type === "tool") return `${completedTool.tool} completed`
+    if (parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)) return "reasoning stream active"
+    return "response stream active"
+  })
+  const [smartFollowActive, setSmartFollowActive] = createSignal(true)
+  const [pendingUpdates, setPendingUpdates] = createSignal(0)
+  const [streamParts, setStreamParts] = createSignal<Record<string, Part[]>>({})
+
+  const wide = createMemo(() => dimensions().width > 120)
+  const hasApprovalsNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
+  const sidebarVisible = createMemo(() => {
+    if (session()?.parentID) return false
+    return sidebarOpen()
+  })
+  const showTimestamps = createMemo(() => timestamps() === "show")
+  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  const liveStacked = createMemo(() => contentWidth() < 104)
+  const stripCompact = createMemo(() => contentWidth() < 112)
+  const stripTight = createMemo(() => contentWidth() < 132)
+  const stripInnerWidth = createMemo(() => Math.max(0, contentWidth()))
+  const stripColumns = createMemo(() => {
+    const w = stripInnerWidth()
+    if (w >= 120) return 4
+    if (w >= 64) return 2
+    return 1
+  })
+  const stripGap = createMemo(() => (stripColumns() === 1 ? 0 : 1))
+  const stripSectionWidth = createMemo(() => {
+    const cols = stripColumns()
+    const inner = Math.max(0, stripInnerWidth() - stripGap() * (cols - 1))
+    return Math.max(0, Math.floor(inner / cols))
+  })
+  const livePaneWidth = createMemo(() => {
+    const total = contentWidth()
+    const gapAndBorders = 6
+    const target = Math.floor((total - gapAndBorders) * 0.3)
+    return Math.max(38, Math.min(58, target))
+  })
+  const mainPaneGrow = createMemo(() => (liveStacked() ? 1 : 7))
+  const sidePaneGrow = createMemo(() => (liveStacked() ? 1 : 3))
+  const paneDiffView = createMemo(() => {
+    const diffStyle = sync.data.config.tui?.diff_style
+    if (diffStyle === "stacked") return "unified"
+    const availableWidth = liveStacked() ? contentWidth() : livePaneWidth()
+    return availableWidth > 120 ? "split" : "unified"
+  })
+  const followEnabled = createMemo(() => paneFollowMode() === "live" || smartFollowActive())
+  const sessionPartCount = createMemo(() =>
+    messages().reduce((acc, msg) => acc + (sync.data.part[msg.id]?.length ?? 0), 0),
+  )
+  const sessionTurnCount = createMemo(() => messages().filter((message) => message.role === "user").length)
+  const incompleteTodoCount = createMemo(() => todo().filter((item) => item.status !== "completed").length)
+  const sessionTokenCount = createMemo(() => sessionTokenTotal(messages()))
+  const sessionCostLabel = createMemo(() => formatUsd(sessionCostTotal(messages())))
+  const sessionGeneratedTokenCount = createMemo(() =>
+    messages().reduce((sum, message) => {
+      if (message.role !== "assistant") return sum
+      const tokens = message.tokens
+      if (!tokens) return sum
+      return sum + (tokens.output ?? 0) + (tokens.reasoning ?? 0)
+    }, 0),
+  )
+  const sessionElapsedLabel = createMemo(() => {
+    const currentSession = session()
+    if (!currentSession) return undefined
+    const duration = Math.max(
+      0,
+      (currentSession.time.updated ?? currentSession.time.created) - currentSession.time.created,
+    )
+    if (!duration) return undefined
+    return Locale.duration(duration)
+  })
+  const contextUsage = createMemo(() => latestContextUsage(messages(), sync.data.provider))
+  const connectedMcpCount = createMemo(
+    () => Object.values(sync.data.mcp).filter((item) => item.status === "connected").length,
+  )
+  const selectedTheme = createMemo(() => themeState.selected)
+  const selectedThemeShort = createMemo(() => {
+    const name = selectedTheme()
+    if (name.length <= 14) return name
+    return `${name.slice(0, 11)}...`
+  })
+  const headerStats = createMemo(() => {
+    const items: { label: string; color?: RGBA }[] = [{ label: stageLabel().toLowerCase(), color: stageColor() }]
+    const usage = contextUsage()
+    if (usage) {
+      items.push({
+        label: usage.percentage !== null ? `C:${usage.percentage}%` : `C:${usage.tokens.toLocaleString()}`,
+      })
+    }
+    if (!stripCompact()) {
+      items.push({ label: `${sessionTokenCount().toLocaleString()}t` })
+      if (sessionGeneratedTokenCount() > 0) {
+        items.push({ label: `G:${sessionGeneratedTokenCount().toLocaleString()}` })
+      }
+      if (sessionElapsedLabel()) {
+        items.push({ label: sessionElapsedLabel()! })
+      }
+      items.push({ label: sessionCostLabel() })
+    } else {
+      items.push({ label: `${sessionTurnCount()} turns` })
+    }
+    if (!stripTight() && connectedMcpCount() > 0) {
+      items.push({ label: `mcp ${connectedMcpCount()}` })
+    }
+    return items
+  })
+  let lastUpdateKey = ""
+
+  const renderParts = (message: { id: string; role: string; time: { created: number; completed?: number } }) => {
+    const parts = sync.data.part[message.id] ?? []
+    if (!slowStream()) return parts
+    if (message.role !== "assistant") return parts
+    if (message.time.completed) return parts
+    return streamParts()[message.id] ?? []
+  }
+
+  function snapshotStreamParts() {
+    const streamingMessages = messages().filter((m) => m.role === "assistant" && !m.time.completed)
+    if (streamingMessages.length === 0) {
+      if (Object.keys(streamParts()).length > 0) {
+        setStreamParts({})
+      }
+      return
+    }
+    setStreamParts((prev) => {
+      const next: Record<string, Part[]> = { ...prev }
+      let changed = false
+      for (const message of streamingMessages) {
+        const parts = sync.data.part[message.id] ?? []
+        const prevParts = prev[message.id]
+        if (prevParts?.length !== parts.length) {
+          changed = true
+        }
+        next[message.id] = [...parts]
+      }
+      for (const key of Object.keys(next)) {
+        if (!streamingMessages.some((m) => m.id === key)) {
+          delete next[key]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }
+
+  function cycleTheme(step: 1 | -1) {
+    const themes = Object.keys(themeState.all()).sort()
+    if (!themes.length) return
+    const current = themeState.selected
+    const currentIndex = themes.indexOf(current)
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0
+    const next = themes[(baseIndex + step + themes.length) % themes.length]
+    if (!next) return
+    themeState.set(next)
+    toast.show({ message: `Theme: ${next}`, variant: "success", duration: 1800 })
+  }
+
+  function cyclePaneVisibility() {
+    const next = paneVisibility() === "auto" ? "pinned" : paneVisibility() === "pinned" ? "hidden" : "auto"
+    setPaneVisibility(() => next)
+  }
+
+  function pauseSmartFollow() {
+    if (paneFollowMode() !== "smart") return
+    if (!smartFollowActive()) return
+    setSmartFollowActive(false)
+  }
+
+  function jumpToLive() {
+    setSmartFollowActive(true)
+    setPendingUpdates(0)
+    setTimeout(() => {
+      if (!scroll || scroll.isDestroyed) return
+      scroll.scrollTo(scroll.scrollHeight)
+    }, 10)
+  }
+
+  const scrollAcceleration = createMemo(() => {
+    const tui = sync.data.config.tui
+    if (tui?.scroll_acceleration?.enabled) {
+      return new MacOSScrollAccel()
+    }
+    if (tui?.scroll_speed) {
+      return new CustomSpeedScroll(tui.scroll_speed)
+    }
+
+    return new CustomSpeedScroll(3)
+  })
+
+  createEffect(async () => {
+    await sync.session
+      .sync(route.sessionID)
+      .then(() => {
+        if (scroll) scroll.scrollBy(100_000)
+      })
+      .catch((e) => {
+        console.error(e)
+        toast.show({
+          message: `Session not found: ${route.sessionID}`,
+          variant: "error",
+        })
+        return navigate({ type: "home" })
+      })
+  })
+
+  const toast = useToast()
+  const sdk = useSDK()
+
+  // Handle initial prompt from fork
+  createEffect(() => {
+    if (route.initialPrompt && prompt) {
+      prompt?.set(route.initialPrompt)
+    }
+  })
+
+  let lastSwitch: string | undefined = undefined
+  sdk.event.on("message.part.updated", (evt) => {
+    const part = evt.properties.part
+    if (part.type !== "tool") return
+    if (part.sessionID !== route.sessionID) return
+    if (part.state.status !== "completed") return
+    if (part.id === lastSwitch) return
+
+    if (part.tool === "plan_exit") {
+      local.agent.set("build")
+      setWorkflowMode(() => "build")
+      lastSwitch = part.id
+    } else if (part.tool === "plan_enter") {
+      local.agent.set("plan")
+      setWorkflowMode(() => "plan")
+      lastSwitch = part.id
+    }
+  })
+
+  let scroll: ScrollBoxRenderable
+  let prompt: PromptRef | undefined
+  const keybind = useKeybind()
+
+  // Allow exit when in child session (prompt is hidden)
+  const exit = useExit()
+
+  createEffect(() => {
+    return exit.message.set(
+      [
+        "",
+        `  ${UI.Style.TEXT_NORMAL_BOLD}DAX session closed${UI.Style.TEXT_NORMAL}`,
+        `  ${UI.Style.TEXT_DIM}resume: dax -s ${session()?.id}${UI.Style.TEXT_NORMAL}`,
+      ].join("\n"),
+    )
+  })
+
+  useKeyboard((evt) => {
+    if (keybind.match("agent_cycle", evt)) {
+      evt.preventDefault()
+      const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
+      const idx = modes.indexOf(workflowMode())
+      const next = modes[(idx + 1) % modes.length]
+      selectWorkflowMode(next)
+      return
+    }
+    if (keybind.match("agent_cycle_reverse", evt)) {
+      evt.preventDefault()
+      const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
+      const idx = modes.indexOf(workflowMode())
+      const next = modes[(idx - 1 + modes.length) % modes.length]
+      selectWorkflowMode(next)
+      return
+    }
+    if (!session()?.parentID) return
+    if (keybind.match("app_exit", evt)) {
+      exit()
+    }
+  })
+
+  // Helper: Find next visible message boundary in direction
+  const findNextVisibleMessage = (direction: "next" | "prev"): string | null => {
+    const children = scroll.getChildren()
+    const messagesList = messages()
+    const scrollTop = scroll.y
+
+    // Get visible messages sorted by position, filtering for valid non-synthetic, non-ignored content
+    const visibleMessages = children
+      .filter((c) => {
+        if (!c.id) return false
+        const message = messagesList.find((m) => m.id === c.id)
+        if (!message) return false
+
+        // Check if message has valid non-synthetic, non-ignored text parts
+        const parts = sync.data.part[message.id]
+        if (!parts || !Array.isArray(parts)) return false
+
+        return parts.some((part) => part && part.type === "text" && !part.synthetic && !part.ignored)
+      })
+      .sort((a, b) => a.y - b.y)
+
+    if (visibleMessages.length === 0) return null
+
+    if (direction === "next") {
+      // Find first message below current position
+      return visibleMessages.find((c) => c.y > scrollTop + 10)?.id ?? null
+    }
+    // Find last message above current position
+    return [...visibleMessages].reverse().find((c) => c.y < scrollTop - 10)?.id ?? null
+  }
+
+  // Helper: Scroll to message in direction or fallback to page scroll
+  const scrollToMessage = (direction: "next" | "prev", dialog: ReturnType<typeof useDialog>) => {
+    const targetID = findNextVisibleMessage(direction)
+
+    if (!targetID) {
+      scroll.scrollBy(direction === "next" ? scroll.height : -scroll.height)
+      dialog.clear()
+      return
+    }
+
+    const child = scroll.getChildren().find((c) => c.id === targetID)
+    if (child) scroll.scrollBy(child.y - scroll.y - 1)
+    dialog.clear()
+  }
+
+  function toBottom() {
+    setTimeout(() => {
+      if (!scroll || scroll.isDestroyed) return
+      scroll.scrollTo(scroll.scrollHeight)
+    }, 50)
+  }
+
+  const local = useLocal()
+  const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
+
+  const messageText = (messageID: string) => {
+    const parts = sync.data.part[messageID] ?? []
+    let text = ""
+    for (const part of parts) {
+      if (part.type !== "text" || part.synthetic) continue
+      text += part.text
+    }
+    return text.trim()
+  }
+
+  const pmHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      subcommand: PMTab | "help"
+      responseText: string
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/pm")) continue
+      const subcommand = (commandText.split(/\s+/)[1]?.toLowerCase() ?? "help") as PMTab | "help"
+      const response = messageList.find(
+        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
+      )
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+
+      items.push({
+        commandText,
+        subcommand: ["note", "list", "rules"].includes(subcommand) ? (subcommand as PMTab) : "help",
+        responseText,
+        createdAt: response.time.created,
+      })
+    }
+
+    return items
+  })
+
+  const parseAuditResult = (text: string): AuditResult | undefined => {
+    if (!text) return
+    const fenced = text.match(/```json\\s*([\\s\\S]*?)```/i)?.[1]
+    const candidate = fenced ?? text
+    try {
+      const parsed = JSON.parse(candidate) as AuditResult
+      if (!parsed || !Array.isArray(parsed.findings) || !parsed.summary) return
+      return parsed
+    } catch {
+      return
+    }
+  }
+
+  const recentPmCommands = createMemo(() =>
+    messages()
+      .filter((message) => message.role === "user")
+      .map((message) => ({
+        id: message.id,
+        text: messageText(message.id),
+      }))
+      .filter((entry) => entry.text.startsWith("/pm "))
+      .slice(-6)
+      .reverse(),
+  )
+
+  const latestPmListResponse = createMemo(() => pmHistory().findLast((entry) => entry.subcommand === "list"))
+  const latestPmRulesResponse = createMemo(() =>
+    pmHistory().findLast((entry) => entry.subcommand === "rules" && entry.commandText.trim() === "/pm rules"),
+  )
+  const latestPmRulesAddResponse = createMemo(() =>
+    pmHistory().findLast(
+      (entry) => entry.subcommand === "rules" && entry.commandText.trim().startsWith("/pm rules add "),
+    ),
+  )
+
+  const parsedPmList = createMemo(() => {
+    const responseText = latestPmListResponse()?.responseText
+    const parsed = parsePMList(responseText ?? "")
+    return {
+      rows: parsed.rows,
+      empty: parsed.rows.length === 0,
+      info: parsed.info ?? "",
+    }
+  })
+
+  const parsedPmRules = createMemo(() => {
+    const responseText = latestPmRulesResponse()?.responseText
+    const parsed = parsePMRules(responseText ?? "")
+    return {
+      rows: parsed.rows,
+      empty: parsed.rows.length === 0,
+      info: parsed.info ?? "",
+    }
+  })
+  const pendingRaoCount = createMemo(() => permissions().length + questions().length)
+  const pmSummary = createMemo(() => {
+    const recent = recentPmCommands()
+    return {
+      recent,
+      recentCount: recent.length,
+      noteCount: parsedPmList().rows.length,
+      ruleCount: parsedPmRules().rows.length,
+      latestCommand: recent[0]?.text,
+    }
+  })
+  const latestUserCommand = createMemo(() => {
+    for (const message of [...messages()].reverse()) {
+      if (message.role !== "user") continue
+      const text = messageText(message.id)
+      if (!text.startsWith("/")) continue
+      return text
+    }
+    return ""
+  })
+
+  const auditHistory = createMemo(() => {
+    const messageList = messages()
+    const items: Array<{
+      commandText: string
+      responseText: string
+      result?: AuditResult
+      createdAt: number
+    }> = []
+
+    for (const message of messageList) {
+      if (message.role !== "user") continue
+      const commandText = messageText(message.id)
+      if (!commandText.startsWith("/audit")) continue
+      const response = messageList.find(
+        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
+      )
+      if (!response) continue
+      const responseText = messageText(response.id)
+      if (!responseText) continue
+      items.push({
+        commandText,
+        responseText,
+        result: parseAuditResult(responseText),
+        createdAt: response.time.created,
+      })
+    }
+
+    return items
+  })
+
+  const latestAudit = createMemo(() => auditHistory().findLast((entry) => entry.result !== undefined))
+
+  const prefillPmNote = () => {
+    prompt?.set({
+      input: "/pm note Project constants | Product codename is ... | release,context",
+      parts: [],
+    })
+  }
+
+  const runSessionSlashCommand = async (raw: string) => {
+    const selectedModel = local.model.current()
+    if (!selectedModel) {
+      toast.show({
+        variant: "warning",
+        message: "Select a model before running commands",
+        duration: 3000,
+      })
+      return
+    }
+
+    const trimmed = raw.trim()
+    if (!trimmed.startsWith("/")) return
+    const isAuditCommand = trimmed.startsWith("/audit")
+    if (isAuditCommand) {
+      setWorkflowMode(() => "audit")
+      local.agent.set("audit")
+    }
+    const commandLine = trimmed.slice(1)
+    const [name, ...rest] = commandLine.split(" ")
+    if (!name) return
+    const variant = local.model.variant.current()
+    const args = rest.join(" ").trim()
+
+    const commandAgent = isAuditCommand ? "audit" : local.agent.current().name
+
+    await sdk.client.session
+      .command({
+        sessionID: route.sessionID,
+        command: name,
+        arguments: args,
+        agent: commandAgent,
+        model: `${selectedModel.providerID}/${selectedModel.modelID}`,
+        messageID: Identifier.ascending("message"),
+        variant,
+        parts: [],
+      })
+      .then(() => {
+        setPaneVisibility(() => "pinned")
+        toast.show({ message: `Queued ${trimmed}`, variant: "success", duration: 1600 })
+        toBottom()
+      })
+      .catch((error) => {
+        toast.error(error)
+      })
+  }
+
+  const runPmCommand = async (raw: string) => runSessionSlashCommand(raw)
+  const runAuditCommand = async (raw: string) => runSessionSlashCommand(raw)
+
+  const selectWorkflowMode = (mode: WorkflowMode) => {
+    const availableAgents = local.agent.list()
+    if (!availableAgents.some((a) => a.name === mode)) {
+      toast.show({
+        variant: "warning",
+        message: `Mode "${mode}" not available. Agents loading...`,
+        duration: 3000,
+      })
+      return
+    }
+    setWorkflowMode(() => mode)
+    local.agent.set(mode)
+    prompt?.focus()
+  }
+
+  const revertInfo = createMemo(() => session()?.revert)
+  const revertMessageID = createMemo(() => revertInfo()?.messageID)
+
+  const revertDiffFiles = createMemo(() => {
+    const diffText = revertInfo()?.diff ?? ""
+    if (!diffText) return []
+
+    try {
+      const patches = parsePatch(diffText)
+      return patches.map((patch) => {
+        const filename = patch.newFileName || patch.oldFileName || "unknown"
+        const cleanFilename = filename.replace(/^[ab]\//, "")
+        return {
+          filename: cleanFilename,
+          additions: patch.hunks.reduce(
+            (sum, hunk) => sum + hunk.lines.filter((line) => line.startsWith("+")).length,
+            0,
+          ),
+          deletions: patch.hunks.reduce(
+            (sum, hunk) => sum + hunk.lines.filter((line) => line.startsWith("-")).length,
+            0,
+          ),
+        }
+      })
+    } catch {
+      return []
+    }
+  })
+
+  const revertRevertedMessages = createMemo(() => {
+    const messageID = revertMessageID()
+    if (!messageID) return []
+    return messages().filter((x) => x.id >= messageID && x.role === "user")
+  })
+
+  const revert = createMemo(() => {
+    const info = revertInfo()
+    if (!info?.messageID) return
+    return {
+      messageID: info.messageID,
+      reverted: revertRevertedMessages(),
+      diff: info.diff,
+      diffFiles: revertDiffFiles(),
+    }
+  })
+
+  const paneDiffFiletype = createMemo(() => {
+    const files = revert()?.diffFiles
+    if (!files?.length) return "none"
+    return filetype(files[0].filename)
+  })
+
+  const hasDiffNeed = createMemo(() => !!revert()?.diff)
+  const hasPlanNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
+  const recentTools = createMemo(() => {
+    const items: Array<{ tool: string; status: string; label: string }> = []
+    for (const msg of [...messages()].reverse()) {
+      if (msg.role !== "assistant") continue
+      for (const part of [...(sync.data.part[msg.id] ?? [])].reverse()) {
+        if (part.type !== "tool") continue
+        const input = (part.state.input ?? {}) as Record<string, any>
+        const target = input.path || input.file || input.filename || input.target || input.command || ""
+        items.push({
+          tool: part.tool,
+          status: part.state.status,
+          label: target ? `${part.tool} · ${String(target)}` : part.tool,
+        })
+        if (items.length >= 5) return items
+      }
+    }
+    return items
+  })
+  const paneBadge = (mode: PaneMode) => {
+    switch (mode) {
+      case "diff": {
+        const count = revert()?.diffFiles?.length ?? 0
+        return count > 0 ? String(count) : undefined
+      }
+      case "approvals":
+        return String(pendingRaoCount())
+      case "plan":
+        return pmSummary().recentCount > 0 ? String(pmSummary().recentCount) : undefined
+      default:
+        return undefined
+    }
+  }
+  const workstationState = createMemo(() =>
+    deriveWorkstationState({
+      sessionID: route.sessionID,
+      stage: stageState().stage,
+      stageReason: stageState().reason,
+      sessionStatusType: sessionStatusType(),
+      goal: session()?.title,
+      todo: todo(),
+      approvals: permissions().map((permission) => ({
+        label: permission.permission ?? permission.tool?.callID ?? "approval",
+        reason: permission.patterns?.[0],
+      })),
+      questions: questions().length,
+      artifacts: [],
+      diffCount: revert()?.diffFiles?.length ?? 0,
+    }),
