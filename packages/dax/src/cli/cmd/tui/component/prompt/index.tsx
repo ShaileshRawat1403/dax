@@ -161,24 +161,24 @@ export function Prompt(props: PromptProps) {
 
   async function handleRefine() {
     if (props.disabled || !store.prompt.input) return
-    
+
     const rawInput = store.prompt.input.trim()
-    const sessionID = props.sessionID || (await sdk.client.session.create({}).then(x => x.data!.id))
-    
+    const sessionID = props.sessionID || (await sdk.client.session.create({}).then((x) => x.data!.id))
+
     toast.show({
       variant: "info",
       message: "Refining prompt...",
-      duration: 1500
+      duration: 1500,
     })
 
     try {
       const result = await sdk.client.session.command({
         sessionID: sessionID!,
         command: "gen-prompt",
-        arguments: rawInput
+        arguments: rawInput,
       })
       // Result is a MessageV2.WithParts, we extract the text part
-      const refinedText = result.data?.parts.find(p => p.type === "text")?.text
+      const refinedText = result.data?.parts.find((p) => p.type === "text")?.text
       if (refinedText) {
         // We replace the current input with the refined one
         // but keep it editable
@@ -187,7 +187,7 @@ export function Prompt(props: PromptProps) {
         toast.show({
           variant: "success",
           message: "Prompt refined!",
-          duration: 2000
+          duration: 2000,
         })
       }
     } catch (e) {
@@ -195,7 +195,7 @@ export function Prompt(props: PromptProps) {
       toast.show({
         variant: "error",
         message: "Failed to refine prompt",
-        duration: 3000
+        duration: 3000,
       })
     }
   }
@@ -1096,6 +1096,7 @@ export function Prompt(props: PromptProps) {
                 focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
                 minHeight={1}
                 maxHeight={6}
+                flexGrow={1}
                 onContentChange={() => {
                   const value = input.plainText
                   setStore("prompt", "input", value)
@@ -1346,7 +1347,14 @@ export function Prompt(props: PromptProps) {
             }
           />
         </box>
-        <box flexDirection="row" justifyContent="space-between" width="100%" paddingLeft={1} paddingRight={1} alignItems="center">
+        <box
+          flexDirection="row"
+          justifyContent="space-between"
+          width="100%"
+          paddingLeft={1}
+          paddingRight={1}
+          alignItems="center"
+        >
           <box flexGrow={1} flexDirection="row" alignItems="center">
             <Show when={status().type !== "idle"}>
               <box
@@ -1450,7 +1458,12 @@ export function Prompt(props: PromptProps) {
                   </text>
                 </box>
                 <Show when={store.prompt.input.length > 0}>
-                  <box onMouseUp={handleRefine} backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                  <box
+                    onMouseUp={handleRefine}
+                    backgroundColor={theme.backgroundElement}
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
                     <text fg={theme.secondary}>✦ Refine Current</text>
                   </box>
                 </Show>

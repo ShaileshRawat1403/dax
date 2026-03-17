@@ -77,7 +77,6 @@ export namespace Clipboard {
     const os = platform()
 
     if (os === "darwin" && Bun.which("osascript")) {
-      console.log("clipboard: using osascript")
       return async (text: string) => {
         const escaped = text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
         await $`osascript -e 'set the clipboard to "${escaped}"'`.nothrow().quiet()
@@ -86,7 +85,6 @@ export namespace Clipboard {
 
     if (os === "linux") {
       if (process.env["WAYLAND_DISPLAY"] && Bun.which("wl-copy")) {
-        console.log("clipboard: using wl-copy")
         return async (text: string) => {
           const proc = Bun.spawn(["wl-copy"], { stdin: "pipe", stdout: "ignore", stderr: "ignore" })
           proc.stdin.write(text)
@@ -95,7 +93,6 @@ export namespace Clipboard {
         }
       }
       if (Bun.which("xclip")) {
-        console.log("clipboard: using xclip")
         return async (text: string) => {
           const proc = Bun.spawn(["xclip", "-selection", "clipboard"], {
             stdin: "pipe",
@@ -108,7 +105,6 @@ export namespace Clipboard {
         }
       }
       if (Bun.which("xsel")) {
-        console.log("clipboard: using xsel")
         return async (text: string) => {
           const proc = Bun.spawn(["xsel", "--clipboard", "--input"], {
             stdin: "pipe",
@@ -123,7 +119,6 @@ export namespace Clipboard {
     }
 
     if (os === "win32") {
-      console.log("clipboard: using powershell")
       return async (text: string) => {
         // Pipe via stdin to avoid PowerShell string interpolation ($env:FOO, $(), etc.)
         const proc = Bun.spawn(
@@ -147,7 +142,6 @@ export namespace Clipboard {
       }
     }
 
-    console.log("clipboard: no native support")
     return async (text: string) => {
       await clipboardy.write(text).catch(() => {})
     }

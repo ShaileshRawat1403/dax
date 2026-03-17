@@ -26,21 +26,18 @@ export function saveSnapshot(
 
   const filePath = path.join(dirPath, "session-snapshot.json")
   fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2))
-  console.log(`Session snapshot saved to ${filePath}`)
 }
 
 export function loadSnapshot(sessionId: string): SessionSnapshot | null {
   const filePath = path.join(process.cwd(), SESSION_DIR, sessionId, "session-snapshot.json")
 
   if (!fs.existsSync(filePath)) {
-    console.log(`No snapshot found for session ${sessionId}`)
     return null
   }
 
   try {
     const data = fs.readFileSync(filePath, "utf-8")
     const snapshot = JSON.parse(data) as SessionSnapshot
-    console.log(`Session snapshot loaded from ${filePath}`)
     return snapshot
   } catch (error) {
     console.error(`Failed to load snapshot for session ${sessionId}:`, error)

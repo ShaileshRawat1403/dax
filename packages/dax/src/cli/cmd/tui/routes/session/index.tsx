@@ -359,7 +359,7 @@ export function Session() {
     return sidebarOpen()
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() && wide() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 104)
   const stripCompact = createMemo(() => contentWidth() < 112)
   const stripTight = createMemo(() => contentWidth() < 132)
@@ -2012,7 +2012,16 @@ export function Session() {
       }}
     >
       <box flexDirection="row" flexGrow={1} minHeight={0} width="100%">
-        <box flexGrow={1} minHeight={0} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
+        <box
+          flexGrow={1}
+          minHeight={0}
+          paddingBottom={1}
+          paddingTop={1}
+          paddingLeft={2}
+          paddingRight={2}
+          gap={1}
+          flexDirection="column"
+        >
           <Show when={!sidebarVisible() || !wide()}>
             <Header busy={displayStageState().stage !== "done"} />
           </Show>

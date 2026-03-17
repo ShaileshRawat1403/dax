@@ -12,14 +12,9 @@ export async function resumeSession(sessionId: string): Promise<ResumeContext | 
   const snapshot = loadSnapshot(sessionId)
 
   if (!snapshot) {
-    console.log(`No snapshot found for session ${sessionId}. Cannot resume.`)
     return null
   }
 
-  console.log(`Resuming session ${sessionId}`)
-  console.log(`Workflow: ${snapshot.workflowId}`)
-  console.log(`Completed nodes: ${snapshot.graphStatus?.completedNodeIds?.length || 0}`)
-  console.log(`Pending nodes: ${snapshot.graphStatus?.pendingNodeIds?.length || 0}`)
 
   return {
     sessionId,
