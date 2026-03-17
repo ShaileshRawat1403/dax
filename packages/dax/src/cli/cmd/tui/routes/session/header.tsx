@@ -184,13 +184,6 @@ export function Header(props: {
                 </text>
               </box>
             </Show>
-            <Show when={kv.get(DAX_SETTING.refine_mode, false)}>
-              <box backgroundColor={theme.accent} paddingLeft={1} paddingRight={1} marginRight={1}>
-                <text fg={theme.background} attributes={TextAttributes.BOLD}>
-                  ✧ REFINE
-                </text>
-              </box>
-            </Show>
             <Show when={showLifecycle()}>
               <text
                 fg={shellIntensity() === "light" ? theme.textMuted : theme.text}
@@ -212,16 +205,26 @@ export function Header(props: {
           </box>
 
           <box flexDirection="row" gap={1} alignItems="center">
-            <box 
-              onMouseUp={toggleEli12} 
-              flexDirection="row" 
+            <box
+              onMouseUp={toggleEli12}
+              flexDirection="row"
               backgroundColor={theme.backgroundElement}
-              paddingLeft={1} 
+              paddingLeft={1}
               paddingRight={1}
             >
-              <text fg={!explainMode() ? theme.primary : theme.textMuted} attributes={!explainMode() ? TextAttributes.BOLD : undefined}>NORMAL</text>
+              <text
+                fg={!explainMode() ? theme.primary : theme.textMuted}
+                attributes={!explainMode() ? TextAttributes.BOLD : undefined}
+              >
+                NORMAL
+              </text>
               <text fg={theme.textMuted}>|</text>
-              <text fg={explainMode() ? theme.primary : theme.textMuted} attributes={explainMode() ? TextAttributes.BOLD : undefined}>ELI12</text>
+              <text
+                fg={explainMode() ? theme.primary : theme.textMuted}
+                attributes={explainMode() ? TextAttributes.BOLD : undefined}
+              >
+                ELI12
+              </text>
             </box>
             <Show when={props.actions?.length}>
               <box flexDirection="row" gap={1} alignItems="center">
