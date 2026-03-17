@@ -1,11 +1,13 @@
 import { useTheme } from "@tui/context/theme"
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { createSignal, createEffect, Show } from "solid-js"
+import { useTextareaKeybindings } from "../textarea-keybindings"
 
 export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void }) {
   const { theme } = useTheme()
   let textareaRef: TextareaRenderable
   const [isInitialized, setIsInitialized] = createSignal(false)
+  const textareaKeybindings = useTextareaKeybindings()
 
   // Force update when props change
   createEffect(() => {
@@ -51,17 +53,22 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
               r.setText(props.initialPrompt)
               setIsInitialized(true)
             }
-            // Focus the textarea
-            setTimeout(() => r?.focus(), 50)
+            // Focus after a delay
+            setTimeout(() => {
+              r?.focus()
+              r?.gotoLineEnd()
+            }, 100)
           }}
+          initialValue={props.initialPrompt}
           onContentChange={(e: any) => {
             // Pass changes back to parent
             props.onUpdate(e.plainText || "")
           }}
           textColor={theme.text}
           focusedTextColor={theme.text}
+          cursorColor={theme.primary}
           flexGrow={1}
-          autoFocus={true}
+          keyBindings={textareaKeybindings()}
           focusable={true}
         />
       </box>
