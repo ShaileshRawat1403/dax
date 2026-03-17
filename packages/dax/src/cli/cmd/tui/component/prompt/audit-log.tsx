@@ -11,7 +11,7 @@ export function AuditPane() {
   const [logs, setLogs] = createSignal<{ time: string; type: string; msg: string }[]>([])
 
   onMount(() => {
-    const unsub = sdk.event.on("*", (evt: any) => {
+    const unsub = sdk.event.on("*" as any, (evt: any) => {
       // Segregate background noise ("token refreshed", plugin loads) into this pane
       if (evt.type.startsWith("system.") || evt.type.includes("auth.token") || evt.type.includes("plugin.load")) {
         setLogs((prev) => {

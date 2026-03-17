@@ -4,6 +4,7 @@ import { useSync } from "../../context/sync"
 import { useDirectory } from "../../context/directory"
 import { useRoute } from "../../context/route"
 import { useTerminalDimensions } from "@opentui/solid"
+import { TextAttributes } from "@opentui/core"
 
 export function Footer(props?: { lifecycleLabel?: string }) {
   const { theme } = useTheme()
