@@ -1,38 +1,13 @@
 import { useTheme } from "@tui/context/theme"
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
-import { createSignal } from "solid-js"
+import { Show } from "solid-js"
 
 export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void }) {
   const { theme } = useTheme()
   let textarea: TextareaRenderable
-  const [debug, setDebug] = createSignal("")
 
-  // Debug: show what's being passed
-  const displayContent = () => {
-    const content = props.initialPrompt || ""
-    setDebug(`Content length: ${content.length}, First 50: ${content.slice(0, 50)}`)
-
-    if (content && content.length > 0) {
-      return content
-    }
-    return `## 🎯 Goal
-Type your goal here
-
-## 📋 Execution Plan
-1. Step one
-2. Step two  
-3. Step three
-
-## ✅ Success Criteria
-- Criterion 1
-- Criterion 2
-
-## ⚙️ Constraints & Requirements
-- Constraint 1
-
----
-_Click Refine Current to generate a structured contract_`
-  }
+  // If we have content, show it. Otherwise show placeholder.
+  const hasContent = () => props.initialPrompt && props.initialPrompt.length > 10
 
   return (
     <box flexDirection="column" width="100%" height="100%" gap={1}>
@@ -40,16 +15,27 @@ _Click Refine Current to generate a structured contract_`
         <text fg={theme.accent} bold>
           ✦ STRUCTURED EXECUTION CONTRACT
         </text>
-        <text fg={theme.error}>({debug()})</text>
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-          Review and edit before execution.
-        </text>
+        <Show when={hasContent()}>
+          <text fg={theme.success}>✓ Contract ready - review and edit below</text>
+        </Show>
+        <Show when={!hasContent()}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            Click "Refine Current" to generate a contract
+          </text>
+        </Show>
       </box>
 
-      <box flexGrow={1} flexDirection="column" marginTop={1} border={["all"]} borderColor={theme.accent} padding={1}>
+      <box
+        flexGrow={1}
+        flexDirection="column"
+        marginTop={1}
+        border={["all"]}
+        borderColor={hasContent() ? theme.success : theme.border}
+        padding={1}
+      >
         <textarea
           ref={(r: TextareaRenderable) => (textarea = r)}
-          value={displayContent()}
+          value={props.initialPrompt}
           onContentChange={() => props.onUpdate(textarea.plainText)}
           textColor={theme.text}
           focusedTextColor={theme.text}
@@ -58,7 +44,7 @@ _Click Refine Current to generate a structured contract_`
       </box>
 
       <box paddingTop={1} border={["top"]} borderColor={theme.border}>
-        <text fg={theme.success}>👉 Press Enter to execute</text>
+        <text fg={theme.success}>👉 Press Enter to execute this contract</text>
       </box>
     </box>
   )
