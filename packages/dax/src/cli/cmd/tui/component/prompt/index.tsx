@@ -43,6 +43,7 @@ import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
+import { refineIntent } from "@/intent/interpret"
 import { createColors } from "../../ui/spinner.ts"
 
 import { Log } from "@/util/log"
@@ -172,7 +173,6 @@ export function Prompt(props: PromptProps) {
     if (props.disabled || !store.prompt.input) return
 
     const rawInput = store.prompt.input.trim()
-    const sessionID = props.sessionID || (await sdk.client.session.create({}).then((x) => x.data!.id))
 
     toast.show({
       variant: "info",
@@ -181,32 +181,41 @@ export function Prompt(props: PromptProps) {
     })
 
     try {
-      const result = await sdk.client.session.command({
-        sessionID: sessionID!,
-        command: "gen-prompt",
-        arguments: rawInput,
+      // Call refineIntent directly - no chat message will be created
+      const contract = await refineIntent(rawInput, {
+        cwd: process.cwd(),
+        session_id: props.sessionID,
       })
-      // Result is a MessageV2.WithParts, we extract the text part
-      const refinedText = result.data?.parts.find((p) => p.type === "text")?.text
-      if (refinedText) {
-        // We replace the current input with the refined one
-        // but keep it editable
-        setStore("prompt", "input", refinedText)
-        input.setText(refinedText)
 
-        // Store refined prompt for the RefinePane
-        kv.set(DAX_SETTING.session_refined_prompt, refinedText)
+      // Get the formatted prompt from the contract
+      const refinedText =
+        contract?.formattedPrompt ||
+        [
+          `## 🎯 Goal`,
+          contract?.goal || rawInput,
+          "",
+          "## 📋 Execution Plan",
+          ...(contract?.successCriteria || []).map((s, i) => `${i + 1}. ${s}`),
+          "",
+          "## ✅ Success Criteria",
+          ...(contract?.successCriteria || []).map((s) => `- ${s}`),
+          "",
+          "## ⚙️ Constraints & Requirements",
+          ...(contract?.explicitConstraints || []).map((s) => `- ${s}`),
+        ].join("\n")
 
-        // Switch to refine pane
-        kv.set(DAX_SETTING.session_pane_mode, "refine")
-        kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+      // Store refined prompt for the RefinePane
+      kv.set(DAX_SETTING.session_refined_prompt, refinedText)
 
-        toast.show({
-          variant: "success",
-          message: "Prompt refined!",
-          duration: 2000,
-        })
-      }
+      // Switch to refine pane (don't update input - keep original)
+      kv.set(DAX_SETTING.session_pane_mode, "refine")
+      kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+
+      toast.show({
+        variant: "success",
+        message: "Prompt refined!",
+        duration: 2000,
+      })
     } catch (e) {
       log.error("failed to refine prompt", { error: e })
       toast.show({
