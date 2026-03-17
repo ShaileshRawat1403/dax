@@ -172,7 +172,6 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 }
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
-  console.log(`[GeminiAuthPlugin] refreshing token with clientID: ${clientID ?? "default"}`)
   if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
   const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
   const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
@@ -187,18 +186,15 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   }).catch((err) => {
-    console.error(`[GeminiAuthPlugin] refresh failed: ${err.message}`)
     return undefined
   })
   if (!result?.ok) {
-    console.error(`[GeminiAuthPlugin] refresh failed with status: ${result?.status}`)
     return undefined
   }
   const json = (await result.json().catch(() => undefined)) as
     | { access_token?: string; expires_in?: number }
     | undefined
   if (!json?.access_token) return undefined
-  console.log(`[GeminiAuthPlugin] token refreshed successfully`)
   return {
     access: json.access_token,
     expires: Date.now() + (json.expires_in ?? 3600) * 1000,
@@ -286,9 +282,7 @@ const waitForOAuthCode = (state: string) =>
       clearInterval(timer)
       oauthCode.delete(state)
       reject(
-        new Error(
-          "OAuth login timed out. Use the latest DAX sign-in link and finish login in that same browser tab.",
-        ),
+        new Error("OAuth login timed out. Use the latest DAX sign-in link and finish login in that same browser tab."),
       )
     }, 400)
   })
@@ -513,7 +507,10 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const invalidCredential = await isInvalidCredentialError(first)
             if (!scopeError && !invalidCredential) return first
 
-            const candidates = [await readCliCreds(), Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined].filter((x) => !!x?.refresh)
+            const candidates = [
+              await readCliCreds(),
+              Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined,
+            ].filter((x) => !!x?.refresh)
             for (const imported of candidates) {
               if (!imported?.refresh) continue
               const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
@@ -588,7 +585,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               url: GEMINI_OAUTH_DOC,
               instructions:
                 "Run `gemini` and finish Google login, then wait here while DAX imports Gemini OAuth credentials.",
-          async callback() {
+              async callback() {
                 const creds = await waitForCreds()
                 if (!creds?.refresh) return { type: "failed" as const }
                 let access = creds.access
