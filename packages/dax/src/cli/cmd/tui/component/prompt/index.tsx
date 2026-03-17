@@ -170,9 +170,22 @@ export function Prompt(props: PromptProps) {
   const activePaneMode = createMemo(() => kv.get(DAX_SETTING.session_pane_mode))
 
   async function handleRefine() {
-    if (props.disabled || !store.prompt.input) return
+    if (props.disabled) {
+      log.info("handleRefine: disabled")
+      return
+    }
+    if (!store.prompt.input) {
+      log.info("handleRefine: no input")
+      toast.show({
+        variant: "error",
+        message: "Type a prompt first",
+        duration: 2000,
+      })
+      return
+    }
 
     const rawInput = store.prompt.input.trim()
+    log.info("handleRefine: starting", { rawInput: rawInput.slice(0, 50) })
 
     toast.show({
       variant: "info",
@@ -186,6 +199,8 @@ export function Prompt(props: PromptProps) {
         cwd: process.cwd(),
         session_id: props.sessionID,
       })
+
+      log.info("handleRefine: got contract", { goal: contract?.goal })
 
       // Get the formatted prompt from the contract
       const refinedText =
@@ -204,12 +219,16 @@ export function Prompt(props: PromptProps) {
           ...(contract?.explicitConstraints || []).map((s) => `- ${s}`),
         ].join("\n")
 
+      log.info("handleRefine: storing refined text", { length: refinedText.length })
+
       // Store refined prompt for the RefinePane
       kv.set(DAX_SETTING.session_refined_prompt, refinedText)
 
-      // Switch to refine pane (don't update input - keep original)
+      // Switch to refine pane
       kv.set(DAX_SETTING.session_pane_mode, "refine")
       kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+
+      log.info("handleRefine: done, pane should show")
 
       toast.show({
         variant: "success",
@@ -217,10 +236,10 @@ export function Prompt(props: PromptProps) {
         duration: 2000,
       })
     } catch (e) {
-      log.error("failed to refine prompt", { error: e })
+      log.error("failed to refine prompt", { error: String(e) })
       toast.show({
         variant: "error",
-        message: "Failed to refine prompt",
+        message: "Failed to refine prompt: " + String(e).slice(0, 50),
         duration: 3000,
       })
     }

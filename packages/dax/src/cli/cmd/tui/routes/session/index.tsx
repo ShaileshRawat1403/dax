@@ -221,9 +221,16 @@ export function Session() {
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
-  const refinedPromptSignal = kv.signal(DAX_SETTING.session_refined_prompt, "")
-  const refinedPrompt = refinedPromptSignal[0]
-  const setRefinedPrompt = refinedPromptSignal[1]
+  const [refinedPrompt, setRefinedPrompt] = createSignal("")
+
+  // Sync refined prompt from KV when it changes
+  createEffect(() => {
+    const kvValue = kv.get(DAX_SETTING.session_refined_prompt)
+    if (kvValue && kvValue !== refinedPrompt()) {
+      setRefinedPrompt(kvValue)
+    }
+  })
+
   useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
@@ -2435,6 +2442,7 @@ export function Session() {
                             <RefinePane
                               initialPrompt={refinedPrompt()}
                               onUpdate={(prompt) => {
+                                setRefinedPrompt(prompt)
                                 promptRef.current?.set({ ...promptRef.current!.current, input: prompt })
                                 kv.set(DAX_SETTING.session_refined_prompt, prompt)
                               }}
