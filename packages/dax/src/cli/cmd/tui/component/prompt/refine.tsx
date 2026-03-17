@@ -44,6 +44,10 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
         border={["all"]}
         borderColor={hasContent() ? theme.success : theme.border}
         padding={1}
+        onMouseUp={() => {
+          // Focus textarea when box is clicked
+          textareaRef?.focus()
+        }}
       >
         <textarea
           ref={(r: TextareaRenderable) => {
