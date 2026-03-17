@@ -1,4 +1,14 @@
-import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, KeyEvent, t, dim, fg } from "@opentui/core"
+import {
+  BoxRenderable,
+  TextareaRenderable,
+  MouseEvent,
+  PasteEvent,
+  KeyEvent,
+  t,
+  dim,
+  fg,
+  TextAttributes,
+} from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
@@ -183,6 +193,14 @@ export function Prompt(props: PromptProps) {
         // but keep it editable
         setStore("prompt", "input", refinedText)
         input.setText(refinedText)
+
+        // Store refined prompt for the RefinePane
+        kv.set(DAX_SETTING.session_refined_prompt, refinedText)
+
+        // Switch to refine pane
+        kv.set(DAX_SETTING.session_pane_mode, "refine")
+        kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+
         toast.show({
           variant: "success",
           message: "Prompt refined!",
@@ -1422,13 +1440,10 @@ export function Prompt(props: PromptProps) {
             <Show when={status().type !== "retry"}>
               <box flexDirection="row" gap={2}>
                 <Show when={store.prompt.input.length > 0}>
-                  <box
-                    onMouseUp={handleRefine}
-                    backgroundColor={theme.backgroundElement}
-                    paddingLeft={1}
-                    paddingRight={1}
-                  >
-                    <text fg={theme.accent}>✦ Refine Current</text>
+                  <box onMouseUp={handleRefine} backgroundColor={theme.accent} paddingLeft={1} paddingRight={1}>
+                    <text fg={theme.background} attributes={TextAttributes.BOLD}>
+                      ✦ Refine Current
+                    </text>
                   </box>
                 </Show>
                 <box
