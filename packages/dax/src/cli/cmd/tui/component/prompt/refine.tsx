@@ -1,32 +1,37 @@
 import { useTheme } from "@tui/context/theme"
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
+import { createSignal } from "solid-js"
 
 export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void }) {
   const { theme } = useTheme()
   let textarea: TextareaRenderable
+  const [debug, setDebug] = createSignal("")
 
+  // Debug: show what's being passed
   const displayContent = () => {
-    if (props.initialPrompt && props.initialPrompt.length > 0) {
-      return props.initialPrompt
+    const content = props.initialPrompt || ""
+    setDebug(`Content length: ${content.length}, First 50: ${content.slice(0, 50)}`)
+
+    if (content && content.length > 0) {
+      return content
     }
     return `## 🎯 Goal
-[Your refined goal will appear here]
+Type your goal here
 
 ## 📋 Execution Plan
 1. Step one
-2. Step two
+2. Step two  
 3. Step three
 
 ## ✅ Success Criteria
-- [Success criterion 1]
-- [Success criterion 2]
+- Criterion 1
+- Criterion 2
 
 ## ⚙️ Constraints & Requirements
-- [Constraint 1]
-- [Constraint 2]
+- Constraint 1
 
 ---
-_Click Refine Current to generate a structured contract, or type your prompt and press Enter to execute._`
+_Click Refine Current to generate a structured contract_`
   }
 
   return (
@@ -35,8 +40,9 @@ _Click Refine Current to generate a structured contract, or type your prompt and
         <text fg={theme.accent} bold>
           ✦ STRUCTURED EXECUTION CONTRACT
         </text>
+        <text fg={theme.error}>({debug()})</text>
         <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-          Review and edit the optimized plan before execution.
+          Review and edit before execution.
         </text>
       </box>
 
@@ -52,9 +58,7 @@ _Click Refine Current to generate a structured contract, or type your prompt and
       </box>
 
       <box paddingTop={1} border={["top"]} borderColor={theme.border}>
-        <text fg={theme.success}>
-          👉 Press <span style={{ fg: theme.text, bold: true }}>Enter</span> in the prompt box to start this mission.
-        </text>
+        <text fg={theme.success}>👉 Press Enter to execute</text>
       </box>
     </box>
   )

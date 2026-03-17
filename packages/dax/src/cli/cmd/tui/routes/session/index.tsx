@@ -221,31 +221,13 @@ export function Session() {
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
-  // Track refined prompt with explicit reactivity
-  const [refinedPrompt, setRefinedPrompt] = createSignal("")
-
-  // Watch for KV changes using store reactivity
-  createEffect(() => {
-    // Access the store to create dependency
-    const _ = kv.store[DAX_SETTING.session_refined_prompt]
-    const value = kv.get(DAX_SETTING.session_refined_prompt) as string
-    if (value) {
-      setRefinedPrompt(value)
-    }
-  })
-
-  // Also watch pane mode changes
-  createEffect(() => {
-    const _ = kv.store[DAX_SETTING.session_pane_mode]
-    const _2 = kv.store[DAX_SETTING.session_pane_visibility]
-    // Force re-render on pane mode change to refine
-    const mode = kv.get(DAX_SETTING.session_pane_mode)
-    if (mode === "refine") {
-      const value = kv.get(DAX_SETTING.session_refined_prompt) as string
-      if (value) {
-        setRefinedPrompt(value)
-      }
-    }
+  // Track refined prompt - always read fresh from KV when render
+  const refinedPrompt = createMemo(() => {
+    // Force re-read whenever these change
+    const mode = kv.store[DAX_SETTING.session_pane_mode]
+    const vis = kv.store[DAX_SETTING.session_pane_visibility]
+    const ref = kv.store[DAX_SETTING.session_refined_prompt]
+    return (kv.get(DAX_SETTING.session_refined_prompt) as string) || ""
   })
 
   useUIActivity()
@@ -2459,7 +2441,6 @@ export function Session() {
                             <RefinePane
                               initialPrompt={refinedPrompt()}
                               onUpdate={(prompt) => {
-                                setRefinedPrompt(prompt)
                                 promptRef.current?.set({ ...promptRef.current!.current, input: prompt })
                                 kv.set(DAX_SETTING.session_refined_prompt, prompt)
                               }}
