@@ -184,6 +184,13 @@ export function Header(props: {
                 </text>
               </box>
             </Show>
+            <Show when={kv.get(DAX_SETTING.refine_mode, false)}>
+              <box backgroundColor={theme.accent} paddingLeft={1} paddingRight={1} marginRight={1}>
+                <text fg={theme.background} attributes={TextAttributes.BOLD}>
+                  ✧ REFINE
+                </text>
+              </box>
+            </Show>
             <Show when={showLifecycle()}>
               <text
                 fg={shellIntensity() === "light" ? theme.textMuted : theme.text}

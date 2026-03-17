@@ -16,7 +16,7 @@ export function ArtifactsPane(props: { artifacts?: ArtifactItem[] }) {
   const [artifacts, setArtifacts] = createSignal<ArtifactItem[]>([])
 
   onMount(() => {
-    const unsub = sdk.event.on("*", (evt: any) => {
+    const unsub = sdk.event.on("*" as any, (evt: any) => {
       if (evt.type === "tool.execute.after" || evt.type === "tool.execute.before") {
         const tool = evt.properties?.tool?.name || evt.properties?.tool
         const args = evt.properties?.arguments || evt.properties?.args || {}

@@ -167,20 +167,22 @@ function App() {
   const exit = useExit()
   const promptRef = usePromptRef()
 
+  let refocusPromptAnimationFrame = 0
   const refocusPrompt = () => {
-    const tryFocus = () => {
+    cancelAnimationFrame(refocusPromptAnimationFrame)
+    refocusPromptAnimationFrame = requestAnimationFrame(() => {
       const prompt = promptRef.current
-      if (!prompt) return
-      if (!prompt.alive) return
-      prompt.focus()
-      if (!prompt.focused) {
-        prompt.blur()
+      if (!prompt || !prompt.alive) return
+      try {
         prompt.focus()
+        if (!prompt.focused) {
+          prompt.blur()
+          prompt.focus()
+        }
+      } catch (e) {
+        console.warn("Failed to focus prompt:", e)
       }
-    }
-    for (const delay of [0, 16, 48, 96, 180]) {
-      setTimeout(tryFocus, delay)
-    }
+    })
   }
 
   onMount(() => {

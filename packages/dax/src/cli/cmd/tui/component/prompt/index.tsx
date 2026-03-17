@@ -159,6 +159,47 @@ export function Prompt(props: PromptProps) {
   const isPanePinned = createMemo(() => kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
   const activePaneMode = createMemo(() => kv.get(DAX_SETTING.session_pane_mode))
 
+  async function handleRefine() {
+    if (props.disabled || !store.prompt.input) return
+    
+    const rawInput = store.prompt.input.trim()
+    const sessionID = props.sessionID || (await sdk.client.session.create({}).then(x => x.data!.id))
+    
+    toast.show({
+      variant: "info",
+      message: "Refining prompt...",
+      duration: 1500
+    })
+
+    try {
+      const result = await sdk.client.session.command({
+        sessionID: sessionID!,
+        command: "gen-prompt",
+        arguments: rawInput
+      })
+      // Result is a MessageV2.WithParts, we extract the text part
+      const refinedText = result.data?.parts.find(p => p.type === "text")?.text
+      if (refinedText) {
+        // We replace the current input with the refined one
+        // but keep it editable
+        setStore("prompt", "input", refinedText)
+        input.setText(refinedText)
+        toast.show({
+          variant: "success",
+          message: "Prompt refined!",
+          duration: 2000
+        })
+      }
+    } catch (e) {
+      log.error("failed to refine prompt", { error: e })
+      toast.show({
+        variant: "error",
+        message: "Failed to refine prompt",
+        duration: 3000
+      })
+    }
+  }
+
   const toggleRefineMode = () => {
     const next = !refineMode()
     kv.set(DAX_SETTING.refine_mode, next)
@@ -1305,95 +1346,98 @@ export function Prompt(props: PromptProps) {
             }
           />
         </box>
-        <box flexDirection="row" justifyContent="space-between">
-          <Show when={status().type !== "idle"} fallback={<text />}>
-            <box
-              flexDirection="row"
-              gap={1}
-              flexGrow={1}
-              justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
-            >
-              <box flexShrink={0} flexDirection="row" gap={1}>
-                <box marginLeft={1}>
-                  <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[DAX]</text>}>
-                    <text fg={statusDaxColor()}>[{statusDax()}]</text>
-                  </Show>
-                </box>
-                <box flexDirection="row" gap={1} flexShrink={0}>
-                  {(() => {
-                    const retry = createMemo(() => {
-                      const s = status()
-                      if (s.type !== "retry") return
-                      return s
-                    })
-                    const message = createMemo(() => {
-                      const r = retry()
-                      if (!r) return
-                      if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
-                        return "gemini is way too hot right now"
-                      if (r.message.length > 80) return r.message.slice(0, 80) + "..."
-                      return r.message
-                    })
-                    const isTruncated = createMemo(() => {
-                      const r = retry()
-                      if (!r) return false
-                      return r.message.length > 120
-                    })
-                    const [seconds, setSeconds] = createSignal(0)
-                    onMount(() => {
-                      const timer = setInterval(() => {
-                        const next = retry()?.next
-                        if (next) setSeconds(Math.round((next - Date.now()) / 1000))
-                      }, 1000)
-
-                      onCleanup(() => {
-                        clearInterval(timer)
+        <box flexDirection="row" justifyContent="space-between" width="100%" paddingLeft={1} paddingRight={1} alignItems="center">
+          <box flexGrow={1} flexDirection="row" alignItems="center">
+            <Show when={status().type !== "idle"}>
+              <box
+                flexDirection="row"
+                gap={1}
+                flexGrow={1}
+                justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
+              >
+                <box flexShrink={0} flexDirection="row" gap={1}>
+                  <box marginLeft={1}>
+                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[DAX]</text>}>
+                      <text fg={statusDaxColor()}>[{statusDax()}]</text>
+                    </Show>
+                  </box>
+                  <box flexDirection="row" gap={1} flexShrink={0}>
+                    {(() => {
+                      const retry = createMemo(() => {
+                        const s = status()
+                        if (s.type !== "retry") return
+                        return s
                       })
-                    })
-                    const handleMessageClick = () => {
-                      const r = retry()
-                      if (!r) return
-                      if (isTruncated()) {
-                        DialogAlert.show(dialog, "Retry Error", r.message)
+                      const message = createMemo(() => {
+                        const r = retry()
+                        if (!r) return
+                        if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
+                          return "gemini is way too hot right now"
+                        if (r.message.length > 80) return r.message.slice(0, 80) + "..."
+                        return r.message
+                      })
+                      const isTruncated = createMemo(() => {
+                        const r = retry()
+                        if (!r) return false
+                        return r.message.length > 120
+                      })
+                      const [seconds, setSeconds] = createSignal(0)
+                      onMount(() => {
+                        const timer = setInterval(() => {
+                          const next = retry()?.next
+                          if (next) setSeconds(Math.round((next - Date.now()) / 1000))
+                        }, 1000)
+
+                        onCleanup(() => {
+                          clearInterval(timer)
+                        })
+                      })
+                      const handleMessageClick = () => {
+                        const r = retry()
+                        if (!r) return
+                        if (isTruncated()) {
+                          DialogAlert.show(dialog, "Retry Error", r.message)
+                        }
                       }
-                    }
 
-                    const retryText = () => {
-                      const r = retry()
-                      if (!r) return ""
-                      const baseMessage = message()
-                      const truncatedHint = isTruncated() ? " (click to expand)" : ""
-                      const duration = formatDuration(seconds())
-                      const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
-                      return baseMessage + truncatedHint + retryInfo
-                    }
+                      const retryText = () => {
+                        const r = retry()
+                        if (!r) return ""
+                        const baseMessage = message()
+                        const truncatedHint = isTruncated() ? " (click to expand)" : ""
+                        const duration = formatDuration(seconds())
+                        const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
+                        return baseMessage + truncatedHint + retryInfo
+                      }
 
-                    return (
-                      <Show when={retry()}>
-                        <box onMouseUp={handleMessageClick}>
-                          <text fg={theme.error}>{retryText()}</text>
-                        </box>
-                      </Show>
-                    )
-                  })()}
+                      return (
+                        <Show when={retry()}>
+                          <box onMouseUp={handleMessageClick}>
+                            <text fg={theme.error}>{retryText()}</text>
+                          </box>
+                        </Show>
+                      )
+                    })()}
+                  </box>
                 </box>
+                <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
+                  esc{" "}
+                  <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
+                    {store.interrupt > 0
+                      ? explainMode()
+                        ? "again to stop"
+                        : "again to interrupt"
+                      : explainMode()
+                        ? "stop"
+                        : "interrupt"}
+                  </span>
+                </text>
               </box>
-              <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
-                esc{" "}
-                <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
-                  {store.interrupt > 0
-                    ? explainMode()
-                      ? "again to stop"
-                      : "again to interrupt"
-                    : explainMode()
-                      ? "stop"
-                      : "interrupt"}
-                </span>
-              </text>
-            </box>
-          </Show>
-          <Show when={status().type !== "retry"}>
-            <box gap={2} flexDirection="row" justifyContent="space-between" width="100%">
+            </Show>
+          </box>
+
+          <box flexShrink={0} flexDirection="row" gap={2} alignItems="center">
+            <Show when={status().type !== "retry"}>
               <box flexDirection="row" gap={2}>
                 <box
                   onMouseUp={toggleRefineMode}
@@ -1405,6 +1449,11 @@ export function Prompt(props: PromptProps) {
                     ✦ Auto-Refine: {refineMode() ? "ON" : "OFF"}
                   </text>
                 </box>
+                <Show when={store.prompt.input.length > 0}>
+                  <box onMouseUp={handleRefine} backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                    <text fg={theme.secondary}>✦ Refine Current</text>
+                  </box>
+                </Show>
                 <box
                   onMouseUp={() => setExplainMode(!explainMode())}
                   backgroundColor={explainMode() ? theme.success : theme.backgroundElement}
@@ -1451,8 +1500,8 @@ export function Prompt(props: PromptProps) {
                   </box>
                 </Show>
               </box>
-            </box>
-          </Show>
+            </Show>
+          </box>
         </box>
       </box>
     </>

@@ -10,7 +10,7 @@ export function RefinePane() {
   const refinedPrompt = () => kv.get("dax_active_refined_prompt", "")
 
   return (
-    <box flexDirection="column" width="100%" height="100%" paddingLeft={1} paddingRight={1}>
+    <box flexDirection="column" width="100%" height="100%" padding={1}>
       <box
         flexDirection="row"
         border={["bottom"]}
@@ -50,7 +50,9 @@ export function RefinePane() {
           <text fg={theme.textMuted}>DAX is executing with the following augmented parameters:</text>
         </box>
         <box padding={1} border={["left"]} borderColor={theme.accent}>
-          <text fg={theme.text}>{refinedPrompt()}</text>
+          <text fg={theme.text} whiteSpace="pre-wrap">
+            {refinedPrompt()}
+          </text>
         </box>
       </Show>
     </box>
