@@ -51,6 +51,8 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
               r.setText(props.initialPrompt)
               setIsInitialized(true)
             }
+            // Focus the textarea
+            setTimeout(() => r?.focus(), 50)
           }}
           onContentChange={(e: any) => {
             // Pass changes back to parent
@@ -59,6 +61,8 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
           textColor={theme.text}
           focusedTextColor={theme.text}
           flexGrow={1}
+          autoFocus={true}
+          focusable={true}
         />
       </box>
 
