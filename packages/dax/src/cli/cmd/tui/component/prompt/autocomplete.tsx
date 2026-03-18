@@ -1,7 +1,6 @@
 import type { BoxRenderable, TextareaRenderable, KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import { pathToFileURL } from "bun"
 import fuzzysort from "fuzzysort"
-import { firstBy } from "remeda"
 import { createMemo, createResource, createEffect, onMount, onCleanup, Index, Show, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useSDK } from "@tui/context/sdk"
@@ -120,6 +119,12 @@ export function Autocomplete(props: {
       y: anchor.y - parentY,
       width: anchor.width,
     }
+  })
+
+  const popupWidth = createMemo(() => {
+    if (!store.visible) return 0
+    const maxWidth = store.visible === "/" ? 60 : 72
+    return Math.max(24, Math.min(position().width, maxWidth))
   })
 
   const filter = createMemo(() => {
@@ -375,12 +380,7 @@ export function Autocomplete(props: {
 
     results.sort((a, b) => a.display.localeCompare(b.display))
 
-    const max = firstBy(results, [(x) => x.display.length, "desc"])?.display.length
-    if (!max) return results
-    return results.map((item) => ({
-      ...item,
-      display: item.display.padEnd(max + 2),
-    }))
+    return results
   })
 
   const options = createMemo((prev: AutocompleteOption[] | undefined) => {
@@ -602,7 +602,13 @@ export function Autocomplete(props: {
     const count = options().length || 1
     if (!store.visible) return Math.min(10, count)
     positionTick()
-    return Math.min(10, count, Math.max(1, props.anchor().y))
+    const maxHeight = store.visible === "/" ? 8 : 10
+    return Math.min(maxHeight, count, Math.max(1, props.anchor().y))
+  })
+
+  const commandLabelWidth = createMemo(() => {
+    if (store.visible !== "/") return 0
+    return Math.max(12, Math.min(20, Math.floor(popupWidth() * 0.35)))
   })
 
   let scroll: ScrollBoxRenderable
@@ -611,9 +617,9 @@ export function Autocomplete(props: {
     <box
       visible={store.visible !== false}
       position="absolute"
-      top={position().y - height()}
+      top={Math.max(0, position().y - height())}
       left={position().x}
-      width={position().width}
+      width={popupWidth()}
       zIndex={100}
       {...SplitBorder}
       borderColor={theme.border}
@@ -651,13 +657,44 @@ export function Autocomplete(props: {
               }}
               onMouseUp={() => select()}
             >
-              <text fg={index === store.selected ? selectedForeground(theme) : theme.text} flexShrink={0}>
-                {option().display}
-              </text>
+              <Show
+                when={store.visible === "/" && option().description}
+                fallback={
+                  <text
+                    fg={index === store.selected ? selectedForeground(theme) : theme.text}
+                    flexShrink={0}
+                    wrapMode="truncate-end"
+                  >
+                    {option().display}
+                  </text>
+                }
+              >
+                <box flexDirection="row" gap={1} width="100%">
+                  <box width={commandLabelWidth()} flexShrink={0}>
+                    <text fg={index === store.selected ? selectedForeground(theme) : theme.text} wrapMode="truncate-end">
+                      {option().display}
+                    </text>
+                  </box>
+                  <text fg={index === store.selected ? selectedForeground(theme) : theme.textMuted} flexShrink={0}>
+                    ·
+                  </text>
+                  <text
+                    fg={index === store.selected ? selectedForeground(theme) : theme.textMuted}
+                    wrapMode="truncate-end"
+                  >
+                    {option().description}
+                  </text>
+                </box>
+              </Show>
               <Show when={option().description}>
-                <text fg={index === store.selected ? selectedForeground(theme) : theme.textMuted} wrapMode="none">
-                  {option().description}
-                </text>
+                <Show when={store.visible !== "/"}>
+                  <text
+                    fg={index === store.selected ? selectedForeground(theme) : theme.textMuted}
+                    wrapMode="truncate-end"
+                  >
+                    {option().description}
+                  </text>
+                </Show>
               </Show>
             </box>
           )}

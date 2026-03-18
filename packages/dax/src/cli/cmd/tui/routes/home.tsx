@@ -83,22 +83,31 @@ function AnimatedHeader(props: { theme: any }) {
   )
 }
 
-function ActionChip(props: { label: string; active?: boolean; onPress: () => void; theme: any; icon?: string }) {
-  const icon = () => props.icon ?? (props.active ? "●" : "○")
-  return (
-    <box onMouseUp={props.onPress} flexDirection="row" gap={0} alignItems="center">
-      <text fg={props.active ? props.theme.primary : props.theme.textMuted}>{icon()}</text>
-      <text fg={props.active ? props.theme.primary : props.theme.textMuted} marginLeft={1}>
-        {props.label}
-      </text>
-    </box>
-  )
-}
-
 function PromptStarter(props: { label: string; onPress: () => void; theme: any }) {
   return (
     <box onMouseUp={props.onPress} paddingLeft={1} paddingRight={1} backgroundColor={props.theme.backgroundElement}>
       <text fg={props.theme.textMuted}>{props.label}</text>
+    </box>
+  )
+}
+
+function MetaChip(props: { label: string; value?: string; tone?: "primary" | "muted"; onPress?: () => void; theme: any }) {
+  return (
+    <box
+      onMouseUp={props.onPress}
+      paddingLeft={1}
+      paddingRight={1}
+      backgroundColor={props.theme.backgroundElement}
+    >
+      <text fg={props.tone === "primary" ? props.theme.accent : props.theme.textMuted}>
+        {props.label}
+        <Show when={props.value}>
+          <span style={{ fg: props.tone === "primary" ? props.theme.primary : props.theme.text }}>
+            {" "}
+            {props.value}
+          </span>
+        </Show>
+      </text>
     </box>
   )
 }
@@ -182,6 +191,12 @@ export function Home() {
     local.agent.set(mode)
     kv.set(DAX_SETTING.session_workflow_mode, mode)
     prompt.focus()
+  }
+
+  function cycleWorkflowMode(step: 1 | -1) {
+    const idx = HOME_WORKFLOW_MODES.indexOf(activeWorkflowMode())
+    const next = HOME_WORKFLOW_MODES[(idx + step + HOME_WORKFLOW_MODES.length) % HOME_WORKFLOW_MODES.length]
+    selectWorkflowMode(next)
   }
 
   function cycleTheme(step: 1 | -1) {
@@ -350,7 +365,7 @@ export function Home() {
             </box>
           }
         >
-          <box width="100%" maxWidth={small() ? undefined : 72} alignItems="center" gap={tiny() ? 0 : 1}>
+          <box width="100%" maxWidth={small() ? undefined : 76} alignItems="center" gap={tiny() ? 0 : 1}>
             <AnimatedHeader theme={theme} />
 
             <Show when={showStages()}>
@@ -358,29 +373,23 @@ export function Home() {
             </Show>
 
             <Show when={!tiny() && showActions()}>
-              <box width="100%" flexDirection="column" alignItems="center" gap={1}>
-                <box flexDirection="row" justifyContent="center" gap={2} flexWrap="wrap" alignItems="center">
-                  <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                    Mode
-                  </text>
-                  <For each={workflowModes()}>
-                    {(agent) => (
-                      <ActionChip
-                        label={Locale.titlecase(agent.name)}
-                        active={activeWorkflowMode() === agent.name}
-                        theme={theme}
-                        onPress={() => selectWorkflowMode(agent.name as HomeWorkflowMode)}
-                      />
-                    )}
-                  </For>
-                </box>
-                <ActionChip
+              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
+                <MetaChip
+                  label="Mode"
+                  value={Locale.titlecase(activeWorkflowMode())}
+                  tone="primary"
+                  theme={theme}
+                  onPress={() => cycleWorkflowMode(1)}
+                />
+                <MetaChip
                   label="Explain"
-                  active={explainMode()}
+                  value={explainMode() ? "On" : "Off"}
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
-                <text fg={theme.textMuted}>Tab cycles modes. Shift+Tab reverses.</text>
+                <Show when={workflowModes().length > 1}>
+                  <text fg={theme.textMuted}>Tab cycles modes. Shift+Tab reverses.</text>
+                </Show>
               </box>
             </Show>
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { refineIntent, interpretIntent, type IntentContext } from "./interpret"
+import { formatStructuredExecutionContract, refineIntent, interpretIntent, type IntentContext } from "./interpret"
 
 describe("Intent Interpreter", () => {
   const mockContext: IntentContext = {
@@ -9,15 +9,41 @@ describe("Intent Interpreter", () => {
   describe("refineIntent", () => {
     it("should return an exploration contract for 'explore' prompts", async () => {
       const result = await refineIntent("I want to explore the codebase", mockContext)
-      expect(result!.goal).toBe("Explore and analyze the codebase: I want to explore the codebase")
+      expect(result!.goal).toBe("Understand the repository and answer: I want to explore the codebase")
       expect(result!.explicitConstraints).toContain("Read-only analysis preferred")
+    })
+
+    it("should treat 'know what my repo does' as exploration", async () => {
+      const result = await refineIntent("I want to know what my repo does", mockContext)
+      expect(result!.goal).toBe("Understand the repository and answer: I want to know what my repo does")
+      expect(result!.formattedPrompt).toContain("## Execution Plan")
+      expect(result!.formattedPrompt).toContain("## Success Criteria")
     })
 
     it("should return a basic contract for general prompts", async () => {
       const result = await refineIntent("Fix the build error in src/main.ts", mockContext)
-      expect(result!.goal).toBe("Implement: Fix the build error in src/main.ts")
-      expect(result!.successCriteria).toContain("Code implemented as requested")
-      expect(result!.explicitConstraints).toContain("Preserve existing functionality")
+      expect(result!.goal).toBe("Fix the reported issue: Fix the build error in src/main.ts")
+      expect(result!.formattedPrompt).toContain("src/main.ts")
+      expect(result!.successCriteria).toContain("The reported failure is resolved in a reproducible way")
+      expect(result!.explicitConstraints).toContain("Minimize the change surface until the root cause is confirmed")
+    })
+
+    it("should omit constraints section when fallback has no constraints", async () => {
+      const formatted = formatStructuredExecutionContract({
+        goal: "Do something useful",
+        plan: ["Inspect the current state", "Make the smallest needed change"],
+        successCriteria: ["The request is completed"],
+        constraints: [],
+      })
+      expect(formatted).not.toContain("## Constraints & Requirements")
+      expect(formatted).toContain("## Goal")
+      expect(formatted).toContain("## Execution Plan")
+    })
+
+    it("should add a repository boundary constraint to default fallback contracts", async () => {
+      const result = await refineIntent("Do something random", mockContext)
+      expect(result!.explicitConstraints).toContain("Stay within the active repository at /mock/workspace/dir")
+      expect(result!.formattedPrompt).toContain("Stay within the active repository at /mock/workspace/dir")
     })
   })
 
