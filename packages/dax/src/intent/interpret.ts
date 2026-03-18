@@ -34,24 +34,24 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
       const result = await generateObject({
         model: languageModel,
         schema: z.object({
-          goal: z.string().describe("A clear, actionable restatement of the user's intent. Be specific and technical."),
-          plan: z.array(z.string()).describe("5-8 concrete steps to accomplish this task. Be specific."),
-          successCriteria: z.array(z.string()).describe("3-5 testable conditions that prove the task is complete."),
-          constraints: z.array(z.string()).describe("Technical constraints, boundaries, or requirements. Be specific."),
+          goal: z.string().describe("A concise, actionable and highly technical restatement of the user's core intent."),
+          plan: z.array(z.string()).describe("A structured, ordered list of 4-7 specific steps required to fulfill the goal. Mention specific files, commands, or patterns where possible."),
+          successCriteria: z.array(z.string()).describe("3-5 verifiable and explicit conditions that define the task as complete."),
+          constraints: z.array(z.string()).describe("Project boundaries, performance rules, or style guidelines the AI must not violate."),
         }),
-        prompt: `You are a senior software architect. Transform this vague request into a precise execution plan.
+        prompt: `You are an expert software engineer and AI task planner.
+Your objective is to translate the user's prompt into a rigorous "Structured Execution Contract". This contract will guide an autonomous AI agent.
 
 USER REQUEST: "${prompt}"
+CURRENT WORKING DIRECTORY: ${context.cwd}
 
-CONTEXT: Working directory: ${context.cwd}
+INSTRUCTIONS:
+1. Goal: Distill the exact outcome needed. Be precise.
+2. Plan: Outline the logical sequence of operations. Avoid generic fluff like "understand requirements". Focus on what actually needs to be done (e.g. "Use grep to find X", "Edit Y to implement Z", "Run tests using 'npm test'").
+3. Success Criteria: How will the agent know it is finished? Be objective and measurable.
+4. Constraints: What rules must the agent follow? (e.g. "Do not break existing tests", "Only modify files in src/components", "Do not add new dependencies unless requested").
 
-OUTPUT REQUIREMENTS:
-- goal: What exactly needs to be done (technical and specific)
-- plan: Numbered steps the AI should take
-- successCriteria: How we know it worked (testable)
-- constraints: Any limitations or requirements
-
-Respond with ONLY the JSON object.`,
+Ensure your response perfectly aligns with the requested JSON schema.`,
       })
 
       const { goal, plan, successCriteria, constraints } = result.object
@@ -66,9 +66,11 @@ Respond with ONLY the JSON object.`,
         "",
         "## ✅ Success Criteria",
         ...successCriteria.map((s) => `- ${s}`),
-        "",
-        "## ⚙️ Constraints & Requirements",
-        ...constraints.map((s) => `- ${s}`),
+        ...(constraints.length > 0 ? [
+          "",
+          "## ⚙️ Constraints & Requirements",
+          ...constraints.map((s) => `- ${s}`)
+        ] : []),
         "",
         "---",
         "_Edit this contract above, then press Enter to execute._",
