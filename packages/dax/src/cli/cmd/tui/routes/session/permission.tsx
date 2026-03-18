@@ -62,7 +62,7 @@ function classifyPermissionRisk(request: PermissionRequest, input: Record<string
     return normal()
   }
 
-  if (permission === "bash") {
+  if (permission === "shell") {
     const command = String(input.command ?? "").toLowerCase()
     const pythonInstall = analyzePythonInstallCommand(command)
     if (pythonInstall?.kind === "missing-venv") {
@@ -329,7 +329,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                     <Match when={props.request.permission === "list"}>
                       <TextBody icon="→" title={`List ` + normalizePath(input().path as string)} />
                     </Match>
-                    <Match when={props.request.permission === "bash"}>
+                    <Match when={props.request.permission === "shell"}>
                       <TextBody
                         icon="#"
                         title={(input().description as string) ?? ""}

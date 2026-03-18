@@ -9,15 +9,15 @@ describe("Intent Interpreter", () => {
   describe("refineIntent", () => {
     it("should return an exploration contract for 'explore' prompts", async () => {
       const result = await refineIntent("I want to explore the codebase", mockContext)
-      expect(result!.goal).toBe("Map repository structure and understand core logic")
-      expect(result!.explicitConstraints).toContain("Read-only access preferred")
+      expect(result!.goal).toBe("Explore and analyze the codebase: I want to explore the codebase")
+      expect(result!.explicitConstraints).toContain("Read-only analysis preferred")
     })
 
     it("should return a basic contract for general prompts", async () => {
       const result = await refineIntent("Fix the build error in src/main.ts", mockContext)
-      expect(result!.goal).toBe("Fix the build error in src/main.ts")
-      expect(result!.successCriteria).toContain("Task completed as described")
-      expect(result!.explicitConstraints).toBeEmpty()
+      expect(result!.goal).toBe("Implement: Fix the build error in src/main.ts")
+      expect(result!.successCriteria).toContain("Code implemented as requested")
+      expect(result!.explicitConstraints).toContain("Preserve existing functionality")
     })
   })
 

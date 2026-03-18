@@ -4,7 +4,7 @@ import { createSignal, createEffect, Show } from "solid-js"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { setSkipRefocus } from "../../app"
 
-export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void }) {
+export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void; onSubmit?: () => void }) {
   const { theme } = useTheme()
   let textareaRef: TextareaRenderable
   const [isInitialized, setIsInitialized] = createSignal(false)
@@ -76,6 +76,7 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
             props.onUpdate(e.plainText || "")
           }}
           onMouseDown={focusTextarea}
+          onSubmit={() => props.onSubmit?.()}
           textColor={theme.text}
           focusedTextColor={theme.text}
           cursorColor={theme.primary}

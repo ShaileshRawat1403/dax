@@ -63,7 +63,7 @@ function classifyPermissionRisk(request: PermissionRequest, input: Record<string
     return normal()
   }
 
-  if (permission === "bash") {
+  if (permission === "shell") {
     const command = String(input.command ?? "").toLowerCase()
     const pythonInstall = analyzePythonInstallCommand(command)
     if (pythonInstall?.kind === "missing-venv") {
@@ -294,7 +294,7 @@ export function RAOPane(props: {
 
                       const icon = createMemo(() => {
                         const perm = request.permission
-                        if (perm === "bash") return "#"
+                        if (perm === "shell") return "#"
                         if (perm === "edit") return "✎"
                         if (perm === "read") return "→"
                         if (perm === "glob" || perm === "grep") return "✱"
@@ -308,7 +308,7 @@ export function RAOPane(props: {
                       const title = createMemo(() => {
                         const perm = request.permission
                         const i = input()
-                        if (perm === "bash") return (i.description as string) ?? "Run command"
+                        if (perm === "shell") return (i.description as string) ?? "Run command"
                         if (perm === "edit") return `Edit ${normalizePath(request.metadata?.filepath as string)}`
                         if (perm === "read") return `Read ${normalizePath(i.filePath as string)}`
                         if (perm === "glob") return `Glob "${i.pattern ?? ""}"`
@@ -361,7 +361,7 @@ export function RAOPane(props: {
                             </text>
                           </box>
 
-                          <Show when={request.permission === "bash" && input().command}>
+                          <Show when={request.permission === "shell" && input().command}>
                             <box paddingLeft={2}>
                               <text fg={theme.textMuted}>{String(input().command)}</text>
                             </box>

@@ -133,7 +133,7 @@ export function Header(props: {
       hasToolActivity: parts.some((part) => part.type === "tool"),
       toolCount: parts.filter((part) => part.type === "tool").length,
       hasExecuteTool: parts.some(
-        (part) => part.type === "tool" && ["write", "edit", "apply_patch", "bash"].includes(part.tool),
+        (part) => part.type === "tool" && ["write", "edit", "apply_patch", "shell"].includes(part.tool),
       ),
       hasVerifyTool: parts.some((part) => part.type === "tool" && ["read", "grep", "list", "glob"].includes(part.tool)),
       hasReasoning: parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0),

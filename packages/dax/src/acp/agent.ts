@@ -1415,7 +1415,7 @@ export namespace ACP {
   function toToolKind(toolName: string): ToolKind {
     const tool = toolName.toLocaleLowerCase()
     switch (tool) {
-      case "bash":
+      case "shell":
         return "execute"
       case "webfetch":
         return "fetch"
@@ -1450,7 +1450,7 @@ export namespace ACP {
       case "glob":
       case "grep":
         return input["path"] ? [{ path: input["path"] }] : []
-      case "bash":
+      case "shell":
         return []
       case "list":
         return input["path"] ? [{ path: input["path"] }] : []
