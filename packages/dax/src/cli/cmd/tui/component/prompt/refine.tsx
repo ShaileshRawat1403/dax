@@ -1,5 +1,5 @@
 import { useTheme } from "@tui/context/theme"
-import { TextareaRenderable, TextAttributes } from "@opentui/core"
+import { TextareaRenderable, TextAttributes, KeyEvent } from "@opentui/core"
 import { createSignal, createEffect, Show } from "solid-js"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { setSkipRefocus } from "../../app"
@@ -16,6 +16,7 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
     // Only set text if we haven't initialized yet OR if there's new content
     if (textareaRef && newValue && !isInitialized()) {
       textareaRef.setText(newValue)
+      props.onUpdate(newValue)
       setIsInitialized(true)
     }
   })
@@ -74,6 +75,14 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
           onContentChange={(e: any) => {
             // Pass changes back to parent
             props.onUpdate(e.plainText || "")
+          }}
+          onKeyDown={(e: KeyEvent) => {
+            if (e.name === "return" && !e.shift && !e.meta && !e.ctrl && !e.super) {
+              props.onUpdate(textareaRef?.plainText || "")
+              props.onSubmit?.()
+              return true
+            }
+            return false
           }}
           onMouseDown={focusTextarea}
           onSubmit={() => props.onSubmit?.()}
