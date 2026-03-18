@@ -17,3 +17,8 @@ artifacts/
 
 # Incoming screenshots/docs (temp)
 docs/images/_incoming/
+
+# Local Reference Directories
+.opencode/
+dax-core/
+
