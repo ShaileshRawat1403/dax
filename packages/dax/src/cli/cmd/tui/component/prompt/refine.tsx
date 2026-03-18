@@ -1,14 +1,26 @@
 import { useTheme } from "@tui/context/theme"
-import { TextareaRenderable, TextAttributes, KeyEvent } from "@opentui/core"
+import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { createSignal, createEffect, Show } from "solid-js"
+import { useKeyboard } from "@opentui/solid"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { setSkipRefocus } from "../../app"
+import { isRefineSubmitKey } from "./refine-key"
 
-export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: string) => void; onSubmit?: () => void }) {
+export function RefinePane(props: {
+  initialPrompt: string
+  onUpdate: (prompt: string) => void
+  onSubmit?: () => void
+}) {
   const { theme } = useTheme()
   let textareaRef: TextareaRenderable
   const [isInitialized, setIsInitialized] = createSignal(false)
   const textareaKeybindings = useTextareaKeybindings()
+
+  const submitRefinedPrompt = () => {
+    const next = textareaRef?.plainText || ""
+    props.onUpdate(next)
+    props.onSubmit?.()
+  }
 
   // Force update when props change
   createEffect(() => {
@@ -31,6 +43,13 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
       })
     })
   }
+
+  useKeyboard((event) => {
+    if (!textareaRef?.focused) return
+    if (!isRefineSubmitKey(event)) return
+    event.preventDefault()
+    submitRefinedPrompt()
+  })
 
   return (
     <box flexDirection="column" width="100%" height="100%" gap={1} onMouseDown={focusTextarea}>
@@ -63,6 +82,7 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
             // Set initial value when ref is available
             if (r && props.initialPrompt) {
               r.setText(props.initialPrompt)
+              props.onUpdate(props.initialPrompt)
               setIsInitialized(true)
             }
             // Focus after a delay
@@ -76,21 +96,19 @@ export function RefinePane(props: { initialPrompt: string; onUpdate: (prompt: st
             // Pass changes back to parent
             props.onUpdate(e.plainText || "")
           }}
-          onKeyDown={(e: KeyEvent) => {
-            if (e.name === "return" && !e.shift && !e.meta && !e.ctrl && !e.super) {
-              props.onUpdate(textareaRef?.plainText || "")
-              props.onSubmit?.()
-              return true
-            }
-            return false
-          }}
           onMouseDown={focusTextarea}
-          onSubmit={() => props.onSubmit?.()}
+          onSubmit={submitRefinedPrompt}
           textColor={theme.text}
           focusedTextColor={theme.text}
           cursorColor={theme.primary}
           flexGrow={1}
-          keyBindings={textareaKeybindings()}
+          keyBindings={[
+            ...textareaKeybindings(),
+            { name: "return", action: "submit" },
+            { name: "linefeed", action: "submit" },
+            { name: "enter", action: "submit" },
+            { name: "return", shift: true, action: "newline" },
+          ]}
         />
       </box>
 

@@ -37,7 +37,7 @@ import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
 import type { ReadTool } from "@/tool/read"
 import type { WriteTool } from "@/tool/write"
-import { BashTool } from "@/tool/bash"
+import { ShellTool } from "@/tool/shell"
 import type { GlobTool } from "@/tool/glob"
 import { TodoWriteTool } from "@/tool/todo"
 import type { GrepTool } from "@/tool/grep"
@@ -83,6 +83,7 @@ import { Identifier } from "@/id/id"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
+import { AuditLogPane } from "../../component/prompt/audit-log"
 import { RefinePane } from "../../component/prompt/refine"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
@@ -91,6 +92,9 @@ import { labelStage, type StreamStage } from "@/dax/workflow/stage"
 import { parsePMList, parsePMRules } from "@/pm/format"
 import {
   PANE_MODE,
+  deriveAutoPaneMode,
+  paneCompactLabel,
+  shouldAutoShowPane,
   type PaneFollowMode,
   type PaneMode,
   type PaneVisibility,
@@ -113,6 +117,7 @@ const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
 const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
 type PMTab = "note" | "list" | "rules"
 type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
+const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
 const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
 type AuditResult = {
   run_id: string
@@ -217,7 +222,7 @@ export function Session() {
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(DAX_SETTING.session_pane_visibility, "auto")
-  const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "diff")
+  const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "plan")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
@@ -389,9 +394,10 @@ export function Session() {
   const livePaneWidth = createMemo(() => {
     const total = contentWidth()
     const gapAndBorders = 6
-    const target = Math.floor((total - gapAndBorders) * 0.3)
-    return Math.max(38, Math.min(58, target))
+    const target = Math.floor((total - gapAndBorders) * 0.35)
+    return Math.max(40, Math.min(64, target))
   })
+  const compactPaneTabs = createMemo(() => !liveStacked() && livePaneWidth() < 48)
   const mainPaneGrow = createMemo(() => (liveStacked() ? 1 : 7))
   const sidePaneGrow = createMemo(() => (liveStacked() ? 1 : 3))
   const paneDiffView = createMemo(() => {
@@ -517,6 +523,12 @@ export function Session() {
     setPaneVisibility(() => next)
   }
 
+  function cycleWorkflowMode(step: 1 | -1) {
+    const idx = WORKFLOW_MODES.indexOf(workflowMode())
+    const next = WORKFLOW_MODES[(idx + step + WORKFLOW_MODES.length) % WORKFLOW_MODES.length]
+    selectWorkflowMode(next)
+  }
+
   function pauseSmartFollow() {
     if (paneFollowMode() !== "smart") return
     if (!smartFollowActive()) return
@@ -609,18 +621,12 @@ export function Session() {
   useKeyboard((evt) => {
     if (keybind.match("agent_cycle", evt)) {
       evt.preventDefault()
-      const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
-      const idx = modes.indexOf(workflowMode())
-      const next = modes[(idx + 1) % modes.length]
-      selectWorkflowMode(next)
+      cycleWorkflowMode(1)
       return
     }
     if (keybind.match("agent_cycle_reverse", evt)) {
       evt.preventDefault()
-      const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
-      const idx = modes.indexOf(workflowMode())
-      const next = modes[(idx - 1 + modes.length) % modes.length]
-      selectWorkflowMode(next)
+      cycleWorkflowMode(-1)
       return
     }
     // Handle keybindings that should work in all sessions (including child sessions)
@@ -844,6 +850,13 @@ export function Session() {
   })
 
   const latestAudit = createMemo(() => auditHistory().findLast((entry) => entry.result !== undefined))
+  const trustSurface = createMemo(() => {
+    const audit = latestAudit()?.result
+    if (!audit) return { label: "idle", color: theme.textMuted }
+    if (audit.status === "pass") return { label: "clear", color: theme.success }
+    if (audit.status === "warn") return { label: "warn", color: theme.warning }
+    return { label: "blocked", color: theme.error }
+  })
 
   const prefillPmNote = () => {
     prompt?.set({
@@ -971,6 +984,12 @@ export function Session() {
 
   const hasDiffNeed = createMemo(() => !!revert()?.diff)
   const hasPlanNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
+  const hasRefineNeed = createMemo(() => paneMode() === "refine" && refinedPrompt().trim().length > 0)
+  const hasAuditNeed = createMemo(() => {
+    const audit = latestAudit()?.result
+    return workflowMode() === "audit" || audit?.status === "warn" || audit?.status === "fail"
+  })
+  const hasPlanContext = createMemo(() => hasPlanNeed() || todo().length > 0 || !!session()?.title)
   const recentTools = createMemo(() => {
     const items: Array<{ tool: string; status: string; label: string }> = []
     for (const msg of [...messages()].reverse()) {
@@ -995,8 +1014,14 @@ export function Session() {
         const count = revert()?.diffFiles?.length ?? 0
         return count > 0 ? String(count) : undefined
       }
+      case "audit": {
+        const summary = latestAudit()?.result?.summary
+        if (!summary) return auditHistory().length > 0 ? String(auditHistory().length) : undefined
+        const count = summary.blocker_count + summary.warning_count
+        return count > 0 ? String(count) : undefined
+      }
       case "approvals":
-        return String(pendingRaoCount())
+        return pendingRaoCount() > 0 ? String(pendingRaoCount()) : undefined
       case "plan":
         return pmSummary().recentCount > 0 ? String(pmSummary().recentCount) : undefined
       default:
@@ -1020,22 +1045,30 @@ export function Session() {
       diffCount: revert()?.diffFiles?.length ?? 0,
     }),
   )
-  const hasRequirement = createMemo(() => {
-    return hasApprovalsNeed() || hasDiffNeed() || hasPlanNeed()
-  })
+  const hasRequirement = createMemo(
+    () => hasApprovalsNeed() || hasRefineNeed() || hasAuditNeed() || hasPlanContext(),
+  )
 
   const showPane = createMemo(() => {
     if (paneVisibility() === "hidden") return false
     if (paneVisibility() === "pinned") return true
-    if (!wide()) return false
-    return hasRequirement()
+    return shouldAutoShowPane({
+      wide: wide(),
+      hasApprovals: hasApprovalsNeed(),
+      hasRefineDraft: hasRefineNeed(),
+      hasAuditAttention: hasAuditNeed(),
+      hasPlanContext: hasPlanContext(),
+    })
   })
   const activePaneMode = createMemo<PaneMode>(() => {
     if (paneVisibility() === "pinned") return paneMode()
-    if (hasApprovalsNeed()) return "approvals"
-    if (hasDiffNeed()) return "diff"
-    if (hasPlanNeed()) return "plan"
-    return paneMode()
+    return deriveAutoPaneMode({
+      hasApprovals: hasApprovalsNeed(),
+      hasRefineDraft: hasRefineNeed(),
+      hasAuditAttention: hasAuditNeed(),
+      hasPlanContext: hasPlanContext(),
+      fallback: paneMode(),
+    })
   })
 
   const openDiffDialog = () => {
@@ -1360,6 +1393,17 @@ export function Session() {
         setPaneMode(() => "diff")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
         toast.show({ message: `Pane mode: ${paneLabel("diff")}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Pane mode: ${paneLabel("audit")}${paneMode() === "audit" ? " (active)" : ""}`,
+      value: "session.pane.mode.audit",
+      category: "View",
+      onSelect: (dialog) => {
+        setPaneMode(() => "audit")
+        setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+        toast.show({ message: `Pane mode: ${paneLabel("audit")}`, variant: "success" })
         dialog.clear()
       },
     },
@@ -2050,9 +2094,6 @@ export function Session() {
           >
             <box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
               <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  DAX
-                </text>
                 <Show when={session()}>
                   <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="truncate-end">
                     {session()!.title}
@@ -2094,49 +2135,16 @@ export function Session() {
                 </For>
               </box>
             </box>
-            <box flexDirection="row" gap={2} alignItems="center" paddingTop={1} paddingBottom={1} flexWrap="wrap">
-              <For each={["plan", "build", "explore", "docs", "audit"] as WorkflowMode[]}>
-                {(mode) => (
-                  <box
-                    onMouseUp={() => selectWorkflowMode(mode)}
-                    paddingLeft={1}
-                    paddingRight={1}
-                    backgroundColor={workflowMode() === mode ? theme.backgroundElement : undefined}
-                  >
-                    <text
-                      fg={workflowMode() === mode ? theme.accent : theme.textMuted}
-                      attributes={workflowMode() === mode ? TextAttributes.BOLD : undefined}
-                    >
-                      {mode}
-                    </text>
-                  </box>
-                )}
-              </For>
-            </box>
             <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" width="100%" paddingBottom={0}>
               <box
-                onMouseUp={cyclePaneVisibility}
+                onMouseUp={() => cycleWorkflowMode(1)}
                 paddingLeft={1}
                 paddingRight={1}
                 backgroundColor={theme.backgroundElement}
               >
-                <text fg={theme.text}>
-                  {paneVisibility() === "pinned" ? "pin" : paneVisibility() === "hidden" ? "hide" : "auto"}
+                <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                  {workflowMode()}
                 </text>
-              </box>
-              <text fg={theme.textMuted}>·</text>
-              <box
-                onMouseUp={() => {
-                  const next = paneFollowMode() === "smart" ? "live" : "smart"
-                  setPaneFollowMode(() => next)
-                  setSmartFollowActive(true)
-                  setPendingUpdates(0)
-                }}
-                paddingLeft={1}
-                paddingRight={1}
-                backgroundColor={theme.backgroundElement}
-              >
-                <text fg={theme.text}>{paneFollowMode()}</text>
               </box>
               <text fg={theme.textMuted}>·</text>
               <box
@@ -2149,30 +2157,14 @@ export function Session() {
               </box>
               <text fg={theme.textMuted}>·</text>
               <box
-                onMouseUp={() => setSlowStream((prev) => !prev)}
-                paddingLeft={1}
-                paddingRight={1}
-                backgroundColor={slowStream() ? theme.backgroundElement : undefined}
-              >
-                <text fg={slowStream() ? theme.primary : theme.textMuted}>slow</text>
-              </box>
-              <text fg={theme.textMuted}>·</text>
-              <box
-                onMouseUp={() => cycleTheme(-1)}
-                paddingLeft={1}
-                paddingRight={1}
-                backgroundColor={theme.backgroundElement}
-              >
-                <text fg={theme.textMuted}>theme</text>
-              </box>
-              <text fg={theme.text}>{selectedThemeShort()}</text>
-              <box
                 onMouseUp={() => cycleTheme(1)}
                 paddingLeft={1}
                 paddingRight={1}
                 backgroundColor={theme.backgroundElement}
               >
-                <text fg={theme.textMuted}>+</text>
+                <text fg={theme.textMuted}>
+                  theme <span style={{ fg: theme.text }}>{selectedThemeShort()}</span>
+                </text>
               </box>
             </box>
           </box>
@@ -2218,7 +2210,7 @@ export function Session() {
                       minHeight={0}
                       flexDirection="column"
                       border={["top", "right", "bottom", "left"]}
-                      borderColor={theme.borderSubtle}
+                      borderColor={theme.backgroundElement}
                     >
                       <scrollbox
                         ref={(r: ScrollBoxRenderable | undefined) => {
@@ -2345,30 +2337,49 @@ export function Session() {
                       width={liveStacked() ? "100%" : livePaneWidth()}
                       minHeight={0}
                       backgroundColor={theme.backgroundPanel}
-                      scrollAcceleration={scrollAcceleration()}
-                    >
-                      <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
-                        <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                          <For each={PANE_MODES}>
-                            {(mode, modeIndex) => (
-                              <>
-                                <Show when={modeIndex() > 0}>
-                                  <text fg={theme.borderSubtle}>|</text>
-                                </Show>
+                        scrollAcceleration={scrollAcceleration()}
+                      >
+                        <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
+                        <box
+                          flexDirection="column"
+                          gap={1}
+                          border={["bottom"]}
+                          borderColor={theme.border}
+                          paddingBottom={1}
+                        >
+                          <box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
+                            <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="truncate-end">
+                              {Locale.titlecase(paneLabel(activePaneMode()))}
+                            </text>
+                            <Show when={paneBadge(activePaneMode())}>
+                              <text fg={theme.primary}>{paneBadge(activePaneMode())}</text>
+                            </Show>
+                          </box>
+                          <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                            <For each={PANE_MODES}>
+                              {(mode) => (
                                 <box
+                                  flexShrink={0}
                                   onMouseUp={() => {
                                     setPaneMode(() => mode)
                                     if (paneVisibility() === "hidden") {
                                       setPaneVisibility(() => "pinned")
                                     }
                                   }}
+                                  paddingLeft={1}
                                   paddingRight={1}
+                                  backgroundColor={
+                                    activePaneMode() === mode ? theme.backgroundElement : theme.backgroundPanel
+                                  }
+                                  border={activePaneMode() === mode ? ["all"] : undefined}
+                                  borderColor={activePaneMode() === mode ? theme.borderActive : undefined}
                                 >
                                   <text
-                                    fg={activePaneMode() === mode ? theme.text : theme.textMuted}
+                                    fg={activePaneMode() === mode ? theme.primary : theme.textMuted}
                                     attributes={activePaneMode() === mode ? TextAttributes.BOLD : undefined}
+                                    wrapMode="none"
                                   >
-                                    {paneLabel(mode)}
+                                    {compactPaneTabs() ? paneCompactLabel(mode, explainMode()) : paneLabel(mode)}
                                     <Show when={paneBadge(mode)}>
                                       <span style={{ fg: activePaneMode() === mode ? theme.primary : theme.textMuted }}>
                                         {" "}
@@ -2377,9 +2388,28 @@ export function Session() {
                                     </Show>
                                   </text>
                                 </box>
-                              </>
-                            )}
-                          </For>
+                              )}
+                            </For>
+                          </box>
+                          <Show when={incompleteTodoCount() > 0 || trustSurface().label !== "idle" || pendingRaoCount() > 0}>
+                            <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                              <Show when={incompleteTodoCount() > 0}>
+                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                  <text fg={theme.text}>todo {incompleteTodoCount()}</text>
+                                </box>
+                              </Show>
+                              <Show when={trustSurface().label !== "idle"}>
+                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                  <text fg={trustSurface().color}>trust {trustSurface().label}</text>
+                                </box>
+                              </Show>
+                              <Show when={pendingRaoCount() > 0}>
+                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                  <text fg={theme.warning}>attention {pendingRaoCount()}</text>
+                                </box>
+                              </Show>
+                            </box>
+                          </Show>
                         </box>
                         <Switch>
                           <Match when={activePaneMode() === "diff"}>
@@ -2449,6 +2479,9 @@ export function Session() {
                                 setPaneVisibility(() => "auto")
                               }}
                             />
+                          </Match>
+                          <Match when={activePaneMode() === "audit"}>
+                            <AuditLogPane history={auditHistory()} latest={latestAudit()} />
                           </Match>
                           <Match when={activePaneMode() === "approvals"}>
                             <box flexGrow={1} minHeight={0}>
@@ -2970,20 +3003,20 @@ function UserMessage(props: {
         <box
           id={props.message.id}
           marginTop={1}
-          marginBottom={1}
-          borderStyle="round"
+          marginBottom={0}
+          border={["left"]}
           borderColor={theme.accent}
           backgroundColor={tint(theme.background, theme.accent, 0.02)}
           paddingLeft={1}
-          paddingRight={1}
+          paddingRight={0}
         >
           <box onMouseUp={props.onMouseUp} flexShrink={0}>
             <box
               flexDirection="row"
               gap={1}
               alignItems="center"
-              paddingTop={1}
-              paddingBottom={1}
+              paddingTop={0}
+              paddingBottom={0}
               border={["bottom"]}
               borderColor={theme.backgroundElement}
               marginBottom={1}
@@ -2999,7 +3032,7 @@ function UserMessage(props: {
                 </text>
               </Show>
             </box>
-            <box paddingLeft={1} paddingRight={1} paddingBottom={1}>
+            <box paddingLeft={1} paddingRight={1} paddingBottom={0}>
               <text fg={theme.accent} wrapMode="word" attributes={TextAttributes.BOLD}>
                 {text()?.text}
               </text>
@@ -3062,10 +3095,10 @@ function StageTimeline(props: StageTimelineProps) {
 
   return (
     <Show when={props.visible}>
-      <box paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1} flexDirection="column" gap={1}>
+      <box paddingLeft={2} paddingRight={2} paddingTop={0} paddingBottom={0} flexDirection="column" gap={0}>
         <Switch>
           <Match when={showFlow()}>
-            <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
+            <box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" marginTop={1}>
               <For each={PRIMARY_STAGE_FLOW}>
                 {(stage, index) => {
                   const idx = index()
@@ -3438,20 +3471,20 @@ function AssistantMessage(props: {
 
       <box
         paddingLeft={1}
-        paddingRight={1}
+        paddingRight={0}
         flexDirection="column"
-        borderStyle="round"
+        border={["left"]}
         borderColor={theme.primary}
         backgroundColor={tint(theme.background, theme.primary, 0.02)}
         marginTop={1}
-        marginBottom={1}
+        marginBottom={0}
       >
         <box
           flexDirection="row"
           gap={1}
           alignItems="center"
-          paddingTop={1}
-          paddingBottom={1}
+          paddingTop={0}
+          paddingBottom={0}
           border={["bottom"]}
           borderColor={theme.backgroundElement}
           marginBottom={1}
@@ -3469,7 +3502,7 @@ function AssistantMessage(props: {
             </text>
           </Show>
         </box>
-        <box paddingLeft={1} paddingRight={1} paddingBottom={1}>
+        <box paddingLeft={1} paddingRight={1} paddingBottom={0}>
           <For each={groupedParts()}>
             {(part, index) => {
               const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -3511,7 +3544,7 @@ function AssistantMessage(props: {
             flexDirection="row"
             gap={1}
             alignItems="center"
-            marginTop={1}
+            marginTop={0}
             marginBottom={1}
             paddingLeft={2}
             paddingRight={2}
@@ -3580,21 +3613,25 @@ function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: T
 }
 
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage; marginTop?: number }) {
-  const { theme, subtleSyntax } = useTheme()
+  const { theme, syntax } = useTheme()
   const ctx = use()
   const content = createMemo(() => {
-    return props.part.text.replace("[REDACTED]", "").trim()
+    return props.part.text
+      .replace("[REDACTED]", "")
+      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+      .trim()
   })
+  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
 
   return (
     <Show when={content() && ctx.showThinking()}>
       <box
         id={"text-" + props.part.id}
         paddingLeft={1}
-        paddingRight={1}
+        paddingRight={0}
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
-        borderStyle="round"
+        border={["left"]}
         borderColor={theme.primary}
         backgroundColor={tint(theme.background, theme.primary, 0.01)}
       >
@@ -3602,10 +3639,8 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
           flexDirection="row"
           gap={1}
           alignItems="center"
-          paddingTop={1}
           border={["bottom"]}
           borderColor={theme.backgroundElement}
-          paddingBottom={1}
           marginBottom={1}
         >
           <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
@@ -3613,7 +3648,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
               THINKING
             </text>
           </box>
-          <text fg={theme.primary} attributes={TextAttributes.DIM}>
+          <text fg={theme.textMuted}>
             reasoning active
           </text>
         </box>
@@ -3622,11 +3657,10 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
             filetype="markdown"
             drawUnstyledText={false}
             streaming={true}
-            syntaxStyle={subtleSyntax()}
+            syntaxStyle={syntax()}
             content={content()}
             conceal={ctx.conceal()}
-            fg={theme.primary}
-            attributes={TextAttributes.DIM}
+            fg={reasoningFg()}
           />
         </box>
       </box>
@@ -3884,15 +3918,15 @@ function BlockTool(props: {
 
   return (
     <box
-      borderStyle="round"
+      border={["left"]}
       paddingTop={0}
       paddingBottom={0}
       paddingLeft={1}
-      paddingRight={1}
+      paddingRight={0}
       marginTop={1}
       gap={0}
       backgroundColor={hover() ? hoverBackground() : statusBackground()}
-      borderColor={hover() ? accent() : theme.backgroundElement}
+      borderColor={accent()}
       onMouseOver={() => props.onClick && setHover(true)}
       onMouseOut={() => setHover(false)}
       onMouseUp={() => {
@@ -3903,8 +3937,8 @@ function BlockTool(props: {
       <box
         flexDirection="row"
         justifyContent="space-between"
-        paddingTop={1}
-        paddingBottom={1}
+        paddingTop={0}
+        paddingBottom={0}
         border={["bottom"]}
         borderColor={theme.backgroundElement}
         marginBottom={1}
@@ -3959,7 +3993,7 @@ function toolAccentColor(tool: string, theme: ThemeShape) {
   return theme.borderActive
 }
 
-function Bash(props: ToolProps<typeof BashTool>) {
+function Bash(props: ToolProps<typeof ShellTool>) {
   const { theme } = useTheme()
   const sync = useSync()
   const isRunning = createMemo(() => props.part.state.status === "running")
