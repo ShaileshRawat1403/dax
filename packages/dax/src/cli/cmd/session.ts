@@ -897,7 +897,7 @@ function approvalResolutionSummary(reply: string, permission: string) {
 
 function formatPermissionReference(permission: string) {
   switch (permission) {
-    case "bash":
+    case "shell":
       return "command execution"
     case "edit":
       return "file edits"

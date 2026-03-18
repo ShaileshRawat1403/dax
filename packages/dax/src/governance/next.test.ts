@@ -25,18 +25,18 @@ describe("permission approvals", () => {
 
           const once = Permission.ask({
             sessionID: "session_once",
-            permission: "bash",
+            permission: "shell",
             patterns: [testCommand],
             always: [testCommand],
             metadata: {},
             ruleset: Permission.fromConfig({
-              bash: "ask",
+              shell: "ask",
             } as any),
           })
 
           const pending = await Permission.list()
           expect(pending.length).toBe(1)
-          expect(pending[0]?.permission).toBe("bash")
+          expect(pending[0]?.permission).toBe("shell")
 
           await Permission.reply({
             requestID: pending[0]!.id,
@@ -47,12 +47,12 @@ describe("permission approvals", () => {
 
           const persisted = Permission.ask({
             sessionID: "session_always",
-            permission: "bash",
+            permission: "shell",
             patterns: [buildCommand],
             always: [buildCommand],
             metadata: {},
             ruleset: Permission.fromConfig({
-              bash: "ask",
+              shell: "ask",
             } as any),
           })
 
@@ -69,12 +69,12 @@ describe("permission approvals", () => {
           await expect(
             Permission.ask({
               sessionID: "session_replay",
-              permission: "bash",
+              permission: "shell",
               patterns: [buildCommand],
               always: [buildCommand],
               metadata: {},
               ruleset: Permission.fromConfig({
-                bash: "ask",
+                shell: "ask",
               } as any),
             }),
           ).resolves.toBeUndefined()
@@ -109,19 +109,19 @@ describe("permission approvals", () => {
 
           const first = Permission.ask({
             sessionID: "session_reject",
-            permission: "bash",
+            permission: "shell",
             patterns: [firstCommand],
             always: [firstCommand],
             metadata: {},
-            ruleset: Permission.fromConfig({ bash: "ask" } as any),
+            ruleset: Permission.fromConfig({ shell: "ask" } as any),
           })
           const second = Permission.ask({
             sessionID: "session_reject",
-            permission: "bash",
+            permission: "shell",
             patterns: [secondCommand],
             always: [secondCommand],
             metadata: {},
-            ruleset: Permission.fromConfig({ bash: "ask" } as any),
+            ruleset: Permission.fromConfig({ shell: "ask" } as any),
           })
 
           const pending = await Permission.list()

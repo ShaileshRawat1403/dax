@@ -108,7 +108,7 @@ addDefaultParsers(parsers.parsers)
 
 const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
 const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
-const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"])
+const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "shell"])
 const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
 const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
 type PMTab = "note" | "list" | "rules"
@@ -2444,6 +2444,10 @@ export function Session() {
                                 promptRef.current?.set({ ...promptRef.current!.current, input: prompt })
                                 kv.set(DAX_SETTING.session_refined_prompt, prompt)
                               }}
+                              onSubmit={() => {
+                                promptRef.current?.submit()
+                                setPaneVisibility(() => "auto")
+                              }}
                             />
                           </Match>
                           <Match when={activePaneMode() === "approvals"}>
@@ -3691,7 +3695,7 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
   return (
     <Show when={!shouldHide()}>
       <Switch>
-        <Match when={props.part.tool === "bash"}>
+        <Match when={props.part.tool === "shell"}>
           <Bash {...toolprops} />
         </Match>
         <Match when={props.part.tool === "glob"}>

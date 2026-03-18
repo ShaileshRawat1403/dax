@@ -13,7 +13,7 @@ describe("workstation presentation model", () => {
         { content: "Scan dependencies", status: "in_progress" },
         { content: "Generate report", status: "pending" },
       ],
-      approvals: [{ label: "bash", reason: "external API access" }],
+      approvals: [{ label: "shell", reason: "external API access" }],
       questions: 0,
       artifacts: [{ label: "scan_report.json", kind: "workspace_file" }],
       diffCount: 1,

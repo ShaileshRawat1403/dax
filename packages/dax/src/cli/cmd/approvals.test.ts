@@ -14,7 +14,7 @@ describe("approvals command", () => {
       id: "permission_123",
       createdAt: 1_700_000_000_000,
       sessionID: "session_123",
-      permission: "bash",
+      permission: "shell",
       patterns: ["npm run build"],
       metadata: { description: "Run build before packaging" },
       always: ["npm run build"],
@@ -25,7 +25,7 @@ describe("approvals command", () => {
     })
 
     expect(row.status).toBe("awaiting_operator_decision")
-    expect(row.requested_action).toBe("bash npm run build")
+    expect(row.requested_action).toBe("shell npm run build")
     expect(row.reason).toBe("Run build before packaging")
     expect(row.session_id).toBe("session_123")
   })
@@ -51,7 +51,7 @@ describe("approvals command", () => {
 
           void Permission.ask({
             sessionID: "session_approval_view",
-            permission: "bash",
+            permission: "shell",
             patterns: [approvalCommand],
             always: [approvalCommand],
             metadata: { description: "Run test suite" },
@@ -65,7 +65,7 @@ describe("approvals command", () => {
           const rendered = formatApprovalTable([row])
           expect(rendered).toContain("Approval ID: " + row.id)
           expect(rendered).toContain("Status: Awaiting operator decision")
-          expect(rendered).toContain("Requested operation: bash " + approvalCommand)
+          expect(rendered).toContain("Requested operation: shell " + approvalCommand)
           expect(rendered).toContain("Related session: session_approval_view")
           expect(rendered).toContain("Reason: Run test suite")
         })
