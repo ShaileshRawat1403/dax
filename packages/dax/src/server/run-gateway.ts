@@ -43,6 +43,7 @@ const listeners = new Map<string, Set<(event: RunEvent) => void>>()
 const partStatusByRun = new Map<string, Map<string, string>>()
 const artifactIdsByRun = new Map<string, Set<string>>()
 const trustSignatureByRun = new Map<string, string>()
+const appendEventTailByRun = new Map<string, Promise<void>>()
 let initialized = false
 
 function iso(timestamp: number | undefined) {
@@ -315,21 +316,38 @@ async function writeEvents(runId: string, events: RunEvent[]) {
   await Storage.write(["run_events", Instance.project.id, runId], events)
 }
 
+function queueRunEventMutation<T>(runId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = appendEventTailByRun.get(runId) ?? Promise.resolve()
+  const next = previous.catch(() => undefined).then(operation)
+  const tail = next.then(
+    () => undefined,
+    () => undefined,
+  )
+  appendEventTailByRun.set(runId, tail)
+  return next.finally(() => {
+    if (appendEventTailByRun.get(runId) === tail) {
+      appendEventTailByRun.delete(runId)
+    }
+  })
+}
+
 async function appendEvent(runId: string, event: Omit<RunEvent, "schemaVersion" | "eventId" | "sequence" | "cursor">) {
-  const events = await readEvents(runId)
-  const sequence = (events.at(-1)?.sequence ?? 0) + 1
-  const eventId = `evt_${runId}_${sequence}`
-  const full: RunEvent = {
-    schemaVersion: "v1",
-    eventId,
-    sequence,
-    cursor: eventId,
-    ...event,
-  }
-  events.push(full)
-  await writeEvents(runId, events)
-  listeners.get(runId)?.forEach((listener) => listener(full))
-  return full
+  return queueRunEventMutation(runId, async () => {
+    const events = await readEvents(runId)
+    const sequence = (events.at(-1)?.sequence ?? 0) + 1
+    const eventId = `evt_${runId}_${sequence}`
+    const full: RunEvent = {
+      schemaVersion: "v1",
+      eventId,
+      sequence,
+      cursor: eventId,
+      ...event,
+    }
+    events.push(full)
+    await writeEvents(runId, events)
+    listeners.get(runId)?.forEach((listener) => listener(full))
+    return full
+  })
 }
 
 async function emitRunState(runId: string, nextStatus: RunSnapshot["status"], reason?: string) {
@@ -888,5 +906,9 @@ export namespace RunGateway {
       recentRuns,
       pendingApprovals: pendingApprovalSummaries,
     }
+  }
+
+  export const __testing = {
+    appendEvent,
   }
 }
