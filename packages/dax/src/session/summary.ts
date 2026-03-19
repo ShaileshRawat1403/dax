@@ -82,11 +82,19 @@ export namespace SessionSummary {
       messageID: z.string(),
     }),
     async (input) => {
-      const all = await Session.messages({ sessionID: input.sessionID })
-      await Promise.all([
-        summarizeSession({ sessionID: input.sessionID, messages: all }),
-        summarizeMessage({ messageID: input.messageID, messages: all }),
-      ])
+      try {
+        const all = await Session.messages({ sessionID: input.sessionID })
+        await Promise.all([
+          summarizeSession({ sessionID: input.sessionID, messages: all }),
+          summarizeMessage({ messageID: input.messageID, messages: all }),
+        ])
+      } catch (error) {
+        log.warn("session summary skipped due to non-critical summarization error", {
+          sessionID: input.sessionID,
+          messageID: input.messageID,
+          error,
+        })
+      }
     },
   )
 
