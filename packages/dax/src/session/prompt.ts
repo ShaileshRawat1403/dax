@@ -646,7 +646,7 @@ export namespace SessionPrompt {
         SessionSummary.summarize({
           sessionID: sessionID,
           messageID: lastUser.id,
-        })
+        }).catch(() => {})
       }
 
       const sessionMessages = clone(msgs)
