@@ -19,6 +19,9 @@ export namespace SessionV2 {
       goal: z.string(),
       successCriteria: z.string().array(),
       explicitConstraints: z.string().array(),
+      executionPlan: z.string().array().optional(),
+      contextSignals: z.string().array().optional(),
+      operatorWatchouts: z.string().array().optional(),
       requiredFramework: z.string().optional(),
     }).optional(),
   }).meta({

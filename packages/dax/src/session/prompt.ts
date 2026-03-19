@@ -2162,9 +2162,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
     }
 
+    const sessionRecord = await Session.get(input.sessionID)
     const contract = await refineIntent(rawInput, {
       cwd: Instance.directory,
       session_id: input.sessionID,
+      session_title: sessionRecord?.title,
     })
 
     const text =

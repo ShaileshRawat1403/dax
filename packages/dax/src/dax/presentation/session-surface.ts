@@ -30,6 +30,33 @@ export type AuditHistoryEntry = {
   createdAt: number
 }
 
+export type AssistantInsightCard = {
+  eyebrow: string
+  status: string
+  rows: Array<{
+    label: string
+    value: string
+  }>
+  metrics: Array<{
+    label: string
+    value: string
+    tone?: "primary" | "accent" | "muted"
+  }>
+  progressLine?: string
+}
+
+function nonEmptyTextPart(parts: Part[], type: "reasoning" | "text") {
+  return parts.some((part) => part.type === type && part.text.trim().length > 0)
+}
+
+function titlecase(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((token) => token[0]?.toUpperCase() + token.slice(1))
+    .join(" ")
+}
+
 export function parseAuditResult(text: string): AuditResult | undefined {
   if (!text) return
   const fenced = text.match(/```json\s*([\s\S]*?)```/i)?.[1]
@@ -121,4 +148,97 @@ export function deriveLiveSessionStageState(input: {
   }
 
   return { stage: "done", reason: "idle" }
+}
+
+export function deriveLiveStreamStatus(input: {
+  pendingID?: string
+  partsForMessage: (messageID: string) => Part[]
+}) {
+  if (!input.pendingID) return "idle"
+
+  const parts = input.partsForMessage(input.pendingID)
+  const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
+  if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} running`
+
+  const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
+  if (completedTool && completedTool.type === "tool") return `${completedTool.tool} completed`
+
+  if (nonEmptyTextPart(parts, "reasoning")) return "reasoning stream active"
+  if (nonEmptyTextPart(parts, "text")) return "response stream active"
+  return "waiting for stream content"
+}
+
+export function deriveStreamFidelitySnapshot(input: {
+  pendingID?: string
+  partsForMessage: (messageID: string) => Part[]
+}) {
+  const streamStatus = deriveLiveStreamStatus(input)
+  if (!input.pendingID) {
+    return {
+      streamStatus,
+      hasPendingTool: false,
+      hasCompletedTool: false,
+      hasVisibleReasoning: false,
+      hasVisibleText: false,
+    }
+  }
+
+  const parts = input.partsForMessage(input.pendingID)
+  return {
+    streamStatus,
+    hasPendingTool: parts.some((part) => part.type === "tool" && part.state.status === "pending"),
+    hasCompletedTool: parts.some((part) => part.type === "tool" && part.state.status === "completed"),
+    hasVisibleReasoning: nonEmptyTextPart(parts, "reasoning"),
+    hasVisibleText: nonEmptyTextPart(parts, "text"),
+  }
+}
+
+export function deriveAssistantInsightCard(input: {
+  asked: string
+  doing: string
+  next: string
+  stage: string
+  streamStatus: string
+  durationMs: number
+  totalTokens: number
+  tokensPerSecond: number
+  progress?: {
+    bar: string
+    current: number
+    total: number
+    percent: number
+  } | null
+}) : AssistantInsightCard {
+  const metrics: AssistantInsightCard["metrics"] = [
+    { label: "Stage", value: titlecase(input.stage), tone: "primary" as const },
+    { label: "Stream", value: input.streamStatus, tone: "accent" as const },
+  ]
+
+  if (input.durationMs > 0) {
+    metrics.push({
+      label: "Runtime",
+      value: `${Math.max(1, Math.round(input.durationMs / 1000))}s`,
+      tone: "muted" as const,
+    })
+  }
+  if (input.totalTokens > 0) {
+    metrics.push({ label: "Tokens", value: input.totalTokens.toLocaleString(), tone: "muted" as const })
+  }
+  if (input.tokensPerSecond > 0) {
+    metrics.push({ label: "Pace", value: `${input.tokensPerSecond.toFixed(0)}/s`, tone: "muted" as const })
+  }
+
+  return {
+    eyebrow: input.progress ? "Live execution board" : "DAX response board",
+    status: input.progress ? "active" : "steady",
+    rows: [
+      { label: "Mission", value: input.asked },
+      { label: "Now", value: input.doing },
+      { label: "Next", value: input.next },
+    ],
+    metrics,
+    progressLine: input.progress
+      ? `Flow  ${input.progress.bar}  Step ${input.progress.current}/${input.progress.total}  ${input.progress.percent}%`
+      : undefined,
+  }
 }

@@ -92,6 +92,7 @@ import { labelStage, type StreamStage } from "@/dax/workflow/stage"
 import { parsePMList, parsePMRules } from "@/pm/format"
 import {
   PANE_MODE,
+  deriveActivePaneMode,
   deriveAutoPaneMode,
   paneCompactLabel,
   shouldAutoShowPane,
@@ -102,7 +103,12 @@ import {
   paneTitle as daxPaneTitle,
 } from "@/dax/presentation/pane"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
-import { deriveAuditHistory, deriveLiveSessionStageState } from "@/dax/presentation/session-surface"
+import {
+  deriveAssistantInsightCard,
+  deriveAuditHistory,
+  deriveLiveSessionStageState,
+  deriveLiveStreamStatus,
+} from "@/dax/presentation/session-surface"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
 import { isEli12Mode } from "@/dax/intent"
@@ -305,15 +311,10 @@ export function Session() {
     return theme.accent
   })
   const streamStatus = createMemo(() => {
-    const pendingID = pending()
-    if (!pendingID) return "idle"
-    const parts = sync.data.part[pendingID] ?? []
-    const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
-    if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} running`
-    const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
-    if (completedTool && completedTool.type === "tool") return `${completedTool.tool} completed`
-    if (parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)) return "reasoning stream active"
-    return "response stream active"
+    return deriveLiveStreamStatus({
+      pendingID: pending(),
+      partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
+    })
   })
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
   const [pendingUpdates, setPendingUpdates] = createSignal(0)
@@ -399,16 +400,13 @@ export function Session() {
     const usage = contextUsage()
     if (usage) {
       items.push({
-        label: usage.percentage !== null ? `C:${usage.percentage}%` : `C:${usage.tokens.toLocaleString()}`,
+        label: usage.percentage !== null ? `context ${usage.percentage}%` : `context ${usage.tokens.toLocaleString()}`,
       })
     }
     if (!stripCompact()) {
-      items.push({ label: `${sessionTokenCount().toLocaleString()}t` })
+      items.push({ label: `tokens ${sessionTokenCount().toLocaleString()}` })
       if (sessionGeneratedTokenCount() > 0) {
-        items.push({ label: `G:${sessionGeneratedTokenCount().toLocaleString()}` })
-      }
-      if (sessionElapsedLabel()) {
-        items.push({ label: sessionElapsedLabel()! })
+        items.push({ label: `generated ${sessionGeneratedTokenCount().toLocaleString()}` })
       }
       items.push({ label: sessionCostLabel() })
     } else {
@@ -757,6 +755,92 @@ export function Session() {
     }
     return ""
   })
+  const latestUserAsk = createMemo(() => {
+    for (const message of [...messages()].reverse()) {
+      if (message.role !== "user") continue
+      const text = messageText(message.id)
+      if (!text) continue
+      if (text.startsWith("/")) continue
+      return text
+    }
+    return ""
+  })
+  const liveMissionGoal = createMemo(() => {
+    const sessionTitle = session()?.title?.trim()
+    const latestAsk = latestUserAsk().trim()
+    const lowSignalAsk =
+      !latestAsk ||
+      /^(hi|hello|hey|yo|sup|hola|greetings|good (morning|afternoon|evening)|what's up|whats up)$/i.test(latestAsk) ||
+      latestAsk.split(/\s+/).length <= 2
+    const genericTitle =
+      !sessionTitle ||
+      /^(greeting|greeting and .*|new run|session|hello|hi)$/i.test(sessionTitle) ||
+      sessionTitle.split(/\s+/).length <= 2
+
+    if (lowSignalAsk && genericTitle) return "Initial check-in"
+    if (lowSignalAsk && sessionTitle) return sessionTitle
+    if (latestAsk && genericTitle) return latestAsk
+    if (latestAsk && sessionTitle && latestAsk.toLowerCase() !== sessionTitle.toLowerCase() && latestAsk.length > sessionTitle.length) {
+      return latestAsk
+    }
+    return sessionTitle || latestAsk
+  })
+  const recentTools = createMemo(() => {
+    const items: Array<{ tool: string; status: string; label: string }> = []
+    for (const msg of [...messages()].reverse()) {
+      if (msg.role !== "assistant") continue
+      for (const part of [...(sync.data.part[msg.id] ?? [])].reverse()) {
+        if (part.type !== "tool") continue
+        const input = (part.state.input ?? {}) as Record<string, any>
+        const target = input.path || input.file || input.filename || input.target || input.command || ""
+        items.push({
+          tool: part.tool,
+          status: part.state.status,
+          label: target ? `${part.tool} · ${String(target)}` : part.tool,
+        })
+        if (items.length >= 5) return items
+      }
+    }
+    return items
+  })
+  const liveMilestones = createMemo(() => {
+    if (todo().length > 0) {
+      return todo().slice(0, 6).map((item) => ({
+        label: item.content,
+        status:
+          item.status === "completed"
+            ? "done"
+            : item.status === "in_progress"
+              ? "active"
+              : "pending",
+      }))
+    }
+
+    const items: Array<{ label: string; status: "done" | "active" | "pending" }> = []
+    const stage = stageState().stage
+    const stageReasonText = stageState().reason
+    if (liveMissionGoal()) items.push({ label: `Scope request: ${liveMissionGoal()}`, status: "done" })
+    if (recentTools().length > 0) {
+      items.push(
+        ...recentTools()
+          .slice(0, 2)
+          .map((tool) => ({
+            label: tool.label,
+            status: tool.status === "completed" ? ("done" as const) : tool.status === "pending" ? ("active" as const) : ("pending" as const),
+          })),
+      )
+    }
+    if (stageReasonText && items.length < 4) {
+      items.push({
+        label: stageReasonText,
+        status: stage === "done" ? "done" : stage === "waiting" ? "pending" : "active",
+      })
+    }
+    if (pendingRaoCount() > 0) {
+      items.push({ label: `${pendingRaoCount()} approval or question item${pendingRaoCount() === 1 ? "" : "s"} need attention`, status: "pending" })
+    }
+    return items.slice(0, 5)
+  })
 
   const auditHistory = createMemo(() =>
     deriveAuditHistory({
@@ -906,23 +990,12 @@ export function Session() {
     return workflowMode() === "audit" || audit?.status === "warn" || audit?.status === "fail"
   })
   const hasPlanContext = createMemo(() => hasPlanNeed() || todo().length > 0 || !!session()?.title)
-  const recentTools = createMemo(() => {
-    const items: Array<{ tool: string; status: string; label: string }> = []
-    for (const msg of [...messages()].reverse()) {
-      if (msg.role !== "assistant") continue
-      for (const part of [...(sync.data.part[msg.id] ?? [])].reverse()) {
-        if (part.type !== "tool") continue
-        const input = (part.state.input ?? {}) as Record<string, any>
-        const target = input.path || input.file || input.filename || input.target || input.command || ""
-        items.push({
-          tool: part.tool,
-          status: part.state.status,
-          label: target ? `${part.tool} · ${String(target)}` : part.tool,
-        })
-        if (items.length >= 5) return items
-      }
-    }
-    return items
+  const priorityPaneMode = createMemo<PaneMode>(() => {
+    if (hasApprovalsNeed()) return "approvals"
+    if (hasRefineNeed()) return "refine"
+    if (hasDiffNeed()) return "diff"
+    if (hasAuditNeed()) return "audit"
+    return "plan"
   })
   const paneBadge = (mode: PaneMode) => {
     switch (mode) {
@@ -957,7 +1030,7 @@ export function Session() {
       stage: stageState().stage,
       stageReason: stageState().reason,
       sessionStatusType: sessionStatusType(),
-      goal: session()?.title,
+      goal: liveMissionGoal(),
       todo: todo(),
       approvals: permissions().map((permission) => ({
         label: permission.permission ?? permission.tool?.callID ?? "approval",
@@ -966,6 +1039,7 @@ export function Session() {
       questions: questions().length,
       artifacts: sessionArtifacts(),
       diffCount: revert()?.diffFiles?.length ?? 0,
+      recentTooling: recentTools(),
       audit: latestAudit()?.result
         ? {
             status: latestAudit()!.result!.status,
@@ -991,17 +1065,25 @@ export function Session() {
       hasPlanContext: hasPlanContext(),
     })
   })
-  const activePaneMode = createMemo<PaneMode>(() => {
-    if (paneVisibility() === "pinned") return paneMode()
-    return deriveAutoPaneMode({
+  const activePaneMode = createMemo<PaneMode>(() =>
+    deriveActivePaneMode({
       hasApprovals: hasApprovalsNeed(),
       hasRefineDraft: hasRefineNeed(),
       hasAuditAttention: hasAuditNeed(),
       hasPlanContext: hasPlanContext(),
-      fallback: paneMode(),
-    })
+      fallback: priorityPaneMode(),
+      paneMode: paneMode(),
+      paneVisibility: paneVisibility(),
+      paneFollowMode: paneFollowMode(),
+      smartFollowActive: smartFollowActive(),
+    }),
+  )
+  createEffect(() => {
+    if (activePaneMode() !== "approvals") return
+    if (!showPane()) return
+    // Hand control to the approval/question pane when operator action is required.
+    prompt?.blur()
   })
-
   const openDiffDialog = () => {
     if (!revert()?.diffFiles?.length) return
     dialog.replace(() => (
@@ -1041,6 +1123,12 @@ export function Session() {
   const openPmPane = () => {
     setPaneMode(() => "plan")
     setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+  }
+
+  const selectPaneMode = (mode: PaneMode) => {
+    setPaneMode(() => mode)
+    setPaneVisibility(() => "pinned")
+    setSmartFollowActive(false)
   }
 
   const jumpLastUserMessage = () => {
@@ -2030,13 +2118,10 @@ export function Session() {
                     {session()!.title}
                   </text>
                 </Show>
-                <Show when={!stripCompact()}>
-                  <text fg={theme.textMuted}>·</text>
-                  <text fg={theme.textMuted}>{streamStatus()}</text>
-                </Show>
                 <Show when={explainMode()}>
-                  <text fg={theme.textMuted}>·</text>
-                  <text fg={theme.success}>ELI12</text>
+                  <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                    <text fg={theme.textMuted}>eli12</text>
+                  </box>
                 </Show>
                 <Show when={pending()}>
                   <Spinner />
@@ -2074,19 +2159,29 @@ export function Session() {
                 backgroundColor={theme.backgroundElement}
               >
                 <text fg={theme.accent}>
-                  mode <span style={{ fg: theme.text, attributes: TextAttributes.BOLD }}>{workflowMode()}</span>
+                  agent <span style={{ fg: theme.text }}>{workflowMode()}</span>
                 </text>
               </box>
-              <text fg={theme.textMuted}>·</text>
+              <box
+                onMouseUp={cyclePaneVisibility}
+                paddingLeft={1}
+                paddingRight={1}
+                backgroundColor={theme.backgroundElement}
+              >
+                <text fg={theme.textMuted}>
+                  pane <span style={{ fg: theme.text }}>{paneVisibility()}</span>
+                </text>
+              </box>
               <box
                 onMouseUp={() => setShowDetails((prev) => !prev)}
                 paddingLeft={1}
                 paddingRight={1}
-                backgroundColor={showDetails() ? theme.backgroundElement : undefined}
+                backgroundColor={theme.backgroundElement}
               >
-                <text fg={showDetails() ? theme.primary : theme.textMuted}>trace</text>
+                <text fg={showDetails() ? theme.primary : theme.textMuted}>
+                  details <span style={{ fg: showDetails() ? theme.text : theme.textMuted }}>{showDetails() ? "on" : "off"}</span>
+                </text>
               </box>
-              <text fg={theme.textMuted}>·</text>
               <box
                 onMouseUp={() => cycleTheme(1)}
                 paddingLeft={1}
@@ -2278,32 +2373,23 @@ export function Session() {
                           borderColor={theme.border}
                           paddingBottom={1}
                         >
-                          <box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
-                            <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="truncate-end">
-                              {Locale.titlecase(paneLabel(activePaneMode()))}
-                            </text>
-                            <Show when={paneBadge(activePaneMode())}>
-                              <text fg={theme.primary}>{paneBadge(activePaneMode())}</text>
-                            </Show>
-                          </box>
                           <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                             <For each={PANE_MODES}>
                               {(mode) => (
                                 <box
                                   flexShrink={0}
-                                  onMouseUp={() => {
-                                    setPaneMode(() => mode)
-                                    if (paneVisibility() === "hidden") {
-                                      setPaneVisibility(() => "pinned")
-                                    }
-                                  }}
+                                  onMouseUp={() => selectPaneMode(mode)}
                                   paddingLeft={1}
                                   paddingRight={1}
+                                  paddingTop={0}
+                                  paddingBottom={0}
                                   backgroundColor={
-                                    activePaneMode() === mode ? theme.backgroundElement : theme.backgroundPanel
+                                    activePaneMode() === mode
+                                      ? tint(theme.background, theme.primary, 0.12)
+                                      : theme.backgroundElement
                                   }
-                                  border={activePaneMode() === mode ? ["all"] : undefined}
-                                  borderColor={activePaneMode() === mode ? theme.borderActive : undefined}
+                                  border={["bottom"]}
+                                  borderColor={activePaneMode() === mode ? theme.primary : theme.borderSubtle}
                                 >
                                   <text
                                     fg={activePaneMode() === mode ? theme.primary : theme.textMuted}
@@ -2322,11 +2408,26 @@ export function Session() {
                               )}
                             </For>
                           </box>
-                          <Show when={incompleteTodoCount() > 0 || trustSurface().label !== "idle" || pendingRaoCount() > 0}>
+                          <Show
+                            when={
+                              workstationState().planSummary.totalSteps > 0 ||
+                              trustSurface().label !== "idle" ||
+                              pendingRaoCount() > 0 ||
+                              workstationState().artifactSummary.count > 0
+                            }
+                          >
                             <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                              <Show when={incompleteTodoCount() > 0}>
+                              <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                <text fg={theme.text}>
+                                  {workstationState().lifecycleLabel.toLowerCase()}
+                                </text>
+                              </box>
+                              <Show when={workstationState().planSummary.totalSteps > 0}>
                                 <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
-                                  <text fg={theme.text}>todos {incompleteTodoCount()}</text>
+                                  <text fg={theme.text}>
+                                    todo {workstationState().planSummary.currentStepIndex}/
+                                    {workstationState().planSummary.totalSteps}
+                                  </text>
                                 </box>
                               </Show>
                               <Show when={trustSurface().label !== "idle"}>
@@ -2337,6 +2438,20 @@ export function Session() {
                               <Show when={pendingRaoCount() > 0}>
                                 <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
                                   <text fg={theme.warning}>attention {pendingRaoCount()}</text>
+                                </box>
+                              </Show>
+                              <Show when={workstationState().artifactSummary.count > 0}>
+                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                  <text fg={theme.textMuted}>
+                                    artifacts {workstationState().artifactSummary.count}
+                                  </text>
+                                </box>
+                              </Show>
+                              <Show when={paneBadge(activePaneMode())}>
+                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                  <text fg={theme.primary}>
+                                    {paneLabel(activePaneMode())} {paneBadge(activePaneMode())}
+                                  </text>
                                 </box>
                               </Show>
                             </box>
@@ -2407,7 +2522,10 @@ export function Session() {
                               }}
                               onSubmit={() => {
                                 promptRef.current?.submit()
+                                kv.set(DAX_SETTING.session_refined_prompt, "")
+                                setPaneMode(() => "plan")
                                 setPaneVisibility(() => "auto")
+                                setSmartFollowActive(true)
                               }}
                             />
                           </Match>
@@ -2425,7 +2543,165 @@ export function Session() {
                           </Match>
                           <Match when={activePaneMode() === "plan"}>
                             <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
-                              <text fg={theme.text}>Project memory</text>
+                              <Show
+                                when={
+                                  !!workstationState().goal ||
+                                  !!workstationState().currentStep ||
+                                  liveMilestones().length > 0 ||
+                                  workstationState().activitySummary.items.length > 0
+                                }
+                              >
+                                <box
+                                  flexDirection="column"
+                                  gap={1}
+                                  border={["round"]}
+                                  borderColor={theme.borderSubtle}
+                                  backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.03)}
+                                  padding={1}
+                                >
+                                  <Show when={workstationState().goal}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={theme.backgroundElement}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
+                                    >
+                                      <text fg={theme.textMuted}>Goal</text>
+                                      <text fg={theme.text} wrapMode="word" bold>
+                                        {workstationState().goal}
+                                      </text>
+                                    </box>
+                                  </Show>
+                                  <Show when={workstationState().currentStep}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={theme.backgroundElement}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
+                                    >
+                                      <text fg={theme.textMuted}>Current focus</text>
+                                      <text fg={theme.text} wrapMode="word">
+                                        {workstationState().currentStep}
+                                      </text>
+                                    </box>
+                                  </Show>
+                                  <Show when={liveMilestones().length > 0}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={theme.backgroundElement}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
+                                    >
+                                      <text fg={theme.textMuted}>Milestone board</text>
+                                      <For each={liveMilestones()}>
+                                        {(item) => (
+                                          <box flexDirection="row" justifyContent="space-between" gap={1}>
+                                            <text
+                                              fg={
+                                                item.status === "done"
+                                                  ? theme.success
+                                                  : item.status === "active"
+                                                    ? theme.text
+                                                    : theme.textMuted
+                                              }
+                                              wrapMode="word"
+                                            >
+                                              {item.status === "done" ? "✓" : item.status === "active" ? "●" : "◌"} {item.label}
+                                            </text>
+                                            <text fg={theme.textMuted}>
+                                              {item.status === "done"
+                                                ? "done"
+                                                : item.status === "active"
+                                                  ? "active"
+                                                  : "queued"}
+                                            </text>
+                                          </box>
+                                        )}
+                                      </For>
+                                    </box>
+                                  </Show>
+                                  <Show when={workstationState().approvalSummary.pendingCount > 0}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={tint(theme.backgroundElement, theme.warning, 0.08)}
+                                      border={["round"]}
+                                      borderColor={theme.warning}
+                                    >
+                                      <text fg={theme.warning}>Needs attention</text>
+                                      <text fg={theme.text}>
+                                        ● {workstationState().approvalSummary.topLabel ?? "Approval"} ·{" "}
+                                        {workstationState().approvalSummary.pendingCount} waiting
+                                      </text>
+                                    </box>
+                                  </Show>
+                                  <Show when={workstationState().activitySummary.items.length > 0}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={theme.backgroundElement}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
+                                    >
+                                      <text fg={theme.textMuted}>Active thread</text>
+                                      <For each={workstationState().activitySummary.items.slice(0, 3)}>
+                                        {(item) => <text fg={theme.text}>● {item}</text>}
+                                      </For>
+                                    </box>
+                                  </Show>
+                                  <Show when={recentTools().length > 0}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={theme.backgroundElement}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
+                                    >
+                                      <text fg={theme.textMuted}>Recent tooling</text>
+                                      <For each={recentTools().slice(0, 2)}>
+                                        {(item) => (
+                                          <box flexDirection="row" justifyContent="space-between" gap={1}>
+                                            <text fg={item.status === "pending" ? theme.warning : theme.text}>
+                                              {item.status === "pending" ? "◌" : "✓"} {item.label}
+                                            </text>
+                                            <text fg={theme.textMuted}>
+                                              {item.status === "pending" ? "running" : item.status}
+                                            </text>
+                                          </box>
+                                        )}
+                                      </For>
+                                    </box>
+                                  </Show>
+                                </box>
+                              </Show>
+                              <Show when={todo().length > 0}>
+                                <box flexDirection="column" gap={1}>
+                                  <text fg={theme.text}>Execution plan</text>
+                                  <box
+                                    flexDirection="column"
+                                    gap={1}
+                                    border={["round"]}
+                                    borderColor={theme.borderSubtle}
+                                    backgroundColor={tint(theme.backgroundPanel, theme.accent, 0.03)}
+                                    paddingLeft={1}
+                                    paddingRight={1}
+                                  >
+                                    <For each={todo().slice(0, 6)}>
+                                      {(item) => <TodoItem status={item.status} content={item.content} />}
+                                    </For>
+                                  </box>
+                                </box>
+                              </Show>
+                              <text fg={theme.text}>Workspace memory</text>
                               <box flexDirection="row" gap={1} flexWrap="wrap">
                                 <For each={["note", "list", "rules"] as PMTab[]}>
                                   {(tab) => (
@@ -2786,6 +3062,17 @@ export function Session() {
                   }
                 }}
                 disabled={promptDisabled()}
+                panePinned={paneVisibility() === "pinned"}
+                activePaneMode={activePaneMode()}
+                approvalAttentionCount={permissions().length}
+                questionAttentionCount={questions().length}
+                onRefineReady={(promptText) => {
+                  kv.set(DAX_SETTING.session_refined_prompt, promptText)
+                  setPaneMode(() => "refine")
+                  setPaneVisibility(() => "pinned")
+                  setSmartFollowActive(false)
+                  setPendingUpdates(0)
+                }}
                 onSubmit={() => {
                   promptRef.current?.submit()
                   toBottom()
@@ -3342,6 +3629,22 @@ function AssistantMessage(props: {
     const bar = "■".repeat(done) + "□".repeat(total - done)
     return { bar, current: current > 0 ? current : done + 1, total, percent }
   })
+  const insightCard = createMemo(() =>
+    deriveAssistantInsightCard({
+      asked: asked(),
+      doing: doing(),
+      next: next()! === "Continue with a follow-up request." ? "Awaiting your next instruction." : next(),
+      stage: props.stage,
+      streamStatus: deriveLiveStreamStatus({
+        pendingID: props.last && !props.message.time.completed ? props.message.id : undefined,
+        partsForMessage: () => props.parts,
+      }),
+      durationMs: duration(),
+      totalTokens: totalTokens(),
+      tokensPerSecond: tokensPerSecond(),
+      progress: progress(),
+    }),
+  )
 
   const groupedParts = createMemo(() => {
     if (explainMode()) {
@@ -3349,6 +3652,11 @@ function AssistantMessage(props: {
     }
     return props.parts
   })
+  const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
+    if (tone === "primary") return theme.primary
+    if (tone === "accent") return theme.accent
+    return theme.textMuted
+  }
 
   return (
     <Show when={shouldRender()}>
@@ -3366,35 +3674,78 @@ function AssistantMessage(props: {
       </Show>
       <Show when={showSummary()}>
         <box paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
-          <box flexDirection="column" gap={0}>
-            <box flexDirection="row" gap={1} alignItems="center" marginBottom={1}>
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                DAX INSIGHT
-              </text>
+          <box
+            flexDirection="column"
+            gap={1}
+            borderStyle="round"
+            borderColor={theme.backgroundElement}
+            backgroundColor={tint(theme.background, theme.primary, 0.045)}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={1}
+            paddingBottom={1}
+          >
+            <box flexDirection="row" justifyContent="space-between" alignItems="center">
+              <box flexDirection="column" gap={0}>
+                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                  DAX INSIGHT
+                </text>
+                <text fg={theme.textMuted}>{insightCard().eyebrow}</text>
+              </box>
+              <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                  {insightCard().status.toUpperCase()}
+                </text>
+              </box>
             </box>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.success} attributes={TextAttributes.BOLD}>
-                Context
-              </text>
-              <text fg={theme.text} wrapMode="word">
-                {asked()}
-              </text>
+
+            <Show when={insightCard().progressLine}>
+              <box
+                border={["left"]}
+                borderColor={theme.primary}
+                paddingLeft={1}
+                backgroundColor={tint(theme.background, theme.primary, 0.02)}
+              >
+                <text fg={theme.primary}>{insightCard().progressLine}</text>
+              </box>
+            </Show>
+
+            <box flexDirection="row" gap={1} flexWrap="wrap">
+              <For each={insightCard().metrics}>
+                {(metric) => (
+                  <box
+                    flexDirection="row"
+                    gap={1}
+                    borderStyle="round"
+                    borderColor={metric.tone === "accent" ? theme.accent : theme.backgroundElement}
+                    backgroundColor={
+                      metric.tone === "accent"
+                        ? tint(theme.background, theme.accent, 0.08)
+                        : tint(theme.background, theme.backgroundElement, 0.35)
+                    }
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
+                    <text fg={metricToneColor(metric.tone)}>{metric.label}</text>
+                    <text fg={metric.tone === "accent" ? theme.accent : theme.text}>{metric.value}</text>
+                  </box>
+                )}
+              </For>
             </box>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-                Current
-              </text>
-              <text fg={theme.text} wrapMode="word">
-                {doing()}
-              </text>
-            </box>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.info} attributes={TextAttributes.BOLD}>
-                Intent
-              </text>
-              <text fg={theme.text} wrapMode="word">
-                {next()! === "Continue with a follow-up request." ? "Awaiting your next instruction." : next()}
-              </text>
+
+            <box flexDirection="column" gap={0}>
+              <For each={insightCard().rows}>
+                {(row) => (
+                  <box flexDirection="row" gap={1}>
+                    <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                      {row.label.padEnd(7, " ")}
+                    </text>
+                    <text fg={theme.text} wrapMode="word">
+                      {row.value}
+                    </text>
+                  </box>
+                )}
+              </For>
             </box>
           </box>
         </box>

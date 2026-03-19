@@ -21,7 +21,7 @@ export function DialogHelp() {
     <box paddingLeft={2} paddingRight={2} gap={1}>
       <box flexDirection="row" justifyContent="space-between">
         <text attributes={TextAttributes.BOLD} fg={theme.text}>
-          Help
+          Help and shortcuts
         </text>
         <box
           paddingLeft={1}
@@ -38,6 +38,7 @@ export function DialogHelp() {
         <text fg={theme.textMuted}>
           Press {keybind.print("command_list")} to see all available actions and commands in any context.
         </text>
+        <text fg={theme.textMuted}>Use ? for help and / for the action list when the prompt is not capturing input.</text>
       </box>
       <box paddingBottom={1} gap={0}>
         <text fg={theme.text} attributes={TextAttributes.BOLD}>

@@ -17,6 +17,7 @@ describe("workstation presentation model", () => {
       questions: 0,
       artifacts: [{ label: "scan_report.json", kind: "workspace_file" }],
       diffCount: 1,
+      recentTooling: [{ label: "shell · npm test", status: "pending" }],
       audit: {
         status: "warn",
         blockerCount: 0,
@@ -37,5 +38,41 @@ describe("workstation presentation model", () => {
     expect(state.artifactSummary.count).toBe(1)
     expect(state.auditSummary.posture).toBe("review_needed")
     expect(state.trustLabel).toBe("Review needed")
+  })
+
+  test("uses approval reason or recent tooling instead of low-signal idle state", () => {
+    const approvalState = deriveWorkstationState({
+      sessionID: "approval-session",
+      stage: "done",
+      stageReason: "idle",
+      sessionStatusType: "idle",
+      goal: "Release readiness review",
+      todo: [],
+      approvals: [{ label: "shell", reason: "publish requires approval" }],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+      recentTooling: [{ label: "shell · npm publish", status: "pending" }],
+    })
+
+    expect(approvalState.currentStep).toBe("publish requires approval")
+    expect(approvalState.activitySummary.items[0]).toContain("publish requires approval")
+
+    const toolingState = deriveWorkstationState({
+      sessionID: "tool-session",
+      stage: "done",
+      stageReason: "idle",
+      sessionStatusType: "idle",
+      goal: "Inspect README",
+      todo: [],
+      approvals: [],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+      recentTooling: [{ label: "read · README.md", status: "completed" }],
+    })
+
+    expect(toolingState.currentStep).toBe("read · README.md")
+    expect(toolingState.activitySummary.items).toContain("read · README.md")
   })
 })

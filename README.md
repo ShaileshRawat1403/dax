@@ -70,6 +70,40 @@ Your `workspace-mcp` kernel from Soothsayer can be used with DAX today as an ext
 - `dax explore <path>` inspects a repository and returns structured execution-oriented understanding.
 - Theme system with quick-switch profiles.
 
+## Workstation Model
+
+DAX uses a deliberate two-surface session layout:
+
+- **Left stream**: the canonical execution narrative
+  - user asks
+  - reasoning / working notes
+  - tool and evidence cards
+  - milestone markers
+  - final answer or handoff summary
+- **Right control pane**: the active operator surface
+  - `changes`
+  - `audit`
+  - `approvals`
+  - `plan`
+  - `refine`
+
+The right pane is not a duplicate transcript. It is the live control board that answers:
+
+- what needs my attention now?
+- what phase are we in?
+- what should happen next?
+- what contract is about to run?
+
+The pane can auto-follow important session states:
+
+- approvals/questions -> `approvals`
+- active refine draft -> `refine`
+- active diff -> `changes`
+- audit warnings/blockers -> `audit`
+- otherwise -> `plan`
+
+Manual pinning still works, but approvals remain the highest-priority interruption surface.
+
 ## Canonical Workflows
 
 - Start or continue governed work: `dax`, `dax plan`, `dax run`, `dax explore`
@@ -161,6 +195,41 @@ flowchart LR
   TOOLS --> PROC
   PROC --> PM[PM Local Memory DB]
   PROC --> OUT[Rendered Output + Telemetry]
+```
+
+## Orchestration Overview
+
+```mermaid
+flowchart TD
+  U[Operator] --> P[Prompt / Run Intent]
+  P --> R[Refine Contract]
+  R --> E[Execute Session]
+  E --> L[Left Stream]
+  E --> C[Right Control Pane]
+  C --> AP[Approvals / Questions]
+  C --> PL[Plan / Milestones]
+  C --> AU[Audit / Trust]
+  C --> CH[Changes / Diff]
+  AP --> O[Operator Decision]
+  O --> E
+  E --> AR[Artifacts / Outputs]
+  AR --> L
+  AU --> O
+```
+
+## Session Layout
+
+```mermaid
+flowchart LR
+  subgraph Session Workspace
+    LS[Left Stream\nNarrative + Evidence + Results]
+    RP[Right Pane\nControl + Attention + Guidance]
+  end
+
+  LS --> RP
+  RP --> LS
+  RP --> GOV[Approvals / Audit Decisions]
+  RP --> PLAN[Milestones / Next Step / Refine]
 ```
 
 ## License

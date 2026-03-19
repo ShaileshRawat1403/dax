@@ -56,6 +56,37 @@ export function deriveAutoPaneMode(input: {
   return input.fallback
 }
 
+export function deriveActivePaneMode(input: {
+  hasApprovals: boolean
+  hasRefineDraft: boolean
+  hasAuditAttention: boolean
+  hasPlanContext: boolean
+  fallback: PaneMode
+  paneMode: PaneMode
+  paneVisibility: PaneVisibility
+  paneFollowMode: PaneFollowMode
+  smartFollowActive: boolean
+}): PaneMode {
+  if (input.hasApprovals) return "approvals"
+  if (input.paneVisibility === "pinned" && !input.smartFollowActive) return input.paneMode
+  if (input.paneFollowMode === "live") {
+    return deriveAutoPaneMode({
+      hasApprovals: input.hasApprovals,
+      hasRefineDraft: input.hasRefineDraft,
+      hasAuditAttention: input.hasAuditAttention,
+      hasPlanContext: input.hasPlanContext,
+      fallback: input.fallback,
+    })
+  }
+  return deriveAutoPaneMode({
+    hasApprovals: input.hasApprovals,
+    hasRefineDraft: input.hasRefineDraft,
+    hasAuditAttention: input.hasAuditAttention,
+    hasPlanContext: input.hasPlanContext,
+    fallback: input.fallback,
+  })
+}
+
 export function shouldAutoShowPane(input: {
   wide: boolean
   hasApprovals: boolean

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { PANE_MODE, deriveAutoPaneMode, paneCompactLabel, paneLabel, shouldAutoShowPane } from "./pane"
+import { deriveActivePaneMode, PANE_MODE, deriveAutoPaneMode, paneCompactLabel, paneLabel, shouldAutoShowPane } from "./pane"
 
 describe("pane presentation model", () => {
   it("includes audit as a first-class pane mode", () => {
@@ -64,5 +64,37 @@ describe("pane presentation model", () => {
         hasPlanContext: true,
       }),
     ).toBe(false)
+  })
+
+  it("keeps a manually pinned pane active even when follow mode is live", () => {
+    expect(
+      deriveActivePaneMode({
+        hasApprovals: false,
+        hasRefineDraft: true,
+        hasAuditAttention: false,
+        hasPlanContext: true,
+        fallback: "plan",
+        paneMode: "refine",
+        paneVisibility: "pinned",
+        paneFollowMode: "live",
+        smartFollowActive: false,
+      }),
+    ).toBe("refine")
+  })
+
+  it("still lets approvals override a manually pinned pane", () => {
+    expect(
+      deriveActivePaneMode({
+        hasApprovals: true,
+        hasRefineDraft: true,
+        hasAuditAttention: false,
+        hasPlanContext: true,
+        fallback: "plan",
+        paneMode: "refine",
+        paneVisibility: "pinned",
+        paneFollowMode: "live",
+        smartFollowActive: false,
+      }),
+    ).toBe("approvals")
   })
 })

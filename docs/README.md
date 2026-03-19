@@ -29,6 +29,7 @@ This directory contains the canonical documentation for the DAX project. The doc
 - [Contributor Start Here](./product/contributor-start-here.md)
 - [DAX Execution Model](./architecture/DAX_EXECUTION_MODEL.md)
 - [DAX Workstation](./features/DAX_WORKSTATION.md)
+- [Architecture Overview](./architecture/ARCHITECTURE.md)
 
 ## Architecture
 
@@ -41,3 +42,4 @@ This directory contains the canonical documentation for the DAX project. The doc
 - [DAX Explore](./features/DAX_EXPLORE.md)
 - [DAX Write Governance](./features/DAX_WRITE_GOVERNANCE.md)
 - [DAX Plan](./features/DAX_PLAN.md)
+- [DAX Workstation](./features/DAX_WORKSTATION.md)

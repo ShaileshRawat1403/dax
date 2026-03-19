@@ -16,6 +16,18 @@ import {
 import { bootstrap } from "../bootstrap"
 import path from "path"
 import { deriveSessionLifecycleFromMessages } from "../../session/lifecycle"
+import { Session } from "../../session"
+
+async function getRecentTopLevelSessionID() {
+  const sessions = []
+  for await (const session of Session.list()) {
+    if (!session.parentID) sessions.push(session)
+  }
+  sessions.sort((a, b) => b.time.updated - a.time.updated)
+  const latest = sessions[0]
+  if (!latest) throw new Error("No top-level DAX session available for summary inspection tests")
+  return latest.id
+}
 
 describe("session timeline helpers", () => {
   test("builds meaningful operator-facing timeline rows from session state", () => {
@@ -655,9 +667,12 @@ describe("session timeline helpers", () => {
     "collects a durable session summary from canonical session surfaces",
     async () => {
       const repoRoot = path.resolve(import.meta.dir, "../../../..")
-      const summary = await bootstrap(repoRoot, () => collectSessionShowSummary("ses_32947d739ffeVp11tIEucq7Omg"))
+      const summary = await bootstrap(repoRoot, async () => {
+        const sessionID = await getRecentTopLevelSessionID()
+        return collectSessionShowSummary(sessionID)
+      })
 
-      expect(summary.id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(typeof summary.id).toBe("string")
       expect(typeof summary.title).toBe("string")
       expect(typeof summary.timeline_count).toBe("number")
       expect(typeof summary.artifact_count).toBe("number")
@@ -805,15 +820,18 @@ describe("session timeline helpers", () => {
     "collects a durable session inspect surface from canonical session data",
     async () => {
       const repoRoot = path.resolve(import.meta.dir, "../../../..")
-      const summary = await bootstrap(repoRoot, () => collectSessionInspectSummary("ses_32947d739ffeVp11tIEucq7Omg"))
+      const summary = await bootstrap(repoRoot, async () => {
+        const sessionID = await getRecentTopLevelSessionID()
+        return collectSessionInspectSummary(sessionID)
+      })
 
       expect(summary.type).toBe("session_inspect")
-      expect(summary.summary.id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(typeof summary.summary.id).toBe("string")
       expect(Array.isArray(summary.stages_reached)).toBe(true)
       expect(Array.isArray(summary.timeline)).toBe(true)
       expect(Array.isArray(summary.artifacts)).toBe(true)
-      expect(summary.audit.session_id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
-      expect(summary.verification.session_id).toBe("ses_32947d739ffeVp11tIEucq7Omg")
+      expect(summary.audit.session_id).toBe(summary.summary.id)
+      expect(summary.verification.session_id).toBe(summary.summary.id)
     },
     40000,
   )

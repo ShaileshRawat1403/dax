@@ -52,6 +52,11 @@ export type PromptProps = {
   sessionID?: string
   visible?: boolean
   disabled?: boolean
+  panePinned?: boolean
+  activePaneMode?: "diff" | "audit" | "approvals" | "plan" | "refine"
+  approvalAttentionCount?: number
+  questionAttentionCount?: number
+  onRefineReady?: (prompt: string) => void
   onSubmit?: () => void
   ref?: (ref: PromptRef) => void
   hint?: JSX.Element
@@ -112,6 +117,10 @@ Decision workflow (always follow):
 
 Output format:
 - Use small headings and bullets.
+- When there are multiple findings, choices, or next steps, prefer bullets over prose blocks.
+- Use a compact markdown table for comparisons, status snapshots, or tradeoffs.
+- Use short milestone or checklist formatting when tracking progress.
+- Keep paragraphs short. Split after 2-3 compact sentences.
 - Use these emojis only when truly needed: ▪️ 📍 👉 ⚠️
 - Prefer this layout:
 
@@ -166,8 +175,69 @@ export function Prompt(props: PromptProps) {
   const kv = useKV()
   const log = Log.create({ service: "tui.prompt" })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const isPanePinned = createMemo(() => kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
-  const activePaneMode = createMemo(() => kv.get(DAX_SETTING.session_pane_mode))
+  const isPanePinned = createMemo(() => props.panePinned ?? kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
+  const activePaneMode = createMemo(() => props.activePaneMode ?? kv.get(DAX_SETTING.session_pane_mode))
+
+  const sessionMessages = createMemo(() =>
+    props.sessionID ? sync.data.message[props.sessionID] ?? [] : [],
+  )
+  const sessionTodos = createMemo(() =>
+    props.sessionID ? sync.data.todo[props.sessionID] ?? [] : [],
+  )
+  const pendingPermissions = createMemo(() =>
+    props.approvalAttentionCount ?? (props.sessionID ? sync.data.permission[props.sessionID] ?? [] : []).length,
+  )
+  const pendingQuestions = createMemo(() =>
+    props.questionAttentionCount ?? (props.sessionID ? sync.data.question[props.sessionID] ?? [] : []).length,
+  )
+
+  const messageText = (messageID: string) => {
+    const parts = sync.data.part[messageID] ?? []
+    return parts
+      .filter((part: any) => part?.type === "text" && !part.synthetic && !part.ignored)
+      .map((part: any) => part.text ?? "")
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim()
+  }
+
+  const recentHistory = () =>
+    sessionMessages()
+      .filter((message) => message.role === "user")
+      .slice(-3)
+      .map((message) => messageText(message.id))
+      .filter(Boolean)
+
+  const recentActivity = () =>
+    sessionMessages()
+      .slice(-6)
+      .map((message) => {
+        const text = messageText(message.id)
+        if (text) return text
+        const tool = (sync.data.part[message.id] ?? []).findLast((part: any) => part?.type === "tool")
+        if (tool?.type === "tool") return `${tool.tool} ${tool.state.status}`
+        return ""
+      })
+      .filter(Boolean)
+      .slice(-4)
+
+  const recentTools = () =>
+    sessionMessages()
+      .flatMap((message) => sync.data.part[message.id] ?? [])
+      .filter((part: any) => part?.type === "tool")
+      .slice(-4)
+      .map((part: any) => `${part.tool} ${part.state.status}`)
+
+  const currentFocus = () => {
+    const inProgressTodo = sessionTodos().find((item: any) => item?.status === "in_progress")
+    if (inProgressTodo?.content) return inProgressTodo.content
+    const lastAssistant = [...sessionMessages()].reverse().find((message) => message.role === "assistant")
+    if (!lastAssistant) return undefined
+    const lastTool = [...(sync.data.part[lastAssistant.id] ?? [])].reverse().find((part: any) => part?.type === "tool")
+    if (lastTool?.type === "tool") return `${lastTool.tool} ${lastTool.state.status}`
+    const text = messageText(lastAssistant.id)
+    return text ? text.slice(0, 120) : undefined
+  }
 
   async function handleRefine() {
     if (props.disabled) {
@@ -198,6 +268,17 @@ export function Prompt(props: PromptProps) {
       const contract = await refineIntent(rawInput, {
         cwd: process.cwd(),
         session_id: props.sessionID,
+        session_title: props.sessionID ? sync.session.get(props.sessionID)?.title : undefined,
+        current_focus: status().type === "retry" ? "session is retrying" : currentFocus(),
+        todo: sessionTodos()
+          .map((item: any) => item?.content)
+          .filter(Boolean)
+          .slice(0, 5),
+        recent_history: recentHistory(),
+        recent_activity: recentActivity(),
+        recent_tools: recentTools(),
+        pending_approvals: pendingPermissions(),
+        pending_questions: pendingQuestions(),
       })
 
       log.info("handleRefine: got contract", { goal: contract?.goal })
@@ -224,9 +305,12 @@ export function Prompt(props: PromptProps) {
       // Store refined prompt for the RefinePane
       kv.set(DAX_SETTING.session_refined_prompt, refinedText)
 
-      // Switch to refine pane
-      kv.set(DAX_SETTING.session_pane_mode, "refine")
-      kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+      // Switch to refine pane through the owning session route when available.
+      props.onRefineReady?.(refinedText)
+      if (!props.onRefineReady) {
+        kv.set(DAX_SETTING.session_pane_mode, "refine")
+        kv.set(DAX_SETTING.session_pane_visibility, "pinned")
+      }
 
       // Force a small delay to allow UI to update
       await new Promise((r) => setTimeout(r, 100))
@@ -1139,7 +1223,7 @@ export function Prompt(props: PromptProps) {
                   }
 
                   // Intercept Y/N/Esc when in Approvals/Refine mode
-                  if (isPanePinned() && activePaneMode() === "approvals") {
+                  if (isPanePinned() && activePaneMode() === "approvals" && pendingPermissions() + pendingQuestions() > 0) {
                     if ((e.name === "y" || e.name === "Y") && e.ctrl) {
                       e.preventDefault()
                       command.trigger("approvals.approve_current")
@@ -1492,36 +1576,16 @@ export function Prompt(props: PromptProps) {
                 </box>
               </box>
               <box flexDirection="row" gap={2}>
-                <Show when={isPanePinned() && activePaneMode() === "approvals"}>
-                  <box
-                    onMouseUp={() => command.trigger("approvals.approve_current")}
-                    backgroundColor={theme.backgroundElement}
-                    paddingLeft={1}
-                    paddingRight={1}
-                  >
-                    <text fg={theme.success}>✔ Approve [ctrl+y]</text>
-                  </box>
-                  <box
-                    onMouseUp={() => command.trigger("approvals.deny_current")}
-                    backgroundColor={theme.backgroundElement}
-                    paddingLeft={1}
-                    paddingRight={1}
-                  >
-                    <text fg={theme.error}>✖ Deny [ctrl+n]</text>
-                  </box>
-                </Show>
-                <Show when={!(isPanePinned() && activePaneMode() === "approvals")}>
-                  <box
-                    onMouseUp={submit}
-                    backgroundColor={store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
-                    paddingLeft={1}
-                    paddingRight={1}
-                  >
-                    <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>
-                      ↑ Submit [enter]
-                    </text>
-                  </box>
-                </Show>
+                <box
+                  onMouseUp={submit}
+                  backgroundColor={store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>
+                    ↑ Submit [enter]
+                  </text>
+                </box>
               </box>
             </Show>
           </box>
