@@ -195,7 +195,7 @@ describe("run gateway v1 contract", () => {
         await bootstrap(repoRoot, async () => {
           const create = await RunGateway.createRun({
             intent: {
-              input: "Create a file in the repo root.",
+              input: "",
             },
             personaPreset: {
               personaId: "strict-validator",
@@ -334,6 +334,7 @@ describe("run gateway v1 contract", () => {
 
       try {
         const { bootstrap } = await import("@/cli/bootstrap")
+        const { Bus } = await import("@/bus")
         const { RunGateway } = await import("./run-gateway")
         const { Permission } = await import("@/governance")
         const { Session } = await import("@/session")
@@ -467,6 +468,88 @@ describe("run gateway v1 contract", () => {
           expect(pendingApproval?.type).toBe("command_execute")
           expect(pendingApproval?.sourceSurface).toBe("direct")
           expect(pendingApproval?.targeting?.repoPath).toBe(repoRoot)
+        })
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    40000,
+  )
+
+  test(
+    "serializes approval and step events so cursors stay unique and summary counts approvals",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-run-approval-sequence-${Date.now().toString(36)}`)
+      const previousHome = process.env.DAX_TEST_HOME
+      process.env.DAX_TEST_HOME = testHome
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { RunGateway } = await import("./run-gateway")
+
+        await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+          const create = await RunGateway.createRun({
+            intent: {
+              input: "",
+            },
+            metadata: {
+              source: "soothsayer",
+              initiatedBy: "user_sequence",
+            },
+          })
+
+          await Promise.all([
+            RunGateway.__testing.appendEvent(create.runId, {
+              runId: create.runId,
+              type: "approval.requested",
+              timestamp: new Date().toISOString(),
+              payload: {
+                approval: {
+                  approvalId: "per_sequence_test",
+                  runId: create.runId,
+                  type: "file_write",
+                  status: "pending",
+                  risk: "medium",
+                  title: "edit requires approval",
+                  reason: "approval-sequence-test.txt",
+                  context: {
+                    stepId: "tool_sequence_1",
+                    filePath: "approval-sequence-test.txt",
+                  },
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            }),
+            RunGateway.__testing.appendEvent(create.runId, {
+              runId: create.runId,
+              type: "step.started",
+              timestamp: new Date().toISOString(),
+              payload: {
+                stepId: "tool_sequence_1",
+                title: "apply_patch",
+                detail: "apply_patch",
+              },
+            }),
+          ])
+
+          const events = await RunGateway.replayEvents(create.runId)
+          const syntheticEvents = events.filter(
+            (event) => event.type === "approval.requested" || event.type === "step.started",
+          )
+          const sequences = syntheticEvents.map((event) => event.sequence)
+          const cursors = syntheticEvents.map((event) => event.cursor)
+          const approvalEvents = events.filter((event) => event.type === "approval.requested")
+          const startedEvents = events.filter((event) => event.type === "step.started")
+          const summary = await RunGateway.getSummary(create.runId)
+
+          expect(approvalEvents.length).toBeGreaterThanOrEqual(1)
+          expect(startedEvents.length).toBeGreaterThanOrEqual(1)
+          expect(new Set(sequences).size).toBe(sequences.length)
+          expect(new Set(cursors).size).toBe(cursors.length)
+          expect(summary.approvalCount).toBeGreaterThanOrEqual(1)
         })
       } finally {
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME
