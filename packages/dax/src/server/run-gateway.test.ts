@@ -3,6 +3,24 @@ import os from "os"
 import path from "path"
 import { rmSync } from "fs"
 
+async function eventually<T>(assertion: () => Promise<T>, options?: { timeoutMs?: number; intervalMs?: number }) {
+  const timeoutMs = options?.timeoutMs ?? 2000
+  const intervalMs = options?.intervalMs ?? 25
+  const deadline = Date.now() + timeoutMs
+  let lastError: unknown
+
+  while (Date.now() <= deadline) {
+    try {
+      return await assertion()
+    } catch (error) {
+      lastError = error
+      await Bun.sleep(intervalMs)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Condition did not converge before timeout")
+}
+
 describe("run gateway v1 contract", () => {
   test(
     "maps external approval decisions onto current DAX permission replies",
@@ -306,15 +324,17 @@ describe("run gateway v1 contract", () => {
             },
           })
 
-          const snapshot = await RunGateway.getSnapshot(create.runId)
-          const summary = await RunGateway.getSummary(create.runId)
+          await eventually(async () => {
+            const snapshot = await RunGateway.getSnapshot(create.runId)
+            const summary = await RunGateway.getSummary(create.runId)
 
-          expect(snapshot.status).toBe("failed")
-          expect(snapshot.completedAt).toBeDefined()
-          expect(snapshot.currentStep?.status).toBe("failed")
-          expect(summary.status).toBe("failed")
-          expect(summary.outcome?.result).toBe("failure")
-          expect(summary.completedAt).toBeDefined()
+            expect(snapshot.status).toBe("failed")
+            expect(snapshot.completedAt).toBeDefined()
+            expect(snapshot.currentStep?.status).toBe("failed")
+            expect(summary.status).toBe("failed")
+            expect(summary.outcome?.result).toBe("failure")
+            expect(summary.completedAt).toBeDefined()
+          })
         })
       } finally {
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME
@@ -446,28 +466,30 @@ describe("run gateway v1 contract", () => {
             },
           })
 
-          const overview = await RunGateway.getOverview()
-          const activeRun = overview.activeRuns.find((item) => item.runId === active.runId)
-          const recentRun = overview.recentRuns.find((item) => item.runId === recent.runId)
-          const pendingApproval = overview.pendingApprovals.find((item) => item.runId === active.runId)
+          await eventually(async () => {
+            const overview = await RunGateway.getOverview()
+            const activeRun = overview.activeRuns.find((item) => item.runId === active.runId)
+            const recentRun = overview.recentRuns.find((item) => item.runId === recent.runId)
+            const pendingApproval = overview.pendingApprovals.find((item) => item.runId === active.runId)
 
-          expect(activeRun).toBeDefined()
-          expect(activeRun?.sourceSurface).toBe("direct")
-          expect(activeRun?.targeting?.mode).toBe("explicit_repo_path")
-          expect(activeRun?.targeting?.repoPath).toBe(repoRoot)
-          expect(activeRun?.workspaceId).toBe("workspace_1")
-          expect(activeRun?.projectId).toBe("project_1")
-          expect(activeRun?.pendingApprovalCount).toBe(1)
+            expect(activeRun).toBeDefined()
+            expect(activeRun?.sourceSurface).toBe("direct")
+            expect(activeRun?.targeting?.mode).toBe("explicit_repo_path")
+            expect(activeRun?.targeting?.repoPath).toBe(repoRoot)
+            expect(activeRun?.workspaceId).toBe("workspace_1")
+            expect(activeRun?.projectId).toBe("project_1")
+            expect(activeRun?.pendingApprovalCount).toBe(1)
 
-          expect(recentRun).toBeDefined()
-          expect(recentRun?.status).toBe("failed")
-          expect(recentRun?.sourceSurface).toBe("workflow")
-          expect(recentRun?.workflowId).toBe("workflow_123")
+            expect(recentRun).toBeDefined()
+            expect(recentRun?.status).toBe("failed")
+            expect(recentRun?.sourceSurface).toBe("workflow")
+            expect(recentRun?.workflowId).toBe("workflow_123")
 
-          expect(pendingApproval).toBeDefined()
-          expect(pendingApproval?.type).toBe("command_execute")
-          expect(pendingApproval?.sourceSurface).toBe("direct")
-          expect(pendingApproval?.targeting?.repoPath).toBe(repoRoot)
+            expect(pendingApproval).toBeDefined()
+            expect(pendingApproval?.type).toBe("command_execute")
+            expect(pendingApproval?.sourceSurface).toBe("direct")
+            expect(pendingApproval?.targeting?.repoPath).toBe(repoRoot)
+          })
         })
       } finally {
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME
