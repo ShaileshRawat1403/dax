@@ -77,11 +77,11 @@ Step: generate notes
 Trust: review needed
 ```
 
-### 2. Main Transcript
+### 2. Left Stream
 
-The transcript is the execution narrative.
+The left stream is the canonical execution narrative.
 
-It should narrate work progression, not model internals.
+It should narrate work progression, evidence, and operator-facing results without collapsing into assistant chatter.
 
 Good transcript language:
 
@@ -91,30 +91,61 @@ Good transcript language:
 - awaiting approval
 - producing artifact
 - updating trust posture
+- decision recorded
+- milestone reached
+- verification complete
 
 Avoid:
 
 - model reasoning tokens
 - low-level chain-of-thought style framing
 - raw telemetry by default
+- long undifferentiated walls of prose when bullets, short lists, or compact tables would reduce cognitive load
 
-### 3. Plan Surface
+### 3. Right Control Pane
 
-The plan surface should show the current work object.
+The right pane is the live operator control surface.
 
 It should answer:
 
-- what is the intended work?
-- what steps are proposed?
-- is the plan ready, incomplete, or blocked?
+- what needs attention now?
+- what phase are we in?
+- what is blocked?
+- what is the current contract?
+- what happens next?
 
-This can live as:
+It is composed of five session-native modes:
 
-- a left drawer
-- a top secondary panel
-- a collapsible session sidebar section
+- `changes`
+- `audit`
+- `approvals`
+- `plan`
+- `refine`
 
-### 4. Approval Panel
+These modes should not feel like static tabs. The pane should follow the session:
+
+- approvals/questions -> `approvals`
+- active refine draft -> `refine`
+- active diff -> `changes`
+- audit warnings/blockers -> `audit`
+- otherwise -> `plan`
+
+Manual pinning is allowed, but approvals remain the highest-priority interruption surface.
+
+### 4. Plan Surface
+
+The `plan` pane should remain useful even when the session has no formal todo list.
+
+It should show a compact execution board:
+
+- goal
+- current focus
+- milestone progress
+- active thread
+- recent tooling
+- next likely step
+
+### 5. Approval Panel
 
 The approvals panel is the intervention surface.
 
@@ -127,7 +158,25 @@ It should show:
 
 It should be interruptive only when action is required. Otherwise it should remain visible but calm.
 
-### 5. Artifacts Panel
+Approval actions should live here, not in the footer.
+
+### 6. Refine Surface
+
+The refine pane turns a rough operator ask into a sharper execution contract for the current session.
+
+It should show:
+
+- objective
+- session context
+- likely targets
+- execution ladder
+- checks
+- validation commands
+- operator watchouts
+
+After a refined contract is submitted, the pane should yield back to live session follow mode instead of remaining pinned on stale refine content.
+
+### 7. Artifacts Panel
 
 The artifacts panel is the output surface.
 
@@ -143,7 +192,7 @@ This panel answers:
 - what work products exist?
 - what can I inspect next?
 
-### 6. Audit Panel
+### 8. Audit Panel
 
 The audit panel is the trust surface.
 
@@ -193,18 +242,15 @@ The ideal first workstation layout has five zones:
 - execution narration
 - current and past workflow progression
 
-### Side Stack
+### Right Pane
 
 - approvals
-- artifacts
+- changes
 - audit
+- plan
+- refine
 
-### Plan Drawer
-
-- current work definition
-- readiness state
-
-### Command Bar
+### Command Bar / Footer
 
 - quick actions for:
   - plan
@@ -212,6 +258,8 @@ The ideal first workstation layout has five zones:
   - review approvals
   - inspect artifacts
   - open audit detail
+
+The footer should stay low-noise and mechanical. It should not carry primary approval actions or high-attention workflow state.
 
 ## UX Rules
 
@@ -239,6 +287,8 @@ Use:
 - next actions
 - requested operation
 - retained output
+- milestones
+- compact lists and tables when they reduce reading effort
 
 Avoid defaulting to:
 
@@ -257,6 +307,12 @@ DAX should show work progression, not assistant chatter.
 ### 2. Human control points
 
 Approvals and overrides should be explicit and legible.
+
+### 3. Dual-surface rhythm
+
+The left stream should tell the story.
+
+The right pane should manage the situation.
 
 ### 3. Inspectable trust
 

@@ -24,6 +24,9 @@ describe("Intent Interpreter", () => {
       const result = await refineIntent("Fix the build error in src/main.ts", mockContext)
       expect(result!.goal).toBe("Fix the reported issue: Fix the build error in src/main.ts")
       expect(result!.formattedPrompt).toContain("src/main.ts")
+      expect(result!.formattedPrompt).toContain("## Likely Targets")
+      expect(result!.targetFiles).toContain("src/main.ts")
+      expect(result!.formattedPrompt).toContain("## Validation Commands")
       expect(result!.successCriteria).toContain("The reported failure is resolved in a reproducible way")
       expect(result!.explicitConstraints).toContain("Minimize the change surface until the root cause is confirmed")
     })
@@ -44,6 +47,26 @@ describe("Intent Interpreter", () => {
       const result = await refineIntent("Do something random", mockContext)
       expect(result!.explicitConstraints).toContain("Stay within the active repository at /mock/workspace/dir")
       expect(result!.formattedPrompt).toContain("Stay within the active repository at /mock/workspace/dir")
+    })
+
+    it("should include session-aware context and watchouts in fallback contracts", async () => {
+      const result = await refineIntent("Prepare a release readiness assessment", {
+        ...mockContext,
+        session_title: "Release readiness review",
+        current_focus: "Inspecting release scripts",
+        todo: ["inspect release workflow", "verify docs", "check git state"],
+        recent_activity: ["reviewing package.json", "checking release scripts"],
+        pending_approvals: 1,
+        audit_status: "warn",
+      })
+
+      expect(result!.contextSignals).toContain("Current session goal: Release readiness review")
+      expect(result!.contextSignals).toContain("Current focus: Inspecting release scripts")
+      expect(result!.formattedPrompt).toContain("## Session Context")
+      expect(result!.formattedPrompt).toContain("Known milestones: inspect release workflow | verify docs | check git state")
+      expect(result!.operatorWatchouts).toContain("There is 1 pending approval that may block execution.")
+      expect(result!.formattedPrompt).toContain("## Operator Watchouts")
+      expect(result!.formattedPrompt).toContain("Audit posture is warning. Prefer smaller changes and explicit verification.")
     })
   })
 

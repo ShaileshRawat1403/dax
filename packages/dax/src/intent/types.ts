@@ -12,6 +12,11 @@ export interface ExecutionContract {
   goal: string
   successCriteria: string[]
   explicitConstraints: string[]
+  executionPlan?: string[]
+  contextSignals?: string[]
+  operatorWatchouts?: string[]
+  targetFiles?: string[]
+  validationCommands?: string[]
   formattedPrompt?: string // The polished markdown version
   requiredFramework?: string // e.g., 'agile', 'lean'
 }

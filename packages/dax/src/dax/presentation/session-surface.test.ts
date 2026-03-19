@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { deriveAuditHistory, deriveLiveSessionStageState, parseAuditResult } from "./session-surface"
+import {
+  deriveAssistantInsightCard,
+  deriveAuditHistory,
+  deriveLiveSessionStageState,
+  deriveLiveStreamStatus,
+  deriveStreamFidelitySnapshot,
+  parseAuditResult,
+} from "./session-surface"
 
 describe("session surface helpers", () => {
   test("parses fenced audit json safely", () => {
@@ -86,5 +93,125 @@ describe("session surface helpers", () => {
         ],
       }),
     ).toEqual({ stage: "executing", reason: "shell in progress" })
+  })
+
+  test("derives stream status for visible reasoning and text content", () => {
+    expect(
+      deriveLiveStreamStatus({
+        pendingID: "assistant-1",
+        partsForMessage: () => [
+          { type: "reasoning", text: "   " } as any,
+          { type: "text", text: "   " } as any,
+        ],
+      }),
+    ).toBe("waiting for stream content")
+
+    expect(
+      deriveLiveStreamStatus({
+        pendingID: "assistant-1",
+        partsForMessage: () => [{ type: "reasoning", text: "planning next step" } as any],
+      }),
+    ).toBe("reasoning stream active")
+
+    expect(
+      deriveLiveStreamStatus({
+        pendingID: "assistant-1",
+        partsForMessage: () => [{ type: "text", text: "Here is the response" } as any],
+      }),
+    ).toBe("response stream active")
+  })
+
+  test("derives a high-fidelity assistant insight card model", () => {
+    const card = deriveAssistantInsightCard({
+      asked: "Ship the release with a final verification pass.",
+      doing: "Running release checks and watching the stream for regressions.",
+      next: "Review blockers, then publish if the board stays clean.",
+      stage: "verifying",
+      streamStatus: "reasoning stream active",
+      durationMs: 6200,
+      totalTokens: 1842,
+      tokensPerSecond: 41.3,
+      progress: {
+        bar: "■■■□□",
+        current: 3,
+        total: 5,
+        percent: 60,
+      },
+    })
+
+    expect(card.eyebrow).toBe("Live execution board")
+    expect(card.status).toBe("active")
+    expect(card.rows.map((row) => row.label)).toEqual(["Mission", "Now", "Next"])
+    expect(card.metrics).toEqual([
+      { label: "Stage", value: "Verifying", tone: "primary" },
+      { label: "Stream", value: "reasoning stream active", tone: "accent" },
+      { label: "Runtime", value: "6s", tone: "muted" },
+      { label: "Tokens", value: "1,842", tone: "muted" },
+      { label: "Pace", value: "41/s", tone: "muted" },
+    ])
+    expect(card.progressLine).toContain("Flow  ■■■□□")
+    expect(card.progressLine).toContain("Step 3/5")
+  })
+
+  test("captures stream fidelity across tool, reasoning, text, and empty phases", () => {
+    expect(
+      deriveStreamFidelitySnapshot({
+        pendingID: "assistant-1",
+        partsForMessage: () => [
+          { type: "tool", tool: "shell", state: { status: "pending", input: {}, raw: "" } } as any,
+        ],
+      }),
+    ).toEqual({
+      streamStatus: "shell running",
+      hasPendingTool: true,
+      hasCompletedTool: false,
+      hasVisibleReasoning: false,
+      hasVisibleText: false,
+    })
+
+    expect(
+      deriveStreamFidelitySnapshot({
+        pendingID: "assistant-1",
+        partsForMessage: () => [
+          { type: "tool", tool: "shell", state: { status: "completed", input: {}, raw: "" } } as any,
+          { type: "reasoning", text: "Checking the final output" } as any,
+        ],
+      }),
+    ).toEqual({
+      streamStatus: "shell completed",
+      hasPendingTool: false,
+      hasCompletedTool: true,
+      hasVisibleReasoning: true,
+      hasVisibleText: false,
+    })
+
+    expect(
+      deriveStreamFidelitySnapshot({
+        pendingID: "assistant-1",
+        partsForMessage: () => [{ type: "text", text: "Final answer ready" } as any],
+      }),
+    ).toEqual({
+      streamStatus: "response stream active",
+      hasPendingTool: false,
+      hasCompletedTool: false,
+      hasVisibleReasoning: false,
+      hasVisibleText: true,
+    })
+
+    expect(
+      deriveStreamFidelitySnapshot({
+        pendingID: "assistant-1",
+        partsForMessage: () => [
+          { type: "reasoning", text: " " } as any,
+          { type: "text", text: " " } as any,
+        ],
+      }),
+    ).toEqual({
+      streamStatus: "waiting for stream content",
+      hasPendingTool: false,
+      hasCompletedTool: false,
+      hasVisibleReasoning: false,
+      hasVisibleText: false,
+    })
   })
 })

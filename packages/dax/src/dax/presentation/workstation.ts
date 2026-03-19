@@ -67,6 +67,7 @@ export function deriveWorkstationState(input: {
   questions: number
   artifacts: Array<{ label: string; kind?: string }>
   diffCount: number
+  recentTooling?: Array<{ label: string; status?: string }>
   audit?: {
     status: "pass" | "warn" | "fail"
     blockerCount: number
@@ -98,6 +99,13 @@ export function deriveWorkstationState(input: {
   const workspaceWrites = input.artifacts.filter((a) => a.kind === "workspace_file").length
   const reports = input.artifacts.filter((a) => a.kind === "report").length
   const metadata = input.artifacts.filter((a) => a.kind === "metadata").length
+  const currentStep = resolveCurrentStep({
+    currentTodo: currentTodo?.content,
+    stageReason: input.stageReason,
+    approvals: input.approvals,
+    questions: input.questions,
+    recentTooling: input.recentTooling ?? [],
+  })
 
   return {
     sessionID: input.sessionID,
@@ -105,7 +113,7 @@ export function deriveWorkstationState(input: {
     lifecycleLabel: labelLifecycle(lifecycle),
     phase: derivePhase(input.stage),
     goal: input.goal,
-    currentStep: currentTodo?.content ?? input.stageReason,
+    currentStep,
     trustPosture,
     trustLabel: labelTrustPosture(trustPosture),
     planSummary: {
@@ -118,8 +126,8 @@ export function deriveWorkstationState(input: {
       totalSteps: input.todo.length,
     },
     activitySummary: {
-      items: compactActivityItems(input.stageReason, currentTodo?.content),
-      current: summarize(input.stageReason, 88),
+      items: compactActivityItems(input.stageReason, currentStep, input.recentTooling ?? []),
+      current: summarize(currentStep, 88),
     },
     approvalSummary: {
       pendingCount: approvalsPending,
@@ -200,11 +208,46 @@ function deriveTrustPosture(input: {
   return "clear"
 }
 
-function compactActivityItems(stageReason: string, currentStep?: string) {
-  const items = [currentStep, stageReason].filter(Boolean) as string[]
+function compactActivityItems(
+  stageReason: string,
+  currentStep: string | undefined,
+  recentTooling: Array<{ label: string; status?: string }>,
+) {
+  const toolItems = recentTooling
+    .slice(0, 2)
+    .map((item) => item.label)
+    .filter(Boolean)
+  const items = [currentStep, stageReason, ...toolItems].filter(Boolean) as string[]
   return Array.from(new Set(items))
     .map((item) => summarize(item, 72) ?? item)
     .slice(0, 3)
+}
+
+function isLowSignalStageReason(value: string | undefined) {
+  if (!value) return true
+  return /^(idle|session processing|response stream active|reasoning stream active|waiting for stream content)$/i.test(
+    value.trim(),
+  )
+}
+
+function resolveCurrentStep(input: {
+  currentTodo?: string
+  stageReason: string
+  approvals: Array<{ label?: string; reason?: string }>
+  questions: number
+  recentTooling: Array<{ label: string; status?: string }>
+}) {
+  if (input.currentTodo) return input.currentTodo
+  if (input.approvals.length > 0) {
+    return input.approvals[0]?.reason || input.approvals[0]?.label || "Approval needs review"
+  }
+  if (input.questions > 0) return "Question needs review"
+  if (!isLowSignalStageReason(input.stageReason)) return input.stageReason
+  const activeTool = input.recentTooling.find((item) => item.status === "pending")?.label
+  if (activeTool) return activeTool
+  const latestTool = input.recentTooling[0]?.label
+  if (latestTool) return latestTool
+  return input.stageReason
 }
 
 function summarize(value: string | undefined, max: number) {

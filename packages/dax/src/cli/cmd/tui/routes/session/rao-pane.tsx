@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useKeyboard } from "@opentui/solid"
-import type { TextareaRenderable } from "@opentui/core"
+import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useTheme, selectedForeground, tint } from "../../context/theme"
 import type { PermissionRequest, QuestionRequest, QuestionAnswer } from "@dax-ai/sdk/v2"
 import { useSDK } from "../../context/sdk"
@@ -138,6 +138,18 @@ export function RAOPane(props: {
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const currentItem = createMemo(() => items()[selectedIndex()] ?? null)
 
+  const itemLabel = (item: RAOItem) => {
+    if (item.type === "permission") {
+      const permission = item.data.permission
+      if (permission === "shell") return "Shell"
+      if (permission === "edit") return "Edit"
+      if (permission === "read") return "Read"
+      if (permission === "external_directory") return "External dir"
+      return permission.replace(/_/g, " ")
+    }
+    return `Question ${item.index + 1}`
+  }
+
   const [permissionStage, setPermissionStage] = createStore<Record<string, PermissionStage>>({})
   const [questionStore, setQuestionStore] = createStore({
     tab: 0,
@@ -194,23 +206,33 @@ export function RAOPane(props: {
     if (dialog.stack.length > 0) return
     if (items().length === 0) return
 
-    if (evt.name === "up" || (evt.ctrl && evt.name === "p")) {
+    const item = currentItem()
+    if (!item) return
+
+    if (evt.name === "left") {
       evt.preventDefault()
       setSelectedIndex((prev) => Math.max(0, prev - 1))
       return
     }
-    if (evt.name === "down" || (evt.ctrl && evt.name === "n")) {
+    if (evt.name === "right") {
       evt.preventDefault()
       setSelectedIndex((prev) => Math.min(items().length - 1, prev + 1))
       return
     }
 
-    const item = currentItem()
-    if (!item) return
-
     if (item.type === "permission") {
       const stage = permissionStage[item.data.id] ?? "permission"
       if (stage === "permission") {
+        if (evt.name === "up" || (evt.ctrl && evt.name === "p")) {
+          evt.preventDefault()
+          setSelectedIndex((prev) => Math.max(0, prev - 1))
+          return
+        }
+        if (evt.name === "down" || (evt.ctrl && evt.name === "n")) {
+          evt.preventDefault()
+          setSelectedIndex((prev) => Math.min(items().length - 1, prev + 1))
+          return
+        }
         if (evt.name === "y" || evt.name === "return") {
           evt.preventDefault()
           handlePermissionReply(item.data.id, "once")
@@ -226,6 +248,56 @@ export function RAOPane(props: {
           handlePermissionReply(item.data.id, "reject")
           return
         }
+      }
+      return
+    }
+
+    if (item.type === "question") {
+      const request = item.data
+      const questions = request.questions ?? []
+      const currentQuestion = questions[questionStore.tab]
+      const optionCount = currentQuestion?.options?.length ?? 0
+
+      if (evt.name === "up" || (evt.ctrl && evt.name === "p")) {
+        evt.preventDefault()
+        if (optionCount > 0) {
+          setQuestionStore("selected", (prev) => Math.max(0, prev - 1))
+        } else {
+          setSelectedIndex((prev) => Math.max(0, prev - 1))
+        }
+        return
+      }
+      if (evt.name === "down" || (evt.ctrl && evt.name === "n")) {
+        evt.preventDefault()
+        if (optionCount > 0) {
+          setQuestionStore("selected", (prev) => Math.min(optionCount - 1, prev + 1))
+        } else {
+          setSelectedIndex((prev) => Math.min(items().length - 1, prev + 1))
+        }
+        return
+      }
+      if (evt.name === "return") {
+        evt.preventDefault()
+        const option = currentQuestion?.options?.[questionStore.selected]
+        if (!option) return
+        if (questions.length === 1 && currentQuestion?.multiple !== true) {
+          handleQuestionReply(request.id, [[option.label]])
+          return
+        }
+        const answers = [...questionStore.answers]
+        answers[questionStore.tab] = [option.label]
+        setQuestionStore("answers", answers)
+        if (questionStore.tab < questions.length - 1) {
+          setQuestionStore("tab", questionStore.tab + 1)
+          setQuestionStore("selected", 0)
+          return
+        }
+        handleQuestionReply(request.id, answers as unknown as Array<QuestionAnswer>)
+        return
+      }
+      if (evt.name === "escape") {
+        evt.preventDefault()
+        handleQuestionReject(request.id)
       }
     }
   })
@@ -267,6 +339,34 @@ export function RAOPane(props: {
             </box>
           </Show>
         </box>
+
+        <Show when={items().length > 1}>
+          <box flexDirection="row" gap={1} flexWrap="wrap" paddingBottom={1}>
+            <For each={items()}>
+              {(item, idx) => (
+                <box
+                  onMouseUp={() => setSelectedIndex(idx())}
+                  backgroundColor={
+                    idx() === selectedIndex()
+                      ? tint(theme.background, item.type === "permission" ? theme.warning : theme.accent, 0.18)
+                      : theme.backgroundElement
+                  }
+                  border={["left"]}
+                  borderColor={idx() === selectedIndex() ? (item.type === "permission" ? theme.warning : theme.accent) : theme.borderSubtle}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text
+                    fg={idx() === selectedIndex() ? theme.text : theme.textMuted}
+                    attributes={idx() === selectedIndex() ? TextAttributes.BOLD : undefined}
+                  >
+                    {item.type === "permission" ? "●" : "◌"} {itemLabel(item)}
+                  </text>
+                </box>
+              )}
+            </For>
+          </box>
+        </Show>
 
         <box flexDirection="column" gap={1} flexGrow={1}>
           <For each={items()}>
@@ -378,7 +478,7 @@ export function RAOPane(props: {
                             </box>
                           </Show>
 
-                          <box flexDirection="row" gap={1} paddingTop={1}>
+                          <box flexDirection="row" gap={1} paddingTop={1} flexWrap="wrap">
                             <box
                               backgroundColor={theme.primary}
                               paddingLeft={1}
@@ -406,6 +506,7 @@ export function RAOPane(props: {
                               <text fg={selectedForeground(theme, theme.error)}>[N] Deny</text>
                             </box>
                           </box>
+                          <text fg={theme.textMuted}>Use mouse, left/right to change request, and Y / A / N to decide.</text>
                         </box>
                       )
                     })()}
@@ -491,7 +592,7 @@ export function RAOPane(props: {
                             </For>
                           </box>
 
-                          <box flexDirection="row" gap={1} paddingTop={1}>
+                          <box flexDirection="row" gap={1} paddingTop={1} flexWrap="wrap">
                             <box
                               backgroundColor={theme.primary}
                               paddingLeft={1}
@@ -513,6 +614,7 @@ export function RAOPane(props: {
                               <text fg={selectedForeground(theme, theme.error)}>[Esc] Skip</text>
                             </box>
                           </box>
+                          <text fg={theme.textMuted}>Use up/down to pick an option, Enter to confirm, or click directly.</text>
                         </box>
                       )
                     })()}

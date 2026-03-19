@@ -26,6 +26,10 @@ function formatAuditTime(timestamp: number) {
   })
 }
 
+function countLabel(value: number, noun: string) {
+  return `${value} ${noun}${value === 1 ? "" : "s"}`
+}
+
 export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLogEntry }) {
   const { theme } = useTheme()
 
@@ -49,25 +53,50 @@ export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLo
       </text>
       <Show when={latest()} fallback={<text fg={theme.textMuted}>:: no audit run recorded in this session</text>}>
         {(audit) => (
-          <box flexDirection="column" gap={1}>
-            <box border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={1}>
+            <box flexDirection="column" gap={1}>
+            <box
+              flexDirection="column"
+              gap={1}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+              paddingTop={0}
+              paddingBottom={0}
+            >
               <box flexDirection="row" justifyContent="space-between">
-                <text fg={theme.textMuted}>Latest</text>
+                <text fg={theme.textMuted}>Latest snapshot</text>
                 <text fg={statusColor(audit().status)} bold>
                   {audit().status.toUpperCase()}
                 </text>
               </box>
+              <Show when={props.latest}>
+                {(entry) => (
+                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                    <text fg={theme.text}>{entry().commandText || "/audit"}</text>
+                    <text fg={theme.textMuted}>·</text>
+                    <text fg={theme.textMuted}>{formatAuditTime(entry().createdAt)}</text>
+                  </box>
+                )}
+              </Show>
               <box flexDirection="row" gap={1} flexWrap="wrap">
                 <text fg={theme.text}>Profile {audit().profile}</text>
                 <text fg={theme.textMuted}>·</text>
-                <text fg={theme.error}>{audit().summary.blocker_count} blocker</text>
-                <text fg={theme.warning}>{audit().summary.warning_count} warning</text>
-                <text fg={theme.textMuted}>{audit().summary.info_count} info</text>
+                <text fg={theme.error}>{countLabel(audit().summary.blocker_count, "blocker")}</text>
+                <text fg={theme.warning}>{countLabel(audit().summary.warning_count, "warning")}</text>
+                <text fg={theme.textMuted}>{countLabel(audit().summary.info_count, "info")}</text>
               </box>
             </box>
 
             <Show when={audit().next_actions.length > 0}>
-              <box flexDirection="column" gap={0} marginBottom={1}>
+              <box
+                flexDirection="column"
+                gap={0}
+                marginBottom={1}
+                paddingLeft={1}
+                border={["left"]}
+                borderColor={theme.borderSubtle}
+              >
                 <text fg={theme.textMuted}>Next actions</text>
                 <For each={audit().next_actions.slice(0, 4)}>
                   {(action) => <text fg={theme.text}>• {action}</text>}
@@ -98,9 +127,9 @@ export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLo
                         <box flexDirection="row" gap={1} flexWrap="wrap">
                           <text fg={statusColor(result().status)}>{result().status.toUpperCase()}</text>
                           <text fg={theme.textMuted}>profile {result().profile}</text>
-                          <text fg={theme.error}>{result().summary.blocker_count} blocker</text>
-                          <text fg={theme.warning}>{result().summary.warning_count} warning</text>
-                          <text fg={theme.textMuted}>{result().summary.info_count} info</text>
+                          <text fg={theme.error}>{countLabel(result().summary.blocker_count, "blocker")}</text>
+                          <text fg={theme.warning}>{countLabel(result().summary.warning_count, "warning")}</text>
+                          <text fg={theme.textMuted}>{countLabel(result().summary.info_count, "info")}</text>
                         </box>
                       )}
                     </Show>
