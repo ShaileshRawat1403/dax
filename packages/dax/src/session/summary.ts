@@ -134,35 +134,45 @@ export namespace SessionSummary {
     if (textPart && !userMsg.summary?.title) {
       const agent = await Agent.get("title")
       if (!agent) return
-      const stream = await LLM.stream({
-        agent,
-        user: userMsg,
-        tools: {},
-        model: agent.model
-          ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
-          : ((await Provider.getSmallModel(userMsg.model.providerID)) ??
-            (await Provider.getModel(userMsg.model.providerID, userMsg.model.modelID))),
-        small: true,
-        messages: [
-          {
-            role: "user" as const,
-            content: `
-              The following is the text to summarize:
-              <text>
-              ${textPart?.text ?? ""}
-              </text>
-            `,
-          },
-        ],
-        abort: new AbortController().signal,
-        sessionID: userMsg.sessionID,
-        system: [],
-        retries: 3,
-      })
-      const result = await stream.text
-      log.info("title", { title: result })
-      userMsg.summary.title = result
-      await Session.updateMessage(userMsg)
+      try {
+        const stream = await LLM.stream({
+          agent,
+          user: userMsg,
+          tools: {},
+          model: agent.model
+            ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
+            : ((await Provider.getSmallModel(userMsg.model.providerID)) ??
+              (await Provider.getModel(userMsg.model.providerID, userMsg.model.modelID))),
+          small: true,
+          messages: [
+            {
+              role: "user" as const,
+              content: `
+                The following is the text to summarize:
+                <text>
+                ${textPart?.text ?? ""}
+                </text>
+              `,
+            },
+          ],
+          abort: new AbortController().signal,
+          sessionID: userMsg.sessionID,
+          system: [],
+          retries: 3,
+        })
+        const result = await stream.text
+        log.info("title", { title: result })
+        userMsg.summary.title = result
+        await Session.updateMessage(userMsg)
+      } catch (error) {
+        log.warn("skipping title generation because summary model could not be resolved", {
+          sessionID: userMsg.sessionID,
+          messageID: userMsg.id,
+          providerID: userMsg.model.providerID,
+          modelID: userMsg.model.modelID,
+          error,
+        })
+      }
     }
   }
 
