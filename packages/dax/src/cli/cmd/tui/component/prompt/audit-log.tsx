@@ -44,15 +44,13 @@ export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLo
 
   return (
     <box flexDirection="column" width="100%" height="100%" gap={1}>
-      <box border={["bottom"]} borderColor={theme.border} paddingBottom={1} marginBottom={1}>
-        <text fg={theme.primary} bold>
-          Audit snapshot
-        </text>
-      </box>
+      <text fg={theme.primary} bold>
+        Audit snapshot
+      </text>
       <Show when={latest()} fallback={<text fg={theme.textMuted}>:: no audit run recorded in this session</text>}>
         {(audit) => (
           <box flexDirection="column" gap={1}>
-            <box border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={1} marginBottom={1}>
+            <box border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={1}>
               <box flexDirection="row" justifyContent="space-between">
                 <text fg={theme.textMuted}>Latest</text>
                 <text fg={statusColor(audit().status)} bold>
@@ -84,8 +82,8 @@ export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLo
                   <box
                     flexDirection="column"
                     gap={0}
-                    padding={1}
-                    border={["top", "bottom", "left", "right"]}
+                    paddingLeft={1}
+                    border={["left"]}
                     borderColor={entry.result ? statusColor(entry.result.status) : theme.border}
                   >
                     <box flexDirection="row" justifyContent="space-between">
