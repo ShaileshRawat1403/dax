@@ -2073,8 +2073,8 @@ export function Session() {
                 paddingRight={1}
                 backgroundColor={theme.backgroundElement}
               >
-                <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-                  {workflowMode()}
+                <text fg={theme.accent}>
+                  mode <span style={{ fg: theme.text, attributes: TextAttributes.BOLD }}>{workflowMode()}</span>
                 </text>
               </box>
               <text fg={theme.textMuted}>·</text>
@@ -2326,7 +2326,7 @@ export function Session() {
                             <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                               <Show when={incompleteTodoCount() > 0}>
                                 <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
-                                  <text fg={theme.text}>todo {incompleteTodoCount()}</text>
+                                  <text fg={theme.text}>todos {incompleteTodoCount()}</text>
                                 </box>
                               </Show>
                               <Show when={trustSurface().label !== "idle"}>
@@ -2425,7 +2425,7 @@ export function Session() {
                           </Match>
                           <Match when={activePaneMode() === "plan"}>
                             <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
-                              <text fg={theme.text}>Project Memory</text>
+                              <text fg={theme.text}>Project memory</text>
                               <box flexDirection="row" gap={1} flexWrap="wrap">
                                 <For each={["note", "list", "rules"] as PMTab[]}>
                                   {(tab) => (
@@ -3552,7 +3552,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
       .replace(/^\s{0,3}#{1,6}\s+/gm, "")
       .trim()
   })
-  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
+  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.26))
 
   return (
     <Show when={content() && ctx.showThinking()}>
@@ -3576,16 +3576,16 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         >
           <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
             <text fg={theme.background} attributes={TextAttributes.BOLD}>
-              THINKING
+              REASONING
             </text>
           </box>
           <text fg={theme.textMuted}>
-            reasoning active
+            working notes
           </text>
         </box>
         <box paddingBottom={1}>
           <code
-            filetype="markdown"
+            filetype="text"
             drawUnstyledText={false}
             streaming={true}
             syntaxStyle={syntax()}

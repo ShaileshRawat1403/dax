@@ -40,45 +40,36 @@ const WELCOME_MESSAGES = {
 let once = false
 let welcomeShown = false
 
-function AnimatedHeader(props: { theme: any }) {
+function BrandHeader(props: { theme: any }) {
   const [tick, setTick] = createSignal(0)
 
   onMount(() => {
     const timer = setInterval(() => {
-      setTick((t) => t + 1)
-    }, 80)
+      setTick((value) => value + 1)
+    }, 140)
     onCleanup(() => clearInterval(timer))
   })
 
-  const letters = DAX_BRAND.name.toUpperCase().slice(0, 3).split("")
-
+  const letters = DAX_BRAND.name.toUpperCase().split("")
   const letterColor = (index: number) => {
-    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
-    const offset = (tick() + index * 3) % (colors.length * 4)
-    if (offset < colors.length) return colors[offset]
-    return colors[colors.length - 1 - (offset - colors.length)]
+    const palette = [props.theme.primary, props.theme.accent, props.theme.secondary]
+    return palette[(tick() + index) % palette.length] ?? props.theme.primary
   }
 
-  const letterBlink = (index: number) => {
-    const t = tick()
-    const phase = (t + index * 4) % 8
-    return phase < 2
-  }
+  const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
 
   return (
     <box flexDirection="column" alignItems="center" gap={0}>
-      <box flexDirection="row" alignItems="center" gap={0}>
+      <box flexDirection="row" gap={0}>
         <For each={letters}>
-          {(letter, i) => (
-            <text fg={letterColor(i())} attributes={letterBlink(i()) ? TextAttributes.BOLD : undefined}>
+          {(letter, index) => (
+            <text fg={letterColor(index())} attributes={letterWeight(index())}>
               {letter}
             </text>
           )}
         </For>
       </box>
-      <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
-        {DAX_BRAND.category}
-      </text>
+      <text fg={props.theme.textMuted}>{DAX_BRAND.category}</text>
     </box>
   )
 }
@@ -86,7 +77,7 @@ function AnimatedHeader(props: { theme: any }) {
 function PromptStarter(props: { label: string; onPress: () => void; theme: any }) {
   return (
     <box onMouseUp={props.onPress} paddingLeft={1} paddingRight={1} backgroundColor={props.theme.backgroundElement}>
-      <text fg={props.theme.textMuted}>{props.label}</text>
+      <text fg={props.theme.text}>{props.label}</text>
     </box>
   )
 }
@@ -366,7 +357,7 @@ export function Home() {
           }
         >
           <box width="100%" maxWidth={small() ? undefined : 76} alignItems="center" gap={tiny() ? 0 : 1}>
-            <AnimatedHeader theme={theme} />
+            <BrandHeader theme={theme} />
 
             <Show when={showStages()}>
               <StageIndicator stages={stages()} current={0} theme={theme} />
@@ -375,21 +366,18 @@ export function Home() {
             <Show when={!tiny() && showActions()}>
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
                 <MetaChip
-                  label="Mode"
+                  label="mode"
                   value={Locale.titlecase(activeWorkflowMode())}
                   tone="primary"
                   theme={theme}
                   onPress={() => cycleWorkflowMode(1)}
                 />
                 <MetaChip
-                  label="Explain"
+                  label="eli12"
                   value={explainMode() ? "On" : "Off"}
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
-                <Show when={workflowModes().length > 1}>
-                  <text fg={theme.textMuted}>Tab cycles modes. Shift+Tab reverses.</text>
-                </Show>
               </box>
             </Show>
 
@@ -405,7 +393,6 @@ export function Home() {
 
             <Show when={!tiny()}>
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
-                <text fg={theme.textMuted}>Quick:</text>
                 <PromptStarter
                   label="Build"
                   theme={theme}
