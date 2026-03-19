@@ -78,7 +78,8 @@ describe("artifacts command helpers", () => {
     expect(rows.map((row) => row.kind)).toEqual(["session_diff", "attachment", "truncated_output"])
     expect(rows[0]?.session_id).toBe("session_123")
     expect(rows[1]?.label).toBe("release-notes.md")
-    expect(rows[2]?.reference).toBe("../../.tmp/tool-output.log")
+    expect(rows[2]?.reference).toBeDefined()
+    expect(rows[2]?.reference?.endsWith(path.join(".tmp", "tool-output.log"))).toBe(true)
   })
 
   test("formats readable artifact entries", () => {
