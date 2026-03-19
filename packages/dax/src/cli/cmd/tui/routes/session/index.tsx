@@ -102,6 +102,7 @@ import {
   paneTitle as daxPaneTitle,
 } from "@/dax/presentation/pane"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
+import { deriveAuditHistory, deriveLiveSessionStageState } from "@/dax/presentation/session-surface"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
 import { isEli12Mode } from "@/dax/intent"
@@ -119,22 +120,6 @@ type PMTab = "note" | "list" | "rules"
 type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
 const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
 const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
-type AuditResult = {
-  run_id: string
-  timestamp: string
-  profile: "strict" | "balanced" | "advisory"
-  status: "pass" | "warn" | "fail"
-  findings: unknown[]
-  summary: {
-    blocker_count: number
-    warning_count: number
-    info_count: number
-  }
-  next_actions: string[]
-  metadata: {
-    trigger: string
-  }
-}
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -264,48 +249,15 @@ export function Session() {
   const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
   const todo = createMemo(() => sync.data.todo[route.sessionID] ?? [])
-  const stageState = createMemo<{ stage: StreamStage; reason: string }>(() => {
-    if (permissions().length > 0 || questions().length > 0) {
-      return {
-        stage: "waiting",
-        reason: permissions().length > 0 ? "waiting for approval" : "waiting for user input",
-      }
-    }
-
-    if (sessionStatusType() === "retry") {
-      return { stage: "retrying", reason: "recovering from a failed attempt" }
-    }
-
-    const pendingID = pending()
-    if (pendingID) {
-      const parts = sync.data.part[pendingID] ?? []
-      const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
-      const completedExecutionInTurn = parts.some(
-        (part) => part.type === "tool" && part.state.status === "completed" && EXECUTE_TOOLS.has(part.tool),
-      )
-
-      if (pendingTool && pendingTool.type === "tool") {
-        const tool = pendingTool.tool
-        if (PLAN_TOOLS.has(tool)) return { stage: "planning", reason: `${tool} in progress` }
-        if (EXECUTE_TOOLS.has(tool)) return { stage: "executing", reason: `${tool} in progress` }
-        if (VERIFY_TOOLS.has(tool) && completedExecutionInTurn) {
-          return { stage: "verifying", reason: `${tool} after execution` }
-        }
-        if (EXPLORE_TOOLS.has(tool)) return { stage: "exploring", reason: `${tool} in progress` }
-        return { stage: "executing", reason: `${tool} in progress` }
-      }
-
-      const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
-      if (hasReasoning) return { stage: "thinking", reason: "reasoning stream active" }
-      return { stage: "thinking", reason: "response stream active" }
-    }
-
-    if (sessionStatusType() === "busy") {
-      return { stage: "thinking", reason: "session processing" }
-    }
-
-    return { stage: "done", reason: "idle" }
-  })
+  const stageState = createMemo<{ stage: StreamStage; reason: string }>(() =>
+    deriveLiveSessionStageState({
+      permissionsCount: permissions().length,
+      questionsCount: questions().length,
+      sessionStatusType: sessionStatusType(),
+      pendingID: pending(),
+      partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
+    }),
+  )
   const STAGE_MIN_DWELL_MS = 1200
   const STREAM_RENDER_CADENCE_MS = 30
   const [displayStageState, setDisplayStageState] = createSignal(stageState())
@@ -744,19 +696,6 @@ export function Session() {
     return items
   })
 
-  const parseAuditResult = (text: string): AuditResult | undefined => {
-    if (!text) return
-    const fenced = text.match(/```json\\s*([\\s\\S]*?)```/i)?.[1]
-    const candidate = fenced ?? text
-    try {
-      const parsed = JSON.parse(candidate) as AuditResult
-      if (!parsed || !Array.isArray(parsed.findings) || !parsed.summary) return
-      return parsed
-    } catch {
-      return
-    }
-  }
-
   const recentPmCommands = createMemo(() =>
     messages()
       .filter((message) => message.role === "user")
@@ -819,35 +758,12 @@ export function Session() {
     return ""
   })
 
-  const auditHistory = createMemo(() => {
-    const messageList = messages()
-    const items: Array<{
-      commandText: string
-      responseText: string
-      result?: AuditResult
-      createdAt: number
-    }> = []
-
-    for (const message of messageList) {
-      if (message.role !== "user") continue
-      const commandText = messageText(message.id)
-      if (!commandText.startsWith("/audit")) continue
-      const response = messageList.find(
-        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
-      )
-      if (!response) continue
-      const responseText = messageText(response.id)
-      if (!responseText) continue
-      items.push({
-        commandText,
-        responseText,
-        result: parseAuditResult(responseText),
-        createdAt: response.time.created,
-      })
-    }
-
-    return items
-  })
+  const auditHistory = createMemo(() =>
+    deriveAuditHistory({
+      messages: messages(),
+      messageText,
+    }),
+  )
 
   const latestAudit = createMemo(() => auditHistory().findLast((entry) => entry.result !== undefined))
   const trustSurface = createMemo(() => {
@@ -1028,6 +944,13 @@ export function Session() {
         return undefined
     }
   }
+  const sessionArtifacts = createMemo(() => {
+    const raw = (sync.data as any).session_artifact?.[route.sessionID] ?? []
+    return raw.map((item: any) => ({
+      label: item.path || item.id,
+      kind: item.kind,
+    }))
+  })
   const workstationState = createMemo(() =>
     deriveWorkstationState({
       sessionID: route.sessionID,
@@ -1041,8 +964,16 @@ export function Session() {
         reason: permission.patterns?.[0],
       })),
       questions: questions().length,
-      artifacts: [],
+      artifacts: sessionArtifacts(),
       diffCount: revert()?.diffFiles?.length ?? 0,
+      audit: latestAudit()?.result
+        ? {
+            status: latestAudit()!.result!.status,
+            blockerCount: latestAudit()!.result!.summary.blocker_count,
+            warningCount: latestAudit()!.result!.summary.warning_count,
+            infoCount: latestAudit()!.result!.summary.info_count,
+          }
+        : undefined,
     }),
   )
   const hasRequirement = createMemo(

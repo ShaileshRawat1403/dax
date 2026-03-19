@@ -13,6 +13,7 @@
     "test": "bun --cwd packages/dax test",
     "build": "bun --cwd packages/dax build",
     "check:repo": "bun run script/check-repo-integrity.ts",
+    "guard:legacy": "bun run script/guard-legacy.ts",
     "release:check": "bun run script/release-check.ts",
     "release:verify": "bun run release:check && bun run typecheck:dax && bun run test",
     "release": "bun run release:verify && bun run build",

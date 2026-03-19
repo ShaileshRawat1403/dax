@@ -20,6 +20,7 @@ import { Plugin } from "@/plugin"
 
 const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT = Flag.DAX_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 * 1000
+import { shellPathCandidates, stripOuterQuotes } from "./shell-approval"
 
 export const log = Log.create({ service: "shell-tool" })
 
@@ -50,6 +51,25 @@ const parser = lazy(async () => {
   p.setLanguage(bashLanguage)
   return p
 })
+
+async function resolvePathCandidate(cwd: string, arg: string) {
+  const normalizedArg = stripOuterQuotes(arg).replace(/^~(?=\/|$)/, process.env.HOME ?? "~")
+  const resolved = await $`realpath ${normalizedArg}`
+    .cwd(cwd)
+    .quiet()
+    .nothrow()
+    .text()
+    .then((x) => x.trim())
+
+  const fallback = path.resolve(cwd, normalizedArg)
+  const candidate = resolved || fallback
+  if (!candidate) return
+
+  if (process.platform === "win32" && candidate.match(/^\/[a-z]\//)) {
+    return candidate.replace(/^\/([a-z])\//, (_, drive) => `${drive.toUpperCase()}:\\`).replace(/\//g, "\\")
+  }
+  return candidate
+}
 
 export const ShellTool = Tool.define("shell", async () => {
   const shell = Shell.acceptable()
@@ -111,28 +131,12 @@ export const ShellTool = Tool.define("shell", async () => {
           command.push(child.text)
         }
 
-        // not an exhaustive list, but covers most common cases
-        if (["cd", "rm", "cp", "mv", "mkdir", "touch", "chmod", "chown", "cat"].includes(command[0])) {
-          for (const arg of command.slice(1)) {
-            if (arg.startsWith("-") || (command[0] === "chmod" && arg.startsWith("+"))) continue
-            const resolved = await $`realpath ${arg}`
-              .cwd(cwd)
-              .quiet()
-              .nothrow()
-              .text()
-              .then((x) => x.trim())
-            log.info("resolved path", { arg, resolved })
-            if (resolved) {
-              // Git Bash on Windows returns Unix-style paths like /c/Users/...
-              const normalized =
-                process.platform === "win32" && resolved.match(/^\/[a-z]\//)
-                  ? resolved.replace(/^\/([a-z])\//, (_, drive) => `${drive.toUpperCase()}:\\`).replace(/\//g, "\\")
-                  : resolved
-              if (!Instance.containsPath(normalized)) {
-                const dir = (await Filesystem.isDir(normalized)) ? normalized : path.dirname(normalized)
-                directories.add(dir)
-              }
-            }
+        for (const arg of shellPathCandidates(commandText, command)) {
+          const normalized = await resolvePathCandidate(cwd, arg)
+          log.info("resolved path candidate", { arg, normalized })
+          if (normalized && !Instance.containsPath(normalized)) {
+            const dir = (await Filesystem.isDir(normalized)) ? normalized : path.dirname(normalized)
+            directories.add(dir)
           }
         }
 

@@ -3,6 +3,7 @@ import { createTaskGraph, addTask } from "../planner/task-graph"
 import { runGraph } from "./run-graph"
 import { ExploreOperator } from "../operators/explore"
 import { OperatorRouter } from "../operators/router"
+import type { Operator } from "../operators/base"
 
 describe("Agent Run Graph: Explore Pipeline", () => {
   test("Executes a real explore pipeline in correct order", async () => {
@@ -70,5 +71,35 @@ describe("Agent Run Graph: Explore Pipeline", () => {
     const tasks = Array.from(graph.tasks.values())
     const completedTasks = tasks.filter((t) => t.status === "completed")
     expect(completedTasks.length).toBe(5)
+  })
+
+  test("fails honestly when verification criteria exist without a verification handoff", async () => {
+    const graph = createTaskGraph("verification_gap")
+    addTask(graph, {
+      id: "task_requires_verification",
+      name: "Needs verification",
+      description: "Task with verification criteria",
+      operator_type: "mock",
+      dependencies: [],
+      context: {},
+      verification_criteria: ["evidence exists"],
+    })
+
+    const router = new OperatorRouter()
+    router.register({
+      type: "mock",
+      async execute() {
+        return {
+          success: true,
+          output: { ok: true },
+        }
+      },
+    } satisfies Operator)
+
+    const result = await runGraph(graph, { cwd: process.cwd(), sessionId: "verify-gap" }, router)
+
+    expect(result.success).toBe(false)
+    expect(result.failedTasks).toContain("task_requires_verification")
+    expect(result.warnings).toContain("verification unavailable for task task_requires_verification")
   })
 })

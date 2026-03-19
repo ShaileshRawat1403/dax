@@ -1,16 +1,13 @@
 import type { Operator, OperatorContext, OperatorResult } from "./base"
 import type { PlannedTask } from "../planner/task-graph"
-import { skillRegistry } from "../skills/registry"
 import type { ArtifactRecord } from "../governance/artifact"
 import { ARTIFACT_SCHEMA_VERSION } from "../workflows/artifact-schemas"
+import { writeWorkflowArtifact } from "./report-artifact"
 
 export class ReleaseOperator implements Operator {
   type = "release"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
-    const skillId = "release-readiness"
-    const skill = skillRegistry.get(skillId)
-
     const contextPack = ctx.contextPack
 
     const trustState = contextPack?.trustState
@@ -88,17 +85,6 @@ export class ReleaseOperator implements Operator {
     }
 
     // Produce artifact with schema
-    const artifact: ArtifactRecord = {
-      id: `release-readiness-${Date.now()}`,
-      sessionId: ctx.sessionId,
-      taskId: task.id,
-      producingOperator: this.type,
-      type: "release_report",
-      description: release_summary,
-      path: `release-readiness.json`,
-      timestamp,
-    } as any
-
     // Add schema metadata to output
     const report = {
       schema_version: ARTIFACT_SCHEMA_VERSION,
@@ -109,6 +95,17 @@ export class ReleaseOperator implements Operator {
       summary: release_summary,
       payload,
     }
+    const { artifact } = await writeWorkflowArtifact({
+      cwd: ctx.cwd,
+      sessionId: ctx.sessionId,
+      taskId: task.id,
+      producingOperator: this.type,
+      type: "release_report",
+      filename: "release-readiness.json",
+      description: release_summary,
+      payload: report,
+      timestamp,
+    })
 
     // Generate markdown output for stream display
     const markdownOutput = this.formatReleaseAsMarkdown(

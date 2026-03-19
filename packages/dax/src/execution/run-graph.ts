@@ -13,6 +13,7 @@ export interface GraphRunResult {
   success: boolean
   blockedTasks: string[]
   failedTasks: string[]
+  warnings: string[]
 }
 
 const milestoneLabels: Record<string, string> = {
@@ -43,6 +44,7 @@ export async function runGraph(
   const recordedArtifacts: ArtifactRecord[] = []
   const trustDeltas: TrustDelta[] = []
   const pendingApprovals: ApprovalRequest[] = []
+  const warnings: string[] = []
   const skipTaskIds = new Set(options?.skipTaskIds || [])
 
   // Restore initial session state if provided (for resume)
@@ -148,7 +150,11 @@ export async function runGraph(
 
           // Save snapshot after every state update
           const graphStatus: GraphStatus = buildGraphStatus(graph)
-          saveSnapshot(ctx.sessionId, stateManager.getState(), graphStatus)
+          await saveSnapshot(ctx.sessionId, stateManager.getState(), {
+            cwd: ctx.cwd,
+            graphStatus,
+            workflowId: stateManager.getState().workflowId,
+          })
         }
 
         // --- RAO Governance Boundary ---
@@ -182,9 +188,13 @@ export async function runGraph(
         // --- Verification Phase ---
         if (task.verification_criteria && task.verification_criteria.length > 0) {
           task.verification_status = "pending"
-          // In a real implementation, we would trigger a verification operator here.
-          // For now, we'll mark it as passed if the operator execution succeeded.
-          task.verification_status = "passed"
+          task.status = "failed"
+          task.error = new Error(
+            `Task ${task.id} requires verification criteria but no verification handoff is implemented`,
+          )
+          failedTasks.push(task.id)
+          warnings.push(`verification unavailable for task ${task.id}`)
+          continue
         }
 
         task.status = "completed"
@@ -215,6 +225,7 @@ export async function runGraph(
     success: allTasksCompleted,
     blockedTasks,
     failedTasks,
+    warnings,
   }
 }
 

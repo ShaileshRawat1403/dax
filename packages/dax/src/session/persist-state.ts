@@ -1,50 +1,64 @@
-import * as fs from "fs"
-import * as path from "path"
+import * as fs from "fs/promises"
+import path from "path"
 import type { SessionSnapshot, GraphStatus } from "./snapshot-types"
 import type { SessionState } from "./state-types"
 
 const SESSION_DIR = ".dax/sessions"
+const writes = new Map<string, Promise<void>>()
+
+type SaveSnapshotOptions = {
+  cwd?: string
+  graphStatus?: GraphStatus
+  workflowId?: string
+}
+
+export function getSessionDirectory(sessionId: string, cwd = process.cwd()): string {
+  return path.join(cwd, SESSION_DIR, sessionId)
+}
 
 export function saveSnapshot(
   sessionId: string,
   state: SessionState,
-  graphStatus?: GraphStatus,
-  workflowId?: string,
-): void {
+  options?: SaveSnapshotOptions,
+): Promise<void> {
   const snapshot: SessionSnapshot = {
     sessionId,
-    workflowId,
+    workflowId: options?.workflowId,
     savedAt: new Date().toISOString(),
     state,
-    graphStatus,
+    graphStatus: options?.graphStatus,
   }
 
-  const dirPath = path.join(process.cwd(), SESSION_DIR, sessionId)
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true })
-  }
-
+  const cwd = options?.cwd ?? process.cwd()
+  const dirPath = getSessionDirectory(sessionId, cwd)
   const filePath = path.join(dirPath, "session-snapshot.json")
-  fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2))
+  const previous = writes.get(filePath) ?? Promise.resolve()
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      await fs.mkdir(dirPath, { recursive: true })
+      await fs.writeFile(filePath, JSON.stringify(snapshot, null, 2))
+    })
+    .finally(() => {
+      if (writes.get(filePath) === next) writes.delete(filePath)
+    })
+  writes.set(filePath, next)
+  return next
 }
 
-export function loadSnapshot(sessionId: string): SessionSnapshot | null {
-  const filePath = path.join(process.cwd(), SESSION_DIR, sessionId, "session-snapshot.json")
-
-  if (!fs.existsSync(filePath)) {
-    return null
-  }
-
+export async function loadSnapshot(sessionId: string, cwd = process.cwd()): Promise<SessionSnapshot | null> {
+  const filePath = path.join(getSessionDirectory(sessionId, cwd), "session-snapshot.json")
   try {
-    const data = fs.readFileSync(filePath, "utf-8")
+    const data = await fs.readFile(filePath, "utf-8")
     const snapshot = JSON.parse(data) as SessionSnapshot
     return snapshot
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null
     console.error(`Failed to load snapshot for session ${sessionId}:`, error)
     return null
   }
 }
 
-export function getSnapshotPath(sessionId: string): string {
-  return path.join(process.cwd(), SESSION_DIR, sessionId, "session-snapshot.json")
+export function getSnapshotPath(sessionId: string, cwd = process.cwd()): string {
+  return path.join(getSessionDirectory(sessionId, cwd), "session-snapshot.json")
 }

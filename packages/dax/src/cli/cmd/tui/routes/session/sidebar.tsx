@@ -12,6 +12,7 @@ import { DAX_SETTING } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
+import { deriveAuditHistory, deriveLiveSessionStageState } from "@/dax/presentation/session-surface"
 
 function TelemetryPanel(props: { state: WorkstationState }) {
   const { theme } = useTheme()
@@ -186,44 +187,24 @@ export function Sidebar(props: {
   const kv = useKV()
   const local = useLocal()
   const workflowMode = createMemo(() => kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))
-
-  const latestAudit = createMemo(() => {
-    const messageList = messages()
-    for (let i = messageList.length - 1; i >= 0; i--) {
-      const message = messageList[i]
-      if (message.role !== "user") continue
-      const parts = sync.data.part[message.id] ?? []
-      const commandText = parts
-        .filter(
-          (part): part is Extract<(typeof parts)[number], { type: "text" }> => part.type === "text" && !part.synthetic,
-        )
-        .map((part) => part.text)
-        .join("")
-        .trim()
-      const isAuditTurn = message.agent === "audit" || commandText.startsWith("/audit")
-      if (!isAuditTurn) continue
-      const auditLabel = commandText || "audit"
-      const response = messageList.findLast(
-        (candidate) => candidate.role === "assistant" && candidate.parentID === message.id,
+  const pending = createMemo(() => messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id)
+  const messageText = (messageID: string) =>
+    (sync.data.part[messageID] ?? [])
+      .filter(
+        (part): part is Extract<(typeof sync.data.part)[string][number], { type: "text" }> =>
+          part.type === "text" && !part.synthetic,
       )
-      if (!response) return { command: auditLabel, status: "queued" as const }
-      const responseText = (sync.data.part[response.id] ?? [])
-        .filter(
-          (part): part is Extract<(typeof parts)[number], { type: "text" }> => part.type === "text" && !part.synthetic,
-        )
-        .map((part) => part.text)
-        .join("")
-        .trim()
-      const fenced = responseText.match(/```json\s*([\s\S]*?)```/i)?.[1]
-      const candidate = fenced ?? responseText
-      try {
-        const parsed = JSON.parse(candidate) as { status?: string }
-        if (parsed?.status) return { command: auditLabel, status: parsed.status }
-      } catch {}
-      return { command: auditLabel, status: "done" as const }
-    }
-    return undefined
-  })
+      .map((part) => part.text)
+      .join("")
+      .trim()
+
+  const auditHistory = createMemo(() =>
+    deriveAuditHistory({
+      messages: messages(),
+      messageText,
+    }),
+  )
+  const latestAudit = createMemo(() => auditHistory().findLast((entry) => entry.result !== undefined))
 
   const hasProviders = createMemo(() =>
     sync.data.provider.some((x) => x.id !== "dax" || Object.values(x.models).some((y) => y.cost?.input !== 0)),
@@ -232,13 +213,20 @@ export function Sidebar(props: {
 
   const workstationState = createMemo(() => {
     const s = session()
-    const audit = latestAudit()
+    const audit = latestAudit()?.result
     const art = (sync.data as any).session_artifact?.[props.sessionID] ?? []
+    const stage = deriveLiveSessionStageState({
+      permissionsCount: permissions().length,
+      questionsCount: questions().length,
+      sessionStatusType: runtimeStatus().type as any,
+      pendingID: pending(),
+      partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
+    })
     
     return deriveWorkstationState({
       sessionID: props.sessionID,
-      stage: "thinking", 
-      stageReason: "Session active",
+      stage: stage.stage,
+      stageReason: stage.reason,
       sessionStatusType: runtimeStatus().type as any,
       goal: s?.title,
       todo: todo().map(t => ({ content: t.content, status: t.status })),
@@ -246,12 +234,14 @@ export function Sidebar(props: {
       questions: questions().length,
       artifacts: art.map((a: any) => ({ label: a.path || a.id, kind: a.kind })),
       diffCount: diff().length,
-      audit: audit && "status" in audit ? {
-        status: audit.status === "pass" ? "pass" : audit.status === "warn" ? "warn" : "fail",
-        blockerCount: 0, 
-        warningCount: 0,
-        infoCount: 0
-      } : undefined
+      audit: audit
+        ? {
+            status: audit.status,
+            blockerCount: audit.summary.blocker_count,
+            warningCount: audit.summary.warning_count,
+            infoCount: audit.summary.info_count,
+          }
+        : undefined
     })
   })
 
@@ -417,9 +407,9 @@ export function Sidebar(props: {
                 {(audit) => (
                   <box flexDirection="row" gap={1} marginTop={1}>
                     <text fg={theme.textMuted}>audit</text>
-                    <text fg={theme.text}>{audit().status}</text>
-                    <Show when={audit().command !== "/audit"}>
-                      <text fg={theme.textMuted}>({audit().command})</text>
+                    <text fg={theme.text}>{audit().result?.status}</text>
+                    <Show when={audit().commandText !== "/audit"}>
+                      <text fg={theme.textMuted}>({audit().commandText})</text>
                     </Show>
                   </box>
                 )}

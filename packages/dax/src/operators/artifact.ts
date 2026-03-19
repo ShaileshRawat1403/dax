@@ -1,16 +1,13 @@
 import type { Operator, OperatorContext, OperatorResult } from "./base"
 import type { PlannedTask } from "../planner/task-graph"
-import { skillRegistry } from "../skills/registry"
 import type { ArtifactRecord } from "../governance/artifact"
 import { ARTIFACT_SCHEMA_VERSION } from "../workflows/artifact-schemas"
+import { writeWorkflowArtifact } from "./report-artifact"
 
 export class ArtifactOperator implements Operator {
   type = "artifact"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
-    const skillId = "artifact-audit"
-    const skill = skillRegistry.get(skillId)
-
     const contextPack = ctx.contextPack
     const artifacts = contextPack?.artifacts || []
 
@@ -40,17 +37,6 @@ export class ArtifactOperator implements Operator {
     }
 
     // Produce artifact inventory file
-    const artifactRecord: ArtifactRecord = {
-      id: `artifact-inventory-${Date.now()}`,
-      sessionId: ctx.sessionId,
-      taskId: task.id,
-      producingOperator: this.type,
-      type: "artifact_inventory",
-      description: `Indexed ${artifacts.length} artifacts from workflow`,
-      path: `artifact-inventory.json`,
-      timestamp,
-    } as any
-
     const summary = `Indexed ${artifacts.length} artifacts across ${Object.keys(byType).length} types`
 
     // Add schema metadata to output
@@ -63,6 +49,17 @@ export class ArtifactOperator implements Operator {
       summary,
       payload,
     }
+    const { artifact: artifactRecord } = await writeWorkflowArtifact({
+      cwd: ctx.cwd,
+      sessionId: ctx.sessionId,
+      taskId: task.id,
+      producingOperator: this.type,
+      type: "artifact_inventory",
+      filename: "artifact-inventory.json",
+      description: `Indexed ${artifacts.length} artifacts from workflow`,
+      payload: report,
+      timestamp,
+    })
 
     // Generate markdown output for stream display
     const markdownOutput = this.formatArtifactInventoryMarkdown(artifacts, byType, byOperator)

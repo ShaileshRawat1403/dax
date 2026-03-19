@@ -316,7 +316,7 @@ export namespace SessionProcessor {
                     )
                     currentText.text = textOutput.text
                     currentText.time = {
-                      start: Date.now(),
+                      start: currentText.time?.start ?? Date.now(),
                       end: Date.now(),
                     }
                     if (value.providerMetadata) currentText.metadata = value.providerMetadata
@@ -386,7 +386,7 @@ export namespace SessionProcessor {
                   status: "error",
                   error: "Tool execution aborted",
                   time: {
-                    start: Date.now(),
+                    start: "time" in part.state && part.state.time?.start ? part.state.time.start : Date.now(),
                     end: Date.now(),
                   },
                 },
