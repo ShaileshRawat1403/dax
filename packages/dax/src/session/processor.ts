@@ -213,6 +213,9 @@ export namespace SessionProcessor {
                       value.error instanceof Permission.RejectedError ||
                       value.error instanceof Question.RejectedError
                     ) {
+                      input.assistantMessage.error = MessageV2.fromError(value.error, {
+                        providerID: input.model.providerID,
+                      })
                       blocked = shouldBreak
                     }
                     delete toolcalls[value.toolCallId]
