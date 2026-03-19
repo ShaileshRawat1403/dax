@@ -44,7 +44,9 @@ const partStatusByRun = new Map<string, Map<string, string>>()
 const artifactIdsByRun = new Map<string, Set<string>>()
 const trustSignatureByRun = new Map<string, string>()
 const appendEventTailByRun = new Map<string, Promise<void>>()
-let initialized = false
+const runGatewayState = Instance.state(() => ({
+  initialized: false,
+}))
 
 function iso(timestamp: number | undefined) {
   return typeof timestamp === "number" ? new Date(timestamp).toISOString() : undefined
@@ -617,12 +619,15 @@ async function handleBusEvent(event: any) {
 
 export namespace RunGateway {
   export function initialize() {
-    if (initialized) return
-    initialized = true
-    Bus.subscribeAll((event) => {
-      handleBusEvent(event).catch((error) => {
+    const state = runGatewayState()
+    if (state.initialized) return
+    state.initialized = true
+    Bus.subscribeAll(async (event) => {
+      try {
+        await handleBusEvent(event)
+      } catch (error) {
         log.error("failed to handle run event", { error, type: event.type })
-      })
+      }
     })
   }
 
