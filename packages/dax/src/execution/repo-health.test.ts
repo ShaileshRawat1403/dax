@@ -1,5 +1,6 @@
 import { expect, test, describe } from "bun:test"
 import path from "path"
+import { existsSync } from "fs"
 import { runGraph } from "./run-graph"
 import { createInitializedRouter } from "../operators/router"
 import { buildWorkflowGraph } from "../workflows/builtin-workflows"
@@ -63,6 +64,7 @@ describe("repo-health workflow", () => {
     expect(artifactTypes).toContain("verification_report")
     expect(artifactTypes).toContain("artifact_inventory")
     expect(artifactTypes).toContain("release_report")
+    expect(state.emittedArtifacts.every((artifact) => existsSync(artifact.path))).toBe(true)
 
     console.log("Healthy repo result:", {
       success: result.success,

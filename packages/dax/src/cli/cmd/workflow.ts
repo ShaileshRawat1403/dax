@@ -9,6 +9,7 @@ import { buildWorkflowGraph, WORKFLOWS, type WorkflowId } from "../../workflows/
 import { SessionStateManager } from "../../session/update-state"
 import type { SessionState } from "../../session/state-types"
 import { ARTIFACT_SCHEMA_VERSION } from "../../workflows/artifact-schemas"
+import { getSessionDirectory, loadSnapshot } from "../../session/persist-state"
 
 function createInitialSessionState(sessionId: string, cwd: string, workflowId: string): SessionState {
   return {
@@ -42,16 +43,11 @@ function createInitialSessionState(sessionId: string, cwd: string, workflowId: s
 }
 
 function getSessionDir(sessionId: string): string {
-  return path.resolve(process.cwd(), ".dax/sessions", sessionId)
+  return getSessionDirectory(sessionId, process.cwd())
 }
 
-function loadSessionSnapshot(sessionId: string): any {
-  const sessionDir = getSessionDir(sessionId)
-  const snapshotPath = path.join(sessionDir, "session-snapshot.json")
-  if (fs.existsSync(snapshotPath)) {
-    return JSON.parse(fs.readFileSync(snapshotPath, "utf-8"))
-  }
-  return null
+async function loadSessionSnapshot(sessionId: string): Promise<any> {
+  return loadSnapshot(sessionId, process.cwd())
 }
 
 function generateWorkflowSummary(state: SessionState, workflowId: string): any {
@@ -161,7 +157,7 @@ export const WorkflowCommand = cmd({
 
             // Generate and save workflow summary
             const summary = generateWorkflowSummary(state, workflowId)
-            const sessionDir = getSessionDir(sessionId)
+            const sessionDir = getSessionDirectory(sessionId, resolvedTarget)
             if (!fs.existsSync(sessionDir)) {
               fs.mkdirSync(sessionDir, { recursive: true })
             }
@@ -201,7 +197,7 @@ export const WorkflowCommand = cmd({
           }),
         handler: async (args) => {
           const sessionId = args["session-id"] as string
-          const snapshot = loadSessionSnapshot(sessionId)
+          const snapshot = await loadSessionSnapshot(sessionId)
 
           if (!snapshot) {
             console.error(`Session not found: ${sessionId}`)
@@ -275,7 +271,7 @@ export const WorkflowCommand = cmd({
                 }),
               handler: async (args) => {
                 const sessionId = args["session-id"] as string
-                const snapshot = loadSessionSnapshot(sessionId)
+                const snapshot = await loadSessionSnapshot(sessionId)
 
                 if (!snapshot) {
                   console.error(`Session not found: ${sessionId}`)
@@ -319,7 +315,7 @@ export const WorkflowCommand = cmd({
               handler: async (args) => {
                 const sessionId = args["session-id"] as string
                 const artifactType = args["artifact-type"] as string
-                const snapshot = loadSessionSnapshot(sessionId)
+                const snapshot = await loadSessionSnapshot(sessionId)
 
                 if (!snapshot) {
                   console.error(`Session not found: ${sessionId}`)

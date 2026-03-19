@@ -1,8 +1,8 @@
 import type { Operator, OperatorContext, OperatorResult } from "./base"
 import type { PlannedTask } from "../planner/task-graph"
-import { skillRegistry } from "../skills/registry"
 import type { ArtifactRecord } from "../governance/artifact"
 import { ARTIFACT_SCHEMA_VERSION } from "../workflows/artifact-schemas"
+import { writeWorkflowArtifact } from "./report-artifact"
 
 interface VerificationCheck {
   id: string
@@ -15,9 +15,6 @@ export class VerifyOperator implements Operator {
   type = "verify"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
-    const skillId = "trust-verify"
-    const skill = skillRegistry.get(skillId)
-
     const contextPack = ctx.contextPack
     const checks = this.runVerificationChecks(contextPack)
 
@@ -50,17 +47,6 @@ export class VerifyOperator implements Operator {
     const timestamp = new Date().toISOString()
 
     // Produce artifact with schema
-    const artifact: ArtifactRecord = {
-      id: `verify-report-${Date.now()}`,
-      sessionId: ctx.sessionId,
-      taskId: task.id,
-      producingOperator: this.type,
-      type: "verification_report",
-      description: payload.verification_summary,
-      path: `verification-report.json`,
-      timestamp,
-    } as any
-
     // Add schema metadata to output
     const report = {
       schema_version: ARTIFACT_SCHEMA_VERSION,
@@ -71,6 +57,17 @@ export class VerifyOperator implements Operator {
       summary: payload.verification_summary,
       payload,
     }
+    const { artifact } = await writeWorkflowArtifact({
+      cwd: ctx.cwd,
+      sessionId: ctx.sessionId,
+      taskId: task.id,
+      producingOperator: this.type,
+      type: "verification_report",
+      filename: "verification-report.json",
+      description: payload.verification_summary,
+      payload: report,
+      timestamp,
+    })
 
     // Emit trust delta
     const trustDelta =
