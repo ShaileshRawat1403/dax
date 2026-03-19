@@ -6,7 +6,7 @@ import { GlobalBus } from "./global"
 
 export namespace Bus {
   const log = Log.create({ service: "bus" })
-  type Subscription = (event: any) => void
+  type Subscription = (event: any) => void | Promise<void>
 
   export const InstanceDisposed = BusEvent.define(
     "server.instance.disposed",
@@ -32,9 +32,7 @@ export namespace Bus {
           directory: Instance.directory,
         },
       }
-      for (const sub of [...wildcard]) {
-        sub(event)
-      }
+      await Promise.all([...wildcard].map((sub) => Promise.resolve(sub(event)).then(() => undefined)))
     },
   )
 
@@ -53,7 +51,7 @@ export namespace Bus {
     for (const key of [def.type, "*"]) {
       const match = state().subscriptions.get(key)
       for (const sub of match ?? []) {
-        pending.push(sub(payload))
+        pending.push(Promise.resolve(sub(payload)).then(() => undefined))
       }
     }
     GlobalBus.emit("event", {
@@ -65,7 +63,10 @@ export namespace Bus {
 
   export function subscribe<Definition extends BusEvent.Definition>(
     def: Definition,
-    callback: (event: { type: Definition["type"]; properties: z.infer<Definition["properties"]> }) => void,
+    callback: (event: {
+      type: Definition["type"]
+      properties: z.infer<Definition["properties"]>
+    }) => void | Promise<void>,
   ) {
     return raw(def.type, callback)
   }
@@ -82,11 +83,11 @@ export namespace Bus {
     })
   }
 
-  export function subscribeAll(callback: (event: any) => void) {
+  export function subscribeAll(callback: (event: any) => void | Promise<void>) {
     return raw("*", callback)
   }
 
-  function raw(type: string, callback: (event: any) => void) {
+  function raw(type: string, callback: (event: any) => void | Promise<void>) {
     log.info("subscribing", { type })
     const subscriptions = state().subscriptions
     const match = subscriptions.get(type) ?? []

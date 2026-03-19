@@ -559,4 +559,112 @@ describe("run gateway v1 contract", () => {
     },
     40000,
   )
+
+  test(
+    "waits for approval events to persist before Bus.publish resolves",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-run-publish-await-${Date.now().toString(36)}`)
+      const previousHome = process.env.DAX_TEST_HOME
+      process.env.DAX_TEST_HOME = testHome
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { Bus } = await import("@/bus")
+        const { RunGateway } = await import("./run-gateway")
+        const { Permission } = await import("@/governance")
+        const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+        await bootstrap(repoRoot, async () => {
+          const create = await RunGateway.createRun({
+            intent: {
+              input: "",
+            },
+            metadata: {
+              source: "soothsayer",
+              initiatedBy: "user_publish_wait",
+            },
+          })
+
+          await Bus.publish(Permission.Event.Asked, {
+            id: "per_publish_wait",
+            createdAt: Date.now(),
+            sessionID: create.runId,
+            permission: "shell",
+            patterns: ["pwd"],
+            always: ["pwd"],
+            metadata: { command: "pwd" },
+            tool: {
+              messageID: "msg_publish_wait",
+              callID: "tool_publish_wait",
+            },
+          })
+
+          const events = await RunGateway.replayEvents(create.runId)
+          const approvals = await RunGateway.getApprovals(create.runId)
+
+          expect(events.some((event) => event.type === "approval.requested")).toBe(true)
+          expect(approvals.some((approval) => approval.approvalId === "per_publish_wait")).toBe(true)
+        })
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    40000,
+  )
+
+  test(
+    "re-initializes run gateway subscriptions after instance disposal",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-run-reinit-${Date.now().toString(36)}`)
+      const previousHome = process.env.DAX_TEST_HOME
+      process.env.DAX_TEST_HOME = testHome
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { RunGateway } = await import("./run-gateway")
+        const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+        const firstRunId = await bootstrap(repoRoot, async () => {
+          const create = await RunGateway.createRun({
+            intent: {
+              input: "",
+            },
+            metadata: {
+              source: "soothsayer",
+              initiatedBy: "user_reinit_first",
+            },
+          })
+
+          const events = await RunGateway.replayEvents(create.runId)
+          expect(events.some((event) => event.type === "run.created")).toBe(true)
+          return create.runId
+        })
+
+        const secondRunId = await bootstrap(repoRoot, async () => {
+          const create = await RunGateway.createRun({
+            intent: {
+              input: "",
+            },
+            metadata: {
+              source: "soothsayer",
+              initiatedBy: "user_reinit_second",
+            },
+          })
+
+          const events = await RunGateway.replayEvents(create.runId)
+          expect(events.some((event) => event.type === "run.created")).toBe(true)
+          return create.runId
+        })
+
+        expect(secondRunId).not.toBe(firstRunId)
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    40000,
+  )
 })
