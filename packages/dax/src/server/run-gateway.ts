@@ -170,6 +170,49 @@ function toApprovalRecord(request: Permission.Request): ApprovalRecord {
   }
 }
 
+function mergePendingApprovals(
+  liveApprovals: ApprovalRecord[],
+  eventApprovals: ApprovalRecord[],
+): ApprovalRecord[] {
+  const merged = new Map<string, ApprovalRecord>()
+
+  for (const approval of eventApprovals) {
+    merged.set(approval.approvalId, approval)
+  }
+
+  for (const approval of liveApprovals) {
+    merged.set(approval.approvalId, approval)
+  }
+
+  return [...merged.values()].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))
+}
+
+function pendingApprovalsFromEvents(events: RunEvent[]): ApprovalRecord[] {
+  const pending = new Map<string, ApprovalRecord>()
+
+  for (const event of events) {
+    if (event.type === "approval.requested") {
+      pending.set(event.payload.approval.approvalId, event.payload.approval)
+      continue
+    }
+
+    if (event.type === "approval.resolved") {
+      pending.delete(event.payload.approvalId)
+    }
+  }
+
+  return [...pending.values()].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))
+}
+
+async function getPendingApprovalsForRun(runId: string, events?: RunEvent[]): Promise<ApprovalRecord[]> {
+  const [livePending, runEvents] = await Promise.all([
+    Permission.list().then((items) => items.filter((item) => item.sessionID === runId).map(toApprovalRecord)),
+    events ? Promise.resolve(events) : readEvents(runId),
+  ])
+
+  return mergePendingApprovals(livePending, pendingApprovalsFromEvents(runEvents))
+}
+
 function toArtifactRecord(runId: string, artifact: any): ArtifactRecord {
   const createdAt = typeof artifact.created_at === "number" ? artifact.created_at : Date.now()
   return {
@@ -614,13 +657,13 @@ export namespace RunGateway {
 
   export async function getSnapshot(runId: string): Promise<RunSnapshot> {
     initialize()
-    const [session, messages, pending, meta, events] = await Promise.all([
+    const [session, messages, meta, events] = await Promise.all([
       Session.get(runId),
       Session.messages({ sessionID: runId }),
-      Permission.list().then((items) => items.filter((item) => item.sessionID === runId)),
       readRunMeta(runId),
       readEvents(runId),
     ])
+    const pending = await getPendingApprovalsForRun(runId, events)
     const lifecycle = deriveSessionLifecycleFromMessages({
       archivedAt: session.time.archived,
       pendingApprovalCount: pending.length,
@@ -682,8 +725,7 @@ export namespace RunGateway {
 
   export async function getApprovals(runId: string) {
     initialize()
-    const pending = await Permission.list()
-    return pending.filter((item) => item.sessionID === runId).map(toApprovalRecord)
+    return getPendingApprovalsForRun(runId)
   }
 
   export async function resolveApproval(runId: string, approvalId: string, input: ResolveApprovalRequest) {
@@ -807,19 +849,31 @@ export namespace RunGateway {
       })
       .slice(0, limit)
 
-    const allApprovals = await Permission.list()
-    const pendingApprovalSummaries = allApprovals
+    const pendingApprovalSummaries = (
+      await Promise.all(
+        activeRuns.map(async (run) => {
+          const approvals = await getPendingApprovalsForRun(run.runId)
+          return approvals.map((approvalRecord) => ({
+            approvalId: approvalRecord.approvalId,
+            runId: approvalRecord.runId,
+            type: approvalRecord.type,
+            risk: approvalRecord.risk,
+            title: approvalRecord.title,
+            reason: approvalRecord.reason,
+            createdAt: approvalRecord.createdAt,
+            targeting: run.targeting,
+            sourceSurface: run.sourceSurface ?? "unknown",
+            workspaceId: run.workspaceId,
+            projectId: run.projectId,
+          }))
+        }),
+      )
+    )
+      .flat()
       .map((approval) => {
-        const approvalRecord = toApprovalRecord(approval)
-        const run = listItems.find((item) => item.runId === approval.sessionID)
+        const run = listItems.find((item) => item.runId === approval.runId)
         return {
-          approvalId: approvalRecord.approvalId,
-          runId: approvalRecord.runId,
-          type: approvalRecord.type,
-          risk: approvalRecord.risk,
-          title: approvalRecord.title,
-          reason: approvalRecord.reason,
-          createdAt: approvalRecord.createdAt,
+          ...approval,
           targeting: run?.targeting,
           sourceSurface: run?.sourceSurface ?? "unknown",
           workspaceId: run?.workspaceId,
