@@ -61,6 +61,87 @@ describe("run gateway v1 contract", () => {
   )
 
   test(
+    "reconstructs pending approvals from run events when live permission memory is unavailable",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-run-approval-recovery-${Date.now().toString(36)}`)
+      const previousHome = process.env.DAX_TEST_HOME
+      process.env.DAX_TEST_HOME = testHome
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { Permission } = await import("@/governance")
+        const { Storage } = await import("@/storage/storage")
+        const { Instance } = await import("@/project/instance")
+        const { RunGateway } = await import("./run-gateway")
+        const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+        await bootstrap(repoRoot, async () => {
+          const create = await RunGateway.createRun({
+            intent: {
+              input: "",
+            },
+            metadata: {
+              source: "soothsayer",
+              initiatedBy: "user_recovery",
+            },
+          })
+
+          const existingEvents = await RunGateway.replayEvents(create.runId)
+          await Storage.write(["run_events", Instance.project.id, create.runId], [
+            ...existingEvents,
+            {
+              schemaVersion: "v1",
+              eventId: `evt_${create.runId}_2`,
+              sequence: 2,
+              cursor: `evt_${create.runId}_2`,
+              runId: create.runId,
+              type: "approval.requested",
+              timestamp: new Date().toISOString(),
+              payload: {
+                approval: {
+                  approvalId: "per_recovery_test",
+                  runId: create.runId,
+                  type: "command_execute",
+                  status: "pending",
+                  risk: "high",
+                  title: "shell requires approval",
+                  reason: "pwd",
+                  context: {
+                    command: "pwd",
+                    notes: ["pwd"],
+                  },
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            },
+          ])
+
+          const originalList = Permission.list
+          Permission.list = async () => []
+
+          try {
+            const approvals = await RunGateway.getApprovals(create.runId)
+            const snapshot = await RunGateway.getSnapshot(create.runId)
+
+            expect(approvals).toHaveLength(1)
+            expect(approvals[0]?.type).toBe("command_execute")
+            expect(snapshot.pendingApprovalCount).toBe(1)
+            expect(snapshot.status).toBe("waiting_approval")
+          } finally {
+            Permission.list = originalList
+          }
+        })
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    40000,
+  )
+
+  test(
     "stores source authority in snapshots without redefining DAX execution truth",
     async () => {
       const testHome = path.join(os.tmpdir(), `dax-run-snapshot-${Date.now().toString(36)}`)
