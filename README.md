@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/ShaileshRawat1403/dax-tui/actions/workflows/ci.yml">
-    <img src="https://github.com/ShaileshRawat1403/dax-tui/actions/workflows/ci.yml/badge.svg" alt="CI Status">
+    <img src="https://github.com/ShaileshRawat1403/dax-tui/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status">
   </a>
   <a href="https://github.com/ShaileshRawat1403/dax-tui/releases">
     <img src="https://img.shields.io/github/v/release/ShaileshRawat1403/dax-tui?color=blue&label=release" alt="Latest Release">
