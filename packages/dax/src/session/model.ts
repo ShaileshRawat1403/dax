@@ -1,7 +1,7 @@
 import z from "zod"
 import { Identifier } from "../id/id"
 import { Snapshot } from "@/snapshot"
-import { Audit } from "../governance/audit"
+import { Audit } from "../governance/audit-types"
 import { Permission, type SessionVerification } from "@/governance"
 
 export namespace SessionV2 {

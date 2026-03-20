@@ -1,4 +1,3 @@
-import z from "zod"
 import { existsSync } from "fs"
 import path from "path"
 import { $ } from "bun"
@@ -7,63 +6,29 @@ import { Flag } from "@/flag/flag"
 import { Instance } from "@/project/instance"
 import { PM } from "@/pm"
 import { DocOps } from "@/docops"
+import { Audit as AuditTypes } from "./audit-types"
 
 export namespace Audit {
-  export const Trigger = z.enum([
-    "manual",
-    "before_release",
-    "after_pr_review",
-    "after_config_change",
-    "after_docs_policy_change",
-    "after_docs_qa",
-  ])
-  export type Trigger = z.infer<typeof Trigger>
+  export type Trigger = AuditTypes.Trigger
+  export const Trigger = AuditTypes.Trigger
 
-  export const Profile = z.enum(["strict", "balanced", "advisory"])
-  export type Profile = z.infer<typeof Profile>
+  export type Profile = AuditTypes.Profile
+  export const Profile = AuditTypes.Profile
 
-  export const Severity = z.enum(["critical", "high", "medium", "low", "info"])
-  export type Severity = z.infer<typeof Severity>
+  export type Severity = AuditTypes.Severity
+  export const Severity = AuditTypes.Severity
 
-  export const Status = z.enum(["pass", "warn", "fail"])
-  export type Status = z.infer<typeof Status>
+  export type Status = AuditTypes.Status
+  export const Status = AuditTypes.Status
 
-  export const Finding = z.object({
-    id: z.string(),
-    severity: Severity,
-    category: z.string(),
-    title: z.string(),
-    evidence: z.string(),
-    impact: z.string(),
-    fix: z.string(),
-    owner_hint: z.string(),
-    blocking: z.boolean(),
-  })
-  export type Finding = z.infer<typeof Finding>
+  export type Finding = AuditTypes.Finding
+  export const Finding = AuditTypes.Finding
 
-  export const Summary = z.object({
-    blocker_count: z.number().int().nonnegative(),
-    warning_count: z.number().int().nonnegative(),
-    info_count: z.number().int().nonnegative(),
-  })
-  export type Summary = z.infer<typeof Summary>
+  export type Summary = AuditTypes.Summary
+  export const Summary = AuditTypes.Summary
 
-  export const Result = z.object({
-    run_id: z.string(),
-    timestamp: z.string(),
-    profile: Profile,
-    status: Status,
-    findings: z.array(Finding),
-    summary: Summary,
-    next_actions: z.array(z.string()),
-    metadata: z.object({
-      trigger: Trigger,
-      project_id: z.string(),
-      github_enabled: z.boolean(),
-      auto_triggers: z.array(z.string()),
-    }),
-  })
-  export type Result = z.infer<typeof Result>
+  export type Result = AuditTypes.Result
+  export const Result = AuditTypes.Result
 
   const DEFAULT_FAIL_ON = ["security", "auth", "policy", "release", "test", "documentation"]
   const REQUIRED_RELEASE_FILES = [
@@ -76,7 +41,7 @@ export namespace Audit {
   function parseProfile(value: string | undefined): Profile | undefined {
     if (!value) return
     const lowered = value.toLowerCase()
-    if (lowered === "strict" || lowered === "balanced" || lowered === "advisory") return lowered
+    if (lowered === "strict" || lowered === "balanced" || lowered === "advisory") return lowered as Profile
     return
   }
 
@@ -124,7 +89,7 @@ export namespace Audit {
         profile: input.profile,
         fail_on: input.fail_on,
       }),
-    }
+    } as Finding
   }
 
   export async function run(input?: { trigger?: Trigger; profile?: Profile; config?: Config.Info }): Promise<Result> {

@@ -1,3 +1,4 @@
+export * from "./audit-types"
 export * from "./audit"
 export * from "./policy-engine"
 export * from "./trust-verification"
