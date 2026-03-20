@@ -104,4 +104,4 @@ export GEMINI_OAUTH_CLIENT_SECRET="GOCSPX-your-secret"
 - Your OAuth credentials are stored locally in `~/.dax/data/auth.json`
 - Access and refresh tokens are stored securely
 - Each user should create their own OAuth client (no shared credentials)
-- See [Security Policy](../SECURITY.md) for more details
+- See [Security Policy](../../SECURITY.md) for more details
