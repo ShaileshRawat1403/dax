@@ -13,8 +13,9 @@
   </g>
 
   <text
-    x="430"
+    x="600"
     y="205"
+    text-anchor="middle"
     font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif"
     font-size="146"
     font-weight="800"
