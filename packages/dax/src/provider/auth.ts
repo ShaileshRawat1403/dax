@@ -18,10 +18,20 @@ export namespace ProviderAuth {
     return { methods, pending: {} as Record<string, AuthOuathResult> }
   })
 
+  export const Prompt = z
+    .object({
+      key: z.string(),
+      type: z.string(),
+      message: z.string(),
+      placeholder: z.string().optional(),
+    })
+    .meta({ ref: "ProviderAuthPrompt" })
+
   export const Method = z
     .object({
       type: z.union([z.literal("oauth"), z.literal("api")]),
       label: z.string(),
+      prompts: z.array(Prompt).optional(),
     })
     .meta({
       ref: "ProviderAuthMethod",
@@ -35,6 +45,21 @@ export namespace ProviderAuth {
         (y): Method => ({
           type: y.type,
           label: y.label,
+          prompts: y.prompts?.map((p) => {
+            if (p.type === "text") {
+              return {
+                key: p.key,
+                type: "text" as const,
+                message: p.message,
+                placeholder: p.placeholder,
+              }
+            }
+            return {
+              key: p.key,
+              type: "select" as const,
+              message: p.message,
+            }
+          }),
         }),
       ),
     )
@@ -55,12 +80,14 @@ export namespace ProviderAuth {
     z.object({
       providerID: z.string(),
       method: z.number(),
+      inputs: z.record(z.string(), z.string()).optional(),
     }),
     async (input): Promise<Authorization | undefined> => {
       const auth = await state().then((s) => s.methods[input.providerID])
       const method = auth.methods[input.method]
       if (method.type === "oauth") {
-        const result = await method.authorize()
+        const inputs = input.inputs ?? {}
+        const result = await method.authorize(inputs)
         await state().then((s) => (s.pending[input.providerID] = result))
         return {
           url: result.url,
@@ -107,6 +134,12 @@ export namespace ProviderAuth {
           }
           if (result.accountId) {
             info.accountId = result.accountId
+          }
+          if (result.clientID) {
+            info.clientID = result.clientID
+          }
+          if (result.clientSecret) {
+            info.clientSecret = result.clientSecret
           }
           await Auth.set(input.providerID, info)
         }

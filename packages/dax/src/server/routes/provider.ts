@@ -119,14 +119,16 @@ export const ProviderRoutes = lazy(() =>
         "json",
         z.object({
           method: z.number().meta({ description: "Auth method index" }),
+          inputs: z.record(z.string(), z.string()).optional(),
         }),
       ),
       async (c) => {
         const providerID = c.req.valid("param").providerID
-        const { method } = c.req.valid("json")
+        const { method, inputs } = c.req.valid("json")
         const result = await ProviderAuth.authorize({
           providerID,
           method,
+          inputs: inputs as Record<string, string> | undefined,
         })
         return c.json(result)
       },

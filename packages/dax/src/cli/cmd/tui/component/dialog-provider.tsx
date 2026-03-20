@@ -87,11 +87,25 @@ export function createDialogProviderOptions() {
             }
             if (index == null) return
             const method = methods[index]
+
+            // Collect prompts if method has any
+            const inputs: Record<string, string> = {}
+            if (method.prompts && method.prompts.length > 0) {
+              for (const prompt of method.prompts) {
+                const value = await DialogPrompt.show(dialog, prompt.message, {
+                  placeholder: prompt.placeholder,
+                })
+                if (value === null) return // User cancelled
+                inputs[prompt.key] = value
+              }
+            }
+
             if (method.type === "oauth") {
               const result = await sdk.client.provider.oauth
                 .authorize({
                   providerID: provider.id,
                   method: index,
+                  inputs,
                 })
                 .catch((error) => {
                   toast.error(error)
@@ -343,9 +357,7 @@ function ApiMethod(props: ApiMethodProps) {
                 <text fg={theme.textMuted}>
                   Dax Zen gives you access to all the best coding models at the cheapest prices with a single API key.
                 </text>
-                <text fg={theme.text}>
-                  Go to https://dax.ai/zen to get a key
-                </text>
+                <text fg={theme.text}>Go to https://dax.ai/zen to get a key</text>
               </box>
             )
           : undefined

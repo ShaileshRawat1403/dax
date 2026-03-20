@@ -59,6 +59,8 @@ dax --version
    - OpenAI: `OPENAI_API_KEY`
    - Anthropic: `ANTHROPIC_API_KEY`
    - Google/Gemini: `dax auth login` (Google OAuth) or `GEMINI_API_KEY`
+     - OAuth users: DAX will prompt for your Google OAuth Client ID and Secret
+     - Create credentials at: https://console.cloud.google.com/apis/credentials/oauthclient
    - Ollama: local daemon running (default `http://localhost:11434`)
 
 3. Validate by running a prompt and confirming streaming output + tool approvals.
@@ -81,6 +83,7 @@ bun run --cwd packages/dax src/index.ts auth login
 ```
 
 Expected:
+
 - `auth doctor` shows `google: OK (...)`.
 - OAuth client id matches intended client.
 - A `google/*` prompt succeeds after login.
@@ -103,7 +106,6 @@ Open an issue at <https://github.com/dax-ai/dax/issues> with:
 - Repro steps
 - Expected vs actual behavior
 - Screenshot or terminal log (if available)
-
 
 ## Build and Publish (Maintainers)
 
