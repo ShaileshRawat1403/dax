@@ -1,7 +1,7 @@
 import z from "zod"
 import { Identifier } from "../id/id"
 import { Snapshot } from "@/snapshot"
-import { Audit } from "../governance/audit-types"
+import { AuditFinding } from "../governance/audit-types"
 import { Permission, type SessionVerification } from "@/governance"
 
 export namespace SessionV2 {
@@ -87,7 +87,7 @@ export namespace SessionV2 {
     activity_timeline: TimelineEvent.array(),
     approvals: Permission.Request.array(),
     artifacts: ArtifactRecord.array(),
-    audit_findings: Audit.Finding.array(),
+    audit_findings: AuditFinding.array(),
     trust_posture: z.any().optional(),
   }).meta({
     ref: "SessionStateV2",

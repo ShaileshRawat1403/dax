@@ -6,29 +6,29 @@ import { Flag } from "@/flag/flag"
 import { Instance } from "@/project/instance"
 import { PM } from "@/pm"
 import { DocOps } from "@/docops"
-import { Audit as AuditTypes } from "./audit-types"
+import * as AuditTypes from "./audit-types"
 
 export namespace Audit {
-  export type Trigger = AuditTypes.Trigger
-  export const Trigger = AuditTypes.Trigger
+  export type Trigger = AuditTypes.AuditTrigger
+  export const Trigger = AuditTypes.AuditTrigger
 
-  export type Profile = AuditTypes.Profile
-  export const Profile = AuditTypes.Profile
+  export type Profile = AuditTypes.AuditProfile
+  export const Profile = AuditTypes.AuditProfile
 
-  export type Severity = AuditTypes.Severity
-  export const Severity = AuditTypes.Severity
+  export type Severity = AuditTypes.AuditSeverity
+  export const Severity = AuditTypes.AuditSeverity
 
-  export type Status = AuditTypes.Status
-  export const Status = AuditTypes.Status
+  export type Status = AuditTypes.AuditStatus
+  export const Status = AuditTypes.AuditStatus
 
-  export type Finding = AuditTypes.Finding
-  export const Finding = AuditTypes.Finding
+  export type Finding = AuditTypes.AuditFinding
+  export const Finding = AuditTypes.AuditFinding
 
-  export type Summary = AuditTypes.Summary
-  export const Summary = AuditTypes.Summary
+  export type Summary = AuditTypes.AuditSummary
+  export const Summary = AuditTypes.AuditSummary
 
-  export type Result = AuditTypes.Result
-  export const Result = AuditTypes.Result
+  export type Result = AuditTypes.AuditResult
+  export const Result = AuditTypes.AuditResult
 
   const DEFAULT_FAIL_ON = ["security", "auth", "policy", "release", "test", "documentation"]
   const REQUIRED_RELEASE_FILES = [
