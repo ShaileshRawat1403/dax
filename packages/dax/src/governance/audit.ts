@@ -70,7 +70,7 @@ export namespace Audit {
     "packages/dax/script/build.ts",
     "script/install.sh",
     "README.md",
-    "docs/prerelease.md",
+    "docs/product/prerelease.md",
   ]
 
   function parseProfile(value: string | undefined): Profile | undefined {
@@ -195,7 +195,7 @@ export namespace Audit {
       }
     }
 
-    const auditDocs = ["docs/audit-agent.md", "docs/integrations-github-ci.md"]
+    const auditDocs = ["docs/product/audit-agent.md", "docs/product/integrations-github-ci.md"]
     for (const file of auditDocs) {
       if (!existsSync(path.join(Instance.worktree, file))) {
         findings.push(

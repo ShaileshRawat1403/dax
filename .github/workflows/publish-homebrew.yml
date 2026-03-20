@@ -9,7 +9,7 @@ on:
       repo:
         description: "GitHub repo in owner/name format"
         required: true
-        default: "ShaileshRawat1403/dax-tui"
+        default: "dax-ai/dax"
       publish_to_tap:
         description: "Push Formula/dax.rb to tap repo"
         required: true

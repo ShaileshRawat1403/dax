@@ -511,7 +511,7 @@ export namespace DocOps {
         }),
         checkMarkdownFile({
           root: ctx.root,
-          file: "docs/non-dev-quickstart.md",
+          file: "docs/product/non-dev-quickstart.md",
           requiredHeadings: ["What DAX Does In Plain Language", "10-Minute Flow", "Common Fixes"],
           checks,
         }),
