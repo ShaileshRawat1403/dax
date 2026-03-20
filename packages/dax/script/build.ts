@@ -264,8 +264,8 @@ if (Script.release) {
     throw new Error("Release publishing requires full assets. Run without --single or set DAX_BUILD_RELEASE_ASSETS=1.")
   }
 
-  if (!/^\d+\.\d+\.\d+-beta\.\d+$/.test(Script.version)) {
-    throw new Error(`DAX_VERSION must match X.Y.Z-beta.N for prereleases. Received: ${Script.version}`)
+  if (!/^\d+\.\d+\.\d+(-beta\.\d+)?$/.test(Script.version)) {
+    throw new Error(`DAX_VERSION must match X.Y.Z or X.Y.Z-beta.N. Received: ${Script.version}`)
   }
 
   const tag = `v${Script.version}`
