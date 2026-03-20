@@ -14,10 +14,12 @@ import { ShareNext } from "@/share/share-next"
 import { Snapshot } from "../snapshot"
 import { Truncate } from "../tool/truncation"
 import { loadEnvHierarchy } from "@/env/load"
+import { ModelsDev } from "../provider/models"
 
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
   loadEnvHierarchy(Instance.directory)
+  ModelsDev.init()
   await PluginModule.Plugin.init()
   Share.init()
   ShareNext.init()

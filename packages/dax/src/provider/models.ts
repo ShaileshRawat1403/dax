@@ -120,14 +120,15 @@ export namespace ModelsDev {
       ModelsDev.Data.reset()
     }
   }
-}
 
-if (!Flag.DAX_DISABLE_MODELS_FETCH) {
-  ModelsDev.refresh()
-  setInterval(
-    async () => {
-      await ModelsDev.refresh()
-    },
-    60 * 1000 * 60,
-  ).unref()
+  export function init() {
+    if (Flag.DAX_DISABLE_MODELS_FETCH) return
+    refresh()
+    setInterval(
+      async () => {
+        await refresh()
+      },
+      60 * 1000 * 60,
+    ).unref()
+  }
 }
