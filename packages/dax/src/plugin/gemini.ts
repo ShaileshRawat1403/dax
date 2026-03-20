@@ -5,13 +5,6 @@ const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
-// Encoded production defaults to bypass automated scanner blocks for this public CLI client.
-const GEMINI_CLI_CLIENT_ID = atob(
-  atob(
-    "TVRBMk9UQTROVEV3TkRBM0xXaHZZbWQwTURobVpXbHZNM0l5ZFdOaGRUTnRPSE5vWTI1eVptWTJjbWMyTG1Gd2NITXVaMjl2WjJ4bGRYTmxjbU52Ym5SbGJuUXVZMjl0",
-  ),
-)
-const GEMINI_CLI_CLIENT_SECRET = atob(atob("UjA5RFUxQllMWEk1YTNGeFZVUTNWRjlXTTNCR1pWVlNiMWRJU0VSRFIxRm9SM1k9"))
 const GOOGLE_SCOPE_OPENID = "openid"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
 const GOOGLE_SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
@@ -132,10 +125,8 @@ const readCreds = async (): Promise<OAuthCreds | undefined> => {
   const [cli, adc] = await Promise.all([readCliCreds(), readAdcCreds()])
   if (cli?.access && cli?.refresh) return cli
   if (cli?.refresh) return cli
-  // Do not auto-import ADC for Gemini API ("google" provider). ADC is for
-  // Vertex flows and usually yields cloud-platform scoped tokens that fail
-  // against Gemini API auth requirements.
-  // Import is allowed by default, can be disabled by setting DAX_GEMINI_ALLOW_ADC_IMPORT=0
+  // ADC import for Gemini API ("google" provider) is allowed by default.
+  // Can be disabled by setting DAX_GEMINI_ALLOW_ADC_IMPORT=0
   if (adc?.refresh && Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT !== "0") return adc
   return undefined
 }
@@ -180,14 +171,22 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
   if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
-  const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
+  const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
   const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+  if (!id || !secret) {
+    throw new Error(
+      "OAuth credentials not configured. Provide your own Google OAuth client:\n" +
+        "  1. Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient\n" +
+        "  2. Save the JSON file\n" +
+        "  3. Run: dax auth add --oauth-creds <path-to-client_secret.json>",
+    )
+  }
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   })
-  if (id) body.set("client_id", id)
-  if (secret) body.set("client_secret", secret)
+  body.set("client_id", id)
+  body.set("client_secret", secret)
   const result = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -302,6 +301,14 @@ const exchangeCodeForTokens = async (
   clientSecret?: string,
 ) => {
   const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+  if (!secret) {
+    throw new Error(
+      "OAuth client_secret not configured. Provide your own Google OAuth client:\n" +
+        "  1. Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient\n" +
+        "  2. Save the JSON file\n" +
+        "  3. Run: dax auth add --oauth-creds <path-to-client_secret.json>",
+    )
+  }
   const body = new URLSearchParams({
     code,
     client_id: clientID,
@@ -309,7 +316,7 @@ const exchangeCodeForTokens = async (
     grant_type: "authorization_code",
     redirect_uri: redirectURI,
   })
-  if (secret) body.set("client_secret", secret)
+  body.set("client_secret", secret)
   const result = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -639,10 +646,16 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const customAuth = await Auth.get("google").then((x) => (x?.type === "oauth-custom" ? x : undefined))
 
             const clientID =
-              customAuth?.clientID ??
-              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ??
-              Bun.env.GEMINI_OAUTH_CLIENT_ID ??
-              GEMINI_CLI_CLIENT_ID
+              customAuth?.clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
+
+            if (!clientID) {
+              throw new Error(
+                "OAuth client_id not configured. Provide your own Google OAuth client:\n" +
+                  "  1. Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient\n" +
+                  "  2. Save the JSON file\n" +
+                  "  3. Run: dax auth add --oauth-creds <path-to-client_secret.json>",
+              )
+            }
             const redirectURI = await startOAuthServer()
             oauthCode.clear()
             const state = generateState()
