@@ -1,7 +1,8 @@
 import z from "zod"
 import { Identifier } from "../id/id"
 import { Snapshot } from "@/snapshot"
-import { Permission, Audit, type SessionVerification } from "@/governance"
+import { Audit } from "../governance/audit"
+import { Permission, type SessionVerification } from "@/governance"
 
 export namespace SessionV2 {
   export const Intent = z.object({

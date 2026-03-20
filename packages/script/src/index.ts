@@ -36,9 +36,18 @@ const CHANNEL = await (async () => {
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
 
+const daxPkgPath = path.resolve(import.meta.dir, "../../dax/package.json")
+const daxPkg = await Bun.file(daxPkgPath).json()
+
 const VERSION = await (async () => {
   if (env.VERSION) return env.VERSION
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
+  
+  // Use package.json version if it's set and valid
+  if (daxPkg.version && !daxPkg.version.startsWith("0.0.0-")) {
+    return daxPkg.version
+  }
+
   const version = await fetch("https://registry.npmjs.org/dax-ai/latest")
     .then(async (res) => {
       if (res.ok) return res.json()

@@ -68,6 +68,51 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 
 ---
 
+## 🛠️ Installation
+
+### 🍎 macOS & 🐧 Linux
+The recommended way to install the DAX binary is via the universal installation script:
+
+```bash
+# Install the latest version
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
+```
+
+### 🪟 Windows
+You can install DAX using **WinGet**:
+
+```powershell
+winget install DaxAi.DAX
+```
+
+### 📦 For Developers (via Bun/NPM)
+If you have [Bun](https://bun.sh) or Node.js installed, you can install the package globally. This will automatically fetch the correct native binary for your architecture:
+
+```bash
+# Using Bun
+bun install -g dax
+
+# Using NPM
+npm install -g dax
+```
+
+### 🌿 Local Development
+If you are contributing to this repository, you can link your local version globally:
+
+```bash
+bun install
+cd packages/dax
+bun link
+```
+
+### Verification
+After installation, verify it works by running:
+```bash
+dax --version
+```
+
+---
+
 ## 🏗️ Workspace Integration
 
 DAX is part of a larger ecosystem designed for enterprise-grade AI orchestration:
