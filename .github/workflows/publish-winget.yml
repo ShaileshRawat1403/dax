@@ -9,11 +9,11 @@ on:
       repo:
         description: "GitHub repo in owner/name format"
         required: true
-        default: "ShaileshRawat1403/dax-tui"
+        default: "dax-ai/dax"
       package_identifier:
         description: "Winget PackageIdentifier (must already exist for update flow)"
         required: true
-        default: "ShaileshRawat1403.DAX"
+        default: "DAX-AI.DAX"
       submit:
         description: "Submit to winget-pkgs via wingetcreate update"
         required: true
