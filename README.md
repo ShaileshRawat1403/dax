@@ -1,6 +1,8 @@
 <p align="center">
   <br>
-  <img src="./dax-logo.svg" alt="DAX logo" width="450">
+  <img src="./dax-logo.svg" alt="DAX logo" width="550">
+  <br>
+  <img src="./dax-hound.svg" alt="DAX hound mascot" width="200">
   <br>
   <b>Deterministic AI eXecution</b>
   <br>
