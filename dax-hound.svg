@@ -1,55 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160" role="img" aria-label="DAX-hound Conceptual Glyph">
-  <!-- 
-    DAX HOUND V3: ARCHITECTURAL GLYPH 
-    Style: Minimalist Stencil / Swiss Grid
-    Concept: Software Architecture as a Form
-  -->
-  
-  <g transform="translate(40, 45)">
-    <!-- 1. THE REAR PILLAR (Override) -->
-    <rect x="0" y="20" width="35" height="50" rx="2" fill="#0C1638" />
-    
-    <!-- 2. THE MIDDLE PILLAR (Audit) -->
-    <rect x="50" y="20" width="35" height="50" rx="2" fill="#0C1638" />
-    
-    <!-- 3. THE FRONT PILLAR (Run) -->
-    <rect x="100" y="20" width="35" height="50" rx="2" fill="#0C1638" />
-
-    <!-- 4. THE CONNECTIVE SPINE (Deterministic Path) -->
-    <rect x="0" y="20" width="135" height="12" rx="1" fill="#4F7BFF" />
-
-    <!-- 5. THE ARCHITECTURAL HEAD (Command Wedge) -->
-    <!-- This forms the 'head' but is actually a sharp logic-gate silhouette -->
-    <path d="
-      M 150,0 
-      L 210,35 
-      L 150,70 
-      L 150,55 
-      L 180,35 
-      L 150,15 
-      Z" 
-      fill="#4F7BFF" />
-
-    <!-- 6. THE GOVERNANCE EAR (Modular Bracket) -->
-    <!-- Acts as a 'D' pivot and provides the hound profile hint -->
-    <path d="
-      M 145,0 
-      L 165,0 
-      L 165,60 
-      L 145,60 
-      L 145,50 
-      L 155,50 
-      L 155,10 
-      L 145,10 
-      Z" 
-      fill="#0C1638" />
-
-    <!-- 7. THE ACTIVE CURSOR (The Tail) -->
-    <rect x="-15" y="10" width="6" height="35" rx="1" fill="#34C759" />
-    
-    <!-- 8. THE GROUNDING (Legs as Terminal Ticks) -->
-    <rect x="15" y="75" width="4" height="15" fill="#0C1638" opacity="0.4" />
-    <rect x="65" y="75" width="4" height="15" fill="#0C1638" opacity="0.4" />
-    <rect x="115" y="75" width="4" height="15" fill="#0C1638" opacity="0.4" />
-  </g>
+<svg width="800" height="800" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DAX-hound Mascot">
+  <defs>
+    <linearGradient id="houndGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F7BFF" />
+      <stop offset="100%" stop-color="#7A4DFF" />
+    </linearGradient>
+  </defs>
+  <path fill="url(#houndGradient)" d="M137.75 17.28l-15.313 78.782 20.313 56.876h45.97L137.75 17.28zM74.5 19L20 378.156v116.156h208L210.125 386.5H113.28l-2.218-6.156-25.78-71.594 17.562-6.344 23.562 65.406h90.344l230.688-2.968 9.812-33.406H278.5V312.75h184.22l7.374-25.156L415.53 209.5H291.47l-20.345-37.594h-75.28l-.095-.28h-46.313L159.563 200l-17.593 6.28-26.532-74.25-.126.72L74.5 19zm133.375 178.22h56.094l21.405 38.874-26.094-.438-51.405-38.437zm230.47 12.28l38.53 55.094L493.03 209.5h-54.686zm-82.814 15.938c6.613 0 11.97 5.356 11.97 11.968 0 6.613-5.357 11.97-11.97 11.97-6.61 0-11.967-5.357-11.967-11.97 0-6.612 5.356-11.97 11.968-11.97zm44.595 0c6.612 0 12 5.356 12 11.968 0 6.613-5.388 11.97-12 11.97s-11.97-5.357-11.97-11.97c0-6.612 5.358-11.97 11.97-11.97zm-66.188 29.187c6.612 0 11.97 5.356 11.97 11.97 0 6.61-5.358 11.967-11.97 11.967-6.61 0-11.968-5.356-11.968-11.968 0-6.613 5.356-11.97 11.967-11.97zm43.125 0c6.612 0 12 5.356 12 11.97 0 6.61-5.388 11.967-12 11.967-6.61 0-11.968-5.356-11.968-11.968 0-6.613 5.357-11.97 11.97-11.97zm42.063 0c6.612 0 11.97 5.356 11.97 11.97 0 6.61-5.358 11.967-11.97 11.967-6.612 0-11.97-5.356-11.97-11.968 0-6.613 5.358-11.97 11.97-11.97z"/>
 </svg>
