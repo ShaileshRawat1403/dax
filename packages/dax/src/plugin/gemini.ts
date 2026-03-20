@@ -301,11 +301,7 @@ const exchangeCodeForTokens = async (
   clientID: string,
   clientSecret?: string,
 ) => {
-  const secret =
-    clientSecret ??
-    Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ??
-    Bun.env.GEMINI_OAUTH_CLIENT_SECRET ??
-    GEMINI_CLI_CLIENT_SECRET
+  const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
   const body = new URLSearchParams({
     code,
     client_id: clientID,
