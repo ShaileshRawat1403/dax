@@ -74,8 +74,9 @@
     "prettier": "3.6.2"
   },
   "dependencies": {
-    "typescript": "catalog:",
-    "blessed": "^0.1.81"
+    "blessed": "^0.1.81",
+    "quansync": "^1.0.0",
+    "typescript": "catalog:"
   },
   "repository": {
     "type": "git",
