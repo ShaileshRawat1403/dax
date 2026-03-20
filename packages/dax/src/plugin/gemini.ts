@@ -5,13 +5,6 @@ const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
-// Encoded production defaults to bypass automated scanner blocks for this public CLI client.
-const GEMINI_CLI_CLIENT_ID = atob(
-  atob(
-    "TVRBMk9UQTROVEV3TkRBM0xXaHZZbWQwTURobVpXbHZNM0l5ZFdOaGRUTnRPSE5vWTI1eVptWTJjbWMyTG1Gd2NITXVaMjl2WjJ4bGRYTmxjbU52Ym5SbGJuUXVZMjl0",
-  ),
-)
-const GEMINI_CLI_CLIENT_SECRET = atob(atob("UjA5RFUxQllMWEk1YTNGeFZVUTNWRjlXTTNCR1pWVlNiMWRJU0VSRFIxRm9SM1k9"))
 const GOOGLE_SCOPE_OPENID = "openid"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
 const GOOGLE_SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
@@ -180,14 +173,21 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
   if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
-  const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
+  const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
   const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+  if (!id || !secret) {
+    throw new Error(
+      "OAuth credentials required for token refresh. Provide client_id and client_secret:\n" +
+        "  1. Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient\n" +
+        "  2. Run: dax auth add --oauth-creds <path-to-client_secret.json>",
+    )
+  }
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   })
-  if (id) body.set("client_id", id)
-  if (secret) body.set("client_secret", secret)
+  body.set("client_id", id)
+  body.set("client_secret", secret)
   const result = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
