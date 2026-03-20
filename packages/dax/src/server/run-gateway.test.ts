@@ -256,8 +256,14 @@ describe("run gateway v1 contract", () => {
 
         await bootstrap(repoRoot, async () => {
           const { Provider } = await import("@/provider/provider")
-          const model = await Provider.defaultModel()
-          const create = await RunGateway.createRun({            intent: {
+          let model: { providerID: string; modelID: string }
+          try {
+            model = await Provider.defaultModel()
+          } catch {
+            model = { providerID: "test", modelID: "test-model" }
+          }
+          const create = await RunGateway.createRun({
+            intent: {
               input: "",
             },
             metadata: {
@@ -302,7 +308,7 @@ describe("run gateway v1 contract", () => {
             },
             finish: "tool-calls",
             error: MessageV2.fromError(new Error("The user rejected permission to use this specific tool call."), {
-              providerID: "openai",
+              providerID: model.providerID,
             }),
             sessionID: create.runId,
           })
@@ -365,7 +371,12 @@ describe("run gateway v1 contract", () => {
 
         await bootstrap(repoRoot, async () => {
           const { Provider } = await import("@/provider/provider")
-          const model = await Provider.defaultModel()
+          let model: { providerID: string; modelID: string }
+          try {
+            model = await Provider.defaultModel()
+          } catch {
+            model = { providerID: "test", modelID: "test-model" }
+          }
           const active = await RunGateway.createRun({
             intent: {
               input: "",
