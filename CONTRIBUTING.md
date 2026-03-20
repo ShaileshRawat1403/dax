@@ -1,100 +1,80 @@
 # Contributing to DAX
 
-## Product Boundary
+Thank you for your interest in contributing to **DAX (Deterministic AI eXecution)**. We are building the execution control plane for AI-assisted SDLC, and we value your help.
 
-DAX is the execution control plane for AI-assisted SDLC.
+---
 
-The canonical shipped product lives under `packages/dax`.
+## 🏗️ Product Structure
 
-Do new product work only in:
+The DAX repository is a monorepo managed with Bun. The canonical shipped product lives under `packages/dax`.
 
-- `packages/dax`
-- `packages/plugin`
-- `packages/util`
-- `packages/script`
-- `packages/sdk/js`
+Please perform new development work only within these directories:
+-   `packages/dax`: Core workstation, CLI, and server.
+-   `packages/plugin`: Internal and external plugin substrate.
+-   `packages/util`: Shared utility libraries.
+-   `packages/script`: Build and distribution scripts.
+-   `packages/sdk/js`: The DAX JavaScript/TypeScript SDK.
 
-Root-level `cli/`, `core/`, and `tui/` are frozen legacy paths. Do not add new files there. Do not extend them with new behavior. They remain only until removal work is complete.
+**Important:** Root-level directories (other than `packages/` and `docs/`) are reserved for repository configuration and metadata.
 
-Start here:
+---
 
-- `README.md`
-- `ARCHITECTURE.md`
-- `docs/CONTRIBUTOR_START_HERE.md`
-- `docs/REPO_BOUNDARIES.md`
-- `docs/DAX_OVERHAUL_PLAN.md`
+## 🚀 Getting Started
 
-## Branching and PR Shape
+1.  Read the [Product Overview](./docs/product/start-here.md) to understand the DAX vision.
+2.  Review the [Architecture Deep Dive](./docs/architecture/ARCHITECTURE.md).
+3.  Consult the [Contributor Start Here](./docs/product/contributor-start-here.md) guide for environment setup and internal conventions.
 
-Use one branch per workstream. Keep commits reviewable and Git-friendly.
+---
 
-Preferred branch names:
+## 🌿 Branching and PR Standards
 
-- `feature/<workstream>`
-- `fix/<workstream>`
-- `docs/<workstream>`
+*   **Branching**: Use descriptive branch names:
+    *   `feature/<workstream>`
+    *   `fix/<workstream>`
+    *   `docs/<workstream>`
+*   **PR Shape**: Group changes logically (e.g., docs first, then core logic, then tests). Avoid mixing unrelated refactors with behavior changes.
+*   **Commit Messages**: Follow [Conventional Commits](https://www.conventionalcommits.org/) standards.
 
-Preferred change grouping:
+---
 
-1. docs/legal/public surface
-2. behavior/runtime changes
-3. tests
-4. legacy deletions
-
-Do not mix unrelated cleanup, refactors, and behavior changes in one PR if they can be split cleanly.
-
-## Local Development
+## 🛠️ Local Development
 
 ```bash
+# Setup dependencies
 bun install
+
+# Start the interactive development environment
 bun run dev
 ```
 
-Useful checks:
-
+### Mandatory Checks
+Before submitting a PR, ensure all checks pass:
 ```bash
-bun run typecheck:dax
-bun run test
-bun run release:check
+bun run typecheck:dax   # Static type safety
+bun run test            # Comprehensive test suite
+bun run release:check   # Release readiness and integrity
 ```
 
-## Release and Safety Validation
+---
 
-Before opening a release-oriented PR, run:
+## ✅ Testing Expectations
 
-```bash
-bun run release:verify
-```
+We maintain a high standard for stability and trust. Every PR must include:
+*   **Unit Tests**: For new logic and utilities.
+*   **Integration Tests**: For new commands, governance rules, or API endpoints.
+*   **Regression Tests**: For all bug fixes.
 
-For local release packaging smoke:
+If you modify the **RAO loop**, **Approvals**, or **Release Validation**, you MUST update the corresponding integration tests.
 
-```bash
-bun run build
-```
+---
 
-The release flow expects:
+## 🔐 Security
 
-- valid legal and contribution docs
-- current README and release docs
-- intact release scripts and assets
-- no new legacy-root edits
+Please report any security vulnerabilities according to our [Security Policy](./SECURITY.md). Do not open public issues for potential security flaws.
 
-## Plugins, Tools, and Config
+---
 
-Prefer stable extension surfaces over internal patching:
+## 📄 License
 
-- tools for new execution capabilities
-- plugins for integration and policy hooks
-- config for agent, provider, and permission behavior
-
-Experimental hooks and bootstrap behavior may change. If you depend on them, document that in your PR and add tests.
-
-## Testing Expectations
-
-At minimum, include the narrowest automated check that proves the change:
-
-- unit tests for pure logic
-- integration tests for approvals, config, or CLI/runtime contracts
-- release/smoke updates for public-surface or packaging changes
-
-If you change governance, approvals, release validation, or docs integrity, add or update tests in the same PR.
+By contributing to DAX, you agree that your contributions will be licensed under the project's [MIT License](./LICENSE).

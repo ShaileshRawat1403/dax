@@ -24,7 +24,7 @@ Use this guide if you want to:
 
 Start with the product prerelease/stable install guide:
 
-- [Peer Pre-release Guide](./product/prerelease.md)
+- [Peer Pre-release Guide](./prerelease.md)
 
 ## 10-Minute Flow
 
@@ -47,6 +47,6 @@ Start with the product prerelease/stable install guide:
 
 ## Next Reads
 
-- [Product Start Here](./product/start-here.md)
-- [Audit Agent Guide](./product/audit-agent.md)
-- [Release Readiness](./product/release-readiness.md)
+- [Product Start Here](./start-here.md)
+- [Audit Agent Guide](./audit-agent.md)
+- [Release Readiness](./release-readiness.md)
