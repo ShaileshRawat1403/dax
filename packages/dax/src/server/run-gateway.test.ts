@@ -252,9 +252,11 @@ describe("run gateway v1 contract", () => {
         const { Session } = await import("@/session")
         const { Identifier } = await import("@/id/id")
         const { MessageV2 } = await import("@/session/message-v2")
+        const { Provider } = await import("@/provider/provider")
         const repoRoot = path.resolve(import.meta.dir, "../../..")
 
         await bootstrap(repoRoot, async () => {
+          const model = await Provider.defaultModel()
           const create = await RunGateway.createRun({
             intent: {
               input: "",
@@ -271,7 +273,7 @@ describe("run gateway v1 contract", () => {
             role: "user",
             sessionID: create.runId,
             time: { created: Date.now() - 50 },
-            model: { providerID: "openai", modelID: "gpt-5.1-codex" },
+            model,
             agent: "test-agent",
           })
 
@@ -293,8 +295,8 @@ describe("run gateway v1 contract", () => {
               reasoning: 0,
               cache: { read: 0, write: 0 },
             },
-            modelID: "gpt-5.1-codex",
-            providerID: "openai",
+            modelID: model.modelID,
+            providerID: model.providerID,
             time: {
               created: Date.now() - 25,
               completed: Date.now(),
@@ -360,9 +362,11 @@ describe("run gateway v1 contract", () => {
         const { Session } = await import("@/session")
         const { Identifier } = await import("@/id/id")
         const { MessageV2 } = await import("@/session/message-v2")
+        const { Provider } = await import("@/provider/provider")
         const repoRoot = path.resolve(import.meta.dir, "../../..")
 
         await bootstrap(repoRoot, async () => {
+          const model = await Provider.defaultModel()
           const active = await RunGateway.createRun({
             intent: {
               input: "",
@@ -413,7 +417,7 @@ describe("run gateway v1 contract", () => {
             role: "user",
             sessionID: recent.runId,
             time: { created: Date.now() - 50 },
-            model: { providerID: "openai", modelID: "gpt-5.1-codex" },
+            model,
             agent: "test-agent",
           })
 
@@ -435,8 +439,8 @@ describe("run gateway v1 contract", () => {
               reasoning: 0,
               cache: { read: 0, write: 0 },
             },
-            modelID: "gpt-5.1-codex",
-            providerID: "openai",
+            modelID: model.modelID,
+            providerID: model.providerID,
             time: {
               created: Date.now() - 25,
               completed: Date.now(),
