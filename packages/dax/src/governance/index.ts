@@ -1,6 +1,6 @@
+export * from "./audit"
 export * from "./policy-engine"
 export * from "./trust-verification"
 export * from "./governance-writer"
-export * from "./audit"
 export * from "./types"
 export { Permission } from "./next"
