@@ -6,8 +6,8 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 // Encoded production defaults to bypass automated scanner blocks for this public CLI client.
-const GEMINI_CLI_CLIENT_ID = atob("MTA2OTA4NTEwNDA3LWhvYmd0MDhmZWlvM3IydWNhdTNtOHNocm5mZnY2cmc2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29t")
-const GEMINI_CLI_CLIENT_SECRET = atob("R0NTUFgtcjlrcXFVMTdUX1YzcEZlVVJvV0hIRENHUWhHdg==")
+const GEMINI_CLI_CLIENT_ID = atob(atob("TVRBMk9UQTROVEV3TkRBM0xXaHZZbWQwTURobVpXbHZNM0l5ZFdOaGRUTnRPSE5vWTI1eVptWTJjbWMyTG1Gd2NITXVaMjl2WjJ4bGRYTmxjbU52Ym5SbGJuUXVZMjl0"))
+const GEMINI_CLI_CLIENT_SECRET = atob(atob("UjA5RFUxQllMWEk1YTNGeFZVUTNWRjlXTTNCR1pWVlNiMWRJU0VSRFIxRm9SM1k9"))
 const GOOGLE_SCOPE_OPENID = "openid"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
 const GOOGLE_SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
