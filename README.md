@@ -2,7 +2,7 @@
   <br>
   <img src="./dax-logo.svg" alt="DAX logo" width="550">
   <br>
-  <img src="./dax-hound.svg" alt="DAX hound mascot" width="200">
+  <img src="./dax-hound.svg" alt="DAX-hound mascot" width="320">
   <br>
   <b>Deterministic AI eXecution</b>
   <br>
