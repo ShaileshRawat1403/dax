@@ -252,13 +252,12 @@ describe("run gateway v1 contract", () => {
         const { Session } = await import("@/session")
         const { Identifier } = await import("@/id/id")
         const { MessageV2 } = await import("@/session/message-v2")
-        const { Provider } = await import("@/provider/provider")
         const repoRoot = path.resolve(import.meta.dir, "../../..")
 
         await bootstrap(repoRoot, async () => {
+          const { Provider } = await import("@/provider/provider")
           const model = await Provider.defaultModel()
-          const create = await RunGateway.createRun({
-            intent: {
+          const create = await RunGateway.createRun({            intent: {
               input: "",
             },
             metadata: {
@@ -362,10 +361,10 @@ describe("run gateway v1 contract", () => {
         const { Session } = await import("@/session")
         const { Identifier } = await import("@/id/id")
         const { MessageV2 } = await import("@/session/message-v2")
-        const { Provider } = await import("@/provider/provider")
         const repoRoot = path.resolve(import.meta.dir, "../../..")
 
         await bootstrap(repoRoot, async () => {
+          const { Provider } = await import("@/provider/provider")
           const model = await Provider.defaultModel()
           const active = await RunGateway.createRun({
             intent: {
@@ -447,11 +446,10 @@ describe("run gateway v1 contract", () => {
             },
             finish: "tool-calls",
             error: MessageV2.fromError(new Error("The user rejected permission to use this specific tool call."), {
-              providerID: "openai",
+              providerID: model.providerID,
             }),
             sessionID: recent.runId,
           })
-
           await Session.updatePart({
             id: Identifier.ascending("part"),
             messageID: assistantMessageId,
