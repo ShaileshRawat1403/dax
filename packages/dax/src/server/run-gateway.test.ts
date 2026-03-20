@@ -260,7 +260,14 @@ describe("run gateway v1 contract", () => {
           try {
             model = await Provider.defaultModel()
           } catch {
-            model = { providerID: "test", modelID: "test-model" }
+            model = { providerID: "openai", modelID: "gpt-5.1-codex" }
+            const originalGetModel = Provider.getModel
+            Provider.getModel = async (providerID, modelID) => {
+              if (providerID === "openai" && modelID === "gpt-5.1-codex") {
+                return { id: "gpt-5.1-codex", providerID: "openai", name: "GPT-5.1 Codex" } as any
+              }
+              return originalGetModel(providerID, modelID)
+            }
           }
           const create = await RunGateway.createRun({
             intent: {
@@ -375,7 +382,14 @@ describe("run gateway v1 contract", () => {
           try {
             model = await Provider.defaultModel()
           } catch {
-            model = { providerID: "test", modelID: "test-model" }
+            model = { providerID: "openai", modelID: "gpt-5.1-codex" }
+            const originalGetModel = Provider.getModel
+            Provider.getModel = async (providerID, modelID) => {
+              if (providerID === "openai" && modelID === "gpt-5.1-codex") {
+                return { id: "gpt-5.1-codex", providerID: "openai", name: "GPT-5.1 Codex" } as any
+              }
+              return originalGetModel(providerID, modelID)
+            }
           }
           const active = await RunGateway.createRun({
             intent: {
