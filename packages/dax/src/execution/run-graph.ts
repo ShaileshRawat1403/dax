@@ -178,6 +178,10 @@ export async function runGraph(
         // --- Execution Success ---
         task.result = result.output
 
+        if (ctx.reportMilestone && milestoneLabels[task.id]) {
+          await ctx.reportMilestone({ taskID: task.id, label: milestoneLabels[task.id]! })
+        }
+
         // --- HITL Checkpoint ---
         if (task.is_hitl) {
           task.status = "awaiting_approval"
