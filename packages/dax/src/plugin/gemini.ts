@@ -6,11 +6,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 // Encoded production defaults to bypass automated scanner blocks for this public CLI client.
-const GEMINI_CLI_CLIENT_ID = atob(
-  atob(
-    "TVRBMk9UQTROVEV3TkRBM0xXaHZZbWQwTURobVpXbHZNM0l5ZFdOaGRUTnRPSE5vWTI1eVptWTJjbWMyTG1Gd2NITXVaMjl2WjJ4bGRYTmxjbU52Ym5SbGJuUXVZMjl0",
-  ),
-)
+const GEMINI_CLI_CLIENT_ID = atob(atob("TVRBMk9UQTROVEV3TkRBM0xXaHZZbWQwTURobVpXbHZNM0l5ZFdOaGRUTnRPSE5vWTI1eVptWTJjbWMyTG1Gd2NITXVaMjl2WjJ4bGRYTmxjbU52Ym5SbGJuUXVZMjl0"))
 const GEMINI_CLI_CLIENT_SECRET = atob(atob("UjA5RFUxQllMWEk1YTNGeFZVUTNWRjlXTTNCR1pWVlNiMWRJU0VSRFIxRm9SM1k9"))
 const GOOGLE_SCOPE_OPENID = "openid"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
@@ -135,8 +131,7 @@ const readCreds = async (): Promise<OAuthCreds | undefined> => {
   // Do not auto-import ADC for Gemini API ("google" provider). ADC is for
   // Vertex flows and usually yields cloud-platform scoped tokens that fail
   // against Gemini API auth requirements.
-  // Import is allowed by default, can be disabled by setting DAX_GEMINI_ALLOW_ADC_IMPORT=0
-  if (adc?.refresh && Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT !== "0") return adc
+  if (adc?.refresh && Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1") return adc
   return undefined
 }
 
@@ -181,11 +176,7 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
   if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
   const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GEMINI_CLI_CLIENT_ID
-  const secret =
-    clientSecret ??
-    Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ??
-    Bun.env.GEMINI_OAUTH_CLIENT_SECRET ??
-    GEMINI_CLI_CLIENT_SECRET
+  const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
@@ -305,11 +296,7 @@ const exchangeCodeForTokens = async (
   clientID: string,
   clientSecret?: string,
 ) => {
-  const secret =
-    clientSecret ??
-    Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ??
-    Bun.env.GEMINI_OAUTH_CLIENT_SECRET ??
-    GEMINI_CLI_CLIENT_SECRET
+  const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
   const body = new URLSearchParams({
     code,
     client_id: clientID,
@@ -524,7 +511,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             const candidates = [
               await readCliCreds(),
-              Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT !== "0" ? await readAdcCreds() : undefined,
+              Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined,
             ].filter((x) => !!x?.refresh)
             for (const imported of candidates) {
               if (!imported?.refresh) continue
