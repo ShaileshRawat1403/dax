@@ -82,3 +82,13 @@ Capture:
 Capture:
 - `AUDIT_GATE_FAIL` line
 - blocker count in logs
+
+## Future Integration: Soothsayer
+
+Beyond standard CI gating, DAX is being integrated with **Soothsayer** to provide a multi-user web workstation for governed execution.
+
+- **Web Console**: Real-time observation of DAX runs in the browser.
+- **Unified Approvals**: Resolve DAX approvals via the Soothsayer web UI.
+- **Shared Memory**: Synchronization between local `pm.sqlite` and the Soothsayer policy engine.
+
+For the implementation roadmap, see: [Soothsayer Workstation Plan](../architecture/DAX_SOOTHSAYER_WORKSTATION_PLAN.md)

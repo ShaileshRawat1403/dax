@@ -1,237 +1,120 @@
 <p align="center">
-  <img src="./dax-logo.svg" alt="DAX logo" width="600">
+  <br>
+  <img src="./dax-logo.svg" alt="DAX logo" width="450">
+  <br>
+  <b>Deterministic AI eXecution</b>
+  <br>
+  <i>The execution control plane for AI-assisted SDLC.</i>
 </p>
-<p align="center"><strong>DAX — Deterministic AI eXecution</strong></p>
-<p align="center">The execution control plane for AI-assisted SDLC.</p>
+
+<p align="center">
+  <a href="https://github.com/ShaileshRawat1403/dax-tui/releases">
+    <img src="https://img.shields.io/badge/version-1.0.0--stable-blue.svg" alt="Version">
+  </a>
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  </a>
+  <a href="https://bun.sh">
+    <img src="https://img.shields.io/badge/runtime-Bun-black.svg" alt="Bun">
+  </a>
+</p>
 
 ---
 
-## Overview
+## 🚀 Overview
 
-DAX is the execution control plane for AI-assisted SDLC. It is built for teams and ambitious builders who want AI speed with explicit control, traceability, and customization.
+**DAX** is a professional-grade execution control plane designed for engineering teams and ambitious builders. While standard AI chat interfaces are built for conversation, DAX is built for **delivery**. It provides explicit control, traceability, and governance over AI operations within your software development lifecycle.
 
-The flagship experience is a transcript-first terminal workspace:
+The flagship experience is a **transcript-first terminal workstation** that treats AI reasoning and tool execution as a verifiable audit trail rather than a black box.
 
-- DAX explains what it found, what it is checking, and what happens next.
-- risky actions go through explicit review and approval instead of hidden tool calls.
-- detailed trace and context stay available on demand without overwhelming the main conversation.
+### ⚖️ The RAO Governance Loop
+DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
+1.  **Run**: The model proposes a technical action or plan.
+2.  **Audit**: Automated permission rules and safety gates evaluate the action.
+3.  **Override**: Human operators review, allow, or persist decisions via high-fidelity TUI surfaces.
 
-Instead of a free-running coding chat, DAX uses **RAO** as a governed execution loop:
+---
 
-1. **Run** – the model proposes the next action.
-2. **Audit** – permission rules and runtime checks evaluate whether the action should proceed, ask, or stop.
-3. **Override** – humans allow, deny, or persist the decision.
+## ✨ Core Capabilities
 
-## Guides
+*   **Governed Workstation**: A dual-surface TUI with a narrative execution stream and a dedicated control pane for changes, audits, and approvals.
+*   **Multi-Provider Substrate**: Seamless integration with OpenAI, Google Gemini, Anthropic, Ollama, and custom MCP servers.
+*   **Project Memory (PM)**: Durable, cross-session operational memory stored in a local SQLite engine.
+*   **ELI12 Mode**: Real-time response translation for non-technical stakeholders without losing technical precision.
+*   **Professional Tooling**:
+    *   `dax explore`: Structured repository analysis and shape detection.
+    *   `dax audit`: Real-time trust posture assessment.
+    *   `dax verify`: Evidence-based session validation.
+    *   `dax plan`: Inspect and refine task graphs before execution.
 
-- Full docs index: [docs/README.md](docs/README.md)
-- Start here: [docs/product/start-here.md](docs/product/start-here.md)
-- Build on DAX: [docs/product/build-on-dax.md](docs/product/build-on-dax.md)
-- Architecture deep dive: [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
-- Provider setup: [docs/product/providers.md](docs/product/providers.md)
-- Peer prerelease install/validation: [docs/product/prerelease.md](docs/product/prerelease.md)
-- Distribution channels: [docs/product/distribution.md](docs/product/distribution.md)
+---
 
-## Workspace Role
+## 📖 Documentation Index
 
-DAX is the canonical execution product in the `MYAIAGENTS` workspace.
+| Category | Guides |
+| :--- | :--- |
+| **Getting Started** | [Start Here](./docs/product/start-here.md) • [Non-Developer Quickstart](./docs/product/non-dev-quickstart.md) • [Provider Setup](./docs/product/providers.md) |
+| **Product & Use** | [Workflows](./docs/product/WORKFLOWS.md) • [Audit Agent Guide](./docs/product/audit-agent.md) • [Build on DAX](./docs/product/build-on-dax.md) |
+| **Architecture** | [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md) |
+| **Governance** | [Write Governance](./docs/features/DAX_WRITE_GOVERNANCE.md) • [Release Readiness](./docs/product/release-readiness.md) • [Security Policy](./SECURITY.md) |
 
-- `dax`: local-first governed execution product
-- `soothsayer`: multi-user web platform and orchestration shell
-- `workspace-mcp` in Soothsayer: kernel and policy contract
+---
 
-DAX is responsible for the CLI/TUI, local server/API, session runtime, tool execution, provider integrations, and RAO/PM behavior at the execution layer.
+## 🏗️ Workspace Integration
 
-Your `workspace-mcp` kernel from Soothsayer can be used with DAX today as an external local MCP server.
+DAX is part of a larger ecosystem designed for enterprise-grade AI orchestration:
 
-## Who DAX Is For
+*   **`dax`**: The local-first execution authority and developer workstation.
+*   **`soothsayer`**: The multi-user web platform for centralized governance and observation.
+*   **`workspace-mcp`**: The shared policy and capability kernel.
 
-| Ideal for                                                 | Not optimized for                                   |
-| --------------------------------------------------------- | --------------------------------------------------- |
-| Engineering teams adopting AI under real delivery rules   | Chat-only experimentation with no governance        |
-| Platform and developer productivity teams                 | IDE-first workflows where the editor is the product |
-| Technical founders with mixed technical/non-technical ops | "Replace developers" positioning                    |
-| Open-source builders who want governed local execution    | AGI-adjacent marketing claims                       |
+### 🔮 Future Roadmap: Soothsayer Integration
+We are currently building the **Soothsayer Workstation**, which will allow:
+*   **Remote Observation**: Watch local DAX runs live in a web-based dashboard.
+*   **Cloud Approvals**: Resolve governance requests from any device.
+*   **Unified Memory**: Sync local `pm.sqlite` state with organizational policies.
 
-## Core Capabilities
+See the [Soothsayer Workstation Plan](./docs/architecture/DAX_SOOTHSAYER_WORKSTATION_PLAN.md) for technical details.
 
-- Transcript-first terminal workspace (TUI) with milestone-based progress and review surfaces.
-- Multi-provider support: OpenAI, Google/Gemini, Anthropic, Ollama, more via RAO tools.
-- Governed approvals with allow/ask/deny rules, persisted approvals, and audit trace recording.
-- Project Memory (PM) stored in `pm.sqlite` for durable context.
-- ELI12 mode that rewrites responses in plain language.
-- Built-in review and diagnostics via `dax approvals`, `dax doctor`, and docs workflows.
-- `dax plan` exposes the canonical planning workflow so operators can inspect work before execution.
-- Explicit execution previews in `dax run` so operators can inspect the work request before execution begins.
-- `dax artifacts` exposes retained outputs.
-- `dax audit` exposes trust posture by summarizing approvals, overrides, evidence presence, and audit findings.
-- `dax verify` judges whether a session has enough evidence and governance signal to reach a stronger trust posture.
-- `dax release check` judges whether a trusted session is ready for review, handoff, or shipping.
-- `dax explore <path>` inspects a repository and returns structured execution-oriented understanding.
-- Theme system with quick-switch profiles.
+---
 
-## Workstation Model
-
-DAX uses a deliberate two-surface session layout:
-
-- **Left stream**: the canonical execution narrative
-  - user asks
-  - reasoning / working notes
-  - tool and evidence cards
-  - milestone markers
-  - final answer or handoff summary
-- **Right control pane**: the active operator surface
-  - `changes`
-  - `audit`
-  - `approvals`
-  - `plan`
-  - `refine`
-
-The right pane is not a duplicate transcript. It is the live control board that answers:
-
-- what needs my attention now?
-- what phase are we in?
-- what should happen next?
-- what contract is about to run?
-
-The pane can auto-follow important session states:
-
-- approvals/questions -> `approvals`
-- active refine draft -> `refine`
-- active diff -> `changes`
-- audit warnings/blockers -> `audit`
-- otherwise -> `plan`
-
-Manual pinning still works, but approvals remain the highest-priority interruption surface.
-
-## Canonical Workflows
-
-- Start or continue governed work: `dax`, `dax plan`, `dax run`, `dax explore`
-- Review and inspect: `dax docs`, `dax mcp`, `dax approvals`, `dax artifacts`, `dax audit`, `dax verify`, `dax release`
-- Diagnose and configure: `dax doctor`, `dax auth`, `dax models`
-
-## Product Pillars
-
-### RAO (Run → Audit → Override)
-
-- Explicit permissions for sensitive actions.
-- Persistent approvals for recurring scenarios.
-- Human override for high-risk operations.
-- Audit and override events recorded for traceability.
-
-### Project Memory (PM)
-
-- Long-lived constraints, preferences, and notes.
-- Session continuity across runs.
-- Operational memory that stays separate from transient chat state.
-
-### Terminal Workstation (TUI)
-
-- Header: one state sentence, one useful detail.
-- Stream: calm SDLC teammate voice with milestone-based progress.
-- Sidebar: live system truth (session state, trust score, artifacts).
-- Overlays: evidence views (timeline, artifact inspection, approvals).
-
-### Normal and ELI12 Modes
-
-- Normal mode is concise and implementation-oriented.
-- ELI12 keeps the same structure but explains what the result means and what happens next in simpler language.
-
-## Quickstart
+## 🛠️ Quickstart
 
 ### Prerequisites
+*   [Bun](https://bun.sh) `1.3.x`
+*   Git
 
-- Bun `1.3.x`
-- Git
-
-### Install
-
+### Installation
 ```bash
-git clone https://github.com/anomalyco/dax.git
-cd dax
+git clone https://github.com/ShaileshRawat1403/dax-tui.git
+cd dax-tui
 bun install
 ```
 
-### Run DAX
-
+### Usage
 ```bash
+# Start the interactive workstation
 bun run dev
-```
 
-### Run the CLI
-
-```bash
-# Run workflow
-cd packages/dax
-bun run bin/dax workflow run repo-health <path>
-
-# List workflows
-bun run bin/dax workflow list
-
-# Inspect session
-bun run bin/dax workflow inspect <session-id>
-```
-
-### Validate Quality Locally
-
-```bash
-cd packages/dax
+# Run a quality check
 bun run test
 ```
 
-## Architecture Overview
+---
 
-```mermaid
-flowchart LR
-  U[User Prompt] --> TUI[TUI / CLI Surface]
-  TUI --> SP[Session Prompt Assembly]
-  SP --> SYS[System + Instruction Layers]
-  SP --> AG[Agent Selection]
-  AG --> LLM[LLM Stream Engine]
-  LLM --> PROC[Stream Processor]
-  PROC --> RAO[RAO Governance]
-  RAO -->|allow| TOOLS[Tool Registry + MCP Tools]
-  RAO -->|ask/deny| OV[User Override]
-  TOOLS --> PROC
-  PROC --> PM[PM Local Memory DB]
-  PROC --> OUT[Rendered Output + Telemetry]
-```
+## ⚠️ Disclaimer & Safety
 
-## Orchestration Overview
+**DAX is professional software for governed AI execution.**
+*   **HITL Required**: Always review critical actions. DAX is an assistant, not a replacement for engineering judgment.
+*   **Data Privacy**: All session data and API keys are stored locally unless explicitly integrated with a remote provider.
+*   **Model Accuracy**: Results depend on the underlying LLM. Verify all generated code and configurations.
 
-```mermaid
-flowchart TD
-  U[Operator] --> P[Prompt / Run Intent]
-  P --> R[Refine Contract]
-  R --> E[Execute Session]
-  E --> L[Left Stream]
-  E --> C[Right Control Pane]
-  C --> AP[Approvals / Questions]
-  C --> PL[Plan / Milestones]
-  C --> AU[Audit / Trust]
-  C --> CH[Changes / Diff]
-  AP --> O[Operator Decision]
-  O --> E
-  E --> AR[Artifacts / Outputs]
-  AR --> L
-  AU --> O
-```
+---
 
-## Session Layout
+## 🤝 Contributing
 
-```mermaid
-flowchart LR
-  subgraph Session Workspace
-    LS[Left Stream\nNarrative + Evidence + Results]
-    RP[Right Pane\nControl + Attention + Guidance]
-  end
+We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for standards and setup instructions.
 
-  LS --> RP
-  RP --> LS
-  RP --> GOV[Approvals / Audit Decisions]
-  RP --> PLAN[Milestones / Next Step / Refine]
-```
+## 📄 License
 
-## License
-
-MIT
+Distributed under the MIT License. See `LICENSE` for more information.
