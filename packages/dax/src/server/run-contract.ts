@@ -6,7 +6,15 @@ export type SchemaVersion = z.infer<typeof SchemaVersion>
 export const SourceSystem = z.enum(["soothsayer", "dax", "cli", "api"])
 export type SourceSystem = z.infer<typeof SourceSystem>
 
-export const RunStatus = z.enum(["created", "queued", "running", "waiting_approval", "completed", "failed", "cancelled"])
+export const RunStatus = z.enum([
+  "created",
+  "queued",
+  "running",
+  "waiting_approval",
+  "completed",
+  "failed",
+  "cancelled",
+])
 export type RunStatus = z.infer<typeof RunStatus>
 
 export const StepStatus = z.enum(["proposed", "running", "completed", "failed", "blocked"])
@@ -67,7 +75,7 @@ export type RunCurrentStep = z.infer<typeof RunCurrentStep>
 export const RunSnapshot = z
   .object({
     schemaVersion: SchemaVersion,
-    authority: z.literal("dax"),
+    authority: z.enum(["dax", "dax-state-machine", "dax-legacy"]),
     sourceSystem: SourceSystem.optional(),
     runId: z.string(),
     status: RunStatus,
