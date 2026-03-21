@@ -244,16 +244,27 @@ export const RunSummary = z
   .object({
     runId: z.string(),
     status: RunStatus,
+    authority: z.enum(["dax", "dax-state-machine", "dax-legacy"]).optional(),
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
     stepCount: z.number(),
+    completedStepCount: z.number().optional(),
+    failedStepCount: z.number().optional(),
+    pendingStepCount: z.number().optional(),
     approvalCount: z.number(),
+    approvedCount: z.number().optional(),
+    deniedCount: z.number().optional(),
+    pendingApprovalCount: z.number().optional(),
     artifactCount: z.number(),
     trust: RunTrustState.optional(),
+    workflowClass: z.string().optional(),
+    riskLevel: RiskLevel.optional(),
+    executionMode: z.enum(["auto", "approval_gated", "manual"]).optional(),
     outcome: z
       .object({
         summaryText: z.string().optional(),
-        result: z.enum(["success", "failure", "partial"]).optional(),
+        result: z.enum(["success", "failure", "partial", "pending"]).optional(),
+        terminalReason: z.string().optional(),
       })
       .optional(),
   })
