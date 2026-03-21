@@ -931,29 +931,86 @@ export namespace RunGateway {
 
   export async function getSummary(runId: string): Promise<RunSummary> {
     initialize()
-    const [snapshot, events] = await Promise.all([getSnapshot(runId), readEvents(runId)])
-    const stepCount = events.filter((event) => event.type === "step.completed" || event.type === "step.failed").length
-    const approvalCount = events.filter((event) => event.type === "approval.requested").length
-    const artifactCount = events.filter((event) => event.type === "artifact.created").length
+    const [snapshot, events, runState, meta] = await Promise.all([
+      getSnapshot(runId),
+      readEvents(runId),
+      RunStore.get(runId),
+      readRunMeta(runId),
+    ])
+
+    let stepCount = 0
+    let completedStepCount = 0
+    let failedStepCount = 0
+    let approvalCount = 0
+    let approvedCount = 0
+    let deniedCount = 0
+    let pendingApprovalCount = 0
+    let artifactCount = 0
+
+    if (runState) {
+      stepCount = runState.steps.length
+      completedStepCount = runState.steps.filter((s) => s.status === "completed").length
+      failedStepCount = runState.steps.filter((s) => s.status === "failed").length
+      pendingApprovalCount = runState.pendingApprovalIds.length
+      artifactCount = runState.artifactIds.length
+    } else {
+      stepCount = events.filter((event) => event.type === "step.completed" || event.type === "step.failed").length
+      approvalCount = events.filter((event) => event.type === "approval.requested").length
+      artifactCount = events.filter((event) => event.type === "artifact.created").length
+    }
+
+    const approvedApprovals = events.filter(
+      (event) => event.type === "approval.resolved" && event.payload.decision === "approve",
+    ).length
+    const deniedApprovals = events.filter(
+      (event) => event.type === "approval.resolved" && event.payload.decision === "deny",
+    ).length
+
+    let outcomeResult: "success" | "failure" | "partial" | "pending" | undefined
+    let terminalReason: string | undefined
+
+    if (snapshot.status === "completed") {
+      outcomeResult = "success"
+      terminalReason = "Workflow completed successfully"
+    } else if (snapshot.status === "failed") {
+      outcomeResult = "failure"
+      if (runState?.error) {
+        terminalReason = runState.error.message
+      } else {
+        const failedEvent = events.find((e) => e.type === "run.failed")
+        terminalReason = failedEvent?.payload?.error?.message ?? "Run failed"
+      }
+    } else if (snapshot.status === "waiting_approval") {
+      outcomeResult = "pending"
+      terminalReason = "Awaiting approval"
+    } else if (snapshot.status === "running") {
+      outcomeResult = "pending"
+      terminalReason = "Execution in progress"
+    }
+
     return {
       runId,
       status: snapshot.status,
+      authority: snapshot.authority,
       startedAt: snapshot.startedAt,
       completedAt: snapshot.completedAt,
       stepCount,
-      approvalCount,
+      completedStepCount: runState ? completedStepCount : undefined,
+      failedStepCount: runState ? failedStepCount : undefined,
+      approvalCount: approvalCount || approvedApprovals + deniedApprovals,
+      approvedCount: approvedApprovals || undefined,
+      deniedCount: deniedApprovals || undefined,
+      pendingApprovalCount: pendingApprovalCount || snapshot.pendingApprovalCount || undefined,
       artifactCount,
       trust: snapshot.trust,
-      outcome:
-        snapshot.status === "completed"
-          ? {
-              result: "success",
-            }
-          : snapshot.status === "failed"
-            ? {
-                result: "failure",
-              }
-            : undefined,
+      workflowClass: meta?.workflowClass,
+      outcome: outcomeResult
+        ? {
+            result: outcomeResult,
+            summaryText: terminalReason,
+            terminalReason,
+          }
+        : undefined,
     }
   }
 

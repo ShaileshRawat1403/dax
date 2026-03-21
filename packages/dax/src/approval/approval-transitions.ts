@@ -7,7 +7,7 @@ import {
   type ApprovalType,
   type ApprovalContext,
   type ApprovalSource,
-  createApproval,
+  createApproval as createApprovalObject,
   type ApprovalResolution,
 } from "./approval-types"
 
@@ -53,10 +53,10 @@ export interface CreateApprovalParams {
   source?: ApprovalSource
 }
 
-export async function create(params: CreateApprovalParams): Promise<Approval> {
+export async function createAndPersistApproval(params: CreateApprovalParams): Promise<Approval> {
   const approvalId = `apr_${Identifier.create("permission", false)}`
 
-  const approval = createApproval({
+  const approval = createApprovalObject({
     approvalId,
     runId: params.runId,
     stepId: params.stepId,
@@ -81,7 +81,7 @@ export async function create(params: CreateApprovalParams): Promise<Approval> {
   return approval
 }
 
-export async function approve(
+export async function approveApproval(
   runId: string,
   approvalId: string,
   actorId?: string,
@@ -112,7 +112,12 @@ export async function approve(
   return resolved
 }
 
-export async function deny(runId: string, approvalId: string, actorId?: string, comment?: string): Promise<Approval> {
+export async function denyApproval(
+  runId: string,
+  approvalId: string,
+  actorId?: string,
+  comment?: string,
+): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
 
   if (!approval) {
@@ -138,7 +143,7 @@ export async function deny(runId: string, approvalId: string, actorId?: string, 
   return resolved
 }
 
-export async function expire(runId: string, approvalId: string): Promise<Approval> {
+export async function expireApproval(runId: string, approvalId: string): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
 
   if (!approval) {
@@ -166,7 +171,7 @@ export async function expire(runId: string, approvalId: string): Promise<Approva
   return updated
 }
 
-export async function cancel(runId: string, approvalId: string): Promise<Approval> {
+export async function cancelApproval(runId: string, approvalId: string): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
 
   if (!approval) {
@@ -214,7 +219,7 @@ function isPending(status: ApprovalStatus): boolean {
 
 export namespace ApprovalTransitions {
   export async function create(params: CreateApprovalParams): Promise<Approval> {
-    return create(params)
+    return createAndPersistApproval(params)
   }
 
   export async function approve(
@@ -223,19 +228,19 @@ export namespace ApprovalTransitions {
     actorId?: string,
     comment?: string,
   ): Promise<Approval> {
-    return approve(runId, approvalId, actorId, comment)
+    return approveApproval(runId, approvalId, actorId, comment)
   }
 
   export async function deny(runId: string, approvalId: string, actorId?: string, comment?: string): Promise<Approval> {
-    return deny(runId, approvalId, actorId, comment)
+    return denyApproval(runId, approvalId, actorId, comment)
   }
 
   export async function expire(runId: string, approvalId: string): Promise<Approval> {
-    return expire(runId, approvalId)
+    return expireApproval(runId, approvalId)
   }
 
   export async function cancel(runId: string, approvalId: string): Promise<Approval> {
-    return cancel(runId, approvalId)
+    return cancelApproval(runId, approvalId)
   }
 
   export async function resolve(
@@ -244,9 +249,9 @@ export namespace ApprovalTransitions {
     resolution: { decision: "approve" | "deny"; actorId?: string; comment?: string },
   ): Promise<Approval | null> {
     if (resolution.decision === "approve") {
-      return approve(runId, approvalId, resolution.actorId, resolution.comment)
+      return approveApproval(runId, approvalId, resolution.actorId, resolution.comment)
     } else {
-      return deny(runId, approvalId, resolution.actorId, resolution.comment)
+      return denyApproval(runId, approvalId, resolution.actorId, resolution.comment)
     }
   }
 
