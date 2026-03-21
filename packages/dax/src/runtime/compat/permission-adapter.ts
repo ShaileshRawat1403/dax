@@ -59,6 +59,7 @@ export async function adaptPermissionRequest(request: PermissionRequest, stepId?
       command: request.metadata?.command,
       toolName: request.permission,
       notes: request.patterns.length > 0 ? request.patterns : undefined,
+      originalPermissionId: request.id,
     },
     source: "permission",
   })

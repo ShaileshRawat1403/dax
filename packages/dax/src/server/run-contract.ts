@@ -6,6 +6,35 @@ export type SchemaVersion = z.infer<typeof SchemaVersion>
 export const SourceSystem = z.enum(["soothsayer", "dax", "cli", "api"])
 export type SourceSystem = z.infer<typeof SourceSystem>
 
+export const WorkflowClass = z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff", "generic"])
+export type WorkflowClass = z.infer<typeof WorkflowClass>
+
+export const WorkflowTrustPosture = z.enum(["high", "medium", "low", "minimal"])
+export type WorkflowTrustPosture = z.infer<typeof WorkflowTrustPosture>
+
+export const WorkflowTerminalReason = z.enum([
+  "workflow_completed",
+  "workflow_failed",
+  "workflow_signed_off",
+  "workflow_rejected",
+  "workflow_expired",
+  "workflow_cancelled",
+  "execution_error",
+  "permission_denied",
+  "timeout",
+])
+export type WorkflowTerminalReason = z.infer<typeof WorkflowTerminalReason>
+
+export const WorkflowSummary = z.object({
+  workflowClass: WorkflowClass,
+  stepGraph: z.string().array(),
+  currentStepIndex: z.number().optional(),
+  totalSteps: z.number(),
+  trustPosture: WorkflowTrustPosture,
+  terminalReason: WorkflowTerminalReason.optional(),
+})
+export type WorkflowSummary = z.infer<typeof WorkflowSummary>
+
 export const RunStatus = z.enum([
   "created",
   "queued",
@@ -88,6 +117,8 @@ export const RunSnapshot = z
     pendingApprovalCount: z.number(),
     trust: RunTrustState.optional(),
     artifactSummary: RunArtifactSummary.optional(),
+    workflow: WorkflowSummary.optional(),
+    terminalReason: WorkflowTerminalReason.optional(),
     lastEvent: z
       .object({
         eventId: z.string(),
@@ -127,7 +158,7 @@ export const ApprovalRecord = z
   .object({
     approvalId: z.string(),
     runId: z.string(),
-    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use"]),
+    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate"]),
     status: ApprovalStatus,
     risk: RiskLevel,
     title: z.string(),
@@ -190,6 +221,7 @@ export const CreateRunRequest = z
   .object({
     intent: RunIntent,
     personaPreset: PersonaPreset.optional(),
+    workflowHint: z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff"]).optional(),
     metadata: z
       .object({
         initiatedBy: z.string().optional(),
@@ -198,6 +230,8 @@ export const CreateRunRequest = z
         projectId: z.string().optional(),
         chatId: z.string().optional(),
         workflowId: z.string().optional(),
+        channel: z.string().optional(),
+        sessionId: z.string().optional(),
         targeting: z
           .object({
             mode: z.enum(["explicit_repo_path", "default_cwd"]),
@@ -215,6 +249,10 @@ export const CreateRunResponse = z
     runId: z.string(),
     status: RunStatus,
     createdAt: z.string(),
+    workflowHint: WorkflowClass.optional(),
+    workflowHintAccepted: z.boolean().optional(),
+    workflowClass: WorkflowClass.optional(),
+    warnings: z.string().array().optional(),
   })
   .meta({ ref: "CreateRunResponseV1" })
 export type CreateRunResponse = z.infer<typeof CreateRunResponse>
@@ -257,9 +295,8 @@ export const RunSummary = z
     pendingApprovalCount: z.number().optional(),
     artifactCount: z.number(),
     trust: RunTrustState.optional(),
-    workflowClass: z.string().optional(),
-    riskLevel: RiskLevel.optional(),
-    executionMode: z.enum(["auto", "approval_gated", "manual"]).optional(),
+    workflow: WorkflowSummary.optional(),
+    terminalReason: WorkflowTerminalReason.optional(),
     outcome: z
       .object({
         summaryText: z.string().optional(),
@@ -308,7 +345,7 @@ export const PendingApprovalSummary = z
   .object({
     approvalId: z.string(),
     runId: z.string(),
-    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use"]),
+    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate"]),
     risk: RiskLevel,
     title: z.string(),
     reason: z.string(),

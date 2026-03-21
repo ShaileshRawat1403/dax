@@ -10,6 +10,7 @@ import {
   createApproval as createApprovalObject,
   type ApprovalResolution,
 } from "./approval-types"
+import { Tracer } from "@/runtime/telemetry"
 
 const log = Log.create({ service: "approval-transitions" })
 
@@ -71,6 +72,8 @@ export async function createAndPersistApproval(params: CreateApprovalParams): Pr
 
   await ApprovalStore.add(params.runId, approval)
 
+  Tracer.approvalRequested(params.runId, approvalId, params.type, params.risk)
+
   log.info("approval created", {
     runId: params.runId,
     approvalId,
@@ -107,6 +110,8 @@ export async function approveApproval(
     throw new ApprovalNotFoundError(approvalId)
   }
 
+  Tracer.approvalResolved(runId, approvalId, "approve")
+
   log.info("approval approved", { runId, approvalId, actorId })
 
   return resolved
@@ -137,6 +142,8 @@ export async function denyApproval(
   if (!resolved) {
     throw new ApprovalNotFoundError(approvalId)
   }
+
+  Tracer.approvalResolved(runId, approvalId, "deny")
 
   log.info("approval denied", { runId, approvalId, actorId })
 

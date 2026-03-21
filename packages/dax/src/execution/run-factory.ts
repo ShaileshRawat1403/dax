@@ -4,6 +4,7 @@ import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { Identifier } from "@/id/id"
+import { Permission } from "@/governance"
 import type { CreateRunRequest, CreateRunResponse } from "@/server/run-contract"
 import { compileWithRunId } from "./compiler"
 import type { ExecutionContract } from "./execution-contract"
@@ -11,6 +12,7 @@ import { RunStore } from "@/state/run-store"
 import { Transitions } from "@/state/transitions"
 import { WorkflowRegistry } from "@/workflows/registry"
 import { isFixedWorkflow } from "@/workflows/types"
+import { Tracer } from "@/runtime/telemetry"
 
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
@@ -65,6 +67,36 @@ async function buildRunMeta(request: CreateRunRequest, runId: string): Promise<R
 
 async function writeRunMeta(runId: string, meta: RunMeta): Promise<void> {
   await Storage.write(["run_meta", Instance.project.id, runId], meta)
+}
+
+function sessionPermissionFromPreset(input: CreateRunRequest): Permission.Ruleset | undefined {
+  const approvalMode = input.personaPreset?.approvalMode
+  const riskLevel = input.personaPreset?.riskLevel
+
+  if (!approvalMode && !riskLevel) {
+    return undefined
+  }
+
+  const permission: Record<string, "allow" | "deny" | "ask"> = {}
+
+  if (approvalMode === "strict") {
+    permission.edit = "ask"
+    permission.shell = "ask"
+    permission.external_directory = "ask"
+  } else if (approvalMode === "balanced") {
+    permission.edit = "ask"
+    permission.shell = "ask"
+  }
+
+  if (riskLevel === "critical") {
+    permission.edit = "ask"
+    permission.shell = "ask"
+    permission.external_directory = "ask"
+  } else if (riskLevel === "high") {
+    permission.shell = "ask"
+  }
+
+  return Object.keys(permission).length > 0 ? Permission.fromConfig(permission as any) : undefined
 }
 
 function buildPromptContext(contract: ExecutionContract): string {
@@ -138,8 +170,9 @@ async function startExecution(runId: string, contract: ExecutionContract): Promi
 
 export async function createRunFromContract(input: RunFactoryInput): Promise<RunFactoryResult> {
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
+  const permission = sessionPermissionFromPreset(input.request)
 
-  const session = await Session.create({ title })
+  const session = await Session.create({ title, permission })
 
   const { contract, warnings } = compileWithRunId(input, session.id)
   contract.runId = session.id
@@ -161,6 +194,9 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     workflowClass: contract.workflowClass,
   })
 
+  Tracer.runCreated(session.id, contract.workflowClass, contract.executionMode)
+  Tracer.contractCompiled(session.id, contract.contractId, contract.riskLevel)
+
   if (isFixedWorkflow(contract.workflowClass)) {
     const workflow = WorkflowRegistry.create(contract.workflowClass, {
       runId: session.id,
@@ -168,6 +204,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     })
 
     if (workflow) {
+      await Transitions.transition(session.id, "queued", "execution_queued")
       await Transitions.transition(session.id, "running", "workflow_started")
       workflow.execute().catch((error) => {
         log.error("workflow execution failed", {
@@ -185,6 +222,10 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     runId: session.id,
     status: "created",
     createdAt: new Date(session.time.created).toISOString(),
+    workflowHint: contract.workflowHint,
+    workflowHintAccepted: contract.workflowHintAccepted,
+    workflowClass: contract.workflowClass,
+    warnings,
   }
 
   return {

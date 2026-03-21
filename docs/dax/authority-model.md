@@ -108,12 +108,13 @@ getSnapshot prefers RunState:
 - [x] RunState checked first
 - [x] Lifecycle inference becomes reconciliation
 
-### Phase 3: Deprecation Warnings (IN PROGRESS)
+### Phase 3: Deprecation Warnings (DONE)
 
 Legacy path triggers warnings:
 
-- [ ] Fallback to legacy logs warning
-- [ ] Warnings visible in logs/metrics
+- [x] Fallback to legacy logs warning
+- [x] Warnings visible in logs/metrics
+- [x] Authority counters track distribution
 
 ### Phase 4: Legacy Path Removal (FUTURE)
 
@@ -168,6 +169,7 @@ authority_distribution = {
 
 ## Version History
 
-| Version | Date       | Changes                 |
-| ------- | ---------- | ----------------------- |
-| 1.0.0   | 2026-03-21 | Initial locked contract |
+| Version | Date       | Changes                                                                   |
+| ------- | ---------- | ------------------------------------------------------------------------- |
+| 1.0.0   | 2026-03-21 | Initial locked contract                                                   |
+| 1.1.0   | 2026-03-21 | Phase 3 complete: Deprecation warnings and authority counters implemented |
