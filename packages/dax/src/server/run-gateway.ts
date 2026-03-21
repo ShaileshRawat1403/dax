@@ -9,6 +9,12 @@ import { Storage } from "@/storage/storage"
 import { Identifier } from "@/id/id"
 import { Log } from "@/util/log"
 import { deriveSessionLifecycleFromMessages } from "@/session/lifecycle"
+import { RunFactory } from "@/execution/run-factory"
+import { RunStore } from "@/state/run-store"
+import { LifecycleReconciler } from "@/runtime/compat/lifecycle-reconciler"
+import { ApprovalStore } from "@/approval/approval-store"
+import { ApprovalTransitions } from "@/approval/approval-transitions"
+import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
 import type { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import {
   type ApprovalRecord,
@@ -35,6 +41,8 @@ type RunMeta = {
     mode: "explicit_repo_path" | "default_cwd"
     repoPath?: string
   }
+  contractId?: string
+  workflowClass?: string
 }
 
 const log = Log.create({ service: "run-gateway" })
@@ -109,7 +117,9 @@ function trustPosture(value: unknown): RunTrustState["posture"] {
   }
 }
 
-function runStatusFromLifecycle(state: ReturnType<typeof deriveSessionLifecycleFromMessages>["lifecycle_state"]): RunSnapshot["status"] {
+function runStatusFromLifecycle(
+  state: ReturnType<typeof deriveSessionLifecycleFromMessages>["lifecycle_state"],
+): RunSnapshot["status"] {
   switch (state) {
     case "created":
       return "created"
@@ -173,10 +183,7 @@ function toApprovalRecord(request: Permission.Request): ApprovalRecord {
   }
 }
 
-function mergePendingApprovals(
-  liveApprovals: ApprovalRecord[],
-  eventApprovals: ApprovalRecord[],
-): ApprovalRecord[] {
+function mergePendingApprovals(liveApprovals: ApprovalRecord[], eventApprovals: ApprovalRecord[]): ApprovalRecord[] {
   const merged = new Map<string, ApprovalRecord>()
 
   for (const approval of eventApprovals) {
@@ -281,10 +288,7 @@ function sourceSurfaceFromMeta(meta: RunMeta | undefined): RunListItem["sourceSu
 }
 
 async function toRunListItem(runId: string): Promise<RunListItem | undefined> {
-  const [snapshot, meta] = await Promise.all([
-    RunGateway.getSnapshot(runId).catch(() => undefined),
-    readRunMeta(runId),
-  ])
+  const [snapshot, meta] = await Promise.all([RunGateway.getSnapshot(runId).catch(() => undefined), readRunMeta(runId)])
 
   if (!snapshot || !meta?.sourceSystem) {
     return undefined
@@ -573,6 +577,13 @@ async function handleBusEvent(event: any) {
       break
     case "permission.asked": {
       const approval = toApprovalRecord(event.properties)
+
+      try {
+        await adaptPermissionRequest(event.properties)
+      } catch (error) {
+        log.warn("failed to create canonical approval from permission", { error, runId: approval.runId })
+      }
+
       await appendEvent(approval.runId, {
         runId: approval.runId,
         type: "approval.requested",
@@ -585,8 +596,18 @@ async function handleBusEvent(event: any) {
       break
     }
     case "permission.replied": {
-      await appendEvent(event.properties.sessionID, {
-        runId: event.properties.sessionID,
+      const runId = event.properties.sessionID
+      try {
+        await ApprovalTransitions.resolve(runId, event.properties.requestID, {
+          decision: event.properties.reply === "reject" ? "deny" : "approve",
+          actorId: "system",
+        })
+      } catch (error) {
+        log.warn("failed to resolve canonical approval", { error, runId, approvalId: event.properties.requestID })
+      }
+
+      await appendEvent(runId, {
+        runId,
         type: "approval.resolved",
         timestamp: new Date().toISOString(),
         payload: {
@@ -633,6 +654,22 @@ export namespace RunGateway {
 
   export async function createRun(input: CreateRunRequest): Promise<CreateRunResponse> {
     initialize()
+
+    try {
+      const result = await RunFactory.create({ request: input })
+      log.info("run created via execution contract", {
+        runId: result.runId,
+        contractId: result.contract.contractId,
+        workflowClass: result.contract.workflowClass,
+        executionMode: result.contract.executionMode,
+        riskLevel: result.contract.riskLevel,
+        warnings: result.warnings,
+      })
+      return result.response
+    } catch (error) {
+      log.error("execution contract failed, falling back to legacy path", { error })
+    }
+
     const title = input.intent.input.split("\n")[0]?.trim() || "External run"
     const permission = sessionPermissionFromPreset(input)
     const session = await Session.create({
@@ -680,55 +717,108 @@ export namespace RunGateway {
 
   export async function getSnapshot(runId: string): Promise<RunSnapshot> {
     initialize()
-    const [session, messages, meta, events] = await Promise.all([
+    const [session, messages, meta, events, runState] = await Promise.all([
       Session.get(runId),
       Session.messages({ sessionID: runId }),
       readRunMeta(runId),
       readEvents(runId),
+      RunStore.get(runId),
     ])
+
     const pending = await getPendingApprovalsForRun(runId, events)
-    const lifecycle = deriveSessionLifecycleFromMessages({
-      archivedAt: session.time.archived,
-      pendingApprovalCount: pending.length,
-      retainedArtifactCount: session.state_v2?.artifacts.length ?? 0,
-      diffCount: session.summary?.diffs?.length ?? session.summary?.files ?? 0,
-      messages,
-      hasPlan: !!session.state_v2?.plan,
-      isPlanning: session.state_v2?.plan?.status === "running",
-    })
+
+    let status: RunSnapshot["status"]
+    let currentStep: RunSnapshot["currentStep"]
+    let startedAt: string | undefined
+    let completedAt: string | undefined
+    let trust: RunSnapshot["trust"]
+
+    if (runState) {
+      status = LifecycleReconciler.toExternal(runState.status)
+      startedAt = runState.startedAt ?? undefined
+      completedAt = runState.completedAt ?? undefined
+      trust = runState.trust
+        ? {
+            posture: runState.trust.posture,
+            score: runState.trust.score ?? undefined,
+            blocked: runState.trust.blocked,
+            reasons: runState.trust.reasons,
+          }
+        : undefined
+
+      if (runState.currentStepId) {
+        const step = runState.steps.find((s) => s.stepId === runState.currentStepId)
+        if (step) {
+          currentStep = {
+            stepId: step.stepId,
+            status: step.status,
+            title: step.title,
+            detail: step.error?.message,
+          }
+        }
+      }
+
+      if (runState.pendingApprovalIds.length !== pending.length) {
+        log.warn("approval count mismatch between run state and permissions", {
+          runId,
+          runStateApprovals: runState.pendingApprovalIds.length,
+          actualApprovals: pending.length,
+        })
+      }
+    } else {
+      const lifecycle = deriveSessionLifecycleFromMessages({
+        archivedAt: session.time.archived,
+        pendingApprovalCount: pending.length,
+        retainedArtifactCount: session.state_v2?.artifacts.length ?? 0,
+        diffCount: session.summary?.diffs?.length ?? session.summary?.files ?? 0,
+        messages,
+        hasPlan: !!session.state_v2?.plan,
+        isPlanning: session.state_v2?.plan?.status === "running",
+      })
+      status = runStatusFromLifecycle(lifecycle.lifecycle_state)
+      currentStep = currentStepFromMessages(messages)
+      startedAt = messages.length > 0 ? iso(messages[0]?.info.time.created) : undefined
+      completedAt = (() => {
+        if (!lifecycle.terminal || messages.length === 0) return undefined
+        const assistant = [...messages]
+          .reverse()
+          .find(
+            (message): message is MessageV2.WithParts & { info: MessageV2.Assistant } =>
+              message.info.role === "assistant",
+          )
+        return iso(assistant?.info.time.completed)
+      })()
+      trust = (() => {
+        const sessionTrust = buildTrustState(session.state_v2?.trust_posture)
+        if (!sessionTrust) return undefined
+        return {
+          ...sessionTrust,
+          blocked: sessionTrust.blocked ?? lifecycle.lifecycle_state === "awaiting_approval",
+        }
+      })()
+    }
+
     const artifacts = session.state_v2?.artifacts ?? []
     const byType = artifacts.reduce<Record<string, number>>((acc, artifact) => {
       const kind = artifactType(artifact.kind)
       acc[kind] = (acc[kind] ?? 0) + 1
       return acc
     }, {})
+
     return {
       schemaVersion: "v1",
-      authority: "dax",
+      authority: runState ? "dax-state-machine" : "dax-legacy",
       sourceSystem: meta?.sourceSystem,
       runId,
-      status: runStatusFromLifecycle(lifecycle.lifecycle_state),
+      status,
       createdAt: new Date(session.time.created).toISOString(),
-      updatedAt: new Date(session.time.updated).toISOString(),
-      startedAt: messages.length > 0 ? iso(messages[0]?.info.time.created) : undefined,
-      completedAt: (() => {
-        if (!lifecycle.terminal || messages.length === 0) return undefined
-        const assistant = [...messages]
-          .reverse()
-          .find((message): message is MessageV2.WithParts & { info: MessageV2.Assistant } => message.info.role === "assistant")
-        return iso(assistant?.info.time.completed)
-      })(),
+      updatedAt: runState?.updatedAt ?? new Date(session.time.updated).toISOString(),
+      startedAt,
+      completedAt,
       title: session.title,
-      currentStep: currentStepFromMessages(messages),
+      currentStep,
       pendingApprovalCount: pending.length,
-      trust: (() => {
-        const trust = buildTrustState(session.state_v2?.trust_posture)
-        if (!trust) return undefined
-        return {
-          ...trust,
-          blocked: trust.blocked ?? lifecycle.lifecycle_state === "awaiting_approval",
-        }
-      })(),
+      trust,
       artifactSummary: {
         total: artifacts.length,
         byType,
@@ -748,16 +838,58 @@ export namespace RunGateway {
 
   export async function getApprovals(runId: string) {
     initialize()
+    const canonicalApprovals = await ApprovalStore.pending(runId)
+    if (canonicalApprovals.length > 0) {
+      return canonicalApprovals.map((approval) => ({
+        approvalId: approval.approvalId,
+        runId: approval.runId,
+        type: approval.type,
+        status: approval.status,
+        risk: approval.risk,
+        title: approval.title,
+        reason: approval.reason,
+        context: approval.context,
+        createdAt: approval.requestedAt,
+        updatedAt: approval.resolvedAt ?? approval.requestedAt,
+        resolvedAt: approval.resolvedAt,
+        resolution: approval.resolution,
+      }))
+    }
     return getPendingApprovalsForRun(runId)
   }
 
   export async function resolveApproval(runId: string, approvalId: string, input: ResolveApprovalRequest) {
     initialize()
+    const canonicalApproval = await ApprovalStore.get(runId, approvalId)
+
+    if (canonicalApproval) {
+      if (input.decision === "approve") {
+        await ApprovalTransitions.approve(runId, approvalId, input.actorId, input.comment)
+      } else {
+        await ApprovalTransitions.deny(runId, approvalId, input.actorId, input.comment)
+      }
+
+      const updated = await ApprovalStore.get(runId, approvalId)
+      return {
+        approvalId,
+        status: updated?.status ?? (input.decision === "approve" ? "approved" : "denied"),
+        resolution: updated?.resolution ?? {
+          decision: input.decision,
+          actorId: input.actorId,
+          source: input.source,
+          comment: input.comment,
+        },
+        resolvedAt: updated?.resolvedAt ?? new Date().toISOString(),
+      }
+    }
+
     const approvals = await Permission.list()
     const existing = approvals.find((item) => item.id === approvalId && item.sessionID === runId)
     if (!existing) {
       const events = await readEvents(runId)
-      const prior = [...events].reverse().find((event) => event.type === "approval.resolved" && event.payload.approvalId === approvalId)
+      const prior = [...events]
+        .reverse()
+        .find((event) => event.type === "approval.resolved" && event.payload.approvalId === approvalId)
       if (prior) {
         return {
           approvalId,
