@@ -15,6 +15,9 @@ import { LifecycleReconciler } from "@/runtime/compat/lifecycle-reconciler"
 import { ApprovalStore } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
+import { Tracer } from "@/runtime/telemetry"
+import { Transitions } from "@/state/transitions"
+import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
 import type { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import {
   type ApprovalRecord,
@@ -28,6 +31,10 @@ import {
   type RunSnapshot,
   type RunSummary,
   type RunTrustState,
+  type WorkflowClass,
+  type WorkflowSummary,
+  type WorkflowTerminalReason,
+  WorkflowTrustPosture,
 } from "./run-contract"
 
 type RunMeta = {
@@ -46,6 +53,13 @@ type RunMeta = {
 }
 
 const log = Log.create({ service: "run-gateway" })
+const legacyLog = Log.create({ service: "run-gateway", subsystem: "legacy" })
+
+const authorityCounters = Instance.state(() => ({
+  dax_state_machine: 0,
+  dax_legacy: 0,
+  dax_mixed: 0,
+}))
 
 const listeners = new Map<string, Set<(event: RunEvent) => void>>()
 const partStatusByRun = new Map<string, Map<string, string>>()
@@ -55,6 +69,59 @@ const appendEventTailByRun = new Map<string, Promise<void>>()
 const runGatewayState = Instance.state(() => ({
   initialized: false,
 }))
+
+function buildWorkflowSummary(
+  workflowClass: string | undefined,
+  runState: { steps: Array<{ stepId: string; status: string }> } | null,
+): WorkflowSummary | undefined {
+  if (!workflowClass || !isFixedWorkflow(workflowClass as WorkflowClass)) {
+    return undefined
+  }
+
+  const steps = getStepsForWorkflow(workflowClass as WorkflowClass)
+  const stepGraph = steps.map((s) => s.stepId)
+
+  let currentStepIndex: number | undefined
+  let completedSteps = 0
+
+  if (runState) {
+    completedSteps = runState.steps.filter((s) => s.status === "completed").length
+    currentStepIndex = completedSteps
+  }
+
+  let trustPosture: WorkflowSummary["trustPosture"] = "medium"
+  if (workflowClass === "repo_analyze") {
+    trustPosture = "high"
+  }
+
+  return {
+    workflowClass: workflowClass as WorkflowClass,
+    stepGraph,
+    currentStepIndex: runState ? currentStepIndex : undefined,
+    totalSteps: steps.length,
+    trustPosture,
+    terminalReason: undefined,
+  }
+}
+
+function extractTerminalReason(events: RunEvent[]): WorkflowTerminalReason | undefined {
+  for (const event of events.reverse()) {
+    if (event.type === "run.completed") {
+      return "workflow_completed"
+    }
+    if (event.type === "run.failed") {
+      const error = event.payload?.error as { code?: string } | undefined
+      if (error?.code === "permission_denied") {
+        return "permission_denied"
+      }
+      if (error?.code === "timeout") {
+        return "timeout"
+      }
+      return "execution_error"
+    }
+  }
+  return undefined
+}
 
 function iso(timestamp: number | undefined) {
   return typeof timestamp === "number" ? new Date(timestamp).toISOString() : undefined
@@ -592,6 +659,36 @@ async function handleBusEvent(event: any) {
           approval,
         },
       })
+
+      const runState = await RunStore.get(approval.runId)
+      if (runState) {
+        if (runState.status === "running") {
+          try {
+            await Transitions.transition(approval.runId, "waiting_approval", "approval_pending")
+          } catch (error) {
+            log.warn("failed to transition to waiting_approval", { error, runId: approval.runId })
+          }
+        } else if (runState.status === "queued") {
+          try {
+            await Transitions.transition(approval.runId, "running", "execution_started")
+            await Transitions.transition(approval.runId, "waiting_approval", "approval_pending")
+          } catch (error) {
+            log.warn("failed to transition through running to waiting_approval", { error, runId: approval.runId })
+          }
+        } else if (runState.status === "compiled") {
+          try {
+            await Transitions.transition(approval.runId, "queued", "execution_queued")
+            await Transitions.transition(approval.runId, "running", "execution_started")
+            await Transitions.transition(approval.runId, "waiting_approval", "approval_pending")
+          } catch (error) {
+            log.warn("failed to transition through queued/running to waiting_approval", {
+              error,
+              runId: approval.runId,
+            })
+          }
+        }
+      }
+
       await emitRunState(approval.runId, "waiting_approval", "approval_pending")
       break
     }
@@ -622,6 +719,26 @@ async function handleBusEvent(event: any) {
     }
     case "session.error":
       if (!event.properties.sessionID) break
+      const errorMessage = event.properties.error?.data?.message ?? event.properties.error?.message ?? "Session failed"
+      const errorCode = event.properties.error?.name ?? "session_error"
+
+      const runState = await RunStore.get(event.properties.sessionID)
+      if (runState) {
+        try {
+          if (runState.status === "waiting_approval") {
+            await Transitions.transition(event.properties.sessionID, "failed", "approval_denied")
+          } else if (runState.status === "running") {
+            await Transitions.transition(event.properties.sessionID, "failed", "execution_error")
+          } else if (runState.status === "compiled" || runState.status === "queued") {
+            await Transitions.transition(event.properties.sessionID, "queued", "execution_queued")
+            await Transitions.transition(event.properties.sessionID, "running", "execution_started")
+            await Transitions.transition(event.properties.sessionID, "failed", "execution_error")
+          }
+        } catch (error) {
+          log.warn("failed to transition to failed on session error", { error, runId: event.properties.sessionID })
+        }
+      }
+
       await appendEvent(event.properties.sessionID, {
         runId: event.properties.sessionID,
         type: "run.failed",
@@ -629,8 +746,8 @@ async function handleBusEvent(event: any) {
         payload: {
           status: "failed",
           error: {
-            code: event.properties.error?.name ?? "session_error",
-            message: event.properties.error?.data?.message ?? event.properties.error?.message ?? "Session failed",
+            code: errorCode,
+            message: errorMessage,
           },
         },
       })
@@ -805,9 +922,24 @@ export namespace RunGateway {
       return acc
     }, {})
 
+    const authority: RunSnapshot["authority"] = runState ? "dax-state-machine" : "dax-legacy"
+
+    if (authority === "dax-legacy") {
+      const counters = authorityCounters()
+      counters.dax_legacy++
+      legacyLog.warn("run using legacy execution path - no persisted run state found", {
+        runId,
+        sessionCreatedAt: session.time.created,
+      })
+      Tracer.legacyFallback(runId, "no_persisted_run_state")
+    } else {
+      const counters = authorityCounters()
+      counters.dax_state_machine++
+    }
+
     return {
       schemaVersion: "v1",
-      authority: runState ? "dax-state-machine" : "dax-legacy",
+      authority,
       sourceSystem: meta?.sourceSystem,
       runId,
       status,
@@ -824,6 +956,8 @@ export namespace RunGateway {
         byType,
         latestArtifactIds: artifacts.slice(-3).map((artifact) => String(artifact.id)),
       },
+      workflow: buildWorkflowSummary(meta?.workflowClass, runState),
+      terminalReason: extractTerminalReason(events),
       lastEvent:
         events.at(-1) !== undefined
           ? {
@@ -855,7 +989,11 @@ export namespace RunGateway {
         resolution: approval.resolution,
       }))
     }
-    return getPendingApprovalsForRun(runId)
+    const legacyApprovals = await getPendingApprovalsForRun(runId)
+    if (legacyApprovals.length > 0) {
+      return legacyApprovals
+    }
+    return []
   }
 
   export async function resolveApproval(runId: string, approvalId: string, input: ResolveApprovalRequest) {
@@ -953,6 +1091,7 @@ export namespace RunGateway {
       failedStepCount = runState.steps.filter((s) => s.status === "failed").length
       pendingApprovalCount = runState.pendingApprovalIds.length
       artifactCount = runState.artifactIds.length
+      approvalCount = events.filter((event) => event.type === "approval.requested").length
     } else {
       stepCount = events.filter((event) => event.type === "step.completed" || event.type === "step.failed").length
       approvalCount = events.filter((event) => event.type === "approval.requested").length
@@ -1003,7 +1142,8 @@ export namespace RunGateway {
       pendingApprovalCount: pendingApprovalCount || snapshot.pendingApprovalCount || undefined,
       artifactCount,
       trust: snapshot.trust,
-      workflowClass: meta?.workflowClass,
+      workflow: buildWorkflowSummary(meta?.workflowClass, runState),
+      terminalReason: extractTerminalReason(events),
       outcome: outcomeResult
         ? {
             result: outcomeResult,
@@ -1104,5 +1244,22 @@ export namespace RunGateway {
 
   export const __testing = {
     appendEvent,
+  }
+
+  export function getAuthorityCounters() {
+    const counters = authorityCounters()
+    return {
+      dax_state_machine: counters.dax_state_machine,
+      dax_legacy: counters.dax_legacy,
+      dax_mixed: counters.dax_mixed,
+      total: counters.dax_state_machine + counters.dax_legacy + counters.dax_mixed,
+    }
+  }
+
+  export function resetAuthorityCounters() {
+    const counters = authorityCounters()
+    counters.dax_state_machine = 0
+    counters.dax_legacy = 0
+    counters.dax_mixed = 0
   }
 }

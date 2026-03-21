@@ -3,6 +3,7 @@ import { RunStore } from "./run-store"
 import type { RunState, StepRecord } from "./run-state"
 import { RunStatusSchema, type RunStatus, isLegalTransition, isTerminalStatus, isStepTerminalStatus } from "./run-state"
 import { StepRecordSchema } from "./run-state"
+import { Tracer } from "@/runtime/telemetry"
 
 const log = Log.create({ service: "run-transitions" })
 
@@ -65,6 +66,8 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
   }
 
   await RunStore.save(runId, updated)
+
+  Tracer.stateTransition(runId, state.status, newStatus)
 
   log.info("run state transitioned", {
     runId,
@@ -312,56 +315,44 @@ export async function failRun(
   return updated
 }
 
-export namespace Transitions {
-  export async function transition(runId: string, newStatus: RunStatus, reason?: string): Promise<RunState> {
+export const Transitions = {
+  async transition(runId: string, newStatus: RunStatus, reason?: string): Promise<RunState> {
     return transitionTo(runId, newStatus, reason)
-  }
+  },
 
-  export async function addStep(
-    runId: string,
-    stepId: string,
-    title: string,
-    type?: StepRecord["type"],
-  ): Promise<RunState> {
+  async addStep(runId: string, stepId: string, title: string, type?: StepRecord["type"]): Promise<RunState> {
     return addStep(runId, stepId, title, type)
-  }
+  },
 
-  export async function startStep(runId: string, stepId: string): Promise<RunState> {
+  async startStep(runId: string, stepId: string): Promise<RunState> {
     return startStep(runId, stepId)
-  }
+  },
 
-  export async function completeStep(runId: string, stepId: string, outputs?: string[]): Promise<RunState> {
+  async completeStep(runId: string, stepId: string, outputs?: string[]): Promise<RunState> {
     return completeStep(runId, stepId, outputs)
-  }
+  },
 
-  export async function failStep(
-    runId: string,
-    stepId: string,
-    error: { code: string; message: string },
-  ): Promise<RunState> {
+  async failStep(runId: string, stepId: string, error: { code: string; message: string }): Promise<RunState> {
     return failStep(runId, stepId, error)
-  }
+  },
 
-  export async function addApproval(runId: string, approvalId: string): Promise<RunState> {
+  async addApproval(runId: string, approvalId: string): Promise<RunState> {
     return addPendingApproval(runId, approvalId)
-  }
+  },
 
-  export async function resolveApproval(runId: string, approvalId: string): Promise<RunState> {
+  async resolveApproval(runId: string, approvalId: string): Promise<RunState> {
     return removePendingApproval(runId, approvalId)
-  }
+  },
 
-  export async function addArtifact(runId: string, artifactId: string): Promise<RunState> {
+  async addArtifact(runId: string, artifactId: string): Promise<RunState> {
     return addArtifact(runId, artifactId)
-  }
+  },
 
-  export async function setTrust(runId: string, trust: RunState["trust"]): Promise<RunState> {
+  async setTrust(runId: string, trust: RunState["trust"]): Promise<RunState> {
     return updateTrust(runId, trust)
-  }
+  },
 
-  export async function fail(
-    runId: string,
-    error: { code: string; message: string; retryable?: boolean },
-  ): Promise<RunState> {
+  async fail(runId: string, error: { code: string; message: string; retryable?: boolean }): Promise<RunState> {
     return failRun(runId, error)
-  }
+  },
 }

@@ -43,6 +43,8 @@ export const ExecutionContract = z.object({
   contractId: z.string(),
   runId: z.string(),
   workflowClass: WorkflowClassSchema,
+  workflowHint: WorkflowClassSchema.optional(),
+  workflowHintAccepted: z.boolean().optional(),
   intent: z.string(),
   executionMode: ExecutionModeSchema,
   riskLevel: RiskLevelSchema,

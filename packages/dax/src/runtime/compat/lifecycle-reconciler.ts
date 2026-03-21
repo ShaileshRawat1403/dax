@@ -8,6 +8,7 @@ import type { RunStatus as RunStatusExternal } from "@/server/run-contract"
 import type { RunStatus as RunStatusInternal } from "@/state/run-state"
 
 const log = Log.create({ service: "lifecycle-reconciler" })
+const legacyLog = Log.create({ service: "lifecycle-reconciler", subsystem: "legacy" })
 
 export interface ReconciliationInput {
   runId: string
@@ -76,6 +77,11 @@ export async function reconcileRunState(input: ReconciliationInput): Promise<Rec
   const derivedStatus = deriveStatusFromLifecycle(input)
 
   if (!state) {
+    legacyLog.warn("no persisted run state - using legacy lifecycle derivation", {
+      runId: input.runId,
+      sessionId: input.session.id,
+      messageCount: input.messages.length,
+    })
     return {
       status: derivedStatus,
       isAuthoritative: false,

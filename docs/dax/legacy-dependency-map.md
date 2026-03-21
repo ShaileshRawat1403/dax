@@ -275,12 +275,13 @@
 - [ ] Workflow registry expanded
 - [ ] SessionPrompt receives contract context
 
-### Phase 4: Legacy Cleanup
+### Phase 4: Legacy Cleanup (IN PROGRESS)
 
-- [ ] Fallback path logs warning
-- [ ] Lifecycle inference removed from hot path
-- [ ] currentStepFromMessages removed
-- [ ] Permission adapter marked deprecated
+- [x] Fallback path logs warning
+- [x] Authority counters track distribution
+- [ ] Lifecycle inference removed from hot path (planned for future)
+- [ ] currentStepFromMessages removed (planned for future)
+- [ ] Permission adapter marked deprecated (planned for future)
 
 ---
 

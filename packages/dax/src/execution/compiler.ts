@@ -169,7 +169,32 @@ export function compile(input: CompileInput): CompileResult {
   const intent = request.intent.input
   const warnings: string[] = []
 
-  const workflowClass = classifyWorkflow(intent)
+  const hintedWorkflow = request.workflowHint
+  const classifiedWorkflow = classifyWorkflow(intent)
+
+  let workflowClass: WorkflowClass
+  let workflowHintAccepted: boolean | undefined = undefined
+
+  if (hintedWorkflow) {
+    if (isValidWorkflowHint(hintedWorkflow, intent)) {
+      workflowClass = hintedWorkflow
+      workflowHintAccepted = true
+      if (hintedWorkflow !== classifiedWorkflow && classifiedWorkflow !== "generic") {
+        warnings.push(
+          `Workflow hint "${hintedWorkflow}" accepted. DAX classification suggested "${classifiedWorkflow}" but Picobot hint takes precedence.`,
+        )
+      }
+    } else {
+      workflowClass = classifiedWorkflow === "generic" ? "draft_and_approve" : classifiedWorkflow
+      workflowHintAccepted = false
+      warnings.push(
+        `Workflow hint "${hintedWorkflow}" was ignored. DAX determined "${workflowClass}" is more appropriate based on intent analysis.`,
+      )
+    }
+  } else {
+    workflowClass = classifiedWorkflow
+  }
+
   const riskLevel = deriveRiskLevel(intent)
   const explicitMode =
     APPROVAL_MODE_BY_PERSONA[request.personaPreset?.approvalMode ?? ""] ?? request.personaPreset?.approvalMode
@@ -192,6 +217,8 @@ export function compile(input: CompileInput): CompileResult {
     contractId: `ctr_${Identifier.create("session", false)}`,
     runId: "",
     workflowClass,
+    workflowHint: hintedWorkflow,
+    workflowHintAccepted,
     intent,
     executionMode,
     riskLevel,
@@ -219,6 +246,24 @@ export function compile(input: CompileInput): CompileResult {
     contract: parsed.success ? parsed.data : contractData,
     warnings,
   }
+}
+
+function isValidWorkflowHint(hint: string, intent: string): boolean {
+  const lowerIntent = intent.toLowerCase()
+
+  if (hint === "draft_and_approve") {
+    return /create|write|generate|make|build|implement|add|modify|refactor|fix|edit/i.test(lowerIntent)
+  }
+
+  if (hint === "repo_analyze") {
+    return /analyze|explore|understand|survey|map.*code|inspect/i.test(lowerIntent)
+  }
+
+  if (hint === "review_and_signoff") {
+    return /review|pr.*review|pull.*request|check.*code|audit|assess/i.test(lowerIntent)
+  }
+
+  return false
 }
 
 export function compileWithRunId(input: CompileInput, runId: string): CompileResult {

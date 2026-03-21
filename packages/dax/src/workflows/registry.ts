@@ -2,6 +2,8 @@ import type { WorkflowClass } from "@/execution/workflow-class"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext } from "./types"
 import { DraftApproveExecuteWorkflow } from "./draft-approve-execute"
+import { RepoAnalyzeWorkflow } from "./repo-analyze"
+import { ReviewAndSignoffWorkflow } from "./review-and-signoff"
 
 export interface Workflow {
   execute(): Promise<{
@@ -21,6 +23,8 @@ export type WorkflowConstructor = new (context: WorkflowContext) => Workflow
 
 const WORKFLOW_REGISTRY: Record<string, WorkflowConstructor> = {
   draft_and_approve: DraftApproveExecuteWorkflow,
+  repo_analyze: RepoAnalyzeWorkflow,
+  review_and_signoff: ReviewAndSignoffWorkflow,
 }
 
 export function getWorkflowConstructor(workflowClass: WorkflowClass): WorkflowConstructor | null {

@@ -16,6 +16,7 @@ export const ApprovalContextSchema = z.object({
   toolName: z.string().optional(),
   diffPreview: z.string().optional(),
   notes: z.array(z.string()).optional(),
+  originalPermissionId: z.string().optional(),
 })
 export type ApprovalContext = z.infer<typeof ApprovalContextSchema>
 
