@@ -119,6 +119,7 @@ export const RunSnapshot = z
     artifactSummary: RunArtifactSummary.optional(),
     workflow: WorkflowSummary.optional(),
     terminalReason: WorkflowTerminalReason.optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
     lastEvent: z
       .object({
         eventId: z.string(),
