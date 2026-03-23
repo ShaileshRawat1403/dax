@@ -61,6 +61,11 @@ export const TERMINAL_REASON_LABELS: Record<
     severity: "error",
   },
   timeout: { label: "Timeout", description: "Run exceeded time limit", severity: "warning" },
+  contract_mutation: {
+    label: "Contract Mutated",
+    description: "Workflow attempted to change its locked execution contract after initialization",
+    severity: "error",
+  },
 }
 
 export const APPROVAL_TYPE_LABELS: Record<string, { label: string; description: string; icon: string }> = {
@@ -168,6 +173,9 @@ export interface SoothsayerRunDetail {
   terminalReasonLabel?: string
   terminalReasonDescription?: string
   terminalReasonSeverity?: "info" | "success" | "warning" | "error"
+  failureCode?: string
+  failureLabel?: string
+  failureDescription?: string
   approvals: {
     pending: number
     approved: number
@@ -237,6 +245,9 @@ export interface SoothsayerWorkflowCard {
   terminalReason?: string
   terminalReasonLabel?: string
   terminalReasonSeverity?: "info" | "success" | "warning" | "error"
+  failureCode?: string
+  failureLabel?: string
+  failureDescription?: string
   createdAt: string
   completedAt?: string
 }
@@ -321,6 +332,9 @@ function toWorkflowCard(snapshot: RunSnapshot): SoothsayerWorkflowCard {
     terminalReason: snapshot.terminalReason,
     terminalReasonLabel: terminalReasonInfo?.label,
     terminalReasonSeverity: terminalReasonInfo?.severity,
+    failureCode: terminalReasonInfo ? snapshot.terminalReason : undefined,
+    failureLabel: terminalReasonInfo?.label,
+    failureDescription: terminalReasonInfo?.description,
     createdAt: snapshot.createdAt,
     completedAt: snapshot.completedAt,
   }
@@ -464,6 +478,9 @@ export namespace SoothsayerAPI {
         terminalReasonLabel: terminalReasonInfo?.label,
         terminalReasonDescription: terminalReasonInfo?.description,
         terminalReasonSeverity: terminalReasonInfo?.severity,
+        failureCode: terminalReasonInfo ? snapshot.terminalReason : undefined,
+        failureLabel: terminalReasonInfo?.label,
+        failureDescription: terminalReasonInfo?.description,
         approvals: {
           pending: approvals.filter((a) => a.status === "pending").length,
           approved: approvals.filter((a) => a.status === "approved").length,

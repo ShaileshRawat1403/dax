@@ -33,6 +33,7 @@ import {
   type RunSummary,
   type RunTrustState,
   type WorkflowClass,
+  WorkflowTerminalReason,
   type WorkflowSummary,
   type WorkflowTerminalReason,
   WorkflowTrustPosture,
@@ -111,12 +112,15 @@ function extractTerminalReason(events: RunEvent[]): WorkflowTerminalReason | und
       return "workflow_completed"
     }
     if (event.type === "run.failed") {
-      const error = event.payload?.error as { code?: string } | undefined
+      const error = event.payload?.error as { code?: string; message?: string } | undefined
       if (error?.code === "permission_denied") {
         return "permission_denied"
       }
       if (error?.code === "timeout") {
         return "timeout"
+      }
+      if (error?.code === "contract_mutation" || error?.message?.includes("immutable")) {
+        return "contract_mutation"
       }
       return "execution_error"
     }
