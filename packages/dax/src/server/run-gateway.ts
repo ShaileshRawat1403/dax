@@ -17,6 +17,7 @@ import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
 import { Tracer } from "@/runtime/telemetry"
 import { Transitions } from "@/state/transitions"
+import { replayRunState } from "@/state/replay"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
 import type { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import {
@@ -834,13 +835,22 @@ export namespace RunGateway {
 
   export async function getSnapshot(runId: string): Promise<RunSnapshot> {
     initialize()
-    const [session, messages, meta, events, runState] = await Promise.all([
+    const [session, messages, meta, events, storedRunState] = await Promise.all([
       Session.get(runId),
       Session.messages({ sessionID: runId }),
       readRunMeta(runId),
       readEvents(runId),
       RunStore.get(runId),
     ])
+
+    let runState = storedRunState
+    if (!runState && events.length > 0) {
+      try {
+        runState = replayRunState(events).state
+      } catch (err) {
+        log.warn("failed to replay run state", { runId, error: String(err) })
+      }
+    }
 
     const pending = await getPendingApprovalsForRun(runId, events)
 

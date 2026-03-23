@@ -1,61 +1,33 @@
 import { Log } from "@/util/log"
 import { Identifier } from "@/id/id"
-import { ApprovalStore } from "./approval-store"
-import {
-  type Approval,
-  type ApprovalStatus,
-  type ApprovalType,
-  type ApprovalContext,
-  type ApprovalSource,
-  createApproval as createApprovalObject,
-  type ApprovalResolution,
-} from "./approval-types"
 import { Tracer } from "@/runtime/telemetry"
 
-const log = Log.create({ service: "approval-transitions" })
+// Generate a deterministic hash for approval IDs
+async function generateDeterministicApprovalId(params: CreateApprovalParams): Promise<string> {
+  const stepId = params.stepId || "no_step"
+  const input = `${params.runId}:${stepId}:${params.reason}:${params.type}`
 
-export class IllegalApprovalTransitionError extends Error {
-  constructor(
-    public readonly approvalId: string,
-    public readonly fromStatus: ApprovalStatus,
-    public readonly toStatus: ApprovalStatus,
-  ) {
-    super(`Illegal approval transition for "${approvalId}" from "${fromStatus}" to "${toStatus}"`)
-    this.name = "IllegalApprovalTransitionError"
+  if (typeof crypto !== "undefined" && crypto.subtle) {
+    const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input))
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return `apr_${hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .substring(0, 16)}`
   }
-}
 
-export class ApprovalNotFoundError extends Error {
-  constructor(public readonly approvalId: string) {
-    super(`Approval not found: ${approvalId}`)
-    this.name = "ApprovalNotFoundError"
+  // Fallback hash
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    const chr = input.charCodeAt(i)
+    hash = (hash << 5) - hash + chr
+    hash |= 0
   }
-}
-
-export class ApprovalAlreadyResolvedError extends Error {
-  constructor(
-    public readonly approvalId: string,
-    public readonly currentStatus: ApprovalStatus,
-  ) {
-    super(`Approval "${approvalId}" already resolved with status "${currentStatus}"`)
-    this.name = "ApprovalAlreadyResolvedError"
-  }
-}
-
-export interface CreateApprovalParams {
-  runId: string
-  stepId?: string | null
-  type: ApprovalType
-  risk: "low" | "medium" | "high" | "critical"
-  title: string
-  reason: string
-  context?: ApprovalContext
-  expectedConsequence?: string
-  source?: ApprovalSource
+  return `apr_${Math.abs(hash).toString(16).padStart(8, "0")}`
 }
 
 export async function createAndPersistApproval(params: CreateApprovalParams): Promise<Approval> {
-  const approvalId = `apr_${Identifier.create("permission", false)}`
+  const approvalId = await generateDeterministicApprovalId(params)
 
   const approval = createApprovalObject({
     approvalId,

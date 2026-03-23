@@ -14,6 +14,8 @@ import { WorkflowRegistry } from "@/workflows/registry"
 import { isFixedWorkflow } from "@/workflows/types"
 import { Tracer } from "@/runtime/telemetry"
 
+import { ContractGuardian } from "./contract-guardian"
+
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
   initiatedBy?: string
@@ -44,11 +46,12 @@ export interface RunFactoryResult {
 }
 
 async function writeContract(runId: string, contract: ExecutionContract): Promise<void> {
-  await Storage.write(["execution_contract", Instance.project.id, runId], contract)
+  await ContractGuardian.create(runId, contract)
 }
 
 async function readContract(runId: string): Promise<ExecutionContract | undefined> {
-  return Storage.read<ExecutionContract>(["execution_contract", Instance.project.id, runId]).catch(() => undefined)
+  const contract = await ContractGuardian.get(runId)
+  return contract || undefined
 }
 
 async function buildRunMeta(request: CreateRunRequest, runId: string): Promise<RunMeta> {
