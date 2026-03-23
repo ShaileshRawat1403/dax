@@ -1,6 +1,12 @@
 import { Hono, type Context } from "hono"
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
-import { createSubstrateServer, extractAuth, validateAuth } from "../fastmcp-substrate"
+import {
+  createSubstrateServer,
+  extractAuth,
+  validateAuth,
+  setActorContext,
+  clearActorContext,
+} from "../fastmcp-substrate"
 import type { SubstrateSession } from "../fastmcp-substrate"
 import { Flag } from "@/flag/flag"
 import { getSecrets } from "@/secrets/secrets-loader"
@@ -21,35 +27,40 @@ async function mcpRequestHandler(c: Context): Promise<Response> {
   }
 
   const secrets = await getSecrets()
-  const auth = extractAuth(c.req.raw)
+  const auth = await extractAuth(c.req.raw)
   if (!validateAuth(auth, secrets.substrateToken)) {
     return c.json({ error: "unauthorized" }, 401)
   }
 
-  const sessionId = c.req.header("mcp-session-id") ?? c.req.query("sessionId")
-  const server = getSubstrateServer()
+  setActorContext(auth?.actor)
+  try {
+    const sessionId = c.req.header("mcp-session-id") ?? c.req.query("sessionId")
+    const server = getSubstrateServer()
 
-  if (sessionId && sessions.has(sessionId)) {
-    const { transport } = sessions.get(sessionId)!
+    if (sessionId && sessions.has(sessionId)) {
+      const { transport } = sessions.get(sessionId)!
+      const body = await c.req.json()
+      const response = await transport.handleRequest(c.req.raw, { parsedBody: body })
+      return new Response(response.body, { status: response.status, headers: response.headers })
+    }
+
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+    })
+
+    const newSessionId = transport.sessionId
+    if (newSessionId) {
+      sessions.set(newSessionId, { transport, serverId: "dax-substrate", actor: auth?.actor })
+    }
+
+    await server.connect(transport)
+
     const body = await c.req.json()
     const response = await transport.handleRequest(c.req.raw, { parsedBody: body })
     return new Response(response.body, { status: response.status, headers: response.headers })
+  } finally {
+    clearActorContext()
   }
-
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
-  })
-
-  const newSessionId = transport.sessionId
-  if (newSessionId) {
-    sessions.set(newSessionId, { transport, serverId: "dax-substrate" })
-  }
-
-  await server.connect(transport)
-
-  const body = await c.req.json()
-  const response = await transport.handleRequest(c.req.raw, { parsedBody: body })
-  return new Response(response.body, { status: response.status, headers: response.headers })
 }
 
 export const SubstrateRoutes = new Hono()
@@ -59,25 +70,30 @@ export const SubstrateRoutes = new Hono()
     }
 
     const secrets = await getSecrets()
-    const auth = extractAuth(c.req.raw)
+    const auth = await extractAuth(c.req.raw)
     if (!validateAuth(auth, secrets.substrateToken)) {
       return c.json({ error: "unauthorized" }, 401)
     }
 
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
-    })
+    setActorContext(auth?.actor)
+    try {
+      const transport = new WebStandardStreamableHTTPServerTransport({
+        sessionIdGenerator: () => crypto.randomUUID(),
+      })
 
-    const sessionId = transport.sessionId
-    if (sessionId) {
-      sessions.set(sessionId, { transport, serverId: "dax-substrate" })
+      const sessionId = transport.sessionId
+      if (sessionId) {
+        sessions.set(sessionId, { transport, serverId: "dax-substrate", actor: auth?.actor })
+      }
+
+      const server = getSubstrateServer()
+      await server.connect(transport)
+
+      const response = await transport.handleRequest(c.req.raw)
+      return new Response(response.body, { status: response.status, headers: response.headers })
+    } finally {
+      clearActorContext()
     }
-
-    const server = getSubstrateServer()
-    await server.connect(transport)
-
-    const response = await transport.handleRequest(c.req.raw)
-    return new Response(response.body, { status: response.status, headers: response.headers })
   })
   .post("/", async (c) => {
     return mcpRequestHandler(c)

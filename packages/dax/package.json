@@ -73,6 +73,7 @@
     "@dax-ai/util": "workspace:*",
     "@hono/standard-validator": "0.1.5",
     "@hono/zod-validator": "catalog:",
+    "@infisical/sdk": "^5.0.0",
     "@modelcontextprotocol/sdk": "1.25.2",
     "@octokit/graphql": "9.0.2",
     "@octokit/rest": "catalog:",
@@ -97,8 +98,10 @@
     "hono": "catalog:",
     "hono-openapi": "catalog:",
     "ignore": "7.0.5",
+    "jose": "^6.2.2",
     "jsonc-parser": "3.3.1",
     "minimatch": "10.0.3",
+    "nats": "^2.29.3",
     "open": "10.1.2",
     "opentui-spinner": "^0.0.6",
     "partial-json": "0.1.7",
@@ -113,8 +116,6 @@
     "xdg-basedir": "5.1.0",
     "yargs": "18.0.0",
     "zod": "catalog:",
-    "zod-to-json-schema": "^3.25.1",
-    "nats": "^2.29.3",
-    "@infisical/sdk": "^5.0.0"
+    "zod-to-json-schema": "^3.25.1"
   }
 }
