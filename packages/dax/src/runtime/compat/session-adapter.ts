@@ -94,6 +94,7 @@ export function shouldUseCompatibilityPath(request: CreateRunRequest): boolean {
   return (
     request.metadata?.source === "soothsayer" ||
     request.metadata?.source === "cli" ||
+    request.metadata?.source === "api" ||
     request.personaPreset?.eli12 === true
   )
 }
