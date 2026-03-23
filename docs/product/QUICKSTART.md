@@ -1,0 +1,144 @@
+# DAX Quickstart
+
+Get DAX running on your machine in under 5 minutes.
+
+## Prerequisites
+
+- macOS, Linux, or Windows (WSL)
+- [Bun](https://bun.sh) 1.3+ (for developer installs)
+- A model provider API key (OpenAI, Google, Anthropic, etc.)
+
+## Option A: Binary Install (fastest)
+
+### macOS / Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
+```
+
+### Windows (WinGet)
+
+```powershell
+winget install DaxAi.DAX
+```
+
+### Verify
+
+```bash
+dax --version
+```
+
+## Option B: Developer Install
+
+```bash
+git clone https://github.com/ShaileshRawat1403/dax-tui.git
+cd dax-tui
+bun install
+cd packages/dax
+bun link
+```
+
+## Configure a Provider
+
+Set your model provider credentials:
+
+```bash
+# OpenAI
+export OPENAI_API_KEY="sk-..."
+
+# Google Gemini
+export GOOGLE_GENERATIVE_AI_API_KEY="..."
+
+# Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Or use the built-in auth manager:
+
+```bash
+dax auth set google/gemini-2.5-flash
+```
+
+## First Run
+
+```bash
+dax
+```
+
+You'll see the DAX workstation. Pick a provider, enter a prompt, and watch it execute.
+
+```mermaid
+graph LR
+    A[dax] --> B[Pick Provider]
+    B --> C[Enter Intent]
+    C --> D[DAX Plans]
+    D --> E{Risky?}
+    E -->|No| F[Execute]
+    E -->|Yes| G[Approval Request]
+    G -->|Approved| F
+    G -->|Denied| H[Cancelled]
+    F --> I[Result + Artifacts]
+    style A fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style G fill:#e85d5d,stroke:#a33,color:#fff
+    style F fill:#5cb85c,stroke:#3d8b3d,color:#fff
+    style I fill:#5cb85c,stroke:#3d8b3d,color:#fff
+```
+
+## First Workflow: Repo Analysis
+
+Try DAX's most common workflow:
+
+```bash
+# From your repo root
+dax
+```
+
+Then type:
+
+```
+Analyze this repository for security vulnerabilities and code quality issues
+```
+
+DAX will:
+
+1. Detect your intent as `repo_analyze`
+2. Build a contract (what it will and won't do)
+3. Execute the analysis
+4. Present findings, risk scores, and recommendations
+
+## Enable the FastMCP Substrate
+
+To use DAX programmatically (e.g., from CI or other tools):
+
+```bash
+DAX_SUBSTRATE_ENABLED=true \
+DAX_SUBSTRATE_TOKEN=mysecret \
+DAX_SUBSTRATE_PORT=4730 \
+bun run packages/dax/src/index.ts
+```
+
+Then call it:
+
+```bash
+curl -X POST http://localhost:4730/ \
+  -H "Authorization: Bearer mysecret" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "run.create",
+      "arguments": {
+        "intent": { "input": "check this repo for outdated dependencies" }
+      }
+    }
+  }'
+```
+
+## Next Steps
+
+- **Understand the system:** [DAX In Simple Words](./DAX_IN_SIMPLE_WORDS.md)
+- **See how runs work:** [Runs, Approvals and Recovery](./RUNS_APPROVALS_AND_RECOVERY.md)
+- **Deploy for real:** [Deployment Guide](../OPEN_SOURCE_STACK_DEPLOYMENT.md)
+- **Set up CI:** [Stack Roadmap](../OPEN_SOURCE_STACK_ROADMAP.md) — GitHub Actions section

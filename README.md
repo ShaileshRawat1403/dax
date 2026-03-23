@@ -61,13 +61,13 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 
 ## 📖 Documentation Index
 
-| Category              | Guides                                                                                                                                                                                                                      |
-| :-------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Getting Started**   | [Start Here](./docs/product/start-here.md) • [Non-Developer Quickstart](./docs/product/non-dev-quickstart.md) • [Provider Setup](./docs/product/providers.md)                                                               |
-| **Product & Use**     | [Workflows](./docs/product/WORKFLOWS.md) • [Audit Agent Guide](./docs/product/audit-agent.md) • [Build on DAX](./docs/product/build-on-dax.md)                                                                              |
-| **Architecture**      | [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md)                                            |
-| **Open Source Stack** | [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) • [Deployment Guide](./docs/OPEN_SOURCE_STACK_DEPLOYMENT.md)                                                                                                           |
-| **Governance**        | [Write Governance](./docs/features/DAX_WRITE_GOVERNANCE.md) • [Release Readiness](./docs/product/release-readiness.md) • [Stack Roadmap — Recovery](./docs/OPEN_SOURCE_STACK_ROADMAP.md) • [Security Policy](./SECURITY.md) |
+| Category              | Guides                                                                                                                                                                                                                                             |
+| :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Getting Started**   | [What Is DAX?](./docs/product/WHAT_IS_DAX.md) • [In Simple Words](./docs/product/DAX_IN_SIMPLE_WORDS.md) • [Quickstart](./docs/product/QUICKSTART.md) • [Start Here](./docs/product/start-here.md) • [Provider Setup](./docs/product/providers.md) |
+| **Product & Use**     | [Runs, Approvals & Recovery](./docs/product/RUNS_APPROVALS_AND_RECOVERY.md) • [Workflows](./docs/product/WORKFLOWS.md) • [Audit Agent](./docs/product/audit-agent.md) • [Build on DAX](./docs/product/build-on-dax.md)                             |
+| **Architecture**      | [How DAX Works](./docs/architecture/HOW_DAX_WORKS.md) • [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md)           |
+| **Open Source Stack** | [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) • [Deployment Guide](./docs/OPEN_SOURCE_STACK_DEPLOYMENT.md)                                                                                                                                  |
+| **Trust**             | [Transparency & Limitations](./docs/product/TRANSPARENCY_AND_LIMITATIONS.md) • [Write Governance](./docs/features/DAX_WRITE_GOVERNANCE.md) • [Release Readiness](./docs/product/release-readiness.md) • [Security Policy](./SECURITY.md)           |
 
 ---
 
