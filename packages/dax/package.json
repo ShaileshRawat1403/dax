@@ -113,6 +113,7 @@
     "xdg-basedir": "5.1.0",
     "yargs": "18.0.0",
     "zod": "catalog:",
-    "zod-to-json-schema": "^3.25.1"
+    "zod-to-json-schema": "^3.25.1",
+    "nats": "^2.29.3"
   }
 }
