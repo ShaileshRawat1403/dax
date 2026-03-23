@@ -251,6 +251,8 @@ export function createSubstrateServer(): McpServer {
     async (args) => {
       const runId = args.runId as string
       const summary = await RunGateway.getSummary(runId)
+      const terminalStatuses = ["completed", "failed", "cancelled"]
+      const isTerminal = terminalStatuses.includes(summary.status)
       return jsonResult({
         runId,
         status: summary.status,
@@ -258,8 +260,11 @@ export function createSubstrateServer(): McpServer {
         outcome: summary.outcome,
         trust: summary.trust,
         workflow: summary.workflow,
-        recoveryAvailable:
-          summary.status === "failed" || summary.status === "cancelled" || summary.status === "waiting_approval",
+        isTerminal,
+        recoveryAvailable: !isTerminal,
+        recoveryHint: isTerminal
+          ? "Run is terminal. Use run.create to start a new run with the same intent."
+          : "Run can be recovered via run.recovery.execute.",
       })
     },
   )
@@ -268,16 +273,55 @@ export function createSubstrateServer(): McpServer {
     "run.recovery.execute",
     {
       title: "Execute Recovery",
-      description: "Retry a failed or blocked run from its last known checkpoint.",
+      description:
+        "Recover a run from its event log. Terminal runs (failed/completed/cancelled) cannot be recovered — create a new run instead. Non-terminal runs (running, waiting_approval) can be recovered to reconnect to an interrupted session.",
       inputSchema: z.object({
-        runId: z.string().describe("The run ID to retry"),
-        actorId: z.string().describe("Identity of the actor triggering recovery"),
+        runId: z.string().describe("The run ID to recover"),
+        actorId: z.string().optional().describe("Identity of the actor triggering recovery (defaults to MCP caller)"),
       }),
     },
-    async () => {
-      return errorResult(
-        "recovery.execute not yet implemented - create a new run with workflowHint: 'repo_analyze' instead",
-      )
+    async (args) => {
+      const runId = args.runId as string
+      const actor = getActorContext()
+      const resolvedActorId =
+        (args.actorId as string | undefined) ?? actor?.email ?? actor?.name ?? actor?.sub ?? "unknown"
+
+      const snapshot = await RunGateway.getSnapshot(runId).catch(() => null)
+
+      if (!snapshot) {
+        return errorResult(`Run not found: ${runId}`)
+      }
+
+      const terminalStatuses = ["completed", "failed", "cancelled"]
+      if (terminalStatuses.includes(snapshot.status)) {
+        return jsonResult({
+          success: false,
+          reason: "terminal",
+          message: `Run is ${snapshot.status} and cannot be recovered. Create a new run to retry.`,
+          terminalReason: snapshot.terminalReason,
+          suggestion: "Use run.create with the same intent to start a new run.",
+          runId,
+          status: snapshot.status,
+        })
+      }
+
+      const { recoverRun } = await import("@/state/recovery")
+      const result = await recoverRun(runId)
+
+      if (!result.success) {
+        return errorResult(`Recovery failed: ${result.error}`)
+      }
+
+      return jsonResult({
+        success: true,
+        reason: "recovered",
+        message: `Run ${runId} recovered successfully.`,
+        recoveredStatus: result.recoveredRunState?.status,
+        recoveredSteps: result.recoveredRunState?.steps.length ?? 0,
+        recoveredApprovals: result.recoveredApprovals ?? 0,
+        actorId: resolvedActorId,
+        runId,
+      })
     },
   )
 
