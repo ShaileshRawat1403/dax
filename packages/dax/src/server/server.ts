@@ -43,6 +43,7 @@ import { MDNS } from "./mdns"
 import { Installation } from "../installation"
 import { RunRoutes } from "./routes/run"
 import { SoothsayerRoutes } from "./routes/soothsayer"
+import { SubstrateRoutes } from "./routes/substrate"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -232,6 +233,7 @@ export namespace Server {
         .route("/", FileRoutes())
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
+        .route("/substrate", SubstrateRoutes)
         .post(
           "/instance/dispose",
           describeRoute({
@@ -610,6 +612,26 @@ export namespace Server {
     server.stop = async (closeActiveConnections?: boolean) => {
       if (shouldPublishMDNS) MDNS.unpublish()
       return originalStop(closeActiveConnections)
+    }
+
+    let substrateServer: ReturnType<typeof Bun.serve> | undefined
+    if (Flag.DAX_SUBSTRATE_ENABLED) {
+      const substrateApp = SubstrateRoutes.fetch
+      substrateServer = Bun.serve({
+        hostname: opts.hostname === "127.0.0.1" || opts.hostname === "::1" ? "127.0.0.1" : opts.hostname,
+        port: Flag.DAX_SUBSTRATE_PORT,
+        fetch: substrateApp,
+      })
+      log.info("substrate FastMCP server started", { port: Flag.DAX_SUBSTRATE_PORT })
+      const originalSubstrateStop = substrateServer.stop.bind(substrateServer)
+      substrateServer.stop = async () => {
+        await originalSubstrateStop()
+      }
+      const originalMainStop = server.stop.bind(server)
+      server.stop = async (closeActiveConnections?: boolean) => {
+        await substrateServer?.stop()
+        return originalMainStop(closeActiveConnections)
+      }
     }
 
     return server

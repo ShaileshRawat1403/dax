@@ -33,6 +33,9 @@ export namespace Flag {
   export const DAX_SERVER_PASSWORD = readEnv("DAX_SERVER_PASSWORD")
   export const DAX_SERVER_USERNAME = readEnv("DAX_SERVER_USERNAME")
   export const DAX_API = readEnv("DAX_API")
+  export const DAX_SUBSTRATE_ENABLED = truthy("DAX_SUBSTRATE_ENABLED")
+  export const DAX_SUBSTRATE_TOKEN = readEnv("DAX_SUBSTRATE_TOKEN")
+  export const DAX_SUBSTRATE_PORT = number("DAX_SUBSTRATE_PORT") ?? 4730
 
   // Experimental
   export const DAX_EXPERIMENTAL = truthy("DAX_EXPERIMENTAL")
