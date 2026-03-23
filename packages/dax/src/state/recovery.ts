@@ -1,6 +1,8 @@
-import { replayRunState, ReplayResult } from "./replay"
+import { replayRunState } from "./replay"
+import type { ReplayResult } from "./replay"
 import { RunStore } from "./run-store"
-import { RunState, isTerminalStatus } from "./run-state"
+import type { RunState } from "./run-state"
+import { isTerminalStatus } from "./run-state"
 import { Log } from "@/util/log"
 import { RunGateway } from "@/server/run-gateway"
 

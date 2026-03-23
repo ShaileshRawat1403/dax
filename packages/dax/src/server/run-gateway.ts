@@ -33,7 +33,6 @@ import {
   type RunSummary,
   type RunTrustState,
   type WorkflowClass,
-  WorkflowTerminalReason,
   type WorkflowSummary,
   type WorkflowTerminalReason,
   WorkflowTrustPosture,

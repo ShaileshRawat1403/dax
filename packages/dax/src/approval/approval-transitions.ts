@@ -1,6 +1,38 @@
 import { Log } from "@/util/log"
-import { Identifier } from "@/id/id"
 import { Tracer } from "@/runtime/telemetry"
+import type { Approval, ApprovalStatus, ApprovalType, ApprovalContext } from "./approval-types"
+import { ApprovalStore } from "./approval-store"
+
+type CreateApprovalParams = {
+  runId: string
+  stepId?: string | null
+  type: ApprovalType
+  risk: "low" | "medium" | "high" | "critical"
+  title: string
+  reason: string
+  context?: ApprovalContext
+  expectedConsequence?: string
+  source?: "workflow" | "permission" | "system" | "manual"
+}
+
+const log = Log.create({ service: "approval-transitions" })
+
+export class ApprovalAlreadyResolvedError extends Error {
+  constructor(
+    public readonly approvalId: string,
+    public readonly currentStatus: ApprovalStatus,
+  ) {
+    super(`Approval ${approvalId} has already been resolved with status: ${currentStatus}`)
+    this.name = "ApprovalAlreadyResolvedError"
+  }
+}
+
+export class ApprovalNotFoundError extends Error {
+  constructor(public readonly approvalId: string) {
+    super(`Approval ${approvalId} not found`)
+    this.name = "ApprovalNotFoundError"
+  }
+}
 
 // Generate a deterministic hash for approval IDs
 async function generateDeterministicApprovalId(params: CreateApprovalParams): Promise<string> {
@@ -29,18 +61,23 @@ async function generateDeterministicApprovalId(params: CreateApprovalParams): Pr
 export async function createAndPersistApproval(params: CreateApprovalParams): Promise<Approval> {
   const approvalId = await generateDeterministicApprovalId(params)
 
-  const approval = createApprovalObject({
+  const approval: Approval = {
     approvalId,
     runId: params.runId,
-    stepId: params.stepId,
+    stepId: params.stepId ?? null,
     type: params.type,
     risk: params.risk,
     title: params.title,
     reason: params.reason,
     context: params.context,
     expectedConsequence: params.expectedConsequence,
+    status: "pending",
+    requestedAt: new Date().toISOString(),
+    resolvedAt: null,
+    actor: null,
     source: params.source ?? "workflow",
-  })
+    resolution: null,
+  }
 
   await ApprovalStore.add(params.runId, approval)
 
@@ -133,7 +170,7 @@ export async function expireApproval(runId: string, approvalId: string): Promise
     throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
   }
 
-  const updated = await ApprovalStore.update(runId, approvalId, (a) => ({
+  const updated = await ApprovalStore.update(runId, approvalId, (a: Approval) => ({
     ...a,
     status: "expired" as ApprovalStatus,
     resolvedAt: new Date().toISOString(),
@@ -161,7 +198,7 @@ export async function cancelApproval(runId: string, approvalId: string): Promise
     throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
   }
 
-  const updated = await ApprovalStore.update(runId, approvalId, (a) => ({
+  const updated = await ApprovalStore.update(runId, approvalId, (a: Approval) => ({
     ...a,
     status: "cancelled" as ApprovalStatus,
     resolvedAt: new Date().toISOString(),
