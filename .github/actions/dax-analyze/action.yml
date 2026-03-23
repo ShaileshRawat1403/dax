@@ -25,7 +25,7 @@ inputs:
     required: false
     default: "300"
   repo-path:
-    description: "Path to repository to analyze (default: ${{ github.workspace }})"
+    description: "Path to repository to analyze (default: GitHub workspace)"
     required: false
 
 outputs:
