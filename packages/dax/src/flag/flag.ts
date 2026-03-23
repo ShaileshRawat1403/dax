@@ -45,6 +45,11 @@ export namespace Flag {
   export const INFISICAL_CLIENT_SECRET = readEnv("INFISICAL_CLIENT_SECRET")
   export const INFISICAL_PROJECT_ID = readEnv("INFISICAL_PROJECT_ID")
   export const INFISICAL_ENVIRONMENT = readEnv("INFISICAL_ENVIRONMENT") ?? "dev"
+  export const ZITADEL_DOMAIN = readEnv("ZITADEL_DOMAIN")
+  export const ZITADEL_SERVICE_ACCOUNT_ID = readEnv("ZITADEL_SERVICE_ACCOUNT_ID")
+  export const ZITADEL_SERVICE_ACCOUNT_KEY = readEnv("ZITADEL_SERVICE_ACCOUNT_KEY")
+  export const ZITADEL_ISS = readEnv("ZITADEL_ISS")
+  export const ZITADEL_AUD = readEnv("ZITADEL_AUD")
 
   // Experimental
   export const DAX_EXPERIMENTAL = truthy("DAX_EXPERIMENTAL")

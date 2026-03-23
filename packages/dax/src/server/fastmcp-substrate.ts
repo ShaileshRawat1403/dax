@@ -4,30 +4,57 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import { RunGateway } from "./run-gateway"
 import { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import { z } from "zod"
+import { Flag } from "@/flag/flag"
+import { validateActorToken, type ActorClaims } from "@/identity/zitadel"
+import { AsyncLocalStorage } from "node:async_hooks"
 
 export interface SubstrateAuth {
   token: string
-  mode: "token" | "dev-unsafe"
+  mode: "token" | "dev-unsafe" | "zitadel"
+  actor?: ActorClaims
 }
 
-export function validateAuth(auth: SubstrateAuth | undefined, expectedToken: string | undefined): boolean {
-  if (!expectedToken) return true
-  if (!auth) return false
-  if (auth.mode === "dev-unsafe") return true
-  return auth.token === expectedToken
-}
-
-export function extractAuth(request: Request): SubstrateAuth | undefined {
+export async function extractAuth(request: Request): Promise<SubstrateAuth | undefined> {
   const authHeader = request.headers.get("authorization")
   if (!authHeader) return undefined
   const [scheme, token] = authHeader.split(" ")
   if (scheme.toLowerCase() === "bearer" && token) {
+    if (Flag.ZITADEL_DOMAIN) {
+      const actor = await validateActorToken(token)
+      if (actor) {
+        return { token, mode: "zitadel", actor }
+      }
+    }
     return { token, mode: "token" }
   }
   if (scheme.toLowerCase() === "dev-unsafe" && token === "dev-unsafe") {
     return { token, mode: "dev-unsafe" }
   }
   return undefined
+}
+
+export function validateAuth(auth: SubstrateAuth | undefined, expectedToken: string | undefined): boolean {
+  if (!expectedToken && !Flag.ZITADEL_DOMAIN) return true
+  if (!auth) return false
+  if (auth.mode === "dev-unsafe") return true
+  if (auth.mode === "zitadel") return true
+  return auth.token === expectedToken
+}
+
+const actorStorage = new AsyncLocalStorage<ActorClaims>()
+
+export function setActorContext(actor: ActorClaims | undefined) {
+  if (actor) {
+    actorStorage.enterWith(actor)
+  }
+}
+
+export function getActorContext(): ActorClaims | undefined {
+  return actorStorage.getStore()
+}
+
+export function clearActorContext() {
+  // AsyncLocalStorage context exits automatically when the async scope ends
 }
 
 function toolResult(content: Array<{ type: "text"; text: string }>, isError = false): CallToolResult {
@@ -98,6 +125,8 @@ export function createSubstrateServer(): McpServer {
     },
     async (args) => {
       const intent = args.intent as Record<string, unknown>
+      const actor = getActorContext()
+      const initiatedBy = actor?.email ?? actor?.name ?? actor?.sub
       const request: CreateRunRequest = {
         intent: {
           input: intent.input as string,
@@ -109,6 +138,7 @@ export function createSubstrateServer(): McpServer {
         personaPreset: args.personaPreset as CreateRunRequest["personaPreset"],
         metadata: {
           source: "api",
+          initiatedBy: initiatedBy ?? undefined,
         },
       }
       const response = await RunGateway.createRun(request)
@@ -257,4 +287,5 @@ export function createSubstrateServer(): McpServer {
 export interface SubstrateSession {
   transport: WebStandardStreamableHTTPServerTransport
   serverId: string
+  actor?: ActorClaims
 }
