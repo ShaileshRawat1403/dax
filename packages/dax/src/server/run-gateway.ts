@@ -19,6 +19,7 @@ import { Tracer } from "@/runtime/telemetry"
 import { Transitions } from "@/state/transitions"
 import { replayRunState } from "@/state/replay"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
+import { natsTransport } from "./transport/nats-transport"
 import type { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import {
   type ApprovalRecord,
@@ -423,6 +424,7 @@ async function appendEvent(runId: string, event: Omit<RunEvent, "schemaVersion" 
     events.push(full)
     await writeEvents(runId, events)
     listeners.get(runId)?.forEach((listener) => listener(full))
+    natsTransport.publish(full).catch(() => {})
     return full
   })
 }
@@ -774,6 +776,7 @@ export namespace RunGateway {
     const state = runGatewayState()
     if (state.initialized) return
     state.initialized = true
+    natsTransport.initialize().catch(() => {})
     Bus.subscribeAll(async (event) => {
       try {
         await handleBusEvent(event)

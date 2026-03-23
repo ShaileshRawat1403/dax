@@ -36,6 +36,10 @@ export namespace Flag {
   export const DAX_SUBSTRATE_ENABLED = truthy("DAX_SUBSTRATE_ENABLED")
   export const DAX_SUBSTRATE_TOKEN = readEnv("DAX_SUBSTRATE_TOKEN")
   export const DAX_SUBSTRATE_PORT = number("DAX_SUBSTRATE_PORT") ?? 4730
+  export const DAX_NATS_ENABLED = truthy("DAX_NATS_ENABLED")
+  export const DAX_NATS_URL = readEnv("DAX_NATS_URL") ?? "nats://localhost:4222"
+  export const DAX_NATS_CREDS = readEnv("DAX_NATS_CREDS")
+  export const DAX_NATS_STREAM = readEnv("DAX_NATS_STREAM") ?? "DAX_EVENTS"
 
   // Experimental
   export const DAX_EXPERIMENTAL = truthy("DAX_EXPERIMENTAL")
