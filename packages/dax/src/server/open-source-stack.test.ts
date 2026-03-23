@@ -8,7 +8,7 @@ describe("open-source stack integration", () => {
       const previousHome = process.env.DAX_TEST_HOME
       process.env.DAX_TEST_HOME = testHome
       const { bootstrap } = await import("@/cli/bootstrap")
-      const repoRoot = "/Users/Shared/MYAIAGENTS/dax"
+      const repoRoot = process.cwd()
 
       try {
         await bootstrap(repoRoot, async () => {
@@ -25,7 +25,7 @@ describe("open-source stack integration", () => {
       const previousHome = process.env.DAX_TEST_HOME
       process.env.DAX_TEST_HOME = testHome
       const { bootstrap } = await import("@/cli/bootstrap")
-      const repoRoot = "/Users/Shared/MYAIAGENTS/dax"
+      const repoRoot = process.cwd()
 
       try {
         await bootstrap(repoRoot, async () => {
@@ -55,7 +55,7 @@ describe("open-source stack integration", () => {
       const previousHome = process.env.DAX_TEST_HOME
       process.env.DAX_TEST_HOME = testHome
       const { bootstrap } = await import("@/cli/bootstrap")
-      const repoRoot = "/Users/Shared/MYAIAGENTS/dax"
+      const repoRoot = process.cwd()
 
       try {
         await bootstrap(repoRoot, async () => {
@@ -189,7 +189,7 @@ describe("open-source stack integration", () => {
       const previousHome = process.env.DAX_TEST_HOME
       process.env.DAX_TEST_HOME = testHome
       const { bootstrap } = await import("@/cli/bootstrap")
-      const repoRoot = "/Users/Shared/MYAIAGENTS/dax"
+      const repoRoot = process.cwd()
 
       try {
         await bootstrap(repoRoot, async () => {
