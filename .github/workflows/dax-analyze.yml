@@ -1,9 +1,6 @@
 name: "DAX Repo Analyze"
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       intent:
