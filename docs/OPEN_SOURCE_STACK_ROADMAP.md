@@ -73,9 +73,29 @@ DAX's value is **governed execution**, not "look how many infra logos we use."
 
 ### Phase D: Production Posture
 
-- ZITADEL
-- Infisical
-- OTel + Prometheus + Grafana + Loki
+- **D1: Infisical secrets management** ✅
+  - `@infisical/sdk` for secret fetching via universal auth
+  - `SecretsLoader` with cached `getSecrets()` singleton
+  - Infisical flags: `INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`, `INFISICAL_ENVIRONMENT`
+  - Wired into: NATS transport (`natsCredsData`), server basicAuth, FastMCP token auth
+  - Graceful degradation to env vars when Infisical unavailable
+- **D2: ZITADEL identity** ✅
+  - `identity/zitadel.ts` with JWKS fetching and JWT validation via `jose`
+  - ZITADEL flags: `ZITADEL_DOMAIN`, `ZITADEL_SERVICE_ACCOUNT_ID`, `ZITADEL_ISS`, `ZITADEL_AUD`
+  - FastMCP auth now supports ZITADEL JWT: Bearer tokens validated against ZITADEL JWKS
+  - `ActorClaims` extracted: `sub`, `email`, `name`, `displayName`, `orgId`, `projectId`
+  - Actor context via `AsyncLocalStorage` for request-scoped identity
+  - `run.create` via FastMCP populates `metadata.initiatedBy` from ZITADEL actor
+  - Graceful degradation to static token when ZITADEL unavailable
+- **D3: OpenTelemetry observability** ✅
+  - OTel flags: `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`
+  - `runtime/otel` module with OTLP HTTP trace + metrics export
+  - All existing `Tracer.*` calls (run.created, contract.compiled, state.transition,
+    approval.requested/resolved, workflow.\*, legacy.fallback) now export to OTLP collector
+  - Service resource: `service.name`, `service.version`, `deployment.environment`
+  - Wired into server startup at module load time
+  - Graceful degradation when OTel disabled or collector unavailable
+- Prometheus + Grafana + Loki (infrastructure config, not code)
 
 ## FastMCP Substrate (Phase B1)
 
@@ -128,6 +148,8 @@ curl -X POST http://localhost:4730/ \
 | `DAX_NATS_CREDS`   | none                    | Path to NATS credentials file |
 | `DAX_NATS_STREAM`  | `DAX_EVENTS`            | JetStream stream name         |
 
+Credentials can also be provided via Infisical: set `DAX_NATS_CREDS_PATH` secret in Infisical to the creds file path.
+
 ### Subject Structure
 
 | Subject                   | Purpose                                 |
@@ -174,11 +196,9 @@ nats sub dax.approvals.<runId>
 - FastMCP substrate (Phase B1)
 - GitHub Actions integration (Phase B2)
 - NATS/JetStream event transport (Phase C)
-
-### Deferred
-
-- ZITADEL/Infisical
-- Observability stack
+- Infisical secrets management (Phase D1)
+- ZITADEL identity (Phase D2)
+- OpenTelemetry observability (Phase D3)
 
 ## What NOT to Integrate Yet
 
@@ -187,3 +207,4 @@ nats sub dax.approvals.<runId>
 - Multiple message buses
 - Large data platform pieces
 - Vector DB infrastructure
+- Prometheus/Grafana/Loki (infra config, not code)
