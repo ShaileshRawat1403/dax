@@ -90,7 +90,7 @@ export function createSubstrateServer(): McpServer {
     {
       title: "Health Check",
       description: "Check DAX substrate health and version info.",
-      inputSchema: z.object({}),
+      inputSchema: undefined,
     },
     async () => {
       return jsonResult({
@@ -107,23 +107,26 @@ export function createSubstrateServer(): McpServer {
     {
       title: "Create Run",
       description: "Create a governed DAX run. Returns runId and initial status. The run begins execution immediately.",
-      inputSchema: z.object({
-        intent: z.object({
-          input: z.string().describe("Natural language intent for the run"),
-          kind: z.enum(["general", "analysis", "edit", "workflow_step"]).optional(),
-          repoPath: z.string().optional(),
-          branch: z.string().optional(),
-        }),
-        workflowHint: z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff"]).optional(),
-        personaPreset: z
-          .object({
-            riskLevel: z.enum(["low", "medium", "high", "critical"]).optional(),
-            approvalMode: z.enum(["strict", "balanced", "relaxed"]).optional(),
-          })
-          .optional(),
-      }),
+      inputSchema: z
+        .object({
+          intent: z.object({
+            input: z.string().describe("Natural language intent for the run"),
+            kind: z.enum(["general", "analysis", "edit", "workflow_step"]).optional(),
+            repoPath: z.string().optional(),
+            branch: z.string().optional(),
+          }),
+          workflowHint: z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff"]).optional(),
+          personaPreset: z
+            .object({
+              riskLevel: z.enum(["low", "medium", "high", "critical"]).optional(),
+              approvalMode: z.enum(["strict", "balanced", "relaxed"]).optional(),
+            })
+            .optional(),
+        })
+        .omit({})
+        .strict() as any,
     },
-    async (args) => {
+    async (args: Record<string, unknown>) => {
       const intent = args.intent as Record<string, unknown>
       const actor = getActorContext()
       const initiatedBy = actor?.email ?? actor?.name ?? actor?.sub
@@ -157,11 +160,14 @@ export function createSubstrateServer(): McpServer {
       title: "Get Run Snapshot",
       description:
         "Get the current snapshot of a run including status, step progress, trust state, and governance info.",
-      inputSchema: z.object({
-        runId: z.string().describe("The run ID returned from run.create"),
-      }),
+      inputSchema: z
+        .object({
+          runId: z.string().describe("The run ID returned from run.create"),
+        })
+        .omit({})
+        .strict() as any,
     },
-    async (args) => {
+    async (args: Record<string, unknown>) => {
       const runId = args.runId as string
       const snapshot = await RunGateway.getSnapshot(runId)
       return jsonResult({
@@ -187,11 +193,14 @@ export function createSubstrateServer(): McpServer {
     {
       title: "List Run Approvals",
       description: "List all pending approvals for a run. Returns empty array if no approvals are pending.",
-      inputSchema: z.object({
-        runId: z.string().describe("The run ID"),
-      }),
+      inputSchema: z
+        .object({
+          runId: z.string().describe("The run ID"),
+        })
+        .omit({})
+        .strict() as any,
     },
-    async (args) => {
+    async (args: Record<string, unknown>) => {
       const runId = args.runId as string
       const approvals = await RunGateway.getApprovals(runId)
       return jsonResult({
@@ -215,15 +224,18 @@ export function createSubstrateServer(): McpServer {
     {
       title: "Resolve Approval",
       description: "Approve or deny a pending approval. Returns updated approval status.",
-      inputSchema: z.object({
-        runId: z.string().describe("The run ID"),
-        approvalId: z.string().describe("The approval ID to resolve"),
-        decision: z.enum(["approve", "deny"]).describe("The approval decision"),
-        actorId: z.string().describe("Identity of the actor resolving the approval"),
-        comment: z.string().optional().describe("Optional comment explaining the decision"),
-      }),
+      inputSchema: z
+        .object({
+          runId: z.string().describe("The run ID"),
+          approvalId: z.string().describe("The approval ID to resolve"),
+          decision: z.enum(["approve", "deny"]).describe("The approval decision"),
+          actorId: z.string().describe("Identity of the actor resolving the approval"),
+          comment: z.string().optional().describe("Optional comment explaining the decision"),
+        })
+        .omit({})
+        .strict() as any,
     },
-    async (args) => {
+    async (args: Record<string, unknown>) => {
       const request: ResolveApprovalRequest = {
         decision: args.decision as "approve" | "deny",
         actorId: args.actorId as string,
@@ -244,11 +256,14 @@ export function createSubstrateServer(): McpServer {
     {
       title: "Get Recovery Summary",
       description: "Get the recovery summary for a failed or blocked run, including error codes and recovery options.",
-      inputSchema: z.object({
-        runId: z.string().describe("The run ID"),
-      }),
+      inputSchema: z
+        .object({
+          runId: z.string().describe("The run ID"),
+        })
+        .omit({})
+        .strict() as any,
     },
-    async (args) => {
+    async (args: Record<string, unknown>) => {
       const runId = args.runId as string
       const summary = await RunGateway.getSummary(runId)
       const terminalStatuses = ["completed", "failed", "cancelled"]
@@ -275,12 +290,15 @@ export function createSubstrateServer(): McpServer {
       title: "Execute Recovery",
       description:
         "Recover a run from its event log. Terminal runs (failed/completed/cancelled) cannot be recovered — create a new run instead. Non-terminal runs (running, waiting_approval) can be recovered to reconnect to an interrupted session.",
-      inputSchema: z.object({
-        runId: z.string().describe("The run ID to recover"),
-        actorId: z.string().optional().describe("Identity of the actor triggering recovery (defaults to MCP caller)"),
-      }),
+      inputSchema: z
+        .object({
+          runId: z.string().describe("The run ID to recover"),
+          actorId: z.string().optional().describe("Identity of the actor triggering recovery (defaults to MCP caller)"),
+        })
+        .omit({})
+        .strict() as any,
     },
-    async (args) => {
+    async (args: Record<string, unknown>) => {
       const runId = args.runId as string
       const actor = getActorContext()
       const resolvedActorId =
