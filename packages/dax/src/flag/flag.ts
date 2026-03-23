@@ -50,6 +50,11 @@ export namespace Flag {
   export const ZITADEL_SERVICE_ACCOUNT_KEY = readEnv("ZITADEL_SERVICE_ACCOUNT_KEY")
   export const ZITADEL_ISS = readEnv("ZITADEL_ISS")
   export const ZITADEL_AUD = readEnv("ZITADEL_AUD")
+  export const OTEL_ENABLED = truthy("OTEL_ENABLED")
+  export const OTEL_EXPORTER_OTLP_ENDPOINT = readEnv("OTEL_EXPORTER_OTLP_ENDPOINT") ?? "http://localhost:4318"
+  export const OTEL_SERVICE_NAME = readEnv("OTEL_SERVICE_NAME") ?? "dax"
+  export const OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = readEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+  export const OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = readEnv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
 
   // Experimental
   export const DAX_EXPERIMENTAL = truthy("DAX_EXPERIMENTAL")
