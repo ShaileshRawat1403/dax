@@ -21,6 +21,7 @@ jobs:
   dax-analyze:
     name: "DAX Security & Quality Gate"
     runs-on: ubuntu-latest
+    if: github.repository == 'ShaileshRawat1403/dax-tui'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
