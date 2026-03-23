@@ -1,0 +1,37 @@
+name: "DAX Repo Analyze"
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      intent:
+        description: "Analysis intent"
+        required: true
+        default: "Analyze this repository for security vulnerabilities and code quality issues"
+
+env:
+  DAX_SUBSTRATE_URL: ${{ vars.DAX_SUBSTRATE_URL || 'http://localhost:4730' }}
+  DAX_SUBSTRATE_TOKEN: ${{ secrets.DAX_SUBSTRATE_TOKEN }}
+
+jobs:
+  dax-analyze:
+    name: "DAX Security & Quality Gate"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run DAX analysis gate
+        uses: ./.github/actions/dax-analyze
+        with:
+          dax-url: "${{ env.DAX_SUBSTRATE_URL }}"
+          dax-token: "${{ env.DAX_SUBSTRATE_TOKEN }}"
+          intent: "${{ github.event.inputs.intent || 'Analyze this repository for security vulnerabilities and code quality issues' }}"
+          workflow: "repo_analyze"
+          max-wait: "600"
