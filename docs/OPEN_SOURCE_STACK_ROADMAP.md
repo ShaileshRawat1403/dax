@@ -109,15 +109,15 @@ DAX's value is **governed execution**, not "look how many infra logos we use."
 
 ### Exposed Tools
 
-| Tool                    | Description                                         |
-| ----------------------- | --------------------------------------------------- |
-| `health`                | Health check with version info                      |
-| `run.create`            | Create a governed DAX run                           |
-| `run.get`               | Get run snapshot (status, steps, trust, governance) |
-| `run.approvals.list`    | List pending approvals for a run                    |
-| `run.approvals.resolve` | Approve or deny a pending approval                  |
-| `run.recovery.get`      | Get recovery summary for a failed/blocked run       |
-| `run.recovery.execute`  | Retry a failed run (stub - not yet implemented)     |
+| Tool                    | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `health`                | Health check with version info                                        |
+| `run.create`            | Create a governed DAX run                                             |
+| `run.get`               | Get run snapshot (status, steps, trust, governance)                   |
+| `run.approvals.list`    | List pending approvals for a run                                      |
+| `run.approvals.resolve` | Approve or deny a pending approval                                    |
+| `run.recovery.get`      | Get recovery summary for a failed/blocked run                         |
+| `run.recovery.execute`  | Recover a non-terminal run (terminal runs return structured guidance) |
 
 ### Auth
 
