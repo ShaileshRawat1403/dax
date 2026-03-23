@@ -227,7 +227,7 @@ export const CreateRunRequest = z
     metadata: z
       .object({
         initiatedBy: z.string().optional(),
-        source: z.literal("soothsayer").optional(),
+        source: z.enum(["soothsayer", "api", "cli", "dax"]).optional(),
         workspaceId: z.string().optional(),
         projectId: z.string().optional(),
         chatId: z.string().optional(),
@@ -263,7 +263,7 @@ export const ResolveApprovalRequest = z
   .object({
     decision: ApprovalDecision,
     actorId: z.string(),
-    source: z.literal("soothsayer"),
+    source: z.enum(["soothsayer", "api", "dax"]).optional(),
     comment: z.string().optional(),
     requestId: z.string().optional(),
   })
