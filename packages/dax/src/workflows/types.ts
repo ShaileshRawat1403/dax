@@ -26,6 +26,7 @@ export const WorkflowTerminalReasonSchema = z.enum([
   "execution_error",
   "permission_denied",
   "timeout",
+  "contract_mutation",
 ])
 export type WorkflowTerminalReason = z.infer<typeof WorkflowTerminalReasonSchema>
 
