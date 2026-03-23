@@ -2,7 +2,7 @@ import { replayRunState, ReplayResult } from "./replay"
 import { RunStore } from "./run-store"
 import { RunState, isTerminalStatus } from "./run-state"
 import { Log } from "@/util/log"
-import { readEvents } from "@/server/run-gateway"
+import { RunGateway } from "@/server/run-gateway"
 
 const log = Log.create({ service: "state-recovery" })
 
@@ -44,16 +44,7 @@ export async function recoverRun(runId: string): Promise<RecoveryResult> {
 // Recover purely from event log
 async function recoverFromEvents(runId: string): Promise<RecoveryResult> {
   try {
-    // Note: readEvents is actually imported from run-gateway, or we could just use Storage.
-    // We should ideally separate event reading into event-log.ts in Phase 1, but right now
-    // we use the existing event reading. Since readEvents is not currently exported from run-gateway.ts,
-    // we might need to export it, or implement it here using Storage.
-
-    // For now, let's implement readEvents locally to avoid circular dependencies
-    const { Storage } = await import("@/storage/storage")
-    const { Instance } = await import("@/project/instance")
-
-    const events = await Storage.read<any[]>(["run_events", Instance.project.id, runId]).catch(() => [])
+    const events = await RunGateway.replayEvents(runId)
 
     if (events.length === 0) {
       return { success: false, error: "No events found for run" }
@@ -114,10 +105,7 @@ export async function getRecoverySummary(runId: string): Promise<{
   eventCount: number
 }> {
   const state = await RunStore.get(runId).catch(() => null)
-
-  const { Storage } = await import("@/storage/storage")
-  const { Instance } = await import("@/project/instance")
-  const events = await Storage.read<any[]>(["run_events", Instance.project.id, runId]).catch(() => [])
+  const events = await RunGateway.replayEvents(runId)
 
   return {
     hasState: !!state,

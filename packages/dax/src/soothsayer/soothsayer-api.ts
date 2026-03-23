@@ -137,6 +137,7 @@ export interface SoothsayerRunDetail {
   authority: string
   sourceSystem?: string
   title?: string
+  metadata?: Record<string, unknown>
   createdAt: string
   updatedAt: string
   startedAt?: string
@@ -430,6 +431,7 @@ export namespace SoothsayerAPI {
         authority: snapshot.authority,
         sourceSystem: snapshot.sourceSystem,
         title: snapshot.title,
+        metadata: snapshot.metadata,
         createdAt: snapshot.createdAt,
         updatedAt: snapshot.updatedAt,
         startedAt: snapshot.startedAt,

@@ -968,6 +968,7 @@ export namespace RunGateway {
       },
       workflow: buildWorkflowSummary(meta?.workflowClass, runState),
       terminalReason: extractTerminalReason(events),
+      metadata: meta as Record<string, any>,
       lastEvent:
         events.at(-1) !== undefined
           ? {

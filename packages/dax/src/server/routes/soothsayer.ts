@@ -10,6 +10,7 @@ import {
 } from "@/soothsayer/soothsayer-api"
 import { CreateRunRequest, CreateRunResponse, ResolveApprovalRequest, ResolveApprovalResponse } from "../run-contract"
 import { RunGateway } from "../run-gateway"
+import { needsRecovery, recoverRun, getRecoverySummary } from "@/state/recovery"
 
 export const SoothsayerRoutes = lazy(() =>
   new Hono()
@@ -180,6 +181,7 @@ export const SoothsayerRoutes = lazy(() =>
                     authority: z.string(),
                     sourceSystem: z.string().optional(),
                     title: z.string().optional(),
+                    metadata: z.record(z.string(), z.any()).optional(),
                     createdAt: z.string(),
                     updatedAt: z.string(),
                     startedAt: z.string().optional(),
@@ -361,6 +363,42 @@ export const SoothsayerRoutes = lazy(() =>
         return new Response(JSON.stringify(approvals, null, 2), {
           headers: { "Content-Type": "application/json" },
         })
+      },
+    )
+    .get(
+      "/runs/:id/recovery",
+      describeRoute({
+        summary: "Check if run needs recovery",
+        description: "Checks if a run was interrupted and needs to be recovered from the event log.",
+        operationId: "soothsayer.run.needsRecovery",
+        responses: {
+          200: {
+            description: "Recovery summary",
+          },
+        },
+      }),
+      async (c) => {
+        const { id } = c.req.param()
+        const summary = await getRecoverySummary(id)
+        return c.json(summary)
+      },
+    )
+    .post(
+      "/runs/:id/recover",
+      describeRoute({
+        summary: "Recover a run",
+        description: "Recovers a run from its event log, reconstructing the RunState.",
+        operationId: "soothsayer.run.recover",
+        responses: {
+          200: {
+            description: "Recovery result",
+          },
+        },
+      }),
+      async (c) => {
+        const { id } = c.req.param()
+        const result = await recoverRun(id)
+        return c.json(result)
       },
     ),
 )

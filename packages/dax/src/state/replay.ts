@@ -18,15 +18,16 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
     throw new Error("Cannot replay empty event log")
   }
 
-  // Verify sequential ordering
-  const sortedEvents = [...events].sort((a, b) => a.sequence - b.sequence)
-  for (let i = 1; i < sortedEvents.length; i++) {
-    if (sortedEvents[i].sequence <= sortedEvents[i - 1].sequence) {
-      throw new Error(`Invalid event sequence: duplicate or out-of-order sequence number ${sortedEvents[i].sequence}`)
+  // Verify sequential ordering strictly
+  for (let i = 1; i < events.length; i++) {
+    if (events[i].sequence !== events[i - 1].sequence + 1) {
+      throw new Error(
+        `Invalid event sequence: expected ${events[i - 1].sequence + 1} but got ${events[i].sequence} at index ${i}`,
+      )
     }
   }
 
-  const creationEvent = sortedEvents.find((e) => e.type === "run.created")
+  const creationEvent = events.find((e) => e.type === "run.created")
   if (!creationEvent) {
     throw new Error("Cannot replay: missing run.created event")
   }
@@ -42,7 +43,7 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
     state.status = creationEvent.payload.status as RunStatus
   }
 
-  for (const event of sortedEvents) {
+  for (const event of events) {
     state.updatedAt = event.timestamp
 
     switch (event.type) {
@@ -135,10 +136,6 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
       case "approval.resolved":
         state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== event.payload.approvalId)
         pendingApprovals.delete(event.payload.approvalId)
-        break
-
-      case "approval.resolved":
-        state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== event.payload.approvalId)
         break
 
       case "artifact.created":
