@@ -626,6 +626,16 @@ async function handleBusEvent(event: any) {
           break
         }
         if (snapshot.status === "failed" || snapshot.status === "cancelled") {
+          const runState = await RunStore.get(runId)
+          const stepErrors = runState?.steps.filter((s) => s.status === "failed" && s.error).map((s) => s.error) ?? []
+          const firstStepError = stepErrors[0]
+          const runError = runState?.error
+
+          const errorCode =
+            runError?.code ?? firstStepError?.code ?? (snapshot.status === "cancelled" ? "run_cancelled" : "run_failed")
+          const errorMessage =
+            runError?.message ?? firstStepError?.message ?? `Run ended with status ${snapshot.status}`
+
           await appendEvent(runId, {
             runId,
             type: "run.failed",
@@ -633,8 +643,8 @@ async function handleBusEvent(event: any) {
             payload: {
               status: "failed",
               error: {
-                code: snapshot.status === "cancelled" ? "run_cancelled" : "run_failed",
-                message: `Run ended with status ${snapshot.status}`,
+                code: errorCode,
+                message: errorMessage,
               },
             },
           })
