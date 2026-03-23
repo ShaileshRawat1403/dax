@@ -44,6 +44,7 @@ import { Installation } from "../installation"
 import { RunRoutes } from "./routes/run"
 import { SoothsayerRoutes } from "./routes/soothsayer"
 import { SubstrateRoutes } from "./routes/substrate"
+import { getSecrets } from "@/secrets/secrets-loader"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -81,10 +82,11 @@ export namespace Server {
             status: 500,
           })
         })
-        .use((c, next) => {
-          const password = Flag.DAX_SERVER_PASSWORD
+        .use(async (c, next) => {
+          const secrets = await getSecrets()
+          const password = secrets.serverPassword
           if (!password) return next()
-          const username = Flag.DAX_SERVER_USERNAME ?? "dax"
+          const username = secrets.serverUsername ?? "dax"
           return basicAuth({ username, password })(c, next)
         })
         .use(async (c, next) => {
