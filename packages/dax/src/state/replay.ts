@@ -1,5 +1,7 @@
-import { RunState, createInitialRunState, StepRecord, RunStatus } from "./run-state"
-import { RunEvent, ApprovalRecord, ArtifactRecord } from "@/server/run-contract"
+import type { RunState, StepRecord, RunStatus } from "./run-state"
+import { createInitialRunState } from "./run-state"
+import type { ApprovalRecord } from "@/server/run-contract"
+import { RunEvent, ArtifactRecord } from "@/server/run-contract"
 import { Log } from "@/util/log"
 
 const log = Log.create({ service: "run-replay" })
@@ -18,16 +20,19 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
     throw new Error("Cannot replay empty event log")
   }
 
-  // Verify sequential ordering strictly
-  for (let i = 1; i < events.length; i++) {
-    if (events[i].sequence !== events[i - 1].sequence + 1) {
+  // Sort events by sequence
+  const sortedEvents = [...events].sort((a, b) => a.sequence - b.sequence)
+
+  // Verify sequential ordering strictly after sorting
+  for (let i = 1; i < sortedEvents.length; i++) {
+    if (sortedEvents[i].sequence !== sortedEvents[i - 1].sequence + 1) {
       throw new Error(
-        `Invalid event sequence: expected ${events[i - 1].sequence + 1} but got ${events[i].sequence} at index ${i}`,
+        `Invalid event sequence: expected ${sortedEvents[i - 1].sequence + 1} but got ${sortedEvents[i].sequence} at index ${i}`,
       )
     }
   }
 
-  const creationEvent = events.find((e) => e.type === "run.created")
+  const creationEvent = sortedEvents.find((e) => e.type === "run.created")
   if (!creationEvent) {
     throw new Error("Cannot replay: missing run.created event")
   }
@@ -43,7 +48,7 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
     state.status = creationEvent.payload.status as RunStatus
   }
 
-  for (const event of events) {
+  for (const event of sortedEvents) {
     state.updatedAt = event.timestamp
 
     switch (event.type) {
