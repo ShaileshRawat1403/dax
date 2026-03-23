@@ -3,6 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { createSubstrateServer, extractAuth, validateAuth } from "../fastmcp-substrate"
 import type { SubstrateSession } from "../fastmcp-substrate"
 import { Flag } from "@/flag/flag"
+import { getSecrets } from "@/secrets/secrets-loader"
 
 const sessions = new Map<string, SubstrateSession>()
 let substrateServer: ReturnType<typeof createSubstrateServer> | null = null
@@ -19,8 +20,9 @@ async function mcpRequestHandler(c: Context): Promise<Response> {
     return c.json({ error: "DAX substrate is not enabled" }, 503)
   }
 
+  const secrets = await getSecrets()
   const auth = extractAuth(c.req.raw)
-  if (!validateAuth(auth, Flag.DAX_SUBSTRATE_TOKEN)) {
+  if (!validateAuth(auth, secrets.substrateToken)) {
     return c.json({ error: "unauthorized" }, 401)
   }
 
@@ -56,8 +58,9 @@ export const SubstrateRoutes = new Hono()
       return c.json({ error: "DAX substrate is not enabled" }, 503)
     }
 
+    const secrets = await getSecrets()
     const auth = extractAuth(c.req.raw)
-    if (!validateAuth(auth, Flag.DAX_SUBSTRATE_TOKEN)) {
+    if (!validateAuth(auth, secrets.substrateToken)) {
       return c.json({ error: "unauthorized" }, 401)
     }
 
@@ -85,9 +88,11 @@ export const SubstrateRoutes = new Hono()
     return c.json({ ok: true })
   })
   .get("/sessions", async (c) => {
+    const secrets = await getSecrets()
     return c.json({
       sessions: [...sessions.keys()],
       count: sessions.size,
       enabled: Flag.DAX_SUBSTRATE_ENABLED,
+      secretsSource: secrets.source,
     })
   })

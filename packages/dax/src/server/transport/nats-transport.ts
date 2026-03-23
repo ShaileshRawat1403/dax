@@ -52,7 +52,7 @@ export class NatsTransport {
   private initPromise: Promise<void> | null = null
   private subscriptions: JetStreamSubscription[] = []
 
-  async initialize(): Promise<void> {
+  async initialize(opts?: { credsData?: Uint8Array }): Promise<void> {
     if (this.initialized) return
     if (this.initPromise) return this.initPromise
 
@@ -62,11 +62,11 @@ export class NatsTransport {
       return
     }
 
-    this.initPromise = this._connect()
+    this.initPromise = this._connect(opts?.credsData)
     return this.initPromise
   }
 
-  private async _connect(): Promise<void> {
+  private async _connect(credsData?: Uint8Array): Promise<void> {
     try {
       const servers = Flag.DAX_NATS_URL
       log.info("connecting to NATS", { servers })
@@ -78,10 +78,12 @@ export class NatsTransport {
         reconnectTimeWait: 1000,
       }
 
-      if (Flag.DAX_NATS_CREDS) {
+      if (credsData) {
+        connectOpts.authenticator = credsAuthenticator(credsData)
+      } else if (Flag.DAX_NATS_CREDS) {
         try {
-          const credsData = await Bun.file(Flag.DAX_NATS_CREDS).arrayBuffer()
-          const credsBytes = new Uint8Array(credsData)
+          const data = await Bun.file(Flag.DAX_NATS_CREDS).arrayBuffer()
+          const credsBytes = new Uint8Array(data)
           connectOpts.authenticator = credsAuthenticator(credsBytes)
         } catch {
           log.warn("failed to load NATS creds file, skipping auth", { file: Flag.DAX_NATS_CREDS })

@@ -20,6 +20,7 @@ import { Transitions } from "@/state/transitions"
 import { replayRunState } from "@/state/replay"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
 import { natsTransport } from "./transport/nats-transport"
+import { getSecrets } from "@/secrets/secrets-loader"
 import type { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import {
   type ApprovalRecord,
@@ -772,11 +773,12 @@ async function handleBusEvent(event: any) {
 }
 
 export namespace RunGateway {
-  export function initialize() {
+  export async function initialize() {
     const state = runGatewayState()
     if (state.initialized) return
     state.initialized = true
-    natsTransport.initialize().catch(() => {})
+    const secrets = await getSecrets()
+    natsTransport.initialize({ credsData: secrets.natsCredsData }).catch(() => {})
     Bus.subscribeAll(async (event) => {
       try {
         await handleBusEvent(event)

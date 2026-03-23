@@ -40,6 +40,11 @@ export namespace Flag {
   export const DAX_NATS_URL = readEnv("DAX_NATS_URL") ?? "nats://localhost:4222"
   export const DAX_NATS_CREDS = readEnv("DAX_NATS_CREDS")
   export const DAX_NATS_STREAM = readEnv("DAX_NATS_STREAM") ?? "DAX_EVENTS"
+  export const INFISICAL_TOKEN = readEnv("INFISICAL_TOKEN")
+  export const INFISICAL_CLIENT_ID = readEnv("INFISICAL_CLIENT_ID")
+  export const INFISICAL_CLIENT_SECRET = readEnv("INFISICAL_CLIENT_SECRET")
+  export const INFISICAL_PROJECT_ID = readEnv("INFISICAL_PROJECT_ID")
+  export const INFISICAL_ENVIRONMENT = readEnv("INFISICAL_ENVIRONMENT") ?? "dev"
 
   // Experimental
   export const DAX_EXPERIMENTAL = truthy("DAX_EXPERIMENTAL")
