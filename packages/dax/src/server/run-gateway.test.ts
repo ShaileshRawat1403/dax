@@ -356,6 +356,187 @@ describe("run gateway v1 contract", () => {
     }
   }, 40000)
 
+  test("projects contract-mutation runs with contract_mutation terminal reason in snapshot and summary", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-run-contract-mutation-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const { RunGateway } = await import("./run-gateway")
+      const { Session } = await import("@/session")
+      const { Identifier } = await import("@/id/id")
+      const { MessageV2 } = await import("@/session/message-v2")
+      const TransitionsModule = await import("@/state/transitions")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const { Provider } = await import("@/provider/provider")
+        let model: { providerID: string; modelID: string }
+        try {
+          model = await Provider.defaultModel()
+        } catch {
+          model = { providerID: "openai", modelID: "gpt-5.1-codex" }
+          const originalGetModel = Provider.getModel
+          Provider.getModel = async (providerID, modelID) => {
+            if (providerID === "openai" && modelID === "gpt-5.1-codex") {
+              return { id: "gpt-5.1-codex", providerID: "openai", name: "GPT-5.1 Codex" } as any
+            }
+            return originalGetModel(providerID, modelID)
+          }
+        }
+        const create = await RunGateway.createRun({
+          intent: {
+            input: "",
+          },
+          metadata: {
+            source: "soothsayer",
+            initiatedBy: "user_contract_mutation",
+          },
+        })
+
+        await TransitionsModule.Transitions.transition(create.runId, "queued", "execution_queued")
+        await TransitionsModule.Transitions.transition(create.runId, "running", "execution_started")
+
+        const stepId = Identifier.ascending("part")
+        await TransitionsModule.Transitions.addStep(create.runId, stepId, "execute_workflow", "executed")
+        await TransitionsModule.Transitions.startStep(create.runId, stepId)
+
+        const userMessageId = Identifier.ascending("message")
+        await Session.updateMessage({
+          id: userMessageId,
+          role: "user",
+          sessionID: create.runId,
+          time: { created: Date.now() - 50 },
+          model,
+          agent: "test-agent",
+        })
+
+        const assistantMessageId = Identifier.ascending("message")
+        await Session.updateMessage({
+          id: assistantMessageId,
+          parentID: userMessageId,
+          role: "assistant",
+          mode: "test-agent",
+          agent: "test-agent",
+          path: {
+            cwd: repoRoot,
+            root: repoRoot,
+          },
+          cost: 0,
+          tokens: {
+            input: 0,
+            output: 0,
+            reasoning: 0,
+            cache: { read: 0, write: 0 },
+          },
+          modelID: model.modelID,
+          providerID: model.providerID,
+          time: {
+            created: Date.now() - 25,
+            completed: Date.now(),
+          },
+          finish: "tool-calls",
+          error: MessageV2.fromError(
+            new Error("ExecutionContract is immutable after run initialization: cannot add step"),
+            { providerID: model.providerID },
+          ),
+          sessionID: create.runId,
+        })
+
+        await Session.updatePart({
+          id: Identifier.ascending("part"),
+          messageID: assistantMessageId,
+          sessionID: create.runId,
+          type: "tool",
+          callID: "tool_1",
+          tool: "execute_workflow",
+          state: {
+            status: "error",
+            input: { workflowId: "wf_contract_test" },
+            error: "ExecutionContract is immutable after run initialization: cannot add step",
+            time: {
+              start: Date.now() - 20,
+              end: Date.now() - 10,
+            },
+          },
+        })
+
+        await TransitionsModule.Transitions.failStep(create.runId, stepId, {
+          code: "contract_mutation",
+          message: "ExecutionContract is immutable after run initialization: cannot add step",
+        })
+        await TransitionsModule.Transitions.transition(create.runId, "failed", "contract_mutation")
+
+        await eventually(async () => {
+          const snapshot = await RunGateway.getSnapshot(create.runId)
+          const summary = await RunGateway.getSummary(create.runId)
+
+          expect(snapshot.status).toBe("failed")
+          expect(snapshot.completedAt).toBeDefined()
+
+          expect(summary.status).toBe("failed")
+          expect(summary.outcome?.result).toBe("failure")
+          expect(summary.completedAt).toBeDefined()
+          expect(summary.failedStepCount).toBeGreaterThan(0)
+        })
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
+
+  test("extracts contract_mutation from immutable message when error.code is not set", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-run-immutable-message-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const { RunGateway } = await import("./run-gateway")
+      const { Transitions } = await import("@/state/transitions")
+      const { Identifier } = await import("@/id/id")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const create = await RunGateway.createRun({
+          intent: { input: "" },
+          metadata: { source: "soothsayer", initiatedBy: "user_immutable_msg" },
+        })
+
+        await Transitions.transition(create.runId, "queued", "execution_queued")
+        await Transitions.transition(create.runId, "running", "execution_started")
+
+        const stepId = Identifier.ascending("part")
+        await Transitions.addStep(create.runId, stepId, "execute_workflow", "executed")
+        await Transitions.startStep(create.runId, stepId)
+
+        await Transitions.failStep(create.runId, stepId, {
+          code: undefined as any,
+          message: "ExecutionContract is immutable after run initialization",
+        })
+        await Transitions.transition(create.runId, "failed", "contract_mutation")
+
+        await eventually(async () => {
+          const snapshot = await RunGateway.getSnapshot(create.runId)
+          const summary = await RunGateway.getSummary(create.runId)
+
+          expect(snapshot.status).toBe("failed")
+          expect(snapshot.completedAt).toBeDefined()
+
+          expect(summary.status).toBe("failed")
+          expect(summary.completedAt).toBeDefined()
+        })
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
+
   test("lists active runs, recent runs, and pending approvals with truthful source and targeting context", async () => {
     const testHome = path.join(os.tmpdir(), `dax-run-overview-${Date.now().toString(36)}`)
     const previousHome = process.env.DAX_TEST_HOME
