@@ -18,6 +18,9 @@ const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
 
+// Google's official OAuth client for direct sign-in (public client - no secret needed)
+const GOOGLE_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+
 const credsPaths = () =>
   [
     Bun.env.GEMINI_OAUTH_CREDS_PATH,
@@ -149,7 +152,7 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
   // Prefer the credential explicitly stored in DAX auth state.
   // Falling back to CLI/ADC files can unintentionally override a freshly
-  // completed "Sign in with Google (email)" flow with unrelated credentials.
+  // completed "Sign in with Google" flow with unrelated credentials.
   if (oauth?.refresh) {
     return oauth
   }
@@ -643,55 +646,19 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         {
           type: "oauth" as const,
           label: "Sign in with Google",
-          description: "Sign in with your Google account using your own OAuth credentials.",
-          prompts: [
-            {
-              key: "clientID",
-              type: "text",
-              message: "Enter your Google OAuth Client ID",
-              placeholder: "e.g. 123456789-abc.apps.googleusercontent.com",
-              validate: (x: string) =>
-                x && x.includes("apps.googleusercontent.com") ? undefined : "Must be a valid Google OAuth Client ID",
-            },
-            {
-              key: "clientSecret",
-              type: "text",
-              message: "Enter your Google OAuth Client Secret",
-              placeholder: "e.g. GOCSPX-...",
-              validate: (x: string) => (x && x.length > 0 ? undefined : "Required"),
-            },
-          ],
-          async authorize(inputs: any) {
-            const customAuth = await Auth.get("google").then((x: Auth.Info | undefined) =>
-              x?.type === "oauth-custom" ? x : undefined,
-            )
-
-            const clientID =
-              inputs.clientID ||
-              customAuth?.clientID ||
-              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ||
-              Bun.env.GEMINI_OAUTH_CLIENT_ID
-            const clientSecret = inputs.clientSecret || customAuth?.clientSecret
-
-            if (!clientID || !clientSecret) {
-              throw new Error(
-                "OAuth credentials required. Please provide both Client ID and Client Secret.\n" +
-                  "Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient",
-              )
-            }
+          description: "Sign in directly with your Google account. Opens browser for email verification.",
+          async authorize() {
             const redirectURI = await startOAuthServer()
             oauthCode.clear()
             const state = generateState()
             const pkce = await generatePKCE()
             return {
               method: "auto" as const,
-              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
-              instructions:
-                "Complete sign-in in your browser. DAX will detect the localhost redirect automatically. " +
-                `OAuth client: ${clientID}. Redirect: ${redirectURI}.`,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, GOOGLE_CLI_CLIENT_ID, "compat"),
+              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
               async callback() {
                 const code = await waitForOAuthCode(state)
-                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, GOOGLE_CLI_CLIENT_ID)
 
                 if (!token.access_token) throw new Error("Token response missing access_token")
 
@@ -712,8 +679,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   access: token.access_token,
                   refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
                   expires: Date.now() + (token.expires_in ?? 3600) * 1000,
-                  clientID,
-                  clientSecret,
+                  clientID: GOOGLE_CLI_CLIENT_ID,
                   accountId: (health as any).email,
                 }
               },

@@ -86,7 +86,7 @@ async function validateGoogleOAuthAccessToken(token: string) {
       ok: false as const,
       reason: "token_invalid",
       message:
-        "Google OAuth access token is invalid or expired for Gemini API. Re-run `dax auth login`, choose Google, and use 'Sign in with Google (email)' or switch to GEMINI_API_KEY.",
+        "Google OAuth access token is invalid or expired for Gemini API. Re-run `dax auth login`, choose Google, and use 'Sign in with Google' or switch to GEMINI_API_KEY.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -192,11 +192,15 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       ? [
           ...token.details,
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
-          auth.accountId ? `Authenticated as: ${auth.accountId}` : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
+          auth.accountId
+            ? `Authenticated as: ${auth.accountId}`
+            : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
         ]
       : [
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
-          hasRefresh ? "Access token expired/invalid, but refresh token is present and will be used during execution." : "Access token expired/invalid and no refresh token found."
+          hasRefresh
+            ? "Access token expired/invalid, but refresh token is present and will be used during execution."
+            : "Access token expired/invalid and no refresh token found.",
         ]
     return {
       providerID,
@@ -205,7 +209,7 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       requiredEnv: ["None required for OAuth token mode"],
       missingEnv: [],
       details,
-      error: (token.ok || hasRefresh) ? undefined : token.message,
+      error: token.ok || hasRefresh ? undefined : token.message,
     }
   }
 
