@@ -2181,6 +2181,7 @@ export type SubtaskPartInput = {
 export type ProviderAuthMethod = {
   type: "oauth" | "api"
   label: string
+  description?: string
   prompts?: Array<{
     key: string
     type: "text"

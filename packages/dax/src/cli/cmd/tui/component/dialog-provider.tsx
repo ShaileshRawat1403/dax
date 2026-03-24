@@ -76,6 +76,7 @@ export function createDialogProviderOptions() {
                       title="Select auth method"
                       options={methods.map((x, index) => ({
                         title: x.label,
+                        description: x.description,
                         value: index,
                       }))}
                       onSelect={(option) => resolve(option.value)}

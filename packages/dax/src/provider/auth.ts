@@ -31,6 +31,7 @@ export namespace ProviderAuth {
     .object({
       type: z.union([z.literal("oauth"), z.literal("api")]),
       label: z.string(),
+      description: z.string().optional(),
       prompts: z.array(Prompt).optional(),
     })
     .meta({
@@ -39,12 +40,13 @@ export namespace ProviderAuth {
   export type Method = z.infer<typeof Method>
 
   export async function methods() {
-    const s = await state().then((x) => x.methods)
-    return mapValues(s, (x) =>
+    const s = await state()
+    return mapValues(s.methods, (x) =>
       x.methods.map(
         (y): Method => ({
           type: y.type,
           label: y.label,
+          description: y.description,
           prompts: y.prompts?.map((p) => {
             if (p.type === "text") {
               return {
