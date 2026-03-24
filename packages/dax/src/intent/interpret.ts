@@ -127,7 +127,9 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
             .describe("A concise, actionable and highly technical restatement of the user's core intent."),
           sessionContext: z
             .array(z.string())
-            .describe("2-5 short bullets capturing relevant live session context, current focus, or milestones when they materially help execution.")
+            .describe(
+              "2-5 short bullets capturing relevant live session context, current focus, or milestones when they materially help execution.",
+            )
             .default([]),
           plan: z
             .array(z.string())
@@ -150,7 +152,9 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
             .describe("Project boundaries, performance rules, or style guidelines the AI must not violate."),
           operatorWatchouts: z
             .array(z.string())
-            .describe("0-3 short watchouts about approvals, risk, governance, or validation gaps the operator should keep in mind.")
+            .describe(
+              "0-3 short watchouts about approvals, risk, governance, or validation gaps the operator should keep in mind.",
+            )
             .default([]),
         }),
         prompt: `You are an expert software engineer and AI task planner.
@@ -175,11 +179,21 @@ INSTRUCTIONS:
 4. Success Criteria: How will the agent know it is finished? Be objective and measurable.
 5. Constraints: What rules must the agent follow? (e.g. "Do not break existing tests", "Only modify files in src/components", "Do not add new dependencies unless requested").
 6. Operator Watchouts: Include only important approvals, governance concerns, or validation cautions.
+7. Formatting: Use markdown to communicate clearly. Use headings (##) for sections. Use bullets (-) for lists. Use blockquotes (>) for key findings or warnings. Use tables for structured comparisons or data. This terminal renderer displays markdown with color-coded syntax.
 
 Ensure your response perfectly aligns with the requested JSON schema.`,
       })
 
-      const { goal, sessionContext, plan, successCriteria, targetFiles, validationCommands, constraints, operatorWatchouts } = result.object
+      const {
+        goal,
+        sessionContext,
+        plan,
+        successCriteria,
+        targetFiles,
+        validationCommands,
+        constraints,
+        operatorWatchouts,
+      } = result.object
       const formattedPrompt = formatStructuredExecutionContract({
         goal,
         targetFiles,
@@ -298,7 +312,9 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
         "The fix is minimal and aligned with existing project patterns",
       ],
       targetFiles: hints.fileHints,
-      validationCommands: defaultValidationCommands(targetCommand || "Run the smallest relevant test or verification command"),
+      validationCommands: defaultValidationCommands(
+        targetCommand || "Run the smallest relevant test or verification command",
+      ),
       constraints: [
         "Minimize the change surface until the root cause is confirmed",
         "Preserve existing behavior outside the broken path",
@@ -328,7 +344,9 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
         "No obvious regressions remain in adjacent behavior",
       ],
       targetFiles: hints.fileHints,
-      validationCommands: defaultValidationCommands(targetCommand || "Run the most relevant verification command for the changed surface"),
+      validationCommands: defaultValidationCommands(
+        targetCommand || "Run the most relevant verification command for the changed surface",
+      ),
       constraints: ["Preserve existing functionality unless the request explicitly changes it", repoConstraint],
       contextSignals,
       operatorWatchouts,
@@ -407,17 +425,27 @@ function buildContextSignals(context: IntentContext) {
   if (context.current_focus) signals.push(`Current focus: ${context.current_focus}`)
   if (context.todo?.length) signals.push(`Known milestones: ${context.todo.slice(0, 4).join(" | ")}`)
   if (context.recent_activity?.length) signals.push(`Recent thread: ${context.recent_activity.slice(0, 3).join(" | ")}`)
-  if (context.recent_tools?.length) signals.push(`Recent tool activity: ${context.recent_tools.slice(0, 3).join(" | ")}`)
-  if (context.recent_history?.length) signals.push(`Latest user context: ${context.recent_history.slice(0, 2).join(" | ")}`)
+  if (context.recent_tools?.length)
+    signals.push(`Recent tool activity: ${context.recent_tools.slice(0, 3).join(" | ")}`)
+  if (context.recent_history?.length)
+    signals.push(`Latest user context: ${context.recent_history.slice(0, 2).join(" | ")}`)
   return unique(signals).slice(0, 5)
 }
 
 function buildOperatorWatchouts(context: IntentContext) {
   const watchouts: string[] = []
-  if ((context.pending_approvals ?? 0) > 0) watchouts.push(`There ${context.pending_approvals === 1 ? "is" : "are"} ${context.pending_approvals} pending approval${context.pending_approvals === 1 ? "" : "s"} that may block execution.`)
-  if ((context.pending_questions ?? 0) > 0) watchouts.push(`There ${context.pending_questions === 1 ? "is" : "are"} ${context.pending_questions} open operator question${context.pending_questions === 1 ? "" : "s"} that may need an answer first.`)
-  if (context.audit_status === "warn") watchouts.push("Audit posture is warning. Prefer smaller changes and explicit verification.")
-  if (context.audit_status === "fail") watchouts.push("Audit posture is blocked. Treat governance findings as release blockers until resolved.")
+  if ((context.pending_approvals ?? 0) > 0)
+    watchouts.push(
+      `There ${context.pending_approvals === 1 ? "is" : "are"} ${context.pending_approvals} pending approval${context.pending_approvals === 1 ? "" : "s"} that may block execution.`,
+    )
+  if ((context.pending_questions ?? 0) > 0)
+    watchouts.push(
+      `There ${context.pending_questions === 1 ? "is" : "are"} ${context.pending_questions} open operator question${context.pending_questions === 1 ? "" : "s"} that may need an answer first.`,
+    )
+  if (context.audit_status === "warn")
+    watchouts.push("Audit posture is warning. Prefer smaller changes and explicit verification.")
+  if (context.audit_status === "fail")
+    watchouts.push("Audit posture is blocked. Treat governance findings as release blockers until resolved.")
   return watchouts
 }
 
