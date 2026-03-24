@@ -18,8 +18,63 @@ const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
 
-// Google's official OAuth client for direct sign-in (public client - no secret needed)
-const GOOGLE_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+// Google's official OAuth credentials for direct sign-in (Pro/Plus)
+// Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
+const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
+const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+
+let cachedCloudCodeProjectId: string | undefined = undefined
+
+async function resolveCloudCodeProject(accessToken: string): Promise<string> {
+  if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
+
+  const metadata = {
+    ideType: "IDE_UNSPECIFIED",
+    platform: "PLATFORM_UNSPECIFIED",
+    pluginType: "GEMINI",
+  }
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    "User-Agent": "GoogleCloud/1.0.0 (Windows NT 10.0; Win64; x64) GeminiCLI/0.34.0",
+  }
+
+  const loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ metadata }),
+  }).catch(() => null)
+
+  if (loadRes?.ok) {
+    const data = await loadRes.json().catch(() => ({}))
+    if (data.cloudaicompanionProject) {
+      cachedCloudCodeProjectId = data.cloudaicompanionProject
+      return cachedCloudCodeProjectId as string
+    }
+  }
+
+  // Fallback onboard attempt if not loaded
+  const onboardRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:onboardUser", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ tierId: "free-tier", metadata }),
+  }).catch(() => null)
+
+  if (onboardRes?.ok) {
+    const data = await onboardRes.json().catch(() => ({}))
+    if (data.cloudaicompanionProject?.id) {
+      cachedCloudCodeProjectId = data.cloudaicompanionProject.id
+      return cachedCloudCodeProjectId as string
+    } else if (typeof data.cloudaicompanionProject === "string" && data.cloudaicompanionProject) {
+      cachedCloudCodeProjectId = data.cloudaicompanionProject
+      return cachedCloudCodeProjectId as string
+    }
+  }
+
+  cachedCloudCodeProjectId = "free-tier"
+  return cachedCloudCodeProjectId
+}
 
 const credsPaths = () =>
   [
@@ -152,7 +207,7 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
   // Prefer the credential explicitly stored in DAX auth state.
   // Falling back to CLI/ADC files can unintentionally override a freshly
-  // completed "Sign in with Google" flow with unrelated credentials.
+  // completed "Sign in with Google (email)" flow with unrelated credentials.
   if (oauth?.refresh) {
     return oauth
   }
@@ -488,8 +543,187 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (access) headers.set("Authorization", `Bearer ${access}`)
             if (quotaProjectID) headers.set("x-goog-user-project", quotaProjectID)
 
-            const req = stripKey(request)
-            const first = await fetch(req, { ...init, headers })
+            let req = stripKey(request)
+            let reqBody = init?.body
+
+            // Native DAX routing for Pro/Plus Subscriptions (Code Assist API)
+            // If the user authenticated with the Gemini CLI client ID, the token requires
+            // hitting the cloudcode-pa endpoint instead of the standard generativelanguage endpoint.
+            if (fresh?.clientID === getGoogleCliClientId() && req.href.includes("generativelanguage.googleapis.com")) {
+              const isStream = req.href.includes("streamGenerateContent")
+              const action = isStream ? "streamGenerateContent" : "generateContent"
+              req = new URL(`https://cloudcode-pa.googleapis.com/v1internal:${action}${isStream ? "?alt=sse" : ""}`)
+
+              const resolvedProject = await resolveCloudCodeProject(access!)
+
+              if (typeof reqBody === "string") {
+                try {
+                  const parsed = JSON.parse(reqBody)
+                  const effectiveModel = parsed.model || "gemini-2.5-flash"
+                  delete parsed.model
+
+                  if (parsed.generationConfig && parsed.generationConfig.thinkingConfig) {
+                    delete parsed.generationConfig.thinkingConfig
+                  }
+
+                  reqBody = JSON.stringify({
+                    project: resolvedProject,
+                    model: effectiveModel,
+                    user_prompt_id: crypto.randomUUID(),
+                    request: {
+                      ...parsed,
+                      session_id: crypto.randomUUID(),
+                    },
+                  })
+                } catch (e) {}
+              }
+              // Code Assist API requires a specific User-Agent format
+              headers.set("User-Agent", "GoogleCloud/1.0.0 (Windows NT 10.0; Win64; x64) GeminiCLI/0.34.0")
+              headers.set("x-activity-request-id", crypto.randomUUID().substring(0, 16))
+            }
+
+            const executeFetch = async (fetchReq: URL, fetchHeaders: Headers, fetchBody: any) => {
+              const response = await fetch(fetchReq, { ...init, headers: fetchHeaders, body: fetchBody })
+
+              if (!response.ok && response.status === 429 && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+                try {
+                  const text = await response.text()
+                  const json = JSON.parse(text)
+                  const message = json.error?.message || ""
+                  const match = message.match(/after (\d+)s/)
+                  const retrySec = match ? parseInt(match[1], 10) : 15
+
+                  const newHeaders = new Headers(response.headers)
+                  newHeaders.set("Retry-After", retrySec.toString())
+                  newHeaders.set("retry-after-ms", (retrySec * 1000).toString())
+
+                  return new Response(text, {
+                    status: 429,
+                    statusText: response.statusText,
+                    headers: newHeaders,
+                  })
+                } catch {
+                  // Fallback to original response
+                }
+              }
+
+              // Only rewrite successful responses from Code Assist API
+              if (response.ok && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+                const contentType = response.headers.get("content-type") ?? ""
+
+                // Handle SSE Streams
+                if (contentType.includes("text/event-stream") && response.body) {
+                  const decoder = new TextDecoder()
+                  const encoder = new TextEncoder()
+                  let buffer = ""
+                  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+
+                  const stream = new ReadableStream<Uint8Array>({
+                    start(controller) {
+                      reader = response.body!.getReader()
+                      const pump = (): void => {
+                        reader!
+                          .read()
+                          .then(({ done, value }) => {
+                            if (done) {
+                              if (buffer.length > 0) {
+                                if (buffer.startsWith("data:")) {
+                                  try {
+                                    const json = JSON.parse(buffer.slice(5).trim())
+                                    if (json.response !== undefined) {
+                                      controller.enqueue(encoder.encode(`data: ${JSON.stringify(json.response)}\n`))
+                                    } else {
+                                      controller.enqueue(encoder.encode(buffer + "\n"))
+                                    }
+                                  } catch {
+                                    controller.enqueue(encoder.encode(buffer + "\n"))
+                                  }
+                                } else {
+                                  controller.enqueue(encoder.encode(buffer + "\n"))
+                                }
+                              }
+                              controller.close()
+                              return
+                            }
+
+                            buffer += decoder.decode(value, { stream: true })
+                            let newlineIndex = buffer.indexOf("\n")
+                            while (newlineIndex !== -1) {
+                              const line = buffer.slice(0, newlineIndex)
+                              buffer = buffer.slice(newlineIndex + 1)
+                              const hasCr = line.endsWith("\r")
+                              const rawLine = hasCr ? line.slice(0, -1) : line
+
+                              if (rawLine.startsWith("data:")) {
+                                try {
+                                  const jsonText = rawLine.slice(5).trim()
+                                  if (jsonText) {
+                                    const json = JSON.parse(jsonText)
+                                    if (json.response !== undefined) {
+                                      controller.enqueue(
+                                        encoder.encode(
+                                          `data: ${JSON.stringify(json.response)}${hasCr ? "\r\n" : "\n"}`,
+                                        ),
+                                      )
+                                    } else {
+                                      controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
+                                    }
+                                  } else {
+                                    controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
+                                  }
+                                } catch {
+                                  controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
+                                }
+                              } else {
+                                controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
+                              }
+                              newlineIndex = buffer.indexOf("\n")
+                            }
+                            pump()
+                          })
+                          .catch((err) => controller.error(err))
+                      }
+                      pump()
+                    },
+                    cancel(reason) {
+                      if (reader) reader.cancel(reason).catch(() => {})
+                    },
+                  })
+
+                  return new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers,
+                  })
+                }
+
+                // Handle JSON (non-streaming)
+                if (contentType.includes("application/json")) {
+                  try {
+                    const text = await response.text()
+                    const json = JSON.parse(text)
+                    if (json.response !== undefined) {
+                      return new Response(JSON.stringify(json.response), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers,
+                      })
+                    }
+                    return new Response(text, {
+                      status: response.status,
+                      statusText: response.statusText,
+                      headers: response.headers,
+                    })
+                  } catch {
+                    // Fallback
+                  }
+                }
+              }
+
+              return response
+            }
+
+            const first = await executeFetch(req, headers, reqBody)
 
             // Handle 401 (Token Expired/Invalid) - Reactive Refresh
             if (first.status === 401) {
@@ -515,7 +749,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 retryHeaders.delete("Authorization")
                 retryHeaders.set("Authorization", `Bearer ${renewed.access}`)
                 if (quotaProjectID) retryHeaders.set("x-goog-user-project", quotaProjectID)
-                return fetch(req, { ...init, headers: retryHeaders })
+                return executeFetch(req, retryHeaders, reqBody)
               }
             }
 
@@ -552,7 +786,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               retryHeaders.delete("Authorization")
               retryHeaders.set("Authorization", `Bearer ${renewed.access}`)
               if (imported.quotaProjectID) retryHeaders.set("x-goog-user-project", imported.quotaProjectID)
-              const retried = await fetch(req, { ...init, headers: retryHeaders })
+              const retried = await executeFetch(req, retryHeaders, reqBody)
               const retryScopeError = await isScopeError(retried)
               const retryInvalidCredential = await isInvalidCredentialError(retried)
               if (!retryScopeError && !retryInvalidCredential) return retried
@@ -560,13 +794,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Sign in with Google' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Sign in with Google (email)' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or 'Sign in with Google'. For gcloud ADC credentials, switch to Vertex provider.",
+                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Gemini OAuth (Gemini OAuth scope). For gcloud ADC credentials, switch to Vertex provider.",
               )
             }
             return first
@@ -646,19 +880,30 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         {
           type: "oauth" as const,
           label: "Sign in with Google",
-          description: "Sign in directly with your Google account. Opens browser for email verification.",
+          description:
+            "Sign in directly with your Google account. Use this for Gemini Pro or Plus subscriptions.\nRequires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET env vars.",
           async authorize() {
+            const clientID = getGoogleCliClientId()
+            const clientSecret = getGoogleCliClientSecret()
+
+            if (!clientID || !clientSecret) {
+              throw new Error(
+                "Sign in with Google requires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET.\n" +
+                  "Set these in your environment or use 'Your Google OAuth Client' option.",
+              )
+            }
+
             const redirectURI = await startOAuthServer()
             oauthCode.clear()
             const state = generateState()
             const pkce = await generatePKCE()
             return {
               method: "auto" as const,
-              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, GOOGLE_CLI_CLIENT_ID, "compat"),
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID, "compat"),
               instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
               async callback() {
                 const code = await waitForOAuthCode(state)
-                const token = await exchangeCodeForTokens(code, redirectURI, pkce, GOOGLE_CLI_CLIENT_ID)
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
 
                 if (!token.access_token) throw new Error("Token response missing access_token")
 
@@ -679,7 +924,89 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   access: token.access_token,
                   refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
                   expires: Date.now() + (token.expires_in ?? 3600) * 1000,
-                  clientID: GOOGLE_CLI_CLIENT_ID,
+                  clientID,
+                  clientSecret,
+                  accountId: (health as any).email,
+                }
+              },
+            }
+          },
+        },
+        {
+          type: "oauth" as const,
+          label: "Your Google OAuth Client",
+          description:
+            "Sign in with your own OAuth credentials. Requires creating an OAuth client in Google Cloud Console.",
+          prompts: [
+            {
+              key: "clientID",
+              type: "text",
+              message: "Enter your Google OAuth Client ID",
+              placeholder: "e.g. 123456789-abc.apps.googleusercontent.com",
+              validate: (x: string) =>
+                x && x.includes("apps.googleusercontent.com") ? undefined : "Must be a valid Google OAuth Client ID",
+            },
+            {
+              key: "clientSecret",
+              type: "text",
+              message: "Enter your Google OAuth Client Secret",
+              placeholder: "e.g. GOCSPX-...",
+              validate: (x: string) => (x && x.length > 0 ? undefined : "Required"),
+            },
+          ],
+          async authorize(inputs: any) {
+            const customAuth = await Auth.get("google").then((x: Auth.Info | undefined) =>
+              x?.type === "oauth-custom" ? x : undefined,
+            )
+
+            const clientID =
+              inputs.clientID ||
+              customAuth?.clientID ||
+              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ||
+              Bun.env.GEMINI_OAUTH_CLIENT_ID
+            const clientSecret = inputs.clientSecret || customAuth?.clientSecret
+
+            if (!clientID || !clientSecret) {
+              throw new Error(
+                "OAuth credentials required. Please provide both Client ID and Client Secret.\n" +
+                  "Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient",
+              )
+            }
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            const state = generateState()
+            const pkce = await generatePKCE()
+            return {
+              method: "auto" as const,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
+              instructions:
+                "Complete sign-in in your browser. DAX will detect the localhost redirect automatically. " +
+                `OAuth client: ${clientID}. Redirect: ${redirectURI}.`,
+              async callback() {
+                const code = await waitForOAuthCode(state)
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
+
+                if (!token.access_token) throw new Error("Token response missing access_token")
+
+                const health = await checkTokenHealth(token.access_token)
+                if (!health.ok) {
+                  if (health.reason === "scope_missing")
+                    throw new Error(
+                      "Google account token is missing required scopes (cloud-platform, peruserquota, or retriever.readonly).",
+                    )
+                  if (health.reason === "token_expired")
+                    throw new Error("Token expired during verification. Retry sign-in.")
+                  throw new Error(`Token verification failed: ${health.reason}`)
+                }
+
+                const current = await readCreds()
+                return {
+                  type: "success" as const,
+                  access: token.access_token,
+                  refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                  clientID,
+                  clientSecret,
                   accountId: (health as any).email,
                 }
               },
