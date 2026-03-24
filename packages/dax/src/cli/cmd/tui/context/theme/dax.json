@@ -9,6 +9,7 @@
     "text": "#C8D3F5",
     "muted": "#828BB8",
     "red": "#F7768E",
+    "coral": "#D4786E",
     "orange": "#E0AF68",
     "purple": "#BB9AF7",
     "blue": "#7AA2F7"
@@ -18,7 +19,7 @@
     "secondary": "purple",
     "accent": "mint",
     "error": "red",
-    "warning": "orange",
+    "warning": "coral",
     "success": "mint",
     "info": "blue",
     "text": "text",

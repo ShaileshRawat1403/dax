@@ -780,7 +780,12 @@ export function Session() {
     if (lowSignalAsk && genericTitle) return "Initial check-in"
     if (lowSignalAsk && sessionTitle) return sessionTitle
     if (latestAsk && genericTitle) return latestAsk
-    if (latestAsk && sessionTitle && latestAsk.toLowerCase() !== sessionTitle.toLowerCase() && latestAsk.length > sessionTitle.length) {
+    if (
+      latestAsk &&
+      sessionTitle &&
+      latestAsk.toLowerCase() !== sessionTitle.toLowerCase() &&
+      latestAsk.length > sessionTitle.length
+    ) {
       return latestAsk
     }
     return sessionTitle || latestAsk
@@ -805,15 +810,12 @@ export function Session() {
   })
   const liveMilestones = createMemo(() => {
     if (todo().length > 0) {
-      return todo().slice(0, 6).map((item) => ({
-        label: item.content,
-        status:
-          item.status === "completed"
-            ? "done"
-            : item.status === "in_progress"
-              ? "active"
-              : "pending",
-      }))
+      return todo()
+        .slice(0, 6)
+        .map((item) => ({
+          label: item.content,
+          status: item.status === "completed" ? "done" : item.status === "in_progress" ? "active" : "pending",
+        }))
     }
 
     const items: Array<{ label: string; status: "done" | "active" | "pending" }> = []
@@ -826,7 +828,12 @@ export function Session() {
           .slice(0, 2)
           .map((tool) => ({
             label: tool.label,
-            status: tool.status === "completed" ? ("done" as const) : tool.status === "pending" ? ("active" as const) : ("pending" as const),
+            status:
+              tool.status === "completed"
+                ? ("done" as const)
+                : tool.status === "pending"
+                  ? ("active" as const)
+                  : ("pending" as const),
           })),
       )
     }
@@ -837,7 +844,10 @@ export function Session() {
       })
     }
     if (pendingRaoCount() > 0) {
-      items.push({ label: `${pendingRaoCount()} approval or question item${pendingRaoCount() === 1 ? "" : "s"} need attention`, status: "pending" })
+      items.push({
+        label: `${pendingRaoCount()} approval or question item${pendingRaoCount() === 1 ? "" : "s"} need attention`,
+        status: "pending",
+      })
     }
     return items.slice(0, 5)
   })
@@ -1050,9 +1060,7 @@ export function Session() {
         : undefined,
     }),
   )
-  const hasRequirement = createMemo(
-    () => hasApprovalsNeed() || hasRefineNeed() || hasAuditNeed() || hasPlanContext(),
-  )
+  const hasRequirement = createMemo(() => hasApprovalsNeed() || hasRefineNeed() || hasAuditNeed() || hasPlanContext())
 
   const showPane = createMemo(() => {
     if (paneVisibility() === "hidden") return false
@@ -2179,7 +2187,10 @@ export function Session() {
                 backgroundColor={theme.backgroundElement}
               >
                 <text fg={showDetails() ? theme.primary : theme.textMuted}>
-                  details <span style={{ fg: showDetails() ? theme.text : theme.textMuted }}>{showDetails() ? "on" : "off"}</span>
+                  details{" "}
+                  <span style={{ fg: showDetails() ? theme.text : theme.textMuted }}>
+                    {showDetails() ? "on" : "off"}
+                  </span>
                 </text>
               </box>
               <box
@@ -2363,9 +2374,9 @@ export function Session() {
                       width={liveStacked() ? "100%" : livePaneWidth()}
                       minHeight={0}
                       backgroundColor={theme.backgroundPanel}
-                        scrollAcceleration={scrollAcceleration()}
-                      >
-                        <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
+                      scrollAcceleration={scrollAcceleration()}
+                    >
+                      <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
                         <box
                           flexDirection="column"
                           gap={1}
@@ -2418,9 +2429,7 @@ export function Session() {
                           >
                             <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                               <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
-                                <text fg={theme.text}>
-                                  {workstationState().lifecycleLabel.toLowerCase()}
-                                </text>
+                                <text fg={theme.text}>{workstationState().lifecycleLabel.toLowerCase()}</text>
                               </box>
                               <Show when={workstationState().planSummary.totalSteps > 0}>
                                 <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
@@ -2442,9 +2451,7 @@ export function Session() {
                               </Show>
                               <Show when={workstationState().artifactSummary.count > 0}>
                                 <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
-                                  <text fg={theme.textMuted}>
-                                    artifacts {workstationState().artifactSummary.count}
-                                  </text>
+                                  <text fg={theme.textMuted}>artifacts {workstationState().artifactSummary.count}</text>
                                 </box>
                               </Show>
                               <Show when={paneBadge(activePaneMode())}>
@@ -2612,7 +2619,8 @@ export function Session() {
                                               }
                                               wrapMode="word"
                                             >
-                                              {item.status === "done" ? "✓" : item.status === "active" ? "●" : "◌"} {item.label}
+                                              {item.status === "done" ? "✓" : item.status === "active" ? "●" : "◌"}{" "}
+                                              {item.label}
                                             </text>
                                             <text fg={theme.textMuted}>
                                               {item.status === "done"
@@ -3688,9 +3696,8 @@ function AssistantMessage(props: {
             <box flexDirection="row" justifyContent="space-between" alignItems="center">
               <box flexDirection="column" gap={0}>
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  DAX INSIGHT
+                  EXECUTION STATE
                 </text>
-                <text fg={theme.textMuted}>{insightCard().eyebrow}</text>
               </box>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
@@ -3844,12 +3851,6 @@ function AssistantMessage(props: {
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
               {Locale.titlecase(props.message.mode)}
             </text>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              ·
-            </text>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              {props.message.modelID}
-            </text>
             <Show when={duration()}>
               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
                 ·
@@ -3857,20 +3858,6 @@ function AssistantMessage(props: {
               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
                 🕒 {Locale.duration(duration())}
               </text>
-            </Show>
-            <Show when={generatedTokens() > 0}>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-                ·
-              </text>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-                ◈ {`${totalTokens().toLocaleString()} tok`}
-              </text>
-            </Show>
-            <Show when={tokensPerSecond() > 0}>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-                ·
-              </text>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{`${tokensPerSecond().toFixed(0)}/s`}</text>
             </Show>
             <Show when={props.message.error?.name === "MessageAbortedError"}>
               <text fg={theme.textMuted}>·</text>
@@ -3930,9 +3917,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
               REASONING
             </text>
           </box>
-          <text fg={theme.textMuted}>
-            working notes
-          </text>
+          <text fg={theme.textMuted}>working notes</text>
         </box>
         <box paddingBottom={1}>
           <code
