@@ -40,8 +40,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               },
             }
 
-            // TODO: re-enable once messages api has higher rate limits
-            // TODO: move some of this hacky-ness to models.dev presets once we have better grasp of things here...
+            // Note: Messages API is disabled due to rate limits. Using Responses/Completions APIs instead.
+            // TODO: Re-evaluate messages API once GitHub Copilot increases rate limits.
             // const base = baseURL ?? model.api.url
             // const claude = model.id.includes("claude")
             // const url = iife(() => {
@@ -146,6 +146,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
         {
           type: "oauth",
           label: "Login with GitHub Copilot",
+          description:
+            "Authenticate with GitHub Copilot using device code flow. Supports both github.com and GitHub Enterprise.",
           prompts: [
             {
               type: "select",
@@ -311,11 +313,14 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
       }
 
       const session = await sdk.session
-        .get({
-          sessionID: incoming.sessionID,
-        }, {
-          throwOnError: true,
-        })
+        .get(
+          {
+            sessionID: incoming.sessionID,
+          },
+          {
+            throwOnError: true,
+          },
+        )
         .catch(() => undefined)
       if (!session || !session.data?.parentID) return
       // mark subagent sessions as agent initiated matching standard that other copilot tools have

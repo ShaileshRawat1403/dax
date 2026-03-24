@@ -617,11 +617,11 @@ export function Autocomplete(props: {
     <box
       visible={store.visible !== false}
       position="absolute"
-      top={Math.max(0, position().y - height())}
+      top={Math.max(0, position().y - height() - 2)}
       left={position().x}
       width={popupWidth()}
       zIndex={100}
-      {...SplitBorder}
+      borderStyle="round"
       borderColor={theme.border}
     >
       <scrollbox
@@ -671,7 +671,10 @@ export function Autocomplete(props: {
               >
                 <box flexDirection="row" gap={1} width="100%">
                   <box width={commandLabelWidth()} flexShrink={0}>
-                    <text fg={index === store.selected ? selectedForeground(theme) : theme.text} wrapMode="truncate-end">
+                    <text
+                      fg={index === store.selected ? selectedForeground(theme) : theme.text}
+                      wrapMode="truncate-end"
+                    >
                       {option().display}
                     </text>
                   </box>

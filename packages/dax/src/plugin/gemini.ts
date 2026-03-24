@@ -326,8 +326,13 @@ const exchangeCodeForTokens = async (
   return result.json() as Promise<TokenResponse>
 }
 
-const buildGoogleAuthorizeURL = (redirectURI: string, state: string, pkce: PkceCodes, clientID: string) => {
-  const scopeMode = (Bun.env.DAX_GEMINI_OAUTH_SCOPE_MODE ?? "full").toLowerCase()
+const buildGoogleAuthorizeURL = (
+  redirectURI: string,
+  state: string,
+  pkce: PkceCodes,
+  clientID: string,
+  scopeMode: "full" | "compat" = (Bun.env.DAX_GEMINI_OAUTH_SCOPE_MODE ?? "full").toLowerCase() as "full" | "compat",
+) => {
   const scopes = [
     GOOGLE_SCOPE_OPENID,
     GOOGLE_SCOPE_EMAIL,
@@ -479,6 +484,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             headers.delete("Authorization")
             if (access) headers.set("Authorization", `Bearer ${access}`)
             if (quotaProjectID) headers.set("x-goog-user-project", quotaProjectID)
+
             const req = stripKey(request)
             const first = await fetch(req, { ...init, headers })
 
@@ -551,13 +557,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Sign in with Google (email)' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Sign in with Google' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Gemini OAuth (Gemini OAuth scope). For gcloud ADC credentials, switch to Vertex provider.",
+                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or 'Sign in with Google'. For gcloud ADC credentials, switch to Vertex provider.",
               )
             }
             return first
@@ -567,7 +573,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
       methods: [
         {
           type: "api",
-          label: "Enter API Key",
+          label: "Gemini API Key",
+          description: "Use your API key from Google AI Studio. Best for free tier and pay-as-you-go.",
           prompts: [
             {
               key: "key",
@@ -585,7 +592,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         },
         {
           type: "oauth",
-          label: "Use Gemini CLI login (import)",
+          label: "Import from Gemini CLI",
+          description: "Import your Google account from the `gemini` CLI. For Gemini Pro or Plus subscribers.",
           async authorize() {
             return {
               method: "auto" as const,
@@ -611,7 +619,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing") {
                     throw new Error(
-                      "Imported token is missing Gemini scope. Use API key for Google provider, or use Sign in with Google (email). For gcloud credentials use Vertex provider.",
+                      "Imported token is missing Gemini scope. Use API key for Google provider, or use Sign in with Google. For gcloud credentials use Vertex provider.",
                     )
                   }
                   if (health.reason === "token_expired") throw new Error("Re-run gemini login.")
@@ -634,7 +642,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         },
         {
           type: "oauth" as const,
-          label: "Sign in with Google (email)",
+          label: "Sign in with Google",
+          description: "Sign in with your Google account using your own OAuth credentials.",
           prompts: [
             {
               key: "clientID",
@@ -653,7 +662,9 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             },
           ],
           async authorize(inputs: any) {
-            const customAuth = await Auth.get("google").then((x) => (x?.type === "oauth-custom" ? x : undefined))
+            const customAuth = await Auth.get("google").then((x: Auth.Info | undefined) =>
+              x?.type === "oauth-custom" ? x : undefined,
+            )
 
             const clientID =
               inputs.clientID ||

@@ -9,7 +9,18 @@ import {
   fg,
   TextAttributes,
 } from "@opentui/core"
-import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, Show, Switch, Match } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  type JSX,
+  onMount,
+  createSignal,
+  onCleanup,
+  Show,
+  Switch,
+  Match,
+  For,
+} from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
@@ -178,17 +189,13 @@ export function Prompt(props: PromptProps) {
   const isPanePinned = createMemo(() => props.panePinned ?? kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
   const activePaneMode = createMemo(() => props.activePaneMode ?? kv.get(DAX_SETTING.session_pane_mode))
 
-  const sessionMessages = createMemo(() =>
-    props.sessionID ? sync.data.message[props.sessionID] ?? [] : [],
+  const sessionMessages = createMemo(() => (props.sessionID ? (sync.data.message[props.sessionID] ?? []) : []))
+  const sessionTodos = createMemo(() => (props.sessionID ? (sync.data.todo[props.sessionID] ?? []) : []))
+  const pendingPermissions = createMemo(
+    () => props.approvalAttentionCount ?? (props.sessionID ? (sync.data.permission[props.sessionID] ?? []) : []).length,
   )
-  const sessionTodos = createMemo(() =>
-    props.sessionID ? sync.data.todo[props.sessionID] ?? [] : [],
-  )
-  const pendingPermissions = createMemo(() =>
-    props.approvalAttentionCount ?? (props.sessionID ? sync.data.permission[props.sessionID] ?? [] : []).length,
-  )
-  const pendingQuestions = createMemo(() =>
-    props.questionAttentionCount ?? (props.sessionID ? sync.data.question[props.sessionID] ?? [] : []).length,
+  const pendingQuestions = createMemo(
+    () => props.questionAttentionCount ?? (props.sessionID ? (sync.data.question[props.sessionID] ?? []) : []).length,
   )
 
   const messageText = (messageID: string) => {
@@ -1144,17 +1151,6 @@ export function Prompt(props: PromptProps) {
       minAlpha: 0.25,
     })
   })
-  const STATUS_DAX_FRAMES = ["DAX", "DAX·", "DΛX", "DAX•", "DXA", "DAX"]
-  const [statusTick, setStatusTick] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => setStatusTick((n) => (n + 1) % STATUS_DAX_FRAMES.length), 150)
-    onCleanup(() => clearInterval(timer))
-  })
-  const statusDax = createMemo(() => STATUS_DAX_FRAMES[statusTick()] ?? "DAX")
-  const statusDaxColor = createMemo(() => {
-    const palette = [theme.primary, theme.accent, theme.success, theme.warning]
-    return palette[statusTick() % palette.length] ?? theme.primary
-  })
 
   return (
     <>
@@ -1185,7 +1181,16 @@ export function Prompt(props: PromptProps) {
         width="100%"
         flexDirection="column"
       >
-        <box backgroundColor={theme.backgroundElement} flexShrink={0}>
+        <box
+          backgroundColor={theme.backgroundElement}
+          flexShrink={0}
+          borderStyle="single"
+          borderTop={true}
+          borderLeft={false}
+          borderRight={false}
+          borderBottom={false}
+          borderColor={theme.border}
+        >
           <box paddingLeft={2} paddingRight={2} paddingTop={1} flexShrink={0} backgroundColor={theme.backgroundElement}>
             <box flexDirection="row" gap={1} alignItems="flex-start">
               <Show when={showInputHint()}>
@@ -1223,7 +1228,11 @@ export function Prompt(props: PromptProps) {
                   }
 
                   // Intercept Y/N/Esc when in Approvals/Refine mode
-                  if (isPanePinned() && activePaneMode() === "approvals" && pendingPermissions() + pendingQuestions() > 0) {
+                  if (
+                    isPanePinned() &&
+                    activePaneMode() === "approvals" &&
+                    pendingPermissions() + pendingQuestions() > 0
+                  ) {
                     if ((e.name === "y" || e.name === "Y") && e.ctrl) {
                       e.preventDefault()
                       command.trigger("approvals.approve_current")
@@ -1470,11 +1479,9 @@ export function Prompt(props: PromptProps) {
                 flexGrow={1}
                 justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
               >
-                <box flexShrink={0} flexDirection="row" gap={1}>
+                <box flexShrink={0} flexDirection="row" gap={0}>
                   <box marginLeft={1}>
-                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[DAX]</text>}>
-                      <text fg={statusDaxColor()}>[{statusDax()}]</text>
-                    </Show>
+                    <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
                   </box>
                   <box flexDirection="row" gap={1} flexShrink={0}>
                     {(() => {
@@ -1582,9 +1589,7 @@ export function Prompt(props: PromptProps) {
                   paddingLeft={1}
                   paddingRight={1}
                 >
-                  <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>
-                    ↑ Submit [enter]
-                  </text>
+                  <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>↑ Submit [enter]</text>
                 </box>
               </box>
             </Show>

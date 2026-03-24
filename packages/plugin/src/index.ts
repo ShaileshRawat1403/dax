@@ -41,6 +41,7 @@ export type AuthHook = {
     | {
         type: "oauth"
         label: string
+        description?: string
         prompts?: Array<
           | {
               type: "text"
@@ -67,6 +68,7 @@ export type AuthHook = {
     | {
         type: "api"
         label: string
+        description?: string
         prompts?: Array<
           | {
               type: "text"

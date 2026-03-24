@@ -30,7 +30,7 @@ export function Header(props: {
 
   const [tick, setTick] = createSignal(0)
   onMount(() => {
-    const timer = setInterval(() => setTick((t) => (t + 1) % 10), 200)
+    const timer = setInterval(() => setTick((t) => (t + 1) % 10), 140)
     onCleanup(() => clearInterval(timer))
   })
 
@@ -45,17 +45,25 @@ export function Header(props: {
     () => !!props.lifecycleLabel && props.lifecycleLabel.toLowerCase() !== "idle" && props.emphasis === "normal",
   )
 
+  const letters = ["D", "A", "X"]
+  const letterColor = (index: number) => {
+    const palette = [theme.primary, theme.accent, theme.secondary]
+    return palette[(tick() + index) % palette.length] ?? theme.primary
+  }
+  const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
+
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
       <box paddingTop={0} paddingBottom={0} paddingLeft={1} paddingRight={1} flexShrink={0}>
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
           <box flexDirection="row" gap={1} alignItems="center">
-            <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-              DAX
-            </text>
-            <Show when={props.busy}>
-              <text fg={tick() % 2 === 0 ? theme.accent : theme.textMuted}>●</text>
-            </Show>
+            <For each={letters}>
+              {(letter, index) => (
+                <text fg={letterColor(index())} attributes={letterWeight(index())}>
+                  {letter}
+                </text>
+              )}
+            </For>
             <Show when={showLifecycleChip()}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={lifecycleColor()}>{props.lifecycleLabel?.toLowerCase()}</text>
