@@ -6,6 +6,7 @@ import { Tips } from "../component/tips"
 import { Locale } from "@/util/locale"
 import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
+import { useToast } from "../ui/toast"
 import { useArgs } from "../context/args"
 import { useDirectory } from "../context/directory"
 import { useRoute, useRouteData } from "@tui/context/route"
@@ -18,27 +19,12 @@ import { HOME_STAGE, HOME_STAGE_ELI12 } from "@/dax/workflow/stage"
 import { isEli12Mode, nextIntentMode } from "@/dax/intent"
 import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
-import { useToast } from "../ui/toast"
 import { useLocal } from "../context/local"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
 
-const WELCOME_MESSAGES = {
-  firstTime: [
-    "Welcome to DAX. Bring an idea, and we will turn it into real execution.",
-    "You are one prompt away from a working plan and verified progress.",
-    "Start in plain language. DAX handles the execution flow with you.",
-  ],
-  returning: [
-    "Welcome back. Let us pick up momentum and ship the next improvement.",
-    "You are back in DAX. Continue from context and execute with confidence.",
-    "Good to see you again. Let us turn today’s intent into outcomes.",
-  ],
-}
-
 let once = false
-let welcomeShown = false
 
 function BrandHeader(props: { theme: any }) {
   const [tick, setTick] = createSignal(0)
@@ -69,7 +55,7 @@ function BrandHeader(props: { theme: any }) {
           )}
         </For>
       </box>
-      <text fg={props.theme.textMuted}>{DAX_BRAND.category}</text>
+      <text fg={props.theme.textMuted}>Run · Audit · Override</text>
     </box>
   )
 }
@@ -82,21 +68,19 @@ function PromptStarter(props: { label: string; onPress: () => void; theme: any }
   )
 }
 
-function MetaChip(props: { label: string; value?: string; tone?: "primary" | "muted"; onPress?: () => void; theme: any }) {
+function MetaChip(props: {
+  label: string
+  value?: string
+  tone?: "primary" | "muted"
+  onPress?: () => void
+  theme: any
+}) {
   return (
-    <box
-      onMouseUp={props.onPress}
-      paddingLeft={1}
-      paddingRight={1}
-      backgroundColor={props.theme.backgroundElement}
-    >
+    <box onMouseUp={props.onPress} paddingLeft={1} paddingRight={1} backgroundColor={props.theme.backgroundElement}>
       <text fg={props.tone === "primary" ? props.theme.accent : props.theme.textMuted}>
         {props.label}
         <Show when={props.value}>
-          <span style={{ fg: props.tone === "primary" ? props.theme.primary : props.theme.text }}>
-            {" "}
-            {props.value}
-          </span>
+          <span style={{ fg: props.tone === "primary" ? props.theme.primary : props.theme.text }}> {props.value}</span>
         </Show>
       </text>
     </box>
@@ -284,28 +268,6 @@ export function Home() {
   onMount(() => {
     if (once) return
     once = true
-
-    if (!welcomeShown) {
-      welcomeShown = true
-      setTimeout(() => {
-        let message = ""
-        if (isFirstTimeUser()) {
-          message =
-            WELCOME_MESSAGES.firstTime[Math.floor(Math.random() * WELCOME_MESSAGES.firstTime.length)] ??
-            "Welcome to DAX."
-        } else {
-          const msg = WELCOME_MESSAGES.returning[Math.floor(Math.random() * WELCOME_MESSAGES.returning.length)]
-          const sessionInfo = sessionCount() > 0 ? ` (${sessionCount()} sessions)` : ""
-          message = (msg ?? "Welcome back to DAX.") + sessionInfo
-        }
-        toast.show({
-          title: "Welcome",
-          message,
-          variant: "info",
-          duration: 4200,
-        })
-      }, 500)
-    }
 
     if (route.initialPrompt) {
       prompt.set(route.initialPrompt)

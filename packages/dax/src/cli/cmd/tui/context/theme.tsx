@@ -511,7 +511,7 @@ function generateSystem(colors: TerminalColors, mode: "dark" | "light"): ThemeJs
 
       // Status colors using ANSI
       error: ansiColors.red,
-      warning: ansiColors.yellow,
+      warning: ansiColors.red,
       success: ansiColors.green,
       info: ansiColors.cyan,
 
