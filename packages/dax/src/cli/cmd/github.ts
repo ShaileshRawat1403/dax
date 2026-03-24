@@ -346,9 +346,7 @@ export const GithubInstallCommand = cmd({
             s.stop("Installed GitHub app")
 
             async function getInstallation() {
-              return await fetch(
-                `https://api.dax.ai/get_github_app_installation?owner=${app.owner}&repo=${app.repo}`,
-              )
+              return await fetch(`https://api.dax.ai/get_github_app_installation?owner=${app.owner}&repo=${app.repo}`)
                 .then((res) => res.json())
                 .then((data) => data.installation)
             }
@@ -390,7 +388,7 @@ jobs:
           persist-credentials: false
 
       - name: Run dax
-        uses: anomalyco/dax/github@latest${envStr}
+        uses: ShaileshRawat1403/dax-tui/github@latest${envStr}
         with:
           model: ${provider}/${model}`,
             )
