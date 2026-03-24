@@ -5,7 +5,7 @@ const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
 const GOOGLE_SCOPE_GENERATIVE_QUOTA = "https://www.googleapis.com/auth/generative-language.peruserquota"
 const GOOGLE_SCOPE_GENERATIVE_RETRIEVER = "https://www.googleapis.com/auth/generative-language.retriever.readonly"
-const GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+const getGeminiCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
 
 export class ProviderAuthPreflightError extends Error {
   constructor(
@@ -64,7 +64,7 @@ function effectiveGoogleOAuthClientID() {
     if (geminiEnv) return { value: geminiEnv, source: "env(GEMINI_OAUTH_CLIENT_ID)" as const }
     const googleEnv = env("GOOGLE_OAUTH_CLIENT_ID")
     if (googleEnv) return { value: googleEnv, source: "env(GOOGLE_OAUTH_CLIENT_ID)" as const }
-    return { value: GEMINI_CLI_CLIENT_ID, source: "default" as const }
+    return { value: getGeminiCliClientId(), source: "env" as const }
   })
 }
 
@@ -301,10 +301,7 @@ export async function assertProviderAuth(providerID: string) {
 }
 
 export function expectedGoogleOauthClientIds() {
-  return [
-    env("DAX_GEMINI_OAUTH_CLIENT_ID"),
-    env("GEMINI_OAUTH_CLIENT_ID"),
-    env("GOOGLE_OAUTH_CLIENT_ID"),
-    GEMINI_CLI_CLIENT_ID,
-  ].filter(Boolean) as string[]
+  return [env("DAX_GEMINI_OAUTH_CLIENT_ID"), env("GEMINI_OAUTH_CLIENT_ID"), env("GOOGLE_OAUTH_CLIENT_ID")].filter(
+    Boolean,
+  ) as string[]
 }
