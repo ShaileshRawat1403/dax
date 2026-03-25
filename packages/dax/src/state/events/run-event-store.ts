@@ -4,6 +4,7 @@ import { Log } from "@/util/log"
 import { Lock } from "@/util/lock"
 import type { RunEventEnvelope } from "./run-event-types"
 import { reduceRunState, type RunState } from "./run-reducer"
+import { readRunState } from "@/state/run-store"
 import path from "path"
 
 const log = Log.create({ service: "event-store" })
@@ -124,6 +125,20 @@ export async function projectRunStateFromEvents(runId: string): Promise<RunState
     return null
   }
   return reduceRunState(events)
+}
+
+export async function getProjectedRunState(runId: string): Promise<RunState | null> {
+  const authority = await getRunAuthority(runId)
+
+  if (authority === "event-log") {
+    return projectRunStateFromEvents(runId)
+  }
+
+  if (authority === "legacy" || authority === null) {
+    return readRunState(runId)
+  }
+
+  return null
 }
 
 export async function getRunAuthority(runId: string): Promise<RunAuthority | null> {
