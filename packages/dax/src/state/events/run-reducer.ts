@@ -8,6 +8,7 @@ export type RunState = {
   steps: StepRecord[]
   pendingApprovalIds: string[]
   artifactIds: string[]
+  draft: DraftRecord | null
   trust: TrustSummary | null
   error: RunError | null
   createdAt: string
@@ -35,6 +36,13 @@ export type StepRecord = {
   completedAt: string | null
   error: StepError | null
   outputs: string[]
+}
+
+export type DraftRecord = {
+  draftId: string
+  type: string
+  content: string
+  targetPath?: string
 }
 
 export type StepError = {
@@ -94,6 +102,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     steps: [],
     pendingApprovalIds: [],
     artifactIds: [],
+    draft: null,
     trust: null,
     error: null,
     createdAt: firstEvent.occurredAt,
@@ -226,6 +235,17 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         const payload = event.payload as { artifactId: string }
         if (!state.artifactIds.includes(payload.artifactId)) {
           state.artifactIds.push(payload.artifactId)
+        }
+        break
+      }
+
+      case "draft_created": {
+        const payload = event.payload as { draftId: string; type: string; content: string; targetPath?: string }
+        state.draft = {
+          draftId: payload.draftId,
+          type: payload.type,
+          content: payload.content,
+          targetPath: payload.targetPath,
         }
         break
       }
