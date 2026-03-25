@@ -197,6 +197,13 @@ export namespace Storage {
     })
   }
 
+  export async function rename(from: string[], to: string[]) {
+    const dir = await state().then((x) => x.dir)
+    const fromPath = path.join(dir, ...from) + ".json"
+    const toPath = path.join(dir, ...to) + ".json"
+    await fs.rename(fromPath, toPath)
+  }
+
   async function withErrorHandling<T>(body: () => Promise<T>) {
     return body().catch((e) => {
       if (!(e instanceof Error)) throw e

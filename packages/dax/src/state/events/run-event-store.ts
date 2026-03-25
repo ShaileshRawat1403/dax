@@ -1,12 +1,16 @@
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
+import { Lock } from "@/util/lock"
 import type { RunEventEnvelope } from "./run-event-types"
 import { reduceRunState, type RunState } from "./run-reducer"
+import path from "path"
 
 const log = Log.create({ service: "event-store" })
 
 export type RunAuthority = "legacy" | "event-log"
+
+const LOCK_KEY_PREFIX = "run-event-"
 
 async function eventPath(runId: string): Promise<string[]> {
   return ["run_events", Instance.project.id, runId]
@@ -42,16 +46,21 @@ export async function appendRunEvent(
   expectedSeq: number,
   event: Omit<RunEventEnvelope, "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion">,
 ): Promise<RunEventEnvelope> {
-  const path = await eventPath(runId)
-  const fullPath = [...path, "events.json"]
+  const pathParts = await eventPath(runId)
+  const eventsPath = [...pathParts, "events.json"]
+  const tempPath = [...pathParts, "events.json.tmp"]
+  const lockKey = LOCK_KEY_PREFIX + runId
+
+  using _lock = await Lock.write(lockKey)
 
   let existingEvents: RunEventEnvelope[] = []
   try {
-    existingEvents = (await Storage.read<RunEventEnvelope[]>(fullPath)) ?? []
+    existingEvents = (await Storage.read<RunEventEnvelope[]>(eventsPath)) ?? []
   } catch (error) {
     if (!Storage.NotFoundError.isInstance(error)) {
       throw error
     }
+    existingEvents = []
   }
 
   const actualSeq = existingEvents.length
@@ -85,7 +94,9 @@ export async function appendRunEvent(
   }
 
   existingEvents.push(newEvent)
-  await Storage.write(fullPath, existingEvents)
+
+  await Storage.write(tempPath, existingEvents)
+  await Storage.rename(tempPath, eventsPath)
 
   log.info("appended event", { runId, seq: expectedSeq, type: event.type })
   return newEvent
