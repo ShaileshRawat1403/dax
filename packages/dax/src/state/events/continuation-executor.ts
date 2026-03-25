@@ -144,15 +144,22 @@ async function handleStartExecution(runId: string, state: RunState, plan: Contin
     }
   }
 
+  let fromStatus = state.status
+
+  if (state.status === "compiled") {
+    await transitionEventAuthority(runId, "queued", "execution_queued", {})
+    fromStatus = "compiled"
+  }
+
   const newState = await transitionEventAuthority(runId, "running", "workflow_started", {})
-  log.info("execution started", { runId, fromStatus: state.status })
+  log.info("execution started", { runId, fromStatus })
 
   return {
     success: true,
     action: "started",
     runId,
     status: newState.status,
-    message: `Workflow execution started from ${state.status} state`,
+    message: `Workflow execution started from ${fromStatus} state`,
   }
 }
 
