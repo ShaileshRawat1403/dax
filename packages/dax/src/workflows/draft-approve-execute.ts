@@ -1,5 +1,6 @@
 import { Log } from "@/util/log"
 import { Transitions } from "@/state/transitions"
+import { HybridTransitions } from "@/state/hybrid-transitions"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"

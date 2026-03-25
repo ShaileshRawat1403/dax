@@ -35,16 +35,16 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
 
           if (provider.includes("google") || provider.includes("gemini")) {
             if (label.includes("Gemini API") || label.includes("API key")) {
-              label = "Gemini API"
+              label = "Gemini API Key"
               hint = "Get a free API key"
             } else if (label.includes("Gemini CLI") || label.includes("CLI")) {
               label = "Import from Gemini CLI"
               hint = "Use local credentials"
             } else if (label.includes("Sign in with Google") || label.includes("Sign in")) {
-              label = "Sign in with Google"
+              label = "Google Code Assist / Pro-Plus Sign-In"
               hint = "Requires Gemini Pro/Plus"
             } else if (label.toLowerCase().includes("oauth")) {
-              label = "Your Google OAuth"
+              label = "Custom Google OAuth Client"
               hint = "Custom client credentials"
             }
           }

@@ -62,7 +62,10 @@ If you prefer to maintain isolation or run in an enterprise setting, you can use
 
 3. **Pre-configure credentials** (for repeated use):
    ```bash
-   dax auth add --oauth-creds ./path/to/client_secret.json
+   # Set environment variables before running dax
+   export DAX_GEMINI_OAUTH_CLIENT_ID="your-client-id"
+   export DAX_GEMINI_OAUTH_CLIENT_SECRET="your-client-secret"
+   # Then run dax auth login and select "Custom Google OAuth Client"
    ```
 
 ### Troubleshooting
