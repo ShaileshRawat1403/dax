@@ -27,11 +27,10 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
   let method = plugin.auth.methods[0]
 
   if (plugin.auth.methods.length > 1) {
-    const options = plugin.auth.methods
+    const methodOptions = plugin.auth.methods
       .map((x, i) => {
         let label = x.label
         let hint = (x as any).hint
-        let disabled = false
 
         if (provider.includes("google") || provider.includes("gemini")) {
           if (label.includes("Gemini API") || label.includes("API key")) {
@@ -40,10 +39,9 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
           } else if (label.includes("Gemini CLI") || label.includes("CLI")) {
             label = "Import from Gemini CLI"
             hint = "Use local credentials (recommended)"
-          } else if (label.includes("Sign in with Google") || label.includes("Sign in")) {
+          } else if (label.toLowerCase().includes("sign in")) {
             if (!hasAdvancedGoogleClient) {
-              disabled = true
-              hint = "Requires configured DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET"
+              return null
             }
             label = "Advanced Google Sign-In (requires client ID/secret)"
           } else if (label.toLowerCase().includes("oauth")) {
@@ -56,15 +54,14 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
           label: label.length > 60 ? label.slice(0, 57) + "..." : label,
           value: i.toString(),
           hint: hint ? (hint.length > 60 ? hint.slice(0, 57) + "..." : hint) : undefined,
-          disabled,
         }
       })
-      .filter((opt) => !opt.disabled || hasAdvancedGoogleClient)
+      .filter((opt): opt is NonNullable<typeof opt> => opt !== null)
 
     const selectedMethodIndex = await prompts.select({
       message: "Select login method",
       maxItems: 8,
-      options,
+      options: methodOptions,
     })
     if (prompts.isCancel(selectedMethodIndex)) throw new UI.CancelledError()
     const selectedIndex = parseInt(selectedMethodIndex as string, 10)
