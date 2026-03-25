@@ -74,7 +74,12 @@ export async function getEventAuthorityState(runId: string): Promise<RunState | 
   return projectRunStateFromEvents(runId)
 }
 
-export async function appendEventOnly(runId: string, eventType: string, payload: unknown): Promise<RunState> {
+export async function appendEventOnly(
+  runId: string,
+  eventType: string,
+  payload: unknown,
+  commandId?: string,
+): Promise<RunState> {
   const authority = await getRunAuthority(runId)
   if (authority !== "event-log") {
     throw new Error(`Run ${runId} is not an event-authority run`)
@@ -86,6 +91,7 @@ export async function appendEventOnly(runId: string, eventType: string, payload:
   await appendRunEvent(runId, seq, {
     type: eventType as any,
     payload,
+    ...(commandId ? { commandId } : {}),
   })
 
   const updatedState = await projectRunStateFromEvents(runId)
@@ -97,15 +103,18 @@ export async function appendEventOnly(runId: string, eventType: string, payload:
 }
 
 export async function addStepEvent(runId: string, stepId: string, title: string, stepType: string): Promise<RunState> {
-  return appendEventOnly(runId, "step_added", { stepId, title, stepType })
+  const commandId = `cmd_step_add_${stepId}`
+  return appendEventOnly(runId, "step_added", { stepId, title, stepType }, commandId)
 }
 
 export async function startStepEvent(runId: string, stepId: string): Promise<RunState> {
-  return appendEventOnly(runId, "step_started", { stepId })
+  const commandId = `cmd_step_start_${stepId}`
+  return appendEventOnly(runId, "step_started", { stepId }, commandId)
 }
 
 export async function completeStepEvent(runId: string, stepId: string, outputs: string[]): Promise<RunState> {
-  return appendEventOnly(runId, "step_completed", { stepId, outputs })
+  const commandId = `cmd_step_complete_${stepId}`
+  return appendEventOnly(runId, "step_completed", { stepId, outputs }, commandId)
 }
 
 export async function failStepEvent(
@@ -113,11 +122,13 @@ export async function failStepEvent(
   stepId: string,
   error: { code: string; message: string },
 ): Promise<RunState> {
-  return appendEventOnly(runId, "step_failed", { stepId, error })
+  const commandId = `cmd_step_fail_${stepId}`
+  return appendEventOnly(runId, "step_failed", { stepId, error }, commandId)
 }
 
 export async function addApprovalEvent(runId: string, approvalId: string): Promise<RunState> {
-  return appendEventOnly(runId, "approval_requested", { approvalId, approvalType: "tool", risk: "medium" })
+  const commandId = `cmd_approval_add_${approvalId}`
+  return appendEventOnly(runId, "approval_requested", { approvalId, approvalType: "tool", risk: "medium" }, commandId)
 }
 
 export async function resolveApprovalEvent(
@@ -125,11 +136,13 @@ export async function resolveApprovalEvent(
   approvalId: string,
   decision: "approved" | "rejected",
 ): Promise<RunState> {
-  return appendEventOnly(runId, "approval_resolved", { approvalId, decision })
+  const commandId = `cmd_resolve_${approvalId}_${decision}`
+  return appendEventOnly(runId, "approval_resolved", { approvalId, decision }, commandId)
 }
 
 export async function addArtifactEvent(runId: string, artifactId: string, artifactType: string): Promise<RunState> {
-  return appendEventOnly(runId, "artifact_created", { artifactId, artifactType })
+  const commandId = `cmd_artifact_${artifactId}`
+  return appendEventOnly(runId, "artifact_created", { artifactId, artifactType }, commandId)
 }
 
 export async function addDraftEvent(
@@ -139,7 +152,8 @@ export async function addDraftEvent(
   content: string,
   targetPath?: string,
 ): Promise<RunState> {
-  return appendEventOnly(runId, "draft_created", { draftId, type, content, targetPath })
+  const commandId = `cmd_draft_${draftId}`
+  return appendEventOnly(runId, "draft_created", { draftId, type, content, targetPath }, commandId)
 }
 
 export type { RunState }

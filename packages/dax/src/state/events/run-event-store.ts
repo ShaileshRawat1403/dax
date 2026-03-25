@@ -27,6 +27,16 @@ export class StaleAppendError extends Error {
   }
 }
 
+export class DuplicateCommandError extends Error {
+  constructor(
+    public readonly runId: string,
+    public readonly commandId: string,
+  ) {
+    super(`Duplicate command ${commandId} for run ${runId}`)
+    this.name = "DuplicateCommandError"
+  }
+}
+
 export async function appendRunEvent(
   runId: string,
   expectedSeq: number,
@@ -47,6 +57,18 @@ export async function appendRunEvent(
   const actualSeq = existingEvents.length
   if (actualSeq !== expectedSeq) {
     throw new StaleAppendError(runId, expectedSeq, actualSeq)
+  }
+
+  if (event.commandId) {
+    const existingCommand = existingEvents.find((e) => e.commandId === event.commandId)
+    if (existingCommand) {
+      log.info("duplicate command detected, returning existing event", {
+        runId,
+        commandId: event.commandId,
+        existingEventId: existingCommand.eventId,
+      })
+      return existingCommand
+    }
   }
 
   const newEvent: RunEventEnvelope = {

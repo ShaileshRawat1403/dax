@@ -341,4 +341,91 @@ describe("event-authority pilot: draft_and_approve", () => {
       })
     })
   })
+
+  describe("Idempotency and retry safety", () => {
+    test("resolveApprovalEvent is idempotent - repeated calls with same approvalId return same result", async () => {
+      const runId = makeRunId(300)
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, CONTRACT_ID)
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+        const approvalId = "apr_idempotent_001"
+        await addApprovalEvent(runId, approvalId)
+        await transitionEventAuthority(runId, "waiting_approval", "approval_requested", { approvalId })
+
+        const state1 = await resolveApprovalEvent(runId, approvalId, "approved")
+        expect(state1?.status).toBe("running")
+        expect(state1?.pendingApprovalIds).toEqual([])
+
+        const events1 = await readRunEvents(runId)
+        const resolutionEvents1 = events1.filter((e) => e.type === "approval_resolved")
+        expect(resolutionEvents1).toHaveLength(1)
+
+        const state2 = await resolveApprovalEvent(runId, approvalId, "approved")
+        expect(state2?.status).toBe("running")
+        expect(state2?.pendingApprovalIds).toEqual([])
+
+        const events2 = await readRunEvents(runId)
+        const resolutionEvents2 = events2.filter((e) => e.type === "approval_resolved")
+        expect(resolutionEvents2).toHaveLength(1)
+
+        expect(events1.length).toBe(events2.length)
+      })
+    })
+
+    test("step operations are idempotent - repeated step start does not duplicate", async () => {
+      const runId = makeRunId(301)
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, CONTRACT_ID)
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+        const stepId = "step_idempotent_001"
+        await addStepEvent(runId, stepId, "Test Step", "proposed")
+        await startStepEvent(runId, stepId)
+
+        const events1 = await readRunEvents(runId)
+        const startEvents1 = events1.filter((e) => e.type === "step_started")
+        expect(startEvents1).toHaveLength(1)
+
+        await startStepEvent(runId, stepId)
+
+        const events2 = await readRunEvents(runId)
+        const startEvents2 = events2.filter((e) => e.type === "step_started")
+        expect(startEvents2).toHaveLength(1)
+
+        expect(events1.length).toBe(events2.length)
+      })
+    })
+
+    test("completeStepEvent is idempotent - repeated completion does not duplicate", async () => {
+      const runId = makeRunId(302)
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, CONTRACT_ID)
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+        const stepId = "step_complete_001"
+        await addStepEvent(runId, stepId, "Test Step", "proposed")
+        await startStepEvent(runId, stepId)
+        await completeStepEvent(runId, stepId, ["output1"])
+
+        const events1 = await readRunEvents(runId)
+        const completeEvents1 = events1.filter((e) => e.type === "step_completed")
+        expect(completeEvents1).toHaveLength(1)
+
+        await completeStepEvent(runId, stepId, ["output1"])
+
+        const events2 = await readRunEvents(runId)
+        const completeEvents2 = events2.filter((e) => e.type === "step_completed")
+        expect(completeEvents2).toHaveLength(1)
+
+        expect(events1.length).toBe(events2.length)
+      })
+    })
+  })
 })
