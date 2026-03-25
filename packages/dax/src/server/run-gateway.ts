@@ -803,7 +803,14 @@ export namespace RunGateway {
       })
       return result.response
     } catch (error) {
-      log.error("execution contract failed, falling back to legacy path", { error })
+      if (input.metadata?.allowLegacyFallback) {
+        log.warn("execution contract failed, falling back to legacy path as explicitly allowed", { error })
+      } else {
+        log.error("execution contract failed, refusing silent fallback", { error })
+        throw new Error(
+          `Execution contract failure. Silent downgrade to legacy path is disabled. To run in legacy mode, specify allowLegacyFallback: true in metadata. Error: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
     }
 
     const title = input.intent.input.split("\n")[0]?.trim() || "External run"

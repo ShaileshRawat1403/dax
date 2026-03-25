@@ -38,7 +38,8 @@ function countMcpStates(statuses: Record<string, MCP.Status>) {
     total: values.length,
     connected: values.filter((item) => item.status === "connected").length,
     failed: values.filter((item) => item.status === "failed").length,
-    blocked: values.filter((item) => item.status === "needs_auth" || item.status === "needs_client_registration").length,
+    blocked: values.filter((item) => item.status === "needs_auth" || item.status === "needs_client_registration")
+      .length,
     disabled: values.filter((item) => item.status === "disabled").length,
   }
 }
@@ -53,8 +54,18 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
 
   const detail = reports.flatMap((report) => {
     const base = `${report.providerID}: ${report.ok ? "connected" : "blocked"} (${report.mode})`
+    const details = [
+      ...(report.lane ? [`lane: ${report.lane}`] : []),
+      ...(report.source ? [`credential source: ${report.source}`] : []),
+      ...(report.endpoint ? [`endpoint: ${report.endpoint}`] : []),
+    ]
     const missing = report.missingEnv.length > 0 ? `missing ${report.missingEnv.join(", ")}` : undefined
-    return [base, ...(missing ? [missing] : []), ...report.details.map((item) => `${report.providerID}: ${item}`)]
+    return [
+      base,
+      ...details,
+      ...(missing ? [missing] : []),
+      ...report.details.map((item) => `${report.providerID}: ${item}`),
+    ]
   })
 
   const next =
@@ -81,9 +92,7 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
 }
 
 export async function authSection(model?: string): Promise<DoctorSection> {
-  const checks = model
-    ? [model.split("/")[0] ?? model]
-    : ["google", "google-vertex", "google-vertex-anthropic"]
+  const checks = model ? [model.split("/")[0] ?? model] : ["google", "google-vertex", "google-vertex-anthropic"]
   const reports = await Promise.all(checks.map((providerID) => diagnoseProviderAuth(providerID)))
   return authSectionFromReports(reports)
 }
@@ -101,10 +110,7 @@ export async function mcpSection(): Promise<DoctorSection> {
       state: "waiting" as const,
       summary: "No MCP servers configured",
       detail: ["DAX can run without MCP, but MCP is available as an optional first-class capability."],
-      next: [
-        "Add a local MCP server in dax.json or .dax/dax.jsonc.",
-        "Run `dax mcp list` after configuring a server.",
-      ],
+      next: ["Add a local MCP server in dax.json or .dax/dax.jsonc.", "Run `dax mcp list` after configuring a server."],
     }
   }
 

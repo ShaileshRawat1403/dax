@@ -1,4 +1,5 @@
 import { Identifier } from "@/id/id"
+import * as crypto from "crypto"
 import type { WorkflowClass, RiskLevel } from "./workflow-class"
 import { WorkflowClassSchema, RiskLevelSchema } from "./workflow-class"
 import { ExecutionContract, ApprovalPolicy, deriveExecutionMode } from "./execution-contract"
@@ -15,7 +16,7 @@ export interface CompileResult {
   warnings: string[]
 }
 
-const DEFAULT_TOOLS = ["read", "write", "edit", "glob", "grep", "bash", "shell", "search", "browser", "todo"]
+const DEFAULT_TOOLS = ["read", "write", "edit", "glob", "grep", "bash", "shell", "search", "browser", "todo", "task"]
 
 const EDIT_TOOLS = ["write", "edit", "patch", "apply"]
 const SHELL_TOOLS = ["bash", "shell", "exec", "run"]
@@ -212,10 +213,7 @@ export function compile(input: CompileInput): CompileResult {
     warnings.push("Critical risk level detected - manual approval enforced")
   }
 
-  const contractData = {
-    schemaVersion: "v1" as const,
-    contractId: `ctr_${Identifier.create("session", false)}`,
-    runId: "",
+  const baseContractData = {
     workflowClass,
     workflowHint: hintedWorkflow,
     workflowHintAccepted,
@@ -226,11 +224,22 @@ export function compile(input: CompileInput): CompileResult {
     toolBlocklist,
     approvalPolicy,
     expectedOutputs,
-    timeoutMs: 1800000,
     providerHint: request.personaPreset?.providerHint,
     modelHint: request.personaPreset?.modelHint,
     repoPath: request.intent.repoPath ?? request.metadata?.targeting?.repoPath,
-    branch: request.intent.branch ?? request.metadata?.targeting?.repoPath,
+    branch: request.intent.branch,
+  }
+
+  const contractDigest = crypto.createHash("sha256").update(JSON.stringify(baseContractData)).digest("hex")
+
+  const contractData = {
+    schemaVersion: "v1" as const,
+    contractId: `ctr_${Identifier.create("session", false)}`,
+    contractInstanceId: `inst_${Identifier.create("session", false)}`,
+    contractDigest,
+    runId: "",
+    ...baseContractData,
+    timeoutMs: 1800000,
     workspaceId: request.metadata?.workspaceId,
     projectId: request.metadata?.projectId,
     initiatedBy: request.metadata?.initiatedBy,

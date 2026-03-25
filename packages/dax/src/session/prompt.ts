@@ -734,6 +734,18 @@ export namespace SessionPrompt {
     using _ = log.time("resolveTools")
     const tools: Record<string, AITool> = {}
 
+    // Load contract to enforce execution boundary allowlist
+    const { ContractGuardian } = await import("@/execution/contract-guardian")
+    const contract = await ContractGuardian.get(input.session.id)
+    const allowedTools = contract?.toolAllowlist ? new Set(contract.toolAllowlist) : null
+    const blockedTools = contract?.toolBlocklist ? new Set(contract.toolBlocklist) : null
+
+    const isAllowedTool = (toolId: string) => {
+      if (blockedTools?.has(toolId)) return false
+      if (allowedTools && allowedTools.size > 0 && !allowedTools.has(toolId)) return false
+      return true
+    }
+
     const context = (args: any, options: ToolCallOptions): Tool.Context => ({
       sessionID: input.session.id,
       abort: options.abortSignal!,
@@ -773,6 +785,8 @@ export namespace SessionPrompt {
       { modelID: input.model.api.id, providerID: input.model.providerID },
       input.agent,
     )) {
+      if (!isAllowedTool(item.id)) continue
+
       const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
       tools[item.id] = tool({
         id: item.id as any,
@@ -807,6 +821,8 @@ export namespace SessionPrompt {
     }
 
     for (const [key, item] of Object.entries(await MCP.tools())) {
+      if (!isAllowedTool(key)) continue
+
       const execute = item.execute
       if (!execute) continue
 

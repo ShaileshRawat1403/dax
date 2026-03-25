@@ -234,6 +234,7 @@ export const CreateRunRequest = z
         workflowId: z.string().optional(),
         channel: z.string().optional(),
         sessionId: z.string().optional(),
+        allowLegacyFallback: z.boolean().optional(),
         targeting: z
           .object({
             mode: z.enum(["explicit_repo_path", "default_cwd"]),
