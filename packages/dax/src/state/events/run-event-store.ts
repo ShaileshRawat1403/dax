@@ -5,7 +5,6 @@ import { acquireRunLock } from "@/util/fs-lock"
 import type { RunEventEnvelope } from "./run-event-types"
 import { reduceRunState, type RunState } from "./run-reducer"
 import { readRunState } from "@/state/run-store"
-import path from "path"
 
 const log = Log.create({ service: "event-store" })
 
@@ -135,7 +134,12 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
   }
 
   if (authority === "legacy" || authority === null) {
-    return readRunState(runId)
+    const legacyState = await readRunState(runId)
+    if (!legacyState) return null
+    return {
+      ...legacyState,
+      draft: null,
+    } as RunState
   }
 
   return null

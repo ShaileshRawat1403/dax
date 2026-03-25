@@ -1,8 +1,7 @@
 import { Log } from "@/util/log"
 import { getProjectedRunState } from "@/state/events/run-event-store"
 import { transitionEventAuthority, isEventAuthorityRun } from "@/state/events/event-transitions"
-import { recoverRun, type RecoveryResult, type ContinuationPlan } from "@/state/events/runtime-recovery"
-import { evaluateRunRecovery } from "@/state/events/recovery"
+import { recoverRun, type ContinuationPlan } from "@/state/events/runtime-recovery"
 import type { RunState } from "@/state/events/run-reducer"
 
 const log = Log.create({ service: "continuation-executor" })
@@ -132,7 +131,7 @@ async function handleResume(runId: string, state: RunState, plan: ContinuationPl
   }
 }
 
-async function handleStartExecution(runId: string, state: RunState, plan: ContinuationPlan): Promise<ExecutionResult> {
+async function handleStartExecution(runId: string, state: RunState, _plan: ContinuationPlan): Promise<ExecutionResult> {
   if (state.status !== "queued" && state.status !== "compiled") {
     return {
       success: false,

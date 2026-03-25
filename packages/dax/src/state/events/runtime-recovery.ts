@@ -1,13 +1,6 @@
 import { Log } from "@/util/log"
 import { getProjectedRunState } from "@/state/events/run-event-store"
-import { isEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
-import {
-  evaluateRecovery,
-  evaluateRunRecovery,
-  type RecoveryDecision,
-  type RecoveryAction,
-} from "@/state/events/recovery"
-import type { RunState } from "@/state/events/run-reducer"
+import { evaluateRunRecovery, type RecoveryDecision, type RecoveryAction } from "@/state/events/recovery"
 
 const log = Log.create({ service: "runtime-recovery" })
 

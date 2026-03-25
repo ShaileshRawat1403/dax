@@ -15,7 +15,7 @@ export default [
   {
     languageOptions: {},
     rules: {
-      // Add any specific rules or overrides here
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
 ]
