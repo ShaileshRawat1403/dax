@@ -1,5 +1,7 @@
 import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
+import { Bus } from "@/bus"
+import { TuiEvent } from "@/cli/cmd/tui/event"
 
 const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -112,6 +114,7 @@ type OAuthCreds = {
   clientID?: string
   clientSecret?: string
   quotaProjectID?: string
+  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
 }
 
 type OAuthState = {
@@ -122,6 +125,7 @@ type OAuthState = {
   clientSecret?: string
   quotaProjectID?: string
   accountId?: string // user email
+  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
 }
 
 type TokenResponse = {
@@ -181,13 +185,13 @@ const readAdcCreds = async (): Promise<OAuthCreds | undefined> => {
 
 const readCreds = async (): Promise<OAuthCreds | undefined> => {
   const [cli, adc] = await Promise.all([readCliCreds(), readAdcCreds()])
-  if (cli?.access && cli?.refresh) return cli
-  if (cli?.refresh) return cli
+  if (cli?.access && cli?.refresh) return { ...cli, mode: "cli-import" }
+  if (cli?.refresh) return { ...cli, mode: "cli-import" }
   // Do not auto-import ADC for Gemini API ("google" provider). ADC is for
   // Vertex flows and usually yields cloud-platform scoped tokens that fail
   // against Gemini API auth requirements.
-  // Import is allowed by default, can be disabled by setting DAX_GEMINI_ALLOW_ADC_IMPORT=0
-  if (adc?.refresh && Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT !== "0") return adc
+  // Import must be explicitly enabled by setting DAX_GEMINI_ALLOW_ADC_IMPORT=1
+  if (adc?.refresh && Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1") return { ...adc, mode: "vertex" }
   return undefined
 }
 
@@ -220,6 +224,7 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
       clientID: file.clientID,
       clientSecret: file.clientSecret,
       quotaProjectID: file.quotaProjectID,
+      mode: file.mode,
     }
     // Prefer external CLI/ADC creds whenever available so import flow reflects
     // the latest login identity and scopes.
@@ -530,7 +535,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                     clientSecret: fresh?.clientSecret,
                     quotaProjectID: fresh?.quotaProjectID,
                     accountId: fresh?.accountId,
-                  },
+                    mode: fresh?.mode,
+                  } as any,
                 })
               }
             }
@@ -547,9 +553,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             let reqBody = init?.body
 
             // Native DAX routing for Pro/Plus Subscriptions (Code Assist API)
-            // If the user authenticated with the Gemini CLI client ID, the token requires
-            // hitting the cloudcode-pa endpoint instead of the standard generativelanguage endpoint.
-            if (fresh?.clientID === getGoogleCliClientId() && req.href.includes("generativelanguage.googleapis.com")) {
+            // If the auth mode is explicitly Code Assist or CLI import, route to cloudcode-pa
+            if (
+              (fresh?.mode === "codeassist" || fresh?.mode === "cli-import") &&
+              req.href.includes("generativelanguage.googleapis.com")
+            ) {
               const isStream = req.href.includes("streamGenerateContent")
               const action = isStream ? "streamGenerateContent" : "generateContent"
               req = new URL(`https://cloudcode-pa.googleapis.com/v1internal:${action}${isStream ? "?alt=sse" : ""}`)
@@ -596,6 +604,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   const newHeaders = new Headers(response.headers)
                   newHeaders.set("Retry-After", retrySec.toString())
                   newHeaders.set("retry-after-ms", (retrySec * 1000).toString())
+
+                  Bus.publish(TuiEvent.ToastShow, {
+                    title: "Google quota lane: Code Assist",
+                    message: `Rate limit hit. Retrying after ${retrySec}s.`,
+                    variant: "warning",
+                    duration: 5000,
+                  }).catch(() => {})
 
                   return new Response(text, {
                     status: 429,
@@ -740,7 +755,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                     clientSecret: fresh?.clientSecret,
                     quotaProjectID: fresh?.quotaProjectID,
                     accountId: fresh?.accountId,
-                  },
+                    mode: fresh?.mode,
+                  } as any,
                 })
                 const retryHeaders = new Headers(init?.headers)
                 retryHeaders.delete("x-goog-api-key")
@@ -759,7 +775,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             const candidates = [
               await readCliCreds(),
-              Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT !== "0" ? await readAdcCreds() : undefined,
+              Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined,
             ].filter((x) => !!x?.refresh)
             for (const imported of candidates) {
               if (!imported?.refresh) continue
@@ -777,7 +793,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   clientSecret: imported.clientSecret,
                   quotaProjectID: imported.quotaProjectID,
                   accountId: health.ok ? health.email : undefined,
-                },
+                  mode: imported.mode,
+                } as any,
               })
               const retryHeaders = new Headers(init?.headers)
               retryHeaders.delete("x-goog-api-key")
@@ -870,8 +887,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   expires: expires || Date.now() + 30 * 60 * 1000,
                   clientID: creds.clientID,
                   clientSecret: creds.clientSecret,
-                  quotaProjectID: creds.quotaProjectID,
-                  accountId: health.ok ? (health as any).email : undefined,
+                  accountId: health.email,
+                  mode: "cli-import" as const,
                 }
               },
             }
@@ -879,7 +896,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         },
         {
           type: "oauth" as const,
-          label: "Sign in with Google",
+          label: "Google Code Assist / Pro-Plus Sign-In",
           description:
             "Sign in directly with your Google account. Use this for Gemini Pro or Plus subscriptions.\nRequires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET env vars.",
           async authorize() {
@@ -926,7 +943,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   expires: Date.now() + (token.expires_in ?? 3600) * 1000,
                   clientID,
                   clientSecret,
-                  accountId: (health as any).email,
+                  accountId: health.email,
+                  mode: "codeassist" as const,
                 }
               },
             }
@@ -934,7 +952,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         },
         {
           type: "oauth" as const,
-          label: "Your Google OAuth Client",
+          label: "Custom Google OAuth Client",
           description:
             "Sign in with your own OAuth credentials. Requires creating an OAuth client in Google Cloud Console.",
           prompts: [
@@ -1007,7 +1025,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   expires: Date.now() + (token.expires_in ?? 3600) * 1000,
                   clientID,
                   clientSecret,
-                  accountId: (health as any).email,
+                  accountId: health.email,
+                  mode: "custom-oauth" as const,
                 }
               },
             }

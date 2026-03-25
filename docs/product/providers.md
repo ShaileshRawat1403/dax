@@ -13,11 +13,9 @@ DAX can be configured via project/global config and environment variables.
 
 ## Google Provider Split (Important)
 
-| Model Prefix                | Auth Path                              |
-| --------------------------- | -------------------------------------- |
-| `google/*`                  | Gemini API key or Google OAuth (email) |
-| `google-vertex/*`           | ADC + project                          |
-| `google-vertex-anthropic/*` | ADC + project                          |
+| Model Prefix | Auth Path                                                     |
+| ------------ | ------------------------------------------------------------- |
+| `google/*`   | Gemini API key, Code Assist Sign-In, CLI Import, Custom OAuth |
 
 Use diagnostics:
 
@@ -26,19 +24,25 @@ dax auth doctor
 dax auth doctor google/gemini-2.5-flash
 ```
 
-## Google OAuth (Sign in with Google)
+## Google Auth Lanes
 
-DAX supports "Sign in with Google (email)" for the `google/*` provider, which uses OAuth instead of an API key.
+DAX supports multiple discrete authentication lanes for the `google/*` provider:
 
-### How It Works
+### 1. Gemini API Key (Default)
 
-1. **No API Key Required** - OAuth provides access tokens with proper scopes
-2. **Automatic Token Refresh** - Tokens are automatically refreshed when expired
-3. **Required Scopes** - Includes Gemini-specific scopes for quota and retrieval
+Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.
 
-### Setup Options
+### 2. Google Code Assist / Pro-Plus Sign-In
 
-#### Option 1: Use Your Own OAuth Client (Recommended)
+Direct browser-based sign-in using DAX's bundled Code Assist client ID. This lane explicitly routes your models to Code Assist's `cloudcode-pa` endpoints and enables advanced subscription quota behavior.
+
+### 3. Import from Gemini CLI
+
+Imports existing credentials configured via `gemini login` locally. This also routes requests through Pro-Plus `cloudcode-pa` endpoints using your pre-authorized identity.
+
+### 4. Custom Google OAuth Client
+
+If you prefer to maintain isolation or run in an enterprise setting, you can use your own Google OAuth client:
 
 1. Create an OAuth 2.0 Client ID at [Google Cloud Console](https://console.cloud.google.com/apis/credentials/oauthclient)
    - Application type: "Desktop app" or "Web application"
@@ -49,7 +53,7 @@ DAX supports "Sign in with Google (email)" for the `google/*` provider, which us
    ```
    dax
    → Connect a model provider → Google
-   → Sign in with Google (email)
+   → Custom Google OAuth Client
    → Enter your Client ID and Client Secret
    → Complete Google sign-in in browser
    ```
@@ -59,38 +63,10 @@ DAX supports "Sign in with Google (email)" for the `google/*` provider, which us
    dax auth add --oauth-creds ./path/to/client_secret.json
    ```
 
-#### Option 2: Environment Variables
-
-```bash
-export DAX_GEMINI_OAUTH_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-export DAX_GEMINI_OAUTH_CLIENT_SECRET="GOCSPX-your-secret"
-```
-
-Legacy environment variables are also supported:
-
-```bash
-export GEMINI_OAUTH_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-export GEMINI_OAUTH_CLIENT_SECRET="GOCSPX-your-secret"
-```
-
-### Creating a Google OAuth Client
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Click "Create Credentials" → "OAuth client ID"
-3. Application type: "Desktop app" (recommended for local CLI use)
-4. Download the JSON file
-5. Use with `dax auth add --oauth-creds <file>` or enter credentials in TUI
-
 ### Troubleshooting
-
-**"OAuth credentials not configured" error**
-
-- You must provide your own OAuth client credentials
-- Cannot use DAX with OAuth without configuring credentials
 
 **Token refresh fails**
 
-- Ensure your OAuth client credentials are valid
 - Check if the refresh token hasn't been revoked
 - Run `dax auth login` to re-authenticate if needed
 

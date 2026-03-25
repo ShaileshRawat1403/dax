@@ -3,7 +3,7 @@ import { cmd } from "./cmd"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { ModelsDev } from "../../provider/models"
-import { map, pipe, sortBy, values } from "remeda"
+import { map, pipe, sortBy } from "remeda"
 import path from "path"
 import os from "os"
 import { Config } from "../../config/config"
@@ -25,17 +25,40 @@ type PluginAuth = NonNullable<Hooks["auth"]>
 async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string): Promise<boolean> {
   let index = 0
   if (plugin.auth.methods.length > 1) {
-    const method = await prompts.select({
-      message: "Login method",
+    const selectedMethodIndex = await prompts.select({
+      message: "Select login method",
+      maxItems: 8,
       options: [
-        ...plugin.auth.methods.map((x, index) => ({
-          label: x.label,
-          value: index.toString(),
-        })),
+        ...plugin.auth.methods.map((x, i) => {
+          let label = x.label
+          let hint = (x as any).hint
+
+          if (provider.includes("google") || provider.includes("gemini")) {
+            if (label.includes("Gemini API") || label.includes("API key")) {
+              label = "Gemini API"
+              hint = "Get a free API key"
+            } else if (label.includes("Gemini CLI") || label.includes("CLI")) {
+              label = "Import from Gemini CLI"
+              hint = "Use local credentials"
+            } else if (label.includes("Sign in with Google") || label.includes("Sign in")) {
+              label = "Sign in with Google"
+              hint = "Requires Gemini Pro/Plus"
+            } else if (label.toLowerCase().includes("oauth")) {
+              label = "Your Google OAuth"
+              hint = "Custom client credentials"
+            }
+          }
+
+          return {
+            label: label.length > 60 ? label.slice(0, 57) + "..." : label,
+            value: i.toString(),
+            hint: hint ? (hint.length > 60 ? hint.slice(0, 57) + "..." : hint) : undefined,
+          }
+        }),
       ],
     })
-    if (prompts.isCancel(method)) throw new UI.CancelledError()
-    index = parseInt(method)
+    if (prompts.isCancel(selectedMethodIndex)) throw new UI.CancelledError()
+    index = parseInt(selectedMethodIndex as string, 10)
   }
   const method = plugin.auth.methods[index]
 
@@ -50,7 +73,12 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
       if (prompt.type === "select") {
         const value = await prompts.select({
           message: prompt.message,
-          options: prompt.options,
+          maxItems: 8,
+          options: prompt.options.map((opt) => ({
+            ...opt,
+            label: opt.label && opt.label.length > 60 ? opt.label.slice(0, 57) + "..." : opt.label,
+            hint: opt.hint ? (opt.hint.length > 60 ? opt.hint.slice(0, 57) + "..." : opt.hint) : undefined,
+          })),
         })
         if (prompts.isCancel(value)) throw new UI.CancelledError()
         inputs[prompt.key] = value
@@ -262,180 +290,164 @@ export const AuthLoginCommand = cmd({
   command: "login [url]",
   describe: "log in to a provider",
   builder: (yargs) =>
-    yargs
-      .positional("url", {
-        describe: "dax auth provider",
-        type: "string",
-      })
-      .option("oauth-creds", {
-        describe: "Path to OAuth credentials file (for Google Gemini)",
-        type: "string",
-      }),
+    yargs.positional("url", {
+      describe: "dax auth provider",
+      type: "string",
+    }),
+
   async handler(args) {
-    if (args.oauthCreds) {
-      const creds = await Bun.file(args.oauthCreds)
-        .json()
-        .catch(() => undefined)
-      if (!creds) {
-        throw new Error("Invalid OAuth credentials file")
-      }
-      const { client_id, client_secret } = (creds.installed ?? creds.web) ?? {}
-      if (!client_id || !client_secret) {
-        throw new Error("Missing client_id or client_secret in credentials file")
-      }
-      await Auth.set("google", {
-        type: "oauth-custom",
-        clientID: client_id,
-        clientSecret: client_secret,
-      })
-      prompts.log.success("Google OAuth credentials saved")
-      prompts.outro("You can now log in with `dax auth login` and select Google")
-      return
-    }
     await bootstrap(process.cwd(), async () => {
-        UI.empty()
-        prompts.intro("Add credential")
-        if (args.url && (args.url.startsWith("http://") || args.url.startsWith("https://"))) {
-          const wellknown = await fetch(`${args.url}/.well-known/dax`).then((x) => x.json() as any)
-          prompts.log.info(`Running \`${wellknown.auth.command.join(" ")}\``)
-          const proc = Bun.spawn({
-            cmd: wellknown.auth.command,
-            stdout: "pipe",
-          })
-          const exit = await proc.exited
-          if (exit !== 0) {
-            prompts.log.error("Failed")
-            prompts.outro("Done")
-            return
-          }
-          const token = await new Response(proc.stdout).text()
-          await Auth.set(args.url, {
-            type: "wellknown",
-            key: wellknown.auth.env,
-            token: token.trim(),
-          })
-          prompts.log.success("Logged into " + args.url)
+      UI.empty()
+      prompts.intro("Add credential")
+      if (args.url && (args.url.startsWith("http://") || args.url.startsWith("https://"))) {
+        const wellknown = await fetch(`${args.url}/.well-known/dax`).then((x) => x.json() as any)
+        prompts.log.info(`Running \`${wellknown.auth.command.join(" ")}\``)
+        const proc = Bun.spawn({
+          cmd: wellknown.auth.command,
+          stdout: "pipe",
+        })
+        const exit = await proc.exited
+        if (exit !== 0) {
+          prompts.log.error("Failed")
           prompts.outro("Done")
           return
         }
-        await ModelsDev.refresh().catch(() => {})
+        const token = await new Response(proc.stdout).text()
+        await Auth.set(args.url, {
+          type: "wellknown",
+          key: wellknown.auth.env,
+          token: token.trim(),
+        })
+        prompts.log.success("Logged into " + args.url)
+        prompts.outro("Done")
+        return
+      }
+      await ModelsDev.refresh().catch(() => {})
 
-        const config = await Config.get()
+      const config = await Config.get()
 
-        const disabled = new Set(config.disabled_providers ?? [])
-        const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
+      const disabled = new Set(config.disabled_providers ?? [])
+      const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
 
-        const providers = await ModelsDev.get().then((x) => {
-          const filtered: Record<string, (typeof x)[string]> = {}
-          for (const [key, value] of Object.entries(x)) {
-            if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
-              filtered[key] = value
-            }
+      const providers = await ModelsDev.get().then((x) => {
+        const filtered: Record<string, (typeof x)[string]> = {}
+        for (const [key, value] of Object.entries(x)) {
+          if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
+            filtered[key] = value
           }
-          return filtered
-        })
-
-        const priority: Record<string, number> = {
-          dax: 0,
-          anthropic: 1,
-          "github-copilot": 2,
-          openai: 3,
-          google: 4,
-          openrouter: 5,
-          vercel: 6,
         }
-        let provider = await prompts.autocomplete({
-          message: "Select provider",
-          maxItems: 8,
-          options: [
-            ...pipe(
-              providers,
-              values(),
-              sortBy(
-                (x) => priority[x.id] ?? 99,
-                (x) => x.name ?? x.id,
-              ),
-              map((x) => ({
-                label: x.name,
-                value: x.id,
-                hint: {
-                  dax: "recommended",
-                  anthropic: "Claude Max or API key",
-                  openai: "ChatGPT Plus/Pro or API key",
-                }[x.id],
-              })),
-            ),
-            {
-              value: "other",
-              label: "Other",
-            },
-          ],
-        })
+        return filtered
+      })
 
+      const priority: Record<string, number> = {
+        dax: 0,
+        anthropic: 1,
+        "github-copilot": 2,
+        openai: 3,
+        google: 4,
+        openrouter: 5,
+        vercel: 6,
+      }
+      let provider = await prompts.select({
+        message: "Select provider",
+        maxItems: 8,
+        options: [
+          ...pipe(
+            Object.entries(providers),
+            sortBy(
+              ([id, x]) => priority[id] ?? 99,
+              ([id, x]) => x.name ?? id,
+            ),
+            map(([id, x]) => {
+              let providerHint = {
+                dax: "recommended",
+                anthropic: "Claude Max or API key",
+                openai: "ChatGPT Plus/Pro or API key",
+                google: "Google account for Gemini Pro/Plus",
+              }[id]
+
+              if (!providerHint && (id.includes("google") || id.includes("gemini"))) {
+                providerHint = "Google account for Gemini Pro/Plus"
+              }
+
+              return {
+                label: x.name || id,
+                value: id,
+                hint: providerHint,
+              }
+            }),
+          ),
+          {
+            value: "other",
+            label: "Other",
+          },
+        ],
+      })
+
+      if (prompts.isCancel(provider)) throw new UI.CancelledError()
+
+      const plugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
+      if (plugin && plugin.auth) {
+        const handled = await handlePluginAuth({ auth: plugin.auth }, provider)
+        if (handled) return
+      }
+
+      if (provider === "other") {
+        provider = await prompts.text({
+          message: "Enter provider id",
+          validate: (x) => (x && x.match(/^[0-9a-z-]+$/) ? undefined : "a-z, 0-9 and hyphens only"),
+        })
+        if (prompts.isCancel(provider)) throw new UI.CancelledError()
+        provider = provider.replace(/^@ai-sdk\//, "")
         if (prompts.isCancel(provider)) throw new UI.CancelledError()
 
-        const plugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
-        if (plugin && plugin.auth) {
-          const handled = await handlePluginAuth({ auth: plugin.auth }, provider)
+        // Check if a plugin provides auth for this custom provider
+        const customPlugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
+        if (customPlugin && customPlugin.auth) {
+          const handled = await handlePluginAuth({ auth: customPlugin.auth }, provider)
           if (handled) return
         }
 
-        if (provider === "other") {
-          provider = await prompts.text({
-            message: "Enter provider id",
-            validate: (x) => (x && x.match(/^[0-9a-z-]+$/) ? undefined : "a-z, 0-9 and hyphens only"),
-          })
-          if (prompts.isCancel(provider)) throw new UI.CancelledError()
-          provider = provider.replace(/^@ai-sdk\//, "")
-          if (prompts.isCancel(provider)) throw new UI.CancelledError()
+        prompts.log.warn(
+          `This only stores a credential for ${provider} - you will need to configure it in dax.json, check the docs for examples.`,
+        )
+      }
 
-          // Check if a plugin provides auth for this custom provider
-          const customPlugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
-          if (customPlugin && customPlugin.auth) {
-            const handled = await handlePluginAuth({ auth: customPlugin.auth }, provider)
-            if (handled) return
-          }
+      if (provider === "amazon-bedrock") {
+        prompts.log.info(
+          "Amazon Bedrock authentication priority:\n" +
+            "  1. Bearer token (AWS_BEARER_TOKEN_BEDROCK or /connect)\n" +
+            "  2. AWS credential chain (profile, access keys, IAM roles, EKS IRSA)\n\n" +
+            "Configure via dax.json options (profile, region, endpoint) or\n" +
+            "AWS environment variables (AWS_PROFILE, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_WEB_IDENTITY_TOKEN_FILE).",
+        )
+      }
 
-          prompts.log.warn(
-            `This only stores a credential for ${provider} - you will need configure it in dax.json, check the docs for examples.`,
-          )
-        }
+      if (provider === "dax") {
+        prompts.log.info("Create an api key at https://dax.ai/auth")
+      }
 
-        if (provider === "amazon-bedrock") {
-          prompts.log.info(
-            "Amazon Bedrock authentication priority:\n" +
-              "  1. Bearer token (AWS_BEARER_TOKEN_BEDROCK or /connect)\n" +
-              "  2. AWS credential chain (profile, access keys, IAM roles, EKS IRSA)\n\n" +
-              "Configure via dax.json options (profile, region, endpoint) or\n" +
-              "AWS environment variables (AWS_PROFILE, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_WEB_IDENTITY_TOKEN_FILE).",
-          )
-        }
+      if (provider === "vercel") {
+        prompts.log.info("You can create an api key at https://vercel.link/ai-gateway-token")
+      }
 
-        if (provider === "dax") {
-          prompts.log.info("Create an api key at https://dax.ai/auth")
-        }
+      if (["cloudflare", "cloudflare-ai-gateway"].includes(provider)) {
+        prompts.log.info(
+          "Cloudflare AI Gateway can be configured with CLOUDFLARE_GATEWAY_ID, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_API_TOKEN environment variables. Read more: https://dax.ai/docs/providers/#cloudflare-ai-gateway",
+        )
+      }
 
-        if (provider === "vercel") {
-          prompts.log.info("You can create an api key at https://vercel.link/ai-gateway-token")
-        }
+      const key = await prompts.password({
+        message: "Enter your API key",
+        validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+      })
+      if (prompts.isCancel(key)) throw new UI.CancelledError()
+      await Auth.set(provider, {
+        type: "api",
+        key,
+      })
 
-        if (["cloudflare", "cloudflare-ai-gateway"].includes(provider)) {
-          prompts.log.info(
-            "Cloudflare AI Gateway can be configured with CLOUDFLARE_GATEWAY_ID, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_API_TOKEN environment variables. Read more: https://dax.ai/docs/providers/#cloudflare-ai-gateway",
-          )
-        }
-
-        const key = await prompts.password({
-          message: "Enter your API key",
-          validate: (x) => (x && x.length > 0 ? undefined : "Required"),
-        })
-        if (prompts.isCancel(key)) throw new UI.CancelledError()
-        await Auth.set(provider, {
-          type: "api",
-          key,
-        })
-
-        prompts.outro("Done")
+      prompts.outro("Done")
     })
   },
 })
@@ -454,6 +466,7 @@ export const AuthLogoutCommand = cmd({
     const database = await ModelsDev.get()
     const providerID = await prompts.select({
       message: "Select provider",
+      maxItems: 8,
       options: credentials.map(([key, value]) => ({
         label: (database[key]?.name || key) + UI.Style.TEXT_DIM + " (" + value.type + ")",
         value: key,

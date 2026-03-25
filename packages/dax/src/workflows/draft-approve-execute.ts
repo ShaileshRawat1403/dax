@@ -45,14 +45,10 @@ export class DraftApproveExecuteWorkflow {
       }
     }
 
-    const executionResult = await this.executeCommitExecution(draftResult.outputs)
-    stepResults.push(executionResult)
-
+    // Halt execution and wait for approval resolution
     return {
-      success: executionResult.success,
-      finalArtifactId: executionResult.success ? `art_${Identifier.create("session", false)}` : undefined,
+      success: true,
       stepResults,
-      error: executionResult.success ? undefined : executionResult.error,
     }
   }
 
@@ -172,11 +168,11 @@ export class DraftApproveExecuteWorkflow {
     log.info("executing commit_execution step", { runId: this.runId })
 
     try {
+      await Transitions.transition(this.runId, "running", "approval_resumed")
+
       const stepId = `step_${Identifier.create("part", false)}`
       await Transitions.addStep(this.runId, stepId, "Commit Execution", "executed")
       await Transitions.startStep(this.runId, stepId)
-
-      await Transitions.transition(this.runId, "running", "approval_resumed")
 
       const draft = drafts[0]
       const artifactId = `art_${Identifier.create("session", false)}`

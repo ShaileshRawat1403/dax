@@ -19,7 +19,10 @@ export class ProviderAuthPreflightError extends Error {
 
 export type AuthDiagnostics = {
   providerID: string
-  mode: "gemini-api-key" | "gemini-oauth" | "vertex-adc" | "missing"
+  mode: "gemini-api-key" | "gemini-oauth" | "cli-import" | "codeassist" | "custom-oauth" | "vertex-adc" | "missing"
+  lane?: "gemini-api" | "google-codeassist" | "vertex"
+  source?: "api-key" | "stored-oauth" | "cli-import" | "adc" | "env"
+  endpoint?: "generativelanguage" | "cloudcode-pa" | "vertex"
   ok: boolean
   requiredEnv: string[]
   missingEnv: string[]
@@ -172,6 +175,9 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
     return {
       providerID,
       mode: "gemini-api-key",
+      lane: "gemini-api",
+      source: "api-key",
+      endpoint: "generativelanguage",
       ok: true,
       requiredEnv: ["GEMINI_API_KEY (or GOOGLE_API_KEY)"],
       missingEnv: [],
@@ -188,6 +194,9 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
   if (auth?.type === "oauth") {
     const token = await validateGoogleOAuthAccessToken(auth.access)
     const hasRefresh = Boolean(auth.refresh)
+    const mode = (auth.mode as any) ?? "gemini-oauth"
+    const isCodeAssist = mode === "codeassist" || mode === "cli-import"
+
     const details = token.ok
       ? [
           ...token.details,
@@ -202,9 +211,13 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
             ? "Access token expired/invalid, but refresh token is present and will be used during execution."
             : "Access token expired/invalid and no refresh token found.",
         ]
+
     return {
       providerID,
-      mode: "gemini-oauth",
+      mode,
+      lane: isCodeAssist ? "google-codeassist" : "gemini-api",
+      source: "stored-oauth",
+      endpoint: isCodeAssist ? "cloudcode-pa" : "generativelanguage",
       ok: token.ok || hasRefresh,
       requiredEnv: ["None required for OAuth token mode"],
       missingEnv: [],
@@ -216,6 +229,9 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
   return {
     providerID,
     mode: "missing",
+    lane: "gemini-api",
+    source: "env",
+    endpoint: "generativelanguage",
     ok: false,
     requiredEnv: ["GEMINI_API_KEY (or GOOGLE_API_KEY)"],
     missingEnv: ["GEMINI_API_KEY/GOOGLE_API_KEY or google OAuth login"],
@@ -245,6 +261,9 @@ async function diagnoseVertexProvider(providerID: string): Promise<AuthDiagnosti
   return {
     providerID,
     mode: ok ? "vertex-adc" : "missing",
+    lane: "vertex",
+    source: explicit ? "env" : "adc",
+    endpoint: "vertex",
     ok,
     requiredEnv: ["GOOGLE_CLOUD_PROJECT", "ADC (GOOGLE_APPLICATION_CREDENTIALS or gcloud application-default login)"],
     missingEnv,

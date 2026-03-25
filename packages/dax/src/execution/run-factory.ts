@@ -200,6 +200,8 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   Tracer.runCreated(session.id, contract.workflowClass, contract.executionMode)
   Tracer.contractCompiled(session.id, contract.contractId, contract.riskLevel)
 
+  let finalStatus: CreateRunResponse["status"] = "created"
+
   if (isFixedWorkflow(contract.workflowClass)) {
     const workflow = WorkflowRegistry.create(contract.workflowClass, {
       runId: session.id,
@@ -209,6 +211,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     if (workflow) {
       await Transitions.transition(session.id, "queued", "execution_queued")
       await Transitions.transition(session.id, "running", "workflow_started")
+      finalStatus = "running"
       workflow.execute().catch((error) => {
         log.error("workflow execution failed", {
           error,
@@ -216,14 +219,17 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
           contractId: contract.contractId,
         })
       })
+    } else {
+      finalStatus = "created"
     }
   } else {
     await startExecution(session.id, contract)
+    finalStatus = "running"
   }
 
   const response: CreateRunResponse = {
     runId: session.id,
-    status: "created",
+    status: finalStatus,
     createdAt: new Date(session.time.created).toISOString(),
     workflowHint: contract.workflowHint,
     workflowHintAccepted: contract.workflowHintAccepted,

@@ -41,6 +41,8 @@ export type FallbackPolicy = z.infer<typeof FallbackPolicy>
 export const ExecutionContract = z.object({
   schemaVersion: SchemaVersion.default("v1"),
   contractId: z.string(),
+  contractInstanceId: z.string().optional(),
+  contractDigest: z.string().optional(),
   runId: z.string(),
   workflowClass: WorkflowClassSchema,
   workflowHint: WorkflowClassSchema.optional(),
@@ -68,6 +70,8 @@ export type ExecutionContract = z.infer<typeof ExecutionContract>
 
 export const ExecutionContractMeta = z.object({
   contractId: z.string(),
+  contractInstanceId: z.string().optional(),
+  contractDigest: z.string().optional(),
   runId: z.string(),
   workflowClass: WorkflowClassSchema,
   executionMode: ExecutionModeSchema,
