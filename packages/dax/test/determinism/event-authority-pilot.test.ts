@@ -11,6 +11,7 @@ import {
   addApprovalEvent,
   resolveApprovalEvent,
   addArtifactEvent,
+  addDraftEvent,
   isEventAuthorityRun,
   getEventAuthorityState,
 } from "../../src/state/events/event-transitions"
@@ -258,6 +259,85 @@ describe("event-authority pilot: draft_and_approve", () => {
           "step_completed",
           "run_completed",
         ])
+      })
+    })
+  })
+
+  describe("Draft artifact fidelity", () => {
+    test("draft artifact is persisted with full fidelity and reconstructed on replay", async () => {
+      const runId = makeRunId(200)
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, CONTRACT_ID)
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+        const draftId = "draft_fidelity_001"
+        const draftContent = "This is the actual draft content that must be preserved"
+        const draftTargetPath = "/path/to/target/file.txt"
+        const draftType = "file"
+
+        await addDraftEvent(runId, draftId, draftType, draftContent, draftTargetPath)
+
+        const stateBeforeApproval = await getEventAuthorityState(runId)
+        expect(stateBeforeApproval?.draft).toEqual({
+          draftId,
+          type: draftType,
+          content: draftContent,
+          targetPath: draftTargetPath,
+        })
+
+        const approvalId = "apr_fidelity_001"
+        await addApprovalEvent(runId, approvalId)
+        await transitionEventAuthority(runId, "waiting_approval", "approval_requested", { approvalId })
+
+        await resolveApprovalEvent(runId, approvalId, "approved")
+
+        const stateAfterApproval = await getEventAuthorityState(runId)
+        expect(stateAfterApproval?.status).toBe("running")
+        expect(stateAfterApproval?.draft).toEqual({
+          draftId,
+          type: draftType,
+          content: draftContent,
+          targetPath: draftTargetPath,
+        })
+
+        const events = await readRunEvents(runId)
+        const draftCreatedEvent = events.find((e) => e.type === "draft_created")
+        expect(draftCreatedEvent).toBeDefined()
+        expect((draftCreatedEvent?.payload as any).content).toBe(draftContent)
+        expect((draftCreatedEvent?.payload as any).targetPath).toBe(draftTargetPath)
+      })
+    })
+
+    test("reconstructs draft from events after simulated restart", async () => {
+      const runId = makeRunId(201)
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, CONTRACT_ID)
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+        const draftId = "draft_replay_001"
+        const draftContent = "Reconstructed draft content"
+        const draftTargetPath = "/reconstructed/path.txt"
+        await addDraftEvent(runId, draftId, "patch", draftContent, draftTargetPath)
+
+        const approvalId = "apr_replay_001"
+        await addApprovalEvent(runId, approvalId)
+        await transitionEventAuthority(runId, "waiting_approval", "approval_requested", { approvalId })
+
+        const projectedState = await getEventAuthorityState(runId)
+        expect(projectedState?.status).toBe("waiting_approval")
+        expect(projectedState?.draft?.content).toBe(draftContent)
+        expect(projectedState?.draft?.targetPath).toBe(draftTargetPath)
+        expect(projectedState?.draft?.type).toBe("patch")
+
+        await resolveApprovalEvent(runId, approvalId, "approved")
+
+        const resumedState = await getEventAuthorityState(runId)
+        expect(resumedState?.status).toBe("running")
+        expect(resumedState?.draft?.content).toBe(draftContent)
       })
     })
   })
