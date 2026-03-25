@@ -1,4 +1,5 @@
 import { Transitions } from "@/state/transitions"
+import { readRunState } from "@/state/run-store"
 import {
   isEventAuthorityRun,
   addStepEvent,
@@ -8,6 +9,7 @@ import {
   addApprovalEvent,
   resolveApprovalEvent,
   addArtifactEvent,
+  addDraftEvent,
   transitionEventAuthority,
 } from "@/state/events/event-transitions"
 import type { RunState, RunStatus } from "@/state/run-state"
@@ -65,5 +67,22 @@ export class HybridTransitions {
       return addArtifactEvent(runId, artifactId, "file")
     }
     return Transitions.addArtifact(runId, artifactId)
+  }
+
+  static async createDraft(
+    runId: string,
+    draftId: string,
+    type: string,
+    content: string,
+    targetPath?: string,
+  ): Promise<RunState> {
+    if (await isEventAuthorityRun(runId)) {
+      return addDraftEvent(runId, draftId, type, content, targetPath)
+    }
+    const state = await readRunState(runId)
+    if (!state) {
+      throw new Error(`Run not found: ${runId}`)
+    }
+    return state
   }
 }

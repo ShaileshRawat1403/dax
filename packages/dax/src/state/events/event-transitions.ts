@@ -132,4 +132,14 @@ export async function addArtifactEvent(runId: string, artifactId: string, artifa
   return appendEventOnly(runId, "artifact_created", { artifactId, artifactType })
 }
 
+export async function addDraftEvent(
+  runId: string,
+  draftId: string,
+  type: string,
+  content: string,
+  targetPath?: string,
+): Promise<RunState> {
+  return appendEventOnly(runId, "draft_created", { draftId, type, content, targetPath })
+}
+
 export type { RunState }

@@ -9,6 +9,7 @@ export type RunEventType =
   | "step_completed"
   | "step_failed"
   | "artifact_created"
+  | "draft_created"
   | "trust_updated"
   | "run_failed"
   | "run_completed"
@@ -30,6 +31,10 @@ export type RunEventPayload =
   | { type: "step_completed"; payload: { stepId: string; outputs: string[] } }
   | { type: "step_failed"; payload: { stepId: string; error: { code: string; message: string } } }
   | { type: "artifact_created"; payload: { artifactId: string; artifactType: string } }
+  | {
+      type: "draft_created"
+      payload: { draftId: string; type: string; content: string; targetPath?: string }
+    }
   | {
       type: "trust_updated"
       payload: {

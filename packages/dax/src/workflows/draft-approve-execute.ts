@@ -71,6 +71,16 @@ export class DraftApproveExecuteWorkflow {
       }
 
       this.draftArtifact = draftArtifact
+
+      const draftId = `draft_${Identifier.create("session", false)}`
+      await HybridTransitions.createDraft(
+        this.runId,
+        draftId,
+        draftArtifact.type,
+        draftArtifact.content,
+        draftArtifact.targetPath,
+      )
+
       await HybridTransitions.completeStep(this.runId, stepId, [`draft:${draftArtifact.type}`])
 
       log.info("prepare_draft completed", { runId: this.runId, artifactType: draftArtifact.type })
@@ -238,8 +248,16 @@ export class DraftApproveExecuteWorkflow {
 
     try {
       const state = await getEventAuthorityState(this.runId)
-      if (!state || !state.steps.length) {
+      if (!state) {
         return null
+      }
+
+      if (state.draft) {
+        return {
+          type: state.draft.type as DraftArtifact["type"],
+          content: state.draft.content,
+          targetPath: state.draft.targetPath,
+        }
       }
 
       const draftStep = state.steps.find((s) => s.outputs.some((o) => o.startsWith("draft:")))
