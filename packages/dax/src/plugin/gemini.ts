@@ -211,7 +211,7 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
   // Prefer the credential explicitly stored in DAX auth state.
   // Falling back to CLI/ADC files can unintentionally override a freshly
-  // completed "Sign in with Google (email)" flow with unrelated credentials.
+  // completed "Google Code Assist / Pro-Plus Sign-In" flow with unrelated credentials.
   if (oauth?.refresh) {
     return oauth
   }
@@ -242,7 +242,7 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
     throw new Error(
       "OAuth credentials required for token refresh. Provide client_id and client_secret:\n" +
         "  1. Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient\n" +
-        "  2. Run: dax auth add --oauth-creds <path-to-client_secret.json>",
+        "  2. Set DAX_GEMINI_OAUTH_CLIENT_ID and DAX_GEMINI_OAUTH_CLIENT_SECRET environment variables",
     )
   }
   const body = new URLSearchParams({
@@ -813,13 +813,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Sign in with Google (email)' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Google Code Assist / Pro-Plus Sign-In' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Gemini OAuth (Gemini OAuth scope). For gcloud ADC credentials, switch to Vertex provider.",
+                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Custom Google OAuth Client (Gemini OAuth scope). For gcloud ADC credentials, switch to Vertex provider.",
               )
             }
             return first
@@ -875,7 +875,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing") {
                     throw new Error(
-                      "Imported token is missing Gemini scope. Use API key for Google provider, or use Sign in with Google. For gcloud credentials use Vertex provider.",
+                      "Imported token is missing Gemini scope. Use API key for Google provider, or use Google Code Assist / Pro-Plus Sign-In. For gcloud credentials use Vertex provider.",
                     )
                   }
                   if (health.reason === "token_expired") throw new Error("Re-run gemini login.")
@@ -907,8 +907,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             if (!clientID || !clientSecret) {
               throw new Error(
-                "Sign in with Google requires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET.\n" +
-                  "Set these in your environment or use 'Your Google OAuth Client' option.",
+                "Google Code Assist / Pro-Plus Sign-In requires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET.\n" +
+                  "Set these in your environment or use 'Custom Google OAuth Client' option.",
               )
             }
 

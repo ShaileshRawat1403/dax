@@ -15,6 +15,20 @@ import { isFixedWorkflow } from "@/workflows/types"
 import { Tracer } from "@/runtime/telemetry"
 
 import { ContractGuardian } from "./contract-guardian"
+import {
+  createEventAuthorityRun,
+  isEventAuthorityRun,
+  getEventAuthorityState,
+  transitionEventAuthority,
+  appendEventOnly,
+} from "@/state/events/event-transitions"
+
+const EVENT_AUTHORITY_PILOT_WORKFLOWS = ["draft_and_approve"] as const
+type EventAuthorityPilotWorkflow = (typeof EVENT_AUTHORITY_PILOT_WORKFLOWS)[number]
+
+function isEventAuthorityPilot(workflowClass: string): workflowClass is EventAuthorityPilotWorkflow {
+  return (EVENT_AUTHORITY_PILOT_WORKFLOWS as readonly string[]).includes(workflowClass)
+}
 
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
@@ -182,8 +196,16 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 
   await writeContract(session.id, contract)
 
-  const runState = await RunStore.create(session.id, contract.contractId)
-  await Transitions.transition(session.id, "compiled", "contract_compiled")
+  const isEventPilot = isEventAuthorityPilot(contract.workflowClass)
+
+  let finalStatus: CreateRunResponse["status"] = "created"
+
+  if (isEventPilot) {
+    await createEventAuthorityRun(session.id, contract.contractId)
+  } else {
+    const runState = await RunStore.create(session.id, contract.contractId)
+    await Transitions.transition(session.id, "compiled", "contract_compiled")
+  }
 
   await writeRunMeta(session.id, {
     sourceSystem: input.request.metadata?.source ?? "api",
@@ -200,8 +222,6 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   Tracer.runCreated(session.id, contract.workflowClass, contract.executionMode)
   Tracer.contractCompiled(session.id, contract.contractId, contract.riskLevel)
 
-  let finalStatus: CreateRunResponse["status"] = "created"
-
   if (isFixedWorkflow(contract.workflowClass)) {
     const workflow = WorkflowRegistry.create(contract.workflowClass, {
       runId: session.id,
@@ -209,8 +229,13 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     })
 
     if (workflow) {
-      await Transitions.transition(session.id, "queued", "execution_queued")
-      await Transitions.transition(session.id, "running", "workflow_started")
+      if (isEventPilot) {
+        await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+        await transitionEventAuthority(session.id, "running", "workflow_started", {})
+      } else {
+        await Transitions.transition(session.id, "queued", "execution_queued")
+        await Transitions.transition(session.id, "running", "workflow_started")
+      }
       finalStatus = "running"
       workflow.execute().catch((error) => {
         log.error("workflow execution failed", {
