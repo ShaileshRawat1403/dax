@@ -78,7 +78,7 @@ describe("continuation executor", () => {
       })
     })
 
-    test("compiled execution starts by moving to queued then running", async () => {
+    test("queued execution starts directly from queued", async () => {
       const runId = makeRunId(503)
       const { bootstrap } = await import("../../src/cli/bootstrap")
       await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
@@ -90,6 +90,46 @@ describe("continuation executor", () => {
         expect(result.action).toBe("started")
         expect(result.status).toBe("running")
         expect(result.message).toContain("started from queued")
+      })
+    })
+
+    test("compiled execution moves to queued then starts", async () => {
+      const runId = makeRunId(507)
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, "contract_exec_7")
+
+        const decision = await import("../../src/state/events/recovery").then((m) =>
+          m.evaluateRecovery({
+            runId,
+            contractId: "c",
+            status: "compiled",
+            currentStepId: null,
+            steps: [],
+            pendingApprovalIds: [],
+            artifactIds: [],
+            draft: null,
+            trust: null,
+            error: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            startedAt: null,
+            completedAt: null,
+          }),
+        )
+
+        expect(decision.action).toBe("retry")
+
+        const plan = {
+          nextStep: "start_execution" as const,
+          stepId: null,
+          approvalIds: [],
+          reason: "Start from compiled",
+        }
+        const { executeContinuationPlan } = await import("../../src/state/events/continuation-executor")
+        const result = await executeContinuationPlan(runId, plan)
+        expect(result.success).toBe(true)
+        expect(result.status).toBe("running")
       })
     })
 
