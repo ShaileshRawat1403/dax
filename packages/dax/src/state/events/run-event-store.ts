@@ -1,7 +1,7 @@
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
-import { Lock } from "@/util/lock"
+import { acquireRunLock } from "@/util/fs-lock"
 import type { RunEventEnvelope } from "./run-event-types"
 import { reduceRunState, type RunState } from "./run-reducer"
 import { readRunState } from "@/state/run-store"
@@ -10,8 +10,6 @@ import path from "path"
 const log = Log.create({ service: "event-store" })
 
 export type RunAuthority = "legacy" | "event-log"
-
-const LOCK_KEY_PREFIX = "run-event-"
 
 async function eventPath(runId: string): Promise<string[]> {
   return ["run_events", Instance.project.id, runId]
@@ -50,57 +48,59 @@ export async function appendRunEvent(
   const pathParts = await eventPath(runId)
   const eventsPath = [...pathParts, "events.json"]
   const tempPath = [...pathParts, "events.json.tmp"]
-  const lockKey = LOCK_KEY_PREFIX + runId
 
-  using _lock = await Lock.write(lockKey)
-
-  let existingEvents: RunEventEnvelope[] = []
+  const fsLock = await acquireRunLock(runId)
   try {
-    existingEvents = (await Storage.read<RunEventEnvelope[]>(eventsPath)) ?? []
-  } catch (error) {
-    if (!Storage.NotFoundError.isInstance(error)) {
-      throw error
+    let existingEvents: RunEventEnvelope[] = []
+    try {
+      existingEvents = (await Storage.read<RunEventEnvelope[]>(eventsPath)) ?? []
+    } catch (error) {
+      if (!Storage.NotFoundError.isInstance(error)) {
+        throw error
+      }
+      existingEvents = []
     }
-    existingEvents = []
-  }
 
-  const actualSeq = existingEvents.length
-  if (actualSeq !== expectedSeq) {
-    throw new StaleAppendError(runId, expectedSeq, actualSeq)
-  }
-
-  if (event.commandId) {
-    const existingCommand = existingEvents.find((e) => e.commandId === event.commandId)
-    if (existingCommand) {
-      log.info("duplicate command detected, returning existing event", {
-        runId,
-        commandId: event.commandId,
-        existingEventId: existingCommand.eventId,
-      })
-      return existingCommand
+    const actualSeq = existingEvents.length
+    if (actualSeq !== expectedSeq) {
+      throw new StaleAppendError(runId, expectedSeq, actualSeq)
     }
+
+    if (event.commandId) {
+      const existingCommand = existingEvents.find((e) => e.commandId === event.commandId)
+      if (existingCommand) {
+        log.info("duplicate command detected, returning existing event", {
+          runId,
+          commandId: event.commandId,
+          existingEventId: existingCommand.eventId,
+        })
+        return existingCommand
+      }
+    }
+
+    const newEvent: RunEventEnvelope = {
+      eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      runId,
+      seq: expectedSeq,
+      type: event.type,
+      payload: event.payload,
+      occurredAt: new Date().toISOString(),
+      schemaVersion: "v1",
+      ...(event.causationId ? { causationId: event.causationId } : {}),
+      ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+      ...(event.commandId ? { commandId: event.commandId } : {}),
+    }
+
+    existingEvents.push(newEvent)
+
+    await Storage.write(tempPath, existingEvents)
+    await Storage.rename(tempPath, eventsPath)
+
+    log.info("appended event", { runId, seq: expectedSeq, type: event.type })
+    return newEvent
+  } finally {
+    await fsLock.dispose()
   }
-
-  const newEvent: RunEventEnvelope = {
-    eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-    runId,
-    seq: expectedSeq,
-    type: event.type,
-    payload: event.payload,
-    occurredAt: new Date().toISOString(),
-    schemaVersion: "v1",
-    ...(event.causationId ? { causationId: event.causationId } : {}),
-    ...(event.correlationId ? { correlationId: event.correlationId } : {}),
-    ...(event.commandId ? { commandId: event.commandId } : {}),
-  }
-
-  existingEvents.push(newEvent)
-
-  await Storage.write(tempPath, existingEvents)
-  await Storage.rename(tempPath, eventsPath)
-
-  log.info("appended event", { runId, seq: expectedSeq, type: event.type })
-  return newEvent
 }
 
 export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> {
