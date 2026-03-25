@@ -65,11 +65,14 @@ export async function acquireRunLock(
         dispose: async () => {
           try {
             await fs.unlink(lockPath)
-          } catch {}
+          } catch {
+            // Lock file already removed
+          }
         },
       }
-    } catch (error: any) {
-      if (error.code === "EEXIST") {
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === "EEXIST") {
         if (Date.now() - startTime > timeoutMs) {
           throw new FsLockTimeoutError(runId)
         }
@@ -83,9 +86,13 @@ export async function acquireRunLock(
             try {
               await fs.unlink(lockPath)
               continue
-            } catch {}
+            } catch {
+              // Failed to remove stale lock
+            }
           }
-        } catch {}
+        } catch {
+          // Failed to read lock file
+        }
 
         await new Promise((resolve) => setTimeout(resolve, retryIntervalMs))
         continue
