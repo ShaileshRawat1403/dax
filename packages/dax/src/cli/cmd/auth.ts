@@ -17,50 +17,59 @@ import open from "open"
 import { doctorExitCode, formatDoctorSection, authSection } from "@/doctor"
 
 type PluginAuth = NonNullable<Hooks["auth"]>
+const hasAdvancedGoogleClient = !!process.env.DAX_GOOGLE_CLI_CLIENT_ID && !!process.env.DAX_GOOGLE_CLI_CLIENT_SECRET
 
 /**
  * Handle plugin-based authentication flow.
  * Returns true if auth was handled, false if it should fall through to default handling.
  */
 async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string): Promise<boolean> {
-  let index = 0
+  let method = plugin.auth.methods[0]
+
   if (plugin.auth.methods.length > 1) {
+    const options = plugin.auth.methods
+      .map((x, i) => {
+        let label = x.label
+        let hint = (x as any).hint
+        let disabled = false
+
+        if (provider.includes("google") || provider.includes("gemini")) {
+          if (label.includes("Gemini API") || label.includes("API key")) {
+            label = "Gemini API Key"
+            hint = "Get a free API key"
+          } else if (label.includes("Gemini CLI") || label.includes("CLI")) {
+            label = "Import from Gemini CLI"
+            hint = "Use local credentials (recommended)"
+          } else if (label.includes("Sign in with Google") || label.includes("Sign in")) {
+            if (!hasAdvancedGoogleClient) {
+              disabled = true
+              hint = "Requires configured DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET"
+            }
+            label = "Advanced Google Sign-In (requires client ID/secret)"
+          } else if (label.toLowerCase().includes("oauth")) {
+            label = "Custom Google OAuth Client"
+            hint = "Use your own OAuth credentials"
+          }
+        }
+
+        return {
+          label: label.length > 60 ? label.slice(0, 57) + "..." : label,
+          value: i.toString(),
+          hint: hint ? (hint.length > 60 ? hint.slice(0, 57) + "..." : hint) : undefined,
+          disabled,
+        }
+      })
+      .filter((opt) => !opt.disabled || hasAdvancedGoogleClient)
+
     const selectedMethodIndex = await prompts.select({
       message: "Select login method",
       maxItems: 8,
-      options: [
-        ...plugin.auth.methods.map((x, i) => {
-          let label = x.label
-          let hint = (x as any).hint
-
-          if (provider.includes("google") || provider.includes("gemini")) {
-            if (label.includes("Gemini API") || label.includes("API key")) {
-              label = "Gemini API Key"
-              hint = "Get a free API key"
-            } else if (label.includes("Gemini CLI") || label.includes("CLI")) {
-              label = "Import from Gemini CLI"
-              hint = "Use local credentials"
-            } else if (label.includes("Sign in with Google") || label.includes("Sign in")) {
-              label = "Google Code Assist / Pro-Plus Sign-In"
-              hint = "Requires Gemini Pro/Plus"
-            } else if (label.toLowerCase().includes("oauth")) {
-              label = "Custom Google OAuth Client"
-              hint = "Custom client credentials"
-            }
-          }
-
-          return {
-            label: label.length > 60 ? label.slice(0, 57) + "..." : label,
-            value: i.toString(),
-            hint: hint ? (hint.length > 60 ? hint.slice(0, 57) + "..." : hint) : undefined,
-          }
-        }),
-      ],
+      options,
     })
     if (prompts.isCancel(selectedMethodIndex)) throw new UI.CancelledError()
-    index = parseInt(selectedMethodIndex as string, 10)
+    const selectedIndex = parseInt(selectedMethodIndex as string, 10)
+    method = plugin.auth.methods[selectedIndex]
   }
-  const method = plugin.auth.methods[index]
 
   // Handle prompts for all auth types
   await Bun.sleep(10)
