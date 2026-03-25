@@ -34,7 +34,9 @@ Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.
 
 ### 2. Google Code Assist / Pro-Plus Sign-In
 
-Direct browser-based sign-in using DAX's bundled Code Assist client ID. This lane explicitly routes your models to Code Assist's `cloudcode-pa` endpoints and enables advanced subscription quota behavior.
+Direct browser-based sign-in for Gemini Pro/Plus subscriptions. This lane routes your models to Code Assist's `cloudcode-pa` endpoints and enables advanced subscription quota behavior.
+
+_Note: This advanced lane requires the operator to provide Code Assist compatible credentials via the `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` environment variables._
 
 ### 3. Import from Gemini CLI
 
