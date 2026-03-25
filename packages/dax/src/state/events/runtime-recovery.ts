@@ -19,6 +19,14 @@ export interface RecoveryResult {
   runId: string
   message: string
   error?: string
+  continuation?: ContinuationPlan
+}
+
+export interface ContinuationPlan {
+  nextStep: "pause" | "resume_workflow" | "start_execution" | "reject"
+  stepId: string | null
+  approvalIds: string[]
+  reason: string
 }
 
 export async function recoverRun(runId: string): Promise<RecoveryResult> {
@@ -53,6 +61,12 @@ export async function executeRecovery(runId: string, decision: RecoveryDecision)
         success: true,
         newStatus: decision.status,
         message: `Run remains paused with ${decision.pendingApprovalIds.length} pending approval(s). Pending approvals: ${decision.pendingApprovalIds.join(", ")}`,
+        continuation: {
+          nextStep: "pause",
+          stepId: null,
+          approvalIds: decision.pendingApprovalIds,
+          reason: "Waiting for approval resolution",
+        },
       }
 
     case "immutable":
@@ -61,6 +75,12 @@ export async function executeRecovery(runId: string, decision: RecoveryDecision)
         success: true,
         newStatus: decision.status,
         message: `Run is in terminal state '${decision.status}' - no recovery action taken`,
+        continuation: {
+          nextStep: "reject",
+          stepId: null,
+          approvalIds: [],
+          reason: `Terminal state: ${decision.status}`,
+        },
       }
 
     case "resume":
@@ -105,6 +125,7 @@ async function resumeRun(runId: string, decision: RecoveryDecision): Promise<Rec
         newStatus: null,
         message: "Cannot resume - state not found",
         error: "state_not_found",
+        continuation: { nextStep: "reject", stepId: null, approvalIds: [], reason: "State not found" },
       }
     }
 
@@ -114,6 +135,12 @@ async function resumeRun(runId: string, decision: RecoveryDecision): Promise<Rec
         success: true,
         newStatus: "running",
         message: `Run is already in running state. Incomplete step: ${decision.incompleteStepId || "none"}`,
+        continuation: {
+          nextStep: "resume_workflow",
+          stepId: decision.incompleteStepId,
+          approvalIds: [],
+          reason: "Continue workflow from incomplete step",
+        },
       }
     }
 
@@ -124,6 +151,12 @@ async function resumeRun(runId: string, decision: RecoveryDecision): Promise<Rec
       success: true,
       newStatus: "running",
       message: `Run resumed to running state. Incomplete step: ${decision.incompleteStepId || "none"}`,
+      continuation: {
+        nextStep: "resume_workflow",
+        stepId: decision.incompleteStepId,
+        approvalIds: [],
+        reason: "Workflow can continue from resumable point",
+      },
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -135,6 +168,7 @@ async function resumeRun(runId: string, decision: RecoveryDecision): Promise<Rec
       newStatus: null,
       message: `Resume failed: ${errorMessage}`,
       error: errorMessage,
+      continuation: { nextStep: "reject", stepId: null, approvalIds: [], reason: errorMessage },
     }
   }
 }
@@ -155,6 +189,12 @@ async function retryRun(runId: string, decision: RecoveryDecision): Promise<Reco
         success: true,
         newStatus: decision.status,
         message: `Run is in ${decision.status} state - ready for execution to start`,
+        continuation: {
+          nextStep: "start_execution",
+          stepId: null,
+          approvalIds: [],
+          reason: "Execution can begin from pre-start state",
+        },
       }
     }
 
@@ -164,6 +204,12 @@ async function retryRun(runId: string, decision: RecoveryDecision): Promise<Reco
       newStatus: null,
       message: `Cannot retry from status: ${decision.status}`,
       error: "invalid_retry_status",
+      continuation: {
+        nextStep: "reject",
+        stepId: null,
+        approvalIds: [],
+        reason: `Invalid retry status: ${decision.status}`,
+      },
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -175,6 +221,7 @@ async function retryRun(runId: string, decision: RecoveryDecision): Promise<Reco
       newStatus: null,
       message: `Retry failed: ${errorMessage}`,
       error: errorMessage,
+      continuation: { nextStep: "reject", stepId: null, approvalIds: [], reason: errorMessage },
     }
   }
 }
