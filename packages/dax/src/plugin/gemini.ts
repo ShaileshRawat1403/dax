@@ -773,9 +773,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const invalidCredential = await isInvalidCredentialError(first)
             if (!scopeError && !invalidCredential) return first
 
+            const cliCandidate = await readCliCreds()
+            const adcCandidate = Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined
             const candidates = [
-              await readCliCreds(),
-              Bun.env.DAX_GEMINI_ALLOW_ADC_IMPORT === "1" ? await readAdcCreds() : undefined,
+              cliCandidate ? { ...cliCandidate, mode: "cli-import" as const } : undefined,
+              adcCandidate ? { ...adcCandidate, mode: "vertex" as const } : undefined,
             ].filter((x) => !!x?.refresh)
             for (const imported of candidates) {
               if (!imported?.refresh) continue
