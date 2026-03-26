@@ -3,9 +3,9 @@
 If you are new to DAX, start with these files in order:
 
 1. `README.md`
-2. `ARCHITECTURE.md`
-3. `docs/REPO_BOUNDARIES.md`
-4. `docs/DAX_EXECUTION_CONTROL_PLANE_MERGE_PLAN.md`
+2. `docs/architecture/ARCHITECTURE.md`
+3. `docs/architecture/HOW_DAX_WORKS.md`
+4. `docs/product/release-readiness.md`
 
 ## Canonical Product Surface
 

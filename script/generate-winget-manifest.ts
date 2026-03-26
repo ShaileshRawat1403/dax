@@ -17,11 +17,11 @@ function parseArgs(argv: string[]): CliArgs {
 
   const versionRaw = get("--version") ?? process.env.DAX_VERSION
   if (!versionRaw) {
-    throw new Error("Missing --version (or DAX_VERSION). Example: --version v1.0.0-beta.7")
+    throw new Error("Missing --version (or DAX_VERSION). Example: --version v1.0.2")
   }
 
   const version = versionRaw.startsWith("v") ? versionRaw : `v${versionRaw}`
-  const repo = get("--repo") ?? process.env.DAX_REPO ?? "dax-ai/dax"
+  const repo = get("--repo") ?? process.env.DAX_REPO ?? "ShaileshRawat1403/dax-tui"
   const packageIdentifier = get("--id") ?? "DaxAi.DAX"
   const outputDir = get("--output-dir") ?? "dist/winget/manifests"
   return { version, repo, packageIdentifier, outputDir }

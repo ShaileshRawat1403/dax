@@ -18,6 +18,21 @@ const placeholderChecks = [
   },
 ]
 
+const forbiddenSnippets = [
+  {
+    pattern: "https://github.com/dax-ai/dax",
+    message: "stale GitHub repo reference: https://github.com/dax-ai/dax",
+  },
+  {
+    pattern: "raw.githubusercontent.com/dax-ai/dax",
+    message: "stale raw GitHub install URL for dax-ai/dax",
+  },
+  {
+    pattern: "\"dax-ai/dax\"",
+    message: "stale default repo value dax-ai/dax",
+  },
+]
+
 const markdownFiles = walk(root).filter((file) => file.endsWith(".md"))
 const problems: string[] = []
 
@@ -30,6 +45,12 @@ for (const check of placeholderChecks) {
 for (const file of markdownFiles) {
   const text = fs.readFileSync(file, "utf8")
   const relFile = path.relative(root, file)
+
+  for (const check of forbiddenSnippets) {
+    if (text.includes(check.pattern)) {
+      problems.push(`${relFile}: ${check.message}`)
+    }
+  }
 
   for (const match of text.matchAll(/\[[^\]]+\]\((?!https?:\/\/|mailto:|#)([^)]+)\)/g)) {
     const target = match[1]

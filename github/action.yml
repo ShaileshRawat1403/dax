@@ -1,0 +1,35 @@
+name: "DAX GitHub Agent"
+description: "Run the DAX GitHub agent with the checked-in release workflow"
+author: "DAX"
+
+inputs:
+  model:
+    description: "Model in provider/model format"
+    required: true
+  share:
+    description: "Whether to share the run transcript"
+    required: false
+    default: "false"
+  use-github-token:
+    description: "Whether to use the built-in GitHub token instead of the DAX app token"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Install DAX dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+      working-directory: ${{ github.action_path }}/..
+
+    - name: Run DAX GitHub agent
+      shell: bash
+      run: bun run --cwd "$GITHUB_ACTION_PATH/../packages/dax" src/index.ts github run
+      env:
+        MODEL: ${{ inputs.model }}
+        SHARE: ${{ inputs.share }}
+        USE_GITHUB_TOKEN: ${{ inputs.use-github-token }}

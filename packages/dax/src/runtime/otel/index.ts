@@ -6,6 +6,7 @@ import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic
 import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base"
 import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { Flag } from "@/flag/flag"
+import { Installation } from "@/installation"
 import { Log } from "@/util/log"
 import { Telemetry } from "@/runtime/telemetry"
 import type { TelemetryExporter, ExportedSpan, SpanAttributes } from "@/runtime/telemetry"
@@ -21,7 +22,7 @@ function buildResource(): Resource {
   const serviceName = Flag.OTEL_SERVICE_NAME ?? "dax"
   return resourceFromAttributes({
     [ATTR_SERVICE_NAME]: serviceName,
-    [ATTR_SERVICE_VERSION]: "1.0.0",
+    [ATTR_SERVICE_VERSION]: Installation.VERSION,
     "deployment.environment": Flag.INFISICAL_ENVIRONMENT ?? "dev",
   })
 }
