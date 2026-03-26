@@ -3,7 +3,7 @@
   "info": {
     "title": "dax",
     "description": "dax api",
-    "version": "1.0.2"
+    "version": "1.0.3"
   },
   "paths": {
     "/global/health": {

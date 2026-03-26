@@ -16,7 +16,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   const versionRaw = get("--version") ?? process.env.DAX_VERSION
   if (!versionRaw) {
-    throw new Error("Missing --version (or DAX_VERSION). Example: --version v1.0.2")
+    throw new Error("Missing --version (or DAX_VERSION). Example: --version v1.0.3")
   }
 
   const version = versionRaw.startsWith("v") ? versionRaw : `v${versionRaw}`
