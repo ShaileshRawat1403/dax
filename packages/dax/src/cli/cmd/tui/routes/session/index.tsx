@@ -3755,7 +3755,17 @@ function AssistantMessage(props: {
     const grouped = explainMode() ? groupParts(props.parts) : props.parts
     return grouped.filter((part) => part.type !== "tool" && part.type !== "activity-cluster")
   })
-  const shouldRender = createMemo(() => groupedParts().length > 0 || !!props.message.error)
+  const visibleParts = createMemo(() =>
+    groupedParts().filter((part) => {
+      if (part.type === "text") return part.text.trim().length > 0
+      if (part.type === "reasoning") return part.text.trim().length > 0
+      return false
+    }),
+  )
+  const showLiveStatusNote = createMemo(
+    () => props.last && !props.message.time.completed && visibleParts().length === 0 && !props.message.error,
+  )
+  const shouldRender = createMemo(() => visibleParts().length > 0 || showLiveStatusNote() || !!props.message.error)
   const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
     if (tone === "primary") return theme.primary
     if (tone === "accent") return theme.accent
@@ -3897,83 +3907,113 @@ function AssistantMessage(props: {
         </box>
       </Show>
 
-      <box
-        paddingLeft={0}
-        paddingRight={0}
-        flexDirection="column"
-        borderStyle="round"
-        borderColor={tint(theme.primary, theme.border, 0.45)}
-        backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.055)}
-        marginTop={1}
-        marginBottom={0}
-        title=" response "
-        titleAlignment="left"
-      >
-        <box
-          flexDirection="row"
-          gap={1}
-          alignItems="center"
-          paddingTop={0}
-          paddingBottom={1}
-          border={["bottom"]}
-          borderColor={theme.border}
-          marginBottom={1}
-          paddingLeft={1}
-          paddingRight={1}
-          backgroundColor={tint(theme.background, theme.backgroundElement, 0.28)}
-        >
-          <Show when={!daxSpeaking()}>
-            <box
-              backgroundColor={tint(theme.background, theme.primary, 0.34)}
-              paddingLeft={1}
-              paddingRight={1}
-              marginRight={1}
-            >
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                {props.message.agent.toUpperCase()}
-              </text>
-            </box>
-          </Show>
-          <Show when={ctx.showTimestamps()}>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              {Locale.todayTimeOrDateTime(props.message.time.created)}
-            </text>
-          </Show>
-        </box>
-        <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
-          <Show when={groupedParts().some((part) => part.type === "text")}>
-            <box marginBottom={1}>
-              <box
-                backgroundColor={tint(theme.background, theme.primary, 0.26)}
-                borderStyle="round"
-                borderColor={tint(theme.primary, theme.border, 0.25)}
-                paddingLeft={1}
-                paddingRight={1}
-              >
+      <Show when={showLiveStatusNote()}>
+        <box paddingLeft={2} paddingRight={2} marginTop={1}>
+          <box
+            flexDirection="column"
+            gap={0}
+            borderStyle="round"
+            borderColor={theme.borderSubtle}
+            backgroundColor={tint(theme.background, theme.backgroundElement, 0.2)}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={1}
+            paddingBottom={1}
+          >
+            <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+              <box backgroundColor={tint(theme.background, theme.primary, 0.24)} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  response
+                  {Locale.titlecase(props.message.mode)}
                 </text>
               </box>
+              <text fg={theme.text}>{doing()}</text>
             </box>
-          </Show>
-          <For each={groupedParts()}>
-            {(part, index) => {
-              const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
-              return (
-                <Show when={component()}>
-                  <Dynamic
-                    last={index() === groupedParts().length - 1}
-                    component={component()}
-                    part={part as any}
-                    message={props.message}
-                    marginTop={0}
-                  />
-                </Show>
-              )
-            }}
-          </For>
+            <text fg={theme.textMuted} wrapMode="word">
+              {next()}
+            </text>
+          </box>
         </box>
-      </box>
+      </Show>
+
+      <Show when={visibleParts().length > 0}>
+        <box
+          paddingLeft={0}
+          paddingRight={0}
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={tint(theme.primary, theme.border, 0.45)}
+          backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.055)}
+          marginTop={1}
+          marginBottom={0}
+          title=" response "
+          titleAlignment="left"
+        >
+          <box
+            flexDirection="row"
+            gap={1}
+            alignItems="center"
+            paddingTop={0}
+            paddingBottom={1}
+            border={["bottom"]}
+            borderColor={theme.border}
+            marginBottom={1}
+            paddingLeft={1}
+            paddingRight={1}
+            backgroundColor={tint(theme.background, theme.backgroundElement, 0.28)}
+          >
+            <Show when={!daxSpeaking()}>
+              <box
+                backgroundColor={tint(theme.background, theme.primary, 0.34)}
+                paddingLeft={1}
+                paddingRight={1}
+                marginRight={1}
+              >
+                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                  {props.message.agent.toUpperCase()}
+                </text>
+              </box>
+            </Show>
+            <Show when={ctx.showTimestamps()}>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                {Locale.todayTimeOrDateTime(props.message.time.created)}
+              </text>
+            </Show>
+          </box>
+          <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
+            <Show when={visibleParts().some((part) => part.type === "text")}>
+              <box marginBottom={1}>
+                <box
+                  backgroundColor={tint(theme.background, theme.primary, 0.26)}
+                  borderStyle="round"
+                  borderColor={tint(theme.primary, theme.border, 0.25)}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                    response
+                  </text>
+                </box>
+              </box>
+            </Show>
+            <For each={visibleParts()}>
+              {(part, index) => {
+                const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
+                return (
+                  <Show when={component()}>
+                    <Dynamic
+                      last={index() === visibleParts().length - 1}
+                      component={component()}
+                      part={part as any}
+                      message={props.message}
+                      marginTop={0}
+                    />
+                  </Show>
+                )
+              }}
+            </For>
+          </box>
+        </box>
+      </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         <box
           paddingTop={1}
