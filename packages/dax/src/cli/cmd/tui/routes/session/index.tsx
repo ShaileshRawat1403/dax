@@ -3755,7 +3755,7 @@ function AssistantMessage(props: {
     const grouped = explainMode() ? groupParts(props.parts) : props.parts
     return grouped.filter((part) => part.type !== "tool" && part.type !== "activity-cluster")
   })
-  const shouldRender = createMemo(() => groupedParts().length > 0 || !!props.message.error || final())
+  const shouldRender = createMemo(() => groupedParts().length > 0 || !!props.message.error)
   const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
     if (tone === "primary") return theme.primary
     if (tone === "accent") return theme.accent
