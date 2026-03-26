@@ -217,7 +217,11 @@ function compactActivityItems(
     .slice(0, 2)
     .map((item) => item.label)
     .filter(Boolean)
-  const items = [currentStep, stageReason, ...toolItems].filter(Boolean) as string[]
+  const items = [
+    currentStep,
+    isGenericOperationalReason(stageReason) && toolItems.length > 0 ? undefined : stageReason,
+    ...toolItems,
+  ].filter(Boolean) as string[]
   return Array.from(new Set(items))
     .map((item) => summarize(item, 72) ?? item)
     .slice(0, 3)
@@ -226,6 +230,13 @@ function compactActivityItems(
 function isLowSignalStageReason(value: string | undefined) {
   if (!value) return true
   return /^(idle|session processing|response stream active|reasoning stream active|waiting for stream content)$/i.test(
+    value.trim(),
+  )
+}
+
+function isGenericOperationalReason(value: string | undefined) {
+  if (!value) return false
+  return /^(reading files|searching the workspace|searching file contents|listing project files|running a command|writing a file|editing a file|patching files|structuring the task|updating the checklist|loading a skill)$/i.test(
     value.trim(),
   )
 }
@@ -242,8 +253,9 @@ function resolveCurrentStep(input: {
     return input.approvals[0]?.reason || input.approvals[0]?.label || "Approval needs review"
   }
   if (input.questions > 0) return "Question needs review"
-  if (!isLowSignalStageReason(input.stageReason)) return input.stageReason
   const activeTool = input.recentTooling.find((item) => item.status === "pending")?.label
+  if (activeTool && isGenericOperationalReason(input.stageReason)) return activeTool
+  if (!isLowSignalStageReason(input.stageReason)) return input.stageReason
   if (activeTool) return activeTool
   const latestTool = input.recentTooling[0]?.label
   if (latestTool) return latestTool

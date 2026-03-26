@@ -2710,21 +2710,6 @@ export function Session() {
                                       </text>
                                     </box>
                                   </box>
-                                  <Show when={workstationState().goal}>
-                                    <box
-                                      flexDirection="column"
-                                      gap={0}
-                                      padding={1}
-                                      backgroundColor={theme.backgroundElement}
-                                      border={["round"]}
-                                      borderColor={theme.borderSubtle}
-                                    >
-                                      <text fg={theme.textMuted}>Goal</text>
-                                      <text fg={theme.text} wrapMode="word" bold>
-                                        {workstationState().goal}
-                                      </text>
-                                    </box>
-                                  </Show>
                                   <Show when={workstationState().currentStep}>
                                     <box
                                       flexDirection="column"
@@ -2791,6 +2776,21 @@ export function Session() {
                                       <text fg={theme.text}>
                                         ● {workstationState().approvalSummary.topLabel ?? "Approval"} ·{" "}
                                         {workstationState().approvalSummary.pendingCount} waiting
+                                      </text>
+                                    </box>
+                                  </Show>
+                                  <Show when={workstationState().goal}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={theme.backgroundElement}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
+                                    >
+                                      <text fg={theme.textMuted}>Goal</text>
+                                      <text fg={theme.text} wrapMode="word" bold>
+                                        {workstationState().goal}
                                       </text>
                                     </box>
                                   </Show>
