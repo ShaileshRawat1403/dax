@@ -59,6 +59,7 @@ import { runGraph } from "@/execution/run-graph"
 import { OperatorRouter } from "@/operators/router"
 import { ExploreOperator } from "@/operators/explore"
 import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
+import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -2487,6 +2488,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   }) {
     if (input.session.parentID) return
     if (!Session.isDefaultTitle(input.session.title)) return
+    if (await shouldSkipDecorativeGeminiSubscriptionCall(input.providerID)) return
 
     // Find first non-synthetic user message
     const firstRealUserIdx = input.history.findIndex(

@@ -16,6 +16,7 @@ import { Bus } from "@/bus"
 
 import { LLM } from "./llm"
 import { Agent } from "@/agent/agent"
+import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 
 export namespace SessionSummary {
   const log = Log.create({ service: "session.summary" })
@@ -140,6 +141,7 @@ export namespace SessionSummary {
 
     const textPart = msgWithParts.parts.find((p) => p.type === "text" && !p.synthetic) as MessageV2.TextPart
     if (textPart && !userMsg.summary?.title) {
+      if (await shouldSkipDecorativeGeminiSubscriptionCall(userMsg.model.providerID)) return
       const agent = await Agent.get("title")
       if (!agent) return
       try {
