@@ -15,6 +15,17 @@ A strong DAX prompt usually tells it:
 - what constraints matter
 - what kind of output you want back
 
+```mermaid
+graph LR
+    A[Goal] --> E[Usable DAX intent]
+    B[Scope] --> E
+    C[Constraints] --> E
+    D[Desired output] --> E
+    E --> F[Governed execution plan]
+    style E fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style F fill:#5cb85c,stroke:#3d8b3d,color:#fff
+```
+
 ## A Simple Formula
 
 Use this structure when in doubt:
@@ -198,6 +209,25 @@ Good operator instructions are:
 - staged
 - inspectable
 - reviewable
+
+```mermaid
+mindmap
+  root((Strong DAX intent))
+    Goal
+      What should happen
+    Scope
+      Where to focus
+      What to exclude
+    Constraints
+      Read-only
+      Safe first
+      Non-technical audience
+    Output
+      Plan
+      Findings
+      Diff
+      Checklist
+```
 
 ## Related Guides
 

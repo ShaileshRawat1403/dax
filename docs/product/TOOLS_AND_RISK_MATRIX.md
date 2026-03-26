@@ -21,6 +21,18 @@ At a high level, DAX can:
 
 Not all of those carry the same risk.
 
+```mermaid
+graph TD
+    A[Read and search] --> B[Lower default risk]
+    C[Planning and delegation] --> D[Medium operational risk]
+    E[Edit and write] --> F[Higher review need]
+    G[Shell and sensitive actions] --> H[Highest variance]
+    style B fill:#5cb85c,stroke:#3d8b3d,color:#fff
+    style D fill:#e8a838,stroke:#c07d1a,color:#fff
+    style F fill:#f0ad4e,stroke:#c07d1a,color:#fff
+    style H fill:#e85d5d,stroke:#a33,color:#fff
+```
+
 ## Quick Risk Matrix
 
 | Category | Typical tools | Default risk profile | What it usually means |
@@ -238,6 +250,32 @@ What they do need to know is:
 - DAX can inspect, plan, and act
 - risky actions should be more visible than safe ones
 - the tool surface exists to make work inspectable, not magical
+
+```mermaid
+mindmap
+  root((DAX tools))
+    Inspect
+      list
+      read
+      glob
+      grep
+    Research
+      codesearch
+      websearch
+      webfetch
+    Organize
+      todoread
+      todowrite
+      skill
+    Act
+      edit
+      write
+      apply_patch
+      shell
+    Remember
+      pm_note
+      /pm rules
+```
 
 ## Related Guides
 

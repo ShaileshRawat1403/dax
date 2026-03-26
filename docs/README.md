@@ -4,6 +4,29 @@ Welcome to the canonical documentation for **DAX (Deterministic AI eXecution)**.
 
 ---
 
+```mermaid
+mindmap
+  root((DAX Docs))
+    Start
+      What is DAX
+      Quickstart
+      User Guide
+      Non-Developer Guide
+    Use
+      Intent Guide
+      Providers
+      Runs and approvals
+      Tools and risk
+    Govern
+      Policy tuning
+      Project memory
+      Trust model
+    Extend
+      Build on DAX
+      Deployment
+      Contributing
+```
+
 ## 🚀 Getting Started
 
 If you are new to DAX, start here to understand the core concepts and get your environment ready.
