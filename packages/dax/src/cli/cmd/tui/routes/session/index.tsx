@@ -3934,20 +3934,33 @@ function AssistantMessage(props: {
   )
 
   const groupedParts = createMemo(() => {
-    const grouped = explainMode() ? groupParts(props.parts) : props.parts
-    return grouped.filter((part) => part.type !== "tool" && part.type !== "activity-cluster")
+    if (explainMode()) return groupParts(props.parts)
+    return props.parts
   })
-  const visibleParts = createMemo(() =>
+  const renderableParts = createMemo(() =>
     groupedParts().filter((part) => {
       if (part.type === "text") return part.text.trim().length > 0
       if (part.type === "reasoning") return cleanReasoningText(part.text).length > 0
+      if (part.type === "tool") {
+        if (ctx.showDetails()) return true
+        if (part.state.status !== "completed") return true
+        return ["read", "shell", "write", "edit", "patch", "webfetch"].includes(part.tool)
+      }
+      if (part.type === "activity-cluster") {
+        if (ctx.showDetails()) return true
+        return part.tools.some(
+          (tool) =>
+            tool.state.status !== "completed" ||
+            ["read", "shell", "write", "edit", "patch", "webfetch"].includes(tool.tool),
+        )
+      }
       return false
     }),
   )
   const showLiveStatusNote = createMemo(
-    () => props.last && !props.message.time.completed && visibleParts().length === 0 && !props.message.error,
+    () => props.last && !props.message.time.completed && renderableParts().length === 0 && !props.message.error,
   )
-  const shouldRender = createMemo(() => visibleParts().length > 0 || showLiveStatusNote() || !!props.message.error)
+  const shouldRender = createMemo(() => renderableParts().length > 0 || showLiveStatusNote() || !!props.message.error)
   const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
     if (tone === "primary") return theme.primary
     if (tone === "accent") return theme.accent
@@ -4122,7 +4135,7 @@ function AssistantMessage(props: {
         </box>
       </Show>
 
-      <Show when={visibleParts().length > 0}>
+      <Show when={renderableParts().length > 0}>
         <box
           paddingLeft={0}
           paddingRight={0}
@@ -4187,13 +4200,13 @@ function AssistantMessage(props: {
                 </box>
               </box>
             </Show>
-            <For each={visibleParts()}>
+            <For each={renderableParts()}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
                 return (
                   <Show when={component()}>
                     <Dynamic
-                      last={index() === visibleParts().length - 1}
+                      last={index() === renderableParts().length - 1}
                       component={component()}
                       part={part as any}
                       message={props.message}
@@ -4858,7 +4871,7 @@ function Glob(props: ToolProps<typeof GlobTool>) {
 
 function Read(props: ToolProps<typeof ReadTool>) {
   const { theme } = useTheme()
-  const ctx = use()
+  const target = createMemo(() => normalizePath((props.input as any).filePath!))
   const loaded = createMemo(() => {
     if (props.part.state.status !== "completed") return []
     if (props.part.state.time.compacted) return []
@@ -4876,11 +4889,11 @@ function Read(props: ToolProps<typeof ReadTool>) {
     <>
       <InlineTool
         icon={props.part.state.status === "completed" ? "✓" : "→"}
-        pending="Reading file..."
+        pending={`Reading ${target()}...`}
         complete={props.part.state.status === "completed"}
         part={props.part}
       >
-        {ctx.wide ? "Read file content" : `Read ${normalizePath((props.input as any).filePath!)}`}
+        {`Read ${target()}`}
       </InlineTool>
       <Show when={insight()}>
         <box paddingLeft={4}>
