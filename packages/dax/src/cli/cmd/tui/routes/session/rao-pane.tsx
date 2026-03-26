@@ -304,10 +304,16 @@ export function RAOPane(props: {
 
   return (
     <box flexDirection="column" gap={0} flexGrow={1}>
+      <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.borderSubtle}>
+        <text fg={theme.primary} bold>
+          Approvals
+        </text>
+        <text fg={theme.textMuted}>Needs your decision</text>
+      </box>
       <Show when={items().length === 0}>
         <box flexDirection="column" gap={1} padding={1}>
           <text fg={theme.success}>All clear</text>
-          <text fg={theme.textMuted}>No pending approvals or questions</text>
+          <text fg={theme.textMuted}>No approvals or open questions right now.</text>
         </box>
       </Show>
 

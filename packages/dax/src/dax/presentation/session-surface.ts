@@ -117,7 +117,7 @@ export function deriveLiveSessionStageState(input: {
   }
 
   if (input.sessionStatusType === "retry") {
-    return { stage: "retrying", reason: "recovering from a failed attempt" }
+    return { stage: "retrying", reason: "provider cooldown in progress" }
   }
 
   if (input.pendingID) {
@@ -139,7 +139,7 @@ export function deriveLiveSessionStageState(input: {
     }
 
     const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
-    if (hasReasoning) return { stage: "thinking", reason: "reasoning stream active" }
+    if (hasReasoning) return { stage: "thinking", reason: "working through the request" }
     return { stage: "thinking", reason: "response stream active" }
   }
 
@@ -158,14 +158,14 @@ export function deriveLiveStreamStatus(input: {
 
   const parts = input.partsForMessage(input.pendingID)
   const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
-  if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} running`
+  if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} in progress`
 
   const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
-  if (completedTool && completedTool.type === "tool") return `${completedTool.tool} completed`
+  if (completedTool && completedTool.type === "tool") return `${completedTool.tool} wrapped up`
 
-  if (nonEmptyTextPart(parts, "reasoning")) return "reasoning stream active"
-  if (nonEmptyTextPart(parts, "text")) return "response stream active"
-  return "waiting for stream content"
+  if (nonEmptyTextPart(parts, "reasoning")) return "drafting the next step"
+  if (nonEmptyTextPart(parts, "text")) return "answer streaming"
+  return "waiting for provider response"
 }
 
 export function deriveStreamFidelitySnapshot(input: {

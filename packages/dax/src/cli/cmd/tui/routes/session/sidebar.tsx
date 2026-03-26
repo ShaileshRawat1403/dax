@@ -1,5 +1,5 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
+import { createMemo, createSignal, For, onCleanup, onMount, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
 import { TextAttributes } from "@opentui/core"
@@ -13,6 +13,7 @@ import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { deriveAuditHistory, deriveLiveSessionStageState } from "@/dax/presentation/session-surface"
+import { Locale } from "@/util/locale"
 
 function TelemetryPanel(props: { state: WorkstationState }) {
   const { theme } = useTheme()
@@ -159,6 +160,16 @@ export function Sidebar(props: {
     const status = runtimeStatus()
     return status.type === "retry" ? status.message : undefined
   })
+  const [retryNow, setRetryNow] = createSignal(Date.now())
+  onMount(() => {
+    const timer = setInterval(() => setRetryNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  const retryCountdown = createMemo(() => {
+    const status = runtimeStatus()
+    if (status.type !== "retry") return undefined
+    return Math.max(0, status.next - retryNow())
+  })
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
@@ -280,9 +291,9 @@ export function Sidebar(props: {
               </text>
               <text fg={runtimeStatus().type === "retry" ? theme.warning : theme.textMuted}>
                 {runtimeStatus().type === "busy"
-                  ? "waiting"
+                  ? "working"
                   : runtimeStatus().type === "retry"
-                    ? "blocked"
+                    ? "cooling down"
                     : "connected"}
               </text>
               <Show when={retryMessage()}>
@@ -291,6 +302,13 @@ export function Sidebar(props: {
                     <text fg={theme.warning} wrapMode="word">
                       {message()}
                     </text>
+                    <Show when={retryCountdown()}>
+                      {(ms) => (
+                        <text fg={theme.textMuted} wrapMode="word">
+                          retry in: {Locale.duration(ms())}
+                        </text>
+                      )}
+                    </Show>
                     <text fg={theme.textMuted} wrapMode="word">
                       next: {nextActionForErrorMessage(message())}
                     </text>
