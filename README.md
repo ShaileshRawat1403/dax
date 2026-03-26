@@ -82,6 +82,14 @@ The recommended way to install the DAX binary is via the universal installation 
 curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
 ```
 
+### 🍺 macOS & 🐧 Linux via Homebrew
+
+If you prefer Homebrew, DAX is also available from the public tap:
+
+```bash
+brew install ShaileshRawat1403/tap/dax
+```
+
 ### 🪟 Windows
 
 You can install DAX using **WinGet**:
@@ -107,6 +115,16 @@ After installation, verify it works by running:
 ```bash
 dax --version
 ```
+
+### Google / Gemini auth note
+
+For most users, DAX will show three Google auth options:
+
+- `Gemini API Key`
+- `Import from Gemini CLI`
+- `Custom Google OAuth Client`
+
+The advanced direct Google sign-in lane only appears when both `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
 
 ---
 

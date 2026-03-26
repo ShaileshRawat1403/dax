@@ -26,7 +26,15 @@ dax auth doctor google/gemini-2.5-flash
 
 ## Google Auth Lanes
 
-DAX supports multiple discrete authentication lanes for the `google/*` provider:
+DAX supports multiple authentication lanes for the `google/*` provider.
+
+In the current CLI and TUI UX, most operators will see three visible options by default:
+
+- `Gemini API Key`
+- `Import from Gemini CLI`
+- `Custom Google OAuth Client`
+
+The advanced direct Google sign-in lane is shown only when both `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
 
 ### 1. Gemini API Key (Default)
 
@@ -36,7 +44,7 @@ Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.
 
 Direct browser-based sign-in for Gemini Pro/Plus subscriptions. This lane routes your models to Code Assist's `cloudcode-pa` endpoints and enables advanced subscription quota behavior.
 
-_Note: This advanced lane requires the operator to provide Code Assist compatible credentials via the `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` environment variables._
+_Note: This advanced lane is hidden from the auth picker unless Code Assist compatible credentials are provided via `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET`._
 
 ### 3. Import from Gemini CLI
 
@@ -63,8 +71,8 @@ If you prefer to maintain isolation or run in an enterprise setting, you can use
 3. **Pre-configure credentials** (for repeated use):
    ```bash
    # Set environment variables before running dax
-   export DAX_GEMINI_OAUTH_CLIENT_ID="your-client-id"
-   export DAX_GEMINI_OAUTH_CLIENT_SECRET="your-client-secret"
+   export DAX_GOOGLE_CLI_CLIENT_ID="your-client-id"
+   export DAX_GOOGLE_CLI_CLIENT_SECRET="your-client-secret"
    # Then run dax auth login and select "Custom Google OAuth Client"
    ```
 
