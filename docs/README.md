@@ -11,9 +11,11 @@ If you are new to DAX, start here to understand the core concepts and get your e
 - [**What Is DAX?**](./product/WHAT_IS_DAX.md) - What DAX is, what problem it solves, and who it's for.
 - [**DAX In Simple Words**](./product/DAX_IN_SIMPLE_WORDS.md) - Analogies and plain-language walkthrough (ELI12).
 - [**Quickstart**](./product/QUICKSTART.md) - Install, configure, and run your first workflow in 5 minutes.
+- [**User Guide**](./product/USER_GUIDE.md) - The practical day-to-day guide to getting useful work done in DAX.
 - [**Product Overview**](./product/start-here.md) - Screenshots and first-run walkthrough.
 - [**Non-Developer Quickstart**](./product/non-dev-quickstart.md) - For operators and reviewers.
 - [**Provider Setup**](./product/providers.md) - Configuring OpenAI, Gemini, Anthropic, and others.
+- [**Builder's Note**](./BUILDERS_NOTE.md) - Why DAX exists and what perspective shaped it.
 
 ---
 
@@ -21,6 +23,10 @@ If you are new to DAX, start here to understand the core concepts and get your e
 
 Deep dives into how to use DAX features for real-world delivery.
 
+- [**Prompt Engineering and Intent Guide**](./product/INTENT_GUIDE.md) - How to write effective DAX intents and avoid vague requests.
+- [**Tool Reference and Risk Matrix**](./product/TOOLS_AND_RISK_MATRIX.md) - What DAX can do, and which actions deserve more scrutiny.
+- [**Project Memory Guide**](./product/PROJECT_MEMORY.md) - How PM notes, rules, and local memory work.
+- [**Policy Customization and RAO Tuning**](./product/POLICY_TUNING.md) - How to think about approvals, posture, and governance.
 - [**Runs, Approvals and Recovery**](./product/RUNS_APPROVALS_AND_RECOVERY.md) - Practical guide to runs, approvals, contracts, and crash recovery.
 - [**Audit Agent Guide**](./product/audit-agent.md) - Governing actions and maintaining trust.
 - [**Workflows**](./product/WORKFLOWS.md) - Standardizing multi-step AI operations.
@@ -67,3 +73,5 @@ Detailed specifications for the key surfaces of the DAX workstation.
 - [**Transparency and Limitations**](./product/TRANSPARENCY_AND_LIMITATIONS.md) - What DAX can do, what it cannot guarantee, and why human oversight matters.
 - [**Contributor Start Here**](./product/contributor-start-here.md) - Joining the mission.
 - [**Security Policy**](../SECURITY.md) - Reporting vulnerabilities and responsible use.
+
+If DAX is useful to you, fork it, try it on your own workflows, and open a PR. Documentation, onboarding, governance, workflow quality, and operator UX are all valuable contribution areas.
