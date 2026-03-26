@@ -14,7 +14,23 @@ Notes:
 - For prereleases, pass `DAX_VERSION=vX.Y.Z-beta.N`.
 - Without `DAX_VERSION`, installer resolves latest stable first and falls back to latest non-draft release.
 
-### Windows (manual)
+### macOS/Linux (Homebrew)
+
+```bash
+brew install ShaileshRawat1403/tap/dax
+```
+
+Notes:
+- Homebrew installs from the public `ShaileshRawat1403/homebrew-tap` tap.
+- The formula is generated from release assets and checksums.
+
+### Windows (WinGet)
+
+```powershell
+winget install DaxAi.DAX
+```
+
+### Windows (manual fallback)
 
 1. Download `dax-windows-x64.zip` from GitHub Releases.
 2. Extract `dax.exe` into a folder (example `C:\Tools\dax`).

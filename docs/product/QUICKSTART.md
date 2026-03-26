@@ -16,6 +16,12 @@ Get DAX running on your machine in under 5 minutes.
 curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
 ```
 
+### macOS / Linux (Homebrew)
+
+```bash
+brew install ShaileshRawat1403/tap/dax
+```
+
 ### Windows (WinGet)
 
 ```powershell
@@ -47,7 +53,7 @@ Set your model provider credentials:
 export OPENAI_API_KEY="sk-..."
 
 # Google Gemini
-export GOOGLE_GENERATIVE_AI_API_KEY="..."
+export GEMINI_API_KEY="..."
 
 # Anthropic
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -56,8 +62,14 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 Or use the built-in auth manager:
 
 ```bash
-dax auth set google/gemini-2.5-flash
+dax auth login
 ```
+
+Without `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET`, the Google/Gemini auth picker will show the standard three lanes:
+
+- `Gemini API Key`
+- `Import from Gemini CLI`
+- `Custom Google OAuth Client`
 
 ## First Run
 
