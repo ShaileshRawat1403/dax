@@ -4187,21 +4187,6 @@ function AssistantMessage(props: {
                 </box>
               </box>
             </Show>
-            <Show when={visibleParts().some((part) => part.type === "text")}>
-              <box marginBottom={1}>
-                <box
-                  backgroundColor={tint(theme.background, theme.primary, 0.26)}
-                  borderStyle="round"
-                  borderColor={tint(theme.primary, theme.border, 0.25)}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
-                  <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                    response
-                  </text>
-                </box>
-              </box>
-            </Show>
             <For each={visibleParts()}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -4303,21 +4288,19 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   const { theme, syntax } = useTheme()
   const ctx = use()
   const content = createMemo(() => cleanReasoningText(props.part.text))
-  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.34))
+  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
 
   return (
     <Show when={content() && ctx.showThinking()}>
       <box
         id={"text-" + props.part.id}
         paddingLeft={1}
-        paddingRight={1}
+        paddingRight={0}
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
-        borderStyle="round"
-        borderColor={tint(theme.primary, theme.border, 0.22)}
-        backgroundColor={tint(theme.background, theme.primary, 0.065)}
-        title=" thinking "
-        titleAlignment="left"
+        border={["left"]}
+        borderColor={theme.primary}
+        backgroundColor={tint(theme.background, theme.primary, 0.02)}
       >
         <box
           flexDirection="row"
@@ -4329,14 +4312,14 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         >
           <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
             <text fg={theme.background} attributes={TextAttributes.BOLD}>
-              THINKING
+              REASONING
             </text>
           </box>
-          <text fg={theme.textMuted}>live reasoning</text>
+          <text fg={theme.textMuted}>working notes</text>
         </box>
         <box paddingBottom={1}>
           <code
-            filetype="markdown"
+            filetype="text"
             drawUnstyledText={false}
             streaming={true}
             syntaxStyle={syntax()}
@@ -4352,22 +4335,16 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
 
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
-  const { theme, syntax } = useTheme()
+  const { syntax } = useTheme()
   return (
     <Show when={props.part.text.trim()}>
       <box
         id={"text-" + props.part.id}
-        paddingLeft={1}
-        paddingRight={1}
-        paddingTop={1}
+        paddingLeft={2}
+        paddingRight={2}
         paddingBottom={1}
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
-        borderStyle="round"
-        borderColor={tint(theme.primary, theme.border, 0.22)}
-        backgroundColor={tint(theme.background, theme.primary, 0.075)}
-        title=" answer "
-        titleAlignment="left"
       >
         <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
       </box>
