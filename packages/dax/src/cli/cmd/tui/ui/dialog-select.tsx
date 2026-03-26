@@ -376,7 +376,7 @@ function Option(props: {
           {props.gutter}
         </box>
       </Show>
-      <box flexGrow={1} paddingLeft={3} flexDirection="row" gap={1} overflow="hidden">
+      <box flexGrow={1} paddingLeft={3} flexDirection="column" overflow="hidden">
         <text
           fg={props.active ? fg : props.current ? theme.primary : theme.text}
           attributes={props.active ? TextAttributes.BOLD : undefined}
@@ -386,7 +386,7 @@ function Option(props: {
           {Locale.truncate(props.title, 61)}
         </text>
         <Show when={props.description}>
-          <text fg={props.active ? fg : theme.textMuted} overflow="hidden" wrapMode="none">
+          <text fg={props.active ? fg : theme.textMuted} overflow="hidden" wrapMode="word">
             {props.description}
           </text>
         </Show>

@@ -15,9 +15,9 @@ import { Provider } from "../../provider/provider"
 import { bootstrap } from "../bootstrap"
 import open from "open"
 import { doctorExitCode, formatDoctorSection, authSection } from "@/doctor"
+import { getVisibleProviderAuthMethods } from "./provider-auth"
 
 type PluginAuth = NonNullable<Hooks["auth"]>
-const hasAdvancedGoogleClient = !!process.env.DAX_GOOGLE_CLI_CLIENT_ID && !!process.env.DAX_GOOGLE_CLI_CLIENT_SECRET
 
 /**
  * Handle plugin-based authentication flow.
@@ -27,36 +27,11 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
   let method = plugin.auth.methods[0]
 
   if (plugin.auth.methods.length > 1) {
-    const methodOptions = plugin.auth.methods
-      .map((x, i) => {
-        let label = x.label
-        let hint = (x as any).hint
-
-        if (provider.includes("google") || provider.includes("gemini")) {
-          if (label.includes("Gemini API") || label.includes("API key")) {
-            label = "Gemini API Key"
-            hint = "Get a free API key"
-          } else if (label.includes("Gemini CLI") || label.includes("CLI")) {
-            label = "Import from Gemini CLI"
-            hint = "Use local credentials (recommended)"
-          } else if (label.toLowerCase().includes("sign in")) {
-            if (!hasAdvancedGoogleClient) {
-              return null
-            }
-            label = "Advanced Google Sign-In (requires client ID/secret)"
-          } else if (label.toLowerCase().includes("oauth")) {
-            label = "Custom Google OAuth Client"
-            hint = "Use your own OAuth credentials"
-          }
-        }
-
-        return {
-          label: label.length > 60 ? label.slice(0, 57) + "..." : label,
-          value: i.toString(),
-          hint: hint ? (hint.length > 60 ? hint.slice(0, 57) + "..." : hint) : undefined,
-        }
-      })
-      .filter((opt): opt is NonNullable<typeof opt> => opt !== null)
+    const methodOptions = getVisibleProviderAuthMethods(provider, plugin.auth.methods).map((item) => ({
+      label: item.title.length > 60 ? item.title.slice(0, 57) + "..." : item.title,
+      value: item.originalIndex.toString(),
+      hint: item.hint ? (item.hint.length > 60 ? item.hint.slice(0, 57) + "..." : item.hint) : undefined,
+    }))
 
     const selectedMethodIndex = await prompts.select({
       message: "Select login method",
