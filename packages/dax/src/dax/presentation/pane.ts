@@ -46,12 +46,16 @@ export function deriveAutoPaneMode(input: {
   hasApprovals: boolean
   hasRefineDraft: boolean
   hasAuditAttention: boolean
+  hasDiffContext: boolean
+  hasLiveContext: boolean
   hasPlanContext: boolean
   fallback: PaneMode
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
   if (input.hasRefineDraft) return "refine"
+  if (input.hasLiveContext) return "plan"
   if (input.hasAuditAttention) return "audit"
+  if (input.hasDiffContext) return "diff"
   if (input.hasPlanContext) return "plan"
   return input.fallback
 }
@@ -60,6 +64,8 @@ export function deriveActivePaneMode(input: {
   hasApprovals: boolean
   hasRefineDraft: boolean
   hasAuditAttention: boolean
+  hasDiffContext: boolean
+  hasLiveContext: boolean
   hasPlanContext: boolean
   fallback: PaneMode
   paneMode: PaneMode
@@ -74,6 +80,8 @@ export function deriveActivePaneMode(input: {
       hasApprovals: input.hasApprovals,
       hasRefineDraft: input.hasRefineDraft,
       hasAuditAttention: input.hasAuditAttention,
+      hasDiffContext: input.hasDiffContext,
+      hasLiveContext: input.hasLiveContext,
       hasPlanContext: input.hasPlanContext,
       fallback: input.fallback,
     })
@@ -82,6 +90,8 @@ export function deriveActivePaneMode(input: {
     hasApprovals: input.hasApprovals,
     hasRefineDraft: input.hasRefineDraft,
     hasAuditAttention: input.hasAuditAttention,
+    hasDiffContext: input.hasDiffContext,
+    hasLiveContext: input.hasLiveContext,
     hasPlanContext: input.hasPlanContext,
     fallback: input.fallback,
   })
@@ -92,8 +102,17 @@ export function shouldAutoShowPane(input: {
   hasApprovals: boolean
   hasRefineDraft: boolean
   hasAuditAttention: boolean
+  hasDiffContext: boolean
+  hasLiveContext: boolean
   hasPlanContext: boolean
 }) {
   if (!input.wide) return false
-  return input.hasApprovals || input.hasRefineDraft || input.hasAuditAttention || input.hasPlanContext
+  return (
+    input.hasApprovals ||
+    input.hasRefineDraft ||
+    input.hasAuditAttention ||
+    input.hasDiffContext ||
+    input.hasLiveContext ||
+    input.hasPlanContext
+  )
 }

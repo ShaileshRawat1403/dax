@@ -851,6 +851,13 @@ export function Session() {
     }
     return items
   })
+  const hasLivePaneContext = createMemo(() => {
+    if (sessionStatusType() !== "idle") return true
+    if (stageState().stage !== "done") return true
+    if (todo().some((item) => item.status === "in_progress")) return true
+    if (recentTools().some((item) => item.status === "pending")) return true
+    return false
+  })
   const liveMilestones = createMemo(() => {
     if (todo().length > 0) {
       return todo()
@@ -894,7 +901,6 @@ export function Session() {
     }
     return items.slice(0, 5)
   })
-
   const auditHistory = createMemo(() =>
     deriveAuditHistory({
       messages: messages(),
@@ -1042,7 +1048,7 @@ export function Session() {
     const audit = latestAudit()?.result
     return workflowMode() === "audit" || audit?.status === "warn" || audit?.status === "fail"
   })
-  const hasPlanContext = createMemo(() => hasPlanNeed() || todo().length > 0 || !!session()?.title)
+  const hasPlanContext = createMemo(() => hasPlanNeed() || todo().length > 0 || !!liveMissionGoal())
   const priorityPaneMode = createMemo<PaneMode>(() => {
     if (hasApprovalsNeed()) return "approvals"
     if (hasRefineNeed()) return "refine"
@@ -1103,6 +1109,28 @@ export function Session() {
         : undefined,
     }),
   )
+  const planMilestones = createMemo(() => {
+    const seen = new Set<string>()
+    const goal = workstationState().goal?.trim().toLowerCase()
+    const focus = workstationState().currentStep?.trim().toLowerCase()
+    return liveMilestones().filter((item) => {
+      const label = item.label.trim()
+      const normalized = label.toLowerCase()
+      if (!label || seen.has(normalized)) return false
+      if (goal && normalized === goal) return false
+      if (focus && normalized === focus) return false
+      seen.add(normalized)
+      return true
+    })
+  })
+  const planTooling = createMemo(() => {
+    const suppressed = new Set(
+      [workstationState().currentStep, ...workstationState().activitySummary.items]
+        .filter((item): item is string => !!item)
+        .map((item) => item.trim().toLowerCase()),
+    )
+    return recentTools().filter((item) => !suppressed.has(item.label.trim().toLowerCase()))
+  })
   const hasRequirement = createMemo(() => hasApprovalsNeed() || hasRefineNeed() || hasAuditNeed() || hasPlanContext())
 
   const showPane = createMemo(() => {
@@ -1113,6 +1141,8 @@ export function Session() {
       hasApprovals: hasApprovalsNeed(),
       hasRefineDraft: hasRefineNeed(),
       hasAuditAttention: hasAuditNeed(),
+      hasDiffContext: hasDiffNeed(),
+      hasLiveContext: hasLivePaneContext(),
       hasPlanContext: hasPlanContext(),
     })
   })
@@ -1121,6 +1151,8 @@ export function Session() {
       hasApprovals: hasApprovalsNeed(),
       hasRefineDraft: hasRefineNeed(),
       hasAuditAttention: hasAuditNeed(),
+      hasDiffContext: hasDiffNeed(),
+      hasLiveContext: hasLivePaneContext(),
       hasPlanContext: hasPlanContext(),
       fallback: priorityPaneMode(),
       paneMode: paneMode(),
@@ -2609,7 +2641,7 @@ export function Session() {
                                 when={
                                   !!workstationState().goal ||
                                   !!workstationState().currentStep ||
-                                  liveMilestones().length > 0 ||
+                                  planMilestones().length > 0 ||
                                   workstationState().activitySummary.items.length > 0
                                 }
                                 fallback={
@@ -2634,6 +2666,50 @@ export function Session() {
                                   backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.03)}
                                   padding={1}
                                 >
+                                  <box
+                                    flexDirection="row"
+                                    gap={1}
+                                    flexWrap="wrap"
+                                    padding={1}
+                                    backgroundColor={theme.backgroundElement}
+                                    border={["round"]}
+                                    borderColor={theme.borderSubtle}
+                                  >
+                                    <box
+                                      backgroundColor={tint(theme.background, theme.primary, 0.18)}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text fg={theme.primary} bold>
+                                        {workstationState().lifecycleLabel}
+                                      </text>
+                                    </box>
+                                    <box
+                                      backgroundColor={tint(
+                                        theme.background,
+                                        workstationState().trustPosture === "blocked"
+                                          ? theme.error
+                                          : workstationState().trustPosture === "review_needed"
+                                            ? theme.warning
+                                            : theme.success,
+                                        0.14,
+                                      )}
+                                      paddingLeft={1}
+                                      paddingRight={1}
+                                    >
+                                      <text
+                                        fg={
+                                          workstationState().trustPosture === "blocked"
+                                            ? theme.error
+                                            : workstationState().trustPosture === "review_needed"
+                                              ? theme.warning
+                                              : theme.success
+                                        }
+                                      >
+                                        {workstationState().trustLabel}
+                                      </text>
+                                    </box>
+                                  </box>
                                   <Show when={workstationState().goal}>
                                     <box
                                       flexDirection="column"
@@ -2664,7 +2740,7 @@ export function Session() {
                                       </text>
                                     </box>
                                   </Show>
-                                  <Show when={liveMilestones().length > 0}>
+                                  <Show when={planMilestones().length > 0}>
                                     <box
                                       flexDirection="column"
                                       gap={0}
@@ -2674,7 +2750,7 @@ export function Session() {
                                       borderColor={theme.borderSubtle}
                                     >
                                       <text fg={theme.textMuted}>Milestone board</text>
-                                      <For each={liveMilestones()}>
+                                      <For each={planMilestones().slice(0, 4)}>
                                         {(item) => (
                                           <box flexDirection="row" justifyContent="space-between" gap={1}>
                                             <text
@@ -2728,12 +2804,12 @@ export function Session() {
                                       borderColor={theme.borderSubtle}
                                     >
                                       <text fg={theme.textMuted}>Active thread</text>
-                                      <For each={workstationState().activitySummary.items.slice(0, 3)}>
+                                      <For each={workstationState().activitySummary.items.slice(0, 2)}>
                                         {(item) => <text fg={theme.text}>● {item}</text>}
                                       </For>
                                     </box>
                                   </Show>
-                                  <Show when={recentTools().length > 0}>
+                                  <Show when={planTooling().length > 0}>
                                     <box
                                       flexDirection="column"
                                       gap={0}
@@ -2743,7 +2819,7 @@ export function Session() {
                                       borderColor={theme.borderSubtle}
                                     >
                                       <text fg={theme.textMuted}>Recent tooling</text>
-                                      <For each={recentTools().slice(0, 2)}>
+                                      <For each={planTooling().slice(0, 2)}>
                                         {(item) => (
                                           <box flexDirection="row" justifyContent="space-between" gap={1}>
                                             <text fg={item.status === "pending" ? theme.warning : theme.text}>
@@ -3758,7 +3834,7 @@ function AssistantMessage(props: {
   const visibleParts = createMemo(() =>
     groupedParts().filter((part) => {
       if (part.type === "text") return part.text.trim().length > 0
-      if (part.type === "reasoning") return part.text.trim().length > 0
+      if (part.type === "reasoning") return cleanReasoningText(part.text).length > 0
       return false
     }),
   )
@@ -4085,15 +4161,17 @@ function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: T
   return <ActivityCluster tools={props.part.tools} />
 }
 
+function cleanReasoningText(text: string) {
+  return text
+    .replace("[REDACTED]", "")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .trim()
+}
+
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage; marginTop?: number }) {
   const { theme, syntax } = useTheme()
   const ctx = use()
-  const content = createMemo(() => {
-    return props.part.text
-      .replace("[REDACTED]", "")
-      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-      .trim()
-  })
+  const content = createMemo(() => cleanReasoningText(props.part.text))
   const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.26))
 
   return (
