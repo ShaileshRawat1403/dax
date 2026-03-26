@@ -3720,9 +3720,7 @@ function AssistantMessage(props: {
     props.parts.some((part) => {
       if (part.type === "text") return part.text.trim().length > 0
       if (part.type === "reasoning") return part.text.trim().length > 0
-      if (part.type === "tool") {
-        return ctx.showDetails()
-      }
+      if (part.type === "tool") return false
       return true
     }),
   )
@@ -3756,7 +3754,6 @@ function AssistantMessage(props: {
 
   const groupedParts = createMemo(() => {
     const grouped = explainMode() ? groupParts(props.parts) : props.parts
-    if (ctx.showDetails()) return grouped
     return grouped.filter((part) => part.type !== "tool" && part.type !== "activity-cluster")
   })
   const shouldRender = createMemo(() => hasRenderablePart() || !!props.message.error || final())
