@@ -3646,13 +3646,19 @@ function groupParts(parts: Part[]): GroupedPart[] {
 
 function describeRecentTool(tool: string, input: Record<string, any>) {
   const target = input.filePath || input.path || input.file || input.filename || input.target || ""
+  const targetLabel =
+    typeof target === "string" && target
+      ? path.isAbsolute(target)
+        ? path.basename(target)
+        : target
+      : ""
   const command = typeof input.command === "string" ? input.command.trim() : ""
   const compactCommand = command.replace(/\s+/g, " ")
   const commandPreview =
     compactCommand.length > 48 ? `${compactCommand.slice(0, 45).trimEnd()}...` : compactCommand
   switch (tool) {
     case "read":
-      return target ? `Reading ${String(target)}` : "Reading a file"
+      return targetLabel ? `Reading ${targetLabel}` : "Reading a file"
     case "glob":
       return input.pattern && input.path
         ? `Searching ${String(input.path)} for ${String(input.pattern)}`
@@ -3666,17 +3672,17 @@ function describeRecentTool(tool: string, input: Record<string, any>) {
           ? "Searching for matches"
           : "Searching file contents"
     case "list":
-      return target ? `Listing ${String(target)}` : "Listing files"
+      return targetLabel ? `Listing ${targetLabel}` : "Listing files"
     case "shell":
       return commandPreview ? `Running ${commandPreview}` : "Running a shell command"
     case "edit":
-      return target ? `Editing ${String(target)}` : "Editing a file"
+      return targetLabel ? `Editing ${targetLabel}` : "Editing a file"
     case "write":
-      return target ? `Writing ${String(target)}` : "Writing a file"
+      return targetLabel ? `Writing ${targetLabel}` : "Writing a file"
     case "apply_patch":
-      return target ? `Patching ${String(target)}` : "Applying a patch"
+      return targetLabel ? `Patching ${targetLabel}` : "Applying a patch"
     default:
-      return target ? `${tool} · ${String(target)}` : tool
+      return targetLabel ? `${tool} · ${targetLabel}` : tool
   }
 }
 
@@ -3685,6 +3691,26 @@ function isLowSignalPaneReason(value: string | undefined) {
   return /^(idle|session processing|response stream active|reasoning stream active|waiting for provider response)$/i.test(
     value.trim(),
   )
+}
+
+function describeContextFromTools(parts: Part[]) {
+  const seen = new Set<string>()
+  const items: string[] = []
+  for (const part of [...parts].reverse()) {
+    if (part.type !== "tool" || part.state.status !== "completed") continue
+    const input = (part.state.input ?? {}) as Record<string, any>
+    if (part.tool === "read") {
+      const file = typeof input.filePath === "string" && input.filePath ? path.basename(input.filePath) : ""
+      if (file && !seen.has(file.toLowerCase())) {
+        seen.add(file.toLowerCase())
+        items.push(file)
+      }
+    }
+    if (items.length >= 2) break
+  }
+  if (items.length === 0) return undefined
+  if (items.length === 1) return `I’ve already opened ${items[0]} to ground the answer in the repo.`
+  return `I’ve already opened ${items[0]} and ${items[1]} to ground the answer in the repo.`
 }
 
 function AssistantMessage(props: {
@@ -3724,6 +3750,7 @@ function AssistantMessage(props: {
     }
     return undefined
   })
+  const reviewedContextNote = createMemo(() => describeContextFromTools(props.parts))
   const asked = createMemo(() => {
     const id = parent()?.id
     if (!id) return "No user request found."
@@ -3763,7 +3790,13 @@ function AssistantMessage(props: {
       return "I’m working through the task and shaping the next answer with the context gathered so far."
     }
     if (currentToolLabel()?.status === "pending") {
+      if (reviewedContextNote()) {
+        return `${reviewedContextNote()} I’m now using ${currentToolLabel()!.label.toLowerCase()} before I answer.`
+      }
       return `I’m using ${currentToolLabel()!.label.toLowerCase()} to build enough context before I answer.`
+    }
+    if (reviewedContextNote()) {
+      return reviewedContextNote()!
     }
     if (props.last && !props.message.time.completed) {
       return "I’m still on it and will post the next concrete update here as soon as it’s ready."
