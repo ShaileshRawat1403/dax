@@ -3720,8 +3720,7 @@ function AssistantMessage(props: {
     props.parts.some((part) => {
       if (part.type === "text") return part.text.trim().length > 0
       if (part.type === "reasoning") return part.text.trim().length > 0
-      if (part.type === "tool") return false
-      return true
+      return false
     }),
   )
   const showMetadata = createMemo(() => ctx.showAssistantMetadata())
@@ -3756,7 +3755,7 @@ function AssistantMessage(props: {
     const grouped = explainMode() ? groupParts(props.parts) : props.parts
     return grouped.filter((part) => part.type !== "tool" && part.type !== "activity-cluster")
   })
-  const shouldRender = createMemo(() => hasRenderablePart() || !!props.message.error || final())
+  const shouldRender = createMemo(() => groupedParts().length > 0 || !!props.message.error || final())
   const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
     if (tone === "primary") return theme.primary
     if (tone === "accent") return theme.accent
