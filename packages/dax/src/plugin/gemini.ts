@@ -2,6 +2,7 @@ import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
 import { Bus } from "@/bus"
 import { TuiEvent } from "@/cli/cmd/tui/event"
+import { parseGeminiSubscriptionRetryMs, shouldWaitForGeminiSubscriptionCooldown } from "./gemini-rate-limit"
 
 const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -19,6 +20,7 @@ const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
+const GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE = "Gemini subscription lane is busy"
 
 // Google's official OAuth credentials for direct sign-in (Pro/Plus)
 // Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
@@ -26,6 +28,7 @@ const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.G
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
 
 let cachedCloudCodeProjectId: string | undefined = undefined
+let geminiSubscriptionCooldownUntil = 0
 
 async function resolveCloudCodeProject(accessToken: string): Promise<string> {
   if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
@@ -126,6 +129,16 @@ type OAuthState = {
   quotaProjectID?: string
   accountId?: string // user email
   mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
+}
+
+function isSubscriptionMode(mode: OAuthState["mode"]) {
+  return mode === "cli-import" || mode === "codeassist"
+}
+
+function importedGeminiCliExpiredError() {
+  return new Error(
+    "Your imported Gemini CLI session expired. Run `gemini` to refresh your local login, then choose 'Gemini Subscription Sign-In' again.",
+  )
 }
 
 type TokenResponse = {
@@ -273,6 +286,13 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
     access: json.access_token,
     expires: Date.now() + (json.expires_in ?? 3600) * 1000,
   }
+}
+
+const refreshStoredGoogleAccess = async (oauth: OAuthState | undefined, refreshToken: string) => {
+  if (oauth?.mode === "cli-import" && (!oauth.clientID || !oauth.clientSecret)) {
+    throw importedGeminiCliExpiredError()
+  }
+  return refreshGoogleToken(refreshToken, oauth?.clientID, oauth?.clientSecret)
 }
 
 function generateRandomString(length: number): string {
@@ -524,7 +544,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const quotaProjectID = fresh?.quotaProjectID
 
             if (!access || expires < Date.now() || Bun.env.DAX_GEMINI_SIMULATE_EXPIRE) {
-              const renewed = await refreshGoogleToken(refresh, fresh?.clientID, fresh?.clientSecret)
+              const renewed = await refreshStoredGoogleAccess(fresh, refresh)
               if (renewed) {
                 access = renewed.access
                 expires = renewed.expires
@@ -559,7 +579,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             // Native DAX routing for Pro/Plus Subscriptions (Code Assist API)
             // If the auth mode is explicitly Code Assist or CLI import, route to cloudcode-pa
             if (
-              (fresh?.mode === "codeassist" || fresh?.mode === "cli-import") &&
+              isSubscriptionMode(fresh?.mode) &&
               req.href.includes("generativelanguage.googleapis.com")
             ) {
               const isStream = req.href.includes("streamGenerateContent")
@@ -595,6 +615,19 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             }
 
             const executeFetch = async (fetchReq: URL, fetchHeaders: Headers, fetchBody: any) => {
+              if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+                const waitMs = shouldWaitForGeminiSubscriptionCooldown(geminiSubscriptionCooldownUntil)
+                if (waitMs > 0) {
+                  Bus.publish(TuiEvent.ToastShow, {
+                    title: GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE,
+                    message: `Cooling down for ${Math.ceil(waitMs / 1000)}s before the next request.`,
+                    variant: "warning",
+                    duration: Math.min(Math.max(waitMs, 3000), 8000),
+                  }).catch(() => {})
+                  await Bun.sleep(waitMs)
+                }
+              }
+
               const response = await fetch(fetchReq, { ...init, headers: fetchHeaders, body: fetchBody })
 
               if (!response.ok && response.status === 429 && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
@@ -602,18 +635,26 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   const text = await response.text()
                   const json = JSON.parse(text)
                   const message = json.error?.message || ""
-                  const match = message.match(/after (\d+)s/)
-                  const retrySec = match ? parseInt(match[1], 10) : 15
+                  const retryMs = parseGeminiSubscriptionRetryMs({
+                    retryAfter: response.headers.get("retry-after"),
+                    retryAfterMs: response.headers.get("retry-after-ms"),
+                    message,
+                  })
+                  const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
+                  geminiSubscriptionCooldownUntil = Date.now() + retryMs
 
                   const newHeaders = new Headers(response.headers)
                   newHeaders.set("Retry-After", retrySec.toString())
-                  newHeaders.set("retry-after-ms", (retrySec * 1000).toString())
+                  newHeaders.set("retry-after-ms", retryMs.toString())
+                  newHeaders.set("x-dax-rate-limit-lane", "gemini-subscription")
+                  newHeaders.set("x-dax-rate-limit-provider", "google")
+                  newHeaders.set("x-dax-rate-limit-kind", "subscription-quota")
 
                   Bus.publish(TuiEvent.ToastShow, {
-                    title: "Google quota lane: Code Assist",
-                    message: `Rate limit hit. Retrying after ${retrySec}s.`,
+                    title: GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE,
+                    message: `DAX will retry in ${retrySec}s. If this keeps happening, wait a bit or switch to Gemini API Key.`,
                     variant: "warning",
-                    duration: 5000,
+                    duration: Math.min(Math.max(retrySec * 1000, 5000), 12000),
                   }).catch(() => {})
 
                   return new Response(text, {
@@ -746,7 +787,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             // Handle 401 (Token Expired/Invalid) - Reactive Refresh
             if (first.status === 401) {
-              const renewed = await refreshGoogleToken(refresh, fresh?.clientID, fresh?.clientSecret)
+              const renewed = await refreshStoredGoogleAccess(fresh, refresh)
               if (renewed?.access) {
                 await input.client.auth.set({
                   providerID: "google",
@@ -817,13 +858,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google (Gemini API) token is missing required Gemini OAuth scopes. Use Google provider with API key (recommended), or use 'Google Code Assist / Pro-Plus Sign-In' for Gemini API. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google token is missing the scopes required for this Gemini lane. Use `Gemini API Key`, or reconnect with `Gemini Subscription Sign-In`. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google (Gemini API) received invalid credentials for this flow. Use Google provider with Gemini API key or Custom Google OAuth Client (Gemini OAuth scope). For gcloud ADC credentials, switch to Vertex provider.",
+                "Google credentials are invalid for this lane. Use `Gemini API Key`, reconnect with `Gemini Subscription Sign-In`, or use `Custom Google OAuth Client`. For gcloud ADC credentials, switch to Vertex provider.",
               )
             }
             return first
@@ -853,13 +894,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
         {
           type: "oauth",
           label: "Import from Gemini CLI",
-          description: "Import your Google account from the `gemini` CLI. For Gemini Pro or Plus subscribers.",
+          description: "Use your existing `gemini` CLI login for Gemini Pro or Plus subscription access.",
           async authorize() {
             return {
               method: "auto" as const,
               url: GEMINI_OAUTH_DOC,
               instructions:
-                "Run `gemini` and finish Google login, then wait here while DAX imports Gemini OAuth credentials.",
+                "Run `gemini` and finish Google login, then wait here while DAX connects your Gemini subscription session.",
               async callback() {
                 const creds = await waitForCreds()
                 if (!creds?.refresh) return { type: "failed" as const }
@@ -870,9 +911,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
                 if (!health.ok && health.reason === "token_expired") {
                   if (!creds.clientID || !creds.clientSecret) {
-                    throw new Error(
-                      "Imported Gemini CLI session is expired and cannot be refreshed from the saved CLI file. Run `gemini` to refresh your local login, then choose 'Import from Gemini CLI' again.",
-                    )
+                    throw importedGeminiCliExpiredError()
                   }
                   const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
                   if (!renewed?.access) return { type: "failed" as const }
@@ -884,10 +923,10 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing") {
                     throw new Error(
-                      "Imported token is missing Gemini scope. Use API key for Google provider, or use Google Code Assist / Pro-Plus Sign-In. For gcloud credentials use Vertex provider.",
+                      "Your imported Gemini CLI session is missing the scopes DAX needs. Use `Gemini API Key`, or reconnect with `Gemini Subscription Sign-In`. For gcloud credentials, use the Vertex provider.",
                     )
                   }
-                  if (health.reason === "token_expired") throw new Error("Re-run gemini login.")
+                  if (health.reason === "token_expired") throw importedGeminiCliExpiredError()
                   throw new Error(`Token validation failed: ${health.reason}`)
                 }
 
@@ -909,14 +948,14 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           type: "oauth" as const,
           label: "Google Code Assist / Pro-Plus Sign-In",
           description:
-            "Sign in directly with your Google account. Use this for Gemini Pro or Plus subscriptions.\nRequires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET env vars.",
+            "Sign in directly with your Google account for Gemini Pro or Plus subscriptions.\nRequires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET env vars.",
           async authorize() {
             const clientID = getGoogleCliClientId()
             const clientSecret = getGoogleCliClientSecret()
 
             if (!clientID || !clientSecret) {
               throw new Error(
-                "Google Code Assist / Pro-Plus Sign-In requires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET.\n" +
+                "Direct Gemini subscription sign-in requires DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET.\n" +
                   "Set these in your environment or use 'Custom Google OAuth Client' option.",
               )
             }

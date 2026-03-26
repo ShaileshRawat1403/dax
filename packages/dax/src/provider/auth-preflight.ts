@@ -20,7 +20,7 @@ export class ProviderAuthPreflightError extends Error {
 export type AuthDiagnostics = {
   providerID: string
   mode: "gemini-api-key" | "gemini-oauth" | "cli-import" | "codeassist" | "custom-oauth" | "vertex-adc" | "missing"
-  lane?: "gemini-api" | "google-codeassist" | "vertex"
+  lane?: "gemini-api" | "gemini-subscription" | "vertex"
   source?: "api-key" | "stored-oauth" | "cli-import" | "adc" | "env"
   endpoint?: "generativelanguage" | "cloudcode-pa" | "vertex"
   ok: boolean
@@ -35,6 +35,7 @@ type GoogleTokenInfo = {
   azp?: string
   scope?: string
   expires_in?: string
+  email?: string
 }
 
 type GoogleTokenHealth =
@@ -75,6 +76,37 @@ function hasScope(scopeString: string, scope: string) {
   return scopeString.split(/\s+/).includes(scope)
 }
 
+type GeminiCliCreds = {
+  access_token?: string
+  refresh_token?: string
+}
+
+function geminiCliCredPaths() {
+  const home = env("HOME") ?? Bun.env.HOME ?? ""
+  return [
+    env("GEMINI_OAUTH_CREDS_PATH"),
+    `${home}/.gemini/oauth_creds.json`,
+    `${home}/.config/gemini/oauth_creds.json`,
+    `${home}/.config/google-gemini/oauth_creds.json`,
+  ].filter(Boolean) as string[]
+}
+
+async function readGeminiCliCreds() {
+  for (const filepath of geminiCliCredPaths()) {
+    const creds = await Bun.file(filepath)
+      .json()
+      .then((value) => value as GeminiCliCreds)
+      .catch(() => undefined)
+    if (!creds?.access_token && !creds?.refresh_token) continue
+    return {
+      access: creds.access_token,
+      refresh: creds.refresh_token,
+      source: filepath,
+    }
+  }
+  return undefined
+}
+
 async function validateGoogleOAuthAccessToken(token: string) {
   const cached = tokenHealthCache.get(token)
   if (cached && Date.now() - cached.checkedAt < TOKEN_HEALTH_TTL_MS) {
@@ -89,7 +121,7 @@ async function validateGoogleOAuthAccessToken(token: string) {
       ok: false as const,
       reason: "token_invalid",
       message:
-        "Google OAuth access token is invalid or expired for Gemini API. Re-run `dax auth login`, choose Google, and use 'Sign in with Google' or switch to GEMINI_API_KEY.",
+        "Google OAuth access token is invalid or expired for Gemini. Re-run `dax auth login` and choose `Gemini Subscription Sign-In` or `Custom Google OAuth Client`, or switch to `GEMINI_API_KEY`.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -132,7 +164,8 @@ async function validateGoogleOAuthAccessToken(token: string) {
     const health: GoogleTokenHealth = {
       ok: false as const,
       reason: "token_expired",
-      message: "Google OAuth access token is expired. Re-authenticate or use GEMINI_API_KEY.",
+      message:
+        "Google OAuth access token is expired. Re-authenticate with `Gemini Subscription Sign-In` or `Custom Google OAuth Client`, or use `GEMINI_API_KEY`.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -167,6 +200,7 @@ function adcPaths() {
 
 async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnostics> {
   const auth = await Auth.get("google")
+  const cliCreds = await readGeminiCliCreds()
   const effectiveClient = await effectiveGoogleOAuthClientID()
   const apiKey = env("GEMINI_API_KEY") ?? env("GOOGLE_API_KEY")
   const project = env("GOOGLE_CLOUD_PROJECT") ?? env("GCP_PROJECT") ?? env("GCLOUD_PROJECT")
@@ -192,15 +226,23 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
   }
 
   if (auth?.type === "oauth") {
-    const token = await validateGoogleOAuthAccessToken(auth.access)
-    const hasRefresh = Boolean(auth.refresh)
-    const mode = (auth.mode as any) ?? "gemini-oauth"
-    const isCodeAssist = mode === "codeassist" || mode === "cli-import"
+    const mode = (auth.mode as any) ?? (cliCreds?.refresh ? "cli-import" : "gemini-oauth")
+    const accessToken = mode === "cli-import" ? cliCreds?.access ?? auth.access : auth.access
+    const refreshToken = mode === "cli-import" ? cliCreds?.refresh ?? auth.refresh : auth.refresh
+    const token = await validateGoogleOAuthAccessToken(accessToken)
+    const hasRefresh = Boolean(refreshToken)
+    const isSubscription = mode === "codeassist" || mode === "cli-import"
+    const source = mode === "cli-import" && cliCreds?.refresh ? "cli-import" : "stored-oauth"
 
     const details = token.ok
       ? [
           ...token.details,
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
+          isSubscription
+            ? mode === "cli-import"
+              ? "Subscription lane: imported Gemini CLI session."
+              : "Subscription lane: direct Gemini subscription sign-in."
+            : "Lane: custom Google OAuth client.",
           auth.accountId
             ? `Authenticated as: ${auth.accountId}`
             : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
@@ -210,14 +252,17 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
           hasRefresh
             ? "Access token expired/invalid, but refresh token is present and will be used during execution."
             : "Access token expired/invalid and no refresh token found.",
+          isSubscription && mode === "cli-import"
+            ? "If this came from Gemini CLI import and the session has expired, run `gemini` and reconnect with `Gemini Subscription Sign-In`."
+            : "Re-run `dax auth login` if the lane stays blocked.",
         ]
 
     return {
       providerID,
       mode,
-      lane: isCodeAssist ? "google-codeassist" : "gemini-api",
-      source: "stored-oauth",
-      endpoint: isCodeAssist ? "cloudcode-pa" : "generativelanguage",
+      lane: isSubscription ? "gemini-subscription" : "gemini-api",
+      source,
+      endpoint: isSubscription ? "cloudcode-pa" : "generativelanguage",
       ok: token.ok || hasRefresh,
       requiredEnv: ["None required for OAuth token mode"],
       missingEnv: [],

@@ -61,6 +61,11 @@ export namespace SessionRetry {
   export function retryable(error: ReturnType<NamedError["toObject"]>) {
     if (MessageV2.APIError.isInstance(error)) {
       if (!error.data.isRetryable) return undefined
+      const lane = error.data.responseHeaders?.["x-dax-rate-limit-lane"]
+      const kind = error.data.responseHeaders?.["x-dax-rate-limit-kind"]
+      if (lane === "gemini-subscription" && kind === "subscription-quota") {
+        return "Gemini subscription lane is busy"
+      }
       return error.data.message.includes("Overloaded") ? "Provider is overloaded" : error.data.message
     }
 

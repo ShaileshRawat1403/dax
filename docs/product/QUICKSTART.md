@@ -2,6 +2,8 @@
 
 Get DAX running on your machine in under 5 minutes.
 
+If you want the plain-English version first, read [DAX for Non-Developers](./NON_DEVELOPERS.md).
+
 ## Prerequisites
 
 - macOS, Linux, or Windows (WSL)
@@ -68,8 +70,12 @@ dax auth login
 Without `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET`, the Google/Gemini auth picker will show the standard three lanes:
 
 - `Gemini API Key`
-- `Import from Gemini CLI`
+- `Gemini Subscription Sign-In`
 - `Custom Google OAuth Client`
+
+`Gemini Subscription Sign-In` uses your local `gemini` CLI login when available. If that imported session expires, DAX will prompt you to run `gemini` again and reconnect.
+
+If DAX later says the Gemini subscription lane is busy, it will wait and retry automatically. If that keeps happening, wait a bit or switch to `Gemini API Key`.
 
 ## First Run
 

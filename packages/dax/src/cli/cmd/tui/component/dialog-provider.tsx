@@ -68,8 +68,9 @@ export function createDialogProviderOptions() {
                 label: "API key",
               },
             ]
-            const visibleMethods = getVisibleProviderAuthMethods(provider.id, methods)
+            const visibleMethods = await getVisibleProviderAuthMethods(provider.id, methods)
             let index: number | null = 0
+            let selectedTitle = visibleMethods[0]?.title ?? methods[0]?.label ?? "Authentication"
             if (visibleMethods.length > 1) {
               index = await new Promise<number | null>((resolve) => {
                 dialog.replace(
@@ -90,6 +91,8 @@ export function createDialogProviderOptions() {
             }
             if (index == null) return
             const method = methods[index]
+            const selectedVisibleMethod = visibleMethods.find((item) => item.originalIndex === index)
+            selectedTitle = selectedVisibleMethod?.title ?? method.label
 
             // Collect prompts if method has any
             const inputs: Record<string, string> = {}
@@ -117,17 +120,17 @@ export function createDialogProviderOptions() {
               if (!result?.data) return
               if (result.data.method === "code") {
                 dialog.replace(() => (
-                  <CodeMethod providerID={provider.id} title={method.label} index={index} authorization={result.data} />
+                  <CodeMethod providerID={provider.id} title={selectedTitle} index={index} authorization={result.data} />
                 ))
               }
               if (result.data.method === "auto") {
                 dialog.replace(() => (
-                  <AutoMethod providerID={provider.id} title={method.label} index={index} authorization={result.data} />
+                  <AutoMethod providerID={provider.id} title={selectedTitle} index={index} authorization={result.data} />
                 ))
               }
             }
             if (method.type === "api") {
-              return dialog.replace(() => <ApiMethod providerID={provider.id} title={method.label} />)
+              return dialog.replace(() => <ApiMethod providerID={provider.id} title={selectedTitle} />)
             }
           },
         }

@@ -27,7 +27,7 @@ async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string):
   let method = plugin.auth.methods[0]
 
   if (plugin.auth.methods.length > 1) {
-    const methodOptions = getVisibleProviderAuthMethods(provider, plugin.auth.methods).map((item) => ({
+    const methodOptions = (await getVisibleProviderAuthMethods(provider, plugin.auth.methods)).map((item) => ({
       label: item.title.length > 60 ? item.title.slice(0, 57) + "..." : item.title,
       value: item.originalIndex.toString(),
       hint: item.hint ? (item.hint.length > 60 ? item.hint.slice(0, 57) + "..." : item.hint) : undefined,
