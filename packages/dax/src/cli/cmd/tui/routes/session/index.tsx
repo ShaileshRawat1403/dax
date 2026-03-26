@@ -3885,8 +3885,8 @@ function AssistantMessage(props: {
         paddingRight={0}
         flexDirection="column"
         border={["round"]}
-        borderColor={theme.borderSubtle}
-        backgroundColor={tint(theme.background, theme.primary, 0.02)}
+        borderColor={tint(theme.primary, theme.border, 0.45)}
+        backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.055)}
         marginTop={1}
         marginBottom={0}
       >
@@ -3895,16 +3895,17 @@ function AssistantMessage(props: {
           gap={1}
           alignItems="center"
           paddingTop={0}
-          paddingBottom={0}
+          paddingBottom={1}
           border={["bottom"]}
-          borderColor={theme.backgroundElement}
+          borderColor={theme.border}
           marginBottom={1}
           paddingLeft={1}
           paddingRight={1}
+          backgroundColor={tint(theme.background, theme.backgroundElement, 0.28)}
         >
           <Show when={!daxSpeaking()}>
             <box
-              backgroundColor={tint(theme.background, theme.primary, 0.2)}
+              backgroundColor={tint(theme.background, theme.primary, 0.34)}
               paddingLeft={1}
               paddingRight={1}
               marginRight={1}
@@ -3921,6 +3922,21 @@ function AssistantMessage(props: {
           </Show>
         </box>
         <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
+          <Show when={groupedParts().some((part) => part.type === "text")}>
+            <box marginBottom={1}>
+              <box
+                backgroundColor={tint(theme.background, theme.primary, 0.26)}
+                border={["round"]}
+                borderColor={tint(theme.primary, theme.border, 0.25)}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                  response
+                </text>
+              </box>
+            </box>
+          </Show>
           <For each={groupedParts()}>
             {(part, index) => {
               const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -4030,8 +4046,8 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
         border={["round"]}
-        borderColor={theme.backgroundElement}
-        backgroundColor={tint(theme.background, theme.primary, 0.018)}
+        borderColor={tint(theme.primary, theme.border, 0.18)}
+        backgroundColor={tint(theme.background, theme.primary, 0.05)}
       >
         <box
           flexDirection="row"
@@ -4078,8 +4094,8 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
         border={["round"]}
-        borderColor={theme.backgroundElement}
-        backgroundColor={tint(theme.background, theme.backgroundElement, 0.14)}
+        borderColor={tint(theme.primary, theme.border, 0.22)}
+        backgroundColor={tint(theme.background, theme.primary, 0.075)}
       >
         <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
       </box>
