@@ -3,6 +3,8 @@ import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
 import { Bus } from "@/bus"
 import { TuiEvent } from "@/cli/cmd/tui/event"
 import { parseGeminiSubscriptionRetryMs, shouldWaitForGeminiSubscriptionCooldown } from "./gemini-rate-limit"
+import { Global } from "@/global"
+import path from "path"
 
 const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -29,6 +31,19 @@ const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? B
 
 let cachedCloudCodeProjectId: string | undefined = undefined
 let geminiSubscriptionCooldownUntil = 0
+const geminiSubscriptionCooldownFile = path.join(Global.Path.state, "gemini-subscription-cooldown.json")
+
+async function readPersistedGeminiSubscriptionCooldown() {
+  const data = await Bun.file(geminiSubscriptionCooldownFile)
+    .json()
+    .catch(() => undefined as undefined | { until?: number })
+  return typeof data?.until === "number" ? data.until : 0
+}
+
+async function persistGeminiSubscriptionCooldown(until: number) {
+  geminiSubscriptionCooldownUntil = until
+  await Bun.write(geminiSubscriptionCooldownFile, JSON.stringify({ until }, null, 2)).catch(() => undefined)
+}
 
 async function resolveCloudCodeProject(accessToken: string): Promise<string> {
   if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
@@ -616,7 +631,9 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             const executeFetch = async (fetchReq: URL, fetchHeaders: Headers, fetchBody: any) => {
               if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
-                const waitMs = shouldWaitForGeminiSubscriptionCooldown(geminiSubscriptionCooldownUntil)
+                const persistedCooldownUntil = await readPersistedGeminiSubscriptionCooldown()
+                const effectiveCooldownUntil = Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil)
+                const waitMs = shouldWaitForGeminiSubscriptionCooldown(effectiveCooldownUntil)
                 if (waitMs > 0) {
                   Bus.publish(TuiEvent.ToastShow, {
                     title: GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE,
@@ -641,7 +658,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                     message,
                   })
                   const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
-                  geminiSubscriptionCooldownUntil = Date.now() + retryMs
+                  await persistGeminiSubscriptionCooldown(Date.now() + retryMs)
 
                   const newHeaders = new Headers(response.headers)
                   newHeaders.set("Retry-After", retrySec.toString())
