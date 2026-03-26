@@ -3713,6 +3713,32 @@ function describeContextFromTools(parts: Part[]) {
   return `I’ve already opened ${items[0]} and ${items[1]} to ground the answer in the repo.`
 }
 
+function reviewedContextItems(parts: Part[]) {
+  const seen = new Set<string>()
+  const items: string[] = []
+  for (const part of [...parts].reverse()) {
+    if (part.type !== "tool" || part.state.status !== "completed") continue
+    const input = (part.state.input ?? {}) as Record<string, any>
+    if (part.tool === "read") {
+      const file = typeof input.filePath === "string" && input.filePath ? path.basename(input.filePath) : ""
+      if (file && !seen.has(file.toLowerCase())) {
+        seen.add(file.toLowerCase())
+        items.push(file)
+      }
+    }
+    if (part.tool === "shell") {
+      const command = typeof input.command === "string" ? input.command.trim().replace(/\s+/g, " ") : ""
+      const label = command ? `command: ${command.length > 32 ? `${command.slice(0, 29).trimEnd()}...` : command}` : ""
+      if (label && !seen.has(label.toLowerCase())) {
+        seen.add(label.toLowerCase())
+        items.push(label)
+      }
+    }
+    if (items.length >= 3) break
+  }
+  return items
+}
+
 function AssistantMessage(props: {
   message: AssistantMessage
   parts: Part[]
@@ -3751,6 +3777,7 @@ function AssistantMessage(props: {
     return undefined
   })
   const reviewedContextNote = createMemo(() => describeContextFromTools(props.parts))
+  const reviewedContextList = createMemo(() => reviewedContextItems(props.parts))
   const asked = createMemo(() => {
     const id = parent()?.id
     if (!id) return "No user request found."
@@ -4140,6 +4167,26 @@ function AssistantMessage(props: {
             </Show>
           </box>
           <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
+            <Show when={reviewedContextList().length > 0}>
+              <box marginBottom={1}>
+                <box
+                  flexDirection="column"
+                  gap={0}
+                  borderStyle="round"
+                  borderColor={tint(theme.primary, theme.border, 0.18)}
+                  backgroundColor={tint(theme.background, theme.primary, 0.04)}
+                  paddingLeft={1}
+                  paddingRight={1}
+                  paddingTop={1}
+                  paddingBottom={1}
+                >
+                  <text fg={theme.textMuted}>reviewed context</text>
+                  <For each={reviewedContextList()}>
+                    {(item) => <text fg={theme.text}>• {item}</text>}
+                  </For>
+                </box>
+              </box>
+            </Show>
             <Show when={visibleParts().some((part) => part.type === "text")}>
               <box marginBottom={1}>
                 <box
@@ -4256,7 +4303,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   const { theme, syntax } = useTheme()
   const ctx = use()
   const content = createMemo(() => cleanReasoningText(props.part.text))
-  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.26))
+  const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.34))
 
   return (
     <Show when={content() && ctx.showThinking()}>
@@ -4267,9 +4314,9 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
         borderStyle="round"
-        borderColor={tint(theme.primary, theme.border, 0.18)}
-        backgroundColor={tint(theme.background, theme.primary, 0.05)}
-        title=" notes "
+        borderColor={tint(theme.primary, theme.border, 0.22)}
+        backgroundColor={tint(theme.background, theme.primary, 0.065)}
+        title=" thinking "
         titleAlignment="left"
       >
         <box
@@ -4282,14 +4329,14 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         >
           <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
             <text fg={theme.background} attributes={TextAttributes.BOLD}>
-              NOTES
+              THINKING
             </text>
           </box>
-          <text fg={theme.textMuted}>working notes</text>
+          <text fg={theme.textMuted}>live reasoning</text>
         </box>
         <box paddingBottom={1}>
           <code
-            filetype="text"
+            filetype="markdown"
             drawUnstyledText={false}
             streaming={true}
             syntaxStyle={syntax()}
