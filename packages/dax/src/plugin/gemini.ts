@@ -209,10 +209,9 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
   const [stored, file] = await Promise.all([getAuth(), readCreds()])
   const oauth = stored?.type === "oauth" ? stored : undefined
 
-  // Prefer the credential explicitly stored in DAX auth state.
-  // Falling back to CLI/ADC files can unintentionally override a freshly
-  // completed "Google Code Assist / Pro-Plus Sign-In" flow with unrelated credentials.
-  if (oauth?.refresh) {
+  // Prefer explicitly stored non-import lanes so a freshly completed custom
+  // or Code Assist sign-in is not unexpectedly replaced by external CLI files.
+  if (oauth?.refresh && oauth.mode && oauth.mode !== "cli-import") {
     return oauth
   }
 
@@ -236,13 +235,18 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
   if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
-  const id = clientID ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
-  const secret = clientSecret ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+  const id =
+    clientID ?? getGoogleCliClientId() ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
+  const secret =
+    clientSecret ??
+    getGoogleCliClientSecret() ??
+    Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ??
+    Bun.env.GEMINI_OAUTH_CLIENT_SECRET
   if (!id || !secret) {
     throw new Error(
       "OAuth credentials required for token refresh. Provide client_id and client_secret:\n" +
         "  1. Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient\n" +
-        "  2. Set DAX_GEMINI_OAUTH_CLIENT_ID and DAX_GEMINI_OAUTH_CLIENT_SECRET environment variables",
+        "  2. Set DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET environment variables",
     )
   }
   const body = new URLSearchParams({
@@ -778,7 +782,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const candidates = [
               cliCandidate ? { ...cliCandidate, mode: "cli-import" as const } : undefined,
               adcCandidate ? { ...adcCandidate, mode: "vertex" as const } : undefined,
-            ].filter((x) => !!x?.refresh)
+            ].filter((x) => !!x?.refresh && !!x?.clientID && !!x?.clientSecret)
             for (const imported of candidates) {
               if (!imported?.refresh) continue
               const renewed = await refreshGoogleToken(imported.refresh, imported.clientID, imported.clientSecret)
@@ -865,6 +869,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 let health = access ? await checkTokenHealth(access) : { ok: false, reason: "token_expired" as const }
 
                 if (!health.ok && health.reason === "token_expired") {
+                  if (!creds.clientID || !creds.clientSecret) {
+                    throw new Error(
+                      "Imported Gemini CLI session is expired and cannot be refreshed from the saved CLI file. Run `gemini` to refresh your local login, then choose 'Import from Gemini CLI' again.",
+                    )
+                  }
                   const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
                   if (!renewed?.access) return { type: "failed" as const }
                   access = renewed.access
