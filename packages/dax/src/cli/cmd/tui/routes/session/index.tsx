@@ -2653,8 +2653,8 @@ export function Session() {
                                     borderColor={theme.borderSubtle}
                                     backgroundColor={theme.backgroundElement}
                                   >
-                                    <text fg={theme.text}>Plan will fill in as DAX builds context.</text>
-                                    <text fg={theme.textMuted}>Use the stream on the left, then return here for the live outline.</text>
+                                    <text fg={theme.text}>This pane will update as DAX builds context.</text>
+                                    <text fg={theme.textMuted}>Use the stream on the left for the narrative. This side stays focused on live state.</text>
                                   </box>
                                 }
                               >
@@ -2772,7 +2772,7 @@ export function Session() {
                                       border={["round"]}
                                       borderColor={theme.warning}
                                     >
-                                      <text fg={theme.warning}>Needs attention</text>
+                                      <text fg={theme.warning}>Needs your attention</text>
                                       <text fg={theme.text}>
                                         ● {workstationState().approvalSummary.topLabel ?? "Approval"} ·{" "}
                                         {workstationState().approvalSummary.pendingCount} waiting
@@ -2826,7 +2826,7 @@ export function Session() {
                                               {item.status === "pending" ? "◌" : "✓"} {item.label}
                                             </text>
                                             <text fg={theme.textMuted}>
-                                              {item.status === "pending" ? "running" : item.status}
+                                              {item.status === "pending" ? "live" : item.status}
                                             </text>
                                           </box>
                                         )}
