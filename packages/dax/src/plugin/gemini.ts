@@ -1,7 +1,5 @@
 import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
-import { Bus } from "@/bus"
-import { TuiEvent } from "@/cli/cmd/tui/event"
 import { parseGeminiSubscriptionRetryMs, shouldWaitForGeminiSubscriptionCooldown } from "./gemini-rate-limit"
 import { Global } from "@/global"
 import path from "path"
@@ -22,8 +20,6 @@ const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
-const GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE = "Gemini subscription lane is busy"
-
 // Google's official OAuth credentials for direct sign-in (Pro/Plus)
 // Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
 const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
@@ -635,12 +631,6 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 const effectiveCooldownUntil = Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil)
                 const waitMs = shouldWaitForGeminiSubscriptionCooldown(effectiveCooldownUntil)
                 if (waitMs > 0) {
-                  Bus.publish(TuiEvent.ToastShow, {
-                    title: GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE,
-                    message: `Cooling down for ${Math.ceil(waitMs / 1000)}s before the next request.`,
-                    variant: "warning",
-                    duration: Math.min(Math.max(waitMs, 3000), 8000),
-                  }).catch(() => {})
                   await Bun.sleep(waitMs)
                 }
               }
@@ -666,13 +656,6 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   newHeaders.set("x-dax-rate-limit-lane", "gemini-subscription")
                   newHeaders.set("x-dax-rate-limit-provider", "google")
                   newHeaders.set("x-dax-rate-limit-kind", "subscription-quota")
-
-                  Bus.publish(TuiEvent.ToastShow, {
-                    title: GEMINI_SUBSCRIPTION_RATE_LIMIT_TITLE,
-                    message: `DAX will retry in ${retrySec}s. If this keeps happening, wait a bit or switch to Gemini API Key.`,
-                    variant: "warning",
-                    duration: Math.min(Math.max(retrySec * 1000, 5000), 12000),
-                  }).catch(() => {})
 
                   return new Response(text, {
                     status: 429,
