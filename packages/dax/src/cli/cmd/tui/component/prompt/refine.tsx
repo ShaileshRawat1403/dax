@@ -119,8 +119,9 @@ export function RefinePane(props: {
     <box flexDirection="column" width="100%" height="100%" gap={1} onMouseDown={focusTextarea}>
       <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.border}>
         <text fg={theme.accent} bold>
-          Refined execution contract
+          Refine
         </text>
+        <text fg={theme.textMuted}>Tighten the request before running it</text>
         <Show when={hasContent()}>
           <text fg={theme.text}>Review the contract, then press Enter to run it.</text>
         </Show>

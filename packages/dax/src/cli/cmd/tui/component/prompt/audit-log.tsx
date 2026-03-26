@@ -48,10 +48,13 @@ export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLo
 
   return (
     <box flexDirection="column" width="100%" height="100%" gap={1}>
-      <text fg={theme.primary} bold>
-        Audit snapshot
-      </text>
-      <Show when={latest()} fallback={<text fg={theme.textMuted}>:: no audit run recorded in this session</text>}>
+      <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.borderSubtle}>
+        <text fg={theme.primary} bold>
+          Audit
+        </text>
+        <text fg={theme.textMuted}>What needs review right now</text>
+      </box>
+      <Show when={latest()} fallback={<text fg={theme.textMuted}>No audit run recorded in this session yet.</text>}>
         {(audit) => (
             <box flexDirection="column" gap={1}>
             <box

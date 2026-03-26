@@ -1528,14 +1528,16 @@ export function Prompt(props: PromptProps) {
                         const baseMessage = message()
                         const truncatedHint = isTruncated() ? " (click to expand)" : ""
                         const duration = formatDuration(seconds())
-                        const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
+                        const retryInfo = duration
+                          ? ` Retrying in ${duration} (attempt ${r.attempt}).`
+                          : ` Retrying now (attempt ${r.attempt}).`
                         return baseMessage + truncatedHint + retryInfo
                       }
 
                       return (
                         <Show when={retry()}>
                           <box onMouseUp={handleMessageClick}>
-                            <text fg={theme.error}>{retryText()}</text>
+                            <text fg={theme.warning}>{retryText()}</text>
                           </box>
                         </Show>
                       )

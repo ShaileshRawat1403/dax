@@ -80,6 +80,7 @@ import { useUIActivity } from "../../context/activity"
 import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
 import { Identifier } from "@/id/id"
+import { Auth } from "@/auth"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
@@ -114,6 +115,7 @@ type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
+import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 
 addDefaultParsers(parsers.parsers)
 
@@ -366,7 +368,32 @@ export function Session() {
   const sessionTurnCount = createMemo(() => messages().filter((message) => message.role === "user").length)
   const incompleteTodoCount = createMemo(() => todo().filter((item) => item.status !== "completed").length)
   const sessionTokenCount = createMemo(() => sessionTokenTotal(messages()))
-  const sessionCostLabel = createMemo(() => formatUsd(sessionCostTotal(messages())))
+  const [googleSubscriptionLaneActive, setGoogleSubscriptionLaneActive] = createSignal(false)
+  createEffect(
+    on(messages, async (current) => {
+      const assistantMessages = current.filter((message) => message.role === "assistant")
+      const hasGoogleMessages = assistantMessages.some((message) => message.providerID === "google")
+      if (!hasGoogleMessages) {
+        setGoogleSubscriptionLaneActive(false)
+        return
+      }
+      const auth = await Auth.get("google")
+      setGoogleSubscriptionLaneActive(
+        isGeminiSubscriptionLane({
+          providerID: "google",
+          auth,
+        }),
+      )
+    }),
+  )
+  const sessionCostLabel = createMemo(() => {
+    const assistantMessages = messages().filter((message) => message.role === "assistant")
+    const hasBillableNonGoogle = assistantMessages.some(
+      (message) => message.providerID !== "google" && (message.cost ?? 0) > 0,
+    )
+    if (googleSubscriptionLaneActive() && !hasBillableNonGoogle) return "included"
+    return formatUsd(sessionCostTotal(messages()))
+  })
   const sessionGeneratedTokenCount = createMemo(() =>
     messages().reduce((sum, message) => {
       if (message.role !== "assistant") return sum
@@ -389,6 +416,14 @@ export function Session() {
   const connectedMcpCount = createMemo(
     () => Object.values(sync.data.mcp).filter((item) => item.status === "connected").length,
   )
+  const [retryClock, setRetryClock] = createSignal(Date.now())
+  createEffect(() => {
+    const status = sync.data.session_status?.[route.sessionID]
+    if (status?.type !== "retry") return
+    setRetryClock(Date.now())
+    const timer = setInterval(() => setRetryClock(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
   const selectedTheme = createMemo(() => themeState.selected)
   const selectedThemeShort = createMemo(() => {
     const name = selectedTheme()
@@ -397,10 +432,17 @@ export function Session() {
   })
   const headerStats = createMemo(() => {
     const items: { label: string; color?: RGBA }[] = [{ label: stageLabel().toLowerCase(), color: stageColor() }]
+    const status = sync.data.session_status?.[route.sessionID]
     const usage = contextUsage()
     if (usage) {
       items.push({
         label: usage.percentage !== null ? `context ${usage.percentage}%` : `context ${usage.tokens.toLocaleString()}`,
+      })
+    }
+    if (status?.type === "retry") {
+      items.push({
+        label: `retry ${Locale.duration(Math.max(0, status.next - retryClock()))}`,
+        color: theme.warning,
       })
     }
     if (!stripCompact()) {
@@ -408,7 +450,9 @@ export function Session() {
       if (sessionGeneratedTokenCount() > 0) {
         items.push({ label: `generated ${sessionGeneratedTokenCount().toLocaleString()}` })
       }
-      items.push({ label: sessionCostLabel() })
+      items.push({
+        label: googleSubscriptionLaneActive() && sessionCostLabel() === "included" ? "cost included" : sessionCostLabel(),
+      })
     } else {
       items.push({ label: `${sessionTurnCount()} turns` })
     }
@@ -2550,12 +2594,37 @@ export function Session() {
                           </Match>
                           <Match when={activePaneMode() === "plan"}>
                             <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
+                              <box
+                                flexDirection="column"
+                                gap={0}
+                                paddingBottom={1}
+                                border={["bottom"]}
+                                borderColor={theme.borderSubtle}
+                              >
+                                <text fg={theme.primary} bold>
+                                  Plan
+                                </text>
+                                <text fg={theme.textMuted}>What matters now</text>
+                              </box>
                               <Show
                                 when={
                                   !!workstationState().goal ||
                                   !!workstationState().currentStep ||
                                   liveMilestones().length > 0 ||
                                   workstationState().activitySummary.items.length > 0
+                                }
+                                fallback={
+                                  <box
+                                    flexDirection="column"
+                                    gap={0}
+                                    padding={1}
+                                    border={["round"]}
+                                    borderColor={theme.borderSubtle}
+                                    backgroundColor={theme.backgroundElement}
+                                  >
+                                    <text fg={theme.text}>Plan will fill in as DAX builds context.</text>
+                                    <text fg={theme.textMuted}>Use the stream on the left, then return here for the live outline.</text>
+                                  </box>
                                 }
                               >
                                 <box
@@ -3149,7 +3218,7 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   const count = () => props.tools.length
   const summary = () => {
     const tools = Array.from(new Set(props.tools.map((t) => t.tool)))
-    return `Ran ${count()} background actions (${tools.join(", ")})`
+    return `Checked ${count()} background items · ${tools.join(", ")}`
   }
 
   return (
@@ -3158,15 +3227,15 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
       marginTop={1}
       marginBottom={1}
       borderStyle="round"
-      borderColor={theme.backgroundElement}
-      backgroundColor={tint(theme.background, theme.backgroundElement, 0.5)}
+      borderColor={theme.borderSubtle}
+      backgroundColor={tint(theme.background, theme.backgroundElement, 0.28)}
       paddingLeft={1}
       paddingRight={1}
     >
       <box flexDirection="row" gap={1} onMouseUp={() => setExpanded(!expanded())} paddingTop={1} paddingBottom={1}>
-        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1} marginRight={1}>
+        <box backgroundColor={tint(theme.background, theme.borderSubtle, 0.24)} paddingLeft={1} paddingRight={1} marginRight={1}>
           <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-            BACKGROUND
+            activity
           </text>
         </box>
         <text fg={theme.textMuted}>{expanded() ? "▼" : "▶"}</text>
@@ -3514,6 +3583,14 @@ function AssistantMessage(props: {
   const kv = useKV()
   const [daxSpeaking, setDaxSpeaking] = createSignal(false)
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
+  const runtimeStatus = createMemo(() => sync.data.session_status?.[props.message.sessionID] ?? { type: "idle" as const })
+  const [retryNow, setRetryNow] = createSignal(Date.now())
+  createEffect(() => {
+    if (runtimeStatus().type !== "retry") return
+    setRetryNow(Date.now())
+    const timer = setInterval(() => setRetryNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
   const showEli12Summary = createMemo(() => kv.get(DAX_SETTING.eli12_summary_visibility, false))
@@ -3534,15 +3611,17 @@ function AssistantMessage(props: {
     return body.slice(0, 96) + "..."
   })
   const doing = createMemo(() => {
-    if (props.message.error) return "Hit an error while executing."
+    if (props.message.error) return "Something went wrong while working through the request."
+    if (runtimeStatus().type === "retry") return "Waiting for a short provider cooldown before continuing."
     if (props.parts.some((x) => x.type === "tool" && x.state.status === "pending"))
-      return "Running tools for this task."
-    if (props.parts.some((x) => x.type === "reasoning")) return "Analyzing and preparing an answer."
-    if (props.last && !props.message.time.completed) return "Still working on your request."
-    return "Delivered an answer for this step."
+      return "Working through supporting actions for this request."
+    if (props.parts.some((x) => x.type === "reasoning")) return "Shaping the next part of the answer."
+    if (props.last && !props.message.time.completed) return "Still working through the request."
+    return "Delivered the current answer cleanly."
   })
   const next = createMemo(() => {
     if (props.message.error) return "Retry, or adjust your request and run again."
+    if (runtimeStatus().type === "retry") return "DAX will retry automatically after the cooldown."
     if (props.last && !props.message.time.completed) return "Wait for completion or press esc twice to stop."
     return "Continue with a follow-up request."
   })
@@ -3665,13 +3744,56 @@ function AssistantMessage(props: {
     if (tone === "accent") return theme.accent
     return theme.textMuted
   }
+  const retryMeta = createMemo(() => {
+    const status = runtimeStatus()
+    if (status.type !== "retry") return undefined
+    const ms = Math.max(0, status.next - retryNow())
+    const geminiBusy = /gemini subscription lane is busy/i.test(status.message)
+    return {
+      title: geminiBusy ? "Gemini subscription is temporarily busy" : "Provider is temporarily busy",
+      body: geminiBusy
+        ? "DAX is holding your place and will retry automatically. This is a short provider cooldown, not an auth failure."
+        : "DAX will retry automatically after a short cooldown.",
+      countdown: ms,
+      attempt: status.attempt,
+    }
+  })
 
   return (
     <Show when={shouldRender()}>
+      <Show when={props.last && !props.message.time.completed && retryMeta()}>
+        {(retry) => (
+          <box paddingLeft={2} paddingRight={2} marginTop={1}>
+            <box
+              flexDirection="column"
+              gap={0}
+              borderStyle="round"
+              borderColor={theme.warning}
+              backgroundColor={tint(theme.background, theme.warning, 0.08)}
+              paddingLeft={1}
+              paddingRight={1}
+              paddingTop={1}
+              paddingBottom={1}
+            >
+              <box flexDirection="row" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+                  {retry().title}
+                </text>
+                <text fg={theme.textMuted}>
+                  retry in {Locale.duration(retry().countdown)} · attempt {retry().attempt}
+                </text>
+              </box>
+              <text fg={theme.text} wrapMode="word">
+                {retry().body}
+              </text>
+            </box>
+          </box>
+        )}
+      </Show>
       <Show when={progress() && props.last && !props.message.time.completed}>
         <box paddingLeft={2} paddingRight={2} marginTop={1}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-            MISSION: [{progress()!.bar}] Step {progress()!.current} of {progress()!.total} ({progress()!.percent}%)
+            FLOW: [{progress()!.bar}] Step {progress()!.current} of {progress()!.total} ({progress()!.percent}%)
           </text>
         </box>
       </Show>
@@ -3696,7 +3818,7 @@ function AssistantMessage(props: {
             <box flexDirection="row" justifyContent="space-between" alignItems="center">
               <box flexDirection="column" gap={0}>
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  EXECUTION STATE
+                  EXECUTION NOTEBOOK
                 </text>
               </box>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
@@ -3763,8 +3885,8 @@ function AssistantMessage(props: {
         paddingRight={0}
         flexDirection="column"
         border={["left"]}
-        borderColor={theme.primary}
-        backgroundColor={tint(theme.background, theme.primary, 0.02)}
+        borderColor={tint(theme.primary, theme.borderSubtle, 0.55)}
+        backgroundColor={tint(theme.background, theme.primary, 0.012)}
         marginTop={1}
         marginBottom={0}
       >
@@ -3779,8 +3901,13 @@ function AssistantMessage(props: {
           marginBottom={1}
         >
           <Show when={!daxSpeaking()}>
-            <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
-              <text fg={theme.background} attributes={TextAttributes.BOLD}>
+            <box
+              backgroundColor={tint(theme.background, theme.primary, 0.2)}
+              paddingLeft={1}
+              paddingRight={1}
+              marginRight={1}
+            >
+              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                 {props.message.agent.toUpperCase()}
               </text>
             </box>
@@ -3856,7 +3983,7 @@ function AssistantMessage(props: {
                 ·
               </text>
               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-                🕒 {Locale.duration(duration())}
+                {Locale.duration(duration())}
               </text>
             </Show>
             <Show when={props.message.error?.name === "MessageAbortedError"}>
@@ -3914,7 +4041,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         >
           <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1} marginRight={1}>
             <text fg={theme.background} attributes={TextAttributes.BOLD}>
-              REASONING
+              NOTES
             </text>
           </box>
           <text fg={theme.textMuted}>working notes</text>
@@ -3943,7 +4070,7 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
       <box
         id={"text-" + props.part.id}
         paddingLeft={2}
-        paddingRight={2}
+        paddingRight={3}
         paddingBottom={1}
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
