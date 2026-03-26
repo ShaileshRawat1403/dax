@@ -63,9 +63,9 @@ Read first:
    - `bun run release:verify`
    - `bun run release`
 2. Publish release:
-   - `DAX_VERSION=1.0.3 bun run release:publish`
+   - `DAX_VERSION=1.0.4 bun run release:publish`
 3. Go live:
-   - `DAX_VERSION=1.0.3 bun run release:publish:live`
+   - `DAX_VERSION=1.0.4 bun run release:publish:live`
 4. Publish channels:
    - Homebrew workflow
    - Winget workflow (after onboarding)
