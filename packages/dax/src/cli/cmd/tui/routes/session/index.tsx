@@ -3881,12 +3881,12 @@ function AssistantMessage(props: {
       </Show>
 
       <box
-        paddingLeft={1}
+        paddingLeft={0}
         paddingRight={0}
         flexDirection="column"
-        border={["left"]}
-        borderColor={tint(theme.primary, theme.borderSubtle, 0.55)}
-        backgroundColor={tint(theme.background, theme.primary, 0.012)}
+        border={["round"]}
+        borderColor={theme.borderSubtle}
+        backgroundColor={tint(theme.background, theme.primary, 0.02)}
         marginTop={1}
         marginBottom={0}
       >
@@ -3899,6 +3899,8 @@ function AssistantMessage(props: {
           border={["bottom"]}
           borderColor={theme.backgroundElement}
           marginBottom={1}
+          paddingLeft={1}
+          paddingRight={1}
         >
           <Show when={!daxSpeaking()}>
             <box
@@ -3918,7 +3920,7 @@ function AssistantMessage(props: {
             </text>
           </Show>
         </box>
-        <box paddingLeft={1} paddingRight={1} paddingBottom={0}>
+        <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
           <For each={groupedParts()}>
             {(part, index) => {
               const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -4024,12 +4026,12 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
       <box
         id={"text-" + props.part.id}
         paddingLeft={1}
-        paddingRight={0}
+        paddingRight={1}
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
-        border={["left"]}
-        borderColor={theme.primary}
-        backgroundColor={tint(theme.background, theme.primary, 0.01)}
+        border={["round"]}
+        borderColor={theme.backgroundElement}
+        backgroundColor={tint(theme.background, theme.primary, 0.018)}
       >
         <box
           flexDirection="row"
@@ -4069,11 +4071,15 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
     <Show when={props.part.text.trim()}>
       <box
         id={"text-" + props.part.id}
-        paddingLeft={2}
-        paddingRight={3}
+        paddingLeft={1}
+        paddingRight={1}
+        paddingTop={1}
         paddingBottom={1}
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
+        border={["round"]}
+        borderColor={theme.backgroundElement}
+        backgroundColor={tint(theme.background, theme.backgroundElement, 0.14)}
       >
         <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
       </box>
