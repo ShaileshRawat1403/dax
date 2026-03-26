@@ -2,6 +2,8 @@
 
 DAX can be configured via project/global config and environment variables.
 
+By default, provider authentication is local to the current machine and OS user. If you authenticate once on your laptop, DAX can usually reuse that authentication across repositories on the same machine. Other users still need to authenticate with their own accounts on their own machines.
+
 ## Common Provider Env Vars
 
 - `OPENAI_API_KEY`
@@ -45,6 +47,8 @@ Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.
 This lane is for Gemini Pro, Pro Plus, and Code Assist style subscription access. DAX routes requests through the `cloudcode-pa` quota lane and manages the integration details for you.
 
 By default, DAX will use your existing local `gemini` CLI login when it finds one.
+
+This is a local-user credential flow. DAX is not hard-coded to a particular builder account or bundled subscription.
 
 If your imported Gemini CLI session expires, DAX will tell you to run `gemini` again instead of sending you to custom OAuth setup.
 
@@ -94,5 +98,5 @@ If you prefer to maintain isolation or run in an enterprise setting, you can use
 
 - Your OAuth credentials are stored locally in `~/.dax/data/auth.json`
 - Access and refresh tokens are stored securely
-- Each user should create their own OAuth client (no shared credentials)
+- Each user should use their own keys, CLI login, or OAuth client
 - See [Security Policy](../../SECURITY.md) for more details

@@ -67,6 +67,8 @@ Or use the built-in auth manager:
 dax auth login
 ```
 
+Authentication is usually local to your machine and OS user account. If DAX already appears connected in another repository, that normally means you already authenticated on this machine earlier.
+
 Without `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET`, the Google/Gemini auth picker will show the standard three lanes:
 
 - `Gemini API Key`
@@ -157,6 +159,8 @@ curl -X POST http://localhost:4730/ \
 ## Next Steps
 
 - **Understand the system:** [DAX In Simple Words](./DAX_IN_SIMPLE_WORDS.md)
+- **Read the context behind the project:** [Builder's Note](../BUILDERS_NOTE.md)
+- **Use the plain-English guide:** [DAX for Non-Developers](./NON_DEVELOPERS.md)
 - **See how runs work:** [Runs, Approvals and Recovery](./RUNS_APPROVALS_AND_RECOVERY.md)
 - **Deploy for real:** [Deployment Guide](../OPEN_SOURCE_STACK_DEPLOYMENT.md)
 - **Set up CI:** [Stack Roadmap](../OPEN_SOURCE_STACK_ROADMAP.md) — GitHub Actions section
