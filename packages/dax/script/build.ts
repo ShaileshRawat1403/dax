@@ -84,7 +84,19 @@ if (!skipInstall) {
   await $`bun install --os="*" --cpu="*" @parcel/watcher@${watcherVersion}`
 }
 
-for (const item of targets) {
+function targetName(item: (typeof allTargets)[number]) {
+  return [
+    pkg.name,
+    item.os === "win32" ? "windows" : item.os,
+    item.arch,
+    item.avx2 === false ? "baseline" : undefined,
+    item.abi === undefined ? undefined : item.abi,
+  ]
+    .filter(Boolean)
+    .join("-")
+}
+
+async function buildTarget(item: (typeof allTargets)[number]) {
   const name = [
     pkg.name,
     item.os === "win32" ? "windows" : item.os,
@@ -146,6 +158,10 @@ for (const item of targets) {
   binaries[name] = Script.version
 }
 
+for (const item of targets) {
+  await buildTarget(item)
+}
+
 const releaseTargets: ReleaseTarget[] = [
   {
     os: "darwin",
@@ -200,6 +216,21 @@ if (shouldPackageReleaseAssets) {
 
   for (const target of releaseTargets) {
     const sourceBinary = path.join(dir, "dist", target.sourceName, "bin", target.binary)
+    if (!fs.existsSync(sourceBinary)) {
+      const matchingBuildTarget = allTargets.find((item) => targetName(item) === target.sourceName)
+      const isCurrentHostTarget =
+        matchingBuildTarget &&
+        matchingBuildTarget.os === process.platform &&
+        matchingBuildTarget.arch === process.arch &&
+        matchingBuildTarget.abi === undefined &&
+        matchingBuildTarget.avx2 !== false
+
+      if (isCurrentHostTarget) {
+        console.warn(`missing ${target.sourceName} during packaging; rebuilding current host target`)
+        await buildTarget(matchingBuildTarget)
+      }
+    }
+
     if (!fs.existsSync(sourceBinary)) {
       throw new Error(`Missing build output for release asset: ${sourceBinary}`)
     }
