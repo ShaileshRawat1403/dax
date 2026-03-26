@@ -14,7 +14,7 @@ describe("github command helpers", () => {
   })
 
   test("uses an exact release tag for published builds and main for local builds", () => {
-    expect(gitHubActionRef("1.0.2")).toBe("v1.0.2")
+    expect(gitHubActionRef("1.0.3")).toBe("v1.0.3")
     expect(gitHubActionRef("local")).toBe("main")
   })
 
@@ -23,10 +23,10 @@ describe("github command helpers", () => {
       provider: "openai",
       model: "gpt-5",
       envKeys: ["OPENAI_API_KEY"],
-      actionRef: "v1.0.2",
+      actionRef: "v1.0.3",
     })
 
-    expect(workflow).toContain("uses: ShaileshRawat1403/dax-tui/github@v1.0.2")
+    expect(workflow).toContain("uses: ShaileshRawat1403/dax-tui/github@v1.0.3")
     expect(workflow).toContain("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}")
     expect(workflow).toContain("model: openai/gpt-5")
     expect(workflow).not.toContain("@latest")
