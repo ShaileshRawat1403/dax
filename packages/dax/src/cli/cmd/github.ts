@@ -27,6 +27,7 @@ import { Bus } from "../../bus"
 import { MessageV2 } from "../../session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { $ } from "bun"
+import { Installation } from "@/installation"
 
 type GitHubAuthor = {
   login: string
@@ -171,6 +172,55 @@ export function extractResponseText(parts: MessageV2.Part[]): string | null {
   if (parts.length > 0) return null
 
   throw new Error("Failed to parse response: no parts returned")
+}
+
+export function gitHubActionRef(version = Installation.VERSION) {
+  return version === "local" ? "main" : `v${version}`
+}
+
+export function buildGitHubWorkflow(params: {
+  provider: string
+  model: string
+  envKeys: string[]
+  actionRef?: string
+}) {
+  const envStr =
+    params.envKeys.length === 0
+      ? ""
+      : `\n        env:${params.envKeys.map((e) => `\n          ${e}: \${{ secrets.${e} }}`).join("")}`
+
+  return `name: dax
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  dax:
+    if: |
+      contains(github.event.comment.body, ' /oc') ||
+      startsWith(github.event.comment.body, '/oc') ||
+      contains(github.event.comment.body, ' /dax') ||
+      startsWith(github.event.comment.body, '/dax')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run dax
+        uses: ShaileshRawat1403/dax-tui/github@${params.actionRef ?? gitHubActionRef()}${envStr}
+        with:
+          model: ${params.provider}/${params.model}
+`
 }
 
 export const GithubCommand = cmd({
@@ -353,44 +403,13 @@ export const GithubInstallCommand = cmd({
           }
 
           async function addWorkflowFiles() {
-            const envStr =
-              provider === "amazon-bedrock"
-                ? ""
-                : `\n        env:${providers[provider].env.map((e) => `\n          ${e}: \${{ secrets.${e} }}`).join("")}`
-
             await Bun.write(
               path.join(app.root, WORKFLOW_FILE),
-              `name: dax
-
-on:
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
-
-jobs:
-  dax:
-    if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /dax') ||
-      startsWith(github.event.comment.body, '/dax')
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: read
-      issues: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Run dax
-        uses: ShaileshRawat1403/dax-tui/github@latest${envStr}
-        with:
-          model: ${provider}/${model}`,
+              buildGitHubWorkflow({
+                provider,
+                model,
+                envKeys: provider === "amazon-bedrock" ? [] : providers[provider].env,
+              }),
             )
 
             prompts.log.success(`Added workflow file: "${WORKFLOW_FILE}"`)

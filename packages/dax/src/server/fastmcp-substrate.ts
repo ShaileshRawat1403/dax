@@ -5,6 +5,7 @@ import { RunGateway } from "./run-gateway"
 import { CreateRunRequest, ResolveApprovalRequest } from "./run-contract"
 import { z } from "zod"
 import { Flag } from "@/flag/flag"
+import { Installation } from "@/installation"
 import { validateActorToken, type ActorClaims } from "@/identity/zitadel"
 import { AsyncLocalStorage } from "node:async_hooks"
 
@@ -76,7 +77,7 @@ export function createSubstrateServer(): McpServer {
   const server = new McpServer(
     {
       name: "dax-substrate",
-      version: "1.0.0",
+      version: Installation.VERSION,
     },
     {
       capabilities: {
@@ -96,7 +97,7 @@ export function createSubstrateServer(): McpServer {
       return jsonResult({
         status: "ok",
         service: "dax-substrate",
-        version: "1.0.0",
+        version: Installation.VERSION,
         timestamp: new Date().toISOString(),
       })
     },

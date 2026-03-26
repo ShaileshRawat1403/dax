@@ -10,10 +10,10 @@ This is the fastest path to first success with DAX.
 
 ## Install
 
-For beta releases:
+Install the latest release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dax-ai/dax/main/script/install.sh | DAX_VERSION=v1.0.0-beta.7 bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
 ```
 
 Check install:

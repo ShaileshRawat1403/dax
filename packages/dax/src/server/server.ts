@@ -565,7 +565,7 @@ export namespace Server {
       documentation: {
         info: {
           title: "dax",
-          version: "1.0.0",
+          version: Installation.VERSION,
           description: "dax api",
         },
         openapi: "3.1.1",

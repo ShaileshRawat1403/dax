@@ -90,18 +90,6 @@ You can install DAX using **WinGet**:
 winget install DaxAi.DAX
 ```
 
-### 📦 For Developers (via Bun/NPM)
-
-If you have [Bun](https://bun.sh) or Node.js installed, you can install the package globally. This will automatically fetch the correct native binary for your architecture:
-
-```bash
-# Using Bun
-bun install -g dax
-
-# Using NPM
-npm install -g dax
-```
-
 ### 🌿 Local Development
 
 If you are contributing to this repository, you can link your local version globally:

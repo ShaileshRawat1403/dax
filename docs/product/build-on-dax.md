@@ -13,8 +13,8 @@ This guide explains how to fork and extend DAX for your own product/workflow.
 ## Local Dev Setup
 
 ```bash
-git clone https://github.com/dax-ai/dax.git
-cd dax
+git clone https://github.com/ShaileshRawat1403/dax-tui.git
+cd dax-tui
 bun install
 bun run dev
 ```
@@ -62,10 +62,10 @@ Read first:
 1. Run:
    - `bun run release:verify`
    - `bun run release`
-2. Publish prerelease:
-   - `DAX_VERSION=1.0.0-beta.X bun run release:publish`
+2. Publish release:
+   - `DAX_VERSION=1.0.2 bun run release:publish`
 3. Go live:
-   - `DAX_VERSION=1.0.0-beta.X bun run release:publish:live`
+   - `DAX_VERSION=1.0.2 bun run release:publish:live`
 4. Publish channels:
    - Homebrew workflow
    - Winget workflow (after onboarding)
