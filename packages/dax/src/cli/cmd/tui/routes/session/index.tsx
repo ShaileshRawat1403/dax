@@ -841,11 +841,10 @@ export function Session() {
       for (const part of [...(sync.data.part[msg.id] ?? [])].reverse()) {
         if (part.type !== "tool") continue
         const input = (part.state.input ?? {}) as Record<string, any>
-        const target = input.path || input.file || input.filename || input.target || input.command || ""
         items.push({
           tool: part.tool,
           status: part.state.status,
-          label: target ? `${part.tool} · ${String(target)}` : part.tool,
+          label: describeRecentTool(part.tool, input),
         })
         if (items.length >= 5) return items
       }
@@ -3569,6 +3568,30 @@ function groupParts(parts: Part[]): GroupedPart[] {
   return result
 }
 
+function describeRecentTool(tool: string, input: Record<string, any>) {
+  const target = input.path || input.file || input.filename || input.target || ""
+  switch (tool) {
+    case "read":
+      return target ? `Reading ${String(target)}` : "Reading a file"
+    case "glob":
+      return input.pattern && input.path
+        ? `Searching ${String(input.path)} for ${String(input.pattern)}`
+        : input.pattern
+          ? `Searching for ${String(input.pattern)}`
+          : "Searching files"
+    case "grep":
+      return input.pattern && input.path
+        ? `Searching ${String(input.path)} for matches`
+        : input.pattern
+          ? "Searching for matches"
+          : "Searching file contents"
+    case "list":
+      return target ? `Listing ${String(target)}` : "Listing files"
+    default:
+      return target ? `${tool} · ${String(target)}` : tool
+  }
+}
+
 function AssistantMessage(props: {
   message: AssistantMessage
   parts: Part[]
@@ -3698,13 +3721,11 @@ function AssistantMessage(props: {
       if (part.type === "text") return part.text.trim().length > 0
       if (part.type === "reasoning") return part.text.trim().length > 0
       if (part.type === "tool") {
-        if (ctx.showDetails()) return true
-        return part.state.status !== "completed"
+        return ctx.showDetails()
       }
       return true
     }),
   )
-  const shouldRender = createMemo(() => hasRenderablePart() || !!props.message.error || final() || props.last)
   const showMetadata = createMemo(() => ctx.showAssistantMetadata())
 
   const progress = createMemo(() => {
@@ -3734,11 +3755,11 @@ function AssistantMessage(props: {
   )
 
   const groupedParts = createMemo(() => {
-    if (explainMode()) {
-      return groupParts(props.parts)
-    }
-    return props.parts
+    const grouped = explainMode() ? groupParts(props.parts) : props.parts
+    if (ctx.showDetails()) return grouped
+    return grouped.filter((part) => part.type !== "tool" && part.type !== "activity-cluster")
   })
+  const shouldRender = createMemo(() => hasRenderablePart() || !!props.message.error || final())
   const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
     if (tone === "primary") return theme.primary
     if (tone === "accent") return theme.accent
