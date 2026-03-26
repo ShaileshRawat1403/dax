@@ -3884,11 +3884,13 @@ function AssistantMessage(props: {
         paddingLeft={0}
         paddingRight={0}
         flexDirection="column"
-        border={["round"]}
+        borderStyle="round"
         borderColor={tint(theme.primary, theme.border, 0.45)}
         backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.055)}
         marginTop={1}
         marginBottom={0}
+        title=" response "
+        titleAlignment="left"
       >
         <box
           flexDirection="row"
@@ -3926,7 +3928,7 @@ function AssistantMessage(props: {
             <box marginBottom={1}>
               <box
                 backgroundColor={tint(theme.background, theme.primary, 0.26)}
-                border={["round"]}
+                borderStyle="round"
                 borderColor={tint(theme.primary, theme.border, 0.25)}
                 paddingLeft={1}
                 paddingRight={1}
@@ -4045,9 +4047,11 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         paddingRight={1}
         marginTop={props.marginTop ?? 1}
         flexDirection="column"
-        border={["round"]}
+        borderStyle="round"
         borderColor={tint(theme.primary, theme.border, 0.18)}
         backgroundColor={tint(theme.background, theme.primary, 0.05)}
+        title=" notes "
+        titleAlignment="left"
       >
         <box
           flexDirection="row"
@@ -4093,9 +4097,11 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
         paddingBottom={1}
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
-        border={["round"]}
+        borderStyle="round"
         borderColor={tint(theme.primary, theme.border, 0.22)}
         backgroundColor={tint(theme.background, theme.primary, 0.075)}
+        title=" answer "
+        titleAlignment="left"
       >
         <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
       </box>
