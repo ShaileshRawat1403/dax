@@ -68,6 +68,7 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 | **Architecture**      | [How DAX Works](./docs/architecture/HOW_DAX_WORKS.md) • [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md)           |
 | **Open Source Stack** | [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) • [Deployment Guide](./docs/OPEN_SOURCE_STACK_DEPLOYMENT.md)                                                                                                                                  |
 | **Trust**             | [Transparency & Limitations](./docs/product/TRANSPARENCY_AND_LIMITATIONS.md) • [Write Governance](./docs/features/DAX_WRITE_GOVERNANCE.md) • [Release Readiness](./docs/product/release-readiness.md) • [Security Policy](./SECURITY.md)           |
+| **Context**           | [Builder's Note](./docs/BUILDERS_NOTE.md) • [Non-Developer Guide](./docs/product/NON_DEVELOPERS.md)                                                                                                                                               |
 
 ---
 
@@ -126,6 +127,8 @@ For most users, DAX will show three Google auth options:
 
 `Gemini Subscription Sign-In` uses your local `gemini` CLI session when available, and falls back to direct browser sign-in when `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
 
+Authentication is local to your machine and OS user account. DAX does not ship someone else's subscriptions to other users. If a new user installs DAX on their own machine, they authenticate with their own account, keys, or local `gemini` login.
+
 ### If You’re Not a Developer
 
 Start with [DAX in Simple Words](./docs/product/DAX_IN_SIMPLE_WORDS.md) and the new [Non-Developer Guide](./docs/product/NON_DEVELOPERS.md).
@@ -136,6 +139,12 @@ Those guides explain:
 - which model setup is easiest
 - what to expect when DAX pauses for approval
 - what common messages like rate limits or re-auth prompts mean
+
+## Builder's Note
+
+DAX is not just a codebase. It is an attempt to make AI systems feel less like improv and more like operations.
+
+It was built from a systems-thinking, orchestration, and technical-communication perspective, with AI-assisted development as part of the method rather than something quietly hidden in the basement. If you want the fuller context behind the project, read the [Builder's Note](./docs/BUILDERS_NOTE.md).
 
 ---
 

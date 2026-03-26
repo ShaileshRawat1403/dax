@@ -46,6 +46,8 @@ Choose this when you want:
 
 If this lane expires later, DAX should tell you to run `gemini` again.
 
+Important: DAX uses the account that is authenticated on your own machine. It does not ship somebody else's subscription to you. If you install DAX on your laptop, it will use your Gemini login, your API key, or your OAuth setup.
+
 ### 3. Custom Google OAuth Client
 
 Use this only if you or your team intentionally manage your own Google OAuth app.
@@ -115,6 +117,18 @@ gemini
 ```
 
 Then reconnect through DAX.
+
+## One Thing That Surprises New Users
+
+If DAX already looks connected when you open it in a different project, that usually means you already authenticated on this machine earlier.
+
+That is normal.
+
+DAX authentication is usually:
+
+- local to your machine
+- shared across projects for your OS user
+- based on your own login, keys, or local `gemini` CLI session
 
 ## The Main Idea
 
