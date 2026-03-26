@@ -13,6 +13,7 @@ import { DialogModel } from "./dialog-model"
 import { useKeyboard } from "@opentui/solid"
 import { Clipboard } from "@tui/util/clipboard"
 import { useToast } from "../ui/toast"
+import { getVisibleProviderAuthMethods } from "../../provider-auth"
 
 const CORE_PROVIDER_PRIORITY: Record<string, number> = {
   openai: 0,
@@ -67,17 +68,18 @@ export function createDialogProviderOptions() {
                 label: "API key",
               },
             ]
+            const visibleMethods = getVisibleProviderAuthMethods(provider.id, methods)
             let index: number | null = 0
-            if (methods.length > 1) {
+            if (visibleMethods.length > 1) {
               index = await new Promise<number | null>((resolve) => {
                 dialog.replace(
                   () => (
                     <DialogSelect
                       title="Select auth method"
-                      options={methods.map((x, index) => ({
-                        title: x.label,
-                        description: x.description,
-                        value: index,
+                      options={visibleMethods.map((item) => ({
+                        title: item.title,
+                        description: item.description,
+                        value: item.originalIndex,
                       }))}
                       onSelect={(option) => resolve(option.value)}
                     />
