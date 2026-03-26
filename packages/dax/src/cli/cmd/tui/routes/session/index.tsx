@@ -887,7 +887,7 @@ export function Session() {
           })),
       )
     }
-    if (stageReasonText && items.length < 4) {
+    if (stageReasonText && !isLowSignalPaneReason(stageReasonText) && items.length < 4) {
       items.push({
         label: stageReasonText,
         status: stage === "done" ? "done" : stage === "waiting" ? "pending" : "active",
@@ -3645,7 +3645,11 @@ function groupParts(parts: Part[]): GroupedPart[] {
 }
 
 function describeRecentTool(tool: string, input: Record<string, any>) {
-  const target = input.path || input.file || input.filename || input.target || ""
+  const target = input.filePath || input.path || input.file || input.filename || input.target || ""
+  const command = typeof input.command === "string" ? input.command.trim() : ""
+  const compactCommand = command.replace(/\s+/g, " ")
+  const commandPreview =
+    compactCommand.length > 48 ? `${compactCommand.slice(0, 45).trimEnd()}...` : compactCommand
   switch (tool) {
     case "read":
       return target ? `Reading ${String(target)}` : "Reading a file"
@@ -3663,9 +3667,24 @@ function describeRecentTool(tool: string, input: Record<string, any>) {
           : "Searching file contents"
     case "list":
       return target ? `Listing ${String(target)}` : "Listing files"
+    case "shell":
+      return commandPreview ? `Running ${commandPreview}` : "Running a shell command"
+    case "edit":
+      return target ? `Editing ${String(target)}` : "Editing a file"
+    case "write":
+      return target ? `Writing ${String(target)}` : "Writing a file"
+    case "apply_patch":
+      return target ? `Patching ${String(target)}` : "Applying a patch"
     default:
       return target ? `${tool} · ${String(target)}` : tool
   }
+}
+
+function isLowSignalPaneReason(value: string | undefined) {
+  if (!value) return true
+  return /^(idle|session processing|response stream active|reasoning stream active|waiting for provider response)$/i.test(
+    value.trim(),
+  )
 }
 
 function AssistantMessage(props: {
@@ -3694,6 +3713,17 @@ function AssistantMessage(props: {
   const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
   const showEli12Summary = createMemo(() => kv.get(DAX_SETTING.eli12_summary_visibility, false))
   const parent = createMemo(() => messages().find((x) => x.id === props.message.parentID && x.role === "user"))
+  const currentToolLabel = createMemo(() => {
+    for (const part of [...props.parts].reverse()) {
+      if (part.type !== "tool") continue
+      const input = (part.state.input ?? {}) as Record<string, any>
+      return {
+        status: part.state.status,
+        label: describeRecentTool(part.tool, input),
+      }
+    }
+    return undefined
+  })
   const asked = createMemo(() => {
     const id = parent()?.id
     if (!id) return "No user request found."
@@ -3712,17 +3742,33 @@ function AssistantMessage(props: {
   const doing = createMemo(() => {
     if (props.message.error) return "Something went wrong while working through the request."
     if (runtimeStatus().type === "retry") return "Waiting for a short provider cooldown before continuing."
-    if (props.parts.some((x) => x.type === "tool" && x.state.status === "pending"))
-      return "Working through supporting actions for this request."
-    if (props.parts.some((x) => x.type === "reasoning")) return "Shaping the next part of the answer."
+    if (currentToolLabel()?.status === "pending") return `Working through ${currentToolLabel()!.label.toLowerCase()}.`
+    if (props.parts.some((x) => x.type === "reasoning")) return "Working through the request and shaping the answer."
     if (props.last && !props.message.time.completed) return "Still working through the request."
     return "Delivered the current answer cleanly."
   })
   const next = createMemo(() => {
     if (props.message.error) return "Retry, or adjust your request and run again."
     if (runtimeStatus().type === "retry") return "DAX will retry automatically after the cooldown."
-    if (props.last && !props.message.time.completed) return "Wait for completion or press esc twice to stop."
+    if (currentToolLabel()?.status === "pending") return "I’ll keep this moving and surface the next useful finding here."
+    if (props.last && !props.message.time.completed) return "I’ll keep going and surface the next useful update here."
     return "Continue with a follow-up request."
+  })
+  const liveWorkingNote = createMemo(() => {
+    if (props.message.error) return undefined
+    if (runtimeStatus().type === "retry") {
+      return "The provider is cooling down for a moment. I’m holding the thread and will continue automatically."
+    }
+    if (props.parts.some((x) => x.type === "reasoning" && cleanReasoningText(x.text).length > 0)) {
+      return "I’m working through the task and shaping the next answer with the context gathered so far."
+    }
+    if (currentToolLabel()?.status === "pending") {
+      return `I’m using ${currentToolLabel()!.label.toLowerCase()} to build enough context before I answer.`
+    }
+    if (props.last && !props.message.time.completed) {
+      return "I’m still on it and will post the next concrete update here as soon as it’s ready."
+    }
+    return undefined
   })
   const hasNativeEli12 = createMemo(() =>
     props.parts.some(
@@ -3987,7 +4033,7 @@ function AssistantMessage(props: {
         <box paddingLeft={2} paddingRight={2} marginTop={1}>
           <box
             flexDirection="column"
-            gap={0}
+            gap={1}
             borderStyle="round"
             borderColor={theme.borderSubtle}
             backgroundColor={tint(theme.background, theme.backgroundElement, 0.2)}
@@ -3995,18 +4041,23 @@ function AssistantMessage(props: {
             paddingRight={1}
             paddingTop={1}
             paddingBottom={1}
-          >
-            <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-              <box backgroundColor={tint(theme.background, theme.primary, 0.24)} paddingLeft={1} paddingRight={1}>
+            >
+              <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                <box backgroundColor={tint(theme.background, theme.primary, 0.24)} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                   {Locale.titlecase(props.message.mode)}
                 </text>
+                </box>
+                <text fg={theme.text}>{doing()}</text>
               </box>
-              <text fg={theme.text}>{doing()}</text>
-            </box>
-            <text fg={theme.textMuted} wrapMode="word">
-              {next()}
-            </text>
+              <Show when={liveWorkingNote()}>
+                <text fg={theme.text} wrapMode="word">
+                  {liveWorkingNote()}
+                </text>
+              </Show>
+              <text fg={theme.textMuted} wrapMode="word">
+                {next()}
+              </text>
           </box>
         </box>
       </Show>

@@ -92,7 +92,7 @@ describe("session surface helpers", () => {
           } as any,
         ],
       }),
-    ).toEqual({ stage: "executing", reason: "shell in progress" })
+    ).toEqual({ stage: "executing", reason: "running a command" })
   })
 
   test("derives stream status for visible reasoning and text content", () => {
@@ -104,21 +104,21 @@ describe("session surface helpers", () => {
           { type: "text", text: "   " } as any,
         ],
       }),
-    ).toBe("waiting for stream content")
+    ).toBe("waiting for provider response")
 
     expect(
       deriveLiveStreamStatus({
         pendingID: "assistant-1",
         partsForMessage: () => [{ type: "reasoning", text: "planning next step" } as any],
       }),
-    ).toBe("reasoning stream active")
+    ).toBe("drafting the next step")
 
     expect(
       deriveLiveStreamStatus({
         pendingID: "assistant-1",
         partsForMessage: () => [{ type: "text", text: "Here is the response" } as any],
       }),
-    ).toBe("response stream active")
+    ).toBe("answer streaming")
   })
 
   test("derives a high-fidelity assistant insight card model", () => {
@@ -127,7 +127,7 @@ describe("session surface helpers", () => {
       doing: "Running release checks and watching the stream for regressions.",
       next: "Review blockers, then publish if the board stays clean.",
       stage: "verifying",
-      streamStatus: "reasoning stream active",
+      streamStatus: "drafting the next step",
       durationMs: 6200,
       totalTokens: 1842,
       tokensPerSecond: 41.3,
@@ -144,7 +144,7 @@ describe("session surface helpers", () => {
     expect(card.rows.map((row) => row.label)).toEqual(["Mission", "Now", "Next"])
     expect(card.metrics).toEqual([
       { label: "Stage", value: "Verifying", tone: "primary" },
-      { label: "Stream", value: "reasoning stream active", tone: "accent" },
+      { label: "Stream", value: "drafting the next step", tone: "accent" },
       { label: "Runtime", value: "6s", tone: "muted" },
       { label: "Tokens", value: "1,842", tone: "muted" },
       { label: "Pace", value: "41/s", tone: "muted" },
@@ -162,7 +162,7 @@ describe("session surface helpers", () => {
         ],
       }),
     ).toEqual({
-      streamStatus: "shell running",
+      streamStatus: "running a command",
       hasPendingTool: true,
       hasCompletedTool: false,
       hasVisibleReasoning: false,
@@ -178,7 +178,7 @@ describe("session surface helpers", () => {
         ],
       }),
     ).toEqual({
-      streamStatus: "shell completed",
+      streamStatus: "running a command complete",
       hasPendingTool: false,
       hasCompletedTool: true,
       hasVisibleReasoning: true,
@@ -191,7 +191,7 @@ describe("session surface helpers", () => {
         partsForMessage: () => [{ type: "text", text: "Final answer ready" } as any],
       }),
     ).toEqual({
-      streamStatus: "response stream active",
+      streamStatus: "answer streaming",
       hasPendingTool: false,
       hasCompletedTool: false,
       hasVisibleReasoning: false,
@@ -207,7 +207,7 @@ describe("session surface helpers", () => {
         ],
       }),
     ).toEqual({
-      streamStatus: "waiting for stream content",
+      streamStatus: "waiting for provider response",
       hasPendingTool: false,
       hasCompletedTool: false,
       hasVisibleReasoning: false,
