@@ -4,6 +4,17 @@ Project Memory, or `PM`, is DAX's local memory layer for durable project context
 
 It is meant to help DAX remember lightweight operational context between sessions without pretending to be a mystical long-term brain.
 
+```mermaid
+graph LR
+    A[Session activity] --> B[Project Memory]
+    C[PM notes] --> B
+    D[PM rules] --> B
+    B --> E[Future sessions]
+    E --> F[Better continuity]
+    style B fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style F fill:#5cb85c,stroke:#3d8b3d,color:#fff
+```
+
 ## What Project Memory Is
 
 Project Memory stores useful project-specific signals such as:
@@ -122,6 +133,21 @@ Use PM for information like:
 - `prefer docs-only fixes before code changes during release week`
 
 That is the kind of memory that improves operations without becoming noise.
+
+```mermaid
+mindmap
+  root((Project Memory))
+    Notes
+      Daily status
+      Release reminders
+    Rules
+      Require approval
+      Protect fragile areas
+    Preferences
+      Local defaults
+    Events
+      Run history signals
+```
 
 ## Safety Notes
 

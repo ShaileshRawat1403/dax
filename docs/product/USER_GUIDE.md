@@ -34,6 +34,23 @@ That is the core loop:
 5. Result
 6. Audit and review
 
+```mermaid
+graph LR
+    A[Intent] --> B[Plan]
+    B --> C[Run]
+    C --> D{Risky?}
+    D -->|No| E[Result]
+    D -->|Yes| F[Approval]
+    F -->|Approved| E
+    F -->|Denied| G[Stopped]
+    E --> H[Audit and Review]
+    style A fill:#f0f0f0,stroke:#333
+    style B fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style C fill:#5cb85c,stroke:#3d8b3d,color:#fff
+    style F fill:#e8a838,stroke:#c07d1a,color:#fff
+    style H fill:#7b68ee,stroke:#5a4bb8,color:#fff
+```
+
 ## Step 1: Install DAX
 
 Use the method that matches how you want to work:
@@ -172,6 +189,23 @@ You want DAX to analyze a repository and suggest a safe cleanup.
 
 That is the expected user journey.
 
+```mermaid
+journey
+    title First useful DAX session
+    section Setup
+      Install DAX: 5: User
+      Connect provider: 5: User
+    section Guided work
+      Enter a clear intent: 5: User
+      Review execution preview: 4: User
+      Watch streamed steps: 4: User
+    section Governance
+      Inspect approval if needed: 4: User
+      Approve or deny: 4: User
+    section Review
+      Check result and audit trail: 5: User
+```
+
 ## What to Do If Something Feels Off
 
 Run these first:
@@ -203,6 +237,8 @@ If DAX says the Gemini subscription lane is busy:
 3. [Runs, Approvals and Recovery](./RUNS_APPROVALS_AND_RECOVERY.md)
 4. [Tool Reference and Risk Matrix](./TOOLS_AND_RISK_MATRIX.md)
 5. [Project Memory Guide](./PROJECT_MEMORY.md)
+
+For the more technical mental model, continue into [How DAX Works](../architecture/HOW_DAX_WORKS.md).
 
 ## Forking and Contributing
 

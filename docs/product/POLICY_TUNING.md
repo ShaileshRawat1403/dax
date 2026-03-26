@@ -18,6 +18,16 @@ In practice, it means DAX should:
 - surface risky work clearly
 - let humans intervene where it matters
 
+```mermaid
+graph LR
+    A[Run] --> B[Audit]
+    B --> C[Override]
+    C --> A
+    style A fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    style B fill:#e8a838,stroke:#c07d1a,color:#fff
+    style C fill:#e85d5d,stroke:#a33,color:#fff
+```
+
 ## What You Can Tune
 
 Different teams want different postures.
@@ -152,6 +162,20 @@ Loosen governance when:
 - the task is exploratory and read-only
 - the repo is a sandbox
 - the actions are reversible and low-risk
+
+```mermaid
+graph TD
+    A[Choose posture] --> B{Task sensitivity}
+    B -->|Low| C[Looser / balanced]
+    B -->|Medium| D[Balanced with approvals]
+    B -->|High| E[Strict / gated]
+    C --> F[Fast read-only iteration]
+    D --> G[Visible mutation review]
+    E --> H[Explicit human checkpoints]
+    style C fill:#5cb85c,stroke:#3d8b3d,color:#fff
+    style D fill:#f0ad4e,stroke:#c07d1a,color:#fff
+    style E fill:#e85d5d,stroke:#a33,color:#fff
+```
 
 ## Related Guides
 
