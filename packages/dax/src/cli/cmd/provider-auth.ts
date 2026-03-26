@@ -14,61 +14,123 @@ export function hasAdvancedGoogleClient(env: NodeJS.ProcessEnv = process.env) {
   return !!env.DAX_GOOGLE_CLI_CLIENT_ID && !!env.DAX_GOOGLE_CLI_CLIENT_SECRET
 }
 
-export function getVisibleProviderAuthMethods<T extends ProviderAuthMethodLike>(
+export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethodLike>(
   providerID: string,
   methods: T[],
   env: NodeJS.ProcessEnv = process.env,
-): VisibleProviderAuthMethod<T>[] {
-  return methods.flatMap((method, originalIndex) => {
-    const visible = describeProviderAuthMethod(providerID, method, env)
-    if (!visible) return []
-    return [
-      {
-        method,
-        originalIndex,
-        ...visible,
-      },
-    ]
+): Promise<VisibleProviderAuthMethod<T>[]> {
+  if (!isGoogleLikeProvider(providerID)) {
+    return methods.map((method, originalIndex) => ({
+      method,
+      originalIndex,
+      title: method.label,
+      description: method.description,
+    }))
+  }
+
+  const apiKeyIndex = methods.findIndex((method) => isGoogleApiKeyLabel(method.label))
+  const cliImportIndex = methods.findIndex((method) => isGeminiCliImportLabel(method.label))
+  const directSignInIndex = methods.findIndex((method) => looksLikeAdvancedGoogleSignIn(method.label))
+  const customOauthIndex = methods.findIndex((method) => looksLikeCustomGoogleOauth(method.label))
+
+  const visible: VisibleProviderAuthMethod<T>[] = []
+
+  if (apiKeyIndex >= 0) {
+    visible.push({
+      method: methods[apiKeyIndex]!,
+      originalIndex: apiKeyIndex,
+      title: "Gemini API Key",
+      description: "Use your API key from Google AI Studio.",
+      hint: "Free tier or pay-as-you-go",
+    })
+  }
+
+  const subscriptionIndex = await resolveGoogleSubscriptionIndex({
+    cliImportIndex,
+    directSignInIndex,
+    env,
   })
+  if (subscriptionIndex != null) {
+    visible.push({
+      method: methods[subscriptionIndex]!,
+      originalIndex: subscriptionIndex,
+      title: "Gemini Subscription Sign-In",
+      description: "Use Gemini Pro or Plus through your Gemini CLI session or direct subscription sign-in.",
+      hint:
+        subscriptionIndex === cliImportIndex
+          ? "Uses your local Gemini CLI session"
+          : "Uses direct subscription sign-in",
+    })
+  }
+
+  if (customOauthIndex >= 0) {
+    visible.push({
+      method: methods[customOauthIndex]!,
+      originalIndex: customOauthIndex,
+      title: "Custom Google OAuth Client",
+      description: "Sign in with your own Google OAuth app credentials.",
+      hint: "Advanced or enterprise setup",
+    })
+  }
+
+  return visible
 }
 
-function describeProviderAuthMethod(
-  providerID: string,
-  method: ProviderAuthMethodLike,
-  env: NodeJS.ProcessEnv,
-): Omit<VisibleProviderAuthMethod<ProviderAuthMethodLike>, "method" | "originalIndex"> | null {
-  let title = method.label
-  let description = method.description
-  let hint: string | undefined
-
-  if (isGoogleLikeProvider(providerID)) {
-    if (title.includes("Gemini API") || title.includes("API key")) {
-      title = "Gemini API Key"
-      hint = "Get a free API key"
-    } else if (title.includes("Gemini CLI") || title.includes("CLI")) {
-      title = "Import from Gemini CLI"
-      hint = "Use local credentials (recommended)"
-    } else if (looksLikeAdvancedGoogleSignIn(title)) {
-      if (!hasAdvancedGoogleClient(env)) return null
-      title = "Advanced Google Sign-In"
-      hint = "Requires configured client ID and secret"
-    } else if (title.toLowerCase().includes("oauth")) {
-      title = "Custom Google OAuth Client"
-      hint = "Use your own OAuth credentials"
-    }
+async function resolveGoogleSubscriptionIndex(input: {
+  cliImportIndex: number
+  directSignInIndex: number
+  env: NodeJS.ProcessEnv
+}) {
+  if (await hasGeminiCliSession(input.env)) {
+    if (input.cliImportIndex >= 0) return input.cliImportIndex
   }
 
-  return {
-    title,
-    description,
-    hint,
+  if (hasAdvancedGoogleClient(input.env)) {
+    if (input.directSignInIndex >= 0) return input.directSignInIndex
   }
+
+  if (input.cliImportIndex >= 0) return input.cliImportIndex
+  if (input.directSignInIndex >= 0) return input.directSignInIndex
+  return undefined
+}
+
+async function hasGeminiCliSession(env: NodeJS.ProcessEnv) {
+  for (const item of geminiCredPaths(env)) {
+    const creds = await Bun.file(item)
+      .json()
+      .then((value) => value as { access_token?: string; refresh_token?: string })
+      .catch(() => undefined)
+    if (creds?.access_token || creds?.refresh_token) return true
+  }
+  return false
+}
+
+function geminiCredPaths(env: NodeJS.ProcessEnv) {
+  const home = env.HOME ?? Bun.env.HOME ?? ""
+  return [
+    env.GEMINI_OAUTH_CREDS_PATH,
+    `${home}/.gemini/oauth_creds.json`,
+    `${home}/.config/gemini/oauth_creds.json`,
+    `${home}/.config/google-gemini/oauth_creds.json`,
+  ].filter(Boolean) as string[]
 }
 
 function isGoogleLikeProvider(providerID: string) {
   return providerID.includes("google") || providerID.includes("gemini")
 }
 
+function isGoogleApiKeyLabel(label: string) {
+  return label.includes("Gemini API") || label.includes("API key")
+}
+
+function isGeminiCliImportLabel(label: string) {
+  return label.includes("Gemini CLI") || label.includes("CLI")
+}
+
 function looksLikeAdvancedGoogleSignIn(label: string) {
   return /sign[\s-]?in/i.test(label)
+}
+
+function looksLikeCustomGoogleOauth(label: string) {
+  return label.toLowerCase().includes("oauth")
 }

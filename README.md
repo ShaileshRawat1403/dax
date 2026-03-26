@@ -121,10 +121,21 @@ dax --version
 For most users, DAX will show three Google auth options:
 
 - `Gemini API Key`
-- `Import from Gemini CLI`
+- `Gemini Subscription Sign-In`
 - `Custom Google OAuth Client`
 
-The advanced direct Google sign-in lane only appears when both `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
+`Gemini Subscription Sign-In` uses your local `gemini` CLI session when available, and falls back to direct browser sign-in when `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
+
+### If You’re Not a Developer
+
+Start with [DAX in Simple Words](./docs/product/DAX_IN_SIMPLE_WORDS.md) and the new [Non-Developer Guide](./docs/product/NON_DEVELOPERS.md).
+
+Those guides explain:
+
+- what DAX actually does in plain English
+- which model setup is easiest
+- what to expect when DAX pauses for approval
+- what common messages like rate limits or re-auth prompts mean
 
 ---
 

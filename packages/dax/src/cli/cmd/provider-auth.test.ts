@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { getVisibleProviderAuthMethods } from "./provider-auth"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 
 describe("getVisibleProviderAuthMethods", () => {
   const googleMethods = [
@@ -25,34 +28,58 @@ describe("getVisibleProviderAuthMethods", () => {
     },
   ]
 
-  test("hides advanced Google sign-in when client env vars are absent", () => {
-    const visible = getVisibleProviderAuthMethods("google", googleMethods, {})
+  test("uses Gemini CLI as the subscription lane when CLI creds exist", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dax-google-auth-"))
+    const credsPath = join(dir, "oauth_creds.json")
+    await writeFile(credsPath, JSON.stringify({ access_token: "x", refresh_token: "y" }))
+
+    const visible = await getVisibleProviderAuthMethods("google", googleMethods, {
+      GEMINI_OAUTH_CREDS_PATH: credsPath,
+    })
 
     expect(visible.map((item) => item.title)).toEqual([
       "Gemini API Key",
-      "Import from Gemini CLI",
+      "Gemini Subscription Sign-In",
       "Custom Google OAuth Client",
     ])
     expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
+    await rm(dir, { recursive: true, force: true })
   })
 
-  test("shows advanced Google sign-in when client env vars are present", () => {
-    const visible = getVisibleProviderAuthMethods("google", googleMethods, {
+  test("uses direct sign-in as the subscription lane when client env vars are present", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dax-google-auth-"))
+    const visible = await getVisibleProviderAuthMethods("google", googleMethods, {
+      HOME: dir,
       DAX_GOOGLE_CLI_CLIENT_ID: "client-id",
       DAX_GOOGLE_CLI_CLIENT_SECRET: "client-secret",
     })
 
     expect(visible.map((item) => item.title)).toEqual([
       "Gemini API Key",
-      "Import from Gemini CLI",
-      "Advanced Google Sign-In",
+      "Gemini Subscription Sign-In",
       "Custom Google OAuth Client",
     ])
-    expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 2, 3])
+    expect(visible.map((item) => item.originalIndex)).toEqual([0, 2, 3])
+    await rm(dir, { recursive: true, force: true })
   })
 
-  test("leaves non-google providers unchanged", () => {
-    const visible = getVisibleProviderAuthMethods("openai", [
+  test("falls back to CLI import when neither CLI creds nor direct sign-in env are present", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dax-google-auth-"))
+    const visible = await getVisibleProviderAuthMethods("google", googleMethods, {
+      HOME: dir,
+    })
+
+    expect(visible.map((item) => item.title)).toEqual([
+      "Gemini API Key",
+      "Gemini Subscription Sign-In",
+      "Custom Google OAuth Client",
+    ])
+    expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  test("leaves non-google providers unchanged", async () => {
+    const visible = await getVisibleProviderAuthMethods("openai", [
       {
         type: "api" as const,
         label: "API key",
