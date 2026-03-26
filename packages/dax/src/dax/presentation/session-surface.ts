@@ -57,6 +57,37 @@ function titlecase(value: string) {
     .join(" ")
 }
 
+function describeToolProgress(tool: string) {
+  switch (tool) {
+    case "read":
+      return "reading files"
+    case "glob":
+      return "searching the workspace"
+    case "grep":
+      return "searching file contents"
+    case "list":
+      return "listing project files"
+    case "shell":
+      return "running a command"
+    case "write":
+      return "writing a file"
+    case "edit":
+      return "editing a file"
+    case "apply_patch":
+      return "patching files"
+    case "task":
+      return "structuring the task"
+    case "todowrite":
+      return "updating the checklist"
+    case "question":
+      return "waiting for clarification"
+    case "skill":
+      return "loading a skill"
+    default:
+      return `${tool} in progress`
+  }
+}
+
 export function parseAuditResult(text: string): AuditResult | undefined {
   if (!text) return
   const fenced = text.match(/```json\s*([\s\S]*?)```/i)?.[1]
@@ -129,13 +160,13 @@ export function deriveLiveSessionStageState(input: {
 
     if (pendingTool && pendingTool.type === "tool") {
       const tool = pendingTool.tool
-      if (PLAN_TOOLS.has(tool)) return { stage: "planning", reason: `${tool} in progress` }
-      if (EXECUTE_TOOLS.has(tool)) return { stage: "executing", reason: `${tool} in progress` }
+      if (PLAN_TOOLS.has(tool)) return { stage: "planning", reason: describeToolProgress(tool) }
+      if (EXECUTE_TOOLS.has(tool)) return { stage: "executing", reason: describeToolProgress(tool) }
       if (VERIFY_TOOLS.has(tool) && completedExecutionInTurn) {
-        return { stage: "verifying", reason: `${tool} after execution` }
+        return { stage: "verifying", reason: "checking the result after execution" }
       }
-      if (EXPLORE_TOOLS.has(tool)) return { stage: "exploring", reason: `${tool} in progress` }
-      return { stage: "executing", reason: `${tool} in progress` }
+      if (EXPLORE_TOOLS.has(tool)) return { stage: "exploring", reason: describeToolProgress(tool) }
+      return { stage: "executing", reason: describeToolProgress(tool) }
     }
 
     const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
@@ -158,10 +189,10 @@ export function deriveLiveStreamStatus(input: {
 
   const parts = input.partsForMessage(input.pendingID)
   const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
-  if (pendingTool && pendingTool.type === "tool") return `${pendingTool.tool} in progress`
+  if (pendingTool && pendingTool.type === "tool") return describeToolProgress(pendingTool.tool)
 
   const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
-  if (completedTool && completedTool.type === "tool") return `${completedTool.tool} wrapped up`
+  if (completedTool && completedTool.type === "tool") return `${describeToolProgress(completedTool.tool)} complete`
 
   if (nonEmptyTextPart(parts, "reasoning")) return "drafting the next step"
   if (nonEmptyTextPart(parts, "text")) return "answer streaming"
