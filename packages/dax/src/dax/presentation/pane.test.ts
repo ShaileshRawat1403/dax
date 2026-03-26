@@ -12,12 +12,14 @@ describe("pane presentation model", () => {
     expect(paneCompactLabel("approvals", false)).toBe("approve")
   })
 
-  it("prioritizes approvals, then refine, then audit, then plan for auto pane focus", () => {
+  it("prioritizes approvals, then refine, then live plan context, then audit for auto pane focus", () => {
     expect(
       deriveAutoPaneMode({
         hasApprovals: true,
         hasRefineDraft: true,
         hasAuditAttention: true,
+        hasDiffContext: true,
+        hasLiveContext: true,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -28,6 +30,8 @@ describe("pane presentation model", () => {
         hasApprovals: false,
         hasRefineDraft: true,
         hasAuditAttention: true,
+        hasDiffContext: true,
+        hasLiveContext: true,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -38,6 +42,20 @@ describe("pane presentation model", () => {
         hasApprovals: false,
         hasRefineDraft: false,
         hasAuditAttention: true,
+        hasDiffContext: true,
+        hasLiveContext: true,
+        hasPlanContext: true,
+        fallback: "diff",
+      }),
+    ).toBe("plan")
+
+    expect(
+      deriveAutoPaneMode({
+        hasApprovals: false,
+        hasRefineDraft: false,
+        hasAuditAttention: true,
+        hasDiffContext: true,
+        hasLiveContext: false,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -51,6 +69,8 @@ describe("pane presentation model", () => {
         hasApprovals: false,
         hasRefineDraft: false,
         hasAuditAttention: false,
+        hasDiffContext: false,
+        hasLiveContext: false,
         hasPlanContext: true,
       }),
     ).toBe(true)
@@ -61,6 +81,8 @@ describe("pane presentation model", () => {
         hasApprovals: true,
         hasRefineDraft: true,
         hasAuditAttention: true,
+        hasDiffContext: true,
+        hasLiveContext: true,
         hasPlanContext: true,
       }),
     ).toBe(false)
@@ -72,6 +94,8 @@ describe("pane presentation model", () => {
         hasApprovals: false,
         hasRefineDraft: true,
         hasAuditAttention: false,
+        hasDiffContext: false,
+        hasLiveContext: true,
         hasPlanContext: true,
         fallback: "plan",
         paneMode: "refine",
@@ -88,6 +112,8 @@ describe("pane presentation model", () => {
         hasApprovals: true,
         hasRefineDraft: true,
         hasAuditAttention: false,
+        hasDiffContext: false,
+        hasLiveContext: true,
         hasPlanContext: true,
         fallback: "plan",
         paneMode: "refine",
@@ -96,5 +122,19 @@ describe("pane presentation model", () => {
         smartFollowActive: false,
       }),
     ).toBe("approvals")
+  })
+
+  it("switches to diff once live execution settles and a diff is available", () => {
+    expect(
+      deriveAutoPaneMode({
+        hasApprovals: false,
+        hasRefineDraft: false,
+        hasAuditAttention: false,
+        hasDiffContext: true,
+        hasLiveContext: false,
+        hasPlanContext: true,
+        fallback: "plan",
+      }),
+    ).toBe("diff")
   })
 })
