@@ -10,7 +10,7 @@
     "dax:local": "./script/dax-local.sh",
     "typecheck": "bun turbo typecheck",
     "typecheck:dax": "bun run --cwd packages/dax typecheck",
-    "test": "bun --cwd packages/dax test",
+    "test": "DAX_EXPERIMENTAL_DISABLE_FILEWATCHER=1 DAX_DISABLE_MODELS_FETCH=1 bun --cwd packages/dax test --max-concurrency 1",
     "build": "bun --cwd packages/dax build",
     "check:repo": "bun run script/check-repo-integrity.ts",
     "guard:legacy": "bun run script/guard-legacy.ts",
