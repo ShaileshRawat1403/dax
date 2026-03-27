@@ -38,6 +38,27 @@ In the current CLI and TUI UX, most operators will see three visible options by 
 
 `Gemini Subscription Sign-In` uses your local `gemini` CLI session when available. If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can also use direct browser sign-in for the same subscription lane.
 
+### Visible Lanes vs Underlying Implementation
+
+The picker intentionally shows three operator-facing choices even though the Gemini plugin may use more specific internal auth methods underneath.
+
+| Visible lane | What DAX may use underneath | Best mental model |
+| ------------ | --------------------------- | ----------------- |
+| `Gemini API Key` | Google AI Studio API key | simplest direct API access |
+| `Gemini Subscription Sign-In` | local `gemini` CLI import or direct browser-based subscription sign-in | managed subscription lane |
+| `Custom Google OAuth Client` | user-managed Google OAuth client credentials | advanced or enterprise-controlled setup |
+
+```mermaid
+flowchart TD
+    A[Visible Google Picker] --> B[Gemini API Key]
+    A --> C[Gemini Subscription Sign-In]
+    A --> D[Custom Google OAuth Client]
+    C --> E[Import from Gemini CLI]
+    C --> F[Google Code Assist / Pro-Plus Sign-In]
+```
+
+The internal method names are implementation details. They help DAX choose the right subscription path for the current machine, but they are not meant to be treated as separate public lanes.
+
 ### 1. Gemini API Key (Default)
 
 Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.

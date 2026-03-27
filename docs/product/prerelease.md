@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/scri
 
 Optional installer variables:
 
-- `DAX_VERSION`: release tag to install (example: `v1.0.6`)
+- `DAX_VERSION`: release tag to install (example: `v1.0.8`)
 - `DAX_INSTALL_DIR`: install directory (default: `~/.local/bin`)
 - `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax-tui`)
 
@@ -112,11 +112,11 @@ Open an issue at <https://github.com/ShaileshRawat1403/dax-tui/issues> with:
 ```bash
 bun run release:verify
 bun run release
-DAX_VERSION=1.0.6 bun run release:publish
+DAX_VERSION=<release-tag> bun run release:publish
 ```
 
 To publish immediately (not draft):
 
 ```bash
-DAX_VERSION=1.0.6 bun run release:publish:live
+DAX_VERSION=<release-tag> bun run release:publish:live
 ```

@@ -127,6 +127,8 @@ For most users, DAX will show three Google auth options:
 
 `Gemini Subscription Sign-In` uses your local `gemini` CLI session when available, and falls back to direct browser sign-in when `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
 
+If you inspect the source, you may also see more specific internal Gemini method names. Those are implementation details under the same public subscription lane, not extra user-facing choices.
+
 Authentication is local to your machine and OS user account. DAX does not ship someone else's subscriptions to other users. If a new user installs DAX on their own machine, they authenticate with their own account, keys, or local `gemini` login.
 
 ### If You’re Not a Developer
