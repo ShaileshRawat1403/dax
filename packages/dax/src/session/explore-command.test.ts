@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, mock, test } from "bun:test"
 import os from "os"
 import path from "path"
 import { rmSync } from "fs"
 import { bootstrap } from "../cli/bootstrap"
+import { addTask, createTaskGraph } from "../planner/task-graph"
 
 describe("session /explore command", () => {
   test("streams milestone parts into a single assistant message before the final report", async () => {
@@ -10,6 +11,94 @@ describe("session /explore command", () => {
 
     try {
       await bootstrap(root, async () => {
+        mock.module("@/intent/interpret", () => ({
+          interpretIntent: async () => ({
+            intentType: "explore_repo",
+          }),
+          refineIntent: async () => ({
+            intentType: "explore_repo",
+          }),
+        }))
+
+        mock.module("@/planner/planner", () => ({
+          createPlan: async () => {
+            const graph = createTaskGraph("plan_test")
+            addTask(graph, {
+              id: "task_detect_boundaries",
+              name: "Detect Boundaries",
+              description: "",
+              operator_type: "explore",
+              dependencies: [],
+              context: {},
+            })
+            addTask(graph, {
+              id: "task_detect_entrypoints",
+              name: "Detect Entry Points",
+              description: "",
+              operator_type: "explore",
+              dependencies: ["task_detect_boundaries"],
+              context: {},
+            })
+            addTask(graph, {
+              id: "task_trace_execution_flow",
+              name: "Trace Execution Flow",
+              description: "",
+              operator_type: "explore",
+              dependencies: ["task_detect_entrypoints"],
+              context: {},
+            })
+            addTask(graph, {
+              id: "task_detect_integrations",
+              name: "Detect Integrations",
+              description: "",
+              operator_type: "explore",
+              dependencies: ["task_detect_entrypoints"],
+              context: {},
+            })
+            addTask(graph, {
+              id: "task_generate_report",
+              name: "Generate Report",
+              description: "",
+              operator_type: "explore",
+              dependencies: ["task_trace_execution_flow", "task_detect_integrations"],
+              context: {},
+            })
+            return graph
+          },
+        }))
+
+        mock.module("@/execution/run-graph", () => ({
+          runGraph: async (
+            _graph: any,
+            ctx: {
+              reportMilestone?: (input: { taskID: string; label: string }) => Promise<void>
+            },
+          ) => {
+            await ctx.reportMilestone?.({
+              taskID: "task_detect_boundaries",
+              label: "Boundary pass completed",
+            })
+            await ctx.reportMilestone?.({
+              taskID: "task_detect_entrypoints",
+              label: "Entry-point pass completed",
+            })
+            await ctx.reportMilestone?.({
+              taskID: "task_trace_execution_flow",
+              label: "Execution-flow pass completed",
+            })
+            await ctx.reportMilestone?.({
+              taskID: "task_detect_integrations",
+              label: "Integrations pass completed",
+            })
+            return {
+              success: false,
+              blockedTasks: [],
+              failedTasks: ["task_generate_report"],
+              warnings: [],
+            }
+          },
+        }))
+
         const { Session } = await import("@/session")
         const { SessionPrompt } = await import("@/session/prompt")
         const { Command } = await import("@/command")
@@ -39,7 +128,9 @@ describe("session /explore command", () => {
         }
 
         try {
-          const session = await Session.create({})
+          const session = await Session.create({
+            title: "Explore command test",
+          })
           const result = await SessionPrompt.command({
             sessionID: session.id,
             command: Command.Default.EXPLORE,
