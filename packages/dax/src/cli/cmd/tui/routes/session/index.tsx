@@ -4316,10 +4316,9 @@ function AssistantMessage(props: {
                   gap={0}
                   border={["left"]}
                   borderColor={theme.primary}
-                  backgroundColor={tint(theme.background, theme.primary, 0.02)}
+                  backgroundColor={tint(theme.background, theme.primary, 0.01)}
                   paddingLeft={1}
-                  paddingRight={1}
-                  paddingTop={1}
+                  paddingRight={0}
                   paddingBottom={1}
                 >
                   <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -4338,10 +4337,9 @@ function AssistantMessage(props: {
                   gap={0}
                   border={["left"]}
                   borderColor={theme.primary}
-                  backgroundColor={tint(theme.background, theme.primary, 0.02)}
+                  backgroundColor={tint(theme.background, theme.primary, 0.01)}
                   paddingLeft={1}
-                  paddingRight={1}
-                  paddingTop={1}
+                  paddingRight={0}
                   paddingBottom={1}
                 >
                   <text fg={theme.textMuted} attributes={TextAttributes.DIM}>

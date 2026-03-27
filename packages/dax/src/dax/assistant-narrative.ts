@@ -83,8 +83,8 @@ function buildGuidedPreamble(input: AssistantNarrativeInput) {
 
   if (input.mode === "plan") {
     return input.completed
-      ? "I kept this read-only so I could shape the clearest next step without changing anything yet."
-      : "I’m keeping this read-only so I can shape the clearest next step before changing anything."
+      ? "I mapped the clearest next step first so the plan stays grounded before anything changes."
+      : "I’m mapping the clearest next step first so the plan stays grounded before anything changes."
   }
 
   return input.completed
