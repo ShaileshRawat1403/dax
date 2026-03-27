@@ -4262,8 +4262,6 @@ function AssistantMessage(props: {
           backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.055)}
           marginTop={1}
           marginBottom={0}
-          title=" response "
-          titleAlignment="left"
         >
           <box
             flexDirection="row"
@@ -4324,7 +4322,9 @@ function AssistantMessage(props: {
                   paddingTop={1}
                   paddingBottom={1}
                 >
-                  <text fg={theme.textMuted}>WORKING NOTES</text>
+                  <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                    working notes
+                  </text>
                   <text fg={reasoningTone()} wrapMode="word">
                     {derivedReasoning()}
                   </text>
@@ -4344,7 +4344,9 @@ function AssistantMessage(props: {
                   paddingTop={1}
                   paddingBottom={1}
                 >
-                  <text fg={theme.textMuted}>REASONING</text>
+                  <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                    reasoning
+                  </text>
                   <text fg={reasoningTone()} wrapMode="word">
                     {visibleNativeReasoningText()}
                   </text>
