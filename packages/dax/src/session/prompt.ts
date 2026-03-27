@@ -1367,7 +1367,8 @@ export namespace SessionPrompt {
         sessionID: userMessage.info.sessionID,
         type: "text",
         text: `<system-reminder>
-Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits (with the exception of the plan file mentioned below), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received.
+The user wants planning only right now. Work read-only, except for the plan file mentioned below. Do not make edits elsewhere, run non-readonly tools, change configs, or make commits. This supersedes other instructions you have received.
+Do not repeat this reminder back to the user. Start with the plan, the first useful pass, or the next concrete insight.
 
 ## Plan File Info:
 ${exists ? `A plan file already exists at ${plan}. You can read it and make incremental edits using the edit tool.` : `No plan file exists yet. You should create your plan at ${plan} using the write tool.`}
