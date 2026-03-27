@@ -3293,7 +3293,8 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   const count = () => props.tools.length
   const summary = () => {
     const tools = Array.from(new Set(props.tools.map((t) => t.tool)))
-    return `Checked ${count()} background items · ${tools.join(", ")}`
+    const verbs = tools.map((tool) => ({ read: "read", glob: "scanned", grep: "searched", list: "listed" })[tool] ?? tool)
+    return `Checked ${count()} repo items · ${verbs.join(", ")}`
   }
 
   return (
@@ -3739,6 +3740,49 @@ function reviewedContextItems(parts: Part[]) {
   return items
 }
 
+function deriveStreamEvidenceItems(parts: Part[]) {
+  const items: Array<{ label: string; status: "done" | "active" }> = []
+  const seen = new Set<string>()
+  const discoveryTools = new Set<string>()
+
+  const pushItem = (label: string, status: "done" | "active") => {
+    const normalized = label.trim().toLowerCase()
+    if (!normalized || seen.has(normalized)) return
+    seen.add(normalized)
+    items.push({ label, status })
+  }
+
+  for (const part of [...parts].reverse()) {
+    if (part.type !== "tool") continue
+    const input = (part.state.input ?? {}) as Record<string, any>
+    const label = describeRecentTool(part.tool, input)
+
+    if (part.state.status === "pending" || part.state.status === "running") {
+      pushItem(label, "active")
+      continue
+    }
+
+    if (part.state.status !== "completed") continue
+
+    if (["read", "shell", "write", "edit", "patch", "apply_patch", "webfetch"].includes(part.tool)) {
+      pushItem(label, "done")
+      continue
+    }
+
+    if (["glob", "grep", "list"].includes(part.tool)) {
+      discoveryTools.add(part.tool)
+    }
+  }
+
+  if (discoveryTools.size > 0) {
+    const ordered = ["glob", "grep", "list"].filter((tool) => discoveryTools.has(tool))
+    const verbs = ordered.map((tool) => ({ glob: "scanned", grep: "searched", list: "listed" })[tool] ?? tool)
+    pushItem(`Checked workspace context · ${verbs.join(", ")}`, "done")
+  }
+
+  return items.slice(0, 3)
+}
+
 function AssistantMessage(props: {
   message: AssistantMessage
   parts: Part[]
@@ -3778,6 +3822,7 @@ function AssistantMessage(props: {
   })
   const reviewedContextNote = createMemo(() => describeContextFromTools(props.parts))
   const reviewedContextList = createMemo(() => reviewedContextItems(props.parts))
+  const evidenceItems = createMemo(() => deriveStreamEvidenceItems(props.parts))
   const asked = createMemo(() => {
     const id = parent()?.id
     if (!id) return "No user request found."
@@ -3808,6 +3853,7 @@ function AssistantMessage(props: {
     if (props.last && !props.message.time.completed) return "I’ll keep going and surface the next useful update here."
     return "Continue with a follow-up request."
   })
+  const showActiveNarrative = createMemo(() => props.last && !props.message.time.completed && !props.message.error)
   const liveWorkingNote = createMemo(() => {
     if (props.message.error) return undefined
     if (runtimeStatus().type === "retry") {
@@ -3972,10 +4018,10 @@ function AssistantMessage(props: {
     const ms = Math.max(0, status.next - retryNow())
     const geminiBusy = /gemini subscription lane is busy/i.test(status.message)
     return {
-      title: geminiBusy ? "Gemini subscription is temporarily busy" : "Provider is temporarily busy",
+      title: geminiBusy ? "Gemini subscription lane is busy" : "Provider is temporarily busy",
       body: geminiBusy
-        ? "DAX is holding your place and will retry automatically. This is a short provider cooldown, not an auth failure."
-        : "DAX will retry automatically after a short cooldown.",
+        ? "Holding place and retrying automatically after a short cooldown. This is temporary and not an auth failure."
+        : "Holding place and retrying automatically after a short cooldown.",
       countdown: ms,
       attempt: status.attempt,
     }
@@ -4022,6 +4068,53 @@ function AssistantMessage(props: {
       <Show when={props.last && !props.message.time.completed && personalityPrefix()}>
         <box paddingLeft={2} paddingRight={2} marginTop={1} flexDirection="row" gap={1}>
           {personalityPrefix()}
+        </box>
+      </Show>
+      <Show when={showActiveNarrative()}>
+        <box paddingLeft={2} paddingRight={2} marginTop={1}>
+          <box
+            flexDirection="column"
+            gap={0}
+            borderStyle="round"
+            borderColor={theme.borderSubtle}
+            backgroundColor={tint(theme.background, theme.backgroundElement, 0.2)}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={1}
+            paddingBottom={1}
+          >
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                Asked
+              </text>
+              <text fg={theme.text} wrapMode="word">
+                {asked()}
+              </text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                Doing
+              </text>
+              <text fg={theme.text} wrapMode="word">
+                {doing()}
+              </text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                Next
+              </text>
+              <text fg={theme.textMuted} wrapMode="word">
+                {next()}
+              </text>
+            </box>
+            <Show when={liveWorkingNote()}>
+              <box marginTop={1} border={["left"]} borderColor={theme.primary} paddingLeft={1}>
+                <text fg={theme.text} wrapMode="word">
+                  {liveWorkingNote()}
+                </text>
+              </box>
+            </Show>
+          </box>
         </box>
       </Show>
       <Show when={showSummary()}>
@@ -4102,7 +4195,7 @@ function AssistantMessage(props: {
         </box>
       </Show>
 
-      <Show when={showLiveStatusNote()}>
+      <Show when={showLiveStatusNote() && !showActiveNarrative()}>
         <box paddingLeft={2} paddingRight={2} marginTop={1}>
           <box
             flexDirection="column"
@@ -4180,6 +4273,30 @@ function AssistantMessage(props: {
             </Show>
           </box>
           <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
+            <Show when={evidenceItems().length > 0}>
+              <box marginBottom={1}>
+                <box
+                  flexDirection="column"
+                  gap={0}
+                  borderStyle="round"
+                  borderColor={tint(theme.primary, theme.border, 0.18)}
+                  backgroundColor={tint(theme.background, theme.primary, 0.03)}
+                  paddingLeft={1}
+                  paddingRight={1}
+                  paddingTop={1}
+                  paddingBottom={1}
+                >
+                  <text fg={theme.textMuted}>execution trail</text>
+                  <For each={evidenceItems()}>
+                    {(item) => (
+                      <text fg={item.status === "active" ? theme.warning : theme.text}>
+                        {item.status === "active" ? "◌" : "✓"} {item.label}
+                      </text>
+                    )}
+                  </For>
+                </box>
+              </box>
+            </Show>
             <Show when={reviewedContextList().length > 0}>
               <box marginBottom={1}>
                 <box
