@@ -75,4 +75,24 @@ describe("workstation presentation model", () => {
     expect(toolingState.currentStep).toBe("read · README.md")
     expect(toolingState.activitySummary.items).toContain("read · README.md")
   })
+
+  test("treats provider delay as active execution instead of a blocked state", () => {
+    const delayedState = deriveWorkstationState({
+      sessionID: "delayed-session",
+      stage: "thinking",
+      stageReason: "waiting for provider response",
+      sessionStatusType: "delayed",
+      goal: "Check Gemini responsiveness",
+      todo: [{ content: "Check provider behavior", status: "in_progress" }],
+      approvals: [],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+      recentTooling: [{ label: "read · README.md", status: "completed" }],
+    })
+
+    expect(delayedState.lifecycle).toBe("executing")
+    expect(delayedState.currentStep).toBe("Check provider behavior")
+    expect(delayedState.activitySummary.items).toContain("Check provider behavior")
+  })
 })

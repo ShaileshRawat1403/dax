@@ -276,7 +276,12 @@ export function Prompt(props: PromptProps) {
         cwd: process.cwd(),
         session_id: props.sessionID,
         session_title: props.sessionID ? sync.session.get(props.sessionID)?.title : undefined,
-        current_focus: status().type === "retry" ? "session is retrying" : currentFocus(),
+        current_focus:
+          status().type === "retry"
+            ? "session is retrying"
+            : status().type === "delayed"
+              ? "waiting on provider response"
+              : currentFocus(),
         todo: sessionTodos()
           .map((item: any) => item?.content)
           .filter(Boolean)
@@ -1477,7 +1482,7 @@ export function Prompt(props: PromptProps) {
                 flexDirection="row"
                 gap={1}
                 flexGrow={1}
-                justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
+                justifyContent={status().type === "retry" || status().type === "delayed" ? "space-between" : "flex-start"}
               >
                 <box flexShrink={0} flexDirection="row" gap={0}>
                   <box marginLeft={1}>
@@ -1535,11 +1540,16 @@ export function Prompt(props: PromptProps) {
                       }
 
                       return (
-                        <Show when={retry()}>
-                          <box onMouseUp={handleMessageClick}>
-                            <text fg={theme.warning}>{retryText()}</text>
-                          </box>
-                        </Show>
+                        <Switch>
+                          <Match when={retry()}>
+                            <box onMouseUp={handleMessageClick}>
+                              <text fg={theme.warning}>{retryText()}</text>
+                            </box>
+                          </Match>
+                          <Match when={status().type === "delayed"}>
+                            <text fg={theme.warning}>Waiting on provider response. The run is still alive.</text>
+                          </Match>
+                        </Switch>
                       )
                     })()}
                   </box>

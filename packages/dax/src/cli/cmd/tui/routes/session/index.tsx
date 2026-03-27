@@ -444,6 +444,11 @@ export function Session() {
         label: `retry ${Locale.duration(Math.max(0, status.next - retryClock()))}`,
         color: theme.warning,
       })
+    } else if (status?.type === "delayed") {
+      items.push({
+        label: "provider delayed",
+        color: theme.warning,
+      })
     }
     if (!stripCompact()) {
       items.push({ label: `tokens ${sessionTokenCount().toLocaleString()}` })
@@ -3754,6 +3759,10 @@ function deriveReasoningFallback(args: {
     return "The provider is briefly cooling down. I’m holding the thread and will continue automatically as soon as the retry window clears."
   }
 
+  if (args.runtimeStatus.type === "delayed") {
+    return "The provider response is taking longer than usual, but the run is still active and waiting for the next model update."
+  }
+
   if (args.currentTool && (args.currentTool.status === "pending" || args.currentTool.status === "running")) {
     return `I’m ${args.currentTool.label.toLowerCase()} so the next answer is grounded in the files and commands that matter for this task.`
   }
@@ -3857,6 +3866,7 @@ function AssistantMessage(props: {
   const doing = createMemo(() => {
     if (props.message.error) return "Something went wrong while working through the request."
     if (runtimeStatus().type === "retry") return "Waiting for a short provider cooldown before continuing."
+    if (runtimeStatus().type === "delayed") return "Still waiting on the provider while keeping the run alive."
     if (currentToolLabel()?.status === "pending") return `Working through ${currentToolLabel()!.label.toLowerCase()}.`
     if (props.parts.some((x) => x.type === "reasoning")) return "Working through the request and shaping the answer."
     if (props.last && !props.message.time.completed) return "Still working through the request."
@@ -3865,6 +3875,7 @@ function AssistantMessage(props: {
   const next = createMemo(() => {
     if (props.message.error) return "Retry, or adjust your request and run again."
     if (runtimeStatus().type === "retry") return "DAX will retry automatically after the cooldown."
+    if (runtimeStatus().type === "delayed") return "DAX will continue automatically as soon as the provider responds."
     if (currentToolLabel()?.status === "pending") return "I’ll keep this moving and surface the next useful finding here."
     if (props.last && !props.message.time.completed) return "I’ll keep going and surface the next useful update here."
     return "Continue with a follow-up request."
@@ -3874,6 +3885,9 @@ function AssistantMessage(props: {
     if (props.message.error) return undefined
     if (runtimeStatus().type === "retry") {
       return "The provider is cooling down for a moment. I’m holding the thread and will continue automatically."
+    }
+    if (runtimeStatus().type === "delayed") {
+      return "The run is still alive. I’m waiting on the provider to resume the next part of the answer."
     }
     if (props.parts.some((x) => x.type === "reasoning" && cleanReasoningText(x.text).length > 0)) {
       return "I’m working through the task and shaping the next answer with the context gathered so far."

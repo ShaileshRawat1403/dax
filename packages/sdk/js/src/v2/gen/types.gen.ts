@@ -536,6 +536,11 @@ export type SessionStatus =
       next: number
     }
   | {
+      type: "delayed"
+      message: string
+      since: number
+    }
+  | {
       type: "busy"
     }
 

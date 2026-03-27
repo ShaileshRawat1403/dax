@@ -587,10 +587,24 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
 
           if (
             event.type === "session.status" &&
-            event.properties.sessionID === sessionID &&
-            event.properties.status.type === "idle"
+            event.properties.sessionID === sessionID
           ) {
-            break
+            const status = event.properties.status
+            if (status.type === "idle") {
+              break
+            }
+            if (status.type === "retry") {
+              if (emit("status", { status })) continue
+              UI.println(
+                UI.Style.TEXT_WARNING + `${status.message}. Retrying in ${Math.max(0, Math.ceil((status.next - Date.now()) / 1000))}s.`,
+              )
+              continue
+            }
+            if (status.type === "delayed") {
+              if (emit("status", { status })) continue
+              UI.println(UI.Style.TEXT_WARNING + status.message)
+              continue
+            }
           }
 
           if (event.type === "permission.asked") {
