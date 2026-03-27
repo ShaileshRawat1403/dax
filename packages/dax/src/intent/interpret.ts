@@ -3,6 +3,8 @@ import { generateObject } from "ai"
 import z from "zod"
 import { Provider } from "../provider/provider"
 
+const INTENT_REFINEMENT_TIMEOUT_MS = 2500
+
 export interface IntentContext {
   cwd: string
   session_id?: string
@@ -119,45 +121,49 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
   // If we have a model, use it
   if (languageModel) {
     try {
-      const result = await generateObject({
-        model: languageModel,
-        schema: z.object({
-          goal: z
-            .string()
-            .describe("A concise, actionable and highly technical restatement of the user's core intent."),
-          sessionContext: z
-            .array(z.string())
-            .describe(
-              "2-5 short bullets capturing relevant live session context, current focus, or milestones when they materially help execution.",
-            )
-            .default([]),
-          plan: z
-            .array(z.string())
-            .describe(
-              "A structured, ordered list of 4-7 specific steps required to fulfill the goal. Mention specific files, commands, or patterns where possible.",
-            ),
-          successCriteria: z
-            .array(z.string())
-            .describe("3-5 verifiable and explicit conditions that define the task as complete."),
-          targetFiles: z
-            .array(z.string())
-            .describe("0-4 likely files, directories, or product surfaces that should be inspected first.")
-            .default([]),
-          validationCommands: z
-            .array(z.string())
-            .describe("0-3 concrete validation commands or checks that would prove the work is complete.")
-            .default([]),
-          constraints: z
-            .array(z.string())
-            .describe("Project boundaries, performance rules, or style guidelines the AI must not violate."),
-          operatorWatchouts: z
-            .array(z.string())
-            .describe(
-              "0-3 short watchouts about approvals, risk, governance, or validation gaps the operator should keep in mind.",
-            )
-            .default([]),
-        }),
-        prompt: `You are an expert software engineer and AI task planner.
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort("intent refinement timeout"), INTENT_REFINEMENT_TIMEOUT_MS)
+      try {
+        const result = await generateObject({
+          model: languageModel,
+          abortSignal: controller.signal,
+          schema: z.object({
+            goal: z
+              .string()
+              .describe("A concise, actionable and highly technical restatement of the user's core intent."),
+            sessionContext: z
+              .array(z.string())
+              .describe(
+                "2-5 short bullets capturing relevant live session context, current focus, or milestones when they materially help execution.",
+              )
+              .default([]),
+            plan: z
+              .array(z.string())
+              .describe(
+                "A structured, ordered list of 4-7 specific steps required to fulfill the goal. Mention specific files, commands, or patterns where possible.",
+              ),
+            successCriteria: z
+              .array(z.string())
+              .describe("3-5 verifiable and explicit conditions that define the task as complete."),
+            targetFiles: z
+              .array(z.string())
+              .describe("0-4 likely files, directories, or product surfaces that should be inspected first.")
+              .default([]),
+            validationCommands: z
+              .array(z.string())
+              .describe("0-3 concrete validation commands or checks that would prove the work is complete.")
+              .default([]),
+            constraints: z
+              .array(z.string())
+              .describe("Project boundaries, performance rules, or style guidelines the AI must not violate."),
+            operatorWatchouts: z
+              .array(z.string())
+              .describe(
+                "0-3 short watchouts about approvals, risk, governance, or validation gaps the operator should keep in mind.",
+              )
+              .default([]),
+          }),
+          prompt: `You are an expert software engineer and AI task planner.
 Your objective is to translate the user's prompt into a rigorous "Structured Execution Contract". This contract will guide an autonomous AI agent.
 
 USER REQUEST: "${prompt}"
@@ -182,40 +188,43 @@ INSTRUCTIONS:
 7. Formatting: Use markdown to communicate clearly. Use headings (##) for sections. Use bullets (-) for lists. Use blockquotes (>) for key findings or warnings. Use tables for structured comparisons or data. This terminal renderer displays markdown with color-coded syntax.
 
 Ensure your response perfectly aligns with the requested JSON schema.`,
-      })
+        })
 
-      const {
-        goal,
-        sessionContext,
-        plan,
-        successCriteria,
-        targetFiles,
-        validationCommands,
-        constraints,
-        operatorWatchouts,
-      } = result.object
-      const formattedPrompt = formatStructuredExecutionContract({
-        goal,
-        targetFiles,
-        contextSignals: sessionContext,
-        plan,
-        successCriteria,
-        validationCommands,
-        constraints,
-        operatorWatchouts,
-      })
+        const {
+          goal,
+          sessionContext,
+          plan,
+          successCriteria,
+          targetFiles,
+          validationCommands,
+          constraints,
+          operatorWatchouts,
+        } = result.object
+        const formattedPrompt = formatStructuredExecutionContract({
+          goal,
+          targetFiles,
+          contextSignals: sessionContext,
+          plan,
+          successCriteria,
+          validationCommands,
+          constraints,
+          operatorWatchouts,
+        })
 
-      return {
-        goal,
-        executionPlan: plan,
-        contextSignals: sessionContext,
-        successCriteria,
-        targetFiles,
-        validationCommands,
-        explicitConstraints: constraints,
-        operatorWatchouts,
-        formattedPrompt,
-      } as any
+        return {
+          goal,
+          executionPlan: plan,
+          contextSignals: sessionContext,
+          successCriteria,
+          targetFiles,
+          validationCommands,
+          explicitConstraints: constraints,
+          operatorWatchouts,
+          formattedPrompt,
+        } as any
+      } finally {
+        clearTimeout(timeout)
+      }
     } catch (error) {
       // LLM call failed, fall through to fallback
     }

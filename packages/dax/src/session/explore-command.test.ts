@@ -165,6 +165,7 @@ describe("session /explore command", () => {
         }
       })
     } finally {
+      mock.restore()
       rmSync(root, { recursive: true, force: true })
     }
   }, 40000)
