@@ -16,6 +16,11 @@ export namespace SessionStatus {
         next: z.number(),
       }),
       z.object({
+        type: z.literal("delayed"),
+        message: z.string(),
+        since: z.number(),
+      }),
+      z.object({
         type: z.literal("busy"),
       }),
     ])

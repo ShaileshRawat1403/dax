@@ -136,7 +136,7 @@ export function deriveAuditHistory(input: {
 export function deriveLiveSessionStageState(input: {
   permissionsCount: number
   questionsCount: number
-  sessionStatusType: "busy" | "idle" | "retry"
+  sessionStatusType: "busy" | "idle" | "retry" | "delayed"
   pendingID?: string
   partsForMessage: (messageID: string) => Part[]
 }): { stage: StreamStage; reason: string } {
@@ -149,6 +149,10 @@ export function deriveLiveSessionStageState(input: {
 
   if (input.sessionStatusType === "retry") {
     return { stage: "retrying", reason: "provider cooldown in progress" }
+  }
+
+  if (input.sessionStatusType === "delayed") {
+    return { stage: "thinking", reason: "waiting for provider response" }
   }
 
   if (input.pendingID) {

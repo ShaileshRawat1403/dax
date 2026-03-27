@@ -60,7 +60,7 @@ export function deriveWorkstationState(input: {
   sessionID: string
   stage: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
   stageReason: string
-  sessionStatusType: "busy" | "idle" | "retry"
+  sessionStatusType: "busy" | "idle" | "retry" | "delayed"
   goal?: string
   todo: Array<{ content: string; status: string }>
   approvals: Array<{ label?: string; reason?: string }>
@@ -180,7 +180,7 @@ function derivePhase(
 
 function deriveLifecycle(input: {
   stage: WorkstationStage
-  sessionStatusType: "busy" | "idle" | "retry"
+  sessionStatusType: "busy" | "idle" | "retry" | "delayed"
   approvalsPending: number
   alertLevel?: "info" | "warning" | "error"
 }): WorkstationLifecycle {

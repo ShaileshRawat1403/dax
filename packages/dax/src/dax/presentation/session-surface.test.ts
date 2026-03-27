@@ -93,6 +93,15 @@ describe("session surface helpers", () => {
         ],
       }),
     ).toEqual({ stage: "executing", reason: "running a command" })
+
+    expect(
+      deriveLiveSessionStageState({
+        permissionsCount: 0,
+        questionsCount: 0,
+        sessionStatusType: "delayed",
+        partsForMessage: () => [],
+      }),
+    ).toEqual({ stage: "thinking", reason: "waiting for provider response" })
   })
 
   test("derives stream status for visible reasoning and text content", () => {

@@ -160,6 +160,10 @@ export function Sidebar(props: {
     const status = runtimeStatus()
     return status.type === "retry" ? status.message : undefined
   })
+  const delayedMessage = createMemo(() => {
+    const status = runtimeStatus()
+    return status.type === "delayed" ? status.message : undefined
+  })
   const [retryNow, setRetryNow] = createSignal(Date.now())
   onMount(() => {
     const timer = setInterval(() => setRetryNow(Date.now()), 1000)
@@ -289,12 +293,14 @@ export function Sidebar(props: {
               <text fg={theme.text}>
                 <b>Runtime</b>
               </text>
-              <text fg={runtimeStatus().type === "retry" ? theme.warning : theme.textMuted}>
+              <text fg={runtimeStatus().type === "retry" || runtimeStatus().type === "delayed" ? theme.warning : theme.textMuted}>
                 {runtimeStatus().type === "busy"
                   ? "working"
                   : runtimeStatus().type === "retry"
                     ? "cooling down"
-                    : "connected"}
+                    : runtimeStatus().type === "delayed"
+                      ? "provider delayed"
+                      : "connected"}
               </text>
               <Show when={retryMessage()}>
                 {(message) => (
@@ -315,6 +321,13 @@ export function Sidebar(props: {
                   </>
                 )}
               </Show>
+              <Show when={delayedMessage()}>
+                {(message) => (
+                  <text fg={theme.warning} wrapMode="word">
+                    {message()}
+                  </text>
+                )}
+              </Show>
               <Show when={permissions().length > 0 || questions().length > 0}>
                 <text fg={theme.warning}>
                   {permissions().length > 0
@@ -333,7 +346,7 @@ export function Sidebar(props: {
                 </Show>
                 <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline} onPress={props.onOpenTimeline} muted />
                 <SidebarAction label={SESSION_COMMAND_LABELS.jumpLastRequest} onPress={props.onJumpLastUser} muted />
-                <Show when={runtimeStatus().type === "busy" || runtimeStatus().type === "retry"}>
+                <Show when={runtimeStatus().type === "busy" || runtimeStatus().type === "retry" || runtimeStatus().type === "delayed"}>
                   <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive} onPress={props.onJumpLive} muted />
                 </Show>
                 <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
