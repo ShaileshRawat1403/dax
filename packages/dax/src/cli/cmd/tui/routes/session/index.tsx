@@ -3694,52 +3694,6 @@ function isLowSignalPaneReason(value: string | undefined) {
   )
 }
 
-function describeContextFromTools(parts: Part[]) {
-  const seen = new Set<string>()
-  const items: string[] = []
-  for (const part of [...parts].reverse()) {
-    if (part.type !== "tool" || part.state.status !== "completed") continue
-    const input = (part.state.input ?? {}) as Record<string, any>
-    if (part.tool === "read") {
-      const file = typeof input.filePath === "string" && input.filePath ? path.basename(input.filePath) : ""
-      if (file && !seen.has(file.toLowerCase())) {
-        seen.add(file.toLowerCase())
-        items.push(file)
-      }
-    }
-    if (items.length >= 2) break
-  }
-  if (items.length === 0) return undefined
-  if (items.length === 1) return `I’ve already opened ${items[0]} to ground the answer in the repo.`
-  return `I’ve already opened ${items[0]} and ${items[1]} to ground the answer in the repo.`
-}
-
-function reviewedContextItems(parts: Part[]) {
-  const seen = new Set<string>()
-  const items: string[] = []
-  for (const part of [...parts].reverse()) {
-    if (part.type !== "tool" || part.state.status !== "completed") continue
-    const input = (part.state.input ?? {}) as Record<string, any>
-    if (part.tool === "read") {
-      const file = typeof input.filePath === "string" && input.filePath ? path.basename(input.filePath) : ""
-      if (file && !seen.has(file.toLowerCase())) {
-        seen.add(file.toLowerCase())
-        items.push(file)
-      }
-    }
-    if (part.tool === "shell") {
-      const command = typeof input.command === "string" ? input.command.trim().replace(/\s+/g, " ") : ""
-      const label = command ? `command: ${command.length > 32 ? `${command.slice(0, 29).trimEnd()}...` : command}` : ""
-      if (label && !seen.has(label.toLowerCase())) {
-        seen.add(label.toLowerCase())
-        items.push(label)
-      }
-    }
-    if (items.length >= 3) break
-  }
-  return items
-}
-
 function deriveStreamEvidenceItems(parts: Part[]) {
   const items: Array<{ label: string; status: "done" | "active" }> = []
   const seen = new Set<string>()
@@ -3783,6 +3737,52 @@ function deriveStreamEvidenceItems(parts: Part[]) {
   return items.slice(0, 3)
 }
 
+function isLowSignalGreeting(value: string) {
+  return /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|cool|nice)\b[!. ]*$/i.test(value.trim())
+}
+
+function deriveReasoningFallback(args: {
+  asked: string
+  doing: string
+  next: string
+  evidence: Array<{ label: string; status: "done" | "active" }>
+  currentTool?: { status: string; label: string }
+  runtimeStatus: { type: string; message?: string }
+  completed: boolean
+}) {
+  if (args.runtimeStatus.type === "retry") {
+    return "The provider is briefly cooling down. I’m holding the thread and will continue automatically as soon as the retry window clears."
+  }
+
+  if (args.currentTool && (args.currentTool.status === "pending" || args.currentTool.status === "running")) {
+    return `I’m ${args.currentTool.label.toLowerCase()} so the next answer is grounded in the files and commands that matter for this task.`
+  }
+
+  if (args.evidence.length > 0) {
+    const checked = args.evidence
+      .filter((item) => item.status === "done")
+      .slice(0, 2)
+      .map((item) => item.label)
+    if (checked.length === 1) {
+      return `I’ve already ${checked[0].charAt(0).toLowerCase() + checked[0].slice(1)}, and I’m turning that evidence into the next useful answer.`
+    }
+    if (checked.length >= 2) {
+      const [first, second] = checked
+      return `I’ve already ${first.charAt(0).toLowerCase() + first.slice(1)} and ${second.charAt(0).toLowerCase() + second.slice(1)}, and I’m using that context to shape the answer.`
+    }
+  }
+
+  if (!args.completed) {
+    return `I’m working through "${args.asked}" and translating the current evidence into a clear next step.`
+  }
+
+  if (!isLowSignalGreeting(args.asked)) {
+    return `I’ve worked through "${args.asked}" and I’m wrapping it into the clearest useful answer I can give next.`
+  }
+
+  return `I’m keeping the response grounded in the current task and ready for the next useful move.`
+}
+
 function AssistantMessage(props: {
   message: AssistantMessage
   parts: Part[]
@@ -3820,8 +3820,6 @@ function AssistantMessage(props: {
     }
     return undefined
   })
-  const reviewedContextNote = createMemo(() => describeContextFromTools(props.parts))
-  const reviewedContextList = createMemo(() => reviewedContextItems(props.parts))
   const evidenceItems = createMemo(() => deriveStreamEvidenceItems(props.parts))
   const asked = createMemo(() => {
     const id = parent()?.id
@@ -3863,13 +3861,7 @@ function AssistantMessage(props: {
       return "I’m working through the task and shaping the next answer with the context gathered so far."
     }
     if (currentToolLabel()?.status === "pending") {
-      if (reviewedContextNote()) {
-        return `${reviewedContextNote()} I’m now using ${currentToolLabel()!.label.toLowerCase()} before I answer.`
-      }
       return `I’m using ${currentToolLabel()!.label.toLowerCase()} to build enough context before I answer.`
-    }
-    if (reviewedContextNote()) {
-      return reviewedContextNote()!
     }
     if (props.last && !props.message.time.completed) {
       return "I’m still on it and will post the next concrete update here as soon as it’s ready."
@@ -3988,25 +3980,43 @@ function AssistantMessage(props: {
       if (part.type === "text") return part.text.trim().length > 0
       if (part.type === "reasoning") return cleanReasoningText(part.text).length > 0
       if (part.type === "tool") {
-        if (ctx.showDetails()) return true
-        if (part.state.status !== "completed") return true
-        return ["read", "shell", "write", "edit", "patch", "webfetch"].includes(part.tool)
+        return ctx.showDetails()
       }
       if (part.type === "activity-cluster") {
-        if (ctx.showDetails()) return true
-        return part.tools.some(
-          (tool) =>
-            tool.state.status !== "completed" ||
-            ["read", "shell", "write", "edit", "patch", "webfetch"].includes(tool.tool),
-        )
+        return ctx.showDetails()
       }
       return false
     }),
   )
+  const hasVisibleNativeReasoning = createMemo(
+    () =>
+      ctx.showThinking() &&
+      props.parts.some((part) => part.type === "reasoning" && cleanReasoningText(part.text).length > 0),
+  )
+  const derivedReasoning = createMemo(() => {
+    if (!ctx.showThinking() || hasVisibleNativeReasoning() || props.message.error) return undefined
+    if (!(showActiveNarrative() || evidenceItems().length > 0 || !!liveWorkingNote() || props.message.time.completed)) return undefined
+    return deriveReasoningFallback({
+      asked: asked(),
+      doing: doing(),
+      next: next(),
+      evidence: evidenceItems(),
+      currentTool: currentToolLabel(),
+      runtimeStatus: runtimeStatus(),
+      completed: !!props.message.time.completed,
+    })
+  })
   const showLiveStatusNote = createMemo(
     () => props.last && !props.message.time.completed && renderableParts().length === 0 && !props.message.error,
   )
-  const shouldRender = createMemo(() => renderableParts().length > 0 || showLiveStatusNote() || !!props.message.error)
+  const shouldRender = createMemo(
+    () =>
+      renderableParts().length > 0 ||
+      evidenceItems().length > 0 ||
+      !!derivedReasoning() ||
+      showLiveStatusNote() ||
+      !!props.message.error,
+  )
   const metricToneColor = (tone?: "primary" | "accent" | "muted") => {
     if (tone === "primary") return theme.primary
     if (tone === "accent") return theme.accent
@@ -4071,49 +4081,32 @@ function AssistantMessage(props: {
         </box>
       </Show>
       <Show when={showActiveNarrative()}>
-        <box paddingLeft={2} paddingRight={2} marginTop={1}>
-          <box
-            flexDirection="column"
-            gap={0}
-            borderStyle="round"
-            borderColor={theme.borderSubtle}
-            backgroundColor={tint(theme.background, theme.backgroundElement, 0.2)}
-            paddingLeft={1}
-            paddingRight={1}
-            paddingTop={1}
-            paddingBottom={1}
-          >
+        <box paddingLeft={2} paddingRight={2} marginTop={1} flexDirection="column" gap={0}>
+          <Show when={!isLowSignalGreeting(asked())}>
             <box flexDirection="row" gap={1}>
               <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                Asked
+                asked
               </text>
               <text fg={theme.text} wrapMode="word">
                 {asked()}
               </text>
             </box>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                Doing
-              </text>
-              <text fg={theme.text} wrapMode="word">
-                {doing()}
-              </text>
-            </box>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                Next
-              </text>
-              <text fg={theme.textMuted} wrapMode="word">
-                {next()}
-              </text>
-            </box>
-            <Show when={liveWorkingNote()}>
-              <box marginTop={1} border={["left"]} borderColor={theme.primary} paddingLeft={1}>
-                <text fg={theme.text} wrapMode="word">
-                  {liveWorkingNote()}
-                </text>
-              </box>
-            </Show>
+          </Show>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+              doing
+            </text>
+            <text fg={theme.text} wrapMode="word">
+              {doing()}
+            </text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+              next
+            </text>
+            <text fg={theme.textMuted} wrapMode="word">
+              {next()}
+            </text>
           </box>
         </box>
       </Show>
@@ -4275,18 +4268,8 @@ function AssistantMessage(props: {
           <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
             <Show when={evidenceItems().length > 0}>
               <box marginBottom={1}>
-                <box
-                  flexDirection="column"
-                  gap={0}
-                  borderStyle="round"
-                  borderColor={tint(theme.primary, theme.border, 0.18)}
-                  backgroundColor={tint(theme.background, theme.primary, 0.03)}
-                  paddingLeft={1}
-                  paddingRight={1}
-                  paddingTop={1}
-                  paddingBottom={1}
-                >
-                  <text fg={theme.textMuted}>execution trail</text>
+                <box flexDirection="column" gap={0} paddingLeft={1}>
+                  <text fg={theme.textMuted}>trace</text>
                   <For each={evidenceItems()}>
                     {(item) => (
                       <text fg={item.status === "active" ? theme.warning : theme.text}>
@@ -4297,23 +4280,23 @@ function AssistantMessage(props: {
                 </box>
               </box>
             </Show>
-            <Show when={reviewedContextList().length > 0}>
+            <Show when={derivedReasoning()}>
               <box marginBottom={1}>
                 <box
                   flexDirection="column"
                   gap={0}
-                  borderStyle="round"
-                  borderColor={tint(theme.primary, theme.border, 0.18)}
-                  backgroundColor={tint(theme.background, theme.primary, 0.04)}
+                  border={["left"]}
+                  borderColor={theme.primary}
+                  backgroundColor={tint(theme.background, theme.primary, 0.02)}
                   paddingLeft={1}
                   paddingRight={1}
                   paddingTop={1}
                   paddingBottom={1}
                 >
-                  <text fg={theme.textMuted}>reviewed context</text>
-                  <For each={reviewedContextList()}>
-                    {(item) => <text fg={theme.text}>• {item}</text>}
-                  </For>
+                  <text fg={theme.textMuted}>WORKING NOTES</text>
+                  <text fg={theme.text} wrapMode="word">
+                    {derivedReasoning()}
+                  </text>
                 </box>
               </box>
             </Show>
