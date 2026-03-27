@@ -3799,6 +3799,7 @@ function AssistantMessage(props: {
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
   const runtimeStatus = createMemo(() => sync.data.session_status?.[props.message.sessionID] ?? { type: "idle" as const })
   const [retryNow, setRetryNow] = createSignal(Date.now())
+  const [stickyReasoningText, setStickyReasoningText] = createSignal<string | undefined>()
   createEffect(() => {
     if (runtimeStatus().type !== "retry") return
     setRetryNow(Date.now())
@@ -3821,6 +3822,23 @@ function AssistantMessage(props: {
     return undefined
   })
   const evidenceItems = createMemo(() => deriveStreamEvidenceItems(props.parts))
+  const currentNativeReasoningText = createMemo(() => {
+    if (!ctx.showThinking()) return undefined
+    const chunks = props.parts
+      .filter((part): part is ReasoningPart => part.type === "reasoning")
+      .map((part) => cleanReasoningText(part.text))
+      .filter(Boolean)
+    if (chunks.length === 0) return undefined
+    return chunks.join("\n\n")
+  })
+  createEffect(() => {
+    const current = currentNativeReasoningText()
+    if (current) setStickyReasoningText(current)
+  })
+  const visibleNativeReasoningText = createMemo(() => {
+    if (!ctx.showThinking()) return undefined
+    return currentNativeReasoningText() || stickyReasoningText()
+  })
   const asked = createMemo(() => {
     const id = parent()?.id
     if (!id) return "No user request found."
@@ -3978,7 +3996,7 @@ function AssistantMessage(props: {
   const renderableParts = createMemo(() =>
     groupedParts().filter((part) => {
       if (part.type === "text") return part.text.trim().length > 0
-      if (part.type === "reasoning") return cleanReasoningText(part.text).length > 0
+      if (part.type === "reasoning") return false
       if (part.type === "tool") {
         return ctx.showDetails()
       }
@@ -3989,9 +4007,7 @@ function AssistantMessage(props: {
     }),
   )
   const hasVisibleNativeReasoning = createMemo(
-    () =>
-      ctx.showThinking() &&
-      props.parts.some((part) => part.type === "reasoning" && cleanReasoningText(part.text).length > 0),
+    () => !!visibleNativeReasoningText(),
   )
   const derivedReasoning = createMemo(() => {
     if (!ctx.showThinking() || hasVisibleNativeReasoning() || props.message.error) return undefined
@@ -4009,6 +4025,7 @@ function AssistantMessage(props: {
   const showLiveStatusNote = createMemo(
     () => props.last && !props.message.time.completed && renderableParts().length === 0 && !props.message.error,
   )
+  const reasoningTone = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
   const shouldRender = createMemo(
     () =>
       renderableParts().length > 0 ||
@@ -4221,7 +4238,7 @@ function AssistantMessage(props: {
         </box>
       </Show>
 
-      <Show when={renderableParts().length > 0}>
+      <Show when={renderableParts().length > 0 || evidenceItems().length > 0 || !!visibleNativeReasoningText() || !!derivedReasoning()}>
         <box
           paddingLeft={0}
           paddingRight={0}
@@ -4294,8 +4311,28 @@ function AssistantMessage(props: {
                   paddingBottom={1}
                 >
                   <text fg={theme.textMuted}>WORKING NOTES</text>
-                  <text fg={theme.text} wrapMode="word">
+                  <text fg={reasoningTone()} wrapMode="word">
                     {derivedReasoning()}
+                  </text>
+                </box>
+              </box>
+            </Show>
+            <Show when={visibleNativeReasoningText()}>
+              <box marginBottom={1}>
+                <box
+                  flexDirection="column"
+                  gap={0}
+                  border={["left"]}
+                  borderColor={theme.primary}
+                  backgroundColor={tint(theme.background, theme.primary, 0.02)}
+                  paddingLeft={1}
+                  paddingRight={1}
+                  paddingTop={1}
+                  paddingBottom={1}
+                >
+                  <text fg={theme.textMuted}>REASONING</text>
+                  <text fg={reasoningTone()} wrapMode="word">
+                    {visibleNativeReasoningText()}
                   </text>
                 </box>
               </box>
