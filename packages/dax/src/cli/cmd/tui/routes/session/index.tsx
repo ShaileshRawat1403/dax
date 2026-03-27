@@ -307,7 +307,7 @@ export function Session() {
   })
   const stageColor = createMemo(() => {
     const stage = displayStageState().stage
-    if (stage === "waiting") return theme.warning
+    if (stage === "waiting") return theme.primary
     if (stage === "retrying") return theme.error
     if (stage === "done") return theme.success
     return theme.accent
@@ -442,12 +442,12 @@ export function Session() {
     if (status?.type === "retry") {
       items.push({
         label: `retry ${Locale.duration(Math.max(0, status.next - retryClock()))}`,
-        color: theme.warning,
+        color: theme.error,
       })
     } else if (status?.type === "delayed") {
       items.push({
         label: "provider delayed",
-        color: theme.warning,
+        color: theme.error,
       })
     }
     if (!stripCompact()) {
@@ -918,7 +918,7 @@ export function Session() {
     const audit = latestAudit()?.result
     if (!audit) return { label: "idle", color: theme.textMuted }
     if (audit.status === "pass") return { label: "clear", color: theme.success }
-    if (audit.status === "warn") return { label: "warn", color: theme.warning }
+    if (audit.status === "warn") return { label: "warn", color: theme.primary }
     return { label: "blocked", color: theme.error }
   })
 
@@ -2827,7 +2827,7 @@ export function Session() {
                                       <For each={planTooling().slice(0, 2)}>
                                         {(item) => (
                                           <box flexDirection="row" justifyContent="space-between" gap={1}>
-                                            <text fg={item.status === "pending" ? theme.warning : theme.text}>
+                                            <text fg={item.status === "pending" ? theme.primary : theme.text}>
                                               {item.status === "pending" ? "◌" : "✓"} {item.label}
                                             </text>
                                             <text fg={theme.textMuted}>
@@ -3568,7 +3568,7 @@ function LiveTrace(props: { sessionID: string }) {
       <For each={aggregatedCalls()}>
         {(call) => (
           <box flexDirection="row" gap={1}>
-            <text fg={call.status === "completed" ? theme.success : theme.warning}>
+            <text fg={call.status === "completed" ? theme.success : theme.primary}>
               {call.status === "completed" ? "✓" : "→"}
             </text>
             <text fg={theme.text} wrapMode="truncate-end">
@@ -4077,15 +4077,15 @@ function AssistantMessage(props: {
               flexDirection="column"
               gap={0}
               borderStyle="round"
-              borderColor={theme.warning}
-              backgroundColor={tint(theme.background, theme.warning, 0.08)}
+              borderColor={theme.error}
+              backgroundColor={tint(theme.background, theme.error, 0.08)}
               paddingLeft={1}
               paddingRight={1}
               paddingTop={1}
               paddingBottom={1}
             >
               <box flexDirection="row" justifyContent="space-between" alignItems="center" flexWrap="wrap">
-                <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+                <text fg={theme.error} attributes={TextAttributes.BOLD}>
                   {retry().title}
                 </text>
                 <text fg={theme.textMuted}>
@@ -4301,7 +4301,7 @@ function AssistantMessage(props: {
                   <text fg={theme.textMuted}>trace</text>
                   <For each={evidenceItems()}>
                     {(item) => (
-                      <text fg={item.status === "active" ? theme.warning : theme.text}>
+                      <text fg={item.status === "active" ? theme.primary : theme.text}>
                         {item.status === "active" ? "◌" : "✓"} {item.label}
                       </text>
                     )}
@@ -4662,7 +4662,7 @@ function InlineTool(props: {
   })
 
   const fg = createMemo(() => {
-    if (permission()) return theme.warning
+    if (permission()) return theme.primary
     if (props.complete) return theme.textMuted
     return theme.text
   })

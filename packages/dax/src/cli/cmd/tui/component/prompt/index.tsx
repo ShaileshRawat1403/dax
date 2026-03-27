@@ -1543,11 +1543,11 @@ export function Prompt(props: PromptProps) {
                         <Switch>
                           <Match when={retry()}>
                             <box onMouseUp={handleMessageClick}>
-                              <text fg={theme.warning}>{retryText()}</text>
+                              <text fg={theme.error}>{retryText()}</text>
                             </box>
                           </Match>
                           <Match when={status().type === "delayed"}>
-                            <text fg={theme.warning}>Waiting on provider response. The run is still alive.</text>
+                            <text fg={theme.error}>Waiting on provider response. The run is still alive.</text>
                           </Match>
                         </Switch>
                       )
