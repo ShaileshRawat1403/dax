@@ -30,6 +30,7 @@ const env = {
 }
 const CHANNEL = await (async () => {
   if (env.CHANNEL) return env.CHANNEL
+  if (env.RELEASE) return "latest"
   if (env.BUMP) return "latest"
   if (env.VERSION && !env.VERSION.startsWith("0.0.0-")) return "latest"
   return await $`git branch --show-current`.text().then((x) => x.trim())
