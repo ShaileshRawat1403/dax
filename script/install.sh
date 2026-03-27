@@ -45,7 +45,7 @@ raise SystemExit(1)
   if [[ -z "$VERSION" ]]; then
     echo "error: could not resolve latest release tag automatically." >&2
     echo "Set DAX_VERSION explicitly, for example:" >&2
-    echo "  DAX_VERSION=v1.0.6 bash install.sh" >&2
+    echo "  DAX_VERSION=v1.0.7 bash install.sh" >&2
     exit 1
   fi
 fi
