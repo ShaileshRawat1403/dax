@@ -7,7 +7,7 @@ This guide covers end-user install paths and maintainer publishing workflows for
 ### macOS/Linux (script)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=v1.0.6 bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=<release-tag> bash
 ```
 
 Notes:
@@ -44,7 +44,7 @@ Two GitHub Actions workflows are included:
 1. `.github/workflows/publish-homebrew.yml`
 2. `.github/workflows/publish-winget.yml`
 
-Both are `workflow_dispatch` workflows and require `version` input (example: `v1.0.6`).
+Both are `workflow_dispatch` workflows and require `version` input (example: `v1.0.8`).
 
 ### Homebrew
 
@@ -75,8 +75,8 @@ Important:
 
 ```bash
 # Homebrew formula
-bun run dist:homebrew --version v1.0.6 --repo ShaileshRawat1403/dax-tui
+bun run dist:homebrew --version <release-tag> --repo ShaileshRawat1403/dax-tui
 
 # Winget manifests
-bun run dist:winget --version v1.0.6 --repo ShaileshRawat1403/dax-tui --id DaxAi.DAX
+bun run dist:winget --version <release-tag> --repo ShaileshRawat1403/dax-tui --id DaxAi.DAX
 ```
