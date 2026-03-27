@@ -1,9 +1,14 @@
-import { describe, expect, mock, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import os from "os"
 import path from "path"
 import { rmSync } from "fs"
 import { bootstrap } from "../cli/bootstrap"
+import * as Intent from "../intent/interpret"
+import * as Planner from "../planner/planner"
+import * as RunGraph from "../execution/run-graph"
 import { addTask, createTaskGraph } from "../planner/task-graph"
+import { Provider } from "../provider/provider"
+import type { OperatorContext } from "../operators/base"
 
 describe("session /explore command", () => {
   test("streams milestone parts into a single assistant message before the final report", async () => {
@@ -11,68 +16,59 @@ describe("session /explore command", () => {
 
     try {
       await bootstrap(root, async () => {
-        mock.module("@/intent/interpret", () => ({
-          interpretIntent: async () => ({
-            intentType: "explore_repo",
-          }),
-          refineIntent: async () => ({
-            intentType: "explore_repo",
-          }),
-        }))
+        const interpretIntentMock = spyOn(Intent, "interpretIntent").mockImplementation(async () => ({
+          intentType: "explore_repo",
+        }) as any)
 
-        mock.module("@/planner/planner", () => ({
-          createPlan: async () => {
-            const graph = createTaskGraph("plan_test")
-            addTask(graph, {
-              id: "task_detect_boundaries",
-              name: "Detect Boundaries",
-              description: "",
-              operator_type: "explore",
-              dependencies: [],
-              context: {},
-            })
-            addTask(graph, {
-              id: "task_detect_entrypoints",
-              name: "Detect Entry Points",
-              description: "",
-              operator_type: "explore",
-              dependencies: ["task_detect_boundaries"],
-              context: {},
-            })
-            addTask(graph, {
-              id: "task_trace_execution_flow",
-              name: "Trace Execution Flow",
-              description: "",
-              operator_type: "explore",
-              dependencies: ["task_detect_entrypoints"],
-              context: {},
-            })
-            addTask(graph, {
-              id: "task_detect_integrations",
-              name: "Detect Integrations",
-              description: "",
-              operator_type: "explore",
-              dependencies: ["task_detect_entrypoints"],
-              context: {},
-            })
-            addTask(graph, {
-              id: "task_generate_report",
-              name: "Generate Report",
-              description: "",
-              operator_type: "explore",
-              dependencies: ["task_trace_execution_flow", "task_detect_integrations"],
-              context: {},
-            })
-            return graph
-          },
-        }))
+        const createPlanMock = spyOn(Planner, "createPlan").mockImplementation(async () => {
+          const graph = createTaskGraph("plan_test")
+          addTask(graph, {
+            id: "task_detect_boundaries",
+            name: "Detect Boundaries",
+            description: "",
+            operator_type: "explore",
+            dependencies: [],
+            context: {},
+          })
+          addTask(graph, {
+            id: "task_detect_entrypoints",
+            name: "Detect Entry Points",
+            description: "",
+            operator_type: "explore",
+            dependencies: ["task_detect_boundaries"],
+            context: {},
+          })
+          addTask(graph, {
+            id: "task_trace_execution_flow",
+            name: "Trace Execution Flow",
+            description: "",
+            operator_type: "explore",
+            dependencies: ["task_detect_entrypoints"],
+            context: {},
+          })
+          addTask(graph, {
+            id: "task_detect_integrations",
+            name: "Detect Integrations",
+            description: "",
+            operator_type: "explore",
+            dependencies: ["task_detect_entrypoints"],
+            context: {},
+          })
+          addTask(graph, {
+            id: "task_generate_report",
+            name: "Generate Report",
+            description: "",
+            operator_type: "explore",
+            dependencies: ["task_trace_execution_flow", "task_detect_integrations"],
+            context: {},
+          })
+          return graph
+        })
 
-        mock.module("@/execution/run-graph", () => ({
-          runGraph: async (
+        const runGraphMock = spyOn(RunGraph, "runGraph").mockImplementation(
+          async (
             _graph: any,
-            ctx: {
-              reportMilestone?: (input: { taskID: string; label: string }) => Promise<void>
-            },
+            ctx: Pick<OperatorContext, "reportMilestone">,
           ) => {
             await ctx.reportMilestone?.({
               taskID: "task_detect_boundaries",
@@ -97,12 +93,11 @@ describe("session /explore command", () => {
               warnings: [],
             }
           },
-        }))
+        )
 
         const { Session } = await import("@/session")
         const { SessionPrompt } = await import("@/session/prompt")
         const { Command } = await import("@/command")
-        const { Provider } = await import("@/provider/provider")
 
         // BEST PRACTICE: Mock the Provider layer to ensure deterministic results 
         // without hitting live LLM APIs. This validates the orchestration logic.
@@ -160,12 +155,14 @@ describe("session /explore command", () => {
           expect(textParts.slice(0, 6).every((part) => part.synthetic === true)).toBe(true)
           expect("completed" in assistant!.info.time && assistant!.info.time.completed).toBeDefined()
         } finally {
+          interpretIntentMock.mockRestore()
+          createPlanMock.mockRestore()
+          runGraphMock.mockRestore()
           Provider.getModel = originalGetModel
           Provider.getSmallModel = originalGetSmallModel
         }
       })
     } finally {
-      mock.restore()
       rmSync(root, { recursive: true, force: true })
     }
   }, 40000)
