@@ -35,8 +35,9 @@ import {
   type WorkflowSummary,
   type WorkflowTerminalReason,
   type ProjectedRun,
+  type RunIntervention,
 } from "./run-contract"
-import { buildProjectedRun } from "./run-projections"
+import { buildProjectedRun, buildInterventionProjection } from "./run-projections"
 
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
@@ -727,9 +728,22 @@ async function handleBusEvent(event: any) {
       await appendEvent(event.properties.runId, {
         type: "intervention.required",
         payload: {
+          interventionId: event.properties.interventionId || `int_${event.properties.runId}_${Date.now()}`,
           reason: event.properties.reason,
-          type: event.properties.type,
+          kind: event.properties.kind || event.properties.type || "ambiguity",
           approvalId: event.properties.approvalId,
+          metadata: event.properties.metadata,
+        },
+      })
+      break
+    case "intervention.resolved":
+      await appendEvent(event.properties.runId, {
+        type: "intervention.resolved",
+        payload: {
+          interventionId: event.properties.interventionId,
+          status: event.properties.status,
+          comment: event.properties.comment,
+          resolvedAt: new Date().toISOString(),
         },
       })
       break
@@ -1091,6 +1105,12 @@ export namespace RunGateway {
     return []
   }
 
+  export async function getInterventions(runId: string): Promise<RunIntervention[]> {
+    initialize()
+    const events = await readEvents(runId)
+    return buildInterventionProjection(events)
+  }
+
   export async function resolveApproval(runId: string, approvalId: string, input: ResolveApprovalRequest) {
     initialize()
     const canonicalApproval = await ApprovalStore.get(runId, approvalId)
@@ -1207,7 +1227,7 @@ export namespace RunGateway {
         terminalReason = runState.error.message
       } else {
         const failedEvent = events.find((e) => e.type === "run.failed")
-        terminalReason = failedEvent?.payload?.error?.message ?? "Run failed"
+        terminalReason = failedEvent?.payload.error?.message ?? "Run failed"
       }
     } else if (snapshot.status === "waiting_approval") {
       outcomeResult = "pending"

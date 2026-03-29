@@ -6,9 +6,19 @@ import {
   ProjectedRun,
   RunHeaderProjection,
   RunNarrativeItem,
+  RunIntervention,
+  InterventionKind,
 } from "./run-contract"
 
-export function buildHeaderProjection(snapshot: RunSnapshot): RunHeaderProjection {
+export function buildHeaderProjection(snapshot: RunSnapshot, interventions: RunIntervention[]): RunHeaderProjection {
+  const activeInterventions = interventions.filter(i => i.status === "requested" || i.status === "pending")
+  
+  const interventionSummary = activeInterventions.length > 0 ? {
+    activeCount: activeInterventions.length,
+    primaryKind: activeInterventions[0].kind,
+    message: activeInterventions[0].reason,
+  } : undefined
+
   return {
     runId: snapshot.runId,
     title: snapshot.title,
@@ -18,7 +28,40 @@ export function buildHeaderProjection(snapshot: RunSnapshot): RunHeaderProjectio
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
     targeting: snapshot.metadata?.targeting,
+    interventionSummary,
   }
+}
+
+export function buildInterventionProjection(events: RunEvent[]): RunIntervention[] {
+  const interventions = new Map<string, RunIntervention>()
+
+  for (const event of events) {
+    if (event.type === "intervention.required") {
+      const { interventionId, reason, kind, approvalId, metadata } = event.payload
+      interventions.set(interventionId, {
+        interventionId,
+        runId: event.runId,
+        kind,
+        status: "requested",
+        title: `Intervention: ${kind}`,
+        reason,
+        createdAt: event.timestamp,
+        approvalId,
+        metadata,
+      })
+    } else if (event.type === "intervention.resolved") {
+      const { interventionId, status, resolvedAt } = event.payload
+      const existing = interventions.get(interventionId)
+      if (existing) {
+        existing.status = status
+        existing.resolvedAt = resolvedAt
+      }
+    }
+  }
+
+  return Array.from(interventions.values()).sort(
+    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)
+  )
 }
 
 export function buildNarrativeProjection(events: RunEvent[]): RunNarrativeItem[] {
@@ -154,7 +197,15 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         timestamp,
         type: "intervention.required",
         message: `Intervention required: ${payload.reason}`,
-        metadata: { type: payload.type, approvalId: payload.approvalId },
+        metadata: { kind: payload.kind, approvalId: payload.approvalId },
+      }
+    case "intervention.resolved":
+      return {
+        id: eventId,
+        timestamp,
+        type: "intervention.resolved",
+        message: `Intervention ${payload.status}: ${payload.comment ?? "No comment"}`,
+        metadata: { interventionId: payload.interventionId, status: payload.status },
       }
     default:
       return undefined
@@ -167,10 +218,12 @@ export function buildProjectedRun(
   approvals: ApprovalRecord[],
   artifacts: ArtifactRecord[]
 ): ProjectedRun {
+  const interventions = buildInterventionProjection(events)
   return {
-    header: buildHeaderProjection(snapshot),
+    header: buildHeaderProjection(snapshot, interventions),
     narrative: buildNarrativeProjection(events),
     approvals,
     artifacts,
+    interventions,
   }
 }

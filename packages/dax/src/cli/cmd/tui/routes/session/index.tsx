@@ -185,6 +185,23 @@ export function Session() {
   const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const lifecycle = createMemo(() => (route.sessionID ? (sync.data.lifecycle[route.sessionID] ?? []) : []))
   
+  const interventions = createMemo(() => {
+    const events = lifecycle()
+    const result = new Map<string, any>()
+    for (const event of events) {
+      if (event.type === "intervention.required") {
+        result.set(event.properties.interventionId, { ...event.properties, status: "requested", timestamp: event.timestamp })
+      } else if (event.type === "intervention.resolved") {
+        const existing = result.get(event.properties.interventionId)
+        if (existing) {
+          existing.status = event.properties.status
+          existing.resolvedAt = event.timestamp
+        }
+      }
+    }
+    return Array.from(result.values())
+  })
+
   const narrative = createMemo(() => {
     const combined = [
       ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
@@ -466,6 +483,15 @@ export function Session() {
     const items: { label: string; color?: RGBA }[] = [{ label: stageLabel().toLowerCase(), color: stageColor() }]
     const status = sync.data.session_status?.[route.sessionID]
     const usage = contextUsage()
+    const activeInterventions = interventions().filter(i => i.status === "requested" || i.status === "pending")
+    
+    if (activeInterventions.length > 0) {
+      items.push({
+        label: `intervention required (${activeInterventions.length})`,
+        color: theme.error,
+      })
+    }
+
     if (usage) {
       items.push({
         label: usage.percentage !== null ? `context ${usage.percentage}%` : `context ${usage.tokens.toLocaleString()}`,
@@ -1200,6 +1226,7 @@ export function Session() {
       smartFollowActive: smartFollowActive(),
     }),
   )
+  const ctx = use()
   createEffect(() => {
     if (activePaneMode() !== "approvals") return
     if (!showPane()) return
@@ -2629,7 +2656,7 @@ export function Session() {
                                       syntaxStyle={syntax()}
                                       showLineNumbers={true}
                                       width="100%"
-                                      wrapMode={diffWrapMode()}
+                                      wrapMode={ctx.diffWrapMode()}
                                       fg={theme.text}
                                       addedBg={theme.diffAddedBg}
                                       removedBg={theme.diffRemovedBg}
@@ -3414,7 +3441,13 @@ function LifecycleEvent(props: { event: any }) {
       case "plan.step_promoted":
         return `Step ${props.event.properties.stepId} -> ${props.event.properties.status}`
       case "intervention.required":
-        return `Intervention required: ${props.event.properties.reason}`
+        return `INTERVENTION REQUIRED: ${props.event.properties.reason}`
+      case "intervention.resolved":
+        return `INTERVENTION ${props.event.properties.status.toUpperCase()}: ${props.event.properties.comment ?? "No comment"}`
+      case "intervention.dismissed":
+        return `INTERVENTION DISMISSED`
+      case "intervention.escalated":
+        return `INTERVENTION ESCALATED`
       case "audit.posture_updated":
         return `Trust posture: ${props.event.properties.trust?.posture ?? "unknown"}`
       case "run.state_changed":
@@ -3432,11 +3465,20 @@ function LifecycleEvent(props: { event: any }) {
       case "plan.compiled": return "📋"
       case "plan.step_promoted": return "⏩"
       case "intervention.required": return "⚠️"
+      case "intervention.resolved": return "✅"
+      case "intervention.dismissed": return "⏭️"
+      case "intervention.escalated": return "⬆️"
       case "audit.posture_updated": return "🛡️"
       case "run.state_changed": return "⚙️"
       case "artifact.created": return "📦"
       default: return "•"
     }
+  })
+
+  const color = createMemo(() => {
+    if (props.event.type === "intervention.required") return theme.error
+    if (props.event.type === "intervention.resolved") return theme.success
+    return theme.textMuted
   })
 
   return (
@@ -3448,8 +3490,8 @@ function LifecycleEvent(props: { event: any }) {
       gap={1}
       alignItems="center"
     >
-      <text fg={theme.textMuted}>{icon()}</text>
-      <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
+      <text fg={color()}>{icon()}</text>
+      <text fg={color()} attributes={TextAttributes.BOLD} wrapMode="word">
         {label()}
       </text>
     </box>
