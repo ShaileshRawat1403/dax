@@ -5,6 +5,20 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-29
+
+### Added
+- **Canonical Event-Driven Lifecycle**: Replaced property-based state with an immutable RunEvent stream as the system of record.
+- **Projection-First Workstation**: TUI now derives all views (narrative, diffs, interventions) from pure event stream projections.
+- **Hardened Interventions**: Formal model for operational blocks (ambiguity, recovery, risk) with unique `interventionId` tracking.
+- **Speculative Previews**: Real-time projection of "Proposed Changes" into the Diff Pane before approvals are granted.
+- **Operational Narrative**: High-signal, evocative narrative feed driven by pre-computed operational messages.
+- **Replay Compatibility**: Robust state reconstruction from both legacy and canonical event families.
+
+### Changed
+- **Trust Normalization**: Retired legacy `trust.updated` events in favor of the canonical `audit.posture_updated` family.
+- **Workstation UI**: Integrated intervention markers and unified speculative/historical diff views.
+
 ## [1.0.8] - 2026-03-27
 
 ### Added
