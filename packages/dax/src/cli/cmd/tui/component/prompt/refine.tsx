@@ -121,9 +121,9 @@ export function RefinePane(props: {
         <text fg={theme.accent} bold>
           Refine
         </text>
-        <text fg={theme.textMuted}>Tighten the request before running it</text>
+        <text fg={theme.textMuted}>Preflight the execution contract before you send it</text>
         <Show when={hasContent()}>
-          <text fg={theme.text}>Review the contract, then press Enter to run it.</text>
+          <text fg={theme.text}>Review the plan, targets, and checks, then press Enter to run it.</text>
         </Show>
         <Show when={!hasContent()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM}>

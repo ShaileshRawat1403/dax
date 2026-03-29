@@ -2,17 +2,20 @@ import { describe, expect, it } from "bun:test"
 import { deriveActivePaneMode, PANE_MODE, deriveAutoPaneMode, paneCompactLabel, paneLabel, shouldAutoShowPane } from "./pane"
 
 describe("pane presentation model", () => {
-  it("includes audit as a first-class pane mode", () => {
+  it("includes audit and memory as first-class pane modes", () => {
     expect(PANE_MODE).toContain("audit")
+    expect(PANE_MODE).toContain("memory")
   })
 
-  it("uses a concrete label for diffs and exposes audit directly", () => {
+  it("uses concrete operator labels for the pane surfaces", () => {
     expect(paneLabel("diff", false)).toBe("changes")
     expect(paneLabel("audit", false)).toBe("audit")
+    expect(paneLabel("plan", false)).toBe("workstation")
+    expect(paneLabel("memory", false)).toBe("memory")
     expect(paneCompactLabel("approvals", false)).toBe("approve")
   })
 
-  it("prioritizes approvals, then refine, then live plan context, then audit for auto pane focus", () => {
+  it("prioritizes approvals, then refine, then live workstation context, then memory, then audit", () => {
     expect(
       deriveAutoPaneMode({
         hasApprovals: true,
@@ -20,6 +23,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: true,
         hasDiffContext: true,
         hasLiveContext: true,
+        hasMemoryContext: true,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -32,6 +36,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: true,
         hasDiffContext: true,
         hasLiveContext: true,
+        hasMemoryContext: true,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -44,6 +49,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: true,
         hasDiffContext: true,
         hasLiveContext: true,
+        hasMemoryContext: true,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -53,9 +59,23 @@ describe("pane presentation model", () => {
       deriveAutoPaneMode({
         hasApprovals: false,
         hasRefineDraft: false,
+        hasAuditAttention: false,
+        hasDiffContext: true,
+        hasLiveContext: false,
+        hasMemoryContext: true,
+        hasPlanContext: true,
+        fallback: "diff",
+      }),
+    ).toBe("memory")
+
+    expect(
+      deriveAutoPaneMode({
+        hasApprovals: false,
+        hasRefineDraft: false,
         hasAuditAttention: true,
         hasDiffContext: true,
         hasLiveContext: false,
+        hasMemoryContext: false,
         hasPlanContext: true,
         fallback: "diff",
       }),
@@ -71,6 +91,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: false,
         hasDiffContext: false,
         hasLiveContext: false,
+        hasMemoryContext: false,
         hasPlanContext: true,
       }),
     ).toBe(true)
@@ -83,6 +104,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: true,
         hasDiffContext: true,
         hasLiveContext: true,
+        hasMemoryContext: true,
         hasPlanContext: true,
       }),
     ).toBe(false)
@@ -96,6 +118,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: false,
         hasDiffContext: false,
         hasLiveContext: true,
+        hasMemoryContext: false,
         hasPlanContext: true,
         fallback: "plan",
         paneMode: "refine",
@@ -114,6 +137,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: false,
         hasDiffContext: false,
         hasLiveContext: true,
+        hasMemoryContext: false,
         hasPlanContext: true,
         fallback: "plan",
         paneMode: "refine",
@@ -132,6 +156,7 @@ describe("pane presentation model", () => {
         hasAuditAttention: false,
         hasDiffContext: true,
         hasLiveContext: false,
+        hasMemoryContext: false,
         hasPlanContext: true,
         fallback: "plan",
       }),
