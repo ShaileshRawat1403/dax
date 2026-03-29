@@ -1,5 +1,5 @@
 import { createMemo, Match, Show, Switch } from "solid-js"
-import { useTheme } from "../../context/theme"
+import { tint, useTheme } from "../../context/theme"
 import { useSync } from "../../context/sync"
 import { useDirectory } from "../../context/directory"
 import { useRoute } from "../../context/route"
@@ -60,7 +60,13 @@ export function Footer(props?: { lifecycleLabel?: string }) {
       backgroundColor={theme.backgroundPanel}
     >
       <box flexDirection="row" gap={1}>
-        <box backgroundColor={theme.primary} paddingLeft={1} paddingRight={1}>
+        <box
+          backgroundColor={theme.primary}
+          border={["round"]}
+          borderColor={theme.borderActive}
+          paddingLeft={1}
+          paddingRight={1}
+        >
           <text fg={theme.background} attributes={TextAttributes.BOLD}>
             {mode()}
           </text>
@@ -80,8 +86,16 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             paddingLeft={1}
             paddingRight={1}
             backgroundColor={theme.backgroundElement}
+            border={["round"]}
+            borderColor={theme.borderSubtle}
           >
-            <box backgroundColor={theme.background} paddingLeft={1} paddingRight={1}>
+            <box
+              backgroundColor={theme.background}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+            >
               <text fg={theme.textMuted}>?</text>
             </box>
             <text fg={theme.textMuted}>Help</text>
@@ -94,19 +108,35 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             paddingLeft={1}
             paddingRight={1}
             backgroundColor={theme.backgroundElement}
+            border={["round"]}
+            borderColor={theme.borderSubtle}
           >
-            <box backgroundColor={theme.background} paddingLeft={1} paddingRight={1}>
+            <box
+              backgroundColor={theme.background}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+            >
               <text fg={theme.textMuted}>/</text>
             </box>
             <text fg={theme.textMuted}>Actions</text>
           </box>
           <Show when={mcp() > 0}>
-            <text fg={mcpError() ? theme.error : theme.textMuted}>
-              {mcpError() ? "!" : "●"} MCP:{mcp()}
-            </text>
+            <box
+              backgroundColor={mcpError() ? tint(theme.backgroundElement, theme.error, 0.08) : theme.backgroundElement}
+              border={["round"]}
+              borderColor={mcpError() ? theme.error : theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={mcpError() ? theme.error : theme.textMuted}>{mcpError() ? "!" : "●"} MCP:{mcp()}</text>
+            </box>
           </Show>
           <Show when={lsp().length > 0}>
-            <text fg={theme.textMuted}>● LSP:{lsp().length}</text>
+            <box backgroundColor={theme.backgroundElement} border={["round"]} borderColor={theme.borderSubtle} paddingLeft={1} paddingRight={1}>
+              <text fg={theme.textMuted}>● LSP:{lsp().length}</text>
+            </box>
           </Show>
         </box>
       </box>
