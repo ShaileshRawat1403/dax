@@ -30,6 +30,12 @@ type ContractDraft = {
   operatorWatchouts?: string[]
   targetFiles?: string[]
   validationCommands?: string[]
+  executionMode?: "fast" | "balanced" | "safe" | "audit-heavy"
+  riskLevel?: "low" | "medium" | "high"
+  likelyWrites?: string[]
+  approvalForecast?: string[]
+  unknowns?: string[]
+  rollbackPlan?: string[]
 }
 
 type PromptHints = {
@@ -74,8 +80,19 @@ export function formatStructuredExecutionContract(contract: ContractDraft) {
   return [
     "## Goal",
     contract.goal,
+    ...(contract.executionMode || contract.riskLevel
+      ? [
+          "",
+          "## Execution Profile",
+          ...(contract.executionMode ? [`- Mode: ${contract.executionMode}`] : []),
+          ...(contract.riskLevel ? [`- Risk level: ${contract.riskLevel}`] : []),
+        ]
+      : []),
     ...(contract.targetFiles && contract.targetFiles.length > 0
       ? ["", "## Likely Targets", ...contract.targetFiles.map((item) => `- ${item}`)]
+      : []),
+    ...(contract.likelyWrites && contract.likelyWrites.length > 0
+      ? ["", "## Likely Writes", ...contract.likelyWrites.map((item) => `- ${item}`)]
       : []),
     ...(contract.contextSignals && contract.contextSignals.length > 0
       ? ["", "## Session Context", ...contract.contextSignals.map((item) => `- ${item}`)]
@@ -89,16 +106,68 @@ export function formatStructuredExecutionContract(contract: ContractDraft) {
     ...(contract.validationCommands && contract.validationCommands.length > 0
       ? ["", "## Validation Commands", ...contract.validationCommands.map((item) => `- ${item}`)]
       : []),
+    ...(contract.approvalForecast && contract.approvalForecast.length > 0
+      ? ["", "## Approval Forecast", ...contract.approvalForecast.map((item) => `- ${item}`)]
+      : []),
     ...(contract.constraints.length > 0
       ? ["", "## Constraints & Requirements", ...contract.constraints.map((item) => `- ${item}`)]
       : []),
+    ...(contract.unknowns && contract.unknowns.length > 0
+      ? ["", "## Unknowns & Assumptions", ...contract.unknowns.map((item) => `- ${item}`)]
+      : []),
     ...(contract.operatorWatchouts && contract.operatorWatchouts.length > 0
       ? ["", "## Operator Watchouts", ...contract.operatorWatchouts.map((item) => `- ${item}`)]
+      : []),
+    ...(contract.rollbackPlan && contract.rollbackPlan.length > 0
+      ? ["", "## Rollback & Recovery", ...contract.rollbackPlan.map((item) => `- ${item}`)]
       : []),
     "",
     "---",
     "Edit this contract above, then press Enter to execute.",
   ].join("\n")
+}
+
+function buildRefinementPrompt(prompt: string, context: IntentContext) {
+  const lines = [
+    "You are an expert software engineer and AI task planner.",
+    'Your objective is to translate the user\'s prompt into a rigorous "Structured Execution Contract". This contract will guide an autonomous AI agent.',
+    "",
+    `USER REQUEST: "${prompt}"`,
+    `CURRENT WORKING DIRECTORY: ${context.cwd}`,
+  ]
+
+  if (context.session_title) lines.push(`SESSION GOAL: ${context.session_title}`)
+  if (context.current_focus) lines.push(`CURRENT FOCUS: ${context.current_focus}`)
+  if (context.todo?.length) lines.push(`KNOWN MILESTONES: ${context.todo.slice(0, 5).join(" | ")}`)
+  if (context.recent_activity?.length)
+    lines.push(`RECENT ACTIVITY: ${context.recent_activity.slice(0, 5).join(" | ")}`)
+  if (context.recent_tools?.length) lines.push(`RECENT TOOLS: ${context.recent_tools.slice(0, 4).join(" | ")}`)
+  if (context.recent_history?.length)
+    lines.push(`RECENT USER HISTORY: ${context.recent_history.slice(0, 4).join(" | ")}`)
+  if ((context.pending_approvals ?? 0) > 0) lines.push(`PENDING APPROVALS: ${context.pending_approvals}`)
+  if ((context.pending_questions ?? 0) > 0) lines.push(`PENDING QUESTIONS: ${context.pending_questions}`)
+  if (context.audit_status) lines.push(`AUDIT STATUS: ${context.audit_status}`)
+
+  lines.push(
+    "",
+    "INSTRUCTIONS:",
+    "1. Goal: Distill the exact outcome needed. Be precise.",
+    "2. Session Context: Surface the live context that materially changes how the agent should execute this request. Omit fluff.",
+    `3. Plan: Outline the logical sequence of operations. Avoid generic fluff like "understand requirements". Focus on what actually needs to be done (e.g. "Use grep to find X", "Edit Y to implement Z", "Run tests using 'npm test'").`,
+    "4. Success Criteria: How will the agent know it is finished? Be objective and measurable.",
+    '5. Execution Mode and Risk: Pick the safest useful mode ("fast", "balanced", "safe", or "audit-heavy") and the overall risk level.',
+    "6. Likely Writes: Predict the files, directories, or surfaces most likely to change.",
+    "7. Approval Forecast: Forecast the most likely approval or governance pauses before execution.",
+    '8. Constraints: What rules must the agent follow? (e.g. "Do not break existing tests", "Only modify files in src/components", "Do not add new dependencies unless requested").',
+    "9. Unknowns: Capture only real assumptions or missing facts that could materially change execution.",
+    "10. Operator Watchouts: Include only important approvals, governance concerns, or validation cautions.",
+    "11. Rollback & Recovery: Add short, practical recovery steps when this work could misfire.",
+    "12. Formatting: Use markdown to communicate clearly. Use headings (##) for sections. Use bullets (-) for lists. Use blockquotes (>) for key findings or warnings. Use tables for structured comparisons or data. This terminal renderer displays markdown with color-coded syntax.",
+    "",
+    "Ensure your response perfectly aligns with the requested JSON schema.",
+  )
+
+  return lines.join("\n")
 }
 
 /**
@@ -155,41 +224,41 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
               .array(z.string())
               .describe("0-3 concrete validation commands or checks that would prove the work is complete.")
               .default([]),
+            executionMode: z
+              .enum(["fast", "balanced", "safe", "audit-heavy"])
+              .describe("The safest useful execution posture for this request.")
+              .default("balanced"),
+            riskLevel: z
+              .enum(["low", "medium", "high"])
+              .describe("Overall risk implied by the requested work.")
+              .default("medium"),
+            likelyWrites: z
+              .array(z.string())
+              .describe("0-4 likely files, directories, or surfaces that will probably be modified.")
+              .default([]),
+            approvalForecast: z
+              .array(z.string())
+              .describe("0-3 likely approval or governance checkpoints the operator should expect.")
+              .default([]),
             constraints: z
               .array(z.string())
               .describe("Project boundaries, performance rules, or style guidelines the AI must not violate."),
+            unknowns: z
+              .array(z.string())
+              .describe("0-3 unresolved assumptions or missing facts that could change the approach.")
+              .default([]),
             operatorWatchouts: z
               .array(z.string())
               .describe(
                 "0-3 short watchouts about approvals, risk, governance, or validation gaps the operator should keep in mind.",
               )
               .default([]),
+            rollbackPlan: z
+              .array(z.string())
+              .describe("0-3 short recovery steps the operator can use if the execution goes wrong.")
+              .default([]),
           }),
-          prompt: `You are an expert software engineer and AI task planner.
-Your objective is to translate the user's prompt into a rigorous "Structured Execution Contract". This contract will guide an autonomous AI agent.
-
-USER REQUEST: "${prompt}"
-CURRENT WORKING DIRECTORY: ${context.cwd}
-${context.session_title ? `SESSION GOAL: ${context.session_title}` : ""}
-${context.current_focus ? `CURRENT FOCUS: ${context.current_focus}` : ""}
-${context.todo?.length ? `KNOWN MILESTONES: ${context.todo.slice(0, 5).join(" | ")}` : ""}
-${context.recent_activity?.length ? `RECENT ACTIVITY: ${context.recent_activity.slice(0, 5).join(" | ")}` : ""}
-${context.recent_tools?.length ? `RECENT TOOLS: ${context.recent_tools.slice(0, 4).join(" | ")}` : ""}
-${context.recent_history?.length ? `RECENT USER HISTORY: ${context.recent_history.slice(0, 4).join(" | ")}` : ""}
-${(context.pending_approvals ?? 0) > 0 ? `PENDING APPROVALS: ${context.pending_approvals}` : ""}
-${(context.pending_questions ?? 0) > 0 ? `PENDING QUESTIONS: ${context.pending_questions}` : ""}
-${context.audit_status ? `AUDIT STATUS: ${context.audit_status}` : ""}
-
-INSTRUCTIONS:
-1. Goal: Distill the exact outcome needed. Be precise.
-2. Session Context: Surface the live context that materially changes how the agent should execute this request. Omit fluff.
-3. Plan: Outline the logical sequence of operations. Avoid generic fluff like "understand requirements". Focus on what actually needs to be done (e.g. "Use grep to find X", "Edit Y to implement Z", "Run tests using 'npm test'").
-4. Success Criteria: How will the agent know it is finished? Be objective and measurable.
-5. Constraints: What rules must the agent follow? (e.g. "Do not break existing tests", "Only modify files in src/components", "Do not add new dependencies unless requested").
-6. Operator Watchouts: Include only important approvals, governance concerns, or validation cautions.
-7. Formatting: Use markdown to communicate clearly. Use headings (##) for sections. Use bullets (-) for lists. Use blockquotes (>) for key findings or warnings. Use tables for structured comparisons or data. This terminal renderer displays markdown with color-coded syntax.
-
-Ensure your response perfectly aligns with the requested JSON schema.`,
+          prompt: buildRefinementPrompt(prompt, context),
         })
 
         const {
@@ -199,18 +268,30 @@ Ensure your response perfectly aligns with the requested JSON schema.`,
           successCriteria,
           targetFiles,
           validationCommands,
+          executionMode,
+          riskLevel,
+          likelyWrites,
+          approvalForecast,
           constraints,
+          unknowns,
           operatorWatchouts,
+          rollbackPlan,
         } = result.object
         const formattedPrompt = formatStructuredExecutionContract({
           goal,
+          executionMode,
+          riskLevel,
           targetFiles,
+          likelyWrites,
           contextSignals: sessionContext,
           plan,
           successCriteria,
           validationCommands,
+          approvalForecast,
           constraints,
+          unknowns,
           operatorWatchouts,
+          rollbackPlan,
         })
 
         return {
@@ -220,8 +301,14 @@ Ensure your response perfectly aligns with the requested JSON schema.`,
           successCriteria,
           targetFiles,
           validationCommands,
+          executionMode,
+          riskLevel,
+          likelyWrites,
+          approvalForecast,
           explicitConstraints: constraints,
+          unknowns,
           operatorWatchouts,
+          rollbackPlan,
           formattedPrompt,
         } as any
       } finally {
@@ -243,8 +330,14 @@ Ensure your response perfectly aligns with the requested JSON schema.`,
     successCriteria: enhancedFallback.successCriteria,
     targetFiles: enhancedFallback.targetFiles,
     validationCommands: enhancedFallback.validationCommands,
+    executionMode: enhancedFallback.executionMode,
+    riskLevel: enhancedFallback.riskLevel,
+    likelyWrites: enhancedFallback.likelyWrites,
+    approvalForecast: enhancedFallback.approvalForecast,
     explicitConstraints: enhancedFallback.constraints,
+    unknowns: enhancedFallback.unknowns,
     operatorWatchouts: enhancedFallback.operatorWatchouts,
+    rollbackPlan: enhancedFallback.rollbackPlan,
     formattedPrompt: formattedFallback,
   } as any
 }
@@ -257,6 +350,12 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
   const repoConstraint = `Stay within the active repository at ${context.cwd}`
   const contextSignals = buildContextSignals(context)
   const operatorWatchouts = buildOperatorWatchouts(context)
+  const riskLevel = deriveRiskLevel(lowerPrompt, context)
+  const executionMode = deriveExecutionMode(riskLevel, context)
+  const approvalForecast = buildApprovalForecast(lowerPrompt, context, hints)
+  const unknowns = buildUnknowns(prompt, lowerPrompt, hints, targetCommand)
+  const rollbackPlan = buildRollbackPlan(riskLevel)
+  const likelyWrites = hints.fileHints
 
   // Analyze the prompt to generate a better fallback
   const isExploration =
@@ -301,6 +400,12 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       constraints: ["Read-only analysis preferred", "Focus on understanding structure", repoConstraint],
       contextSignals,
       operatorWatchouts,
+      executionMode: executionMode === "fast" ? "balanced" : executionMode,
+      riskLevel: riskLevel === "high" ? "medium" : riskLevel,
+      likelyWrites: [],
+      approvalForecast,
+      unknowns,
+      rollbackPlan,
     }
   }
 
@@ -333,6 +438,12 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       ],
       contextSignals,
       operatorWatchouts,
+      executionMode,
+      riskLevel,
+      likelyWrites,
+      approvalForecast,
+      unknowns,
+      rollbackPlan,
     }
   }
 
@@ -361,6 +472,12 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       constraints: ["Preserve existing functionality unless the request explicitly changes it", repoConstraint],
       contextSignals,
       operatorWatchouts,
+      executionMode,
+      riskLevel,
+      likelyWrites,
+      approvalForecast,
+      unknowns,
+      rollbackPlan,
     }
   }
 
@@ -383,6 +500,12 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       constraints: ["Follow existing documentation style", repoConstraint],
       contextSignals,
       operatorWatchouts,
+      executionMode: executionMode === "fast" ? "balanced" : executionMode,
+      riskLevel: riskLevel === "high" ? "medium" : riskLevel,
+      likelyWrites,
+      approvalForecast,
+      unknowns,
+      rollbackPlan,
     }
   }
 
@@ -405,6 +528,12 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       constraints: ["Follow existing test patterns", repoConstraint],
       contextSignals,
       operatorWatchouts,
+      executionMode,
+      riskLevel,
+      likelyWrites,
+      approvalForecast,
+      unknowns,
+      rollbackPlan,
     }
   }
 
@@ -427,7 +556,94 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
     constraints: [repoConstraint],
     contextSignals,
     operatorWatchouts,
+    executionMode,
+    riskLevel,
+    likelyWrites,
+    approvalForecast,
+    unknowns,
+    rollbackPlan,
   }
+}
+
+function deriveRiskLevel(lowerPrompt: string, context: IntentContext): "low" | "medium" | "high" {
+  if (
+    lowerPrompt.includes("release") ||
+    lowerPrompt.includes("deploy") ||
+    lowerPrompt.includes("migration") ||
+    lowerPrompt.includes("database") ||
+    lowerPrompt.includes("delete") ||
+    lowerPrompt.includes("remove") ||
+    lowerPrompt.includes("security") ||
+    context.audit_status === "fail"
+  ) {
+    return "high"
+  }
+  if (
+    lowerPrompt.includes("fix") ||
+    lowerPrompt.includes("refactor") ||
+    lowerPrompt.includes("auth") ||
+    lowerPrompt.includes("approval") ||
+    lowerPrompt.includes("governance") ||
+    context.audit_status === "warn"
+  ) {
+    return "medium"
+  }
+  return "low"
+}
+
+function deriveExecutionMode(
+  riskLevel: "low" | "medium" | "high",
+  context: IntentContext,
+): "fast" | "balanced" | "safe" | "audit-heavy" {
+  if (context.audit_status === "fail") return "audit-heavy"
+  if (riskLevel === "high") return "safe"
+  if ((context.pending_approvals ?? 0) > 0 || (context.pending_questions ?? 0) > 0) return "safe"
+  if (riskLevel === "medium") return "balanced"
+  return "fast"
+}
+
+function buildApprovalForecast(lowerPrompt: string, context: IntentContext, hints: PromptHints) {
+  const forecast: string[] = []
+  if (hints.fileHints.length > 0 || lowerPrompt.includes("edit") || lowerPrompt.includes("fix") || lowerPrompt.includes("implement")) {
+    forecast.push("Expect review before non-trivial file writes or multi-file edits.")
+  }
+  if (
+    lowerPrompt.includes("rm ") ||
+    lowerPrompt.includes("delete") ||
+    lowerPrompt.includes("remove") ||
+    lowerPrompt.includes("migration")
+  ) {
+    forecast.push("Destructive or irreversible steps should pause for explicit operator approval.")
+  }
+  if ((context.pending_approvals ?? 0) > 0) {
+    forecast.push("Existing pending approvals may need resolution before this run can continue smoothly.")
+  }
+  return unique(forecast).slice(0, 3)
+}
+
+function buildUnknowns(prompt: string, lowerPrompt: string, hints: PromptHints, commandHint?: string) {
+  const unknowns: string[] = []
+  if (!hints.fileHints.length) {
+    unknowns.push("The affected files or subsystem are not explicit yet and may need quick discovery first.")
+  }
+  if (!commandHint && (lowerPrompt.includes("fix") || lowerPrompt.includes("build") || lowerPrompt.includes("test"))) {
+    unknowns.push("The exact validation command is not named, so DAX may need to discover the right check before changing code.")
+  }
+  if (prompt.trim().split(/\s+/).length < 8) {
+    unknowns.push("The request is terse enough that success boundaries may need one more pass before execution.")
+  }
+  return unique(unknowns).slice(0, 3)
+}
+
+function buildRollbackPlan(riskLevel: "low" | "medium" | "high") {
+  const plan = [
+    "Capture the current state before broad edits so the previous version is easy to inspect or restore.",
+    "Use targeted verification after each meaningful step instead of waiting until the end.",
+  ]
+  if (riskLevel !== "low") {
+    plan.push("If validation regresses, revert the narrow change set and re-check the failing path before proceeding.")
+  }
+  return plan.slice(0, 3)
 }
 
 function buildContextSignals(context: IntentContext) {

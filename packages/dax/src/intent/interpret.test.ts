@@ -24,11 +24,18 @@ describe("Intent Interpreter", () => {
       const result = await refineIntent("Fix the build error in src/main.ts", mockContext)
       expect(result!.goal).toBe("Fix the reported issue: Fix the build error in src/main.ts")
       expect(result!.formattedPrompt).toContain("src/main.ts")
+      expect(result!.formattedPrompt).toContain("## Execution Profile")
       expect(result!.formattedPrompt).toContain("## Likely Targets")
+      expect(result!.formattedPrompt).toContain("## Likely Writes")
+      expect(result!.formattedPrompt).toContain("## Approval Forecast")
+      expect(result!.formattedPrompt).toContain("## Unknowns & Assumptions")
+      expect(result!.formattedPrompt).toContain("## Rollback & Recovery")
       expect(result!.targetFiles).toContain("src/main.ts")
       expect(result!.formattedPrompt).toContain("## Validation Commands")
       expect(result!.successCriteria).toContain("The reported failure is resolved in a reproducible way")
       expect(result!.explicitConstraints).toContain("Minimize the change surface until the root cause is confirmed")
+      expect(result!.likelyWrites).toContain("src/main.ts")
+      expect(result!.approvalForecast?.length).toBeGreaterThan(0)
     })
 
     it("should omit constraints section when fallback has no constraints", async () => {
@@ -67,6 +74,10 @@ describe("Intent Interpreter", () => {
       expect(result!.operatorWatchouts).toContain("There is 1 pending approval that may block execution.")
       expect(result!.formattedPrompt).toContain("## Operator Watchouts")
       expect(result!.formattedPrompt).toContain("Audit posture is warning. Prefer smaller changes and explicit verification.")
+      expect(result!.executionMode).toBe("safe")
+      expect(result!.approvalForecast).toContain(
+        "Existing pending approvals may need resolution before this run can continue smoothly.",
+      )
     })
   })
 
