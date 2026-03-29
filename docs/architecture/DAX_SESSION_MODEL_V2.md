@@ -88,15 +88,18 @@ Recommended lifecycle:
 
 ## Session Structure
 
-A session should contain these logical layers:
+A session is an **immutable stream of RunEvents**. The logical layers below are **projected** from this event stream to create the operational workstation view.
+
+Logical Projection Layers:
 
 - `intent`
 - `plan`
 - `steps`
-- `activity_timeline`
+- `narrative`
 - `approvals`
 - `artifacts`
-- `audit_findings`
+- `interventions`
+- `proposedChanges`
 - `trust_posture`
 
 ### Intent
@@ -112,9 +115,13 @@ Intent captures:
 Plan captures:
 
 - structured work definition before execution
-- proposed steps
+- proposed tasks and dependencies
 - readiness state
-- current step focus
+- current task focus
+
+### Narrative
+
+The narrative projection collapses internal technical noise into a human-readable, operational feed. It ensures that the operator is always aware of the high-level progress and stage transitions.
 
 ### Steps
 
@@ -125,27 +132,21 @@ Steps capture:
 - current step
 - completion or failure markers
 
-### Activity Timeline
+### Activity Timeline (The Event Log)
 
-The timeline captures:
-
-- meaningful events in the work lifecycle
-- planning transitions
-- execution transitions
-- approvals and interruptions
-- artifact production
-- trust-relevant updates
-
-The timeline should become the future backbone for replay and review.
+The timeline is the immutable backbone of the session. Every transition, approval, and discovery is recorded as a discrete event.
 
 ### Approvals
 
-Approvals capture:
+Approvals capture governance checkpoints where the operator must grant permission for a high-risk action.
 
-- what required operator intervention
-- why intervention was required
-- whether the action was approved, denied, or overridden
-- when the decision occurred
+### Interventions
+
+Interventions identify specific operational blocks (ambiguity, recovery, risk escalation) that require human resolution. Unlike generic pauses, interventions are unique trackable entities.
+
+### Proposed Changes (Speculative Preview)
+
+Speculative previews allow operators to see exactly what a tool call (like `edit` or `apply_patch`) intends to do before granting approval.
 
 ### Artifacts
 
@@ -155,21 +156,9 @@ Artifacts capture:
 - their relationship to the session
 - enough metadata for inspection and later lineage
 
-### Audit Findings
-
-Audit findings capture:
-
-- trust-relevant issues
-- severity
-- category
-- blocking status
-- recommended next action
-
 ### Trust Posture
 
-Trust posture captures the current operator-facing trust summary of the session.
-
-In V2, trust posture remains a session-level property rather than a standalone subsystem.
+Trust posture captures the current operator-facing trust summary of the session, derived from audit finding events.
 
 ## Session Outcomes
 

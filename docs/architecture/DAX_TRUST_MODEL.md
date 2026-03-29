@@ -117,6 +117,16 @@ These signals should later support both:
 - operator-facing trust posture
 - machine-checkable verification logic
 
+## The Canonical Trust Event: `audit.posture_updated`
+
+Trust posture updates are broadcast through the **`audit.posture_updated`** event. This event replaces the legacy `trust.updated` family and serves as the unified carrier for:
+
+- **Posture Transitions**: Moving up or down the trust ladder.
+- **Score Changes**: Numeric adjustments based on signal aggregation.
+- **Findings**: Specific evidence or policy violations associated with the posture change.
+
+By centralizing trust updates in a single event type, the projection layer can consistently derive the workstation's trust surface from the immutable event log.
+
 ## Trust Posture Ladder
 
 Move beyond a flat label toward a session-level ladder.

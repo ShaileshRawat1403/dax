@@ -52,6 +52,32 @@ A run is **non-terminal** when it's in one of:
 
 Non-terminal runs **can be recovered** — DAX reads the event log and picks up where it left off.
 
+## What Is an Intervention?
+
+An intervention is an **explicit operational block** that requires human resolution to proceed. While all approvals pause execution, interventions identify specific *reasons* for the pause that go beyond generic permissions.
+
+### Intervention Types
+
+- **Ambiguity**: DAX is unsure about the operator's intent or has multiple valid paths forward.
+- **Recovery**: An automated execution failure requires manual correction to resume.
+- **Risk Escalation**: A series of low-risk actions has accumulated into a high-risk scenario.
+- **Policy Violation**: An action was blocked by automated rules and requires a human override.
+
+Interventions are trackable entities with a status (`requested` -> `resolved`). They ensure that "why we are paused" is always transparent to the operator.
+
+## What Is a Speculative Preview?
+
+Before you approve a high-risk action (like `edit` or `apply_patch`), DAX provides a **Speculative Preview** (also called a Proposed Change).
+
+### How it works
+
+1. DAX calculates the exact diff it intends to apply.
+2. The workstation projects this diff into the **Diff Pane** before any files are touched.
+3. You review the "Proposed Change" alongside the historical execution trace.
+4. Your approval applies the change; your denial discards the speculation.
+
+This ensures that DAX never performs a "blind write." Every modification is evidenced and reviewed before it hits your filesystem.
+
 ## What Is an Approval?
 
 An approval is a **pause** in execution when DAX encounters a risky step.
