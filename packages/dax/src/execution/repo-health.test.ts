@@ -45,7 +45,7 @@ describe("repo-health workflow", () => {
     const sessionId = "test-healthy"
 
     const graph = buildWorkflowGraph("repo-health")
-    const stateManager = new SessionStateManager(createInitialSessionState(sessionId, fixturePath))
+    const stateManager = new SessionStateManager(createInitialSessionState(sessionId, fixturePath), sessionId)
     stateManager.updateWorkflow("repo-health")
 
     const result = await runGraph(graph, { cwd: fixturePath, sessionId }, router, stateManager)
@@ -78,7 +78,7 @@ describe("repo-health workflow", () => {
     const sessionId = "test-messy"
 
     const graph = buildWorkflowGraph("repo-health")
-    const stateManager = new SessionStateManager(createInitialSessionState(sessionId, fixturePath))
+    const stateManager = new SessionStateManager(createInitialSessionState(sessionId, fixturePath), sessionId)
     stateManager.updateWorkflow("repo-health")
 
     const result = await runGraph(graph, { cwd: fixturePath, sessionId }, router, stateManager)
@@ -105,7 +105,7 @@ describe("repo-health workflow", () => {
     const sessionId = "test-blocked"
 
     const graph = buildWorkflowGraph("repo-health")
-    const stateManager = new SessionStateManager(createInitialSessionState(sessionId, fixturePath))
+    const stateManager = new SessionStateManager(createInitialSessionState(sessionId, fixturePath), sessionId)
     stateManager.updateWorkflow("repo-health")
 
     // Simulate a low trust score to trigger blocking

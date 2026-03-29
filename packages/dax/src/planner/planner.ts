@@ -1,7 +1,10 @@
 import type { IntentEnvelope } from "../intent/types"
 import { type TaskGraph, createTaskGraph, addTask } from "./task-graph"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
 
 export interface PlannerContext {
+  session_id?: string
   // Add relevant context here (workspace info, etc.)
 }
 
@@ -65,6 +68,21 @@ export async function createPlan(intent: IntentEnvelope, context: PlannerContext
       operator_type: "general",
       dependencies: [],
       context: { intent },
+    })
+  }
+
+  if (context.session_id) {
+    const tasks = Array.from(graph.tasks.values()).map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      dependencies: t.dependencies,
+    }))
+
+    await Bus.publish(Lifecycle.PlanCompiled, {
+      runId: context.session_id,
+      planId: graph.id,
+      tasks,
     })
   }
 

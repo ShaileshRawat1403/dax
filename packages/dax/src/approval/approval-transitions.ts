@@ -2,6 +2,9 @@ import { Log } from "@/util/log"
 import { Tracer } from "@/runtime/telemetry"
 import type { Approval, ApprovalStatus, ApprovalType, ApprovalContext } from "./approval-types"
 import { ApprovalStore } from "./approval-store"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
+import { toApprovalRecordV1 } from "./approval-adapter"
 
 type CreateApprovalParams = {
   runId: string
@@ -81,6 +84,18 @@ export async function createAndPersistApproval(params: CreateApprovalParams): Pr
 
   await ApprovalStore.add(params.runId, approval)
 
+  await Bus.publish(Lifecycle.ApprovalRequested, {
+    runId: params.runId,
+    approval: toApprovalRecordV1(approval),
+  })
+
+  await Bus.publish(Lifecycle.InterventionRequired, {
+    runId: params.runId,
+    reason: params.reason,
+    type: params.source === "permission" ? "policy_violation" : "hitl_task",
+    approvalId,
+  })
+
   Tracer.approvalRequested(params.runId, approvalId, params.type, params.risk)
 
   log.info("approval created", {
@@ -121,6 +136,13 @@ export async function approveApproval(
 
   Tracer.approvalResolved(runId, approvalId, "approve")
 
+  await Bus.publish(Lifecycle.ApprovalResolved, {
+    runId: runId,
+    approvalId,
+    decision: "approve",
+    comment,
+  })
+
   log.info("approval approved", { runId, approvalId, actorId })
 
   return resolved
@@ -153,6 +175,13 @@ export async function denyApproval(
   }
 
   Tracer.approvalResolved(runId, approvalId, "deny")
+
+  await Bus.publish(Lifecycle.ApprovalResolved, {
+    runId: runId,
+    approvalId,
+    decision: "deny",
+    comment,
+  })
 
   log.info("approval denied", { runId, approvalId, actorId })
 

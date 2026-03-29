@@ -142,7 +142,7 @@ export const WorkflowCommand = cmd({
             const graph = buildWorkflowGraph(workflowId)
             const sessionId = args.resume || `workflow-${Date.now()}`
             const initialState = createInitialSessionState(sessionId, resolvedTarget, workflowId)
-            const stateManager = new SessionStateManager(initialState)
+            const stateManager = new SessionStateManager(initialState, sessionId)
             stateManager.updateWorkflow(workflowId)
 
             const router = createInitializedRouter()

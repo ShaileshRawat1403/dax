@@ -9,6 +9,8 @@ import type {
   TrustSignal,
   ApprovalRequest,
 } from "./state-types"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
 
 // Simple UUID generator if you don't have a library
 function generateId(): string {
@@ -17,9 +19,11 @@ function generateId(): string {
 
 export class SessionStateManager {
   private state: SessionState
+  private runId: string
 
-  constructor(initialState: SessionState) {
+  constructor(initialState: SessionState, runId: string) {
     this.state = initialState
+    this.runId = runId
   }
 
   getState(): SessionState {
@@ -128,6 +132,23 @@ export class SessionStateManager {
     }
     this.state.emittedArtifacts.push(newArtifact)
     this.state.updatedAt = new Date().toISOString()
+
+    Bus.publish(Lifecycle.ArtifactCreated, {
+      runId: this.runId,
+      artifact: {
+        artifactId: newArtifact.id,
+        runId: this.runId,
+        type: newArtifact.type as any,
+        title: newArtifact.name,
+        createdAt: newArtifact.timestamp,
+        path: newArtifact.path,
+        metadata: {
+          description: newArtifact.description,
+          producedBy: newArtifact.producedBy,
+        },
+      },
+    }).catch(() => {})
+
     return newArtifact
   }
 
@@ -152,6 +173,15 @@ export class SessionStateManager {
 
     this.state.trustState.lastUpdated = new Date().toISOString()
     this.state.updatedAt = new Date().toISOString()
+
+    Bus.publish(Lifecycle.AuditPostureUpdated, {
+      runId: this.runId,
+      trust: {
+        score: this.state.trustState.score,
+        posture: this.state.trustState.posture as any,
+        reasons: this.state.trustState.signals.map((s) => s.reason),
+      },
+    }).catch(() => {})
   }
 
   addApprovalRequest(reason: string) {
