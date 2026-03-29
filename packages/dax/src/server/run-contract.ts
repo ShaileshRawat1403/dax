@@ -477,11 +477,6 @@ const ArtifactCreatedPayload = z.object({
   artifact: ArtifactRecord,
 })
 
-export const TrustUpdatedPayload = z.object({
-  trust: RunTrustState,
-  reason: z.string().optional(),
-})
-
 const RunCompletedPayload = z.object({
   status: z.literal("completed"),
   summaryAvailable: z.boolean(),

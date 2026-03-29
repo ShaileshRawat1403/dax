@@ -51,7 +51,10 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
   for (const event of sortedEvents) {
     state.updatedAt = event.timestamp
 
-    switch (event.type) {
+    // Cast to any to handle historical event types retired from the contract
+    const e = event as any
+
+    switch (e.type) {
       case "run.created":
         // Already handled above
         break
@@ -62,7 +65,7 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
         break
 
       case "run.state_changed":
-        state.status = event.payload.currentStatus as RunStatus
+        state.status = e.payload.currentStatus as RunStatus
         if (state.status === "running" && !state.startedAt) {
           state.startedAt = event.timestamp
         }
@@ -74,8 +77,8 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
 
       case "step.proposed":
         state.steps.push({
-          stepId: event.payload.stepId,
-          title: event.payload.title,
+          stepId: e.payload.stepId,
+          title: e.payload.title,
           type: "proposed",
           status: "proposed",
           startedAt: null,
@@ -83,16 +86,16 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
           error: null,
           outputs: [],
         })
-        state.currentStepId = event.payload.stepId
+        state.currentStepId = e.payload.stepId
         break
 
       case "step.started": {
-        const stepIndex = state.steps.findIndex((s) => s.stepId === event.payload.stepId)
+        const stepIndex = state.steps.findIndex((s) => s.stepId === e.payload.stepId)
         if (stepIndex === -1) {
           // If a step was started without being proposed (might happen in older logs), create it
           state.steps.push({
-            stepId: event.payload.stepId,
-            title: event.payload.title || event.payload.stepId,
+            stepId: e.payload.stepId,
+            title: e.payload.title || e.payload.stepId,
             type: "executed",
             status: "running",
             startedAt: event.timestamp,
@@ -104,60 +107,60 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
           state.steps[stepIndex].status = "running"
           state.steps[stepIndex].startedAt = event.timestamp
         }
-        state.currentStepId = event.payload.stepId
+        state.currentStepId = e.payload.stepId
         break
       }
 
       case "step.completed": {
-        const stepIndex = state.steps.findIndex((s) => s.stepId === event.payload.stepId)
+        const stepIndex = state.steps.findIndex((s) => s.stepId === e.payload.stepId)
         if (stepIndex !== -1) {
           state.steps[stepIndex].status = "completed"
           state.steps[stepIndex].completedAt = event.timestamp
         }
-        if (state.currentStepId === event.payload.stepId) {
+        if (state.currentStepId === e.payload.stepId) {
           state.currentStepId = null
         }
         break
       }
 
       case "step.failed": {
-        const stepIndex = state.steps.findIndex((s) => s.stepId === event.payload.stepId)
+        const stepIndex = state.steps.findIndex((s) => s.stepId === e.payload.stepId)
         if (stepIndex !== -1) {
           state.steps[stepIndex].status = "failed"
           state.steps[stepIndex].completedAt = event.timestamp
           state.steps[stepIndex].error = {
-            code: event.payload.error.code,
-            message: event.payload.error.message,
-            retryable: (event.payload.error as any).retryable ?? false,
+            code: e.payload.error.code,
+            message: e.payload.error.message,
+            retryable: e.payload.error.retryable ?? false,
           }
         }
-        if (state.currentStepId === event.payload.stepId) {
+        if (state.currentStepId === e.payload.stepId) {
           state.currentStepId = null
         }
         break
       }
 
       case "approval.requested":
-        state.pendingApprovalIds.push(event.payload.approval.approvalId)
-        pendingApprovals.set(event.payload.approval.approvalId, event.payload.approval)
+        state.pendingApprovalIds.push(e.payload.approval.approvalId)
+        pendingApprovals.set(e.payload.approval.approvalId, e.payload.approval)
         break
 
       case "approval.resolved":
-        state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== event.payload.approvalId)
-        pendingApprovals.delete(event.payload.approvalId)
+        state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== e.payload.approvalId)
+        pendingApprovals.delete(e.payload.approvalId)
         break
 
       case "artifact.created":
-        state.artifactIds.push(event.payload.artifact.artifactId)
+        state.artifactIds.push(e.payload.artifact.artifactId)
         break
 
       case "trust.updated":
       case "audit.posture_updated":
         state.trust = {
-          posture: event.payload.trust.posture ?? "low",
-          score: event.payload.trust.score ?? null,
-          blocked: event.payload.trust.blocked ?? false,
-          reasons: event.payload.trust.reasons ?? [],
+          posture: e.payload.trust.posture ?? "low",
+          score: e.payload.trust.score ?? null,
+          blocked: e.payload.trust.blocked ?? false,
+          reasons: e.payload.trust.reasons ?? [],
         }
         break
 
@@ -172,9 +175,9 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
         state.completedAt = event.timestamp
         state.currentStepId = null
         state.error = {
-          code: event.payload.error.code,
-          message: event.payload.error.message,
-          retryable: event.payload.error.retryable ?? false,
+          code: e.payload.error.code,
+          message: e.payload.error.message,
+          retryable: e.payload.error.retryable ?? false,
         }
         break
     }

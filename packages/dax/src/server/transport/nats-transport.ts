@@ -24,7 +24,7 @@ function categorizeEvent(event: RunEvent): RunEventCategory {
   if (type.startsWith("run.")) return "lifecycle"
   if (type.startsWith("step.")) return "step"
   if (type.startsWith("approval.")) return "approval"
-  if (type === "trust.updated") return "trust"
+  if ((type as any) === "trust.updated") return "trust"
   if (type === "artifact.created") return "artifact"
   return "recovery"
 }
