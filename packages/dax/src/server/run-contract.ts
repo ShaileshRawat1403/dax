@@ -574,6 +574,7 @@ export const RunEvent = z
       cursor: z.string(),
       runId: z.string(),
       timestamp: z.string(),
+      message: z.string().optional(),
     }),
     RunEventPayload,
   )

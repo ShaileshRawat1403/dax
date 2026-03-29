@@ -37,7 +37,7 @@ import {
   type ProjectedRun,
   type RunIntervention,
 } from "./run-contract"
-import { buildProjectedRun, buildInterventionProjection } from "./run-projections"
+import { buildProjectedRun, buildInterventionProjection, mapEventToNarrativeItem } from "./run-projections"
 
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
@@ -420,6 +420,18 @@ async function appendEvent(runId: string, event: any) {
     const events = await readEvents(runId)
     const sequence = (events.at(-1)?.sequence ?? 0) + 1
     const eventId = `evt_${runId}_${sequence}`
+    
+    // Compute polished narrative message
+    const narrativeItem = mapEventToNarrativeItem({
+      schemaVersion: "v1",
+      eventId,
+      sequence,
+      cursor: eventId,
+      runId,
+      timestamp: new Date().toISOString(),
+      ...event,
+    } as any)
+
     const full: RunEvent = {
       schemaVersion: "v1",
       eventId,
@@ -427,6 +439,7 @@ async function appendEvent(runId: string, event: any) {
       cursor: eventId,
       runId,
       timestamp: new Date().toISOString(),
+      message: narrativeItem?.message,
       ...event,
     } as any
     events.push(full)
@@ -1354,7 +1367,7 @@ export namespace RunGateway {
           projectId: run?.projectId,
         }
       })
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
       .slice(0, limit)
 
     return {

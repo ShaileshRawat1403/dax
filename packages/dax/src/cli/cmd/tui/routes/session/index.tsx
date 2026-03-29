@@ -288,7 +288,7 @@ export function Session() {
   const promptDisabled = createMemo(() => !!session()?.parentID)
   createEffect(() => {
     const mode = workflowMode()
-    if (!WORKFLOW_AGENT_MODES.has(mode)) return
+    if (!WORKFLOW_MODES.includes(mode)) return
     const availableAgents = local.agent.list()
     if (availableAgents.length === 0) return
     if (local.agent.current()?.name === mode) return
@@ -395,7 +395,7 @@ export function Session() {
     return 1
   })
   const stripGap = createMemo(() => (stripColumns() === 1 ? 0 : 1))
-  const stripSectionWidth = createMemo(() => {
+  const stripInnerSectionWidth = createMemo(() => {
     const cols = stripColumns()
     const inner = Math.max(0, stripInnerWidth() - stripGap() * (cols - 1))
     return Math.max(0, Math.floor(inner / cols))
@@ -3459,32 +3459,7 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
 
 function LifecycleEvent(props: { event: any }) {
   const { theme } = useTheme()
-  const label = createMemo(() => {
-    switch (props.event.type) {
-      case "intent.created":
-        return `Intent: ${props.event.properties.goal}`
-      case "plan.compiled":
-        return `Plan compiled: ${props.event.properties.steps?.length ?? 0} steps`
-      case "plan.step_promoted":
-        return `Step ${props.event.properties.stepId} -> ${props.event.properties.status}`
-      case "intervention.required":
-        return `INTERVENTION REQUIRED: ${props.event.properties.reason}`
-      case "intervention.resolved":
-        return `INTERVENTION ${props.event.properties.status.toUpperCase()}: ${props.event.properties.comment ?? "No comment"}`
-      case "intervention.dismissed":
-        return `INTERVENTION DISMISSED`
-      case "intervention.escalated":
-        return `INTERVENTION ESCALATED`
-      case "audit.posture_updated":
-        return `Trust posture: ${props.event.properties.trust?.posture ?? "unknown"}`
-      case "run.state_changed":
-        return `Run state: ${props.event.properties.currentStatus}`
-      case "artifact.created":
-        return `Artifact created: ${props.event.properties.artifact?.name ?? "unnamed"}`
-      default:
-        return props.event.type
-    }
-  })
+  const label = createMemo(() => props.event.message || props.event.type)
 
   const icon = createMemo(() => {
     switch (props.event.type) {
