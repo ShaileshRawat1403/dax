@@ -12,6 +12,35 @@ export interface ExecutionContract {
   goal: string
   successCriteria: string[]
   explicitConstraints: string[]
+  executionProfile?: {
+    mode: "fast" | "balanced" | "safe" | "audit-heavy"
+    riskLevel: "low" | "medium" | "high"
+    writeScope: "none" | "single_file" | "multi_file" | "unknown"
+    approvalLikelihood: "low" | "medium" | "high"
+  }
+  contractDelta?: {
+    inferredScope?: string[]
+    inferredTargets?: string[]
+    addedValidation?: string[]
+    unresolvedUnknowns?: string[]
+  }
+  validationPlan?: {
+    preflight?: string[]
+    postChange?: string[]
+    shipReadiness?: string[]
+  }
+  governanceHints?: {
+    likelyTriggers?: string[]
+    lowerRiskAlternatives?: string[]
+    operatorDecisionsNeeded?: string[]
+  }
+  repoImpact?: {
+    targetFiles?: string[]
+    targetSubsystems?: string[]
+    docsImpact?: boolean
+    testImpact?: boolean
+    avoidAreas?: string[]
+  }
   executionPlan?: string[]
   contextSignals?: string[]
   operatorWatchouts?: string[]

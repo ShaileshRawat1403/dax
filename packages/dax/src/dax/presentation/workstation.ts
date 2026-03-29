@@ -84,6 +84,7 @@ export function deriveWorkstationState(input: {
   const approvalsPending = input.approvals.length + input.questions
   const evidencePresent = input.artifacts.length > 0 || input.diffCount > 0
   const trustPosture = deriveTrustPosture({
+    lifecycleHint: input.stage === "done" && approvalsPending === 0 ? "completed" : undefined,
     approvalsPending,
     evidencePresent,
     auditStatus: input.audit?.status,
@@ -198,12 +199,14 @@ function deriveLifecycle(input: {
 type WorkstationStage = "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
 
 function deriveTrustPosture(input: {
+  lifecycleHint?: "completed"
   approvalsPending: number
   evidencePresent: boolean
   auditStatus?: "pass" | "warn" | "fail"
   blockerCount: number
 }): WorkstationTrustPosture {
   if (input.blockerCount > 0 || input.auditStatus === "fail") return "blocked"
+  if (input.lifecycleHint === "completed" && input.approvalsPending === 0 && input.auditStatus !== "warn") return "clear"
   if (input.approvalsPending > 0 || !input.evidencePresent || input.auditStatus === "warn") return "review_needed"
   return "clear"
 }

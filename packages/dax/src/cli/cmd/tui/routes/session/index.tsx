@@ -338,6 +338,23 @@ export function Session() {
     const ref = kv.store[DAX_SETTING.session_refined_prompt]
     return (kv.get(DAX_SETTING.session_refined_prompt) as string) || ""
   })
+  const refineSection = (heading: string) => {
+    const match = refinedPrompt().match(new RegExp(`^##\\s+${heading}[\\s\\S]*?(?=^##\\s+|$)`, "m"))
+    if (!match) return []
+    return match[0]
+      .split("\n")
+      .slice(1)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^\s*(?:-|\d+\.)\s+/, "").trim())
+      .filter(Boolean)
+  }
+  const refineExecutionProfile = createMemo(() => refineSection("Execution Profile"))
+  const refineWrites = createMemo(() => refineSection("Likely Writes"))
+  const refineApprovals = createMemo(() => refineSection("Approval Forecast"))
+  const refineUnknowns = createMemo(() => refineSection("Unknowns & Assumptions"))
+  const refineGovernance = createMemo(() => refineSection("Governance Hints"))
+  const refineValidationPlan = createMemo(() => refineSection("Validation Plan"))
 
   useUIActivity()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
@@ -1230,13 +1247,42 @@ export function Session() {
   })
 
   const hasMemoryNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
-  const hasRefineNeed = createMemo(() => paneMode() === "refine" && refinedPrompt().trim().length > 0)
+  const hasRefineNeed = createMemo(() => refinedPrompt().trim().length > 0)
   const hasAuditNeed = createMemo(() => {
     const audit = latestAudit()?.result
     return workflowMode() === "audit" || audit?.status === "warn" || audit?.status === "fail"
   })
   const hasPlanContext = createMemo(() => todo().length > 0 || !!liveMissionGoal())
   const hasDiffNeed = createMemo(() => !!revert()?.diff || proposedChanges().length > 0)
+  const refineStatus = createMemo(() => {
+    if (!refinedPrompt().trim()) return undefined
+    if (proposedChanges().length > 0 && refineWrites().length === 0) {
+      return {
+        label: "drift detected",
+        tone: "error" as const,
+        reason: "The run has concrete change context but the refine contract did not forecast likely writes.",
+      }
+    }
+    if (pendingRaoCount() > 0 && refineApprovals().length === 0) {
+      return {
+        label: "watch",
+        tone: "warning" as const,
+        reason: "The run paused for operator review without a clear approval forecast in refine.",
+      }
+    }
+    if (refineUnknowns().length > 0) {
+      return {
+        label: "watch",
+        tone: "warning" as const,
+        reason: "The contract still carries unresolved unknowns that may alter execution.",
+      }
+    }
+    return {
+      label: "aligned",
+      tone: "success" as const,
+      reason: "The live run is still aligned with the current refined execution contract.",
+    }
+  })
   const priorityPaneMode = createMemo<PaneMode>(() => {
     if (hasApprovalsNeed()) return "approvals"
     if (hasRefineNeed()) return "refine"
@@ -1265,6 +1311,8 @@ export function Session() {
         return todo().length > 0 ? String(todo().length) : undefined
       case "memory":
         return pmSummary().recentCount > 0 ? String(pmSummary().recentCount) : undefined
+      case "refine":
+        return refinedPrompt().trim().length > 0 ? String(refineExecutionProfile().length + refineApprovals().length) : undefined
       default:
         return undefined
     }
@@ -1351,6 +1399,7 @@ export function Session() {
       hasLiveContext: hasLivePaneContext(),
       hasMemoryContext: hasMemoryNeed(),
       hasPlanContext: hasPlanContext(),
+      liveStage: displayStageState().stage,
       fallback: priorityPaneMode(),
       paneMode: paneMode(),
       paneVisibility: paneVisibility(),
@@ -1358,6 +1407,91 @@ export function Session() {
       smartFollowActive: smartFollowActive(),
     }),
   )
+  const liveRailHint = createMemo(() => {
+    if (hasApprovalsNeed()) {
+      return {
+        label: "approvals",
+        reason: "Operator input is required before the run can continue.",
+      }
+    }
+    if (displayStageState().stage === "verifying" && hasAuditNeed()) {
+      return {
+        label: "audit",
+        reason: "DAX is validating the result and surfacing review findings.",
+      }
+    }
+    if ((displayStageState().stage === "verifying" || displayStageState().stage === "done") && hasDiffNeed()) {
+      return {
+        label: "changes",
+        reason: "The run has concrete file change context ready for inspection.",
+      }
+    }
+    if (hasRefineNeed()) {
+      return {
+        label: "refine",
+        reason: "There is a refined execution contract ready to review.",
+      }
+    }
+    if (hasMemoryNeed()) {
+      return {
+        label: "memory",
+        reason: "Workspace memory has active context relevant to this run.",
+      }
+    }
+    return {
+      label: "workstation",
+      reason: "The live run is still building context, so the workstation is the best control surface.",
+    }
+  })
+  const operatorNextMove = createMemo(() => {
+    if (hasApprovalsNeed()) {
+      return {
+        title: "Review the waiting decision",
+        detail: "Open approvals, inspect the reason or diff, then allow or deny the run.",
+        tone: "warning" as const,
+      }
+    }
+    if (displayStageState().stage === "verifying" && hasAuditNeed()) {
+      return {
+        title: "Inspect validation findings",
+        detail: "Use the audit pane to review warnings or blockers before you trust the result.",
+        tone: "accent" as const,
+      }
+    }
+    if ((displayStageState().stage === "verifying" || displayStageState().stage === "done") && hasDiffNeed()) {
+      return {
+        title: "Review the concrete changes",
+        detail: "Open changes to inspect the diff and confirm the workspace outcome.",
+        tone: "primary" as const,
+      }
+    }
+    if (hasRefineNeed()) {
+      return {
+        title: "Check the execution contract",
+        detail: "Review the refine pane before you continue, especially the risk and approval forecast.",
+        tone: "primary" as const,
+      }
+    }
+    if (hasMemoryNeed()) {
+      return {
+        title: "Capture durable context",
+        detail: "Use memory to preserve the decisions or repo context this run uncovered.",
+        tone: "muted" as const,
+      }
+    }
+    if (displayStageState().stage === "done") {
+      return {
+        title: "Choose the next operator move",
+        detail: "Use this completed state to verify, continue with a follow-up, or hand the result off cleanly.",
+        tone: "muted" as const,
+      }
+    }
+    return {
+      title: "Let the run build context",
+      detail: "The workstation will stay focused on live state until the run reaches a review-worthy checkpoint.",
+      tone: "muted" as const,
+    }
+  })
   createEffect(() => {
     if (activePaneMode() !== "approvals") return
     if (!showPane()) return
@@ -3220,6 +3354,8 @@ export function Session() {
                                   >
                                     <box
                                       backgroundColor={tint(theme.background, theme.primary, 0.18)}
+                                      border={["round"]}
+                                      borderColor={theme.borderSubtle}
                                       paddingLeft={1}
                                       paddingRight={1}
                                     >
@@ -3227,32 +3363,166 @@ export function Session() {
                                         {workstationState().lifecycleLabel}
                                       </text>
                                     </box>
-                                    <box
-                                      backgroundColor={tint(
-                                        theme.background,
-                                        workstationState().trustPosture === "blocked"
-                                          ? theme.error
-                                          : workstationState().trustPosture === "review_needed"
-                                            ? theme.warning
-                                            : theme.success,
-                                        0.14,
-                                      )}
-                                      paddingLeft={1}
-                                      paddingRight={1}
+                                    <Show when={workstationState().trustPosture !== "clear"}>
+                                      <box
+                                        backgroundColor={tint(
+                                          theme.background,
+                                          workstationState().trustPosture === "blocked" ? theme.error : theme.warning,
+                                          0.14,
+                                        )}
+                                        border={["round"]}
+                                        borderColor={
+                                          workstationState().trustPosture === "blocked" ? theme.error : theme.warning
+                                        }
+                                        paddingLeft={1}
+                                        paddingRight={1}
+                                      >
+                                        <text
+                                          fg={
+                                            workstationState().trustPosture === "blocked" ? theme.error : theme.warning
+                                          }
+                                        >
+                                          {workstationState().trustLabel}
+                                        </text>
+                                      </box>
+                                    </Show>
+                                  </box>
+                                  <box
+                                    flexDirection="column"
+                                    gap={0}
+                                    padding={1}
+                                    backgroundColor={tint(theme.backgroundElement, theme.primary, 0.06)}
+                                    border={["round"]}
+                                    borderColor={theme.borderSubtle}
+                                  >
+                                    <box flexDirection="row" justifyContent="space-between" gap={1} flexWrap="wrap">
+                                      <text fg={theme.text}>Live lane</text>
+                                      <text fg={theme.primary}>{liveRailHint().label}</text>
+                                    </box>
+                                    <text fg={theme.textMuted} wrapMode="word">
+                                      {stageLabel()} · {streamStatus()}
+                                    </text>
+                                    <text fg={theme.text} wrapMode="word">
+                                      {liveRailHint().reason}
+                                    </text>
+                                  </box>
+                                  <box
+                                    flexDirection="column"
+                                    gap={0}
+                                    padding={1}
+                                    backgroundColor={
+                                      operatorNextMove().tone === "warning"
+                                        ? tint(theme.backgroundElement, theme.warning, 0.08)
+                                        : operatorNextMove().tone === "accent"
+                                          ? tint(theme.backgroundElement, theme.accent, 0.08)
+                                          : operatorNextMove().tone === "primary"
+                                            ? tint(theme.backgroundElement, theme.primary, 0.08)
+                                            : theme.backgroundElement
+                                    }
+                                    border={["round"]}
+                                    borderColor={
+                                      operatorNextMove().tone === "warning"
+                                        ? theme.warning
+                                        : operatorNextMove().tone === "accent"
+                                          ? theme.accent
+                                          : operatorNextMove().tone === "primary"
+                                            ? theme.primary
+                                            : theme.borderSubtle
+                                    }
+                                  >
+                                    <text
+                                      fg={
+                                        operatorNextMove().tone === "warning"
+                                          ? theme.warning
+                                          : operatorNextMove().tone === "accent"
+                                            ? theme.accent
+                                            : operatorNextMove().tone === "primary"
+                                              ? theme.primary
+                                              : theme.text
+                                      }
                                     >
-                                      <text
-                                        fg={
-                                          workstationState().trustPosture === "blocked"
+                                      Operator next move
+                                    </text>
+                                    <text fg={theme.text} wrapMode="word" bold>
+                                      {operatorNextMove().title}
+                                    </text>
+                                    <text fg={theme.textMuted} wrapMode="word">
+                                      {operatorNextMove().detail}
+                                    </text>
+                                  </box>
+                                  <Show when={refineStatus()}>
+                                    {(status) => (
+                                      <box
+                                        flexDirection="column"
+                                        gap={0}
+                                        padding={1}
+                                        backgroundColor={
+                                          status().tone === "error"
+                                            ? tint(theme.backgroundElement, theme.error, 0.08)
+                                            : status().tone === "warning"
+                                              ? tint(theme.backgroundElement, theme.warning, 0.08)
+                                              : tint(theme.backgroundElement, theme.success, 0.08)
+                                        }
+                                        border={["round"]}
+                                        borderColor={
+                                          status().tone === "error"
                                             ? theme.error
-                                            : workstationState().trustPosture === "review_needed"
+                                            : status().tone === "warning"
                                               ? theme.warning
                                               : theme.success
                                         }
                                       >
-                                        {workstationState().trustLabel}
-                                      </text>
-                                    </box>
-                                  </box>
+                                        <box flexDirection="row" justifyContent="space-between" gap={1} flexWrap="wrap">
+                                          <text
+                                            fg={
+                                              status().tone === "error"
+                                                ? theme.error
+                                                : status().tone === "warning"
+                                                  ? theme.warning
+                                                  : theme.success
+                                            }
+                                          >
+                                            Refine contract
+                                          </text>
+                                          <text
+                                            fg={
+                                              status().tone === "error"
+                                                ? theme.error
+                                                : status().tone === "warning"
+                                                  ? theme.warning
+                                                  : theme.success
+                                            }
+                                            bold
+                                          >
+                                            {status().label}
+                                          </text>
+                                        </box>
+                                        <Show when={refineExecutionProfile().length > 0}>
+                                          <For each={refineExecutionProfile().slice(0, 3)}>
+                                            {(item) => <text fg={theme.text}>{item}</text>}
+                                          </For>
+                                        </Show>
+                                        <Show when={refineApprovals().length > 0}>
+                                          <text fg={theme.textMuted} wrapMode="word">
+                                            Approval forecast: {refineApprovals()[0]}
+                                          </text>
+                                        </Show>
+                                        <Show when={refineValidationPlan().length > 0}>
+                                          <text fg={theme.textMuted} wrapMode="word">
+                                            Validation plan: {refineValidationPlan()[0]}
+                                          </text>
+                                        </Show>
+                                        <Show when={refineGovernance().length > 0}>
+                                          <text fg={theme.textMuted} wrapMode="word">
+                                            Governance hint: {refineGovernance()[0]}
+                                          </text>
+                                        </Show>
+                                        <text fg={theme.textMuted} wrapMode="word">
+                                          {status().reason}
+                                        </text>
+                                      </box>
+                                    )}
+                                  </Show>
                                   <Show when={workstationState().currentStep}>
                                     <box
                                       flexDirection="column"
@@ -4454,6 +4724,16 @@ function AssistantMessage(props: {
       completed: !!props.message.time.completed,
     })
   })
+  const suggestedNextSteps = createMemo(() => {
+    if (!final() || !props.message.time.completed) return []
+    return completionNextSteps({
+      mode: props.message.mode,
+      hasError: !!props.message.error,
+      hasIncompleteTodo: props.todo.some((item) => item.status !== "completed"),
+      hasEvidence: evidenceItems().length > 0,
+      hasReasoning: !!visibleNativeReasoningText() || !!derivedReasoning(),
+    })
+  })
   const showLiveStatusNote = createMemo(
     () => props.last && !props.message.time.completed && renderableParts().length === 0 && !props.message.error,
   )
@@ -4633,6 +4913,28 @@ function AssistantMessage(props: {
                 )}
               </For>
             </box>
+
+            <Show when={suggestedNextSteps().length > 0}>
+              <box
+                flexDirection="column"
+                gap={0}
+                border={["left"]}
+                borderColor={theme.accent}
+                paddingLeft={1}
+                backgroundColor={tint(theme.background, theme.accent, 0.03)}
+              >
+                <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                  NEXT STEPS
+                </text>
+                <For each={suggestedNextSteps()}>
+                  {(step) => (
+                    <text fg={theme.text} wrapMode="word">
+                      - {step}
+                    </text>
+                  )}
+                </For>
+              </box>
+            </Show>
           </box>
         </box>
       </Show>
@@ -4866,6 +5168,96 @@ function cleanReasoningText(text: string) {
     .trim()
 }
 
+function completionNextSteps(input: {
+  mode: string
+  hasError: boolean
+  hasIncompleteTodo: boolean
+  hasEvidence: boolean
+  hasReasoning: boolean
+}) {
+  if (input.hasError) {
+    return [
+      "Retry the run after adjusting the request or fixing the failing dependency.",
+      "Open the audit or details pane if you need the exact failure context.",
+    ]
+  }
+
+  switch (input.mode) {
+    case "explore":
+      return [
+        "Ask DAX to inspect a specific file, folder, or subsystem next.",
+        "Turn these findings into a concrete implementation plan.",
+        "Request a short handoff summary if you want to carry this context elsewhere.",
+      ]
+    case "plan":
+      return [
+        "Use this plan as the contract for an execution run.",
+        "Refine the scope, risk level, or validation steps before you start writing.",
+        "Ask DAX to convert the plan into a safer or more audit-heavy execution path.",
+      ]
+    case "audit":
+      return [
+        "Review the warnings or blockers in the audit pane before trusting the result.",
+        "Ask DAX for a fix plan for the findings that still matter.",
+        "Request a release or signoff summary once the findings are resolved.",
+      ]
+    default: {
+      const steps: string[] = []
+      if (input.hasEvidence) steps.push("Inspect the evidence or changes in the right pane before you move on.")
+      if (input.hasIncompleteTodo) steps.push("Ask DAX to continue from the remaining plan items.")
+      if (!input.hasIncompleteTodo) steps.push("Ask DAX to verify the result or package it into a clean handoff.")
+      if (input.hasReasoning || input.hasEvidence) {
+        steps.push("Request a follow-up change, deeper review, or concise signoff summary from this state.")
+      }
+      return steps.slice(0, 3)
+    }
+  }
+}
+
+function enrichAssistantMarkdown(text: string) {
+  return text
+    .split(/(```[\s\S]*?```)/g)
+    .map((segment) => (segment.startsWith("```") ? segment : enrichPlainMarkdownSegment(segment)))
+    .join("")
+}
+
+function enrichPlainMarkdownSegment(segment: string) {
+  const lines = segment.replace(/^\s*[•–▪]\s+/gm, "- ").split("\n")
+
+  const nextMeaningfulLine = (start: number) => {
+    for (let index = start + 1; index < lines.length; index++) {
+      const candidate = lines[index]?.trim()
+      if (candidate) return candidate
+    }
+    return ""
+  }
+
+  return lines
+    .map((line, index) => {
+      const trimmed = line.trim()
+      if (!trimmed) return line
+      if (/^(#{1,6}\s|>\s|- \*\*|\|.+\||```)/.test(trimmed)) return line
+
+      const next = nextMeaningfulLine(index)
+      if (
+        /^[A-Z][A-Za-z0-9/&()'\- ]{2,64}$/.test(trimmed) &&
+        !/[.!?]$/.test(trimmed) &&
+        (/^[-*]\s+/.test(next) || /^[A-Z][^:]{1,32}:\s+/.test(next))
+      ) {
+        return `## ${trimmed}`
+      }
+
+      const bulletLead = trimmed.match(/^[-*]\s+([^:]{2,36}):\s+(.+)$/)
+      if (bulletLead) return `- **${bulletLead[1].trim()}:** ${bulletLead[2]}`
+
+      const labelLead = trimmed.match(/^([A-Z][^:]{1,32}):\s+(.+)$/)
+      if (labelLead) return `**${labelLead[1].trim()}:** ${labelLead[2]}`
+
+      return line
+    })
+    .join("\n")
+}
+
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage; marginTop?: number }) {
   const { theme, syntax } = useTheme()
   const ctx = use()
@@ -4918,8 +5310,9 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
   const { syntax } = useTheme()
+  const content = createMemo(() => enrichAssistantMarkdown(props.part.text.trim()))
   return (
-    <Show when={props.part.text.trim()}>
+    <Show when={content().trim()}>
       <box
         id={"text-" + props.part.id}
         paddingLeft={2}
@@ -4928,7 +5321,7 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
       >
-        <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
+        <markdown syntaxStyle={syntax()} streaming={true} content={content()} conceal={ctx.conceal()} />
       </box>
     </Show>
   )

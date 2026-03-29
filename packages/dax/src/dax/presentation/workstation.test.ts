@@ -95,4 +95,24 @@ describe("workstation presentation model", () => {
     expect(delayedState.currentStep).toBe("Check provider behavior")
     expect(delayedState.activitySummary.items).toContain("Check provider behavior")
   })
+
+  test("does not keep completed idle runs in review-needed posture without active risk", () => {
+    const completedState = deriveWorkstationState({
+      sessionID: "completed-session",
+      stage: "done",
+      stageReason: "idle",
+      sessionStatusType: "idle",
+      goal: "Initial check-in",
+      todo: [{ content: "Scope request: Initial check-in", status: "completed" }],
+      approvals: [],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+      recentTooling: [],
+    })
+
+    expect(completedState.lifecycle).toBe("completed")
+    expect(completedState.trustPosture).toBe("clear")
+    expect(completedState.trustLabel).toBe("Clear")
+  })
 })

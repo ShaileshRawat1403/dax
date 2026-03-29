@@ -26,6 +26,35 @@ type ContractDraft = {
   plan: string[]
   successCriteria: string[]
   constraints: string[]
+  executionProfile?: {
+    mode: "fast" | "balanced" | "safe" | "audit-heavy"
+    riskLevel: "low" | "medium" | "high"
+    writeScope: "none" | "single_file" | "multi_file" | "unknown"
+    approvalLikelihood: "low" | "medium" | "high"
+  }
+  contractDelta?: {
+    inferredScope?: string[]
+    inferredTargets?: string[]
+    addedValidation?: string[]
+    unresolvedUnknowns?: string[]
+  }
+  validationPlan?: {
+    preflight?: string[]
+    postChange?: string[]
+    shipReadiness?: string[]
+  }
+  governanceHints?: {
+    likelyTriggers?: string[]
+    lowerRiskAlternatives?: string[]
+    operatorDecisionsNeeded?: string[]
+  }
+  repoImpact?: {
+    targetFiles?: string[]
+    targetSubsystems?: string[]
+    docsImpact?: boolean
+    testImpact?: boolean
+    avoidAreas?: string[]
+  }
   contextSignals?: string[]
   operatorWatchouts?: string[]
   targetFiles?: string[]
@@ -76,23 +105,247 @@ function defaultValidationCommands(commandHint?: string) {
   return commandHint ? [commandHint] : []
 }
 
+function firstNonEmpty(values: Array<string | undefined>) {
+  return values.map((value) => value?.trim()).find(Boolean)
+}
+
+function deriveWriteScope(likelyWrites: string[] | undefined): "none" | "single_file" | "multi_file" | "unknown" {
+  if (!likelyWrites) return "unknown"
+  if (likelyWrites.length === 0) return "none"
+  if (likelyWrites.length === 1) return "single_file"
+  return "multi_file"
+}
+
+function deriveApprovalLikelihood(input: {
+  riskLevel?: "low" | "medium" | "high"
+  approvalForecast?: string[]
+  pendingApprovals?: number
+  pendingQuestions?: number
+  likelyWrites?: string[]
+}): "low" | "medium" | "high" {
+  if ((input.pendingApprovals ?? 0) > 0 || (input.pendingQuestions ?? 0) > 0) return "high"
+  if ((input.approvalForecast?.length ?? 0) >= 2) return "high"
+  if ((input.riskLevel ?? "medium") === "high") return "high"
+  if ((input.approvalForecast?.length ?? 0) > 0 || (input.likelyWrites?.length ?? 0) > 1) return "medium"
+  return "low"
+}
+
+function deriveTargetSubsystems(hints: PromptHints, prompt: string) {
+  const fromPaths = hints.fileHints
+    .map((item) => item.split("/").slice(0, -1).join("/"))
+    .filter(Boolean)
+  const keywords = Array.from(
+    prompt.matchAll(/\b(auth|approval|governance|release|readme|docs|tests?|ui|tui|server|workflow|memory|refine)\b/gi),
+  ).map((match) => match[1]!.toLowerCase())
+  return unique([...fromPaths, ...keywords]).slice(0, 4)
+}
+
+function buildValidationPlan(input: {
+  validationCommands?: string[]
+  successCriteria: string[]
+  targetFiles?: string[]
+  riskLevel?: "low" | "medium" | "high"
+  approvalForecast?: string[]
+}) {
+  const preflight = unique([
+    input.targetFiles?.length ? `Inspect ${input.targetFiles.slice(0, 3).join(", ")} before changing implementation.` : "",
+    input.approvalForecast?.length ? "Confirm likely approval checkpoints before the run reaches a write or destructive step." : "",
+  ].filter(Boolean))
+
+  const postChange = unique([
+    ...(input.validationCommands ?? []),
+    firstNonEmpty(input.successCriteria),
+  ].filter(Boolean) as string[])
+
+  const shipReadiness = unique([
+    input.riskLevel === "high" ? "Review remaining risk and rollback readiness before considering the work done." : "",
+    input.approvalForecast?.length ? "Confirm all approvals or operator questions have been resolved cleanly." : "",
+    "Capture the final evidence, summary, and any follow-up work before handoff.",
+  ].filter(Boolean))
+
+  return { preflight, postChange, shipReadiness }
+}
+
+function buildGovernanceHints(input: {
+  approvalForecast?: string[]
+  riskLevel?: "low" | "medium" | "high"
+  likelyWrites?: string[]
+  validationCommands?: string[]
+  pendingApprovals?: number
+  pendingQuestions?: number
+}) {
+  const likelyTriggers = unique([
+    ...(input.approvalForecast ?? []),
+    (input.likelyWrites?.length ?? 0) > 1 ? "Multi-file edits can trigger extra review attention." : "",
+    input.riskLevel === "high" ? "High-risk requests should stay in a safer execution posture until validated." : "",
+  ].filter(Boolean))
+
+  const lowerRiskAlternatives = unique([
+    (input.likelyWrites?.length ?? 0) > 1 ? "Start with the smallest single-file slice before expanding the change surface." : "",
+    (input.validationCommands?.length ?? 0) === 0 ? "Add a concrete validation command before executing writes." : "",
+    input.riskLevel === "high" ? "Use safe or audit-heavy mode if the current request can be narrowed first." : "",
+  ].filter(Boolean))
+
+  const operatorDecisionsNeeded = unique([
+    (input.pendingApprovals ?? 0) > 0 ? "Resolve existing approvals before relying on a smooth execution path." : "",
+    (input.pendingQuestions ?? 0) > 0 ? "Answer the outstanding operator question before execution expands." : "",
+    input.riskLevel === "high" ? "Confirm whether the operator wants the safer path or the faster path." : "",
+  ].filter(Boolean))
+
+  return { likelyTriggers, lowerRiskAlternatives, operatorDecisionsNeeded }
+}
+
+function buildRepoImpact(input: {
+  hints: PromptHints
+  prompt: string
+  likelyWrites?: string[]
+}) {
+  const lowerPrompt = input.prompt.toLowerCase()
+  const targetSubsystems = deriveTargetSubsystems(input.hints, input.prompt)
+  const targetFiles = unique([...(input.hints.fileHints ?? []), ...(input.likelyWrites ?? [])]).slice(0, 5)
+  const avoidAreas = unique([
+    lowerPrompt.includes("docs") ? "" : "Avoid widening scope into unrelated docs unless the task clearly needs it.",
+    lowerPrompt.includes("test") ? "" : "Avoid broad test-suite churn beyond the affected surface.",
+    lowerPrompt.includes("release") ? "" : "Avoid release metadata or packaging changes unless this task directly targets shipping.",
+  ].filter(Boolean))
+
+  return {
+    targetFiles,
+    targetSubsystems,
+    docsImpact: /\b(doc|readme|guide|changelog)\b/i.test(input.prompt),
+    testImpact: /\b(test|spec|verify|validation)\b/i.test(input.prompt) || targetFiles.some((item) => /test|spec/i.test(item)),
+    avoidAreas,
+  }
+}
+
+function buildContractDelta(input: {
+  prompt: string
+  hints: PromptHints
+  validationCommands?: string[]
+  unknowns?: string[]
+  riskLevel?: "low" | "medium" | "high"
+}) {
+  const scope = unique([
+    input.hints.fileHints.length > 0 ? `Focused on ${input.hints.fileHints.length} likely file or path target(s).` : "No specific file target was given, so DAX should inspect before writing.",
+    input.riskLevel === "high" ? "Elevated the execution posture because the request looks high risk." : "",
+  ].filter(Boolean))
+  const targets = input.hints.fileHints.map((item) => `Likely target inferred from prompt: ${item}`)
+  const addedValidation = (input.validationCommands ?? []).map((item) => `Validation added: ${item}`)
+  const unresolvedUnknowns = (input.unknowns ?? []).map((item) => `Operator assumption: ${item}`)
+  return {
+    inferredScope: scope,
+    inferredTargets: targets,
+    addedValidation,
+    unresolvedUnknowns,
+  }
+}
+
+function attachDerivedContractSections(
+  draft: ContractDraft,
+  input: {
+    prompt: string
+    context: IntentContext
+    hints: PromptHints
+  },
+): ContractDraft {
+  const executionProfile = {
+    mode: draft.executionMode ?? "balanced",
+    riskLevel: draft.riskLevel ?? "medium",
+    writeScope: deriveWriteScope(draft.likelyWrites),
+    approvalLikelihood: deriveApprovalLikelihood({
+      riskLevel: draft.riskLevel,
+      approvalForecast: draft.approvalForecast,
+      pendingApprovals: input.context.pending_approvals,
+      pendingQuestions: input.context.pending_questions,
+      likelyWrites: draft.likelyWrites,
+    }),
+  }
+  const validationPlan = buildValidationPlan({
+    validationCommands: draft.validationCommands,
+    successCriteria: draft.successCriteria,
+    targetFiles: draft.targetFiles,
+    riskLevel: draft.riskLevel,
+    approvalForecast: draft.approvalForecast,
+  })
+  const governanceHints = buildGovernanceHints({
+    approvalForecast: draft.approvalForecast,
+    riskLevel: draft.riskLevel,
+    likelyWrites: draft.likelyWrites,
+    validationCommands: draft.validationCommands,
+    pendingApprovals: input.context.pending_approvals,
+    pendingQuestions: input.context.pending_questions,
+  })
+  const repoImpact = buildRepoImpact({
+    hints: input.hints,
+    prompt: input.prompt,
+    likelyWrites: draft.likelyWrites,
+  })
+  const contractDelta = buildContractDelta({
+    prompt: input.prompt,
+    hints: input.hints,
+    validationCommands: draft.validationCommands,
+    unknowns: draft.unknowns,
+    riskLevel: draft.riskLevel,
+  })
+
+  return {
+    ...draft,
+    executionProfile,
+    validationPlan,
+    governanceHints,
+    repoImpact,
+    contractDelta,
+  }
+}
+
 export function formatStructuredExecutionContract(contract: ContractDraft) {
   return [
     "## Goal",
     contract.goal,
-    ...(contract.executionMode || contract.riskLevel
+    ...(contract.executionProfile || contract.executionMode || contract.riskLevel
       ? [
           "",
           "## Execution Profile",
-          ...(contract.executionMode ? [`- Mode: ${contract.executionMode}`] : []),
-          ...(contract.riskLevel ? [`- Risk level: ${contract.riskLevel}`] : []),
+          ...(contract.executionProfile?.mode || contract.executionMode ? [`- Mode: ${contract.executionProfile?.mode ?? contract.executionMode}`] : []),
+          ...(contract.executionProfile?.riskLevel || contract.riskLevel ? [`- Risk level: ${contract.executionProfile?.riskLevel ?? contract.riskLevel}`] : []),
+          ...(contract.executionProfile?.writeScope ? [`- Write scope: ${contract.executionProfile.writeScope}`] : []),
+          ...(contract.executionProfile?.approvalLikelihood ? [`- Approval likelihood: ${contract.executionProfile.approvalLikelihood}`] : []),
         ]
       : []),
     ...(contract.targetFiles && contract.targetFiles.length > 0
       ? ["", "## Likely Targets", ...contract.targetFiles.map((item) => `- ${item}`)]
       : []),
+    ...(contract.repoImpact
+      ? [
+          "",
+          "## Repo Impact",
+          ...(contract.repoImpact.targetSubsystems?.length
+            ? [`- Target subsystems: ${contract.repoImpact.targetSubsystems.join(", ")}`]
+            : []),
+          ...(contract.repoImpact.targetFiles?.length
+            ? [`- Target files: ${contract.repoImpact.targetFiles.join(", ")}`]
+            : []),
+          ...(typeof contract.repoImpact.docsImpact === "boolean"
+            ? [`- Docs impact: ${contract.repoImpact.docsImpact ? "yes" : "no"}`]
+            : []),
+          ...(typeof contract.repoImpact.testImpact === "boolean"
+            ? [`- Test impact: ${contract.repoImpact.testImpact ? "yes" : "no"}`]
+            : []),
+          ...(contract.repoImpact.avoidAreas?.map((item) => `- Avoid area: ${item}`) ?? []),
+        ]
+      : []),
     ...(contract.likelyWrites && contract.likelyWrites.length > 0
       ? ["", "## Likely Writes", ...contract.likelyWrites.map((item) => `- ${item}`)]
+      : []),
+    ...(contract.contractDelta
+      ? [
+          "",
+          "## Contract Delta",
+          ...(contract.contractDelta.inferredScope?.map((item) => `- Inferred scope: ${item}`) ?? []),
+          ...(contract.contractDelta.inferredTargets?.map((item) => `- Inferred target: ${item}`) ?? []),
+          ...(contract.contractDelta.addedValidation?.map((item) => `- Added validation: ${item}`) ?? []),
+          ...(contract.contractDelta.unresolvedUnknowns?.map((item) => `- Unresolved unknown: ${item}`) ?? []),
+        ]
       : []),
     ...(contract.contextSignals && contract.contextSignals.length > 0
       ? ["", "## Session Context", ...contract.contextSignals.map((item) => `- ${item}`)]
@@ -106,8 +359,28 @@ export function formatStructuredExecutionContract(contract: ContractDraft) {
     ...(contract.validationCommands && contract.validationCommands.length > 0
       ? ["", "## Validation Commands", ...contract.validationCommands.map((item) => `- ${item}`)]
       : []),
+    ...(contract.validationPlan
+      ? [
+          "",
+          "## Validation Plan",
+          ...(contract.validationPlan.preflight?.length ? ["### Preflight", ...contract.validationPlan.preflight.map((item) => `- ${item}`)] : []),
+          ...(contract.validationPlan.postChange?.length ? ["### Post-change", ...contract.validationPlan.postChange.map((item) => `- ${item}`)] : []),
+          ...(contract.validationPlan.shipReadiness?.length
+            ? ["### Ship readiness", ...contract.validationPlan.shipReadiness.map((item) => `- ${item}`)]
+            : []),
+        ]
+      : []),
     ...(contract.approvalForecast && contract.approvalForecast.length > 0
       ? ["", "## Approval Forecast", ...contract.approvalForecast.map((item) => `- ${item}`)]
+      : []),
+    ...(contract.governanceHints
+      ? [
+          "",
+          "## Governance Hints",
+          ...(contract.governanceHints.likelyTriggers?.map((item) => `- Likely trigger: ${item}`) ?? []),
+          ...(contract.governanceHints.lowerRiskAlternatives?.map((item) => `- Lower-risk path: ${item}`) ?? []),
+          ...(contract.governanceHints.operatorDecisionsNeeded?.map((item) => `- Operator decision: ${item}`) ?? []),
+        ]
       : []),
     ...(contract.constraints.length > 0
       ? ["", "## Constraints & Requirements", ...contract.constraints.map((item) => `- ${item}`)]
@@ -277,38 +550,48 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
           operatorWatchouts,
           rollbackPlan,
         } = result.object
-        const formattedPrompt = formatStructuredExecutionContract({
-          goal,
-          executionMode,
-          riskLevel,
-          targetFiles,
-          likelyWrites,
-          contextSignals: sessionContext,
-          plan,
-          successCriteria,
-          validationCommands,
-          approvalForecast,
-          constraints,
-          unknowns,
-          operatorWatchouts,
-          rollbackPlan,
-        })
+        const hints = extractPromptHints(prompt)
+        const draft = attachDerivedContractSections(
+          {
+            goal,
+            executionMode,
+            riskLevel,
+            targetFiles,
+            likelyWrites,
+            contextSignals: sessionContext,
+            plan,
+            successCriteria,
+            validationCommands,
+            approvalForecast,
+            constraints,
+            unknowns,
+            operatorWatchouts,
+            rollbackPlan,
+          },
+          { prompt, context, hints },
+        )
+        const formattedPrompt = formatStructuredExecutionContract(draft)
 
         return {
-          goal,
-          executionPlan: plan,
-          contextSignals: sessionContext,
-          successCriteria,
-          targetFiles,
-          validationCommands,
-          executionMode,
-          riskLevel,
-          likelyWrites,
-          approvalForecast,
-          explicitConstraints: constraints,
-          unknowns,
-          operatorWatchouts,
-          rollbackPlan,
+          goal: draft.goal,
+          executionProfile: draft.executionProfile,
+          contractDelta: draft.contractDelta,
+          validationPlan: draft.validationPlan,
+          governanceHints: draft.governanceHints,
+          repoImpact: draft.repoImpact,
+          executionPlan: draft.plan,
+          contextSignals: draft.contextSignals,
+          successCriteria: draft.successCriteria,
+          targetFiles: draft.targetFiles,
+          validationCommands: draft.validationCommands,
+          executionMode: draft.executionMode,
+          riskLevel: draft.riskLevel,
+          likelyWrites: draft.likelyWrites,
+          approvalForecast: draft.approvalForecast,
+          explicitConstraints: draft.constraints,
+          unknowns: draft.unknowns,
+          operatorWatchouts: draft.operatorWatchouts,
+          rollbackPlan: draft.rollbackPlan,
           formattedPrompt,
         } as any
       } finally {
@@ -325,6 +608,11 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
 
   return {
     goal: enhancedFallback.goal,
+    executionProfile: enhancedFallback.executionProfile,
+    contractDelta: enhancedFallback.contractDelta,
+    validationPlan: enhancedFallback.validationPlan,
+    governanceHints: enhancedFallback.governanceHints,
+    repoImpact: enhancedFallback.repoImpact,
     executionPlan: enhancedFallback.plan,
     contextSignals: enhancedFallback.contextSignals,
     successCriteria: enhancedFallback.successCriteria,
@@ -380,7 +668,7 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
   const isTest = lowerPrompt.includes("test") || lowerPrompt.includes("spec")
 
   if (isExploration) {
-    return {
+    return attachDerivedContractSections({
       goal: `Understand the repository and answer: ${target}`,
       plan: [
         "Inspect top-level files and directories to map the repository boundary",
@@ -406,11 +694,11 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       approvalForecast,
       unknowns,
       rollbackPlan,
-    }
+    }, { prompt, context, hints })
   }
 
   if (isFix) {
-    return {
+    return attachDerivedContractSections({
       goal: `Fix the reported issue: ${target}`,
       plan: [
         `Inspect the failing area${targetFiles ? ` in or around ${targetFiles}` : ""} and confirm the root cause before editing`,
@@ -444,11 +732,11 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       approvalForecast,
       unknowns,
       rollbackPlan,
-    }
+    }, { prompt, context, hints })
   }
 
   if (isBuild) {
-    return {
+    return attachDerivedContractSections({
       goal: `Implement the requested change: ${target}`,
       plan: [
         `Inspect the existing code paths, files, and interfaces involved${targetFiles ? `, especially ${targetFiles}` : ""}`,
@@ -478,11 +766,11 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       approvalForecast,
       unknowns,
       rollbackPlan,
-    }
+    }, { prompt, context, hints })
   }
 
   if (isDocs) {
-    return {
+    return attachDerivedContractSections({
       goal: `Write or improve documentation for: ${target}`,
       plan: [
         "Identify the audience, missing information, and the docs surface that should change",
@@ -506,11 +794,11 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       approvalForecast,
       unknowns,
       rollbackPlan,
-    }
+    }, { prompt, context, hints })
   }
 
   if (isTest) {
-    return {
+    return attachDerivedContractSections({
       goal: `Add or improve tests for: ${target}`,
       plan: [
         `Identify the behavior, edge cases, and failure modes that need coverage${targetFiles ? ` around ${targetFiles}` : ""}`,
@@ -534,11 +822,11 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       approvalForecast,
       unknowns,
       rollbackPlan,
-    }
+    }, { prompt, context, hints })
   }
 
   // Default fallback
-  return {
+  return attachDerivedContractSections({
     goal: `Complete the request: ${target}`,
     plan: [
       "Clarify the concrete target, affected files, and validation path implied by the request",
@@ -562,7 +850,7 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
     approvalForecast,
     unknowns,
     rollbackPlan,
-  }
+  }, { prompt, context, hints })
 }
 
 function deriveRiskLevel(lowerPrompt: string, context: IntentContext): "low" | "medium" | "high" {

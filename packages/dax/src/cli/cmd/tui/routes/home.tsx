@@ -62,7 +62,14 @@ function BrandHeader(props: { theme: any }) {
 
 function PromptStarter(props: { label: string; onPress: () => void; theme: any }) {
   return (
-    <box onMouseUp={props.onPress} paddingLeft={1} paddingRight={1} backgroundColor={props.theme.backgroundElement}>
+    <box
+      onMouseUp={props.onPress}
+      paddingLeft={1}
+      paddingRight={1}
+      backgroundColor={props.theme.backgroundElement}
+      border={["round"]}
+      borderColor={props.theme.borderSubtle}
+    >
       <text fg={props.theme.text}>{props.label}</text>
     </box>
   )
@@ -75,13 +82,13 @@ function HomeInfoCard(props: {
   tone?: "default" | "accent" | "warning"
 }) {
   const borderColor =
-    props.tone === "accent" ? props.theme.borderActive : props.tone === "warning" ? props.theme.warning : props.theme.borderSubtle
+    props.tone === "accent" ? props.theme.borderActive : props.tone === "warning" ? props.theme.warning : props.theme.border
   const backgroundColor =
     props.tone === "accent"
-      ? tint(props.theme.backgroundPanel, props.theme.primary, 0.05)
+      ? tint(props.theme.backgroundElement, props.theme.primary, 0.06)
       : props.tone === "warning"
-        ? tint(props.theme.backgroundPanel, props.theme.warning, 0.05)
-        : props.theme.backgroundPanel
+        ? tint(props.theme.backgroundElement, props.theme.warning, 0.07)
+        : props.theme.backgroundElement
 
   return (
     <box
@@ -115,7 +122,14 @@ function MetaChip(props: {
   theme: any
 }) {
   return (
-    <box onMouseUp={props.onPress} paddingLeft={1} paddingRight={1} backgroundColor={props.theme.backgroundElement}>
+    <box
+      onMouseUp={props.onPress}
+      paddingLeft={1}
+      paddingRight={1}
+      backgroundColor={props.theme.backgroundElement}
+      border={["round"]}
+      borderColor={props.tone === "primary" ? props.theme.borderActive : props.theme.borderSubtle}
+    >
       <text fg={props.tone === "primary" ? props.theme.accent : props.theme.textMuted}>
         {props.label}
         <Show when={props.value}>
@@ -347,7 +361,7 @@ export function Home() {
   })
 
   const bg = createMemo(() => theme.background)
-  const inputBg = createMemo(() => tint(bg(), theme.primary, 0.06))
+  const inputBg = createMemo(() => theme.backgroundPanel)
 
   return (
     <>
@@ -372,7 +386,18 @@ export function Home() {
           <box width="100%" maxWidth={small() ? undefined : 76} alignItems="center" gap={tiny() ? 0 : 1}>
             <BrandHeader theme={theme} />
 
-            <box flexDirection="column" alignItems="center" gap={0}>
+            <box
+              flexDirection="column"
+              alignItems="center"
+              gap={0}
+              backgroundColor={theme.backgroundPanel}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={2}
+              paddingRight={2}
+              paddingTop={1}
+              paddingBottom={1}
+            >
               <text fg={theme.text} attributes={TextAttributes.BOLD}>
                 Governed execution for real repository work
               </text>
@@ -382,28 +407,40 @@ export function Home() {
             </box>
 
             <Show when={showStages()}>
-              <StageIndicator stages={stages()} current={0} theme={theme} />
+              <box
+                width="100%"
+                justifyContent="center"
+                backgroundColor={theme.backgroundPanel}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <StageIndicator stages={stages()} current={0} theme={theme} />
+              </box>
             </Show>
 
             <Show when={!tiny() && showActions()}>
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
-                <MetaChip
-                  label="mode"
-                  value={Locale.titlecase(activeWorkflowMode())}
-                  tone="primary"
-                  theme={theme}
-                  onPress={() => cycleWorkflowMode(1)}
-                />
                 <MetaChip
                   label="eli12"
                   value={explainMode() ? "On" : "Off"}
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
+                <text fg={theme.textMuted}>
+                  Workflow: <span style={{ fg: theme.accent }}>{Locale.titlecase(activeWorkflowMode())}</span>
+                </text>
               </box>
             </Show>
 
-            <box width="100%" backgroundColor={inputBg()} padding={tiny() ? 0 : 1}>
+            <box
+              width="100%"
+              backgroundColor={inputBg()}
+              border={["round"]}
+              borderColor={theme.borderActive}
+              padding={tiny() ? 0 : 1}
+            >
               <Prompt
                 ref={(r) => {
                   prompt = r
@@ -578,7 +615,7 @@ function StageIndicator(props: { stages: readonly string[]; current: number; the
   const pendingColor = () => props.theme.textMuted
 
   return (
-    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="center">
+    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="center" paddingTop={0} paddingBottom={0}>
       <For each={props.stages}>
         {(stage, index) => {
           const isActive = () => index() === props.current
