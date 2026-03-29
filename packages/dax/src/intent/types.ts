@@ -17,6 +17,12 @@ export interface ExecutionContract {
   operatorWatchouts?: string[]
   targetFiles?: string[]
   validationCommands?: string[]
+  executionMode?: "fast" | "balanced" | "safe" | "audit-heavy"
+  riskLevel?: "low" | "medium" | "high"
+  likelyWrites?: string[]
+  approvalForecast?: string[]
+  unknowns?: string[]
+  rollbackPlan?: string[]
   formattedPrompt?: string // The polished markdown version
   requiredFramework?: string // e.g., 'agile', 'lean'
 }

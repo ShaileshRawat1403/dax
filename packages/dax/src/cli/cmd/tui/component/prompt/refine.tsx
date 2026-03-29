@@ -41,17 +41,34 @@ export function RefinePane(props: {
   const successCount = () => sectionCount(props.initialPrompt || "", "Success Criteria")
   const watchoutCount = () => sectionCount(props.initialPrompt || "", "Operator Watchouts")
   const targetCount = () => sectionCount(props.initialPrompt || "", "Likely Targets")
+  const writesCount = () => sectionCount(props.initialPrompt || "", "Likely Writes")
   const validationCount = () => sectionCount(props.initialPrompt || "", "Validation Commands")
+  const approvalCount = () => sectionCount(props.initialPrompt || "", "Approval Forecast")
+  const unknownCount = () => sectionCount(props.initialPrompt || "", "Unknowns & Assumptions")
+  const rollbackCount = () => sectionCount(props.initialPrompt || "", "Rollback & Recovery")
+  const executionProfile = createMemo(() => {
+    const match = (props.initialPrompt || "").match(/^##\s+Execution Profile\s+([\s\S]*?)(?=^##\s+|$)/m)
+    return (
+      match?.[1]
+        ?.split("\n")
+        .map((line) => line.trim().replace(/^\s*-\s+/, ""))
+        .filter(Boolean) || []
+    )
+  })
   const goalText = createMemo(() => {
     const match = (props.initialPrompt || "").match(/^##\s+Goal\s+([\s\S]*?)(?=^##\s+|$)/m)
     return match?.[1]?.trim() || ""
   })
   const contextItems = createMemo(() => extractSection(props.initialPrompt || "", "Session Context"))
   const targetItems = createMemo(() => extractSection(props.initialPrompt || "", "Likely Targets"))
+  const writeItems = createMemo(() => extractSection(props.initialPrompt || "", "Likely Writes"))
   const planItems = createMemo(() => extractSection(props.initialPrompt || "", "Execution Plan"))
   const successItems = createMemo(() => extractSection(props.initialPrompt || "", "Success Criteria"))
   const validationItems = createMemo(() => extractSection(props.initialPrompt || "", "Validation Commands"))
+  const approvalItems = createMemo(() => extractSection(props.initialPrompt || "", "Approval Forecast"))
+  const unknownItems = createMemo(() => extractSection(props.initialPrompt || "", "Unknowns & Assumptions"))
   const watchoutItems = createMemo(() => extractSection(props.initialPrompt || "", "Operator Watchouts"))
+  const rollbackItems = createMemo(() => extractSection(props.initialPrompt || "", "Rollback & Recovery"))
 
   const submitRefinedPrompt = () => {
     const next = textareaRef?.plainText || ""
@@ -144,6 +161,13 @@ export function RefinePane(props: {
                 </text>
               </box>
             </Show>
+            <Show when={writesCount() > 0}>
+              <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                <text fg={theme.textMuted}>
+                  writes <span style={{ fg: theme.text }}>{writesCount()}</span>
+                </text>
+              </box>
+            </Show>
             <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
               <text fg={theme.textMuted}>
                 plan <span style={{ fg: theme.text }}>{planCount()}</span>
@@ -158,6 +182,20 @@ export function RefinePane(props: {
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.textMuted}>
                   verify <span style={{ fg: theme.text }}>{validationCount()}</span>
+                </text>
+              </box>
+            </Show>
+            <Show when={approvalCount() > 0}>
+              <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                <text fg={theme.warning}>
+                  approvals <span style={{ fg: theme.text }}>{approvalCount()}</span>
+                </text>
+              </box>
+            </Show>
+            <Show when={unknownCount() > 0}>
+              <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                <text fg={theme.warning}>
+                  unknowns <span style={{ fg: theme.text }}>{unknownCount()}</span>
                 </text>
               </box>
             </Show>
@@ -190,6 +228,15 @@ export function RefinePane(props: {
             </box>
           </Show>
 
+          <Show when={executionProfile().length > 0}>
+            <box flexDirection="column" gap={0}>
+              <text fg={theme.textMuted}>Execution profile</text>
+              <For each={executionProfile()}>
+                {(item, i) => <text fg={i() === 0 ? theme.accent : theme.text}>• {item}</text>}
+              </For>
+            </box>
+          </Show>
+
           <Show when={contextItems().length > 0}>
             <box flexDirection="column" gap={0}>
               <text fg={theme.textMuted}>Context signals</text>
@@ -208,6 +255,15 @@ export function RefinePane(props: {
             </box>
           </Show>
 
+          <Show when={writeItems().length > 0}>
+            <box flexDirection="column" gap={0}>
+              <text fg={theme.textMuted}>Likely writes</text>
+              <For each={writeItems().slice(0, 3)}>
+                {(item) => <text fg={theme.primary}>✎ {item}</text>}
+              </For>
+            </box>
+          </Show>
+
           <Show when={planItems().length > 0}>
             <box flexDirection="column" gap={0}>
               <text fg={theme.textMuted}>Execution ladder</text>
@@ -217,7 +273,16 @@ export function RefinePane(props: {
             </box>
           </Show>
 
-          <Show when={successItems().length > 0 || watchoutItems().length > 0}>
+          <Show
+            when={
+              successItems().length > 0 ||
+              validationItems().length > 0 ||
+              approvalItems().length > 0 ||
+              unknownItems().length > 0 ||
+              watchoutItems().length > 0 ||
+              rollbackItems().length > 0
+            }
+          >
             <box flexDirection="row" gap={2} flexWrap="wrap">
               <Show when={successItems().length > 0}>
                 <box flexDirection="column" gap={0}>
@@ -235,11 +300,35 @@ export function RefinePane(props: {
                   </For>
                 </box>
               </Show>
+              <Show when={approvalItems().length > 0}>
+                <box flexDirection="column" gap={0}>
+                  <text fg={theme.warning}>Approval forecast</text>
+                  <For each={approvalItems().slice(0, 3)}>
+                    {(item) => <text fg={theme.text}>⏸ {item}</text>}
+                  </For>
+                </box>
+              </Show>
+              <Show when={unknownItems().length > 0}>
+                <box flexDirection="column" gap={0}>
+                  <text fg={theme.warning}>Unknowns</text>
+                  <For each={unknownItems().slice(0, 3)}>
+                    {(item) => <text fg={theme.text}>? {item}</text>}
+                  </For>
+                </box>
+              </Show>
               <Show when={watchoutItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.warning}>Watchouts</text>
                   <For each={watchoutItems().slice(0, 3)}>
                     {(item) => <text fg={theme.text}>⚠ {item}</text>}
+                  </For>
+                </box>
+              </Show>
+              <Show when={rollbackItems().length > 0}>
+                <box flexDirection="column" gap={0}>
+                  <text fg={theme.textMuted}>Recovery</text>
+                  <For each={rollbackItems().slice(0, 2)}>
+                    {(item) => <text fg={theme.text}>↺ {item}</text>}
                   </For>
                 </box>
               </Show>
@@ -287,7 +376,9 @@ export function RefinePane(props: {
       </box>
 
       <box paddingTop={1} border={["top"]} borderColor={theme.border}>
-        <text fg={theme.textMuted}>Tighten the scope, checks, and watchouts, then press Enter to continue.</text>
+        <text fg={theme.textMuted}>
+          Tighten the scope, writes, approvals, checks, and recovery plan, then press Enter to continue.
+        </text>
       </box>
     </box>
   )
