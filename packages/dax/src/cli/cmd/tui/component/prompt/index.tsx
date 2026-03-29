@@ -64,7 +64,7 @@ export type PromptProps = {
   visible?: boolean
   disabled?: boolean
   panePinned?: boolean
-  activePaneMode?: "diff" | "audit" | "approvals" | "plan" | "refine"
+  activePaneMode?: "diff" | "audit" | "approvals" | "plan" | "memory" | "refine"
   approvalAttentionCount?: number
   questionAttentionCount?: number
   onRefineReady?: (prompt: string) => void
@@ -299,17 +299,20 @@ export function Prompt(props: PromptProps) {
       const refinedText =
         contract?.formattedPrompt ||
         [
-          `## 🎯 Goal`,
+          `## Goal`,
           contract?.goal || rawInput,
           "",
-          "## 📋 Execution Plan",
-          ...(contract?.successCriteria || []).map((s, i) => `${i + 1}. ${s}`),
+          "## Execution Plan",
+          ...(contract?.executionPlan || []).map((s, i) => `${i + 1}. ${s}`),
           "",
-          "## ✅ Success Criteria",
+          "## Success Criteria",
           ...(contract?.successCriteria || []).map((s) => `- ${s}`),
           "",
-          "## ⚙️ Constraints & Requirements",
+          "## Constraints & Requirements",
           ...(contract?.explicitConstraints || []).map((s) => `- ${s}`),
+          "",
+          "---",
+          "Edit this contract above, then press Enter to execute.",
         ].join("\n")
 
       log.info("handleRefine: storing refined text", { length: refinedText.length })

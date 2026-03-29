@@ -622,7 +622,7 @@ export const ProposedChange = z.object({
   type: z.enum(["file_edit", "file_create", "file_delete", "patch"]),
   filePath: z.string(),
   diff: z.string(),
-  status: z.enum(["pending", "applied", "rejected", "stale"]),
+  status: z.enum(["pending", "approved_not_applied", "applied", "rejected", "stale"]),
   createdAt: z.string(),
 })
 export type ProposedChange = z.infer<typeof ProposedChange>

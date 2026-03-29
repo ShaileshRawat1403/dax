@@ -110,6 +110,8 @@ import {
   deriveLiveSessionStageState,
   deriveLiveStreamStatus,
 } from "@/dax/presentation/session-surface"
+import { buildInterventionProjection, buildProposedChangesProjection } from "@/server/run-projections"
+import type { ProposedChange as ProjectedProposedChange, RunEvent } from "@/server/run-contract"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
 import { isEli12Mode } from "@/dax/intent"
@@ -185,22 +187,50 @@ export function Session() {
   const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const lifecycle = createMemo(() => (route.sessionID ? (sync.data.lifecycle[route.sessionID] ?? []) : []))
   
-  const interventions = createMemo(() => {
-    const events = lifecycle()
-    const result = new Map<string, any>()
-    for (const event of events) {
+  const projectedLifecycleEvents = createMemo<RunEvent[]>(() => {
+    return lifecycle().flatMap<RunEvent>((event) => {
+      const runId = event.properties?.runId || event.properties?.sessionId || route.sessionID
+      if (!runId) return []
       if (event.type === "intervention.required") {
-        result.set(event.properties.interventionId, { ...event.properties, status: "requested", timestamp: event.timestamp })
-      } else if (event.type === "intervention.resolved") {
-        const existing = result.get(event.properties.interventionId)
-        if (existing) {
-          existing.status = event.properties.status
-          existing.resolvedAt = event.timestamp
-        }
+        return [{
+          schemaVersion: "v1",
+          eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+          sequence: 0,
+          cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+          runId,
+          timestamp: event.timestamp,
+          type: "intervention.required",
+          payload: {
+            interventionId: event.properties.interventionId,
+            reason: event.properties.reason,
+            kind: event.properties.kind,
+            approvalId: event.properties.approvalId,
+            metadata: event.properties.metadata,
+          },
+        }]
       }
-    }
-    return Array.from(result.values())
+      if (event.type === "intervention.resolved") {
+        return [{
+          schemaVersion: "v1",
+          eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+          sequence: 0,
+          cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+          runId,
+          timestamp: event.timestamp,
+          type: "intervention.resolved",
+          payload: {
+            interventionId: event.properties.interventionId,
+            status: event.properties.status,
+            comment: event.properties.comment,
+            resolvedAt: event.properties.resolvedAt ?? event.timestamp,
+          },
+        }]
+      }
+      return []
+    })
   })
+
+  const interventions = createMemo(() => buildInterventionProjection(projectedLifecycleEvents()))
 
   const permissions = createMemo(() => {
     if (!session() || session()?.parentID) return []
@@ -209,8 +239,34 @@ export function Session() {
     return modern.length > 0 ? (modern as any) : legacy
   })
 
-  const proposedChanges = createMemo(() => {
-    return permissions().filter((p: any) => p.context?.diffPreview)
+  const projectedApprovalRecords = createMemo(() => {
+    if (route.sessionID && (sync.data.approvals[route.sessionID]?.length ?? 0) > 0) return sync.data.approvals[route.sessionID] ?? []
+    if (!session() || session()?.parentID) return []
+    return children().flatMap((child) => sync.data.approvals[child.id] ?? [])
+  })
+
+  const proposedChanges = createMemo<ProjectedProposedChange[]>(() => {
+    if (projectedApprovalRecords().length > 0) return buildProposedChangesProjection(projectedApprovalRecords())
+    return permissions()
+      .filter((p: any) => p.context?.diffPreview)
+      .map((approval: any) => ({
+        changeId: `legacy_${approval.id ?? approval.approvalId ?? approval.createdAt ?? Math.random().toString(36).slice(2)}`,
+        runId: approval.runId ?? route.sessionID,
+        approvalId: approval.approvalId,
+        stepId: approval.context?.stepId,
+        type: approval.type === "patch_apply" ? "patch" : "file_edit",
+        filePath: approval.context?.filePath ?? "unknown",
+        diff: approval.context?.diffPreview ?? "",
+        status:
+          approval.status === "pending"
+            ? "pending"
+            : approval.status === "approved"
+              ? "approved_not_applied"
+              : approval.status === "denied"
+                ? "rejected"
+                : "stale",
+        createdAt: approval.createdAt ?? new Date().toISOString(),
+      }))
   })
 
   const narrative = createMemo(() => {
@@ -273,6 +329,7 @@ export function Session() {
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+  const [selectedProposedChangeId, setSelectedProposedChangeId] = createSignal<string>()
   // Track refined prompt - always read fresh from KV when render
   const refinedPrompt = createMemo(() => {
     // Force re-read whenever these change
@@ -286,6 +343,17 @@ export function Session() {
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
   const promptDisabled = createMemo(() => !!session()?.parentID)
+  createEffect(() => {
+    const changes = proposedChanges()
+    const selected = selectedProposedChangeId()
+    if (changes.length === 0) {
+      setSelectedProposedChangeId(undefined)
+      return
+    }
+    if (!selected || !changes.some((change) => change.changeId === selected)) {
+      setSelectedProposedChangeId(changes[0].changeId)
+    }
+  })
   createEffect(() => {
     const mode = workflowMode()
     if (!WORKFLOW_MODES.includes(mode)) return
@@ -309,6 +377,39 @@ export function Session() {
 
   const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
   const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
+  const selectedProposedChange = createMemo(() => {
+    const changes = proposedChanges()
+    const selected = selectedProposedChangeId()
+    return changes.find((change) => change.changeId === selected) ?? changes[0]
+  })
+  const proposedChangeStatusLabel = (status: ProjectedProposedChange["status"]) => {
+    switch (status) {
+      case "pending":
+        return "awaiting approval"
+      case "approved_not_applied":
+        return "approved, pending execution"
+      case "applied":
+        return "applied"
+      case "rejected":
+        return "rejected"
+      case "stale":
+        return "stale"
+    }
+  }
+  const proposedChangeStatusColor = (status: ProjectedProposedChange["status"]) => {
+    switch (status) {
+      case "pending":
+        return theme.warning
+      case "approved_not_applied":
+        return theme.primary
+      case "applied":
+        return theme.success
+      case "rejected":
+        return theme.danger
+      case "stale":
+        return theme.textMuted
+    }
+  }
   const sessionStatusType = createMemo(() => sync.data.session_status?.[route.sessionID]?.type ?? "idle")
   const todo = createMemo(() => sync.data.todo[route.sessionID] ?? [])
   const stageState = createMemo<{ stage: StreamStage; reason: string }>(() =>
@@ -1109,17 +1210,18 @@ export function Session() {
     return filetype(files[0].filename)
   })
 
-  const hasPlanNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
+  const hasMemoryNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
   const hasRefineNeed = createMemo(() => paneMode() === "refine" && refinedPrompt().trim().length > 0)
   const hasAuditNeed = createMemo(() => {
     const audit = latestAudit()?.result
     return workflowMode() === "audit" || audit?.status === "warn" || audit?.status === "fail"
   })
-  const hasPlanContext = createMemo(() => hasPlanNeed() || todo().length > 0 || !!liveMissionGoal())
+  const hasPlanContext = createMemo(() => todo().length > 0 || !!liveMissionGoal())
   const hasDiffNeed = createMemo(() => !!revert()?.diff || proposedChanges().length > 0)
   const priorityPaneMode = createMemo<PaneMode>(() => {
     if (hasApprovalsNeed()) return "approvals"
     if (hasRefineNeed()) return "refine"
+    if (hasMemoryNeed()) return "memory"
     if (hasDiffNeed()) return "diff"
     if (hasAuditNeed()) return "audit"
     return "plan"
@@ -1141,6 +1243,8 @@ export function Session() {
       case "approvals":
         return pendingRaoCount() > 0 ? String(pendingRaoCount()) : undefined
       case "plan":
+        return todo().length > 0 ? String(todo().length) : undefined
+      case "memory":
         return pmSummary().recentCount > 0 ? String(pmSummary().recentCount) : undefined
       default:
         return undefined
@@ -1215,6 +1319,7 @@ export function Session() {
       hasAuditAttention: hasAuditNeed(),
       hasDiffContext: hasDiffNeed(),
       hasLiveContext: hasLivePaneContext(),
+      hasMemoryContext: hasMemoryNeed(),
       hasPlanContext: hasPlanContext(),
     })
   })
@@ -1225,6 +1330,7 @@ export function Session() {
       hasAuditAttention: hasAuditNeed(),
       hasDiffContext: hasDiffNeed(),
       hasLiveContext: hasLivePaneContext(),
+      hasMemoryContext: hasMemoryNeed(),
       hasPlanContext: hasPlanContext(),
       fallback: priorityPaneMode(),
       paneMode: paneMode(),
@@ -1233,7 +1339,6 @@ export function Session() {
       smartFollowActive: smartFollowActive(),
     }),
   )
-  const ctx = use()
   createEffect(() => {
     if (activePaneMode() !== "approvals") return
     if (!showPane()) return
@@ -1251,8 +1356,8 @@ export function Session() {
             additions: file.additions,
             deletions: file.deletions,
           })),
-          ...proposedChanges().map((change: any) => ({
-            file: change.context?.filePath ?? "unknown",
+          ...proposedChanges().map((change) => ({
+            file: change.filePath ?? "unknown",
             additions: 0,
             deletions: 0,
             speculative: true,
@@ -1285,9 +1390,252 @@ export function Session() {
   }
 
   const openPmPane = () => {
-    setPaneMode(() => "plan")
+    setPaneMode(() => "memory")
     setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+    setSmartFollowActive(false)
   }
+
+  const WorkspaceMemoryPane = () => (
+    <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
+      <box
+        flexDirection="column"
+        gap={0}
+        paddingBottom={1}
+        border={["bottom"]}
+        borderColor={theme.borderSubtle}
+      >
+        <text fg={theme.primary} bold>
+          Workspace memory
+        </text>
+        <text fg={theme.textMuted}>Durable notes and operating rules for this workspace</text>
+      </box>
+      <box
+        flexDirection="row"
+        gap={1}
+        flexWrap="wrap"
+        padding={1}
+        backgroundColor={tint(theme.backgroundPanel, theme.accent, 0.04)}
+        border={["round"]}
+        borderColor={theme.borderSubtle}
+      >
+        <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+          <text fg={theme.textMuted}>
+            recent <span style={{ fg: theme.text }}>{pmSummary().recentCount}</span>
+          </text>
+        </box>
+        <Show when={pmSummary().noteCount > 0}>
+          <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+            <text fg={theme.textMuted}>
+              notes <span style={{ fg: theme.text }}>{pmSummary().noteCount}</span>
+            </text>
+          </box>
+        </Show>
+        <Show when={pmSummary().ruleCount > 0}>
+          <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+            <text fg={theme.textMuted}>
+              rules <span style={{ fg: theme.text }}>{pmSummary().ruleCount}</span>
+            </text>
+          </box>
+        </Show>
+        <Show when={pmSummary().latestCommand}>
+          <text fg={theme.textMuted} wrapMode="truncate-end">
+            latest: {pmSummary().latestCommand}
+          </text>
+        </Show>
+      </box>
+      <box flexDirection="row" gap={1} flexWrap="wrap">
+        <For each={["note", "list", "rules"] as PMTab[]}>
+          {(tab) => (
+            <box
+              onMouseUp={() => setPmTab(() => tab)}
+              backgroundColor={pmTab() === tab ? theme.backgroundElement : theme.backgroundPanel}
+              paddingLeft={1}
+              paddingRight={1}
+              border={["round"]}
+              borderColor={pmTab() === tab ? theme.primary : theme.borderSubtle}
+            >
+              <text
+                fg={pmTab() === tab ? theme.primary : theme.textMuted}
+                attributes={pmTab() === tab ? TextAttributes.BOLD : undefined}
+              >
+                /pm {tab}
+              </text>
+            </box>
+          )}
+        </For>
+      </box>
+      <box
+        flexDirection="column"
+        gap={1}
+        border={["round"]}
+        borderColor={theme.borderSubtle}
+        backgroundColor={tint(theme.backgroundPanel, theme.accent, 0.03)}
+        padding={1}
+      >
+        <Switch>
+          <Match when={pmTab() === "note"}>
+            <text fg={theme.textMuted} wrapMode="word">
+              Save product constraints and handoff context that should survive across sessions.
+            </text>
+            <box flexDirection="row" gap={1} flexWrap="wrap">
+              <box
+                onMouseUp={prefillPmNote}
+                backgroundColor={theme.backgroundElement}
+                paddingTop={0}
+                paddingBottom={0}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.primary}>Template</text>
+              </box>
+              <box
+                onMouseUp={() => runPmCommand("/pm note")}
+                backgroundColor={theme.backgroundElement}
+                paddingTop={0}
+                paddingBottom={0}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.accent}>Run /pm note</text>
+              </box>
+            </box>
+            <Show when={recentPmCommands().length > 0}>
+              <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+                <text fg={theme.textMuted}>Recent PM commands</text>
+                <For each={recentPmCommands().slice(0, 4)}>
+                  {(entry) => (
+                    <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+                      <text fg={theme.text} wrapMode="truncate-end">
+                        {entry.text}
+                      </text>
+                    </box>
+                  )}
+                </For>
+              </box>
+            </Show>
+          </Match>
+          <Match when={pmTab() === "list"}>
+            <text fg={theme.textMuted} wrapMode="word">
+              List recent PM notes and tags for this workspace.
+            </text>
+            <box flexDirection="row" gap={1} flexWrap="wrap">
+              <box
+                onMouseUp={() => runPmCommand("/pm list")}
+                backgroundColor={theme.backgroundElement}
+                paddingTop={0}
+                paddingBottom={0}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.accent}>Run /pm list</text>
+              </box>
+              <Show when={latestPmListResponse()}>
+                {(entry) => <text fg={theme.textMuted}>Last: {entry().commandText}</text>}
+              </Show>
+            </box>
+            <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+              <Show
+                when={!parsedPmList().empty}
+                fallback={
+                  <text fg={theme.textMuted} wrapMode="word">
+                    {parsedPmList().info}
+                  </text>
+                }
+              >
+                <For each={parsedPmList().rows}>
+                  {(row) => (
+                    <box
+                      flexDirection="column"
+                      paddingLeft={1}
+                      paddingRight={1}
+                      backgroundColor={theme.backgroundElement}
+                    >
+                      <text fg={theme.text}>
+                        {row.day} | {row.title}
+                      </text>
+                      <Show when={row.tags.length > 0}>
+                        <text fg={theme.textMuted}>tags: {row.tags.join(", ")}</text>
+                      </Show>
+                    </box>
+                  )}
+                </For>
+              </Show>
+            </box>
+          </Match>
+          <Match when={pmTab() === "rules"}>
+            <text fg={theme.textMuted} wrapMode="word">
+              Inspect and maintain project guardrails that should always be enforced.
+            </text>
+            <box flexDirection="row" gap={1} flexWrap="wrap">
+              <box
+                onMouseUp={() => runPmCommand("/pm rules")}
+                backgroundColor={theme.backgroundElement}
+                paddingTop={0}
+                paddingBottom={0}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.accent}>Run /pm rules</text>
+              </box>
+              <box
+                onMouseUp={() =>
+                  prompt?.set({
+                    input: "/pm rules add require_approval release:publish ask",
+                    parts: [],
+                  })
+                }
+                backgroundColor={theme.backgroundElement}
+                paddingTop={0}
+                paddingBottom={0}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.primary}>Add rule template</text>
+              </box>
+            </box>
+            <Show when={latestPmRulesAddResponse()}>
+              {(entry) => (
+                <text fg={theme.textMuted} wrapMode="word">
+                  Latest update: {entry().responseText}
+                </text>
+              )}
+            </Show>
+            <box border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} flexDirection="column" gap={1}>
+              <Show
+                when={!parsedPmRules().empty}
+                fallback={
+                  <text fg={theme.textMuted} wrapMode="word">
+                    {parsedPmRules().info}
+                  </text>
+                }
+              >
+                <For each={parsedPmRules().rows}>
+                  {(row) => (
+                    <box
+                      flexDirection="column"
+                      paddingLeft={1}
+                      paddingRight={1}
+                      backgroundColor={theme.backgroundElement}
+                    >
+                      <text fg={theme.text}>
+                        {row.ruleType}
+                        {" -> "}
+                        {row.action}
+                      </text>
+                      <text fg={theme.textMuted} wrapMode="word">
+                        {row.pattern}
+                        <Show when={row.source}> ({row.source})</Show>
+                      </text>
+                    </box>
+                  )}
+                </For>
+              </Show>
+            </box>
+          </Match>
+        </Switch>
+      </box>
+    </box>
+  )
 
   const selectPaneMode = (mode: PaneMode) => {
     setPaneMode(() => mode)
@@ -1609,6 +1957,17 @@ export function Session() {
         setPaneMode(() => "plan")
         setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
         toast.show({ message: `Pane mode: ${paneLabel("plan")}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: `Pane mode: ${paneLabel("memory")}${paneMode() === "memory" ? " (active)" : ""}`,
+      value: "session.pane.mode.memory",
+      category: "View",
+      onSelect: (dialog) => {
+        setPaneMode(() => "memory")
+        setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
+        toast.show({ message: `Pane mode: ${paneLabel("memory")}`, variant: "success" })
         dialog.clear()
       },
     },
@@ -2660,10 +3019,33 @@ export function Session() {
                                   <box flexDirection="column" gap={0} marginBottom={1}>
                                     <text fg={theme.primary} bold>PROPOSED CHANGES</text>
                                     <For each={proposedChanges()}>
-                                      {(change: any) => (
-                                        <text fg={theme.text}>
-                                          {change.context?.filePath ?? "unknown"} (speculative)
-                                        </text>
+                                      {(change) => (
+                                        <box
+                                          flexDirection="row"
+                                          gap={1}
+                                          justifyContent="space-between"
+                                          onMouseUp={() => setSelectedProposedChangeId(change.changeId)}
+                                          paddingLeft={1}
+                                          paddingRight={1}
+                                          backgroundColor={
+                                            selectedProposedChangeId() === change.changeId
+                                              ? tint(theme.backgroundElement, theme.primary, 0.14)
+                                              : theme.backgroundPanel
+                                          }
+                                          border={["round"]}
+                                          borderColor={
+                                            selectedProposedChangeId() === change.changeId ? theme.primary : theme.borderSubtle
+                                          }
+                                        >
+                                          <text fg={selectedProposedChangeId() === change.changeId ? theme.primary : theme.text}>
+                                            {selectedProposedChangeId() === change.changeId ? ">" : " "}
+                                            {" "}
+                                            {change.filePath}
+                                          </text>
+                                          <text fg={proposedChangeStatusColor(change.status)}>
+                                            {proposedChangeStatusLabel(change.status)}
+                                          </text>
+                                        </box>
                                       )}
                                     </For>
                                   </box>
@@ -2677,13 +3059,13 @@ export function Session() {
                                 >
                                   <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
                                     <diff
-                                      diff={revert()?.diff ?? proposedChanges()[0]?.context?.diffPreview ?? ""}
+                                      diff={revert()?.diff ?? selectedProposedChange()?.diff ?? ""}
                                       view={paneDiffView()}
-                                      filetype={revert()?.diff ? paneDiffFiletype() : filetype(proposedChanges()[0]?.context?.filePath)}
+                                      filetype={revert()?.diff ? paneDiffFiletype() : filetype(selectedProposedChange()?.filePath)}
                                       syntaxStyle={syntax()}
                                       showLineNumbers={true}
                                       width="100%"
-                                      wrapMode={ctx.diffWrapMode()}
+                                      wrapMode={diffWrapMode()}
                                       fg={theme.text}
                                       addedBg={theme.diffAddedBg}
                                       removedBg={theme.diffRemovedBg}
@@ -2738,9 +3120,9 @@ export function Session() {
                                 borderColor={theme.borderSubtle}
                               >
                                 <text fg={theme.primary} bold>
-                                  Plan
+                                  Workstation
                                 </text>
-                                <text fg={theme.textMuted}>What matters now</text>
+                                <text fg={theme.textMuted}>Live execution state and operator focus</text>
                               </box>
                               <Show
                                 when={
@@ -2767,8 +3149,8 @@ export function Session() {
                                   flexDirection="column"
                                   gap={1}
                                   border={["round"]}
-                                  borderColor={theme.borderSubtle}
-                                  backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.03)}
+                                  borderColor={tint(theme.borderSubtle, theme.primary, 0.35)}
+                                  backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.05)}
                                   padding={1}
                                 >
                                   <box
@@ -2958,212 +3340,10 @@ export function Session() {
                                   </box>
                                 </box>
                               </Show>
-                              <text fg={theme.text}>Workspace memory</text>
-                              <box flexDirection="row" gap={1} flexWrap="wrap">
-                                <For each={["note", "list", "rules"] as PMTab[]}>
-                                  {(tab) => (
-                                    <box
-                                      onMouseUp={() => setPmTab(() => tab)}
-                                      backgroundColor={
-                                        pmTab() === tab ? theme.backgroundElement : theme.backgroundPanel
-                                      }
-                                      paddingLeft={1}
-                                      paddingRight={1}
-                                    >
-                                      <text
-                                        fg={pmTab() === tab ? theme.primary : theme.textMuted}
-                                        attributes={pmTab() === tab ? TextAttributes.BOLD : undefined}
-                                      >
-                                        /pm {tab}
-                                      </text>
-                                    </box>
-                                  )}
-                                </For>
-                              </box>
-                              <Switch>
-                                <Match when={pmTab() === "note"}>
-                                  <text fg={theme.textMuted} wrapMode="word">
-                                    Save product constraints and handoff context that should survive across sessions.
-                                  </text>
-                                  <box flexDirection="row" gap={1} flexWrap="wrap">
-                                    <box
-                                      onMouseUp={prefillPmNote}
-                                      backgroundColor={theme.backgroundElement}
-                                      paddingTop={0}
-                                      paddingBottom={0}
-                                      paddingLeft={1}
-                                      paddingRight={1}
-                                    >
-                                      <text fg={theme.primary}>Template</text>
-                                    </box>
-                                    <box
-                                      onMouseUp={() => runPmCommand("/pm note")}
-                                      backgroundColor={theme.backgroundElement}
-                                      paddingTop={0}
-                                      paddingBottom={0}
-                                      paddingLeft={1}
-                                      paddingRight={1}
-                                    >
-                                      <text fg={theme.accent}>Run /pm note</text>
-                                    </box>
-                                  </box>
-                                  <Show when={recentPmCommands().length > 0}>
-                                    <box
-                                      border={["top"]}
-                                      borderColor={theme.borderSubtle}
-                                      paddingTop={1}
-                                      flexDirection="column"
-                                      gap={1}
-                                    >
-                                      <text fg={theme.textMuted}>Recent PM commands</text>
-                                      <For each={recentPmCommands().slice(0, 4)}>
-                                        {(entry) => (
-                                          <box
-                                            backgroundColor={theme.backgroundElement}
-                                            paddingLeft={1}
-                                            paddingRight={1}
-                                          >
-                                            <text fg={theme.text} wrapMode="truncate-end">
-                                              {entry.text}
-                                            </text>
-                                          </box>
-                                        )}
-                                      </For>
-                                    </box>
-                                  </Show>
-                                </Match>
-                                <Match when={pmTab() === "list"}>
-                                  <text fg={theme.textMuted} wrapMode="word">
-                                    List recent PM notes and tags for this workspace.
-                                  </text>
-                                  <box flexDirection="row" gap={1} flexWrap="wrap">
-                                    <box
-                                      onMouseUp={() => runPmCommand("/pm list")}
-                                      backgroundColor={theme.backgroundElement}
-                                      paddingTop={0}
-                                      paddingBottom={0}
-                                      paddingLeft={1}
-                                      paddingRight={1}
-                                    >
-                                      <text fg={theme.accent}>Run /pm list</text>
-                                    </box>
-                                    <Show when={latestPmListResponse()}>
-                                      {(entry) => <text fg={theme.textMuted}>Last: {entry().commandText}</text>}
-                                    </Show>
-                                  </box>
-                                  <box
-                                    border={["top"]}
-                                    borderColor={theme.borderSubtle}
-                                    paddingTop={1}
-                                    flexDirection="column"
-                                    gap={1}
-                                  >
-                                    <Show
-                                      when={!parsedPmList().empty}
-                                      fallback={
-                                        <text fg={theme.textMuted} wrapMode="word">
-                                          {parsedPmList().info}
-                                        </text>
-                                      }
-                                    >
-                                      <For each={parsedPmList().rows}>
-                                        {(row) => (
-                                          <box
-                                            flexDirection="column"
-                                            paddingLeft={1}
-                                            paddingRight={1}
-                                            backgroundColor={theme.backgroundElement}
-                                          >
-                                            <text fg={theme.text}>
-                                              {row.day} | {row.title}
-                                            </text>
-                                            <Show when={row.tags.length > 0}>
-                                              <text fg={theme.textMuted}>tags: {row.tags.join(", ")}</text>
-                                            </Show>
-                                          </box>
-                                        )}
-                                      </For>
-                                    </Show>
-                                  </box>
-                                </Match>
-                                <Match when={pmTab() === "rules"}>
-                                  <text fg={theme.textMuted} wrapMode="word">
-                                    Inspect and maintain project guardrails that should always be enforced.
-                                  </text>
-                                  <box flexDirection="row" gap={1} flexWrap="wrap">
-                                    <box
-                                      onMouseUp={() => runPmCommand("/pm rules")}
-                                      backgroundColor={theme.backgroundElement}
-                                      paddingTop={0}
-                                      paddingBottom={0}
-                                      paddingLeft={1}
-                                      paddingRight={1}
-                                    >
-                                      <text fg={theme.accent}>Run /pm rules</text>
-                                    </box>
-                                    <box
-                                      onMouseUp={() =>
-                                        prompt?.set({
-                                          input: "/pm rules add require_approval release:publish ask",
-                                          parts: [],
-                                        })
-                                      }
-                                      backgroundColor={theme.backgroundElement}
-                                      paddingTop={0}
-                                      paddingBottom={0}
-                                      paddingLeft={1}
-                                      paddingRight={1}
-                                    >
-                                      <text fg={theme.primary}>Add rule template</text>
-                                    </box>
-                                  </box>
-                                  <Show when={latestPmRulesAddResponse()}>
-                                    {(entry) => (
-                                      <text fg={theme.textMuted} wrapMode="word">
-                                        Latest update: {entry().responseText}
-                                      </text>
-                                    )}
-                                  </Show>
-                                  <box
-                                    border={["top"]}
-                                    borderColor={theme.borderSubtle}
-                                    paddingTop={1}
-                                    flexDirection="column"
-                                    gap={1}
-                                  >
-                                    <Show
-                                      when={!parsedPmRules().empty}
-                                      fallback={
-                                        <text fg={theme.textMuted} wrapMode="word">
-                                          {parsedPmRules().info}
-                                        </text>
-                                      }
-                                    >
-                                      <For each={parsedPmRules().rows}>
-                                        {(row) => (
-                                          <box
-                                            flexDirection="column"
-                                            paddingLeft={1}
-                                            paddingRight={1}
-                                            backgroundColor={theme.backgroundElement}
-                                          >
-                                            <text fg={theme.text}>
-                                              {row.ruleType}
-                                              {" -> "}
-                                              {row.action}
-                                            </text>
-                                            <text fg={theme.textMuted} wrapMode="word">
-                                              {row.pattern}
-                                              <Show when={row.source}> ({row.source})</Show>
-                                            </text>
-                                          </box>
-                                        )}
-                                      </For>
-                                    </Show>
-                                  </box>
-                                </Match>
-                              </Switch>
                             </box>
+                          </Match>
+                          <Match when={activePaneMode() === "memory"}>
+                            <WorkspaceMemoryPane />
                           </Match>
                         </Switch>
                       </box>

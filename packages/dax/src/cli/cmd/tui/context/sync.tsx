@@ -342,6 +342,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         case "plan.compiled":
         case "plan.step_promoted":
         case "intervention.required":
+        case "intervention.resolved":
         case "audit.posture_updated":
         case "run.state_changed":
         case "approval.requested":

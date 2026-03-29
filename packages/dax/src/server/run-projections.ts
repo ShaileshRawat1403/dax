@@ -75,7 +75,7 @@ export function buildProposedChangesProjection(approvals: ApprovalRecord[]): Pro
       
       const status: ProposedChange["status"] = 
         approval.status === "pending" ? "pending" :
-        approval.status === "approved" ? "applied" :
+        approval.status === "approved" ? "approved_not_applied" :
         approval.status === "denied" ? "rejected" : "stale"
 
       changes.push({

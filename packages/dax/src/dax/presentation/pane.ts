@@ -1,4 +1,4 @@
-export const PANE_MODE = ["diff", "audit", "approvals", "plan", "refine"] as const
+export const PANE_MODE = ["diff", "audit", "approvals", "plan", "memory", "refine"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
 
@@ -15,7 +15,8 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
     diff: "changes",
     audit: "audit",
     approvals: "approvals",
-    plan: "plan",
+    plan: "workstation",
+    memory: "memory",
     refine: "refine",
   }[mode]
 }
@@ -25,7 +26,8 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
     diff: "change",
     audit: "audit",
     approvals: "approve",
-    plan: "plan",
+    plan: "state",
+    memory: "memory",
     refine: "refine",
   }[mode]
 }
@@ -48,12 +50,14 @@ export function deriveAutoPaneMode(input: {
   hasAuditAttention: boolean
   hasDiffContext: boolean
   hasLiveContext: boolean
+  hasMemoryContext: boolean
   hasPlanContext: boolean
   fallback: PaneMode
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
   if (input.hasRefineDraft) return "refine"
   if (input.hasLiveContext) return "plan"
+  if (input.hasMemoryContext) return "memory"
   if (input.hasAuditAttention) return "audit"
   if (input.hasDiffContext) return "diff"
   if (input.hasPlanContext) return "plan"
@@ -66,6 +70,7 @@ export function deriveActivePaneMode(input: {
   hasAuditAttention: boolean
   hasDiffContext: boolean
   hasLiveContext: boolean
+  hasMemoryContext: boolean
   hasPlanContext: boolean
   fallback: PaneMode
   paneMode: PaneMode
@@ -82,6 +87,7 @@ export function deriveActivePaneMode(input: {
       hasAuditAttention: input.hasAuditAttention,
       hasDiffContext: input.hasDiffContext,
       hasLiveContext: input.hasLiveContext,
+      hasMemoryContext: input.hasMemoryContext,
       hasPlanContext: input.hasPlanContext,
       fallback: input.fallback,
     })
@@ -92,6 +98,7 @@ export function deriveActivePaneMode(input: {
     hasAuditAttention: input.hasAuditAttention,
     hasDiffContext: input.hasDiffContext,
     hasLiveContext: input.hasLiveContext,
+    hasMemoryContext: input.hasMemoryContext,
     hasPlanContext: input.hasPlanContext,
     fallback: input.fallback,
   })
@@ -104,6 +111,7 @@ export function shouldAutoShowPane(input: {
   hasAuditAttention: boolean
   hasDiffContext: boolean
   hasLiveContext: boolean
+  hasMemoryContext: boolean
   hasPlanContext: boolean
 }) {
   if (!input.wide) return false
@@ -113,6 +121,7 @@ export function shouldAutoShowPane(input: {
     input.hasAuditAttention ||
     input.hasDiffContext ||
     input.hasLiveContext ||
+    input.hasMemoryContext ||
     input.hasPlanContext
   )
 }
