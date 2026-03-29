@@ -32,6 +32,10 @@ AI agents can generate code, run commands, and touch your filesystem. Without st
 
 DAX replaces free-running autonomy with **governed execution** — every action is recorded, every risky step requires approval, and the entire history can be replayed.
 
+## One-Line Positioning
+
+**DAX is the governed execution workstation for AI-driven software work, giving teams approvals, replayability, and audit-grade control instead of black-box agent behavior.**
+
 ## Who It Is For
 
 | Role          | What DAX Gives You                                                                                      |
@@ -105,8 +109,26 @@ graph TB
 - **Not a black box** — Every step is recorded, auditable, and replayable.
 - **Not autonomous** — Human approval gates are a core feature, not an optional add-on.
 
+## How DAX Differs From Adjacent Tools
+
+| Tool | Main mental model | What it does well | What DAX emphasizes instead |
+| :--- | :--- | :--- | :--- |
+| **Cursor** | AI coding inside the IDE | Rapid inline edits and assistance | Explicit approvals, governed execution, and run-level review |
+| **Codex** | Agentic implementation runtime | Deep code generation and execution throughput | Structured run state, intervention semantics, and replayability |
+| **Claude Code** | Terminal-native coding agent | Strong repo reasoning in a CLI workflow | Operator control, speculative previews, and audit-ready execution trails |
+| **DAX** | Governed execution workstation | Trusted delivery flow for AI work in codebases | Delivery discipline over assistant convenience |
+
+## Where DAX Is Heading
+
+The product direction is becoming clearer:
+
+- **`1.0.9`** focuses on production readiness, first-run clarity, and cleaner operator surfaces.
+- **`1.1.x`** should deepen approvals and shared operator workflows.
+- **`1.2.x`** should expand remote governance and multi-surface continuity.
+
 ## Next Steps
 
 - **New to DAX?** Read [DAX In Simple Words](./DAX_IN_SIMPLE_WORDS.md) for analogies and a plain-language walkthrough.
 - **Ready to try it?** Read [Quickstart](./QUICKSTART.md) to install and run your first workflow.
+- **Want the product framing?** Read [Positioning](./POSITIONING.md) and [Roadmap](./ROADMAP.md).
 - **Want to understand the internals?** Read [How DAX Works](../architecture/HOW_DAX_WORKS.md).

@@ -38,6 +38,8 @@ If you are new to DAX, start here to understand the core concepts and get your e
 - [**Product Overview**](./product/start-here.md) - Screenshots and first-run walkthrough.
 - [**Non-Developer Quickstart**](./product/non-dev-quickstart.md) - For operators and reviewers.
 - [**Provider Setup**](./product/providers.md) - Configuring OpenAI, Gemini, Anthropic, and others.
+- [**Positioning**](./product/POSITIONING.md) - How DAX is positioned and how it differs from adjacent tools.
+- [**Roadmap**](./product/ROADMAP.md) - Near-term product direction across the next releases.
 - [**Builder's Note**](./BUILDERS_NOTE.md) - Why DAX exists and what perspective shaped it.
 
 ---
@@ -56,6 +58,27 @@ Deep dives into how to use DAX features for real-world delivery.
 - [**GitHub CI Integration**](./product/integrations-github-ci.md) - Automated safety gates in your pipeline.
 - [**Build on DAX**](./product/build-on-dax.md) - Extending the platform with custom capabilities.
 - [**Distribution Channels**](./product/distribution.md) - Homebrew, Winget, and binary installs.
+
+---
+
+## 🎯 Product Framing
+
+If you want the shortest explanation of what DAX is trying to become:
+
+- DAX is not a chat-first coding assistant with extra safety prompts.
+- DAX is a governed execution workstation for real repository work.
+- The core product is the run: planned, reviewable, approval-aware, replayable work.
+
+```mermaid
+graph LR
+    A[Intent] --> B[Compiled run]
+    B --> C[Governed execution]
+    C --> D[Approvals and interventions]
+    D --> E[Artifacts and audit trail]
+    style B fill:#3a7ca5,stroke:#234c66,color:#fff
+    style C fill:#2f936e,stroke:#1f6148,color:#fff
+    style D fill:#d29c3a,stroke:#8e6b24,color:#fff
+```
 
 ---
 
