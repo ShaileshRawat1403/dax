@@ -6,9 +6,13 @@ import { onCleanup, onMount } from "solid-js"
 export function DialogThemeList() {
   const theme = useTheme()
   const options = Object.keys(theme.all())
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+    .sort((a, b) => {
+      if (a === "dax") return -1
+      if (b === "dax") return 1
+      return a.localeCompare(b, undefined, { sensitivity: "base" })
+    })
     .map((value) => ({
-      title: value,
+      title: value === "dax" ? "dax (recommended)" : value,
       value: value,
     }))
   const dialog = useDialog()
