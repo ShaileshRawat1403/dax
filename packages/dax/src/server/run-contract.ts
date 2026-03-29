@@ -56,6 +56,12 @@ export type ApprovalStatus = z.infer<typeof ApprovalStatus>
 export const ApprovalDecision = z.enum(["approve", "deny"])
 export type ApprovalDecision = z.infer<typeof ApprovalDecision>
 
+export const InterventionKind = z.enum(["approval", "ambiguity", "recovery", "policy_violation", "risk_escalation"])
+export type InterventionKind = z.infer<typeof InterventionKind>
+
+export const InterventionStatus = z.enum(["requested", "pending", "resolved", "dismissed", "escalated"])
+export type InterventionStatus = z.infer<typeof InterventionStatus>
+
 export const RiskLevel = z.enum(["low", "medium", "high", "critical"])
 export type RiskLevel = z.infer<typeof RiskLevel>
 
@@ -405,6 +411,7 @@ export const RunEventType = z.enum([
   "plan.compiled",
   "plan.step_promoted",
   "intervention.required",
+  "intervention.resolved",
   "audit.posture_updated",
 ])
 export type RunEventType = z.infer<typeof RunEventType>
@@ -513,9 +520,18 @@ const PlanStepPromotedPayload = z.object({
 })
 
 const InterventionRequiredPayload = z.object({
+  interventionId: z.string(),
   reason: z.string(),
-  type: z.enum(["policy_violation", "hitl_task", "ambiguity", "error_recovery"]),
+  kind: InterventionKind,
   approvalId: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+})
+
+const InterventionResolvedPayload = z.object({
+  interventionId: z.string(),
+  status: z.enum(["resolved", "dismissed", "escalated"]),
+  comment: z.string().optional(),
+  resolvedAt: z.string(),
 })
 
 const AuditPostureUpdatedPayload = z.object({
@@ -545,6 +561,7 @@ export const RunEventPayload = z.discriminatedUnion("type", [
   z.object({ type: z.literal("plan.compiled"), payload: PlanCompiledPayload }),
   z.object({ type: z.literal("plan.step_promoted"), payload: PlanStepPromotedPayload }),
   z.object({ type: z.literal("intervention.required"), payload: InterventionRequiredPayload }),
+  z.object({ type: z.literal("intervention.resolved"), payload: InterventionResolvedPayload }),
   z.object({ type: z.literal("audit.posture_updated"), payload: AuditPostureUpdatedPayload }),
 ])
 
@@ -581,14 +598,34 @@ export const RunHeaderProjection = z.object({
   startedAt: z.string().optional(),
   completedAt: z.string().optional(),
   targeting: RunTargetingSummary.optional(),
+  interventionSummary: z.object({
+    activeCount: z.number(),
+    primaryKind: InterventionKind.optional(),
+    message: z.string().optional(),
+  }).optional(),
 })
 export type RunHeaderProjection = z.infer<typeof RunHeaderProjection>
+
+export const RunIntervention = z.object({
+  interventionId: z.string(),
+  runId: z.string(),
+  kind: InterventionKind,
+  status: InterventionStatus,
+  title: z.string(),
+  reason: z.string(),
+  createdAt: z.string(),
+  resolvedAt: z.string().optional(),
+  approvalId: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+})
+export type RunIntervention = z.infer<typeof RunIntervention>
 
 export const ProjectedRun = z.object({
   header: RunHeaderProjection,
   narrative: RunNarrativeItem.array(),
   approvals: ApprovalRecord.array(),
   artifacts: ArtifactRecord.array(),
+  interventions: RunIntervention.array(),
 })
 export type ProjectedRun = z.infer<typeof ProjectedRun>
 
