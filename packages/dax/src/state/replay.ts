@@ -152,6 +152,7 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
         break
 
       case "trust.updated":
+      case "audit.posture_updated":
         state.trust = {
           posture: event.payload.trust.posture ?? "low",
           score: event.payload.trust.score ?? null,
