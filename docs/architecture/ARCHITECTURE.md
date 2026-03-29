@@ -13,25 +13,35 @@ Core contract (RAO):
 - Audit: evaluate permission, safety, and policy impact.
 - Override: require human approval for protected actions.
 
+## Execution Model
+
+DAX uses an **Event-Driven Lifecycle & Projection Model**. 
+
+The system of record is an immutable stream of **RunEvents**. The workstation (TUI) consumes a **ProjectedRun** derived from this stream, ensuring that the UI is always a reflection of the canonical execution trace.
+
+See [DAX Event-Driven Lifecycle & Projection Model](./DAX_EVENT_DRIVEN_LIFECYCLE.md) for the definitive technical guide.
+
 ## System Layers
 
 1. Interface Layer (CLI/TUI)
    - Accepts user requests.
-   - Renders stream stages, diffs, approvals, and status.
+   - Renders **Projected workstation views** (narrative, diffs, interventions).
 2. Session Runtime
-   - Builds prompts/messages.
-   - Selects provider/model.
-   - Streams model output and tool calls.
+   - Emits canonical **RunEvents** during execution.
+   - Manages model selection and tool orchestration.
 3. Governance Layer (RAO)
-   - Applies permission rules to commands/tools/filesystem actions.
-   - Produces allow/ask/deny decisions and approval requests.
-4. Tool Layer
-   - Read/search/edit/patch/shell/web/task tools.
-   - Structured inputs/outputs for traceability.
-5. Storage Layer
-   - Session messages and parts.
-   - Auth state.
-   - Project memory and approvals.
+   - Evaluates permission policy and emits **approval.requested** events.
+   - Manages intervention surfaces for operational pauses.
+4. Projection Layer
+   - Transforms raw event streams into high-signal workstation models.
+   - Derives speculative previews and operational narrative.
+5. Tool Layer
+   - Implements structured actions (read/write/shell/etc).
+   - Integrates with the event stream via execution results.
+6. Storage Layer
+   - Event log (immutable spine).
+   - Session snapshots (optimized replay).
+   - Auth and project state.
 
 ## Execution Flow
 
