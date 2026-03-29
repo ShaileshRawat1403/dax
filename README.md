@@ -31,9 +31,9 @@
 
 ## 🚀 Overview
 
-**DAX** is a professional-grade execution control plane designed for engineering teams and ambitious builders. While standard AI chat interfaces are built for conversation, DAX is built for **delivery**. It provides explicit control, traceability, and governance over AI operations within your software development lifecycle.
+**DAX** is a **projection-first governed execution workstation** designed for engineering teams and ambitious builders. Driven by a canonical event language, DAX treats AI reasoning and tool execution as a verifiable audit trail rather than a black box.
 
-The flagship experience is a **transcript-first terminal workstation** that treats AI reasoning and tool execution as a verifiable audit trail rather than a black box.
+While standard AI chat interfaces are built for conversation, DAX is built for **delivery**. It provides explicit control, traceability, and governance over AI operations within your software development lifecycle.
 
 ### ⚖️ The RAO Governance Loop
 
