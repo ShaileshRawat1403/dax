@@ -404,7 +404,6 @@ export const RunEventType = z.enum([
   "approval.requested",
   "approval.resolved",
   "artifact.created",
-  "trust.updated",
   "run.completed",
   "run.failed",
   "intent.created",
@@ -478,7 +477,7 @@ const ArtifactCreatedPayload = z.object({
   artifact: ArtifactRecord,
 })
 
-const TrustUpdatedPayload = z.object({
+export const TrustUpdatedPayload = z.object({
   trust: RunTrustState,
   reason: z.string().optional(),
 })
@@ -554,7 +553,6 @@ export const RunEventPayload = z.discriminatedUnion("type", [
   z.object({ type: z.literal("approval.requested"), payload: ApprovalRequestedPayload }),
   z.object({ type: z.literal("approval.resolved"), payload: ApprovalResolvedPayload }),
   z.object({ type: z.literal("artifact.created"), payload: ArtifactCreatedPayload }),
-  z.object({ type: z.literal("trust.updated"), payload: TrustUpdatedPayload }),
   z.object({ type: z.literal("run.completed"), payload: RunCompletedPayload }),
   z.object({ type: z.literal("run.failed"), payload: RunFailedPayload }),
   z.object({ type: z.literal("intent.created"), payload: IntentCreatedPayload }),
