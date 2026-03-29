@@ -102,6 +102,20 @@ export const RunCurrentStep = z
   .meta({ ref: "RunCurrentStepV1" })
 export type RunCurrentStep = z.infer<typeof RunCurrentStep>
 
+export const RunPlanTask = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  dependencies: z.string().array(),
+})
+export type RunPlanTask = z.infer<typeof RunPlanTask>
+
+export const RunPlan = z.object({
+  planId: z.string(),
+  tasks: RunPlanTask.array(),
+})
+export type RunPlan = z.infer<typeof RunPlan>
+
 export const RunSnapshot = z
   .object({
     schemaVersion: SchemaVersion,
@@ -114,6 +128,8 @@ export const RunSnapshot = z
     startedAt: z.string().optional(),
     completedAt: z.string().optional(),
     title: z.string().optional(),
+    intent: RunIntent.optional(),
+    plan: RunPlan.optional(),
     currentStep: RunCurrentStep.optional(),
     pendingApprovalCount: z.number(),
     trust: RunTrustState.optional(),
@@ -384,6 +400,11 @@ export const RunEventType = z.enum([
   "trust.updated",
   "run.completed",
   "run.failed",
+  "intent.created",
+  "plan.compiled",
+  "plan.step_promoted",
+  "intervention.required",
+  "audit.posture_updated",
 ])
 export type RunEventType = z.infer<typeof RunEventType>
 
@@ -468,6 +489,43 @@ const RunFailedPayload = z.object({
   }),
 })
 
+const IntentCreatedPayload = z.object({
+  intentType: z.string(),
+  goal: z.string(),
+  riskLevel: RiskLevel,
+  confidence: z.number(),
+})
+
+const PlanCompiledPayload = z.object({
+  planId: z.string(),
+  tasks: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    dependencies: z.array(z.string()),
+  })),
+})
+
+const PlanStepPromotedPayload = z.object({
+  stepId: z.string(),
+  status: StepStatus,
+})
+
+const InterventionRequiredPayload = z.object({
+  reason: z.string(),
+  type: z.enum(["policy_violation", "hitl_task", "ambiguity", "error_recovery"]),
+  approvalId: z.string().optional(),
+})
+
+const AuditPostureUpdatedPayload = z.object({
+  trust: RunTrustState,
+  finding: z.object({
+    type: z.string(),
+    severity: z.enum(["critical", "major", "minor", "info"]),
+    title: z.string(),
+  }).optional(),
+})
+
 export const RunEventPayload = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.created"), payload: RunCreatedPayload }),
   z.object({ type: z.literal("run.started"), payload: RunStartedPayload }),
@@ -482,6 +540,11 @@ export const RunEventPayload = z.discriminatedUnion("type", [
   z.object({ type: z.literal("trust.updated"), payload: TrustUpdatedPayload }),
   z.object({ type: z.literal("run.completed"), payload: RunCompletedPayload }),
   z.object({ type: z.literal("run.failed"), payload: RunFailedPayload }),
+  z.object({ type: z.literal("intent.created"), payload: IntentCreatedPayload }),
+  z.object({ type: z.literal("plan.compiled"), payload: PlanCompiledPayload }),
+  z.object({ type: z.literal("plan.step_promoted"), payload: PlanStepPromotedPayload }),
+  z.object({ type: z.literal("intervention.required"), payload: InterventionRequiredPayload }),
+  z.object({ type: z.literal("audit.posture_updated"), payload: AuditPostureUpdatedPayload }),
 ])
 
 export const RunEvent = z

@@ -2,6 +2,8 @@ import type { IntentEnvelope, IntentType } from "./types"
 import { generateObject } from "ai"
 import z from "zod"
 import { Provider } from "../provider/provider"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
 
 const INTENT_REFINEMENT_TIMEOUT_MS = 2500
 
@@ -492,7 +494,7 @@ export async function interpretIntent(prompt: string, context: IntentContext): P
     requiredSkills = ["release-readiness"]
   }
 
-  return {
+  const envelope: IntentEnvelope = {
     intentType,
     confidence: 0.85,
     activeMode: "execute",
@@ -504,4 +506,16 @@ export async function interpretIntent(prompt: string, context: IntentContext): P
     constraints: contract?.explicitConstraints ?? [],
     contract,
   }
+
+  if (context.session_id) {
+    await Bus.publish(Lifecycle.IntentCreated, {
+      runId: context.session_id,
+      intentType: envelope.intentType,
+      goal: contract?.goal ?? prompt,
+      riskLevel: envelope.riskLevel,
+      confidence: envelope.confidence,
+    })
+  }
+
+  return envelope
 }

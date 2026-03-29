@@ -769,6 +769,116 @@ async function handleBusEvent(event: any) {
         },
       })
       break
+    case "intent.created":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "intent.created",
+        timestamp: new Date().toISOString(),
+        payload: {
+          intentType: event.properties.intentType,
+          goal: event.properties.goal,
+          riskLevel: event.properties.riskLevel,
+          confidence: event.properties.confidence,
+        },
+      })
+      break
+    case "plan.compiled":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "plan.compiled",
+        timestamp: new Date().toISOString(),
+        payload: {
+          planId: event.properties.planId,
+          tasks: event.properties.tasks,
+        },
+      })
+      break
+    case "plan.step_promoted":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "plan.step_promoted",
+        timestamp: new Date().toISOString(),
+        payload: {
+          stepId: event.properties.stepId,
+          status: event.properties.status,
+        },
+      })
+      break
+    case "intervention.required":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "intervention.required",
+        timestamp: new Date().toISOString(),
+        payload: {
+          reason: event.properties.reason,
+          type: event.properties.type,
+          approvalId: event.properties.approvalId,
+        },
+      })
+      break
+    case "approval.requested":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "approval.requested",
+        timestamp: new Date().toISOString(),
+        payload: {
+          approval: event.properties.approval,
+        },
+      })
+      break
+    case "approval.resolved":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "approval.resolved",
+        timestamp: new Date().toISOString(),
+        payload: {
+          approvalId: event.properties.approvalId,
+          status: event.properties.decision === "approve" ? "approved" : "denied",
+          decision: event.properties.decision,
+          source: "system",
+          comment: event.properties.comment,
+          resolvedAt: new Date().toISOString(),
+        },
+      })
+      break
+    case "artifact.created":
+      const runId = event.properties.runId
+      const artifact = event.properties.artifact
+      const artifactSet = artifactIdsByRun.get(runId) ?? new Set<string>()
+      artifactIdsByRun.set(runId, artifactSet)
+
+      if (!artifactSet.has(artifact.artifactId)) {
+        artifactSet.add(artifact.artifactId)
+        await appendEvent(runId, {
+          runId,
+          type: "artifact.created",
+          timestamp: artifact.createdAt,
+          payload: {
+            artifact,
+          },
+        })
+      }
+      break
+    case "audit.posture_updated":
+      await appendEvent(event.properties.runId, {
+        runId: event.properties.runId,
+        type: "audit.posture_updated",
+        timestamp: new Date().toISOString(),
+        payload: {
+          trust: event.properties.trust,
+          finding: event.properties.finding,
+        },
+      })
+      break
+    case "run.state_changed":
+      if (event.properties.runId) {
+        await emitRunState(
+          event.properties.runId,
+          event.properties.currentStatus,
+          event.properties.reason
+        )
+      }
+      break
   }
 }
 

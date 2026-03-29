@@ -60,6 +60,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       message: {
         [sessionID: string]: Message[]
       }
+      lifecycle: {
+        [sessionID: string]: any[]
+      }
       part: {
         [messageID: string]: Part[]
       }
@@ -95,6 +98,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session_diff: {},
       todo: {},
       message: {},
+      lifecycle: {},
       part: {},
       lsp: [],
       mcp: {},
@@ -107,7 +111,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
     const sdk = useSDK()
 
     sdk.event.listen((e) => {
-      const event = e.details
+      const event = e.details as any
       switch (event.type) {
         case "server.instance.disposed":
           bootstrap()
@@ -322,6 +326,31 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
         case "vcs.branch.updated": {
           setStore("vcs", { branch: event.properties.branch })
+          break
+        }
+
+        case "intent.created":
+        case "plan.compiled":
+        case "plan.step_promoted":
+        case "intervention.required":
+        case "audit.posture_updated":
+        case "run.state_changed":
+        case "approval.requested":
+        case "approval.resolved":
+        case "artifact.created": {
+          const runId = event.properties.runId || event.properties.sessionId
+          if (!runId) break
+          setStore(
+            "lifecycle",
+            runId,
+            produce((draft) => {
+              if (!draft) draft = []
+              draft.push({
+                ...event,
+                timestamp: event.timestamp || new Date().toISOString(),
+              })
+            }),
+          )
           break
         }
       }

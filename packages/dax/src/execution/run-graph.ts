@@ -8,6 +8,8 @@ import { SessionStateManager } from "../session/update-state"
 import { saveSnapshot } from "../session/persist-state"
 import type { GraphStatus } from "../session/snapshot-types"
 import { buildContextPack } from "../context/build-context-pack"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
 
 export interface GraphRunResult {
   success: boolean
@@ -55,6 +57,15 @@ export async function runGraph(
     console.log("Restoring session state from snapshot...")
   }
 
+  const previousGraphStatus = graph.status
+  graph.status = "running"
+  
+  await Bus.publish(Lifecycle.RunStateChanged, {
+    runId: ctx.sessionId,
+    previousStatus: previousGraphStatus as any,
+    currentStatus: "running",
+  })
+
   while (true) {
     const runnableTasks = getRunnableTasks(graph).filter((t) => !skipTaskIds.has(t.id))
 
@@ -69,6 +80,11 @@ export async function runGraph(
       }
 
       task.status = "running"
+      await Bus.publish(Lifecycle.PlanStepPromoted, {
+        runId: ctx.sessionId,
+        stepId: task.id,
+        status: "running",
+      })
 
       try {
         const operator = await router.route(task)
@@ -160,6 +176,11 @@ export async function runGraph(
         // --- RAO Governance Boundary ---
         if (result.approvalRequest) {
           task.status = "blocked"
+          await Bus.publish(Lifecycle.PlanStepPromoted, {
+            runId: ctx.sessionId,
+            stepId: task.id,
+            status: "blocked",
+          })
           blockedTasks.push(task.id)
           pendingApprovals.push(result.approvalRequest)
           if (ctx.reportApprovalRequest) {
@@ -170,6 +191,16 @@ export async function runGraph(
 
         if (!result.success) {
           task.status = "failed"
+          await Bus.publish(Lifecycle.PlanStepPromoted, {
+            runId: ctx.sessionId,
+            stepId: task.id,
+            status: "failed",
+          })
+          await Bus.publish(Lifecycle.InterventionRequired, {
+            runId: ctx.sessionId,
+            reason: `Task ${task.id} failed: ${result.error?.message || "Unknown error"}`,
+            type: "error_recovery",
+          })
           task.error = result.error
           failedTasks.push(task.id)
           continue
@@ -185,6 +216,11 @@ export async function runGraph(
         // --- HITL Checkpoint ---
         if (task.is_hitl) {
           task.status = "awaiting_approval"
+          await Bus.publish(Lifecycle.PlanStepPromoted, {
+            runId: ctx.sessionId,
+            stepId: task.id,
+            status: "blocked", // HITL counts as blocked for step promotion status
+          })
           blockedTasks.push(task.id)
           continue
         }
@@ -193,6 +229,11 @@ export async function runGraph(
         if (task.verification_criteria && task.verification_criteria.length > 0) {
           task.verification_status = "pending"
           task.status = "failed"
+          await Bus.publish(Lifecycle.PlanStepPromoted, {
+            runId: ctx.sessionId,
+            stepId: task.id,
+            status: "failed",
+          })
           task.error = new Error(
             `Task ${task.id} requires verification criteria but no verification handoff is implemented`,
           )
@@ -202,8 +243,18 @@ export async function runGraph(
         }
 
         task.status = "completed"
+        await Bus.publish(Lifecycle.PlanStepPromoted, {
+          runId: ctx.sessionId,
+          stepId: task.id,
+          status: "completed",
+        })
       } catch (err) {
         task.status = "failed"
+        await Bus.publish(Lifecycle.PlanStepPromoted, {
+          runId: ctx.sessionId,
+          stepId: task.id,
+          status: "failed",
+        })
         task.error = err instanceof Error ? err : new Error(String(err))
         failedTasks.push(task.id)
       }
@@ -217,12 +268,21 @@ export async function runGraph(
   // Determine final status
   const allTasksCompleted = Array.from(graph.tasks.values()).every((t) => t.status === "completed")
 
+  const finalPreviousStatus = graph.status
   if (allTasksCompleted) {
     graph.status = "completed"
   } else if (failedTasks.length > 0) {
     graph.status = "failed"
   } else if (blockedTasks.length > 0) {
     graph.status = "blocked"
+  }
+
+  if (finalPreviousStatus !== graph.status) {
+    await Bus.publish(Lifecycle.RunStateChanged, {
+      runId: ctx.sessionId,
+      previousStatus: finalPreviousStatus as any,
+      currentStatus: graph.status as any,
+    })
   }
 
   return {
