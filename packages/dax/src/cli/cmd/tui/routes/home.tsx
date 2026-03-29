@@ -68,6 +68,45 @@ function PromptStarter(props: { label: string; onPress: () => void; theme: any }
   )
 }
 
+function HomeInfoCard(props: {
+  title: string
+  body: string
+  theme: any
+  tone?: "default" | "accent" | "warning"
+}) {
+  const borderColor =
+    props.tone === "accent" ? props.theme.borderActive : props.tone === "warning" ? props.theme.warning : props.theme.borderSubtle
+  const backgroundColor =
+    props.tone === "accent"
+      ? tint(props.theme.backgroundPanel, props.theme.primary, 0.05)
+      : props.tone === "warning"
+        ? tint(props.theme.backgroundPanel, props.theme.warning, 0.05)
+        : props.theme.backgroundPanel
+
+  return (
+    <box
+      flexDirection="column"
+      gap={0}
+      paddingLeft={1}
+      paddingRight={1}
+      paddingTop={1}
+      paddingBottom={1}
+      backgroundColor={backgroundColor}
+      border={["round"]}
+      borderColor={borderColor}
+      flexGrow={1}
+      minWidth={20}
+    >
+      <text fg={props.tone === "warning" ? props.theme.warning : props.theme.text} attributes={TextAttributes.BOLD}>
+        {props.title}
+      </text>
+      <text fg={props.theme.textMuted} wrapMode="word">
+        {props.body}
+      </text>
+    </box>
+  )
+}
+
 function MetaChip(props: {
   label: string
   value?: string
@@ -294,6 +333,18 @@ export function Home() {
   const showInput = createMemo(() => height() >= 14)
   const showStages = createMemo(() => height() >= 18)
   const showActions = createMemo(() => height() >= 16)
+  const showFirstRunGuide = createMemo(() => !tiny() && height() >= 22)
+  const firstRunIntent = createMemo(() =>
+    explainMode()
+      ? "Explore this repository and explain the main parts in simple language."
+      : "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
+  )
+  const doctorSummary = createMemo(() => {
+    if (!mcp()) return "Core DAX is ready. Add MCP later if you need extra tools."
+    if (mcpError()) return "Optional MCP setup needs attention. Run dax doctor if anything feels unclear."
+    if (connectedMcpCount() > 0) return "MCP is connected and ready for richer repository context."
+    return "No MCP servers are connected yet. DAX still works without MCP."
+  })
 
   const bg = createMemo(() => theme.background)
   const inputBg = createMemo(() => tint(bg(), theme.primary, 0.06))
@@ -320,6 +371,15 @@ export function Home() {
         >
           <box width="100%" maxWidth={small() ? undefined : 76} alignItems="center" gap={tiny() ? 0 : 1}>
             <BrandHeader theme={theme} />
+
+            <box flexDirection="column" alignItems="center" gap={0}>
+              <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                Governed execution for real repository work
+              </text>
+              <text fg={theme.textMuted} wrapMode="word">
+                Start with a safe intent, review approvals and diffs when DAX pauses, and use doctor when setup needs help.
+              </text>
+            </box>
 
             <Show when={showStages()}>
               <StageIndicator stages={stages()} current={0} theme={theme} />
@@ -352,6 +412,63 @@ export function Home() {
                 hint={Hint}
               />
             </box>
+
+            <Show when={showFirstRunGuide()}>
+              <box width="100%" flexDirection="column" gap={1}>
+                <box flexDirection="row" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    {isFirstTimeUser() ? "Start here" : "Operator guide"}
+                  </text>
+                  <Show when={isFirstTimeUser()}>
+                    <text fg={theme.textMuted}>First session</text>
+                  </Show>
+                </box>
+                <box width="100%" flexDirection="row" gap={1} flexWrap="wrap">
+                  <HomeInfoCard
+                    title="1. Start safe"
+                    body="Use Explore or Plan first so DAX can build context before any risky action."
+                    theme={theme}
+                    tone="accent"
+                  />
+                  <HomeInfoCard
+                    title="2. Review pauses"
+                    body="If DAX asks for approval, inspect the diff or reason before allowing it to continue."
+                    theme={theme}
+                  />
+                  <HomeInfoCard
+                    title="3. Check readiness"
+                    body={doctorSummary()}
+                    theme={theme}
+                    tone={mcpError() ? "warning" : "default"}
+                  />
+                </box>
+                <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+                  <PromptStarter
+                    label="Safe first task"
+                    theme={theme}
+                    onPress={() => setPromptDraft(firstRunIntent(), false, "explore")}
+                  />
+                  <PromptStarter
+                    label="Open docs prompt"
+                    theme={theme}
+                    onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
+                  />
+                  <Show when={mcpError()}>
+                    <PromptStarter
+                      label="Run dax doctor"
+                      theme={theme}
+                      onPress={() =>
+                        setPromptDraft(
+                          "Explain what `dax doctor` checks, what is optional, and how to fix the current setup issues.",
+                          false,
+                          "docs",
+                        )
+                      }
+                    />
+                  </Show>
+                </box>
+              </box>
+            </Show>
 
             <Show when={!tiny()}>
               <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">

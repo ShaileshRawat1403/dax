@@ -39,9 +39,10 @@ bun run dax:local
 Then:
 
 1. Choose provider/model.
-2. Enter a small execution intent, for example: `summarize this repository structure`.
-3. Review the execution preview DAX shows before work begins.
-4. Watch the stream stages and result.
+2. Start with a safe intent, for example: `explore this repository and summarize the main execution flow`.
+3. Review the workstation state and any approval pause before allowing risky actions.
+4. If setup looks unhealthy, run `dax doctor`.
+5. Watch the stream stages, result, and any proposed diffs.
 
 ## First Real Task
 
@@ -75,11 +76,8 @@ Capture:
 Capture:
 
 - One submitted prompt and response visible
-- Side panes (`Plan`, `Review`, `Changes`, `Context`, `Docs`) visible
-- Session review surfaces visible:
-  - `What to do now`
-  - `Move through this session`
-  - `Review and inspect`
+- At least one right-side workstation surface visible such as `Workstation`, `Memory`, `Approvals`, `Diff`, or `Refine`
+- Session review surfaces feel coherent and operator-facing
 
 ### 3) Diff review
 
@@ -96,6 +94,7 @@ Run:
 
 ```bash
 dax --version
+dax doctor
 dax models
 dax auth list
 ```

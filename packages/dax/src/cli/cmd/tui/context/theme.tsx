@@ -292,7 +292,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     const [store, setStore] = createStore({
       themes: DEFAULT_THEMES,
       mode: props.mode,
-      active: (sync.data.config.theme ?? "tokyo-violet") as string,
+      active: (sync.data.config.theme ?? "dax") as string,
       ready: false,
     })
 

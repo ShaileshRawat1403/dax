@@ -2923,11 +2923,11 @@ export function Session() {
                                   paddingBottom={0}
                                   backgroundColor={
                                     activePaneMode() === mode
-                                      ? tint(theme.background, theme.primary, 0.12)
-                                      : theme.backgroundElement
+                                      ? tint(theme.backgroundElement, theme.primary, 0.18)
+                                      : tint(theme.backgroundPanel, theme.textMuted, 0.04)
                                   }
-                                  border={["bottom"]}
-                                  borderColor={activePaneMode() === mode ? theme.primary : theme.borderSubtle}
+                                  border={["round"]}
+                                  borderColor={activePaneMode() === mode ? theme.borderActive : theme.borderSubtle}
                                 >
                                   <text
                                     fg={activePaneMode() === mode ? theme.primary : theme.textMuted}
@@ -2955,11 +2955,23 @@ export function Session() {
                             }
                           >
                             <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                              <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                              <box
+                                paddingLeft={1}
+                                paddingRight={1}
+                                backgroundColor={tint(theme.backgroundElement, theme.primary, 0.08)}
+                                border={["round"]}
+                                borderColor={theme.borderSubtle}
+                              >
                                 <text fg={theme.text}>{workstationState().lifecycleLabel.toLowerCase()}</text>
                               </box>
                               <Show when={workstationState().planSummary.totalSteps > 0}>
-                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                <box
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                  backgroundColor={theme.backgroundElement}
+                                  border={["round"]}
+                                  borderColor={theme.borderSubtle}
+                                >
                                   <text fg={theme.text}>
                                     todo {workstationState().planSummary.currentStepIndex}/
                                     {workstationState().planSummary.totalSteps}
@@ -2967,22 +2979,46 @@ export function Session() {
                                 </box>
                               </Show>
                               <Show when={trustSurface().label !== "idle"}>
-                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                <box
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                  backgroundColor={theme.backgroundElement}
+                                  border={["round"]}
+                                  borderColor={theme.borderSubtle}
+                                >
                                   <text fg={trustSurface().color}>trust {trustSurface().label}</text>
                                 </box>
                               </Show>
                               <Show when={pendingRaoCount() > 0}>
-                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                <box
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                  backgroundColor={tint(theme.backgroundElement, theme.warning, 0.08)}
+                                  border={["round"]}
+                                  borderColor={theme.warning}
+                                >
                                   <text fg={theme.warning}>attention {pendingRaoCount()}</text>
                                 </box>
                               </Show>
                               <Show when={workstationState().artifactSummary.count > 0}>
-                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                <box
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                  backgroundColor={theme.backgroundElement}
+                                  border={["round"]}
+                                  borderColor={theme.borderSubtle}
+                                >
                                   <text fg={theme.textMuted}>artifacts {workstationState().artifactSummary.count}</text>
                                 </box>
                               </Show>
                               <Show when={paneBadge(activePaneMode())}>
-                                <box paddingLeft={1} paddingRight={1} backgroundColor={theme.backgroundElement}>
+                                <box
+                                  paddingLeft={1}
+                                  paddingRight={1}
+                                  backgroundColor={tint(theme.backgroundElement, theme.primary, 0.08)}
+                                  border={["round"]}
+                                  borderColor={theme.borderSubtle}
+                                >
                                   <text fg={theme.primary}>
                                     {paneLabel(activePaneMode())} {paneBadge(activePaneMode())}
                                   </text>

@@ -9,10 +9,13 @@ import { Project } from "@/project/project"
 import { Vcs } from "@/project/vcs"
 import { detectPythonEnvironment } from "@/cli/cmd/tui/util/environment"
 
+export type DoctorReadiness = "ready" | "degraded" | "blocked"
+
 export type DoctorSection = {
   id: "auth" | "mcp" | "env" | "project"
   title: string
   state: ProductState
+  readiness: DoctorReadiness
   summary: string
   detail: string[]
   next: string[]
@@ -21,8 +24,11 @@ export type DoctorSection = {
 export type DoctorReport = {
   generatedAt: string
   state: ProductState
+  readiness: DoctorReadiness
   sections: DoctorSection[]
 }
+
+type McpConfigEntry = NonNullable<Config.Info["mcp"]>[string]
 
 function exists(filepath: string) {
   try {
@@ -44,9 +50,118 @@ function countMcpStates(statuses: Record<string, MCP.Status>) {
   }
 }
 
+function labelDoctorReadiness(readiness: DoctorReadiness): string {
+  switch (readiness) {
+    case "ready":
+      return "Ready"
+    case "degraded":
+      return "Degraded"
+    case "blocked":
+      return "Blocked"
+  }
+}
+
+function aggregateDoctorReadiness(readinesses: DoctorReadiness[]): DoctorReadiness {
+  if (readinesses.includes("blocked")) return "blocked"
+  if (readinesses.includes("degraded")) return "degraded"
+  return "ready"
+}
+
+function readinessFromProductState(state: ProductState): DoctorReadiness {
+  switch (state) {
+    case "connected":
+      return "ready"
+    case "waiting":
+      return "degraded"
+    case "needs_approval":
+    case "blocked":
+    case "failed":
+      return "blocked"
+  }
+}
+
+function parseMissingExecutable(error?: string) {
+  if (!error) return
+  const match =
+    error.match(/posix_spawn '([^']+)'/) ??
+    error.match(/spawn ([^ ]+) ENOENT/i) ??
+    error.match(/enoent.*?['"`]([^'"`]+)['"`]/i)
+  return match?.[1]
+}
+
+function describeMcpTarget(config: McpConfigEntry | undefined) {
+  if (!config || typeof config !== "object" || !("type" in config)) return []
+  if (config.type === "local") {
+    const [cmd, ...args] = config.command
+    return [`transport: local`, `command: ${[cmd, ...args].join(" ")}`]
+  }
+  const authMode = config.oauth === false ? "oauth disabled" : typeof config.oauth === "object" ? "oauth configured" : "oauth auto"
+  return [`transport: remote`, `url: ${config.url}`, authMode]
+}
+
+export function classifyMcpReadiness(
+  name: string,
+  status: MCP.Status,
+  config: McpConfigEntry | undefined,
+): { readiness: DoctorReadiness; detail: string[]; next: string[] } {
+  const target = describeMcpTarget(config)
+
+  if (status.status === "connected") {
+    return {
+      readiness: "ready",
+      detail: [`${name}: connected`, ...target],
+      next: [`Run \`dax mcp ping ${name}\` or \`dax mcp tools ${name}\` to verify live capability.`],
+    }
+  }
+
+  if (status.status === "disabled") {
+    return {
+      readiness: "ready",
+      detail: [`${name}: disabled in config`, ...target],
+      next: [`Enable \`${name}\` in config when you want this MCP capability available.`],
+    }
+  }
+
+  if (status.status === "needs_auth") {
+    return {
+      readiness: "degraded",
+      detail: [`${name}: authentication required`, ...target],
+      next: [`Run \`dax mcp auth ${name}\` to finish MCP authentication.`],
+    }
+  }
+
+  if (status.status === "needs_client_registration") {
+    return {
+      readiness: "degraded",
+      detail: [`${name}: OAuth client registration required (${status.error})`, ...target],
+      next: [
+        `Add the required OAuth client configuration for \`${name}\`, then run \`dax mcp auth ${name}\`.`,
+      ],
+    }
+  }
+
+  const missingExecutable = parseMissingExecutable(status.error)
+  if (missingExecutable) {
+    return {
+      readiness: "degraded",
+      detail: [`${name}: local executable missing (${missingExecutable})`, ...target],
+      next: [
+        `Update the MCP command for \`${name}\` to point at an installed executable, or disable it in config until it is available.`,
+      ],
+    }
+  }
+
+  return {
+    readiness: "degraded",
+    detail: [`${name}: failed (${status.error})`, ...target],
+    next: [`Run \`dax mcp inspect ${name}\` or \`dax mcp list\` to inspect the failing server.`],
+  }
+}
+
 function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
   const failing = reports.filter((item) => !item.ok)
   const state: ProductState = failing.length > 0 ? "blocked" : "connected"
+  const readiness = readinessFromProductState(state)
   const summary =
     failing.length > 0
       ? `${failing.length} provider authentication check${failing.length === 1 ? "" : "s"} need attention`
@@ -85,6 +200,7 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
     id: "auth",
     title: "Authentication",
     state,
+    readiness,
     summary,
     detail,
     next,
@@ -108,6 +224,7 @@ export async function mcpSection(): Promise<DoctorSection> {
       id: "mcp",
       title: "MCP",
       state: "waiting" as const,
+      readiness: "ready",
       summary: "No MCP servers configured",
       detail: ["DAX can run without MCP, but MCP is available as an optional first-class capability."],
       next: ["Add a local MCP server in dax.json or .dax/dax.jsonc.", "Run `dax mcp list` after configuring a server."],
@@ -116,33 +233,28 @@ export async function mcpSection(): Promise<DoctorSection> {
 
   const state: ProductState =
     counts.failed > 0 ? "failed" : counts.blocked > 0 ? "blocked" : counts.connected > 0 ? "connected" : "waiting"
+  const classifications = Object.entries(statuses).map(([name, status]) =>
+    classifyMcpReadiness(name, status, config.mcp?.[name]),
+  )
+  const readiness = classifications.some((item) => item.readiness === "degraded") ? "degraded" : "ready"
+  const issueCount = classifications.filter((item) => item.readiness === "degraded").length
   const summary =
-    counts.connected > 0
-      ? `${counts.connected}/${counts.total} MCP server${counts.total === 1 ? "" : "s"} connected`
-      : counts.blocked > 0
-        ? `${counts.blocked} MCP server${counts.blocked === 1 ? "" : "s"} blocked`
-        : `${counts.total} MCP server${counts.total === 1 ? "" : "s"} waiting`
+    issueCount > 0
+      ? counts.connected > 0
+        ? `${counts.connected}/${counts.total} MCP server${counts.total === 1 ? "" : "s"} connected, ${issueCount} need attention`
+        : `${issueCount}/${counts.total} MCP server${counts.total === 1 ? "" : "s"} need attention`
+      : counts.connected > 0
+        ? `${counts.connected}/${counts.total} MCP server${counts.total === 1 ? "" : "s"} connected`
+        : `${counts.total} MCP server${counts.total === 1 ? "" : "s"} configured`
 
-  const detail = Object.entries(statuses).map(([name, status]) => {
-    if (status.status === "connected") return `${name}: connected`
-    if (status.status === "disabled") return `${name}: waiting (disabled in config)`
-    if (status.status === "needs_auth") return `${name}: blocked (needs authentication)`
-    if (status.status === "needs_client_registration") return `${name}: blocked (${status.error})`
-    return `${name}: failed (${status.error})`
-  })
-
-  const next =
-    state === "connected"
-      ? ["Run `dax mcp ping <server>` or `dax mcp tools <server>` to inspect a server."]
-      : [
-          "Run `dax mcp list` to inspect current MCP state.",
-          "Use `dax mcp auth <server>` for remote OAuth servers when needed.",
-        ]
+  const detail = classifications.flatMap((item) => item.detail)
+  const next = Array.from(new Set(classifications.flatMap((item) => item.next))).slice(0, 4)
 
   return {
     id: "mcp",
     title: "MCP",
     state,
+    readiness,
     summary,
     detail,
     next,
@@ -152,6 +264,7 @@ export async function mcpSection(): Promise<DoctorSection> {
 export async function envSection(cwd: string = process.cwd()): Promise<DoctorSection> {
   const report = detectPythonEnvironment(cwd)
   const state: ProductState = report.inVirtualEnv || !report.projectHasPythonSignals ? "connected" : "waiting"
+  const readiness = readinessFromProductState(state)
   const summary = report.inVirtualEnv
     ? `Python environment active (${report.virtualEnvType})`
     : report.projectHasPythonSignals
@@ -162,6 +275,7 @@ export async function envSection(cwd: string = process.cwd()): Promise<DoctorSec
     id: "env" as const,
     title: "Environment",
     state,
+    readiness,
     summary,
     detail: [
       `cwd: ${report.cwd}`,
@@ -184,11 +298,13 @@ export async function projectSection(cwd: string = process.cwd()): Promise<Docto
   const hasCargoToml = exists(path.join(cwd, "Cargo.toml"))
   const hasGit = info.project.vcs === "git"
   const state: ProductState = hasGit || hasPackageJson || hasCargoToml ? "connected" : "waiting"
+  const readiness = readinessFromProductState(state)
 
   return {
     id: "project" as const,
     title: "Project",
     state,
+    readiness,
     summary: hasGit
       ? `Git workspace ready${branch ? ` on ${branch}` : ""}`
       : hasPackageJson || hasCargoToml
@@ -214,16 +330,20 @@ export async function aggregateDoctorReport(cwd: string = process.cwd(), model?:
   return {
     generatedAt: new Date().toISOString(),
     state: aggregateProductState(sections.map((item) => item.state)),
+    readiness: aggregateDoctorReadiness(sections.map((item) => item.readiness)),
     sections,
   }
 }
 
-export function doctorExitCode(state: ProductState) {
-  return state === "connected" || state === "waiting" ? 0 : 1
+export function doctorExitCode(input: ProductState | DoctorReadiness) {
+  return input === "blocked" || input === "failed" || input === "needs_approval" ? 1 : 0
 }
 
 export function formatDoctorSection(section: DoctorSection) {
-  const lines = [`${section.title}: ${labelProductState(section.state)}`, `  ${section.summary}`]
+  const lines = [`${section.title}: ${labelDoctorReadiness(section.readiness)}`, `  ${section.summary}`]
+  if (section.readiness === "degraded" && section.state !== "connected") {
+    lines.push(`  operational state: ${labelProductState(section.state)}`)
+  }
   for (const item of section.detail) {
     lines.push(`  - ${item}`)
   }
@@ -235,7 +355,7 @@ export function formatDoctorSection(section: DoctorSection) {
 
 export function formatDoctorReport(report: DoctorReport) {
   return [
-    `DAX doctor: ${labelProductState(report.state)}`,
+    `DAX doctor: ${labelDoctorReadiness(report.readiness)}`,
     ...report.sections.flatMap((section) => ["", formatDoctorSection(section)]),
   ].join("\n")
 }

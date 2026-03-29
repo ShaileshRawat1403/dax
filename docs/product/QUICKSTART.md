@@ -85,7 +85,21 @@ If DAX later says the Gemini subscription lane is busy, it will wait and retry a
 dax
 ```
 
-You'll see the DAX workstation. Pick a provider, enter a prompt, and watch it execute.
+You'll see the DAX workstation. Start with a safe intent first, then let DAX build context before you move into edits.
+
+Recommended first prompt:
+
+```text
+Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.
+```
+
+If anything about setup looks unclear, run:
+
+```bash
+dax doctor
+```
+
+Use `dax doctor --json` when you want machine-readable readiness output.
 
 ```mermaid
 graph LR
@@ -124,7 +138,8 @@ DAX will:
 1. Detect your intent as `repo_analyze`
 2. Build a contract (what it will and won't do)
 3. Execute the analysis
-4. Present findings, risk scores, and recommendations
+4. Pause for approval if a risky step needs operator review
+5. Present findings, risk scores, and recommendations
 
 ## Enable the FastMCP Substrate
 
@@ -159,6 +174,7 @@ curl -X POST http://localhost:4730/ \
 ## Next Steps
 
 - **Understand the system:** [DAX In Simple Words](./DAX_IN_SIMPLE_WORDS.md)
+- **Use the fastest guided path:** [Start Here](./start-here.md)
 - **Read the context behind the project:** [Builder's Note](../BUILDERS_NOTE.md)
 - **Use the plain-English guide:** [DAX for Non-Developers](./NON_DEVELOPERS.md)
 - **See how runs work:** [Runs, Approvals and Recovery](./RUNS_APPROVALS_AND_RECOVERY.md)

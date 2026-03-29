@@ -33,7 +33,7 @@ async function runSection(args: DoctorArgs, title: string, fn: () => Promise<Doc
     prompts.log.message(formatDoctorSection(section))
     prompts.outro("Done")
   }
-  process.exitCode = doctorExitCode(section.state)
+  process.exitCode = doctorExitCode(section.readiness)
 }
 
 export const DoctorAuthCommand = cmd({
@@ -125,6 +125,6 @@ export const DoctorCommand = cmd({
       prompts.log.message(formatDoctorReport(report))
       prompts.outro("Done")
     }
-    process.exitCode = doctorExitCode(report.state)
+    process.exitCode = doctorExitCode(report.readiness)
   },
 })
