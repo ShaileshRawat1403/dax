@@ -172,4 +172,4 @@ authority_distribution = {
 | Version | Date       | Changes                                                                   |
 | ------- | ---------- | ------------------------------------------------------------------------- |
 | 1.0.0   | 2026-03-21 | Initial locked contract                                                   |
-| 1.1.0   | 2026-03-21 | Phase 3 complete: Deprecation warnings and authority counters implemented |
+| 1.0.9   | 2026-03-29 | Phase 3 complete: deprecation cleanup, authority counters, and production-readiness polish |

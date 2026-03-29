@@ -18,7 +18,7 @@
     },
     "packages/dax": {
       "name": "dax",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "bin": {
         "dax": "./bin/dax",
       },

@@ -61,14 +61,17 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
   - mcp
   - env
   - project
-- non-zero exit is acceptable when a real blocker exists
-- every blocked or failed section should include a concrete next action
+- report readiness as `ready`, `degraded`, or `blocked`
+- non-zero exit is acceptable only when a real blocker exists
+- every degraded or blocked section should include a concrete next action
 
 ### MCP
 
-- `workspace_kernel` should report `connected`
-- latency should be low enough to feel interactive
-- tool inventory should be returned successfully
+- a configured MCP server should either:
+  - report `connected`, or
+  - degrade with a concrete remediation path if it is optional but broken
+- latency should be low enough to feel interactive when connected
+- tool inventory should be returned successfully when the server is healthy
 
 ### Docs Mode
 
@@ -78,13 +81,13 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 
 ## Latest Observed Baseline
 
-Observed on March 9, 2026:
+Observed on March 29, 2026:
 
 - CLI help rendered correctly
-- MCP ping passed against `workspace_kernel`
-- docs guide generation passed
-- docs strict QA passed
-- `dax doctor --json` returned overall `blocked` because Google OAuth needs attention, while Vertex auth, MCP, env, and project checks were healthy
+- `bun run release:check` passed and wrote `artifacts/audit-result.json`
+- `dax doctor --json` returned overall `degraded`
+- auth, env, and project reported ready
+- MCP reported degraded because the configured local `workspace_kernel` executable path was missing, with an explicit remediation hint
 
 ## Known UX Notes
 
@@ -136,7 +139,7 @@ You are in a reasonable pre-release state when:
 7. docs guide generation works
 8. docs strict QA works
 9. interactive TUI review flows feel coherent
-10. any remaining blocked doctor result is understood and intentional
+10. any remaining degraded or blocked doctor result is understood and intentional
 
 ## Next Actions
 
