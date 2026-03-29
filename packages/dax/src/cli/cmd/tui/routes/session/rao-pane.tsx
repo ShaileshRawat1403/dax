@@ -306,9 +306,9 @@ export function RAOPane(props: {
     <box flexDirection="column" gap={0} flexGrow={1}>
       <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.borderSubtle}>
         <text fg={theme.primary} bold>
-          Approvals
+          Review queue
         </text>
-        <text fg={theme.textMuted}>Needs your decision</text>
+        <text fg={theme.textMuted}>Resolve approvals and questions so DAX can continue safely</text>
       </box>
       <Show when={items().length === 0}>
         <box flexDirection="column" gap={1} padding={1}>
@@ -475,6 +475,7 @@ export function RAOPane(props: {
 
                           <Show when={risk().level !== "normal"}>
                             <box paddingLeft={1}>
+                              <text fg={theme.textMuted}>Why this needs review</text>
                               <text fg={risk().level === "critical" ? theme.error : theme.warning}>
                                 {risk().reason}
                               </text>
@@ -484,6 +485,10 @@ export function RAOPane(props: {
                             </box>
                           </Show>
 
+                          <text fg={theme.textMuted}>
+                            What happens next: allow once to continue this step, allow always to trust this action pattern, or deny to keep the run paused.
+                          </text>
+
                           <box flexDirection="row" gap={1} paddingTop={1} flexWrap="wrap">
                             <box
                               backgroundColor={theme.primary}
@@ -491,7 +496,7 @@ export function RAOPane(props: {
                               paddingRight={1}
                               onMouseUp={() => handlePermissionReply(request.id, "once")}
                             >
-                              <text fg={selectedForeground(theme, theme.primary)}>[Y] Allow</text>
+                              <text fg={selectedForeground(theme, theme.primary)}>[Y] Allow once</text>
                             </box>
                             <Show when={request.always && request.always.length > 0}>
                               <box
@@ -500,7 +505,7 @@ export function RAOPane(props: {
                                 paddingRight={1}
                                 onMouseUp={() => handlePermissionReply(request.id, "always")}
                               >
-                                <text fg={selectedForeground(theme, theme.accent)}>[A] Always</text>
+                                <text fg={selectedForeground(theme, theme.accent)}>[A] Allow always</text>
                               </box>
                             </Show>
                             <box

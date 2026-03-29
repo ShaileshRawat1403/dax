@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { buildInterventionProjection, buildProposedChangesProjection } from "./run-projections"
+import { buildInterventionProjection, buildProposedChangesProjection, mapEventToNarrativeItem } from "./run-projections"
 import type { ApprovalRecord, RunEvent } from "./run-contract"
 
 describe("run projections", () => {
@@ -70,5 +70,27 @@ describe("run projections", () => {
     expect(projected).toHaveLength(1)
     expect(projected[0].status).toBe("resolved")
     expect(projected[0].resolvedAt).toBe("2026-03-29T10:02:00.000Z")
+    expect(projected[0].title).toBe("Needs direction")
+  })
+
+  test("humanizes intervention narrative messages", () => {
+    const event: RunEvent = {
+      schemaVersion: "v1",
+      eventId: "event_3",
+      sequence: 3,
+      cursor: "cursor_3",
+      runId: "run_1",
+      type: "intervention.required",
+      timestamp: "2026-03-29T10:03:00.000Z",
+      payload: {
+        interventionId: "int_2",
+        reason: "Two valid file targets need operator direction",
+        kind: "ambiguity",
+      },
+    }
+
+    const narrative = mapEventToNarrativeItem(event)
+
+    expect(narrative?.message).toBe("Needs direction: Two valid file targets need operator direction")
   })
 })

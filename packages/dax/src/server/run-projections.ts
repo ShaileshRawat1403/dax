@@ -11,6 +11,21 @@ import {
   ProposedChange,
 } from "./run-contract"
 
+function interventionKindTitle(kind: InterventionKind): string {
+  switch (kind) {
+    case "approval":
+      return "Approval review"
+    case "ambiguity":
+      return "Needs direction"
+    case "recovery":
+      return "Needs recovery"
+    case "policy_violation":
+      return "Policy blocked"
+    case "risk_escalation":
+      return "Risk escalated"
+  }
+}
+
 export function buildHeaderProjection(snapshot: RunSnapshot, interventions: RunIntervention[]): RunHeaderProjection {
   const activeInterventions = interventions.filter(i => i.status === "requested" || i.status === "pending")
   
@@ -44,7 +59,7 @@ export function buildInterventionProjection(events: RunEvent[]): RunIntervention
         runId: event.runId,
         kind,
         status: "requested",
-        title: `Intervention: ${kind}`,
+        title: interventionKindTitle(kind),
         reason,
         createdAt: event.timestamp,
         approvalId,
@@ -227,7 +242,7 @@ export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | und
         id: eventId,
         timestamp,
         type: "intervention.required",
-        message: `INTERVENTION REQUIRED: ${payload.reason}`,
+        message: `${interventionKindTitle(payload.kind)}: ${payload.reason}`,
         metadata: { kind: payload.kind, approvalId: payload.approvalId },
       }
     case "intervention.resolved":
@@ -235,7 +250,7 @@ export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | und
         id: eventId,
         timestamp,
         type: "intervention.resolved",
-        message: `INTERVENTION ${payload.status.toUpperCase()}: ${payload.comment ?? "No comment"}`,
+        message: `Intervention ${payload.status}: ${payload.comment ?? "Operator review completed"}`,
         metadata: { interventionId: payload.interventionId, status: payload.status },
       }
     default:
