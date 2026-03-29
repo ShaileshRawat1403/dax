@@ -382,18 +382,37 @@ export function Session() {
     const selected = selectedProposedChangeId()
     return changes.find((change) => change.changeId === selected) ?? changes[0]
   })
+  const activeInterventions = createMemo(() =>
+    interventions().filter((item) => item.status === "requested" || item.status === "pending"),
+  )
+  const interventionKindLabel = (kind: string) => {
+    switch (kind) {
+      case "approval":
+        return "Approval review"
+      case "ambiguity":
+        return "Needs direction"
+      case "recovery":
+        return "Needs recovery"
+      case "policy_violation":
+        return "Policy blocked"
+      case "risk_escalation":
+        return "Risk escalated"
+      default:
+        return kind.replace(/_/g, " ")
+    }
+  }
   const proposedChangeStatusLabel = (status: ProjectedProposedChange["status"]) => {
     switch (status) {
       case "pending":
-        return "awaiting approval"
+        return "review needed"
       case "approved_not_applied":
-        return "approved, pending execution"
+        return "approved, ready to run"
       case "applied":
         return "applied"
       case "rejected":
         return "rejected"
       case "stale":
-        return "stale"
+        return "superseded"
     }
   }
   const proposedChangeStatusColor = (status: ProjectedProposedChange["status"]) => {
@@ -3054,6 +3073,7 @@ export function Session() {
                                 <Show when={proposedChanges().length > 0}>
                                   <box flexDirection="column" gap={0} marginBottom={1}>
                                     <text fg={theme.primary} bold>PROPOSED CHANGES</text>
+                                    <text fg={theme.textMuted}>Review the planned write before DAX applies it.</text>
                                     <For each={proposedChanges()}>
                                       {(change) => (
                                         <box
@@ -3295,11 +3315,38 @@ export function Session() {
                                       border={["round"]}
                                       borderColor={theme.warning}
                                     >
-                                      <text fg={theme.warning}>Needs your attention</text>
+                                      <text fg={theme.warning}>Operator review required</text>
                                       <text fg={theme.text}>
-                                        ● {workstationState().approvalSummary.topLabel ?? "Approval"} ·{" "}
-                                        {workstationState().approvalSummary.pendingCount} waiting
+                                        ● Review {workstationState().approvalSummary.topLabel ?? "approval"} before DAX can continue
                                       </text>
+                                      <text fg={theme.textMuted}>
+                                        {workstationState().approvalSummary.pendingCount} item{workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} waiting in the review queue
+                                      </text>
+                                    </box>
+                                  </Show>
+                                  <Show when={activeInterventions().length > 0}>
+                                    <box
+                                      flexDirection="column"
+                                      gap={0}
+                                      padding={1}
+                                      backgroundColor={tint(theme.backgroundElement, theme.error, 0.07)}
+                                      border={["round"]}
+                                      borderColor={theme.error}
+                                    >
+                                      <text fg={theme.error}>Why the run is paused</text>
+                                      <For each={activeInterventions().slice(0, 2)}>
+                                        {(item) => (
+                                          <box flexDirection="column" gap={0} paddingTop={1}>
+                                            <text fg={theme.text}>
+                                              {interventionKindLabel(item.kind)}{item.approvalId ? " · linked to review" : ""}
+                                            </text>
+                                            <text fg={theme.textMuted} wrapMode="word">
+                                              {item.reason}
+                                            </text>
+                                          </box>
+                                        )}
+                                      </For>
+                                      <text fg={theme.textMuted}>Resolve the review or ambiguity, then DAX can resume the run.</text>
                                     </box>
                                   </Show>
                                   <Show when={workstationState().goal}>
