@@ -1,12 +1,10 @@
 import { Bus } from "@/bus"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
-import { SessionStatus } from "@/session/status"
 import { Permission } from "@/governance"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { Storage } from "@/storage/storage"
-import { Identifier } from "@/id/id"
 import { Log } from "@/util/log"
 import { deriveSessionLifecycleFromMessages } from "@/session/lifecycle"
 import { RunFactory } from "@/execution/run-factory"
@@ -26,7 +24,6 @@ import {
   type ApprovalRecord,
   type ArtifactRecord,
   type CreateRunResponse,
-  type PendingApprovalSummary,
   type RunCurrentStep,
   type RunEvent,
   type RunListItem,
@@ -37,7 +34,6 @@ import {
   type WorkflowClass,
   type WorkflowSummary,
   type WorkflowTerminalReason,
-  WorkflowTrustPosture,
   type ProjectedRun,
 } from "./run-contract"
 import { buildProjectedRun } from "./run-projections"
@@ -87,11 +83,10 @@ function buildWorkflowSummary(
   const stepGraph = steps.map((s) => s.stepId)
 
   let currentStepIndex: number | undefined
-  let completedSteps = 0
 
   if (runState) {
-    completedSteps = runState.steps.filter((s) => s.status === "completed").length
-    currentStepIndex = completedSteps
+    const completedStepsCount = runState.steps.filter((s) => s.status === "completed").length
+    currentStepIndex = completedStepsCount
   }
 
   let trustPosture: WorkflowSummary["trustPosture"] = "medium"
@@ -110,12 +105,12 @@ function buildWorkflowSummary(
 }
 
 function extractTerminalReason(events: RunEvent[]): WorkflowTerminalReason | undefined {
-  for (const event of events.reverse()) {
+  for (const event of [...events].reverse()) {
     if (event.type === "run.completed") {
       return "workflow_completed"
     }
     if (event.type === "run.failed") {
-      const error = event.payload?.error as { code?: string; message?: string } | undefined
+      const error = event.payload.error as { code?: string; message?: string } | undefined
       if (error?.code === "permission_denied") {
         return "permission_denied"
       }
@@ -218,13 +213,15 @@ function runStatusFromLifecycle(
 function toApprovalRecord(request: Permission.Request): ApprovalRecord {
   const permission = request.permission.toLowerCase()
   const type: ApprovalRecord["type"] =
-    permission === "shell"
-      ? "command_execute"
-      : permission.includes("patch")
-        ? "patch_apply"
-        : permission.includes("write") || permission.includes("edit")
-          ? "file_write"
-          : "tool_use"
+    permission === "question"
+      ? "question"
+      : permission === "shell"
+        ? "command_execute"
+        : permission.includes("patch")
+          ? "patch_apply"
+          : permission.includes("write") || permission.includes("edit")
+            ? "file_write"
+            : "tool_use"
 
   const risk: ApprovalRecord["risk"] =
     type === "command_execute" ? "high" : type === "file_write" || type === "patch_apply" ? "medium" : "low"
@@ -417,7 +414,7 @@ function queueRunEventMutation<T>(runId: string, operation: () => Promise<T>): P
   })
 }
 
-async function appendEvent(runId: string, event: Omit<RunEvent, "schemaVersion" | "eventId" | "sequence" | "cursor">) {
+async function appendEvent(runId: string, event: any) {
   return queueRunEventMutation(runId, async () => {
     const events = await readEvents(runId)
     const sequence = (events.at(-1)?.sequence ?? 0) + 1
@@ -427,8 +424,10 @@ async function appendEvent(runId: string, event: Omit<RunEvent, "schemaVersion" 
       eventId,
       sequence,
       cursor: eventId,
+      runId,
+      timestamp: new Date().toISOString(),
       ...event,
-    }
+    } as any
     events.push(full)
     await writeEvents(runId, events)
     listeners.get(runId)?.forEach((listener) => listener(full))
@@ -442,9 +441,7 @@ async function emitRunState(runId: string, nextStatus: RunSnapshot["status"], re
   const previousStatus = snapshot?.status ?? "created"
   if (previousStatus === nextStatus && !reason) return
   await appendEvent(runId, {
-    runId,
     type: "run.state_changed",
-    timestamp: new Date().toISOString(),
     payload: {
       previousStatus,
       currentStatus: nextStatus,
@@ -472,9 +469,7 @@ async function handlePartUpdated(part: MessageV2.Part) {
 
   if (next === "pending") {
     await appendEvent(runId, {
-      runId,
       type: "step.proposed",
-      timestamp: new Date().toISOString(),
       payload: {
         stepId: part.id,
         title: toolStepTitle(part),
@@ -486,9 +481,7 @@ async function handlePartUpdated(part: MessageV2.Part) {
 
   if (next === "running") {
     await appendEvent(runId, {
-      runId,
       type: "step.started",
-      timestamp: new Date().toISOString(),
       payload: {
         stepId: part.id,
         title: toolStepTitle(part),
@@ -504,9 +497,7 @@ async function handlePartUpdated(part: MessageV2.Part) {
         ? part.state.time.end - part.state.time.start
         : undefined
     await appendEvent(runId, {
-      runId,
       type: "step.completed",
-      timestamp: new Date().toISOString(),
       payload: {
         stepId: part.id,
         title: toolStepTitle(part),
@@ -519,9 +510,7 @@ async function handlePartUpdated(part: MessageV2.Part) {
 
   if (next === "error") {
     await appendEvent(runId, {
-      runId,
       type: "step.failed",
-      timestamp: new Date().toISOString(),
       payload: {
         stepId: part.id,
         title: toolStepTitle(part),
@@ -543,7 +532,6 @@ async function handleSessionUpdated(info: Session.Info) {
     if (artifactSet.has(record.artifactId)) continue
     artifactSet.add(record.artifactId)
     await appendEvent(runId, {
-      runId,
       type: "artifact.created",
       timestamp: record.createdAt,
       payload: {
@@ -557,9 +545,7 @@ async function handleSessionUpdated(info: Session.Info) {
   if (trust && trustSignatureByRun.get(runId) !== signature) {
     trustSignatureByRun.set(runId, signature)
     await appendEvent(runId, {
-      runId,
       type: "trust.updated",
-      timestamp: new Date().toISOString(),
       payload: {
         trust,
       },
@@ -591,7 +577,6 @@ async function handleBusEvent(event: any) {
   switch (event.type) {
     case "session.created":
       await appendEvent(event.properties.info.id, {
-        runId: event.properties.info.id,
         type: "run.created",
         timestamp: new Date(event.properties.info.time.created).toISOString(),
         payload: {
@@ -609,33 +594,25 @@ async function handleBusEvent(event: any) {
         const events = await readEvents(runId)
         if (!events.some((item) => item.type === "run.started")) {
           await appendEvent(runId, {
-            runId,
             type: "run.started",
-            timestamp: new Date().toISOString(),
             payload: {
               status: "running",
             },
           })
         }
         await emitRunState(runId, "running", "execution_active")
-        break
-      }
-      if (event.properties.status.type === "idle") {
+      } else if (event.properties.status.type === "idle") {
         const snapshot = await RunGateway.getSnapshot(runId).catch(() => undefined)
         if (!snapshot) break
         if (snapshot.status === "completed") {
           await appendEvent(runId, {
-            runId,
             type: "run.completed",
-            timestamp: new Date().toISOString(),
             payload: {
               status: "completed",
               summaryAvailable: true,
             },
           })
-          break
-        }
-        if (snapshot.status === "failed" || snapshot.status === "cancelled") {
+        } else if (snapshot.status === "failed" || snapshot.status === "cancelled") {
           const runState = await RunStore.get(runId)
           const stepErrors = runState?.steps.filter((s) => s.status === "failed" && s.error).map((s) => s.error) ?? []
           const firstStepError = stepErrors[0]
@@ -647,9 +624,7 @@ async function handleBusEvent(event: any) {
             runError?.message ?? firstStepError?.message ?? `Run ended with status ${snapshot.status}`
 
           await appendEvent(runId, {
-            runId,
             type: "run.failed",
-            timestamp: new Date().toISOString(),
             payload: {
               status: "failed",
               error: {
@@ -658,7 +633,6 @@ async function handleBusEvent(event: any) {
               },
             },
           })
-          break
         }
       }
       break
@@ -686,7 +660,7 @@ async function handleBusEvent(event: any) {
       }
       break
     }
-    case "session.error":
+    case "session.error": {
       if (!event.properties.sessionID) break
       const errorMessage = event.properties.error?.data?.message ?? event.properties.error?.message ?? "Session failed"
       const errorCode = event.properties.error?.name ?? "session_error"
@@ -709,9 +683,7 @@ async function handleBusEvent(event: any) {
       }
 
       await appendEvent(event.properties.sessionID, {
-        runId: event.properties.sessionID,
         type: "run.failed",
-        timestamp: new Date().toISOString(),
         payload: {
           status: "failed",
           error: {
@@ -721,11 +693,10 @@ async function handleBusEvent(event: any) {
         },
       })
       break
+    }
     case "intent.created":
       await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
         type: "intent.created",
-        timestamp: new Date().toISOString(),
         payload: {
           intentType: event.properties.intentType,
           goal: event.properties.goal,
@@ -736,9 +707,7 @@ async function handleBusEvent(event: any) {
       break
     case "plan.compiled":
       await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
         type: "plan.compiled",
-        timestamp: new Date().toISOString(),
         payload: {
           planId: event.properties.planId,
           tasks: event.properties.tasks,
@@ -747,9 +716,7 @@ async function handleBusEvent(event: any) {
       break
     case "plan.step_promoted":
       await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
         type: "plan.step_promoted",
-        timestamp: new Date().toISOString(),
         payload: {
           stepId: event.properties.stepId,
           status: event.properties.status,
@@ -758,9 +725,7 @@ async function handleBusEvent(event: any) {
       break
     case "intervention.required":
       await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
         type: "intervention.required",
-        timestamp: new Date().toISOString(),
         payload: {
           reason: event.properties.reason,
           type: event.properties.type,
@@ -771,9 +736,7 @@ async function handleBusEvent(event: any) {
     case "approval.requested": {
       const runId = event.properties.runId
       await appendEvent(runId, {
-        runId,
         type: "approval.requested",
-        timestamp: new Date().toISOString(),
         payload: {
           approval: event.properties.approval,
         },
@@ -813,9 +776,7 @@ async function handleBusEvent(event: any) {
     }
     case "approval.resolved":
       await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
         type: "approval.resolved",
-        timestamp: new Date().toISOString(),
         payload: {
           approvalId: event.properties.approvalId,
           status: event.properties.decision === "approve" ? "approved" : "denied",
@@ -826,7 +787,7 @@ async function handleBusEvent(event: any) {
         },
       })
       break
-    case "artifact.created":
+    case "artifact.created": {
       const runId = event.properties.runId
       const artifact = event.properties.artifact
       const artifactSet = artifactIdsByRun.get(runId) ?? new Set<string>()
@@ -835,7 +796,6 @@ async function handleBusEvent(event: any) {
       if (!artifactSet.has(artifact.artifactId)) {
         artifactSet.add(artifact.artifactId)
         await appendEvent(runId, {
-          runId,
           type: "artifact.created",
           timestamp: artifact.createdAt,
           payload: {
@@ -844,11 +804,10 @@ async function handleBusEvent(event: any) {
         })
       }
       break
+    }
     case "audit.posture_updated":
       await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
         type: "audit.posture_updated",
-        timestamp: new Date().toISOString(),
         payload: {
           trust: event.properties.trust,
           finding: event.properties.finding,
@@ -1101,7 +1060,7 @@ export namespace RunGateway {
     }
   }
 
-  export async function getApprovals(runId: string) {
+  export async function getApprovals(runId: string): Promise<ApprovalRecord[]> {
     initialize()
     const canonicalApprovals = await ApprovalStore.pending(runId)
     if (canonicalApprovals.length > 0) {
@@ -1116,8 +1075,13 @@ export namespace RunGateway {
         context: approval.context,
         createdAt: approval.requestedAt,
         updatedAt: approval.resolvedAt ?? approval.requestedAt,
-        resolvedAt: approval.resolvedAt,
-        resolution: approval.resolution,
+        resolvedAt: approval.resolvedAt ?? undefined,
+        resolution: approval.resolution ? {
+          decision: approval.resolution.decision,
+          source: "system",
+          actorId: approval.resolution.actorId,
+          comment: approval.resolution.comment,
+        } : undefined,
       }))
     }
     const legacyApprovals = await getPendingApprovalsForRun(runId)
@@ -1145,7 +1109,7 @@ export namespace RunGateway {
         resolution: updated?.resolution ?? {
           decision: input.decision,
           actorId: input.actorId,
-          source: input.source,
+          source: input.source || "system",
           comment: input.comment,
         },
         resolvedAt: updated?.resolvedAt ?? new Date().toISOString(),
@@ -1158,7 +1122,10 @@ export namespace RunGateway {
       const events = await readEvents(runId)
       const prior = [...events]
         .reverse()
-        .find((event) => event.type === "approval.resolved" && event.payload.approvalId === approvalId)
+        .find(
+          (event): event is RunEvent & { type: "approval.resolved" } =>
+            event.type === "approval.resolved" && event.payload.approvalId === approvalId,
+        )
       if (prior) {
         return {
           approvalId,
@@ -1185,7 +1152,7 @@ export namespace RunGateway {
       resolution: {
         decision: input.decision,
         actorId: input.actorId,
-        source: input.source,
+        source: input.source || "system",
         comment: input.comment,
       },
       resolvedAt: new Date().toISOString(),
@@ -1208,21 +1175,13 @@ export namespace RunGateway {
     ])
 
     let stepCount = 0
-    let completedStepCount = 0
-    let failedStepCount = 0
     let approvalCount = 0
-    let approvedCount = 0
-    let deniedCount = 0
-    let pendingApprovalCount = 0
     let artifactCount = 0
 
     if (runState) {
       stepCount = runState.steps.length
-      completedStepCount = runState.steps.filter((s) => s.status === "completed").length
-      failedStepCount = runState.steps.filter((s) => s.status === "failed").length
-      pendingApprovalCount = runState.pendingApprovalIds.length
-      artifactCount = runState.artifactIds.length
       approvalCount = events.filter((event) => event.type === "approval.requested").length
+      artifactCount = runState.artifactIds.length
     } else {
       stepCount = events.filter((event) => event.type === "step.completed" || event.type === "step.failed").length
       approvalCount = events.filter((event) => event.type === "approval.requested").length
@@ -1265,12 +1224,12 @@ export namespace RunGateway {
       startedAt: snapshot.startedAt,
       completedAt: snapshot.completedAt,
       stepCount,
-      completedStepCount: runState ? completedStepCount : undefined,
-      failedStepCount: runState ? failedStepCount : undefined,
+      completedStepCount: runState ? runState.steps.filter((s) => s.status === "completed").length : undefined,
+      failedStepCount: runState ? runState.steps.filter((s) => s.status === "failed").length : undefined,
       approvalCount: approvalCount || approvedApprovals + deniedApprovals,
       approvedCount: approvedApprovals || undefined,
       deniedCount: deniedApprovals || undefined,
-      pendingApprovalCount: pendingApprovalCount || snapshot.pendingApprovalCount || undefined,
+      pendingApprovalCount: runState ? runState.pendingApprovalIds.length : (snapshot.pendingApprovalCount || undefined),
       artifactCount,
       trust: snapshot.trust,
       workflow: buildWorkflowSummary(meta?.workflowClass, runState),
@@ -1357,7 +1316,7 @@ export namespace RunGateway {
             reason: approvalRecord.reason,
             createdAt: approvalRecord.createdAt,
             targeting: run.targeting,
-            sourceSurface: run.sourceSurface ?? "unknown",
+            sourceSurface: run.sourceSurface ?? ("unknown" as const),
             workspaceId: run.workspaceId,
             projectId: run.projectId,
           }))
@@ -1370,7 +1329,7 @@ export namespace RunGateway {
         return {
           ...approval,
           targeting: run?.targeting,
-          sourceSurface: run?.sourceSurface ?? "unknown",
+          sourceSurface: run?.sourceSurface ?? ("unknown" as const),
           workspaceId: run?.workspaceId,
           projectId: run?.projectId,
         }

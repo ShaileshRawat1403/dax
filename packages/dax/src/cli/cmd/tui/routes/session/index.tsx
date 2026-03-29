@@ -185,6 +185,14 @@ export function Session() {
   const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const lifecycle = createMemo(() => (route.sessionID ? (sync.data.lifecycle[route.sessionID] ?? []) : []))
   
+  const narrative = createMemo(() => {
+    const combined = [
+      ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
+      ...lifecycle().map((l) => ({ type: "lifecycle" as const, id: l.timestamp + l.type, timestamp: new Date(l.timestamp).getTime(), data: l })),
+    ]
+    return combined.toSorted((a, b) => a.timestamp - b.timestamp)
+  })
+
   const currentRun = createMemo(() => {
     const events = lifecycle()
     const stateEvent = events.findLast(e => e.type === "run.state_changed")
@@ -206,13 +214,13 @@ export function Session() {
   const permissions = createMemo(() => {
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.permission[x.id] ?? [])
-    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => a.type !== "question"))
+    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => (a.type as string) !== "question"))
     return modern.length > 0 ? (modern as any) : legacy
   })
   const questions = createMemo(() => {
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.question[x.id] ?? [])
-    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => a.type === "question"))
+    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => (a.type as string) === "question"))
     return modern.length > 0 ? (modern as any) : legacy
   })
 
@@ -1122,7 +1130,7 @@ export function Session() {
       sessionStatusType: sessionStatusType(),
       goal: liveMissionGoal(),
       todo: todo(),
-      approvals: permissions().map((permission) => ({
+      approvals: permissions().map((permission: any) => ({
         label: permission.permission ?? permission.tool?.callID ?? "approval",
         reason: permission.patterns?.[0],
       })),

@@ -177,7 +177,7 @@ export const ApprovalRecord = z
   .object({
     approvalId: z.string(),
     runId: z.string(),
-    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate"]),
+    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate", "question"]),
     status: ApprovalStatus,
     risk: RiskLevel,
     title: z.string(),
@@ -365,7 +365,7 @@ export const PendingApprovalSummary = z
   .object({
     approvalId: z.string(),
     runId: z.string(),
-    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate"]),
+    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate", "question"]),
     risk: RiskLevel,
     title: z.string(),
     reason: z.string(),

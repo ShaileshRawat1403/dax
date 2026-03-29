@@ -125,7 +125,11 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
         if (stepIndex !== -1) {
           state.steps[stepIndex].status = "failed"
           state.steps[stepIndex].completedAt = event.timestamp
-          state.steps[stepIndex].error = event.payload.error
+          state.steps[stepIndex].error = {
+            code: event.payload.error.code,
+            message: event.payload.error.message,
+            retryable: (event.payload.error as any).retryable ?? false,
+          }
         }
         if (state.currentStepId === event.payload.stepId) {
           state.currentStepId = null
@@ -148,7 +152,12 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
         break
 
       case "trust.updated":
-        state.trust = event.payload.trust
+        state.trust = {
+          posture: event.payload.trust.posture ?? "low",
+          score: event.payload.trust.score ?? null,
+          blocked: event.payload.trust.blocked ?? false,
+          reasons: event.payload.trust.reasons ?? [],
+        }
         break
 
       case "run.completed":
@@ -161,7 +170,11 @@ export function replayRunState(events: RunEvent[]): ReplayResult {
         state.status = "failed"
         state.completedAt = event.timestamp
         state.currentStepId = null
-        state.error = event.payload.error
+        state.error = {
+          code: event.payload.error.code,
+          message: event.payload.error.message,
+          retryable: event.payload.error.retryable ?? false,
+        }
         break
     }
   }

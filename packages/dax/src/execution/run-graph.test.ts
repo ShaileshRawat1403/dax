@@ -4,6 +4,7 @@ import { runGraph } from "./run-graph"
 import { ExploreOperator } from "../operators/explore"
 import { OperatorRouter } from "../operators/router"
 import type { Operator } from "../operators/base"
+import { Instance } from "../project/instance"
 
 describe("Agent Run Graph: Explore Pipeline", () => {
   test("Executes a real explore pipeline in correct order", async () => {
@@ -59,11 +60,14 @@ describe("Agent Run Graph: Explore Pipeline", () => {
     const router = new OperatorRouter()
     router.register(new ExploreOperator())
 
-    // 3. Run graph
-    const ctx = { cwd: process.cwd(), sessionId: "test-123" }
-    const result = await runGraph(graph, ctx, router)
+    // 3. Execution
+    const cwd = process.cwd()
+    const result = await Instance.provide({
+      directory: cwd,
+      fn: () => runGraph(graph, { cwd, sessionId: "test_session" }, router),
+    })
 
-    // 4. Assertions - verify execution succeeded
+    // 4. Assertions
     expect(result.success).toBe(true)
     expect(result.failedTasks).toHaveLength(0)
 
@@ -96,7 +100,11 @@ describe("Agent Run Graph: Explore Pipeline", () => {
       },
     } satisfies Operator)
 
-    const result = await runGraph(graph, { cwd: process.cwd(), sessionId: "verify-gap" }, router)
+    const cwd = process.cwd()
+    const result = await Instance.provide({
+      directory: cwd,
+      fn: () => runGraph(graph, { cwd, sessionId: "test_session" }, router),
+    })
 
     expect(result.success).toBe(false)
     expect(result.failedTasks).toContain("task_requires_verification")
