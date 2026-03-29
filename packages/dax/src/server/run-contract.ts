@@ -168,6 +168,7 @@ export const ApprovalContext = z
     toolName: z.string().optional(),
     diffPreview: z.string().optional(),
     notes: z.string().array().optional(),
+    originalPermissionId: z.string().optional(),
   })
   .meta({ ref: "ApprovalContextV1" })
 export type ApprovalContext = z.infer<typeof ApprovalContext>
@@ -548,18 +549,48 @@ export const RunEventPayload = z.discriminatedUnion("type", [
 ])
 
 export const RunEvent = z
-  .object({
-    schemaVersion: SchemaVersion,
-    eventId: z.string(),
-    sequence: z.number(),
-    cursor: z.string(),
-    runId: z.string(),
-    type: RunEventType,
-    timestamp: z.string(),
-    payload: z.record(z.string(), z.any()),
-  })
+  .intersection(
+    z.object({
+      schemaVersion: SchemaVersion,
+      eventId: z.string(),
+      sequence: z.number(),
+      cursor: z.string(),
+      runId: z.string(),
+      timestamp: z.string(),
+    }),
+    RunEventPayload,
+  )
   .meta({ ref: "RunEventV1" })
 export type RunEvent = z.infer<typeof RunEvent>
+
+export const RunNarrativeItem = z.object({
+  id: z.string(),
+  timestamp: z.string(),
+  type: z.string(),
+  message: z.string(),
+  metadata: z.record(z.string(), z.any()).optional(),
+})
+export type RunNarrativeItem = z.infer<typeof RunNarrativeItem>
+
+export const RunHeaderProjection = z.object({
+  runId: z.string(),
+  title: z.string().optional(),
+  status: RunStatus,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  targeting: RunTargetingSummary.optional(),
+})
+export type RunHeaderProjection = z.infer<typeof RunHeaderProjection>
+
+export const ProjectedRun = z.object({
+  header: RunHeaderProjection,
+  narrative: RunNarrativeItem.array(),
+  approvals: ApprovalRecord.array(),
+  artifacts: ArtifactRecord.array(),
+})
+export type ProjectedRun = z.infer<typeof ProjectedRun>
 
 export const GetApprovalsResponse = z
   .object({

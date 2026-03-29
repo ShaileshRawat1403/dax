@@ -185,21 +185,35 @@ export function Session() {
   const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const lifecycle = createMemo(() => (route.sessionID ? (sync.data.lifecycle[route.sessionID] ?? []) : []))
   
-  const narrative = createMemo(() => {
-    const combined = [
-      ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
-      ...lifecycle().map((l) => ({ type: "lifecycle" as const, id: l.timestamp + l.type, timestamp: new Date(l.timestamp).getTime(), data: l })),
-    ]
-    return combined.toSorted((a, b) => a.timestamp - b.timestamp)
+  const currentRun = createMemo(() => {
+    const events = lifecycle()
+    const stateEvent = events.findLast(e => e.type === "run.state_changed")
+    return stateEvent?.properties
+  })
+
+  const currentStep = createMemo(() => {
+    const events = lifecycle()
+    const stepEvent = events.findLast(e => e.type === "plan.step_promoted")
+    return stepEvent?.properties
+  })
+
+  const modernTrust = createMemo(() => {
+    const events = lifecycle()
+    const auditEvent = events.findLast(e => e.type === "audit.posture_updated")
+    return auditEvent?.properties?.trust
   })
 
   const permissions = createMemo(() => {
     if (!session() || session()?.parentID) return []
-    return children().flatMap((x) => sync.data.permission[x.id] ?? [])
+    const legacy = children().flatMap((x) => sync.data.permission[x.id] ?? [])
+    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => a.type !== "question"))
+    return modern.length > 0 ? (modern as any) : legacy
   })
   const questions = createMemo(() => {
     if (!session() || session()?.parentID) return []
-    return children().flatMap((x) => sync.data.question[x.id] ?? [])
+    const legacy = children().flatMap((x) => sync.data.question[x.id] ?? [])
+    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => a.type === "question"))
+    return modern.length > 0 ? (modern as any) : legacy
   })
 
   const pending = createMemo(() => {
@@ -1092,10 +1106,12 @@ export function Session() {
     }
   }
   const sessionArtifacts = createMemo(() => {
-    const raw = (sync.data as any).session_artifact?.[route.sessionID] ?? []
-    return raw.map((item: any) => ({
-      label: item.path || item.id,
-      kind: item.kind,
+    const legacy = (sync.data as any).session_artifact?.[route.sessionID] ?? []
+    const modern = sync.data.artifacts[route.sessionID] ?? []
+    const combined = [...modern, ...legacy]
+    return combined.map((item: any) => ({
+      label: item.title || item.path || item.id,
+      kind: item.type || item.kind,
     }))
   })
   const workstationState = createMemo(() =>

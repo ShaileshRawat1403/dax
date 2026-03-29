@@ -891,4 +891,72 @@ describe("run gateway v1 contract", () => {
       rmSync(testHome, { recursive: true, force: true })
     }
   }, 40000)
+
+  test("builds run projections from snapshot and event stream", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-run-projections-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const { RunGateway } = await import("./run-gateway")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const create = await RunGateway.createRun({
+          intent: {
+            input: "Initial intent",
+          },
+          metadata: {
+            source: "soothsayer",
+            initiatedBy: "user_projections",
+          },
+        })
+
+        // Add some synthetic events to build a narrative
+        await RunGateway.__testing.appendEvent(create.runId, {
+          runId: create.runId,
+          type: "intent.created",
+          timestamp: new Date().toISOString(),
+          payload: {
+            intentType: "edit",
+            goal: "Fix the bug",
+            riskLevel: "medium",
+            confidence: 0.9,
+          },
+        })
+
+        await RunGateway.__testing.appendEvent(create.runId, {
+          runId: create.runId,
+          type: "plan.compiled",
+          timestamp: new Date().toISOString(),
+          payload: {
+            planId: "plan_1",
+            tasks: [
+              { id: "task_1", name: "Task 1", description: "Do something", dependencies: [] },
+            ],
+          },
+        })
+
+        const projections = await RunGateway.getProjections(create.runId)
+
+        expect(projections.header.runId).toBe(create.runId)
+        expect(projections.header.status).toBe("created")
+        
+        expect(projections.narrative).toHaveLength(3) // run.created, intent.created, plan.compiled
+        expect(projections.narrative[0].type).toBe("run.created")
+        expect(projections.narrative[1].type).toBe("intent.created")
+        expect(projections.narrative[1].message).toContain("Fix the bug")
+        expect(projections.narrative[2].type).toBe("plan.compiled")
+        expect(projections.narrative[2].message).toContain("1 tasks")
+
+        expect(projections.approvals).toEqual([])
+        expect(projections.artifacts).toEqual([])
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
 })

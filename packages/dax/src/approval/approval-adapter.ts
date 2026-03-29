@@ -20,6 +20,7 @@ export function toApprovalRecordV1(approval: Approval): ApprovalRecord {
       toolName: approval.context.toolName,
       diffPreview: approval.context.diffPreview,
       notes: approval.context.notes,
+      originalPermissionId: approval.context.originalPermissionId,
     } : undefined,
     createdAt: approval.requestedAt,
     updatedAt: approval.resolvedAt ?? approval.requestedAt,

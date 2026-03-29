@@ -38,7 +38,9 @@ import {
   type WorkflowSummary,
   type WorkflowTerminalReason,
   WorkflowTrustPosture,
+  type ProjectedRun,
 } from "./run-contract"
+import { buildProjectedRun } from "./run-projections"
 
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
@@ -259,12 +261,17 @@ function toApprovalRecord(request: Permission.Request): ApprovalRecord {
 function mergePendingApprovals(liveApprovals: ApprovalRecord[], eventApprovals: ApprovalRecord[]): ApprovalRecord[] {
   const merged = new Map<string, ApprovalRecord>()
 
+  // Add event-based approvals first (they are the canonical ones)
   for (const approval of eventApprovals) {
     merged.set(approval.approvalId, approval)
   }
 
-  for (const approval of liveApprovals) {
-    merged.set(approval.approvalId, approval)
+  // Add live permissions, but deduplicate if they were already adapted to a canonical approval
+  for (const live of liveApprovals) {
+    const alreadyAdapted = eventApprovals.some((ea) => ea.context?.originalPermissionId === live.approvalId)
+    if (!alreadyAdapted) {
+      merged.set(live.approvalId, live)
+    }
   }
 
   return [...merged.values()].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))
@@ -660,53 +667,11 @@ async function handleBusEvent(event: any) {
       await handlePartUpdated(event.properties.part)
       break
     case "permission.asked": {
-      const approval = toApprovalRecord(event.properties)
-
       try {
         await adaptPermissionRequest(event.properties)
       } catch (error) {
-        log.warn("failed to create canonical approval from permission", { error, runId: approval.runId })
+        log.warn("failed to create canonical approval from permission", { error, runId: event.properties.sessionID })
       }
-
-      await appendEvent(approval.runId, {
-        runId: approval.runId,
-        type: "approval.requested",
-        timestamp: approval.createdAt,
-        payload: {
-          approval,
-        },
-      })
-
-      const runState = await RunStore.get(approval.runId)
-      if (runState) {
-        if (runState.status === "running") {
-          try {
-            await Transitions.transition(approval.runId, "waiting_approval", "approval_pending")
-          } catch (error) {
-            log.warn("failed to transition to waiting_approval", { error, runId: approval.runId })
-          }
-        } else if (runState.status === "queued") {
-          try {
-            await Transitions.transition(approval.runId, "running", "execution_started")
-            await Transitions.transition(approval.runId, "waiting_approval", "approval_pending")
-          } catch (error) {
-            log.warn("failed to transition through running to waiting_approval", { error, runId: approval.runId })
-          }
-        } else if (runState.status === "compiled") {
-          try {
-            await Transitions.transition(approval.runId, "queued", "execution_queued")
-            await Transitions.transition(approval.runId, "running", "execution_started")
-            await Transitions.transition(approval.runId, "waiting_approval", "approval_pending")
-          } catch (error) {
-            log.warn("failed to transition through queued/running to waiting_approval", {
-              error,
-              runId: approval.runId,
-            })
-          }
-        }
-      }
-
-      await emitRunState(approval.runId, "waiting_approval", "approval_pending")
       break
     }
     case "permission.replied": {
@@ -719,19 +684,6 @@ async function handleBusEvent(event: any) {
       } catch (error) {
         log.warn("failed to resolve canonical approval", { error, runId, approvalId: event.properties.requestID })
       }
-
-      await appendEvent(runId, {
-        runId,
-        type: "approval.resolved",
-        timestamp: new Date().toISOString(),
-        payload: {
-          approvalId: event.properties.requestID,
-          status: event.properties.reply === "reject" ? "denied" : "approved",
-          decision: event.properties.reply === "reject" ? "deny" : "approve",
-          source: "system",
-          resolvedAt: new Date().toISOString(),
-        },
-      })
       break
     }
     case "session.error":
@@ -816,16 +768,49 @@ async function handleBusEvent(event: any) {
         },
       })
       break
-    case "approval.requested":
-      await appendEvent(event.properties.runId, {
-        runId: event.properties.runId,
+    case "approval.requested": {
+      const runId = event.properties.runId
+      await appendEvent(runId, {
+        runId,
         type: "approval.requested",
         timestamp: new Date().toISOString(),
         payload: {
           approval: event.properties.approval,
         },
       })
+
+      const runState = await RunStore.get(runId)
+      if (runState) {
+        if (runState.status === "running") {
+          try {
+            await Transitions.transition(runId, "waiting_approval", "approval_pending")
+          } catch (error) {
+            log.warn("failed to transition to waiting_approval", { error, runId })
+          }
+        } else if (runState.status === "queued") {
+          try {
+            await Transitions.transition(runId, "running", "execution_started")
+            await Transitions.transition(runId, "waiting_approval", "approval_pending")
+          } catch (error) {
+            log.warn("failed to transition through running to waiting_approval", { error, runId })
+          }
+        } else if (runState.status === "compiled") {
+          try {
+            await Transitions.transition(runId, "queued", "execution_queued")
+            await Transitions.transition(runId, "running", "execution_started")
+            await Transitions.transition(runId, "waiting_approval", "approval_pending")
+          } catch (error) {
+            log.warn("failed to transition through queued/running to waiting_approval", {
+              error,
+              runId,
+            })
+          }
+        }
+      }
+
+      await emitRunState(runId, "waiting_approval", "approval_pending")
       break
+    }
     case "approval.resolved":
       await appendEvent(event.properties.runId, {
         runId: event.properties.runId,
@@ -1298,6 +1283,18 @@ export namespace RunGateway {
           }
         : undefined,
     }
+  }
+
+  export async function getProjections(runId: string): Promise<ProjectedRun> {
+    initialize()
+    const [snapshot, events, approvals, artifacts] = await Promise.all([
+      getSnapshot(runId),
+      readEvents(runId),
+      getApprovals(runId),
+      listArtifacts(runId),
+    ])
+
+    return buildProjectedRun(snapshot, events, approvals, artifacts)
   }
 
   export async function replayEvents(runId: string, cursor?: string) {
