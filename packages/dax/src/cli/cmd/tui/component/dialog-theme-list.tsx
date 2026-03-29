@@ -26,7 +26,7 @@ export function DialogThemeList() {
 
   return (
     <DialogSelect
-      title="Themes"
+      title="Themes · dax recommended"
       options={options}
       current={initial}
       onMove={(opt) => {

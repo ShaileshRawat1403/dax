@@ -65,7 +65,13 @@ export function Header(props: {
               )}
             </For>
             <Show when={showLifecycleChip()}>
-              <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
+              <box
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
                 <text fg={lifecycleColor()}>{props.lifecycleLabel?.toLowerCase()}</text>
               </box>
             </Show>
@@ -76,6 +82,8 @@ export function Header(props: {
               onMouseUp={toggleEli12}
               flexDirection="row"
               backgroundColor={theme.backgroundElement}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
               paddingLeft={1}
               paddingRight={1}
             >
@@ -102,6 +110,8 @@ export function Header(props: {
                       paddingLeft={1}
                       paddingRight={1}
                       backgroundColor={action.primary ? theme.primary : theme.backgroundElement}
+                      border={["round"]}
+                      borderColor={action.primary ? theme.borderActive : theme.borderSubtle}
                     >
                       <text fg={action.primary ? theme.background : theme.textMuted}>{action.label}</text>
                     </box>

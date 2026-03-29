@@ -99,6 +99,8 @@ function SidebarAction(props: { label: string; onPress?: () => void; muted?: boo
         paddingLeft={1}
         paddingRight={1}
         backgroundColor={theme.backgroundElement}
+        border={["round"]}
+        borderColor={theme.borderSubtle}
         flexDirection="row"
         gap={1}
       >
@@ -128,7 +130,15 @@ function SectionHeading(props: { title: string; summary?: string }) {
 function SidebarCard(props: { children: any }) {
   const { theme } = useTheme()
   return (
-    <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1}>
+    <box
+      backgroundColor={theme.backgroundElement}
+      border={["round"]}
+      borderColor={theme.borderSubtle}
+      paddingLeft={1}
+      paddingRight={1}
+      paddingTop={1}
+      paddingBottom={1}
+    >
       <box flexDirection="column" gap={1}>
         {props.children}
       </box>
