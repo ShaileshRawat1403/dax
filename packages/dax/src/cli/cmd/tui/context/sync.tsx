@@ -28,6 +28,7 @@ import { useArgs } from "./args"
 import { batch, onMount } from "solid-js"
 import { Log } from "@/util/log"
 import type { Path } from "@dax-ai/sdk"
+import type { ApprovalRecord, ArtifactRecord } from "@/server/run-contract"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -62,6 +63,12 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       }
       lifecycle: {
         [sessionID: string]: any[]
+      }
+      approvals: {
+        [sessionID: string]: ApprovalRecord[]
+      }
+      artifacts: {
+        [sessionID: string]: ArtifactRecord[]
       }
       part: {
         [messageID: string]: Part[]
@@ -99,6 +106,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       todo: {},
       message: {},
       lifecycle: {},
+      approvals: {},
+      artifacts: {},
       part: {},
       lsp: [],
       mcp: {},
@@ -351,6 +360,34 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               })
             }),
           )
+
+          // Specialized collection updates
+          if (event.type === "approval.requested") {
+            setStore("approvals", runId, produce((draft) => {
+              if (!draft) draft = []
+              draft.push(event.payload.approval)
+            }))
+          } else if (event.type === "approval.resolved") {
+            setStore("approvals", runId, produce((draft) => {
+              if (!draft) return
+              const match = draft.find(a => a.approvalId === event.payload.approvalId)
+              if (match) {
+                match.status = event.payload.status
+                match.resolution = {
+                  decision: event.payload.decision,
+                  actorId: event.payload.actorId,
+                  source: event.payload.source,
+                  comment: event.payload.comment,
+                }
+                match.resolvedAt = event.payload.resolvedAt
+              }
+            }))
+          } else if (event.type === "artifact.created") {
+            setStore("artifacts", runId, produce((draft) => {
+              if (!draft) draft = []
+              draft.push(event.payload.artifact)
+            }))
+          }
           break
         }
       }
