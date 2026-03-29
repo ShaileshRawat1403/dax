@@ -17,12 +17,35 @@ That means the next releases should focus on:
 
 ```mermaid
 flowchart LR
-    A[v1.0.9<br/>Production readiness] --> B[v1.1.x<br/>Approval inbox and richer governance]
-    B --> C[v1.2.x<br/>Remote operator workflows and continuity]
+    A[v1.0.9<br/>Production readiness] --> B[v1.0.10<br/>Refine operator contract]
+    B --> C[v1.1.x<br/>Approval inbox and richer governance]
+    C --> D[v1.2.x<br/>Remote operator workflows and continuity]
     style A fill:#2f936e,stroke:#1f6148,color:#fff
-    style B fill:#3a7ca5,stroke:#234c66,color:#fff
-    style C fill:#6f4ea5,stroke:#452f68,color:#fff
+    style B fill:#2b6f9b,stroke:#1a4764,color:#fff
+    style C fill:#3a7ca5,stroke:#234c66,color:#fff
+    style D fill:#6f4ea5,stroke:#452f68,color:#fff
 ```
+
+## `v1.0.10` — Refine Becomes an Operator Contract
+
+Theme:
+
+> DAX starts turning prompt refinement into a governed execution-planning surface.
+
+Focus areas:
+
+- refine contract v2
+- clearer repo impact and governance forecasting
+- better right-pane control rail
+- more useful finish states and operator next moves
+- sharper DAX-native TUI polish
+
+Success means:
+
+- refine feels like a real operator tool, not just prompt cleanup
+- the right pane explains where the live run is going and what to do next
+- completed runs end with helpful operator moves when the state warrants them
+- the DAX theme and session surfaces feel deliberate again
 
 ## `v1.0.9` — Production Readiness
 

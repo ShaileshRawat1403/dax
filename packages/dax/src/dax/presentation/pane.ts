@@ -52,10 +52,13 @@ export function deriveAutoPaneMode(input: {
   hasLiveContext: boolean
   hasMemoryContext: boolean
   hasPlanContext: boolean
+  liveStage?: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
   fallback: PaneMode
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
   if (input.hasRefineDraft) return "refine"
+  if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasAuditAttention) return "audit"
+  if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasDiffContext) return "diff"
   if (input.hasLiveContext) return "plan"
   if (input.hasMemoryContext) return "memory"
   if (input.hasAuditAttention) return "audit"
@@ -72,6 +75,7 @@ export function deriveActivePaneMode(input: {
   hasLiveContext: boolean
   hasMemoryContext: boolean
   hasPlanContext: boolean
+  liveStage?: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
   fallback: PaneMode
   paneMode: PaneMode
   paneVisibility: PaneVisibility
@@ -89,6 +93,7 @@ export function deriveActivePaneMode(input: {
       hasLiveContext: input.hasLiveContext,
       hasMemoryContext: input.hasMemoryContext,
       hasPlanContext: input.hasPlanContext,
+      liveStage: input.liveStage,
       fallback: input.fallback,
     })
   }
@@ -100,6 +105,7 @@ export function deriveActivePaneMode(input: {
     hasLiveContext: input.hasLiveContext,
     hasMemoryContext: input.hasMemoryContext,
     hasPlanContext: input.hasPlanContext,
+    liveStage: input.liveStage,
     fallback: input.fallback,
   })
 }
