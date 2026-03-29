@@ -15,6 +15,8 @@ export interface PermissionRequest {
     command?: string
     filePath?: string
     path?: string
+    diff?: string
+    files?: any[]
   }
 }
 
@@ -60,6 +62,7 @@ export async function adaptPermissionRequest(request: PermissionRequest, stepId?
       toolName: request.permission,
       notes: request.patterns.length > 0 ? request.patterns : undefined,
       originalPermissionId: request.id,
+      diffPreview: request.metadata?.diff,
     },
     source: "permission",
   })
