@@ -559,7 +559,7 @@ async function handleSessionUpdated(info: Session.Info) {
   if (trust && trustSignatureByRun.get(runId) !== signature) {
     trustSignatureByRun.set(runId, signature)
     await appendEvent(runId, {
-      type: "trust.updated",
+      type: "audit.posture_updated",
       payload: {
         trust,
       },
