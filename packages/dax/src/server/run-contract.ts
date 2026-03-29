@@ -620,12 +620,26 @@ export const RunIntervention = z.object({
 })
 export type RunIntervention = z.infer<typeof RunIntervention>
 
+export const ProposedChange = z.object({
+  changeId: z.string(),
+  runId: z.string(),
+  approvalId: z.string().optional(),
+  stepId: z.string().optional(),
+  type: z.enum(["file_edit", "file_create", "file_delete", "patch"]),
+  filePath: z.string(),
+  diff: z.string(),
+  status: z.enum(["pending", "applied", "rejected", "stale"]),
+  createdAt: z.string(),
+})
+export type ProposedChange = z.infer<typeof ProposedChange>
+
 export const ProjectedRun = z.object({
   header: RunHeaderProjection,
   narrative: RunNarrativeItem.array(),
   approvals: ApprovalRecord.array(),
   artifacts: ArtifactRecord.array(),
   interventions: RunIntervention.array(),
+  proposedChanges: ProposedChange.array(),
 })
 export type ProjectedRun = z.infer<typeof ProjectedRun>
 

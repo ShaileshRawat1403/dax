@@ -8,6 +8,7 @@ import {
   RunNarrativeItem,
   RunIntervention,
   InterventionKind,
+  ProposedChange,
 } from "./run-contract"
 
 export function buildHeaderProjection(snapshot: RunSnapshot, interventions: RunIntervention[]): RunHeaderProjection {
@@ -62,6 +63,36 @@ export function buildInterventionProjection(events: RunEvent[]): RunIntervention
   return Array.from(interventions.values()).sort(
     (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)
   )
+}
+
+export function buildProposedChangesProjection(approvals: ApprovalRecord[]): ProposedChange[] {
+  const changes: ProposedChange[] = []
+
+  for (const approval of approvals) {
+    if (approval.context?.diffPreview) {
+      const type: ProposedChange["type"] = 
+        approval.type === "patch_apply" ? "patch" : "file_edit"
+      
+      const status: ProposedChange["status"] = 
+        approval.status === "pending" ? "pending" :
+        approval.status === "approved" ? "applied" :
+        approval.status === "denied" ? "rejected" : "stale"
+
+      changes.push({
+        changeId: `chg_${approval.approvalId}`,
+        runId: approval.runId,
+        approvalId: approval.approvalId,
+        stepId: approval.context.stepId,
+        type,
+        filePath: approval.context.filePath ?? "unknown",
+        diff: approval.context.diffPreview,
+        status,
+        createdAt: approval.createdAt,
+      })
+    }
+  }
+
+  return changes
 }
 
 export function buildNarrativeProjection(events: RunEvent[]): RunNarrativeItem[] {
@@ -219,11 +250,13 @@ export function buildProjectedRun(
   artifacts: ArtifactRecord[]
 ): ProjectedRun {
   const interventions = buildInterventionProjection(events)
+  const proposedChanges = buildProposedChangesProjection(approvals)
   return {
     header: buildHeaderProjection(snapshot, interventions),
     narrative: buildNarrativeProjection(events),
     approvals,
     artifacts,
     interventions,
+    proposedChanges,
   }
 }

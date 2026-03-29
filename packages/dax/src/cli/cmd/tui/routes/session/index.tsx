@@ -202,6 +202,17 @@ export function Session() {
     return Array.from(result.values())
   })
 
+  const permissions = createMemo(() => {
+    if (!session() || session()?.parentID) return []
+    const legacy = children().flatMap((x) => sync.data.permission[x.id] ?? [])
+    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => (a.type as string) !== "question"))
+    return modern.length > 0 ? (modern as any) : legacy
+  })
+
+  const proposedChanges = createMemo(() => {
+    return permissions().filter((p: any) => p.context?.diffPreview)
+  })
+
   const narrative = createMemo(() => {
     const combined = [
       ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
@@ -228,12 +239,6 @@ export function Session() {
     return auditEvent?.properties?.trust
   })
 
-  const permissions = createMemo(() => {
-    if (!session() || session()?.parentID) return []
-    const legacy = children().flatMap((x) => sync.data.permission[x.id] ?? [])
-    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => (a.type as string) !== "question"))
-    return modern.length > 0 ? (modern as any) : legacy
-  })
   const questions = createMemo(() => {
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.question[x.id] ?? [])
@@ -1104,7 +1109,6 @@ export function Session() {
     return filetype(files[0].filename)
   })
 
-  const hasDiffNeed = createMemo(() => !!revert()?.diff)
   const hasPlanNeed = createMemo(() => latestUserCommand().startsWith("/pm"))
   const hasRefineNeed = createMemo(() => paneMode() === "refine" && refinedPrompt().trim().length > 0)
   const hasAuditNeed = createMemo(() => {
@@ -1112,6 +1116,7 @@ export function Session() {
     return workflowMode() === "audit" || audit?.status === "warn" || audit?.status === "fail"
   })
   const hasPlanContext = createMemo(() => hasPlanNeed() || todo().length > 0 || !!liveMissionGoal())
+  const hasDiffNeed = createMemo(() => !!revert()?.diff || proposedChanges().length > 0)
   const priorityPaneMode = createMemo<PaneMode>(() => {
     if (hasApprovalsNeed()) return "approvals"
     if (hasRefineNeed()) return "refine"
@@ -1122,8 +1127,10 @@ export function Session() {
   const paneBadge = (mode: PaneMode) => {
     switch (mode) {
       case "diff": {
-        const count = revert()?.diffFiles?.length ?? 0
-        return count > 0 ? String(count) : undefined
+        const revertCount = revert()?.diffFiles?.length ?? 0
+        const proposedCount = proposedChanges().length
+        const total = revertCount + proposedCount
+        return total > 0 ? String(total) : undefined
       }
       case "audit": {
         const summary = latestAudit()?.result?.summary
@@ -1162,7 +1169,7 @@ export function Session() {
       })),
       questions: questions().length,
       artifacts: sessionArtifacts(),
-      diffCount: revert()?.diffFiles?.length ?? 0,
+      diffCount: (revert()?.diffFiles?.length ?? 0) + proposedChanges().length,
       recentTooling: recentTools(),
       audit: latestAudit()?.result
         ? {
@@ -1234,15 +1241,23 @@ export function Session() {
     prompt?.blur()
   })
   const openDiffDialog = () => {
-    if (!revert()?.diffFiles?.length) return
+    if (!hasDiffNeed()) return
     dialog.replace(() => (
       <DialogDiff
         explainMode={explainMode()}
-        diffs={(revert()?.diffFiles ?? []).map((file) => ({
-          file: file.filename,
-          additions: file.additions,
-          deletions: file.deletions,
-        }))}
+        diffs={[
+          ...(revert()?.diffFiles ?? []).map((file) => ({
+            file: file.filename,
+            additions: file.additions,
+            deletions: file.deletions,
+          })),
+          ...proposedChanges().map((change: any) => ({
+            file: change.context?.filePath ?? "unknown",
+            additions: 0,
+            deletions: 0,
+            speculative: true,
+          }))
+        ]}
         onOpenPane={() => {
           setPaneMode(() => "diff")
           setPaneVisibility((prev) => (prev === "hidden" ? "pinned" : prev))
@@ -1323,7 +1338,7 @@ export function Session() {
       title: "Review diff",
       value: "session.diff.review",
       category: "Review",
-      enabled: !!revert()?.diffFiles?.length,
+      enabled: hasDiffNeed(),
       onSelect: (dialog) => {
         openDiffDialog()
       },
@@ -2620,8 +2635,8 @@ export function Session() {
                         <Switch>
                           <Match when={activePaneMode() === "diff"}>
                             <Show
-                              when={revert()?.diff}
-                              fallback={<text fg={theme.textMuted}>No active diff for this turn.</text>}
+                              when={hasDiffNeed()}
+                              fallback={<text fg={theme.textMuted}>No active diff or proposed changes for this turn.</text>}
                             >
                               <box flexDirection="column" gap={1} flexGrow={1} width="100%">
                                 <Show when={revert()?.diffFiles?.length}>
@@ -2641,6 +2656,18 @@ export function Session() {
                                     </For>
                                   </box>
                                 </Show>
+                                <Show when={proposedChanges().length > 0}>
+                                  <box flexDirection="column" gap={0} marginBottom={1}>
+                                    <text fg={theme.primary} bold>PROPOSED CHANGES</text>
+                                    <For each={proposedChanges()}>
+                                      {(change: any) => (
+                                        <text fg={theme.text}>
+                                          {change.context?.filePath ?? "unknown"} (speculative)
+                                        </text>
+                                      )}
+                                    </For>
+                                  </box>
+                                </Show>
                                 <box
                                   flexGrow={1}
                                   border={["top"]}
@@ -2650,9 +2677,9 @@ export function Session() {
                                 >
                                   <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
                                     <diff
-                                      diff={revert()!.diff ?? ""}
+                                      diff={revert()?.diff ?? proposedChanges()[0]?.context?.diffPreview ?? ""}
                                       view={paneDiffView()}
-                                      filetype={paneDiffFiletype()}
+                                      filetype={revert()?.diff ? paneDiffFiletype() : filetype(proposedChanges()[0]?.context?.filePath)}
                                       syntaxStyle={syntax()}
                                       showLineNumbers={true}
                                       width="100%"
