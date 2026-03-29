@@ -35,6 +35,10 @@
 
 While standard AI chat interfaces are built for conversation, DAX is built for **delivery**. It provides explicit control, traceability, and governance over AI operations within your software development lifecycle.
 
+### One-Line Positioning
+
+**DAX is the governed execution workstation for AI-driven software work, giving teams approvals, replayability, and audit-grade control instead of black-box agent behavior.**
+
 ### ⚖️ The RAO Governance Loop
 
 DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
@@ -57,6 +61,25 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
   - `dax verify`: Evidence-based session validation.
   - `dax plan`: Inspect and refine task graphs before execution.
 
+## 🧭 How DAX Differs
+
+DAX is not trying to be the fastest “AI coding assistant” in an editor tab. It is trying to be the most trustworthy execution system when the work actually matters.
+
+| Tool | Core mental model | Strength | Where DAX is different |
+| :--- | :--- | :--- | :--- |
+| **Cursor** | AI-native coding IDE | Fast in-editor generation and editing | DAX centers approvals, replay, audit trail, and governed execution instead of IDE convenience |
+| **Codex** | Strong agentic coding runtime | High implementation throughput and coding depth | DAX treats the run as the product, with explicit intervention and approval objects |
+| **Claude Code** | Terminal-native coding agent | Strong repo reasoning and CLI flow | DAX is more operator-first, with canonical run state, speculative previews, and recovery surfaces |
+| **DAX** | Governed execution workstation | Control plane for AI work in real repositories | Purpose-built for traceability, approval-aware operations, and reviewable delivery |
+
+### What DAX Should Win On
+
+- clear pause and approval semantics
+- evidence-forward diffs before mutation
+- replayable run state instead of chat archaeology
+- trust, audit, and release-readiness workflows
+- local operator memory that improves continuity without pretending to be magic
+
 ---
 
 ## 📖 Documentation Index
@@ -64,7 +87,7 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 | Category              | Guides                                                                                                                                                                                                                                             |
 | :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Getting Started**   | [What Is DAX?](./docs/product/WHAT_IS_DAX.md) • [In Simple Words](./docs/product/DAX_IN_SIMPLE_WORDS.md) • [Quickstart](./docs/product/QUICKSTART.md) • [Start Here](./docs/product/start-here.md) • [Provider Setup](./docs/product/providers.md) |
-| **Product & Use**     | [User Guide](./docs/product/USER_GUIDE.md) • [Intent Guide](./docs/product/INTENT_GUIDE.md) • [Tool & Risk Matrix](./docs/product/TOOLS_AND_RISK_MATRIX.md) • [Runs, Approvals & Recovery](./docs/product/RUNS_APPROVALS_AND_RECOVERY.md) • [Workflows](./docs/product/WORKFLOWS.md) |
+| **Product & Use**     | [User Guide](./docs/product/USER_GUIDE.md) • [Intent Guide](./docs/product/INTENT_GUIDE.md) • [Tool & Risk Matrix](./docs/product/TOOLS_AND_RISK_MATRIX.md) • [Runs, Approvals & Recovery](./docs/product/RUNS_APPROVALS_AND_RECOVERY.md) • [Workflows](./docs/product/WORKFLOWS.md) • [Positioning](./docs/product/POSITIONING.md) • [Roadmap](./docs/product/ROADMAP.md) |
 | **Architecture**      | [How DAX Works](./docs/architecture/HOW_DAX_WORKS.md) • [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md)           |
 | **Open Source Stack** | [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) • [Deployment Guide](./docs/OPEN_SOURCE_STACK_DEPLOYMENT.md)                                                                                                                                  |
 | **Governance**        | [Policy Tuning](./docs/product/POLICY_TUNING.md) • [Project Memory](./docs/product/PROJECT_MEMORY.md) • [Transparency & Limitations](./docs/product/TRANSPARENCY_AND_LIMITATIONS.md) • [Write Governance](./docs/features/DAX_WRITE_GOVERNANCE.md) |
