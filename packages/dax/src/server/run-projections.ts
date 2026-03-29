@@ -108,7 +108,7 @@ export function buildNarrativeProjection(events: RunEvent[]): RunNarrativeItem[]
   return narrative
 }
 
-function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined {
+export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined {
   const { type, payload, timestamp, eventId } = event
 
   switch (type) {
@@ -117,7 +117,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "run.created",
-        message: "Session created",
+        message: "Session initialized",
         metadata: { title: payload.title },
       }
     case "run.started":
@@ -125,21 +125,21 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "run.started",
-        message: "Execution started",
+        message: "Workstation active: beginning execution",
       }
     case "run.completed":
       return {
         id: eventId,
         timestamp,
         type: "run.completed",
-        message: "Session completed successfully",
+        message: "Goal reached: execution successful",
       }
     case "run.failed":
       return {
         id: eventId,
         timestamp,
         type: "run.failed",
-        message: `Session failed: ${payload.error?.message ?? "Unknown error"}`,
+        message: `Execution halted: ${payload.error?.message ?? "unknown failure"}`,
         metadata: { error: payload.error },
       }
     case "intent.created":
@@ -147,7 +147,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "intent.created",
-        message: `Intent identified: ${payload.goal}`,
+        message: `Target identified: ${payload.goal}`,
         metadata: { intentType: payload.intentType, confidence: payload.confidence },
       }
     case "plan.compiled":
@@ -155,7 +155,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "plan.compiled",
-        message: `Plan compiled with ${payload.tasks?.length ?? 0} tasks`,
+        message: `Strategy locked: ${payload.tasks?.length ?? 0} tasks mapped`,
         metadata: { planId: payload.planId },
       }
     case "step.proposed":
@@ -163,7 +163,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "step.proposed",
-        message: `Proposed step: ${payload.title}`,
+        message: `Preparing step: ${payload.title}`,
         metadata: { stepId: payload.stepId, detail: payload.detail },
       }
     case "step.started":
@@ -171,7 +171,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "step.started",
-        message: `Starting step: ${payload.title}`,
+        message: `Executing: ${payload.title}`,
         metadata: { stepId: payload.stepId },
       }
     case "step.completed":
@@ -179,7 +179,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "step.completed",
-        message: `Completed step: ${payload.title}`,
+        message: `Step complete: ${payload.title}`,
         metadata: { stepId: payload.stepId, durationMs: payload.durationMs },
       }
     case "step.failed":
@@ -187,7 +187,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "step.failed",
-        message: `Step failed: ${payload.title} - ${payload.error?.message}`,
+        message: `Step failed: ${payload.title} (${payload.error?.message})`,
         metadata: { stepId: payload.stepId, error: payload.error },
       }
     case "approval.requested":
@@ -195,7 +195,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "approval.requested",
-        message: `Approval requested: ${payload.approval?.title}`,
+        message: `Policy Gate: ${payload.approval?.title} (${payload.approval?.risk.toUpperCase()} RISK)`,
         metadata: { approvalId: payload.approval?.approvalId, risk: payload.approval?.risk },
       }
     case "approval.resolved":
@@ -203,7 +203,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "approval.resolved",
-        message: `Approval resolved: ${payload.decision === "approve" ? "Approved" : "Denied"}`,
+        message: `Gate resolved: ${payload.decision === "approve" ? "APPROVED" : "DENIED"}`,
         metadata: { approvalId: payload.approvalId, decision: payload.decision, comment: payload.comment },
       }
     case "artifact.created":
@@ -211,7 +211,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "artifact.created",
-        message: `Artifact produced: ${payload.artifact?.title}`,
+        message: `Evidence produced: ${payload.artifact?.title}`,
         metadata: { artifactId: payload.artifact?.artifactId, artifactType: payload.artifact?.type },
       }
     case "audit.posture_updated":
@@ -219,7 +219,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "audit.posture_updated",
-        message: `Trust posture updated to ${payload.trust?.posture ?? "unknown"}`,
+        message: `Trust status: ${payload.trust?.posture?.toUpperCase() ?? "UNKNOWN"}`,
         metadata: { score: payload.trust?.score, finding: payload.finding },
       }
     case "intervention.required":
@@ -227,7 +227,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "intervention.required",
-        message: `Intervention required: ${payload.reason}`,
+        message: `INTERVENTION REQUIRED: ${payload.reason}`,
         metadata: { kind: payload.kind, approvalId: payload.approvalId },
       }
     case "intervention.resolved":
@@ -235,7 +235,7 @@ function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | undefined 
         id: eventId,
         timestamp,
         type: "intervention.resolved",
-        message: `Intervention ${payload.status}: ${payload.comment ?? "No comment"}`,
+        message: `INTERVENTION ${payload.status.toUpperCase()}: ${payload.comment ?? "No comment"}`,
         metadata: { interventionId: payload.interventionId, status: payload.status },
       }
     default:
