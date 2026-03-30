@@ -7,6 +7,7 @@ import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import { useCommandDialog } from "../../component/dialog-command"
 import { useDialog } from "../../ui/dialog"
+import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
 
 export function Footer(props?: { lifecycleLabel?: string }) {
   const { theme } = useTheme()
@@ -16,8 +17,10 @@ export function Footer(props?: { lifecycleLabel?: string }) {
   const dialog = useDialog()
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
+  const mcpTotal = createMemo(() => Object.keys(sync.data.mcp).length)
   const mcp = createMemo(() => Object.values(sync.data.mcp).filter((x) => x.status === "connected").length)
-  const mcpError = createMemo(() => Object.values(sync.data.mcp).some((x) => x.status === "failed"))
+  const mcpAttention = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusAttention(x as any)))
+  const mcpBlocked = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusBlocked(x as any)))
   const lsp = createMemo(() => Object.keys(sync.data.lsp))
   const directory = useDirectory()
 
@@ -122,15 +125,21 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             </box>
             <text fg={theme.textMuted}>Actions</text>
           </box>
-          <Show when={mcp() > 0}>
+          <Show when={mcpTotal() > 0}>
             <box
-              backgroundColor={mcpError() ? tint(theme.backgroundElement, theme.error, 0.08) : theme.backgroundElement}
+              backgroundColor={
+                mcpAttention()
+                  ? tint(theme.backgroundElement, mcpBlocked() ? theme.warning : theme.error, 0.08)
+                  : theme.backgroundElement
+              }
               border={["round"]}
-              borderColor={mcpError() ? theme.error : theme.borderSubtle}
+              borderColor={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.borderSubtle}
               paddingLeft={1}
               paddingRight={1}
             >
-              <text fg={mcpError() ? theme.error : theme.textMuted}>{mcpError() ? "!" : "●"} MCP:{mcp()}</text>
+              <text fg={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.textMuted}>
+                {mcpAttention() ? "!" : "●"} MCP:{mcp()}/{mcpTotal()}
+              </text>
             </box>
           </Show>
           <Show when={lsp().length > 0}>

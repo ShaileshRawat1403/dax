@@ -33,7 +33,7 @@ Run these from the repository root.
 bun run --cwd packages/dax src/index.ts --help
 bun run release:check
 bun run --cwd packages/dax src/index.ts doctor --json
-DAX_CONFIG=/Users/Shared/MYAIAGENTS/dax/.dax/dax.jsonc DAX_FORCE_EXIT=1 bun run --cwd packages/dax src/index.ts mcp ping workspace_kernel --json
+bun run --cwd packages/dax src/index.ts debug lsp status
 bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash guide Release Readiness
 bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash qa strict
 ```
@@ -73,6 +73,13 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 - latency should be low enough to feel interactive when connected
 - tool inventory should be returned successfully when the server is healthy
 
+### LSP
+
+- `debug lsp status` should return:
+  - the enabled server ids DAX sees for this repo
+  - the currently connected LSP clients, if any
+- zero connected clients is acceptable before file-driven activation
+
 ### Docs Mode
 
 - `run --command docs ...` should return a formatted docs result
@@ -81,13 +88,13 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 
 ## Latest Observed Baseline
 
-Observed on March 29, 2026:
+Observed on March 30, 2026:
 
 - CLI help rendered correctly
 - `bun run release:check` passed and wrote `artifacts/audit-result.json`
-- `dax doctor --json` returned overall `degraded`
+- `dax doctor --json` returned overall `ready`
 - auth, env, and project reported ready
-- MCP reported degraded because the configured local `workspace_kernel` executable path was missing, with an explicit remediation hint
+- repo-local MCP stayed intentionally disabled by default, so first-run readiness remained clean
 
 ## Known UX Notes
 
@@ -122,6 +129,7 @@ Validate these in one real session before release:
   - open the MCP cockpit in the TUI
   - run `dax mcp list`
   - run `dax mcp auth <server>` for remote OAuth servers
+  - enable the local `workspace_kernel` only after its executable is installed
 - If docs mode fails from CLI:
   - confirm you are using `--command docs`
   - pass docs arguments as plain message tokens, for example `qa strict`

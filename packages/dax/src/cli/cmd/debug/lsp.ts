@@ -8,8 +8,31 @@ export const LSPCommand = cmd({
   command: "lsp",
   describe: "LSP debugging utilities",
   builder: (yargs) =>
-    yargs.command(DiagnosticsCommand).command(SymbolsCommand).command(DocumentSymbolsCommand).demandCommand(),
+    yargs.command(StatusCommand).command(DiagnosticsCommand).command(SymbolsCommand).command(DocumentSymbolsCommand).demandCommand(),
   async handler() {},
+})
+
+const StatusCommand = cmd({
+  command: "status",
+  describe: "show enabled LSP servers and active client connections",
+  async handler() {
+    await bootstrap(process.cwd(), async () => {
+      const state = await LSP.init()
+      const connected = await LSP.status()
+      process.stdout.write(
+        JSON.stringify(
+          {
+            enabled: Object.values(state.servers)
+              .map((server) => server.id)
+              .sort((a, b) => a.localeCompare(b)),
+            connected,
+          },
+          null,
+          2,
+        ) + EOL,
+      )
+    })
+  },
 })
 
 const DiagnosticsCommand = cmd({

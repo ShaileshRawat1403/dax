@@ -134,7 +134,7 @@ export namespace Installation {
       case "curl":
         cmd = $`curl -fsSL https://dax.ai/install | bash`.env({
           ...process.env,
-          VERSION: target,
+          DAX_VERSION: target,
         })
         break
       case "npm":

@@ -992,7 +992,7 @@ export namespace RunGateway {
       }
 
       if (runState.pendingApprovalIds.length !== pending.length) {
-        log.warn("approval count mismatch between run state and permissions", {
+        log.debug("approval count mismatch between run state and permissions", {
           runId,
           runStateApprovals: runState.pendingApprovalIds.length,
           actualApprovals: pending.length,
