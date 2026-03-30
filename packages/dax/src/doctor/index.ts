@@ -223,7 +223,7 @@ export async function mcpSection(): Promise<DoctorSection> {
     return {
       id: "mcp",
       title: "MCP",
-      state: "waiting" as const,
+      state: "connected" as const,
       readiness: "ready",
       summary: "No MCP servers configured",
       detail: ["DAX can run without MCP, but MCP is available as an optional first-class capability."],
@@ -231,13 +231,12 @@ export async function mcpSection(): Promise<DoctorSection> {
     }
   }
 
-  const state: ProductState =
-    counts.failed > 0 ? "failed" : counts.blocked > 0 ? "blocked" : counts.connected > 0 ? "connected" : "waiting"
   const classifications = Object.entries(statuses).map(([name, status]) =>
     classifyMcpReadiness(name, status, config.mcp?.[name]),
   )
   const readiness = classifications.some((item) => item.readiness === "degraded") ? "degraded" : "ready"
   const issueCount = classifications.filter((item) => item.readiness === "degraded").length
+  const state: ProductState = issueCount > 0 && counts.connected === 0 ? "waiting" : "connected"
   const summary =
     issueCount > 0
       ? counts.connected > 0

@@ -1,5 +1,10 @@
 export type ProductState = "connected" | "waiting" | "blocked" | "needs_approval" | "failed"
 
+export type McpLikeStatus = {
+  status: "connected" | "disabled" | "failed" | "needs_auth" | "needs_client_registration"
+  error?: string
+}
+
 export function labelProductState(state: ProductState): string {
   switch (state) {
     case "connected":
@@ -40,7 +45,7 @@ export function aggregateProductState(states: ProductState[]): ProductState {
 
 export function nextActionForMcpStatus(
   name: string,
-  status: { status: "connected" | "disabled" | "failed" | "needs_auth" | "needs_client_registration"; error?: string },
+  status: McpLikeStatus,
 ) {
   switch (status.status) {
     case "connected":
@@ -54,6 +59,18 @@ export function nextActionForMcpStatus(
     case "failed":
       return status.error || "Retry the MCP server and inspect its startup logs."
   }
+}
+
+export function isMcpStatusAttention(status: McpLikeStatus) {
+  return (
+    status.status === "failed" ||
+    status.status === "needs_auth" ||
+    status.status === "needs_client_registration"
+  )
+}
+
+export function isMcpStatusBlocked(status: McpLikeStatus) {
+  return status.status === "needs_auth" || status.status === "needs_client_registration"
 }
 
 export function nextActionForErrorMessage(message?: string) {

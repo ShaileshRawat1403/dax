@@ -37,9 +37,17 @@ export namespace Snapshot {
       .cwd(Instance.directory)
       .nothrow()
     if (result.exitCode !== 0) {
+      const stderr = result.stderr.toString()
+      if (/gc is already running/i.test(stderr) || /another git process seems to be running/i.test(stderr)) {
+        log.debug("cleanup skipped because git gc is already running", {
+          exitCode: result.exitCode,
+          stderr,
+        })
+        return
+      }
       log.warn("cleanup failed", {
         exitCode: result.exitCode,
-        stderr: result.stderr.toString(),
+        stderr,
         stdout: result.stdout.toString(),
       })
       return

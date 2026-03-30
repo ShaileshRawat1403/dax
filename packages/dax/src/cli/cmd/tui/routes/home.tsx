@@ -20,6 +20,7 @@ import { isEli12Mode, nextIntentMode } from "@/dax/intent"
 import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
 import { useLocal } from "../context/local"
+import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
@@ -161,7 +162,8 @@ export function Home() {
   const local = useLocal()
   const dimensions = useTerminalDimensions()
   const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
-  const mcpError = createMemo(() => Object.values(sync.data.mcp).some((x) => x.status === "failed"))
+  const mcpAttention = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusAttention(x as any)))
+  const mcpBlocked = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusBlocked(x as any)))
 
   const connectedMcpCount = createMemo(() => {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
@@ -308,8 +310,8 @@ export function Home() {
       <box flexShrink={0} flexDirection="row" gap={1}>
         <box flexDirection="row" gap={1}>
           <Switch>
-            <Match when={mcpError()}>
-              <text fg={theme.error}>!</text>
+            <Match when={mcpAttention()}>
+              <text fg={mcpBlocked() ? theme.warning : theme.error}>!</text>
             </Match>
             <Match when={true}>
               <text fg={theme.success}>●</text>
@@ -361,7 +363,8 @@ export function Home() {
   )
   const doctorSummary = createMemo(() => {
     if (!mcp()) return "Core DAX is ready. Add MCP later if you need extra tools."
-    if (mcpError()) return "Optional MCP setup needs attention. Run dax doctor if anything feels unclear."
+    if (mcpBlocked()) return "Some MCP servers need authentication or client registration before they can connect."
+    if (mcpAttention()) return "Optional MCP setup needs attention. Run dax doctor if anything feels unclear."
     if (connectedMcpCount() > 0) return "MCP is connected and ready for richer repository context."
     return "No MCP servers are connected yet. DAX still works without MCP."
   })
@@ -459,7 +462,7 @@ export function Home() {
                     title="3. Check readiness"
                     body={doctorSummary()}
                     theme={theme}
-                    tone={mcpError() ? "warning" : "default"}
+                    tone={mcpAttention() ? "warning" : "default"}
                   />
                 </box>
                 <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
@@ -473,7 +476,7 @@ export function Home() {
                     theme={theme}
                     onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
                   />
-                  <Show when={mcpError()}>
+                  <Show when={mcpAttention()}>
                     <PromptStarter
                       label="Run dax doctor"
                       theme={theme}
@@ -572,8 +575,8 @@ export function Home() {
           <Show when={mcp()}>
             <box flexDirection="row" gap={1}>
               <Switch>
-                <Match when={mcpError()}>
-                  <text fg={theme.error}>!</text>
+                <Match when={mcpAttention()}>
+                  <text fg={mcpBlocked() ? theme.warning : theme.error}>!</text>
                 </Match>
                 <Match when={true}>
                   <text fg={connectedMcpCount() > 0 ? theme.success : theme.textMuted}>●</text>

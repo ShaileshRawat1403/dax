@@ -45,7 +45,7 @@ describe("doctor readiness", () => {
     const output = formatDoctorSection({
       id: "mcp",
       title: "MCP",
-      state: "failed",
+      state: "waiting",
       readiness: "degraded",
       summary: "1/1 MCP server needs attention",
       detail: ["workspace_kernel: local executable missing (/tmp/workspace-mcp)"],
@@ -53,6 +53,6 @@ describe("doctor readiness", () => {
     })
 
     expect(output).toContain("MCP: Degraded")
-    expect(output).toContain("operational state: Failed")
+    expect(output).toContain("operational state: Waiting")
   })
 })
