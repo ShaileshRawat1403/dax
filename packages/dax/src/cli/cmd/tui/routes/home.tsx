@@ -32,30 +32,36 @@ function BrandHeader(props: { theme: any }) {
   onMount(() => {
     const timer = setInterval(() => {
       setTick((value) => value + 1)
-    }, 140)
+    }, 80)
     onCleanup(() => clearInterval(timer))
   })
 
-  const letters = DAX_BRAND.name.toUpperCase().split("")
+  const letters = DAX_BRAND.name.toUpperCase().slice(0, 3).split("")
   const letterColor = (index: number) => {
-    const palette = [props.theme.primary, props.theme.accent, props.theme.secondary]
-    return palette[(tick() + index) % palette.length] ?? props.theme.primary
+    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
+    const offset = (tick() + index * 3) % (colors.length * 4)
+    if (offset < colors.length) return colors[offset]
+    return colors[colors.length - 1 - (offset - colors.length)]
   }
-
-  const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
+  const letterBlink = (index: number) => {
+    const phase = (tick() + index * 4) % 8
+    return phase < 2
+  }
 
   return (
     <box flexDirection="column" alignItems="center" gap={0}>
-      <box flexDirection="row" gap={0}>
+      <box flexDirection="row" height={1} alignItems="center" justifyContent="center">
         <For each={letters}>
           {(letter, index) => (
-            <text fg={letterColor(index())} attributes={letterWeight(index())}>
+            <text fg={letterColor(index())} attributes={letterBlink(index()) ? TextAttributes.BOLD : undefined}>
               {letter}
             </text>
           )}
         </For>
       </box>
-      <text fg={props.theme.textMuted}>Run · Audit · Override</text>
+      <box flexDirection="row" height={1} alignItems="center" justifyContent="center">
+        <text fg={props.theme.textMuted}>Run · Audit · Override</text>
+      </box>
     </box>
   )
 }
@@ -386,26 +392,6 @@ export function Home() {
           <box width="100%" maxWidth={small() ? undefined : 76} alignItems="center" gap={tiny() ? 0 : 1}>
             <BrandHeader theme={theme} />
 
-            <box
-              flexDirection="column"
-              alignItems="center"
-              gap={0}
-              backgroundColor={theme.backgroundPanel}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={2}
-              paddingRight={2}
-              paddingTop={1}
-              paddingBottom={1}
-            >
-              <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                Governed execution for real repository work
-              </text>
-              <text fg={theme.textMuted} wrapMode="word">
-                Start with a safe intent, review approvals and diffs when DAX pauses, and use doctor when setup needs help.
-              </text>
-            </box>
-
             <Show when={showStages()}>
               <box
                 width="100%"
@@ -428,9 +414,6 @@ export function Home() {
                   theme={theme}
                   onPress={() => command.trigger("eli12.toggle")}
                 />
-                <text fg={theme.textMuted}>
-                  Workflow: <span style={{ fg: theme.accent }}>{Locale.titlecase(activeWorkflowMode())}</span>
-                </text>
               </box>
             </Show>
 
