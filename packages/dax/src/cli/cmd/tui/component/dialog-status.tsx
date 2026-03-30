@@ -3,9 +3,10 @@ import { fileURLToPath } from "bun"
 import { useTheme } from "../context/theme"
 import { useDialog } from "@tui/ui/dialog"
 import { useSync } from "@tui/context/sync"
-import { For, Match, Switch, Show, createMemo, createSignal } from "solid-js"
+import { For, Match, Switch, Show, createMemo, createResource, createSignal } from "solid-js"
 import { Installation } from "@/installation"
 import { nextActionForMcpStatus } from "@/dax/status"
+import { useSDK } from "@tui/context/sdk"
 
 export type DialogStatusProps = {}
 
@@ -13,9 +14,15 @@ export function DialogStatus() {
   const sync = useSync()
   const { theme } = useTheme()
   const dialog = useDialog()
+  const sdk = useSDK()
   const [hover, setHover] = createSignal(false)
+  const [skills] = createResource(async () => {
+    const result = await sdk.client.app.skills().catch(() => undefined)
+    return result?.data ?? []
+  })
 
   const enabledFormatters = createMemo(() => sync.data.formatter.filter((f) => f.enabled))
+  const lspEnabled = createMemo(() => sync.data.config.lsp !== false)
 
   const plugins = createMemo(() => {
     const list = sync.data.config.plugin ?? []
@@ -108,36 +115,69 @@ export function DialogStatus() {
           </For>
         </box>
       </Show>
-      {sync.data.lsp.length > 0 && (
+      <Show when={lspEnabled()} fallback={<text fg={theme.text}>LSP disabled</text>}>
         <box>
-          <text fg={theme.text}>{sync.data.lsp.length} LSP Servers</text>
-          <For each={sync.data.lsp}>
+          <text fg={theme.text}>
+            {sync.data.lsp.length > 0 ? `${sync.data.lsp.length} Active LSP Client${sync.data.lsp.length === 1 ? "" : "s"}` : "LSP ready"}
+          </text>
+          <Show
+            when={sync.data.lsp.length > 0}
+            fallback={
+              <text fg={theme.textMuted} wrapMode="word">
+                No active LSP clients yet. DAX will attach language servers when you open or edit supported files.
+              </text>
+            }
+          >
+            <For each={sync.data.lsp}>
+              {(item) => (
+                <box flexDirection="row" gap={1}>
+                  <text
+                    flexShrink={0}
+                    style={{
+                      fg: {
+                        connected: theme.success,
+                        error: theme.error,
+                      }[item.status],
+                    }}
+                  >
+                    •
+                  </text>
+                  <box flexDirection="column">
+                    <text fg={theme.text} wrapMode="word">
+                      <b>{item.id}</b>
+                    </text>
+                    <text fg={theme.textMuted} wrapMode="word">
+                      {item.root}
+                    </text>
+                  </box>
+                </box>
+              )}
+            </For>
+          </Show>
+        </box>
+      </Show>
+      <Show when={(skills() ?? []).length > 0} fallback={<text fg={theme.text}>No built-in skills</text>}>
+        <box>
+          <text fg={theme.text}>{(skills() ?? []).length} Skills</text>
+          <For each={(skills() ?? []).slice(0, 4)}>
             {(item) => (
               <box flexDirection="row" gap={1}>
-                <text
-                  flexShrink={0}
-                  style={{
-                    fg: {
-                      connected: theme.success,
-                      error: theme.error,
-                    }[item.status],
-                  }}
-                >
+                <text flexShrink={0} fg={theme.success}>
                   •
                 </text>
                 <box flexDirection="column">
                   <text fg={theme.text} wrapMode="word">
-                    <b>{item.id}</b>
+                    <b>{item.name}</b>
                   </text>
                   <text fg={theme.textMuted} wrapMode="word">
-                    {item.root}
+                    {item.description}
                   </text>
                 </box>
               </box>
             )}
           </For>
         </box>
-      )}
+      </Show>
       <Show when={enabledFormatters().length > 0} fallback={<text fg={theme.text}>No Formatters</text>}>
         <box>
           <text fg={theme.text}>{enabledFormatters().length} Formatters</text>

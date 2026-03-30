@@ -224,10 +224,18 @@ export function createPlanPreview(input: {
   error?: string
 }): PlanPreview {
   const content = input.content?.trim() ?? ""
-  const steps = content ? extractPlanSteps(content) : []
-  const summary = content ? extractPlanSummary(content) : input.error ? "Planning failed before a plan was produced." : "No plan was produced."
+  const assistantFallbackWithoutPlan = input.contentSource === "assistant_output" && !input.planPath
+  const steps = assistantFallbackWithoutPlan ? [] : content ? extractPlanSteps(content) : []
+  const summary = assistantFallbackWithoutPlan
+    ? "Planning returned assistant output, but no canonical plan file was produced."
+    : content
+      ? extractPlanSummary(content)
+      : input.error
+        ? "Planning failed before a plan was produced."
+        : "No plan was produced."
   const readiness: PlanReadiness = (() => {
     if (!content) return "blocked"
+    if (assistantFallbackWithoutPlan) return "incomplete"
     if (steps.length === 0) return "incomplete"
     return "ready"
   })()
@@ -241,9 +249,11 @@ export function createPlanPreview(input: {
     summary,
     steps,
     content_source: input.contentSource ?? "none",
-    note: input.suppressedInteractiveGate
-      ? "Planning reached an interactive checkpoint; review the plan before execution."
-      : undefined,
+    note: assistantFallbackWithoutPlan
+      ? "Planning produced assistant output, but no canonical plan file was written. Treat this as a draft and avoid executing on it until the plan artifact exists."
+      : input.suppressedInteractiveGate
+        ? "Planning reached an interactive checkpoint; review the plan before execution."
+        : undefined,
     error: input.error,
   }
 }
