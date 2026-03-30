@@ -45,7 +45,7 @@ function buildMetricsEndpoint(): string {
 
 export function initialize(): void {
   if (!Flag.OTEL_ENABLED) {
-    log.info("OTel disabled - set OTEL_ENABLED=true to enable")
+    log.debug("OTel disabled - set OTEL_ENABLED=true to enable")
     return
   }
 

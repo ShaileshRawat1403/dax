@@ -122,7 +122,7 @@ graph TB
 
 The product direction is becoming clearer:
 
-- **`1.0.10`** sharpens refine into an operator contract, improves the right-pane control rail, and makes completed runs end with more useful operator next moves.
+- **`1.0.11`** tightens the final operator handoff with a compact session-close snapshot, safer planning fallbacks, and a cleaner release-ready finish.
 - **`1.1.x`** should deepen approvals and shared operator workflows.
 - **`1.2.x`** should expand remote governance and multi-surface continuity.
 

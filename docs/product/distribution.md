@@ -44,7 +44,7 @@ Two GitHub Actions workflows are included:
 1. `.github/workflows/publish-homebrew.yml`
 2. `.github/workflows/publish-winget.yml`
 
-Both are `workflow_dispatch` workflows and require `version` input (example: `v1.0.10`).
+Both are `workflow_dispatch` workflows and require `version` input (example: `v1.0.11`).
 
 ### Homebrew
 

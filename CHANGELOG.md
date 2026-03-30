@@ -5,6 +5,20 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-03-30
+
+### Added
+- **Session Close Snapshot**: Closing the TUI now leaves behind a concise DAX-branded handoff with resume command, session title, and useful run metrics when available.
+- **Exit Message Coverage**: Added regression tests for the close banner so the handoff stays compact and truthful as the TUI evolves.
+
+### Changed
+- **OTel Startup Noise**: The default “OTel disabled” message is now debug-level so normal local sessions do not look unhealthy when telemetry is intentionally off.
+- **Planning Fallback Honesty**: `dax plan` now treats assistant-only drafts as incomplete until the canonical plan file exists, instead of presenting them as ready execution plans.
+
+### Fixed
+- **Release Audit Docs Gate**: Added the required docs section headings so strict audit passes cleanly before release.
+- **Status Surface Robustness**: LSP and skills remain visible as operator-facing capabilities even when they are idle rather than actively attached.
+
 ## [1.0.10] - 2026-03-30
 
 ### Added

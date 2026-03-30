@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/scri
 
 Optional installer variables:
 
-- `DAX_VERSION`: release tag to install (example: `v1.0.10`)
+- `DAX_VERSION`: release tag to install (example: `v1.0.11`)
 - `DAX_INSTALL_DIR`: install directory (default: `~/.local/bin`)
 - `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax-tui`)
 
