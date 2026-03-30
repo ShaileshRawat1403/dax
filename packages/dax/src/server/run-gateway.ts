@@ -12,6 +12,7 @@ import { RunStore } from "@/state/run-store"
 import { LifecycleReconciler } from "@/runtime/compat/lifecycle-reconciler"
 import { ApprovalStore } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
+import { ApprovalAlreadyResolvedError, ApprovalNotFoundError } from "@/approval/approval-transitions"
 import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
 import { Tracer } from "@/runtime/telemetry"
 import { Transitions } from "@/state/transitions"
@@ -670,7 +671,15 @@ async function handleBusEvent(event: any) {
           actorId: "system",
         })
       } catch (error) {
-        log.warn("failed to resolve canonical approval", { error, runId, approvalId: event.properties.requestID })
+        if (error instanceof ApprovalNotFoundError || error instanceof ApprovalAlreadyResolvedError) {
+          log.debug("canonical approval already absent during permission reply replay", {
+            runId,
+            approvalId: event.properties.requestID,
+            error: error.message,
+          })
+        } else {
+          log.warn("failed to resolve canonical approval", { error, runId, approvalId: event.properties.requestID })
+        }
       }
       break
     }

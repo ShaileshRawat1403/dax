@@ -27,6 +27,10 @@ mindmap
       Contributing
 ```
 
+## Start Here
+
+If you are new to DAX, start here to understand the core concepts and get your environment ready.
+
 ## 🚀 Getting Started
 
 If you are new to DAX, start here to understand the core concepts and get your environment ready.
@@ -42,7 +46,15 @@ If you are new to DAX, start here to understand the core concepts and get your e
 - [**Roadmap**](./product/ROADMAP.md) - Near-term product direction across the next releases.
 - [**Builder's Note**](./BUILDERS_NOTE.md) - Why DAX exists and what perspective shaped it.
 
+## Non-Developers
+
+If you are operating DAX as a reviewer, approver, or non-coding stakeholder, start with the plain-language and non-developer guides before diving into deeper product docs.
+
 ---
+
+## Shipped Product Docs
+
+These are the main guides for using the shipped DAX product in day-to-day work.
 
 ## 🛠️ Product & Usage Guides
 
@@ -114,6 +126,10 @@ Detailed specifications for the key surfaces of the DAX workstation.
 - [**DAX Write Governance**](./features/DAX_WRITE_GOVERNANCE.md) - Protecting the integrity of your codebase.
 
 ---
+
+## Contributor / Current Merge Target
+
+Use the contributor guides when you are changing DAX itself, extending its workflows, or preparing the current merge target for release.
 
 ## 🤝 Community & Support
 

@@ -50,6 +50,23 @@ Review the approval surfaces before execution.
     expect(preview.steps).toEqual([])
   })
 
+  test("keeps assistant fallback plans incomplete until the plan file exists", () => {
+    const preview = createPlanPreview({
+      sessionID: "session_plan",
+      intent: "Review governance gaps",
+      content: `# Governance review
+
+1. Inspect pending approvals
+2. Summarize gaps`,
+      contentSource: "assistant_output",
+    })
+
+    expect(preview.readiness).toBe("incomplete")
+    expect(preview.summary).toBe("Planning returned assistant output, but no canonical plan file was produced.")
+    expect(preview.steps).toEqual([])
+    expect(preview.note).toContain("no canonical plan file was written")
+  })
+
   test("marks missing content as blocked", () => {
     const preview = createPlanPreview({
       sessionID: "session_plan",

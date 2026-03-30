@@ -29,7 +29,7 @@
 
 ---
 
-## 🚀 Overview
+## Overview
 
 **DAX** is a **projection-first governed execution workstation** designed for engineering teams and ambitious builders. Driven by a canonical event language, DAX treats AI reasoning and tool execution as a verifiable audit trail rather than a black box.
 
@@ -200,7 +200,7 @@ See the [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) and [Deployment Gui
 
 ---
 
-## 🛠️ Quickstart
+## Quickstart
 
 ### Prerequisites
 
