@@ -10,6 +10,7 @@ import {
   envSection,
   formatDoctorReport,
   formatDoctorSection,
+  lspSection,
   mcpSection,
   projectSection,
 } from "@/doctor"
@@ -83,6 +84,20 @@ export const DoctorEnvCommand = cmd({
   },
 })
 
+export const DoctorLspCommand = cmd({
+  command: "lsp",
+  describe: "inspect LSP readiness and current connection state",
+  builder: (yargs) =>
+    yargs.option("json", {
+      describe: "output machine-readable JSON",
+      type: "boolean",
+      default: false,
+    }),
+  async handler(args) {
+    await runSection(args, "Doctor: lsp", () => lspSection())
+  },
+})
+
 export const DoctorProjectCommand = cmd({
   command: "project",
   describe: "inspect current project/workspace readiness",
@@ -99,7 +114,7 @@ export const DoctorProjectCommand = cmd({
 
 export const DoctorCommand = cmd({
   command: "doctor [model]",
-  describe: "run readiness diagnostics across auth, MCP, environment, and project state",
+  describe: "run readiness diagnostics across auth, MCP, LSP, environment, and project state",
   builder: (yargs) =>
     yargs
       .positional("model", {
@@ -113,6 +128,7 @@ export const DoctorCommand = cmd({
       })
       .command(DoctorAuthCommand)
       .command(DoctorMcpCommand)
+      .command(DoctorLspCommand)
       .command(DoctorEnvCommand)
       .command(DoctorProjectCommand),
   async handler(args) {

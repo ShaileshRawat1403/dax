@@ -33,6 +33,7 @@ Run these from the repository root.
 bun run --cwd packages/dax src/index.ts --help
 bun run release:check
 bun run --cwd packages/dax src/index.ts doctor --json
+bun run --cwd packages/dax src/index.ts doctor lsp --json
 bun run --cwd packages/dax src/index.ts debug lsp status
 bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash guide Release Readiness
 bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash qa strict
@@ -59,6 +60,7 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 - `dax doctor --json` should return structured sections for:
   - auth
   - mcp
+  - lsp
   - env
   - project
 - report readiness as `ready`, `degraded`, or `blocked`
@@ -78,6 +80,7 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 - `debug lsp status` should return:
   - the enabled server ids DAX sees for this repo
   - the currently connected LSP clients, if any
+- `doctor lsp --json` should summarize whether DAX sees LSP as configured, idle, or degraded
 - zero connected clients is acceptable before file-driven activation
 
 ### Docs Mode
@@ -94,6 +97,7 @@ Observed on March 30, 2026:
 - `bun run release:check` passed and wrote `artifacts/audit-result.json`
 - `dax doctor --json` returned overall `ready`
 - auth, env, and project reported ready
+- `dax doctor lsp --json` returned an idle-but-ready LSP section with enabled server visibility
 - repo-local MCP stayed intentionally disabled by default, so first-run readiness remained clean
 
 ## Known UX Notes

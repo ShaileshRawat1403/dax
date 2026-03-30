@@ -53,6 +53,7 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 
 - **Governed Workstation**: A dual-surface TUI with a narrative execution stream and a dedicated control pane for changes, audits, and approvals.
 - **Multi-Provider Substrate**: Seamless integration with OpenAI, Google Gemini, Anthropic, Ollama, and custom MCP servers.
+- **Built-In Skills**: Ships first-party workflow skills such as `repo-explore`, `git-review`, `release-readiness`, and `artifact-audit`.
 - **Project Memory (PM)**: Durable, cross-session operational memory stored in a local SQLite engine.
 - **ELI12 Mode**: Real-time response translation for non-technical stakeholders without losing technical precision.
 - **Professional Tooling**:
