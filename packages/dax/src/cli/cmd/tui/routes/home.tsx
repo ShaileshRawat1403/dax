@@ -21,6 +21,7 @@ import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
 import { useLocal } from "../context/local"
 import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
+import { deriveHomeLayout } from "./home-layout"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
@@ -342,20 +343,23 @@ export function Home() {
   const width = createMemo(() => dimensions().width)
   const height = createMemo(() => dimensions().height)
 
-  const size = createMemo(() => {
-    const w = width()
-    const h = height()
-    if (w < 50 || h < 16) return "tiny"
-    if (w < 70) return "small"
-    return "medium"
-  })
+  const layout = createMemo(() =>
+    deriveHomeLayout({
+      width: width(),
+      height: height(),
+      sessionCount: sessionCount(),
+      tipsVisible: showTips(),
+    }),
+  )
 
-  const tiny = createMemo(() => size() === "tiny")
-  const small = createMemo(() => size() === "small")
-  const showInput = createMemo(() => height() >= 14)
-  const showStages = createMemo(() => height() >= 18)
-  const showActions = createMemo(() => height() >= 16)
-  const showFirstRunGuide = createMemo(() => !tiny() && height() >= 22)
+  const tiny = createMemo(() => layout().size === "tiny")
+  const small = createMemo(() => layout().size === "small")
+  const showInput = createMemo(() => layout().showInput)
+  const showStages = createMemo(() => layout().showStages)
+  const showActions = createMemo(() => layout().showActions)
+  const showFirstRunGuide = createMemo(() => !tiny() && layout().showFirstRunGuide)
+  const showSessions = createMemo(() => !tiny() && layout().showSessions)
+  const showHomeTips = createMemo(() => !tiny() && layout().showTips)
   const firstRunIntent = createMemo(() =>
     explainMode()
       ? "Explore this repository and explain the main parts in simple language."
@@ -376,7 +380,7 @@ export function Home() {
     <>
       <box
         flexGrow={1}
-        justifyContent="center"
+        justifyContent={layout().outerJustify}
         alignItems="center"
         paddingLeft={tiny() ? 0 : 1}
         paddingRight={tiny() ? 0 : 1}
@@ -392,7 +396,7 @@ export function Home() {
             </box>
           }
         >
-          <box width="100%" maxWidth={small() ? undefined : 76} alignItems="center" gap={tiny() ? 0 : 1}>
+          <box width="100%" maxWidth={layout().maxWidth} alignItems="center" gap={tiny() ? 0 : 1}>
             <BrandHeader theme={theme} />
 
             <Show when={showStages()}>
@@ -523,7 +527,7 @@ export function Home() {
               </box>
             </Show>
 
-            <Show when={!tiny() && sessionCount() > 0}>
+            <Show when={showSessions()}>
               <box width="100%" marginTop={1} flexDirection="column" gap={0}>
                 <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
                   {"  "}RECENT SESSIONS
@@ -551,7 +555,7 @@ export function Home() {
               </box>
             </Show>
 
-            <Show when={!tiny() && showTips()}>
+            <Show when={showHomeTips()}>
               <box width="100%" maxWidth={56} alignItems="center">
                 <Tips />
               </box>

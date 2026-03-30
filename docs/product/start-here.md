@@ -30,11 +30,15 @@ Start DAX:
 dax
 ```
 
-If you are developing inside this repo and want the repo-local config plus MCP setup:
+If you are developing inside this repo and want the repo-local config plus built-in skills:
 
 ```bash
 bun run dax:local
 ```
+
+Repo-local MCP remains opt-in. Enable a local MCP server only after its executable or remote auth flow is ready.
+
+Use [examples/dax.workspace-mcp.jsonc](../../examples/dax.workspace-mcp.jsonc) as a starting point for a local `workspace_kernel` config instead of copying machine-specific paths from screenshots or old notes.
 
 Then:
 

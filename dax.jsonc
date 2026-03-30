@@ -1,0 +1,9 @@
+{
+  "$schema": "https://dax.ai/config.json",
+
+  // Ship a small first-party skill set with the repo so the skills surface
+  // provides value out of the box instead of appearing empty.
+  "skills": {
+    "paths": ["./skills"]
+  }
+}

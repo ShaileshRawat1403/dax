@@ -3,6 +3,7 @@ import path from "path"
 import { Auth } from "@/auth"
 import { Config } from "@/config/config"
 import { aggregateProductState, labelProductState, type ProductState } from "@/dax/status"
+import { LSP } from "@/lsp"
 import { MCP } from "@/mcp"
 import { diagnoseProviderAuth, expectedGoogleOauthClientIds, type AuthDiagnostics } from "@/provider/auth-preflight"
 import { Project } from "@/project/project"
@@ -12,7 +13,7 @@ import { detectPythonEnvironment } from "@/cli/cmd/tui/util/environment"
 export type DoctorReadiness = "ready" | "degraded" | "blocked"
 
 export type DoctorSection = {
-  id: "auth" | "mcp" | "env" | "project"
+  id: "auth" | "mcp" | "lsp" | "env" | "project"
   title: string
   state: ProductState
   readiness: DoctorReadiness
@@ -260,6 +261,64 @@ export async function mcpSection(): Promise<DoctorSection> {
   }
 }
 
+export async function lspSection(): Promise<DoctorSection> {
+  const config = await Config.get()
+  if (config.lsp === false) {
+    return {
+      id: "lsp",
+      title: "LSP",
+      state: "connected",
+      readiness: "ready",
+      summary: "LSP disabled in config",
+      detail: ["Language servers are disabled for this project or user profile."],
+      next: ["Enable LSP in config when you want symbol, diagnostics, and workspace language features."],
+    }
+  }
+
+  const state = await LSP.init()
+  const connected = await LSP.status()
+  const enabled = Object.values(state.servers)
+    .map((server) => server.id)
+    .sort((a, b) => a.localeCompare(b))
+  const broken = Array.from(state.broken).sort()
+
+  const readiness: DoctorReadiness = broken.length > 0 ? "degraded" : "ready"
+  const sectionState: ProductState = broken.length > 0 && connected.length === 0 ? "waiting" : "connected"
+  const summary =
+    enabled.length === 0
+      ? "No LSP servers enabled"
+      : connected.length > 0
+        ? `${connected.length}/${enabled.length} LSP server${enabled.length === 1 ? "" : "s"} connected`
+        : `${enabled.length} LSP server${enabled.length === 1 ? "" : "s"} enabled`
+
+  const detail = [
+    enabled.length > 0
+      ? `enabled servers: ${enabled.slice(0, 8).join(", ")}${enabled.length > 8 ? ` (+${enabled.length - 8} more)` : ""}`
+      : "enabled servers: none",
+    connected.length > 0
+      ? `connected clients: ${connected.map((item) => `${item.id}@${item.root || "."}`).join(", ")}`
+      : "connected clients: none yet (connections open on demand as supported files are touched)",
+    ...(broken.length > 0 ? [`broken servers: ${broken.join(", ")}`] : []),
+  ]
+
+  const next =
+    broken.length > 0
+      ? ["Run `dax debug lsp status` to inspect enabled servers, then open a supported file to reproduce the failing language server."]
+      : enabled.length === 0
+        ? ["Configure or enable at least one LSP server if you want symbol and diagnostic coverage."]
+        : ["Run `dax debug lsp status` for machine-readable visibility. Zero connected clients is normal before file-driven activation."]
+
+  return {
+    id: "lsp",
+    title: "LSP",
+    state: sectionState,
+    readiness,
+    summary,
+    detail,
+    next,
+  }
+}
+
 export async function envSection(cwd: string = process.cwd()): Promise<DoctorSection> {
   const report = detectPythonEnvironment(cwd)
   const state: ProductState = report.inVirtualEnv || !report.projectHasPythonSignals ? "connected" : "waiting"
@@ -325,7 +384,7 @@ export async function projectSection(cwd: string = process.cwd()): Promise<Docto
 }
 
 export async function aggregateDoctorReport(cwd: string = process.cwd(), model?: string): Promise<DoctorReport> {
-  const sections = await Promise.all([authSection(model), mcpSection(), envSection(cwd), projectSection(cwd)])
+  const sections = await Promise.all([authSection(model), mcpSection(), lspSection(), envSection(cwd), projectSection(cwd)])
   return {
     generatedAt: new Date().toISOString(),
     state: aggregateProductState(sections.map((item) => item.state)),

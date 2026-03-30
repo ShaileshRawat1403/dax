@@ -2,11 +2,14 @@
   "$schema": "https://dax.ai/config.json",
   "mcp": {
     "workspace_kernel": {
+      // Copy this into your local .dax/dax.jsonc only after workspace-mcp is installed.
       "type": "local",
       "command": [
-        "/Users/Shared/MYAIAGENTS/soothsayer/workspace-mcp/.venv/bin/workspace-mcp",
+        // Update this to the installed workspace-mcp executable on your machine.
+        "/absolute/path/to/workspace-mcp",
         "--workspace-root",
-        "/Users/Shared/MYAIAGENTS/dax",
+        // Point this at the repository you want DAX to serve through workspace-mcp.
+        "/absolute/path/to/your/repo",
         "--profile",
         "dev"
       ],

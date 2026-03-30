@@ -137,9 +137,14 @@ export namespace Skill {
     const config = await Config.get()
     for (const skillPath of config.skills?.paths ?? []) {
       const expanded = skillPath.startsWith("~/") ? path.join(os.homedir(), skillPath.slice(2)) : skillPath
-      const resolved = path.isAbsolute(expanded) ? expanded : path.join(Instance.directory, expanded)
-      if (!(await Filesystem.isDir(resolved))) {
-        log.warn("skill path not found", { path: resolved })
+      const candidates = path.isAbsolute(expanded)
+        ? [expanded]
+        : [path.join(Instance.directory, expanded), path.join(Instance.worktree, expanded)]
+      const uniqueCandidates = candidates.filter((candidate, index) => candidates.indexOf(candidate) === index)
+      const existing = await Promise.all(uniqueCandidates.map((candidate) => Filesystem.isDir(candidate)))
+      const resolved = uniqueCandidates[existing.findIndex(Boolean)]
+      if (!resolved) {
+        log.warn("skill path not found", { path: candidates[0], fallback: candidates[1] })
         continue
       }
       for await (const match of SKILL_GLOB.scan({

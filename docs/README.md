@@ -58,6 +58,7 @@ Deep dives into how to use DAX features for real-world delivery.
 - [**GitHub CI Integration**](./product/integrations-github-ci.md) - Automated safety gates in your pipeline.
 - [**Build on DAX**](./product/build-on-dax.md) - Extending the platform with custom capabilities.
 - [**Distribution Channels**](./product/distribution.md) - Homebrew, Winget, and binary installs.
+- [**Skills Model**](./architecture/DAX_SKILLS_MODEL.md) - Built-in and external capability packs.
 
 ---
 
