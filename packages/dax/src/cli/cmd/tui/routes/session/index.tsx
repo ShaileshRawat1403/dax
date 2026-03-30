@@ -118,6 +118,7 @@ import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
+import { formatSessionExitMessage } from "./exit-message"
 
 addDefaultParsers(parsers.parsers)
 
@@ -809,11 +810,15 @@ export function Session() {
 
   createEffect(() => {
     return exit.message.set(
-      [
-        "",
-        `  ${UI.Style.TEXT_NORMAL_BOLD}DAX session closed${UI.Style.TEXT_NORMAL}`,
-        `  ${UI.Style.TEXT_DIM}resume: dax -s ${session()?.id}${UI.Style.TEXT_NORMAL}`,
-      ].join("\n"),
+      formatSessionExitMessage({
+        sessionID: session()?.id,
+        title: session()?.title,
+        turnCount: sessionTurnCount(),
+        tokenCount: sessionTokenCount(),
+        generatedTokenCount: sessionGeneratedTokenCount(),
+        elapsedLabel: sessionElapsedLabel(),
+        costLabel: sessionCostLabel(),
+      }),
     )
   })
 
