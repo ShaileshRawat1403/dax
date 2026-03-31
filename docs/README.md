@@ -36,6 +36,7 @@ If you are new to DAX, start here to understand the core concepts and get your e
 If you are new to DAX, start here to understand the core concepts and get your environment ready.
 
 - [**What Is DAX?**](./product/WHAT_IS_DAX.md) - What DAX is, what problem it solves, and who it's for.
+- [**Stack Operating Model**](./STACK_OPERATING_MODEL.md) - Canonical cross-repo context for DAX, Picobot, and Soothsayer.
 - [**DAX In Simple Words**](./product/DAX_IN_SIMPLE_WORDS.md) - Analogies and plain-language walkthrough (ELI12).
 - [**Quickstart**](./product/QUICKSTART.md) - Install, configure, and run your first workflow in 5 minutes.
 - [**User Guide**](./product/USER_GUIDE.md) - The practical day-to-day guide to getting useful work done in DAX.
@@ -113,6 +114,7 @@ The internal models and decision records that power the deterministic runtime.
 - [**Release Readiness**](./product/release-readiness.md) - Pre-flight checklist for stable cuts.
 - [**Stack Roadmap**](./OPEN_SOURCE_STACK_ROADMAP.md) - Integration phases: FastMCP, NATS, Infisical, ZITADEL, OTel.
 - [**Deployment Guide**](./OPEN_SOURCE_STACK_DEPLOYMENT.md) - Three deployment profiles with env var reference.
+- [**Repo Agent Templates**](./repo-agents) - Copy-ready repo-specific `AGENTS.md` guidance for DAX, Picobot, and Soothsayer.
 
 ---
 
