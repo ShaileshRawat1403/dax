@@ -133,6 +133,7 @@ export interface ExecutionReflection {
     tradeoff: string
   }>
   decision: "proceed" | "ask" | "branch" | "stop"
+  justification?: string
   confidence: number
   requiresApproval: boolean
   verificationPlan: string[]

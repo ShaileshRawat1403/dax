@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js"
-import { useTheme } from "@tui/context/theme"
+import { useTheme, tint } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
 import type { ExecutionReflection } from "@/session/state-types"
 
@@ -38,6 +38,22 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection }) {
           <text fg={theme.primary}>{props.reflection!.goal}</text>
         </box>
 
+        <Show when={props.reflection!.requiresApproval}>
+          <box 
+            backgroundColor={tint(theme.warning, theme.background, 0.15)} 
+            padding={1} 
+            border={["round", "double"]} 
+            borderColor={theme.warning}
+          >
+            <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+              ⚠ REQUIRES OPERATOR APPROVAL
+            </text>
+            <text fg={theme.text} wrapMode="word">
+              This move has significant impact or risk. Review the plan before granting permission.
+            </text>
+          </box>
+        </Show>
+
         <Show when={props.reflection!.assumptions.length > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.accent} attributes={TextAttributes.BOLD}>
@@ -46,6 +62,30 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection }) {
             <For each={props.reflection!.assumptions}>
               {(assumption) => (
                 <text fg={theme.text}>• {assumption}</text>
+              )}
+            </For>
+          </box>
+        </Show>
+
+        <Show when={props.reflection!.justification}>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.success} attributes={TextAttributes.BOLD}>
+              PATH RATIONALE
+            </text>
+            <text fg={theme.text} wrapMode="word">
+              {props.reflection!.justification}
+            </text>
+          </box>
+        </Show>
+
+        <Show when={props.reflection!.ambiguities.length > 0}>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+              AMBIGUITIES
+            </text>
+            <For each={props.reflection!.ambiguities}>
+              {(item) => (
+                <text fg={theme.text}>? {item}</text>
               )}
             </For>
           </box>
@@ -63,6 +103,22 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection }) {
                     [{risk.level.toUpperCase()}]
                   </text>
                   <text fg={theme.text}>{risk.item}</text>
+                </box>
+              )}
+            </For>
+          </box>
+        </Show>
+
+        <Show when={props.reflection!.alternatives.length > 0}>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+              ALTERNATIVES CONSIDERED
+            </text>
+            <For each={props.reflection!.alternatives}>
+              {(alt) => (
+                <box flexDirection="column" paddingLeft={1}>
+                  <text fg={theme.text}>• {alt.path}</text>
+                  <text fg={theme.textMuted} dim>  {alt.tradeoff}</text>
                 </box>
               )}
             </For>

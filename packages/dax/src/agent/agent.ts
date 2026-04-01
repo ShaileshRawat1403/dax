@@ -24,6 +24,7 @@ import { Global } from "@/global"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
+import { EXPLORE_TOOLS, MUTATING_SHELL_PATTERNS } from "../tool/constants"
 
 export namespace Agent {
   export const Info = z
@@ -183,14 +184,11 @@ export namespace Agent {
           defaults,
           Permission.fromConfig({
             "*": "deny",
-            grep: "allow",
-            glob: "allow",
-            list: "allow",
-            shell: "allow",
-            webfetch: "allow",
-            websearch: "allow",
-            codesearch: "allow",
-            read: "allow",
+            ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
+            shell: {
+              "*": "allow",
+              ...Object.fromEntries(MUTATING_SHELL_PATTERNS.map((p) => [p, "deny"])),
+            },
             external_directory: {
               [Truncate.GLOB]: "allow",
             },
@@ -212,13 +210,11 @@ export namespace Agent {
           defaults,
           Permission.fromConfig({
             "*": "deny",
-            read: "allow",
-            glob: "allow",
-            grep: "allow",
-            list: "allow",
-            webfetch: "allow",
-            websearch: "allow",
-            codesearch: "allow",
+            ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
+            shell: {
+              "*": "allow",
+              ...Object.fromEntries(MUTATING_SHELL_PATTERNS.map((p) => [p, "deny"])),
+            },
             external_directory: {
               [Truncate.GLOB]: "allow",
             },
@@ -238,13 +234,11 @@ export namespace Agent {
           defaults,
           Permission.fromConfig({
             "*": "deny",
-            read: "allow",
-            glob: "allow",
-            grep: "allow",
-            list: "allow",
-            webfetch: "allow",
-            websearch: "allow",
-            codesearch: "allow",
+            ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
+            shell: {
+              "*": "allow",
+              ...Object.fromEntries(MUTATING_SHELL_PATTERNS.map((p) => [p, "deny"])),
+            },
             external_directory: {
               [Truncate.GLOB]: "allow",
             },
