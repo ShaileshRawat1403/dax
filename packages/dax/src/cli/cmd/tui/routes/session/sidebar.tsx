@@ -14,6 +14,7 @@ import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { deriveAuditHistory, deriveLiveSessionStageState } from "@/dax/presentation/session-surface"
 import { Locale } from "@/util/locale"
+import { ReflectionPanel } from "../../component/reflection"
 
 function TelemetryPanel(props: { state: WorkstationState }) {
   const { theme } = useTheme()
@@ -255,6 +256,7 @@ export function Sidebar(props: {
       sessionStatusType: runtimeStatus().type as any,
       goal: s?.title,
       todo: todo().map(t => ({ content: t.content, status: t.status })),
+      reflection: (s?.state_v2 as any)?.reflection,
       approvals: permissions().map(p => ({ label: p.permission, reason: p.metadata?.reason as string | undefined })),
       questions: questions().length,
       artifacts: art.map((a: any) => ({ label: a.path || a.id, kind: a.kind })),
@@ -294,6 +296,12 @@ export function Sidebar(props: {
                 </Show>
               </box>
             </SidebarCard>
+
+            <Show when={workstationState().reflection}>
+              <SidebarCard>
+                <ReflectionPanel reflection={workstationState().reflection} />
+              </SidebarCard>
+            </Show>
             
             <SidebarCard>
               <TelemetryPanel state={workstationState()} />

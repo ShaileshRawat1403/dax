@@ -4,6 +4,7 @@ import { TextAttributes } from "@opentui/core"
 import { useKV } from "../../context/kv"
 import { DAX_SETTING } from "@/dax/settings"
 import { isEli12Mode } from "@/dax/intent"
+import type { PersonaPack } from "@/dax/presentation/persona"
 
 type HeaderAction = {
   label: string
@@ -14,6 +15,8 @@ type HeaderAction = {
 export function Header(props: {
   sessionLabel?: string
   lifecycleLabel?: string
+  decisionState?: string
+  persona?: PersonaPack
   currentStep?: string
   trustLabel?: string
   emphasis?: "normal" | "muted"
@@ -45,6 +48,21 @@ export function Header(props: {
     () => !!props.lifecycleLabel && props.lifecycleLabel.toLowerCase() !== "idle" && props.emphasis === "normal",
   )
 
+  const decisionColor = createMemo(() => {
+    const state = props.decisionState?.toLowerCase() ?? ""
+    if (state === "critiquing" || state === "interpreting") return theme.accent
+    if (state === "verifying") return theme.secondary
+    if (state === "executing") return theme.primary
+    if (state === "recovering") return theme.warning
+    return theme.textMuted
+  })
+
+  const personaLabel = createMemo(() => {
+    if (!props.persona || !props.decisionState) return props.decisionState
+    const state = props.decisionState.toLowerCase().split(" ")[0]!
+    return props.persona.ui.statusLabels[state] ?? props.decisionState
+  })
+
   const letters = ["D", "A", "X"]
   const letterColor = (index: number) => {
     const palette = [theme.primary, theme.accent, theme.secondary]
@@ -57,13 +75,18 @@ export function Header(props: {
       <box paddingTop={0} paddingBottom={0} paddingLeft={1} paddingRight={1} flexShrink={0}>
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
           <box flexDirection="row" gap={1} alignItems="center">
-            <For each={letters}>
-              {(letter, index) => (
-                <text fg={letterColor(index())} attributes={letterWeight(index())}>
-                  {letter}
-                </text>
-              )}
-            </For>
+            <Show when={props.persona} fallback={
+              <For each={letters}>
+                {(letter, index) => (
+                  <text fg={letterColor(index())} attributes={letterWeight(index())}>
+                    {letter}
+                  </text>
+                )}
+              </For>
+            }>
+              <text fg={theme.primary} attributes={TextAttributes.BOLD}>{props.persona!.ui.glyph}</text>
+              <text fg={theme.text} attributes={TextAttributes.BOLD}>{props.persona!.label.toUpperCase()}</text>
+            </Show>
             <Show when={showLifecycleChip()}>
               <box
                 backgroundColor={theme.backgroundElement}
@@ -73,6 +96,19 @@ export function Header(props: {
                 paddingRight={1}
               >
                 <text fg={lifecycleColor()}>{props.lifecycleLabel?.toLowerCase()}</text>
+              </box>
+            </Show>
+            <Show when={props.decisionState}>
+              <box
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={decisionColor()} attributes={TextAttributes.BOLD}>
+                  {personaLabel()?.toUpperCase()}
+                </text>
               </box>
             </Show>
           </box>
