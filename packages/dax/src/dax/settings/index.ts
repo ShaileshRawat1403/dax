@@ -14,4 +14,6 @@ export const DAX_SETTING = {
   preferred_name_default: "preferred_name_default",
   session_refined_prompt: "session_refined_prompt",
   session_persona: "session_persona",
+  display_mode: "display_mode",
+  intervention_queue_visible: "intervention_queue_visible",
 } as const
