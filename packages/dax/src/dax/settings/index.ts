@@ -13,4 +13,5 @@ export const DAX_SETTING = {
   session_preferred_name_prefix: "session_preferred_name_prefix",
   preferred_name_default: "preferred_name_default",
   session_refined_prompt: "session_refined_prompt",
+  session_persona: "session_persona",
 } as const
