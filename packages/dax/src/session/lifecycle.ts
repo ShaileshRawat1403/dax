@@ -5,6 +5,7 @@ export type SessionLifecycleState =
   | "planning"
   | "ready"
   | "executing"
+  | "verifying"
   | "awaiting_approval"
   | "blocked"
   | "completed"
@@ -26,6 +27,7 @@ type LifecycleMessageSignal = {
   errorName?: string
   hasToolActivity: boolean
   hasPendingToolActivity: boolean
+  activeTools: string[]
 }
 
 export function deriveSessionLifecycleFromMessages(input: {
@@ -136,6 +138,34 @@ export function evaluateSessionLifecycle(input: {
   }
 
   if (hasPendingToolActivity) {
+    const activeTools = assistantSignals.flatMap((s) => s.activeTools)
+    if (activeTools.some((t) => ["task", "todowrite", "question", "skill"].includes(t))) {
+      return {
+        lifecycle_state: "planning",
+        terminal: false,
+        requires_reconciliation: false,
+        execution_started: executionStarted,
+        completion_reason: "planning_in_progress",
+      }
+    }
+    if (activeTools.some((t) => ["write", "edit", "apply_patch", "shell", "batch"].includes(t))) {
+      return {
+        lifecycle_state: "executing",
+        terminal: false,
+        requires_reconciliation: false,
+        execution_started: executionStarted,
+        completion_reason: "execution_in_progress",
+      }
+    }
+    if (activeTools.some((t) => ["read", "grep", "list", "glob", "lsp"].includes(t))) {
+      return {
+        lifecycle_state: "verifying",
+        terminal: false,
+        requires_reconciliation: false,
+        execution_started: executionStarted,
+        completion_reason: "verification_in_progress",
+      }
+    }
     return {
       lifecycle_state: "executing",
       terminal: false,
@@ -185,15 +215,19 @@ export function evaluateSessionLifecycle(input: {
 }
 
 function toLifecycleMessageSignal(message: MessageV2.WithParts): LifecycleMessageSignal {
+  const toolParts = message.parts.filter((part) => part.type === "tool")
   return {
     role: message.info.role,
     finish: "finish" in message.info ? message.info.finish : undefined,
     completedAt:
       "time" in message.info && "completed" in message.info.time ? (message.info.time.completed as number | undefined) : undefined,
     errorName: "error" in message.info ? message.info.error?.name : undefined,
-    hasToolActivity: message.parts.some((part) => part.type === "tool"),
-    hasPendingToolActivity: message.parts.some(
-      (part) => part.type === "tool" && part.state.status !== "completed" && part.state.status !== "error",
+    hasToolActivity: toolParts.length > 0,
+    hasPendingToolActivity: toolParts.some(
+      (part) => part.state.status !== "completed" && part.state.status !== "error",
     ),
+    activeTools: toolParts
+      .filter((part) => part.state.status === "running" || part.state.status === "pending")
+      .map((part) => part.tool),
   }
 }
