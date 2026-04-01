@@ -91,7 +91,7 @@ describe("workstation presentation model", () => {
       recentTooling: [{ label: "read · README.md", status: "completed" }],
     })
 
-    expect(delayedState.lifecycle).toBe("executing")
+    expect(delayedState.lifecycle).toBe("understanding")
     expect(delayedState.currentStep).toBe("Check provider behavior")
     expect(delayedState.activitySummary.items).toContain("Check provider behavior")
   })
