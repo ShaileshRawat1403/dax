@@ -27,8 +27,20 @@ export function Header(props: {
   const { theme } = useTheme()
 
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const displayMode = createMemo(() => kv.get(DAX_SETTING.display_mode, "operator"))
+  const queueVisible = createMemo(() => kv.get(DAX_SETTING.intervention_queue_visible, "true") === "true")
   const toggleEli12 = () => {
     kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
+  }
+  const cycleDisplayMode = () => {
+    const modes = ["operator", "inspect", "quiet"] as const
+    const current = displayMode()
+    const idx = modes.indexOf(current as any)
+    const next = modes[(idx + 1) % modes.length]
+    kv.set(DAX_SETTING.display_mode, next)
+  }
+  const toggleQueue = () => {
+    kv.set(DAX_SETTING.intervention_queue_visible, queueVisible() ? "false" : "true")
   }
 
   const [tick, setTick] = createSignal(0)
@@ -75,17 +87,24 @@ export function Header(props: {
       <box paddingTop={0} paddingBottom={0} paddingLeft={1} paddingRight={1} flexShrink={0}>
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
           <box flexDirection="row" gap={1} alignItems="center">
-            <Show when={props.persona} fallback={
-              <For each={letters}>
-                {(letter, index) => (
-                  <text fg={letterColor(index())} attributes={letterWeight(index())}>
-                    {letter}
-                  </text>
-                )}
-              </For>
-            }>
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>{props.persona!.ui.glyph}</text>
-              <text fg={theme.text} attributes={TextAttributes.BOLD}>{props.persona!.label.toUpperCase()}</text>
+            <Show
+              when={props.persona}
+              fallback={
+                <For each={letters}>
+                  {(letter, index) => (
+                    <text fg={letterColor(index())} attributes={letterWeight(index())}>
+                      {letter}
+                    </text>
+                  )}
+                </For>
+              }
+            >
+              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                {props.persona!.ui.glyph}
+              </text>
+              <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                {props.persona!.label.toUpperCase()}
+              </text>
             </Show>
             <Show when={showLifecycleChip()}>
               <box
@@ -137,12 +156,33 @@ export function Header(props: {
                 ELI12
               </text>
             </box>
+            <box
+              onMouseUp={cycleDisplayMode}
+              flexDirection="row"
+              backgroundColor={theme.backgroundElement}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={theme.textMuted}>{displayMode().toUpperCase()}</text>
+            </box>
+            <box
+              onMouseUp={toggleQueue}
+              flexDirection="row"
+              backgroundColor={theme.backgroundElement}
+              border={["round"]}
+              borderColor={theme.borderSubtle}
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={queueVisible() ? theme.primary : theme.textMuted}>QUEUE</text>
+            </box>
             <Show when={props.actions?.length}>
               <box flexDirection="row" gap={1} alignItems="center">
                 <For each={props.actions}>
                   {(action) => (
                     <box
-                      onMouseUp={action.onPress}
                       paddingLeft={1}
                       paddingRight={1}
                       backgroundColor={action.primary ? theme.primary : theme.backgroundElement}
