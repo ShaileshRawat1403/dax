@@ -48,6 +48,7 @@ import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { PM } from "@/pm"
+import { createReflectionSummary } from "./reflection-pruning"
 import { formatPMList, formatPMRules } from "@/pm/format"
 import { Audit } from "@/governance"
 import { Config } from "@/config/config"
@@ -673,12 +674,29 @@ export namespace SessionPrompt {
 
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: sessionMessages })
 
+      const reflectionSummary = createReflectionSummary(session.state_v2?.reflection)
+
       const result = await processor.process({
         user: lastUser,
         agent,
         abort,
         sessionID,
-        system: [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())],
+        system: [
+          ...(await SystemPrompt.environment(model)),
+          ...(await InstructionPrompt.system()),
+          ...(reflectionSummary
+            ? [
+                `<reflection-context>`,
+                `Goal: ${reflectionSummary.goal}`,
+                `Decision: ${reflectionSummary.decision}`,
+                reflectionSummary.justification_summary
+                  ? `Justification: ${reflectionSummary.justification_summary}`
+                  : "",
+                reflectionSummary.requiresApproval ? `⚠️ Requires approval before proceeding` : "",
+                `</reflection-context>`,
+              ].filter(Boolean)
+            : []),
+        ],
         messages: [
           ...MessageV2.toModelMessages(sessionMessages, model),
           ...(isLastStep

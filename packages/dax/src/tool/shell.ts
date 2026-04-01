@@ -17,6 +17,7 @@ import { Shell } from "@/shell/shell"
 import { BashArity } from "@/governance/arity"
 import { Truncate } from "./truncation"
 import { Plugin } from "@/plugin"
+import { isWhitelistedVerificationCommand, isGenericShellEscape } from "./shell-whitelist"
 
 const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT = Flag.DAX_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 * 1000
@@ -96,6 +97,22 @@ export const ShellTool = Tool.define("shell", async () => {
     }),
     async execute(params, ctx) {
       const cwd = params.workdir || Instance.directory
+
+      const isVerificationMode = ctx.extra?.verificationMode === true
+
+      if (isVerificationMode) {
+        if (isGenericShellEscape(params.command)) {
+          throw new Error(
+            "Generic shell execution is not allowed in read-only verification mode. Use build mode for arbitrary shell commands.",
+          )
+        }
+        if (!isWhitelistedVerificationCommand(params.command)) {
+          throw new Error(
+            `Command "${params.command}" is not allowed in read-only verification mode. Only whitelisted verification commands (npm test, pytest, cargo test, etc.) are permitted.`,
+          )
+        }
+      }
+
       if (params.timeout !== undefined && params.timeout < 0) {
         throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
       }

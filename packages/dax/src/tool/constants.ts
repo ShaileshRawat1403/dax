@@ -51,3 +51,28 @@ export const MUTATING_SHELL_PATTERNS = [
   "chown *",
   "patch *",
 ]
+
+export type VerificationCommand = {
+  executable: string
+  allowedSubcommands: string[]
+  allowedFlags: string[]
+}
+
+export const VERIFICATION_SHELL_WHITELIST: VerificationCommand[] = [
+  { executable: "npm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"] },
+  { executable: "pnpm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"] },
+  { executable: "bun", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"] },
+  { executable: "yarn", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"] },
+  { executable: "pytest", allowedSubcommands: [], allowedFlags: ["-v", "-x", "--collect-only", "--tb=short"] },
+  { executable: "python", allowedSubcommands: ["-m", "pytest"], allowedFlags: ["-v", "-x"] },
+  {
+    executable: "cargo",
+    allowedSubcommands: ["test", "check", "clippy"],
+    allowedFlags: ["--quiet", "--", "--test-threads=1"],
+  },
+  { executable: "go", allowedSubcommands: ["test", "vet", "build"], allowedFlags: ["-v", "-run"] },
+  { executable: "ruff", allowedSubcommands: ["check"], allowedFlags: ["--quiet", "--select"] },
+  { executable: "eslint", allowedSubcommands: [], allowedFlags: ["--quiet", "--max-warnings"] },
+  { executable: "tsc", allowedSubcommands: ["--noEmit", "--pretty"], allowedFlags: [] },
+  { executable: "vitest", allowedSubcommands: ["run", "type-check"], allowedFlags: ["--silent"] },
+]
