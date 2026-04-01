@@ -14,6 +14,7 @@ import {
   Switch,
   useContext,
 } from "solid-js"
+import { getPersona, PERSONAS, type PersonaPack } from "@/dax/presentation/persona"
 import { Dynamic } from "solid-js/web"
 import path from "path"
 import { useRoute, useRouteData } from "@tui/context/route"
@@ -163,8 +164,6 @@ function use() {
   if (!ctx) throw new Error("useContext must be used within a Session component")
   return ctx
 }
-
-import { getPersona, PERSONAS } from "@/dax/presentation/persona"
 
 export function Session() {
   const PANE_MODES = PANE_MODE
