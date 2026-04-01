@@ -28,6 +28,7 @@ import { Truncate } from "./truncation"
 import { PlanExitTool, PlanEnterTool } from "./plan"
 import { ApplyPatchTool } from "./apply_patch"
 import { PMNoteTool } from "./pm_note"
+import { ReflectionTool } from "./reflection"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -117,6 +118,7 @@ export namespace ToolRegistry {
       ...(Flag.DAX_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.DAX_EXPERIMENTAL_PLAN_MODE && Flag.DAX_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),
+      ReflectionTool,
       ...custom,
     ]
   }
