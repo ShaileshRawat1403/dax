@@ -1,3 +1,5 @@
+import type { ExecutionReflection } from "@/session/state-types"
+
 export type WorkstationLifecycle =
   | "planning"
   | "ready"
@@ -18,6 +20,7 @@ export type WorkstationState = {
   currentStep?: string
   trustPosture: WorkstationTrustPosture
   trustLabel: string
+  reflection?: ExecutionReflection
   planSummary: {
     goal?: string
     steps: Array<{ label: string; status: "pending" | "active" | "done" }>
@@ -67,6 +70,7 @@ export function deriveWorkstationState(input: {
   questions: number
   artifacts: Array<{ label: string; kind?: string }>
   diffCount: number
+  reflection?: ExecutionReflection
   recentTooling?: Array<{ label: string; status?: string }>
   audit?: {
     status: "pass" | "warn" | "fail"
@@ -117,6 +121,7 @@ export function deriveWorkstationState(input: {
     currentStep,
     trustPosture,
     trustLabel: labelTrustPosture(trustPosture),
+    reflection: input.reflection,
     planSummary: {
       goal: summarize(input.goal, 88),
       steps: input.todo.slice(0, 5).map((item) => ({

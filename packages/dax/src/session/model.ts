@@ -119,6 +119,35 @@ export namespace SessionV2 {
   })
   export type ArtifactRecord = z.infer<typeof ArtifactRecord>
 
+  export const ReflectionRisk = z.object({
+    level: z.enum(["low", "medium", "high"]),
+    item: z.string(),
+    mitigation: z.string().optional(),
+  })
+
+  export const ReflectionAlternative = z.object({
+    id: z.string(),
+    path: z.string(),
+    tradeoff: z.string(),
+  })
+
+  export const Reflection = z.object({
+    goal: z.string(),
+    outcome_expected: z.string(),
+    assumptions: z.string().array(),
+    ambiguities: z.string().array(),
+    risks: ReflectionRisk.array(),
+    alternatives: ReflectionAlternative.array(),
+    decision: z.enum(["proceed", "ask", "branch", "stop"]),
+    confidence: z.number(),
+    requiresApproval: z.boolean(),
+    verificationPlan: z.string().array(),
+    timestamp: z.string(),
+  }).meta({
+    ref: "ExecutionReflection",
+  })
+  export type Reflection = z.infer<typeof Reflection>
+
   export const State = z.object({
     intent: Intent.optional(),
     plan: Plan.optional(),
@@ -127,6 +156,7 @@ export namespace SessionV2 {
     artifacts: ArtifactRecord.array(),
     audit_findings: AuditFinding.array(),
     trust_posture: z.any().optional(),
+    reflection: Reflection.optional(),
   }).meta({
     ref: "SessionStateV2",
   })

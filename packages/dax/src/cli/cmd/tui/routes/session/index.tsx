@@ -163,6 +163,8 @@ function use() {
   return ctx
 }
 
+import { getPersona, PERSONAS } from "@/dax/presentation/persona"
+
 export function Session() {
   const PANE_MODES = PANE_MODE
 
@@ -170,6 +172,14 @@ export function Session() {
   const { navigate } = useRoute()
   const sync = useSync()
   const kv = useKV()
+  
+  const activePersona = createMemo(() => getPersona(kv.get(DAX_SETTING.session_persona, "zen")))
+  const cyclePersona = () => {
+    const current = activePersona().id
+    const ids = Object.keys(PERSONAS)
+    const next = ids[(ids.indexOf(current) + 1) % ids.length]
+    kv.set(DAX_SETTING.session_persona, next)
+  }
   const themeState = useTheme()
   const theme = new Proxy({} as any, {
     get: (_target, prop: string) => (themeState.theme as any)[prop],
@@ -1339,6 +1349,7 @@ export function Session() {
       sessionStatusType: sessionStatusType(),
       goal: liveMissionGoal(),
       todo: todo(),
+      reflection: (session()?.state_v2 as any)?.reflection,
       approvals: permissions().map((permission: any) => ({
         label: permission.permission ?? permission.tool?.callID ?? "approval",
         reason: permission.patterns?.[0],
@@ -2014,6 +2025,19 @@ export function Session() {
           sessionID: route.sessionID,
           messageID: message.id,
         })
+      },
+    },
+    {
+      title: `Persona: ${activePersona().label}`,
+      value: "session.persona.cycle",
+      category: "View",
+      slash: {
+        name: "persona",
+      },
+      onSelect: (dialog) => {
+        cyclePersona()
+        toast.show({ message: `Persona: ${activePersona().label}`, variant: "success" })
+        dialog.clear()
       },
     },
     {
@@ -2746,6 +2770,18 @@ export function Session() {
     ),
   )
 
+  const decisionState = createMemo(() => {
+    const stage = stageState().stage
+    const reflection = (session()?.state_v2 as any)?.reflection
+    if (reflection?.decision === "ask") return "Awaiting approval"
+    if (stage === "thinking") return "Interpreting"
+    if (stage === "planning") return "Critiquing"
+    if (stage === "executing") return "Executing"
+    if (stage === "verifying") return "Verifying"
+    if (stage === "retrying") return "Recovering"
+    return undefined
+  })
+
   return (
     <context.Provider
       value={{
@@ -2776,9 +2812,12 @@ export function Session() {
           gap={1}
           flexDirection="column"
         >
-          <Show when={!sidebarVisible() || !wide()}>
-            <Header busy={displayStageState().stage !== "done"} />
-          </Show>
+          <Header
+            busy={displayStageState().stage !== "done"}
+            lifecycleLabel={labelStage(stageState().stage, explainMode())}
+            decisionState={decisionState()}
+            persona={activePersona()}
+          />
 
           <box
             flexDirection="column"
@@ -3944,11 +3983,15 @@ export function Session() {
 
 function ActivityCluster(props: { tools: ToolPart[] }) {
   const { theme } = useTheme()
+  const ctx = use()
+  const session = createMemo(() => ctx.sync.session.get(ctx.sessionID))
+  const reflection = createMemo(() => (session()?.state_v2 as any)?.reflection)
   const [expanded, setExpanded] = createSignal(false)
   const count = () => props.tools.length
   const summary = () => {
     const tools = Array.from(new Set(props.tools.map((t) => t.tool)))
-    const verbs = tools.map((tool) => ({ read: "read", glob: "scanned", grep: "searched", list: "listed" })[tool] ?? tool)
+    const map: Record<string, string> = { read: "read", glob: "scanned", grep: "searched", list: "listed" }
+    const verbs = tools.map((tool) => map[tool] ?? tool)
     return `Checked ${count()} repo items · ${verbs.join(", ")}`
   }
 
@@ -3989,6 +4032,20 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
               </box>
             )}
           </For>
+        </box>
+      </Show>
+      <Show when={reflection()?.verificationPlan && reflection()!.verificationPlan.length > 0}>
+        <box
+          flexDirection="row"
+          gap={1}
+          paddingTop={0}
+          paddingBottom={1}
+          paddingLeft={1}
+        >
+          <text fg={theme.secondary}>🛡️</text>
+          <text fg={theme.textMuted} italic>
+            Verifying: {reflection()!.verificationPlan.length} checks in progress
+          </text>
         </box>
       </Show>
     </box>
