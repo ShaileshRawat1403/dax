@@ -117,6 +117,29 @@ export interface ApprovalState {
   denied: ApprovalDenied[]
 }
 
+export interface ExecutionReflection {
+  goal: string
+  outcome_expected: string
+  assumptions: string[]
+  ambiguities: string[]
+  risks: Array<{
+    level: "low" | "medium" | "high"
+    item: string
+    mitigation?: string
+  }>
+  alternatives: Array<{
+    id: string
+    path: string
+    tradeoff: string
+  }>
+  decision: "proceed" | "ask" | "branch" | "stop"
+  justification?: string
+  confidence: number
+  requiresApproval: boolean
+  verificationPlan: string[]
+  timestamp: string
+}
+
 export type SessionStatus = "active" | "paused" | "completed" | "abandoned" | "failed" | "blocked"
 
 export interface Workspace {
@@ -140,6 +163,7 @@ export interface SessionState {
   risks: Risk[]
   nextActions: NextAction[]
   completedSteps: string[]
+  latestReflection?: ExecutionReflection
 
   // Governance & Evidence
   emittedArtifacts: EmittedArtifact[]

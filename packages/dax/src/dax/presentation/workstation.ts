@@ -1,7 +1,11 @@
+import type { ExecutionReflection } from "@/session/state-types"
+
 export type WorkstationLifecycle =
+  | "understanding"
   | "planning"
   | "ready"
   | "executing"
+  | "verifying"
   | "awaiting_approval"
   | "blocked"
   | "completed"
@@ -18,6 +22,7 @@ export type WorkstationState = {
   currentStep?: string
   trustPosture: WorkstationTrustPosture
   trustLabel: string
+  reflection?: ExecutionReflection
   planSummary: {
     goal?: string
     steps: Array<{ label: string; status: "pending" | "active" | "done" }>
@@ -67,6 +72,7 @@ export function deriveWorkstationState(input: {
   questions: number
   artifacts: Array<{ label: string; kind?: string }>
   diffCount: number
+  reflection?: ExecutionReflection
   recentTooling?: Array<{ label: string; status?: string }>
   audit?: {
     status: "pass" | "warn" | "fail"
@@ -117,6 +123,7 @@ export function deriveWorkstationState(input: {
     currentStep,
     trustPosture,
     trustLabel: labelTrustPosture(trustPosture),
+    reflection: input.reflection,
     planSummary: {
       goal: summarize(input.goal, 88),
       steps: input.todo.slice(0, 5).map((item) => ({
@@ -187,9 +194,10 @@ function deriveLifecycle(input: {
 }): WorkstationLifecycle {
   if (input.approvalsPending > 0 || input.stage === "waiting") return "awaiting_approval"
   if (input.sessionStatusType === "retry" || input.alertLevel === "error" || input.stage === "retrying") return "blocked"
+  if (input.stage === "thinking" || input.stage === "exploring") return "understanding"
   if (input.stage === "planning") return "planning"
-  if (input.stage === "executing" || input.stage === "exploring" || input.stage === "thinking" || input.stage === "verifying")
-    return "executing"
+  if (input.stage === "executing") return "executing"
+  if (input.stage === "verifying") return "verifying"
   if (input.stage === "done" && input.alertLevel === "warning") return "ready"
   if (input.stage === "done") return "completed"
   if (input.sessionStatusType === "idle") return "ready"
@@ -274,12 +282,16 @@ function summarize(value: string | undefined, max: number) {
 
 export function labelLifecycle(lifecycle: WorkstationLifecycle) {
   switch (lifecycle) {
+    case "understanding":
+      return "Understanding"
     case "planning":
       return "Planning"
     case "ready":
       return "Ready"
     case "executing":
       return "Executing"
+    case "verifying":
+      return "Verifying"
     case "awaiting_approval":
       return "Awaiting approval"
     case "blocked":

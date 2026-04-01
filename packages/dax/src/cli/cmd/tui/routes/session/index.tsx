@@ -112,6 +112,7 @@ import {
 } from "@/dax/presentation/session-surface"
 import { buildInterventionProjection, buildProposedChangesProjection } from "@/server/run-projections"
 import type { ProposedChange as ProjectedProposedChange, RunEvent } from "@/server/run-contract"
+import { VerificationReceipt } from "../../component/receipt"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
 import { isEli12Mode } from "@/dax/intent"
@@ -163,6 +164,8 @@ function use() {
   return ctx
 }
 
+import { getPersona, PERSONAS } from "@/dax/presentation/persona"
+
 export function Session() {
   const PANE_MODES = PANE_MODE
 
@@ -170,6 +173,14 @@ export function Session() {
   const { navigate } = useRoute()
   const sync = useSync()
   const kv = useKV()
+  
+  const activePersona = createMemo(() => getPersona(kv.get(DAX_SETTING.session_persona, "zen")))
+  const cyclePersona = () => {
+    const current = activePersona().id
+    const ids = Object.keys(PERSONAS)
+    const next = ids[(ids.indexOf(current) + 1) % ids.length]
+    kv.set(DAX_SETTING.session_persona, next)
+  }
   const themeState = useTheme()
   const theme = new Proxy({} as any, {
     get: (_target, prop: string) => (themeState.theme as any)[prop],
@@ -317,7 +328,7 @@ export function Session() {
   const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
-  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
+  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", false)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", false)
   const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
@@ -1134,6 +1145,17 @@ export function Session() {
     })
   }
 
+  const isMutatingCommand = (name: string, args: string) => {
+    const mutating = ["write", "edit", "apply_patch", "rm", "mv", "cp", "mkdir", "git", "npm", "bun", "yarn", "pnpm", "cargo", "go", "pip"]
+    if (mutating.includes(name)) return true
+    // Also check for common shell mutations in generic shell commands
+    if (name === "shell" || name === "sh" || name === "bash") {
+      const lower = args.toLowerCase()
+      return /\b(rm|mv|cp|mkdir|git|npm|bun|yarn|pnpm|cargo|go|pip|chmod|chown|patch|apply)\b/.test(lower)
+    }
+    return false
+  }
+
   const runSessionSlashCommand = async (raw: string) => {
     const selectedModel = local.model.current()
     if (!selectedModel) {
@@ -1157,6 +1179,15 @@ export function Session() {
     if (!name) return
     const variant = local.model.variant.current()
     const args = rest.join(" ").trim()
+
+    if (workflowMode() === "explore" && isMutatingCommand(name, args)) {
+      toast.show({
+        variant: "error",
+        message: `Command "${name}" is blocked in Explore mode. Promote to Build mode first.`,
+        duration: 4000,
+      })
+      return
+    }
 
     const commandAgent = isAuditCommand ? "audit" : local.agent.current().name
 
@@ -1339,6 +1370,7 @@ export function Session() {
       sessionStatusType: sessionStatusType(),
       goal: liveMissionGoal(),
       todo: todo(),
+      reflection: (session()?.state_v2 as any)?.reflection,
       approvals: permissions().map((permission: any) => ({
         label: permission.permission ?? permission.tool?.callID ?? "approval",
         reason: permission.patterns?.[0],
@@ -2017,6 +2049,19 @@ export function Session() {
       },
     },
     {
+      title: `Persona: ${activePersona().label}`,
+      value: "session.persona.cycle",
+      category: "View",
+      slash: {
+        name: "persona",
+      },
+      onSelect: (dialog) => {
+        cyclePersona()
+        toast.show({ message: `Persona: ${activePersona().label}`, variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
       title: sidebarVisible() ? "Hide sidebar" : "Show sidebar",
       value: "session.sidebar.toggle",
       keybind: "sidebar_toggle",
@@ -2329,7 +2374,7 @@ export function Session() {
       },
     },
     {
-      title: explainMode() ? "Reasoning hidden in ELI12 mode" : showThinking() ? "Hide reasoning" : "Show reasoning",
+      title: explainMode() ? "Reasoning hidden in ELI12 mode" : showThinking() ? "Dismiss reasoning" : "Inspect reasoning",
       value: "session.toggle.thinking",
       keybind: "display_thinking",
       category: "Session",
@@ -2746,6 +2791,18 @@ export function Session() {
     ),
   )
 
+  const decisionState = createMemo(() => {
+    const stage = stageState().stage
+    const reflection = (session()?.state_v2 as any)?.reflection
+    if (reflection?.decision === "ask") return "Awaiting approval"
+    if (stage === "thinking") return "Interpreting"
+    if (stage === "planning") return "Critiquing"
+    if (stage === "executing") return "Executing"
+    if (stage === "verifying") return "Verifying"
+    if (stage === "retrying") return "Recovering"
+    return undefined
+  })
+
   return (
     <context.Provider
       value={{
@@ -2776,9 +2833,12 @@ export function Session() {
           gap={1}
           flexDirection="column"
         >
-          <Show when={!sidebarVisible() || !wide()}>
-            <Header busy={displayStageState().stage !== "done"} />
-          </Show>
+          <Header
+            busy={displayStageState().stage !== "done"}
+            lifecycleLabel={labelStage(stageState().stage, explainMode())}
+            decisionState={decisionState()}
+            persona={activePersona()}
+          />
 
           <box
             flexDirection="column"
@@ -3043,6 +3103,7 @@ export function Session() {
                                           parts={renderParts(message)}
                                           stage={displayStageState().stage}
                                           todo={todo()}
+                                          persona={activePersona()}
                                         />
                                       </Match>
                                     </Switch>
@@ -3944,11 +4005,15 @@ export function Session() {
 
 function ActivityCluster(props: { tools: ToolPart[] }) {
   const { theme } = useTheme()
+  const ctx = use()
+  const session = createMemo(() => ctx.sync.session.get(ctx.sessionID))
+  const reflection = createMemo(() => (session()?.state_v2 as any)?.reflection)
   const [expanded, setExpanded] = createSignal(false)
   const count = () => props.tools.length
   const summary = () => {
     const tools = Array.from(new Set(props.tools.map((t) => t.tool)))
-    const verbs = tools.map((tool) => ({ read: "read", glob: "scanned", grep: "searched", list: "listed" })[tool] ?? tool)
+    const map: Record<string, string> = { read: "read", glob: "scanned", grep: "searched", list: "listed" }
+    const verbs = tools.map((tool) => map[tool] ?? tool)
     return `Checked ${count()} repo items · ${verbs.join(", ")}`
   }
 
@@ -3989,6 +4054,20 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
               </box>
             )}
           </For>
+        </box>
+      </Show>
+      <Show when={reflection()?.verificationPlan && reflection()!.verificationPlan.length > 0}>
+        <box
+          flexDirection="row"
+          gap={1}
+          paddingTop={0}
+          paddingBottom={1}
+          paddingLeft={1}
+        >
+          <text fg={theme.secondary}>🛡️</text>
+          <text fg={theme.textMuted} italic>
+            Verifying: {reflection()!.verificationPlan.length} checks in progress
+          </text>
         </box>
       </Show>
     </box>
@@ -4491,6 +4570,7 @@ function AssistantMessage(props: {
   last: boolean
   stage: StreamStage
   todo: any[]
+  persona?: PersonaPack
 }) {
   const ctx = use()
   const local = useLocal()
@@ -4618,7 +4698,7 @@ function AssistantMessage(props: {
     return (
       <box flexDirection="row" gap={1}>
         <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-          DAX
+          {props.persona?.ui.glyph ?? "DAX"}
         </text>
         <text fg={theme.textMuted}>{dynamicInsight()}</text>
       </box>
@@ -4769,6 +4849,11 @@ function AssistantMessage(props: {
       countdown: ms,
       attempt: status.attempt,
     }
+  })
+
+  const modeLabel = createMemo(() => {
+    if (!props.persona) return Locale.titlecase(props.message.mode)
+    return props.persona.ui.statusLabels[props.message.mode] ?? Locale.titlecase(props.message.mode)
   })
 
   return (
@@ -4960,7 +5045,7 @@ function AssistantMessage(props: {
               <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                 <box backgroundColor={tint(theme.background, theme.primary, 0.24)} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  {Locale.titlecase(props.message.mode)}
+                  {modeLabel()}
                 </text>
                 </box>
                 <text fg={theme.text}>{doing()}</text>
@@ -5134,7 +5219,7 @@ function AssistantMessage(props: {
               {props.last && !props.message.time.completed ? "◉" : "●"}
             </text>
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              {Locale.titlecase(props.message.mode)}
+              {modeLabel()}
             </text>
             <Show when={duration()}>
               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -5651,6 +5736,8 @@ function Bash(props: ToolProps<typeof ShellTool>) {
     return [...lines().slice(0, 10), "…"].join("\n")
   })
   const ctx = use()
+  const session = createMemo(() => ctx.sync.session.get(ctx.sessionID))
+  const reflection = createMemo(() => (session()?.state_v2 as any)?.reflection)
 
   const workdirDisplay = createMemo(() => {
     const workdir = (props.input as any).workdir
@@ -5722,6 +5809,18 @@ function Bash(props: ToolProps<typeof ShellTool>) {
             <Show when={overflow()}>
               <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : "Click to expand"}</text>
             </Show>
+            <Show when={props.part.state.status === "completed" && reflection()?.verificationPlan?.length > 0}>
+              <VerificationReceipt
+                action="Shell Execution"
+                target={(props.input as any).command}
+                status="verified"
+                confidence={reflection()?.confidence}
+                checks={reflection()!.verificationPlan.map((check: string) => ({
+                  label: check,
+                  status: "pass",
+                }))}
+              />
+            </Show>
           </box>
         </BlockTool>
       </Match>
@@ -5742,6 +5841,8 @@ function Bash(props: ToolProps<typeof ShellTool>) {
 function Write(props: ToolProps<typeof WriteTool>) {
   const { theme, syntax } = useTheme()
   const ctx = use()
+  const session = createMemo(() => ctx.sync.session.get(ctx.sessionID))
+  const reflection = createMemo(() => (session()?.state_v2 as any)?.reflection)
   const code = createMemo(() => {
     if (!(props.input as any).content) return ""
     return (props.input as any).content
@@ -5793,6 +5894,18 @@ function Write(props: ToolProps<typeof WriteTool>) {
                 </text>
               )}
             </For>
+          </Show>
+          <Show when={props.part.state.status === "completed" && reflection()?.verificationPlan?.length > 0}>
+            <VerificationReceipt
+              action="File Write"
+              target={normalizePath((props.input as any).filePath!)}
+              status="verified"
+              confidence={reflection()?.confidence}
+              checks={reflection()!.verificationPlan.map((check: string) => ({
+                label: check,
+                status: "pass",
+              }))}
+            />
           </Show>
         </BlockTool>
       </Match>
@@ -6026,6 +6139,8 @@ function Task(props: ToolProps<typeof TaskTool>) {
 function Edit(props: ToolProps<typeof EditTool>) {
   const ctx = use()
   const { theme, syntax } = useTheme()
+  const session = createMemo(() => ctx.sync.session.get(ctx.sessionID))
+  const reflection = createMemo(() => (session()?.state_v2 as any)?.reflection)
 
   const view = createMemo(() => {
     const diffStyle = ctx.sync.data.config.tui?.diff_style
@@ -6098,6 +6213,18 @@ function Edit(props: ToolProps<typeof EditTool>) {
               </For>
             </box>
           </Show>
+          <Show when={props.part.state.status === "completed" && reflection()?.verificationPlan?.length > 0}>
+            <VerificationReceipt
+              action="File Edit"
+              target={normalizePath((props.input as any).filePath!)}
+              status="verified"
+              confidence={reflection()?.confidence}
+              checks={reflection()!.verificationPlan.map((check: string) => ({
+                label: check,
+                status: "pass",
+              }))}
+            />
+          </Show>
         </BlockTool>
       </Match>
       <Match when={true}>
@@ -6112,6 +6239,8 @@ function Edit(props: ToolProps<typeof EditTool>) {
 function ApplyPatch(props: ToolProps<typeof ApplyPatchTool>) {
   const ctx = use()
   const { theme, syntax } = useTheme()
+  const session = createMemo(() => ctx.sync.session.get(ctx.sessionID))
+  const reflection = createMemo(() => (session()?.state_v2 as any)?.reflection)
 
   const files = createMemo(() => props.metadata.files ?? [])
 
@@ -6157,22 +6286,35 @@ function ApplyPatch(props: ToolProps<typeof ApplyPatchTool>) {
   return (
     <Switch>
       <Match when={files().length > 0}>
-        <For each={files()}>
-          {(file) => (
-            <BlockTool title={title(file)} part={props.part}>
-              <Show
-                when={file.type !== "delete"}
-                fallback={
-                  <text fg={theme.diffRemoved}>
-                    -{file.deletions} line{file.deletions !== 1 ? "s" : ""}
-                  </text>
-                }
-              >
-                <Diff diff={file.diff} filePath={file.filePath} />
-              </Show>
-            </BlockTool>
-          )}
-        </For>
+        <box flexDirection="column" gap={1}>
+          <For each={files()}>
+            {(file) => (
+              <BlockTool title={title(file)} part={props.part}>
+                <Show
+                  when={file.type !== "delete"}
+                  fallback={
+                    <text fg={theme.diffRemoved}>
+                      -{file.deletions} line{file.deletions !== 1 ? "s" : ""}
+                    </text>
+                  }
+                >
+                  <Diff diff={file.diff} filePath={file.filePath} />
+                </Show>
+              </BlockTool>
+            )}
+          </For>
+          <Show when={props.part.state.status === "completed" && reflection()?.verificationPlan?.length > 0}>
+            <VerificationReceipt
+              action="Patch Application"
+              status="verified"
+              confidence={reflection()?.confidence}
+              checks={reflection()!.verificationPlan.map((check: string) => ({
+                label: check,
+                status: "pass",
+              }))}
+            />
+          </Show>
+        </box>
       </Match>
       <Match when={true}>
         <InlineTool icon="%" pending="Preparing apply_patch..." complete={false} part={props.part}>
