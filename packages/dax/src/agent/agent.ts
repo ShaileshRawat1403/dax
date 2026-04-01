@@ -186,8 +186,7 @@ export namespace Agent {
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
             shell: {
-              "*": "allow",
-              ...Object.fromEntries(MUTATING_SHELL_PATTERNS.map((p) => [p, "deny"])),
+              "*": "ask",
             },
             external_directory: {
               [Truncate.GLOB]: "allow",
@@ -212,8 +211,7 @@ export namespace Agent {
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
             shell: {
-              "*": "allow",
-              ...Object.fromEntries(MUTATING_SHELL_PATTERNS.map((p) => [p, "deny"])),
+              "*": "ask",
             },
             external_directory: {
               [Truncate.GLOB]: "allow",
@@ -227,8 +225,7 @@ export namespace Agent {
       },
       audit: {
         name: "audit",
-        description:
-          "SDLC audit agent for release readiness, policy checks, documentation quality, and delivery risk.",
+        description: "SDLC audit agent for release readiness, policy checks, documentation quality, and delivery risk.",
         prompt: PROMPT_AUDIT,
         permission: Permission.merge(
           defaults,
@@ -236,8 +233,7 @@ export namespace Agent {
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
             shell: {
-              "*": "allow",
-              ...Object.fromEntries(MUTATING_SHELL_PATTERNS.map((p) => [p, "deny"])),
+              "*": "ask",
             },
             external_directory: {
               [Truncate.GLOB]: "allow",
