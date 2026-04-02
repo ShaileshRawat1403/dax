@@ -5,6 +5,22 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12] - 2026-04-02
+
+### Added
+- **Bounded Reflection History**: Reflection checkpoints now keep a compact recent history that can be surfaced in the workstation instead of acting like a one-shot hidden tool event.
+- **Mode Regression Coverage**: Added focused tests around session display behavior, persona rendering, reflection pruning, and non-interactive planning so the new workstation surfaces stay honest as DAX evolves.
+
+### Changed
+- **Mode Truthfulness**: `plan`, `explore`, `docs`, and `audit` now describe their real authority and constraints more accurately instead of drifting into cross-mode promises.
+- **Provider-Neutral Reflection Guidance**: Reflection policy now lives in the shared session prompt path rather than being taught primarily through one provider family.
+- **Operator Controls**: `DISPLAY_MODE` and `QUEUE` in the session header now control real UI behavior instead of only toggling stored state.
+
+### Fixed
+- **Header Action Chips**: Restored click handling for header actions so visible operator controls are interactive again.
+- **Shell Verification Allowlist**: Hardened the parser and tests so safe verification commands like `python -m pytest`, `go test ./...`, and `npm/pnpm exec vitest run` behave as intended.
+- **Non-Interactive Planning Stability**: `dax plan` now only reports ready state when a canonical plan artifact exists, with safe materialization fallback when the assistant draft needs to be captured into a plan file.
+
 ## [1.0.11] - 2026-03-30
 
 ### Added
