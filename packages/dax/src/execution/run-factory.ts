@@ -319,6 +319,10 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
       await Transitions.transition(session.id, "waiting_approval", "plan_quality_gate")
       finalStatus = "waiting_approval"
     } else {
+      // Generic runs must advance lifecycle before prompt execution so server snapshots
+      // do not remain stuck at "created/compiled" while the model is already running.
+      await Transitions.transition(session.id, "queued", "execution_queued")
+      await Transitions.transition(session.id, "running", "execution_started")
       await startExecution(session.id, contract)
       finalStatus = "running"
     }
