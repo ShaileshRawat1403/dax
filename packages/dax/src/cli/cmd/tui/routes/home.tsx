@@ -22,6 +22,7 @@ import { DAX_SETTING } from "@/dax/settings"
 import { useLocal } from "../context/local"
 import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
 import { deriveHomeLayout } from "./home-layout"
+import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
@@ -372,6 +373,13 @@ export function Home() {
     if (connectedMcpCount() > 0) return "MCP is connected and ready for richer repository context."
     return "No MCP servers are connected yet. DAX still works without MCP."
   })
+  const branchNudge = createMemo(() =>
+    deriveFeatureBranchNudge({
+      branch: sync.data.vcs?.branch,
+      workflowMode: activeWorkflowMode(),
+      hasConcreteChanges: false,
+    }),
+  )
 
   const bg = createMemo(() => theme.background)
   const inputBg = createMemo(() => theme.backgroundPanel)
@@ -468,6 +476,16 @@ export function Home() {
                     theme={theme}
                     tone={mcpAttention() ? "warning" : "default"}
                   />
+                  <Show when={branchNudge()}>
+                    {(nudge) => (
+                      <HomeInfoCard
+                        title={nudge().title}
+                        body={nudge().detail}
+                        theme={theme}
+                        tone={nudge().tone === "warning" ? "warning" : "default"}
+                      />
+                    )}
+                  </Show>
                 </box>
                 <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
                   <PromptStarter

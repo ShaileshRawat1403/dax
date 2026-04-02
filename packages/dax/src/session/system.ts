@@ -1,6 +1,7 @@
 import { Ripgrep } from "../file/ripgrep"
 
 import { Instance } from "../project/instance"
+import { Vcs } from "../project/vcs"
 
 import PROMPT_ANTHROPIC from "./prompt/anthropic.txt"
 import PROMPT_QWEN from "./prompt/qwen.txt"
@@ -28,6 +29,7 @@ export namespace SystemPrompt {
 
   export async function environment(model: Provider.Model) {
     const project = Instance.project
+    const branch = project.vcs === "git" ? await Vcs.branch() : undefined
     return [
       [
         `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
@@ -37,6 +39,7 @@ export namespace SystemPrompt {
         `  Execution mode: AI-assisted execution (deterministic and verifiable)`,
         `  Working directory: ${Instance.directory}`,
         `  Is directory a git repo: ${project.vcs === "git" ? "yes" : "no"}`,
+        `  Current git branch: ${branch ?? "unknown"}`,
         `  Platform: ${process.platform}`,
         `  Today's date: ${new Date().toDateString()}`,
         `</env>`,
