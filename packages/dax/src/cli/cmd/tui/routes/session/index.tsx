@@ -1398,6 +1398,25 @@ export function Session() {
       kind: item.type || item.kind,
     }))
   })
+  const sessionPlanQuality = createMemo(() => (session()?.state_v2 as any)?.plan_quality)
+  const sessionCompletionProof = createMemo(() => (session()?.state_v2 as any)?.completion_proof)
+  const workstationAlert = createMemo(() => {
+    const quality = sessionPlanQuality()
+    if (quality?.decision === "pause") {
+      return {
+        level: "warning" as const,
+        message: `Plan quality gate flagged this run (${quality.score}/100).`,
+      }
+    }
+    const proof = sessionCompletionProof()
+    if (proof && proof.ready === false) {
+      return {
+        level: "warning" as const,
+        message: `Completion proof is incomplete: ${(proof.missing ?? []).join(", ") || "missing evidence"}.`,
+      }
+    }
+    return undefined
+  })
   const workstationState = createMemo(() =>
     deriveWorkstationState({
       sessionID: route.sessionID,
@@ -1423,6 +1442,9 @@ export function Session() {
             infoCount: latestAudit()!.result!.summary.info_count,
           }
         : undefined,
+      planQuality: sessionPlanQuality(),
+      completionProof: sessionCompletionProof(),
+      alert: workstationAlert(),
     }),
   )
   const planMilestones = createMemo(() => {

@@ -4,6 +4,10 @@ import type { RunState, StepRecord } from "./run-state"
 import { RunStatusSchema, type RunStatus, isLegalTransition, isTerminalStatus, isStepTerminalStatus } from "./run-state"
 import { StepRecordSchema } from "./run-state"
 import { Tracer } from "@/runtime/telemetry"
+import { ContractGuardian } from "@/execution/contract-guardian"
+import { deriveCompletionProof } from "@/execution/completion-proof"
+import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
+import { createAndPersistApproval } from "@/approval/approval-transitions"
 
 const log = Log.create({ service: "run-transitions" })
 
@@ -42,6 +46,13 @@ export class RunCompletionBlockedError extends Error {
   }
 }
 
+export class RunInvariantBlockedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "RunInvariantBlockedError"
+  }
+}
+
 async function getOrThrow(runId: string): Promise<RunState> {
   const state = await RunStore.get(runId)
   if (!state) {
@@ -52,9 +63,17 @@ async function getOrThrow(runId: string): Promise<RunState> {
 
 export async function transitionTo(runId: string, newStatus: RunStatus, reason?: string): Promise<RunState> {
   const state = await getOrThrow(runId)
+  let completionProof = state.governance.completionProof
+  let guardEnforcementMode = state.governance.guardEnforcementMode
 
   if (!isLegalTransition(state.status, newStatus)) {
     throw new IllegalTransitionError(state.status, newStatus)
+  }
+
+  if (state.status === "waiting_approval" && newStatus === "running" && state.pendingApprovalIds.length > 0) {
+    throw new RunInvariantBlockedError(
+      `Run ${runId} cannot resume running while ${state.pendingApprovalIds.length} approval(s) remain pending.`,
+    )
   }
 
   if (newStatus === "completed") {
@@ -68,11 +87,42 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
         `Run ${runId} cannot complete without recorded verification evidence.`,
       )
     }
+    const contract = await ContractGuardian.get(runId).catch(() => null)
+    if (contract) {
+      const proof = deriveCompletionProof({
+        contract,
+        runState: state,
+      })
+      const guardMode = resolveGuardEnforcementMode(state.governance.guardEnforcementMode)
+      if (!proof.ready && guardMode === "enforce") {
+        await createAndPersistApproval({
+          runId,
+          type: "workflow_gate",
+          risk: "high",
+          title: "Completion proof missing evidence",
+          reason: `DAX blocked completion because required proof is missing: ${proof.missing.join(", ")}.`,
+          source: "system",
+          context: {
+            notes: proof.missing,
+          },
+        })
+        throw new RunCompletionBlockedError(
+          `Run ${runId} cannot complete without completion proof evidence: ${proof.missing.join(", ")}.`,
+        )
+      }
+      completionProof = proof
+      guardEnforcementMode = guardMode
+    }
   }
 
   const updated: RunState = {
     ...state,
     status: newStatus,
+    governance: {
+      ...state.governance,
+      completionProof,
+      guardEnforcementMode,
+    },
     updatedAt: new Date().toISOString(),
   }
 

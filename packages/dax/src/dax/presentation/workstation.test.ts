@@ -115,4 +115,31 @@ describe("workstation presentation model", () => {
     expect(completedState.trustPosture).toBe("clear")
     expect(completedState.trustLabel).toBe("Clear")
   })
+
+  test("surfaces plan gate and completion proof warnings in activity summary", () => {
+    const state = deriveWorkstationState({
+      sessionID: "trust-guard-session",
+      stage: "done",
+      stageReason: "idle",
+      sessionStatusType: "idle",
+      goal: "Prepare release checklist",
+      todo: [],
+      approvals: [],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+      planQuality: {
+        score: 60,
+        decision: "pause",
+        failedChecks: ["scope_declared", "validation_declared"],
+      },
+      completionProof: {
+        ready: false,
+        missing: ["verification receipts"],
+      },
+    })
+
+    expect(state.activitySummary.items[0]).toContain("Plan gate 60/100")
+    expect(state.activitySummary.items[1]).toContain("Completion proof missing")
+  })
 })
