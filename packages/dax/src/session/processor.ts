@@ -19,6 +19,7 @@ import { Question } from "@/question"
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
   const PROVIDER_DELAY_THRESHOLD_MS = 12_000
+  const PROVIDER_STALL_TIMEOUT_MS = Math.max(30_000, Number(process.env.DAX_PROVIDER_STALL_TIMEOUT_MS ?? 180_000))
   const log = Log.create({ service: "session.processor" })
 
   export type Info = Awaited<ReturnType<typeof create>>
@@ -77,10 +78,40 @@ export namespace SessionProcessor {
                   since: lastProgressAt,
                 })
               }, 1000)
-            const stream = await LLM.stream(streamInput)
+            const timeoutSignal = AbortSignal.timeout(PROVIDER_STALL_TIMEOUT_MS)
+            const combinedAbort = AbortSignal.any([input.abort, timeoutSignal])
+            const stream = await LLM.stream({
+              ...streamInput,
+              abort: combinedAbort,
+            })
 
             try {
-              for await (const value of stream.fullStream) {
+              const iterator = stream.fullStream[Symbol.asyncIterator]()
+              const nextEvent = async () => {
+                const remaining = PROVIDER_STALL_TIMEOUT_MS - (Date.now() - lastProgressAt)
+                if (remaining <= 0) {
+                  throw new Error(
+                    `Provider stream timed out after ${Math.round(PROVIDER_STALL_TIMEOUT_MS / 1000)}s with no completion signal.`,
+                  )
+                }
+                return Promise.race([
+                  iterator.next(),
+                  new Promise<IteratorResult<any, any>>((_, reject) => {
+                    const timer = setTimeout(() => {
+                      clearTimeout(timer)
+                      reject(
+                        new Error(
+                          `Provider stream timed out after ${Math.round(PROVIDER_STALL_TIMEOUT_MS / 1000)}s with no completion signal.`,
+                        ),
+                      )
+                    }, remaining)
+                  }),
+                ])
+              }
+              while (true) {
+                const next = await nextEvent()
+                if (next.done) break
+                const value = next.value
                 input.abort.throwIfAborted()
                 if (value.type !== "finish") touchProgress()
                 switch (value.type) {
@@ -371,7 +402,15 @@ export namespace SessionProcessor {
             } finally {
               if (delayedMonitor) clearInterval(delayedMonitor)
             }
-          } catch (e: any) {
+          } catch (caught: unknown) {
+            const e =
+              !input.abort.aborted && caught instanceof Error && caught.name === "AbortError"
+                ? new Error(
+                    `Provider stream timed out after ${Math.round(PROVIDER_STALL_TIMEOUT_MS / 1000)}s with no completion signal.`,
+                  )
+                : caught instanceof Error
+                  ? caught
+                  : new Error(String(caught))
             log.error("process", {
               error: e,
               stack: JSON.stringify(e.stack),
