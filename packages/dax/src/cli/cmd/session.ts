@@ -13,6 +13,7 @@ import type { MessageV2 } from "../../session/message-v2"
 import { RAOLedger } from "../../rao"
 import { Instance } from "../../project/instance"
 import { deriveSessionLifecycleFromMessages, type SessionLifecycleState, type SessionLifecycleSummary } from "../../session/lifecycle"
+import { deriveExplicitCompletionSignal } from "../../session/lifecycle"
 import { withLockedRetry } from "../../util/locked-retry"
 import {
   collectSessionVerification,
@@ -511,6 +512,7 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
       retainedArtifactCount: artifacts.length,
       diffCount: diffs.length,
       messages,
+      sessionUpdatedAt: session.time.updated,
     })
     const history = toSessionHistoryRow({
       session,
@@ -622,18 +624,18 @@ export function buildSessionTimelineRows(input: {
     })
   }
 
-  const lastMessage = input.messages.at(-1)
-  const hasCompletionSignal =
-    !!lastMessage &&
-    input.messages.length > 2 &&
-    input.approvals.length === 0 &&
-    input.session.time.updated > (firstAssistant?.info.time.created ?? input.session.time.created)
+  const hasCompletionSignal = deriveExplicitCompletionSignal({
+    messages: input.messages,
+    pendingApprovalCount: input.approvals.length,
+    sessionUpdatedAt: input.session.time.updated,
+  })
   if (hasCompletionSignal) {
+    const lastMessage = input.messages.at(-1)
     rows.push({
       id: `execution:completed:${input.session.id}`,
       type: "execution_completed",
       session_id: input.session.id,
-      timestamp: Math.max(input.session.time.updated, lastMessage!.info.time.created),
+      timestamp: Math.max(input.session.time.updated, lastMessage?.info.time.created ?? input.session.time.updated),
       source: "execution",
       summary: "Execution completed",
       state_effect: "lifecycle completed",

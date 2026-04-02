@@ -43,6 +43,16 @@ describe("reflection flow dummy run", () => {
       artifacts: [],
       diffCount: 5,
       reflection: dummyReflection,
+      reflectionHistory: [
+        {
+          ...dummyReflection,
+          goal: "Inspect the current transcript",
+          decision: "ask",
+          confidence: 0.7,
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        dummyReflection,
+      ],
       recentTooling: [{ label: "edit · workstation.ts", status: "completed" }]
     })
 
@@ -58,6 +68,7 @@ describe("reflection flow dummy run", () => {
     expect(state.reflection).toBeDefined()
     expect(state.reflection?.goal).toBe(dummyReflection.goal)
     expect(state.reflection?.confidence).toBe(0.95)
+    expect(state.reflectionHistory).toHaveLength(2)
     expect(state.lifecycle).toBe("planning")
   })
 })

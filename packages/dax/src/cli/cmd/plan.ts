@@ -4,12 +4,10 @@ import { UI } from "../ui"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { EOL } from "os"
-import { createDaxClient } from "@dax-ai/sdk/v2"
-import { Server } from "../../server/server"
 import { Provider } from "../../provider/provider"
 import { Permission } from "../../governance"
 import { Session } from "../../session"
-import { Question } from "../../question"
+import { SessionPrompt } from "../../session/prompt"
 
 type PlanArgs = {
   intent: string[]
@@ -34,6 +32,10 @@ type PlanPreview = {
   error?: string
 }
 
+function isTerminalStepReason(reason: string) {
+  return !["tool-calls", "unknown"].includes(reason)
+}
+
 const INTERACTIVE_RULES: Permission.Ruleset = [
   {
     permission: "question",
@@ -51,6 +53,15 @@ const INTERACTIVE_RULES: Permission.Ruleset = [
     pattern: "*",
   },
 ]
+
+const NON_INTERACTIVE_PLAN_SYSTEM = [
+  "You are running inside the non-interactive dax plan command.",
+  "Do not call question, plan_enter, or plan_exit in this flow.",
+  "Write the best possible canonical plan file directly.",
+  "Assistant prose alone is incomplete. Success means the canonical plan artifact exists on disk at the instructed path.",
+  "If information is missing, record assumptions and open questions inside the plan instead of stalling.",
+  "Finish by producing a usable plan artifact and concise summary.",
+].join(" ")
 
 export const PlanCommand = cmd({
   command: "plan [intent..]",
@@ -83,6 +94,7 @@ export const PlanCommand = cmd({
         describe: "title for the planning session",
       }),
   handler: async (args) => {
+    process.env.DAX_FORCE_EXIT = "1"
     const intent = resolveIntent(args as PlanArgs)
     if (!intent) {
       UI.error("You must provide planning intent via positional input or --prompt")
@@ -90,74 +102,33 @@ export const PlanCommand = cmd({
     }
 
     await bootstrap(process.cwd(), async () => {
-      const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = new Request(input, init)
-        return Server.App().fetch(request)
-      }) as typeof globalThis.fetch
-
-      const sdk = createDaxClient({ baseUrl: "http://dax.internal", fetch: fetchFn })
-      const sessionID = await sdk.session
-        .create({
-          title: resolveTitle(args as PlanArgs, intent),
-          permission: INTERACTIVE_RULES,
-        })
-        .then((result) => result.data?.id)
-
-      if (!sessionID) {
-        UI.error("Unable to create planning session")
-        process.exit(1)
-      }
-
-      const events = await sdk.event.subscribe()
-      let suppressedInteractiveGate = false
+      const session = await Session.create({
+        title: resolveTitle(args as PlanArgs, intent),
+        permission: INTERACTIVE_RULES,
+      })
+      const sessionID = session.id
       let unexpectedError: string | undefined
 
-      const loop = (async () => {
-        for await (const event of events.stream) {
-          if (event.type === "permission.asked" && event.properties.sessionID === sessionID) {
-            suppressedInteractiveGate = true
-            await sdk.permission.reply({
-              requestID: event.properties.id,
-              reply: "reject",
-            })
-            continue
-          }
-
-          if (event.type === "question.asked" && event.properties.sessionID === sessionID) {
-            suppressedInteractiveGate = true
-            await Question.reject(event.properties.id)
-            continue
-          }
-
-          if (event.type === "session.error" && event.properties.sessionID === sessionID && event.properties.error) {
-            const err = formatSessionError(event.properties.error)
-            if (isSuppressedPlanningError(err)) continue
-            unexpectedError = unexpectedError ? unexpectedError + EOL + err : err
-          }
-
-          if (
-            event.type === "session.status" &&
-            event.properties.sessionID === sessionID &&
-            event.properties.status.type === "idle"
-          ) {
-            break
-          }
-        }
-      })()
-
       const model = args.model ? Provider.parseModel(args.model) : undefined
-      await sdk.session.prompt({
-        sessionID,
-        agent: "plan",
-        model,
-        parts: [{ type: "text", text: intent }],
-      })
-      await loop
+      try {
+        await SessionPrompt.prompt({
+          sessionID,
+          agent: "plan",
+          model,
+          system: NON_INTERACTIVE_PLAN_SYSTEM,
+          parts: [{ type: "text", text: intent }],
+        })
+      } catch (error) {
+        const err = error instanceof Error ? error.message : String(error)
+        if (!isSuppressedPlanningError(err)) {
+          unexpectedError = unexpectedError ? unexpectedError + EOL + err : err
+        }
+      }
 
       const preview = await buildPlanPreview({
         sessionID,
         intent,
-        suppressedInteractiveGate,
+        suppressedInteractiveGate: false,
         unexpectedError,
       })
 
@@ -221,6 +192,7 @@ export function createPlanPreview(input: {
   planPath?: string
   suppressedInteractiveGate?: boolean
   contentSource?: PlanPreview["content_source"]
+  note?: string
   error?: string
 }): PlanPreview {
   const content = input.content?.trim() ?? ""
@@ -251,6 +223,8 @@ export function createPlanPreview(input: {
     content_source: input.contentSource ?? "none",
     note: assistantFallbackWithoutPlan
       ? "Planning produced assistant output, but no canonical plan file was written. Treat this as a draft and avoid executing on it until the plan artifact exists."
+      : input.note
+        ? input.note
       : input.suppressedInteractiveGate
         ? "Planning reached an interactive checkpoint; review the plan before execution."
         : undefined,
@@ -307,6 +281,22 @@ async function buildPlanPreview(input: {
     .filter(Boolean)
     .join(EOL + EOL)
 
+  const materialized = await materializePlanArtifact({
+    planFile,
+    assistantText,
+  })
+  if (materialized) {
+    return createPlanPreview({
+      sessionID: input.sessionID,
+      intent: input.intent,
+      content: materialized.content,
+      planPath: path.relative(process.cwd(), planFile),
+      suppressedInteractiveGate: input.suppressedInteractiveGate,
+      contentSource: "plan_file",
+      note: "Canonical plan file was materialized from the assistant's final plan output because the model did not write the artifact directly.",
+    })
+  }
+
   return createPlanPreview({
     sessionID: input.sessionID,
     intent: input.intent,
@@ -330,4 +320,17 @@ function isSuppressedPlanningError(message: string) {
     message.includes("The user rejected permission to use this specific tool call") ||
     message.includes("The user dismissed this question")
   )
+}
+
+function extractMarkdownFence(text: string) {
+  const fence = text.match(/```(?:md|markdown)?\n([\s\S]*?)```/i)
+  return fence?.[1]?.trim()
+}
+
+async function materializePlanArtifact(input: { planFile: string; assistantText: string }) {
+  const artifact = extractMarkdownFence(input.assistantText) ?? input.assistantText.trim()
+  if (!artifact) return undefined
+  if (!extractPlanSummary(artifact) || extractPlanSteps(artifact).length === 0) return undefined
+  await Bun.write(input.planFile, artifact.endsWith(EOL) ? artifact : artifact + EOL)
+  return { content: artifact }
 }

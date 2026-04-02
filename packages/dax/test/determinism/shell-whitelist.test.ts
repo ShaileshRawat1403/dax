@@ -47,6 +47,22 @@ describe("shell-whitelist: isWhitelistedVerificationCommand", () => {
     test("vitest run is allowed", () => {
       expect(isWhitelistedVerificationCommand("vitest run")).toBe(true)
     })
+
+    test("python -m pytest is allowed", () => {
+      expect(isWhitelistedVerificationCommand("python -m pytest")).toBe(true)
+    })
+
+    test("go test ./... is allowed", () => {
+      expect(isWhitelistedVerificationCommand("go test ./...")).toBe(true)
+    })
+
+    test("npm exec vitest run is allowed", () => {
+      expect(isWhitelistedVerificationCommand("npm exec vitest run")).toBe(true)
+    })
+
+    test("pnpm exec vitest run is allowed", () => {
+      expect(isWhitelistedVerificationCommand("pnpm exec vitest run")).toBe(true)
+    })
   })
 
   describe("blocked commands", () => {
@@ -72,6 +88,10 @@ describe("shell-whitelist: isWhitelistedVerificationCommand", () => {
 
     test("npm publish is blocked", () => {
       expect(isWhitelistedVerificationCommand("npm publish")).toBe(false)
+    })
+
+    test("npm exec bash -c is blocked", () => {
+      expect(isWhitelistedVerificationCommand("npm exec bash -c 'ls'")).toBe(false)
     })
 
     test("pip install is blocked", () => {

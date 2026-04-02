@@ -7,6 +7,11 @@ export interface ModelReflectionSummary {
   requiresApproval: boolean
 }
 
+export interface ReflectionHistorySummary extends ModelReflectionSummary {
+  timestamp: string
+  confidence: number
+}
+
 const MAX_GOAL_LENGTH = 200
 const MAX_JUSTIFICATION_LENGTH = 220
 
@@ -59,9 +64,17 @@ export function createReflectionSummary(reflection?: ExecutionReflection): Model
   }
 }
 
-export function createHistoricalReflectionSummary(reflections: ExecutionReflection[]): ModelReflectionSummary[] {
+export function createHistoricalReflectionSummary(reflections: ExecutionReflection[]): ReflectionHistorySummary[] {
   return reflections
     .slice(-5)
-    .map((r) => createReflectionSummary(r))
-    .filter((s): s is ModelReflectionSummary => s !== undefined)
+    .map((r) => {
+      const summary = createReflectionSummary(r)
+      if (!summary) return undefined
+      return {
+        ...summary,
+        timestamp: r.timestamp,
+        confidence: r.confidence,
+      }
+    })
+    .filter((s): s is ReflectionHistorySummary => s !== undefined)
 }

@@ -95,22 +95,6 @@ assistant: [Uses the Task tool]
 
 IMPORTANT: Always use the TodoWrite tool to plan and track tasks throughout the conversation.
 
-# Reflection
-
-Before taking significant actions (file edits, shell commands, multi-step plans), use the reflection tool to document:
-- What you're trying to accomplish (goal)
-- What outcome you expect
-- Your assumptions about the current state
-- Ambiguities or unclear aspects
-- Potential risks and mitigations
-- Alternative approaches considered
-- Your decision (proceed/ask/branch/stop)
-- Confidence level (0-1)
-- Whether approval is required
-- How you'll verify the action succeeded
-
-This gives the operator visibility into your reasoning and enables informed approval decisions.
-
 # Code References
 
 When referencing specific functions or pieces of code include the pattern `file_path:line_number` to allow the user to easily navigate to the source code location.

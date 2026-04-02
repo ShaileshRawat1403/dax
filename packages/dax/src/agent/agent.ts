@@ -10,6 +10,7 @@ import { ProviderTransform } from "../provider/transform"
 
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
+import PROMPT_PLAN_AGENT from "./prompt/plan.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_DOCS from "./prompt/docs.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
@@ -99,6 +100,7 @@ export namespace Agent {
         name: "plan",
         description: "Plan mode. Disallows all edit tools.",
         options: {},
+        prompt: PROMPT_PLAN_AGENT,
         permission: Permission.merge(
           defaults,
           Permission.fromConfig({
@@ -210,9 +212,7 @@ export namespace Agent {
           Permission.fromConfig({
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
-            shell: {
-              "*": "ask",
-            },
+            shell: "deny",
             external_directory: {
               [Truncate.GLOB]: "allow",
             },

@@ -47,6 +47,7 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
     retainedArtifactCount: artifacts.length,
     diffCount: diffs.length,
     archivedAt: session.time.archived,
+    sessionUpdatedAt: session.time.updated,
   })
 
   const writeGovernanceClassification = deriveWriteGovernanceClassification({

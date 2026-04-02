@@ -23,6 +23,7 @@ export type WorkstationState = {
   trustPosture: WorkstationTrustPosture
   trustLabel: string
   reflection?: ExecutionReflection
+  reflectionHistory: ExecutionReflection[]
   planSummary: {
     goal?: string
     steps: Array<{ label: string; status: "pending" | "active" | "done" }>
@@ -73,6 +74,7 @@ export function deriveWorkstationState(input: {
   artifacts: Array<{ label: string; kind?: string }>
   diffCount: number
   reflection?: ExecutionReflection
+  reflectionHistory?: ExecutionReflection[]
   recentTooling?: Array<{ label: string; status?: string }>
   audit?: {
     status: "pass" | "warn" | "fail"
@@ -124,6 +126,7 @@ export function deriveWorkstationState(input: {
     trustPosture,
     trustLabel: labelTrustPosture(trustPosture),
     reflection: input.reflection,
+    reflectionHistory: (input.reflectionHistory ?? []).slice(-5),
     planSummary: {
       goal: summarize(input.goal, 88),
       steps: input.todo.slice(0, 5).map((item) => ({

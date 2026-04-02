@@ -56,23 +56,25 @@ export type VerificationCommand = {
   executable: string
   allowedSubcommands: string[]
   allowedFlags: string[]
+  allowPathTargets?: boolean
+  allowNestedExec?: boolean
 }
 
 export const VERIFICATION_SHELL_WHITELIST: VerificationCommand[] = [
-  { executable: "npm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"] },
-  { executable: "pnpm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"] },
+  { executable: "npm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"], allowNestedExec: true },
+  { executable: "pnpm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"], allowNestedExec: true },
   { executable: "bun", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"] },
   { executable: "yarn", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"] },
-  { executable: "pytest", allowedSubcommands: [], allowedFlags: ["-v", "-x", "--collect-only", "--tb=short"] },
-  { executable: "python", allowedSubcommands: ["-m", "pytest"], allowedFlags: ["-v", "-x"] },
+  { executable: "pytest", allowedSubcommands: [], allowedFlags: ["-v", "-x", "--collect-only", "--tb=short"], allowPathTargets: true },
+  { executable: "python", allowedSubcommands: ["-m", "pytest"], allowedFlags: ["-v", "-x"], allowPathTargets: true },
   {
     executable: "cargo",
     allowedSubcommands: ["test", "check", "clippy"],
     allowedFlags: ["--quiet", "--", "--test-threads=1"],
   },
-  { executable: "go", allowedSubcommands: ["test", "vet", "build"], allowedFlags: ["-v", "-run"] },
-  { executable: "ruff", allowedSubcommands: ["check"], allowedFlags: ["--quiet", "--select"] },
-  { executable: "eslint", allowedSubcommands: [], allowedFlags: ["--quiet", "--max-warnings"] },
-  { executable: "tsc", allowedSubcommands: ["--noEmit", "--pretty"], allowedFlags: [] },
-  { executable: "vitest", allowedSubcommands: ["run", "type-check"], allowedFlags: ["--silent"] },
+  { executable: "go", allowedSubcommands: ["test", "vet", "build"], allowedFlags: ["-v", "-run"], allowPathTargets: true },
+  { executable: "ruff", allowedSubcommands: ["check"], allowedFlags: ["--quiet", "--select"], allowPathTargets: true },
+  { executable: "eslint", allowedSubcommands: [], allowedFlags: ["--quiet", "--max-warnings"], allowPathTargets: true },
+  { executable: "tsc", allowedSubcommands: ["--noEmit", "--pretty"], allowedFlags: [], allowPathTargets: true },
+  { executable: "vitest", allowedSubcommands: ["run", "type-check"], allowedFlags: ["--silent"], allowPathTargets: true },
 ]

@@ -14,7 +14,7 @@ import {
   Switch,
   useContext,
 } from "solid-js"
-import { getPersona, PERSONAS, type PersonaPack } from "@/dax/presentation/persona"
+import { applyPersonaVoice, getPersona, PERSONAS, type PersonaPack } from "@/dax/presentation/persona"
 import { Dynamic } from "solid-js/web"
 import path from "path"
 import { useRoute, useRouteData } from "@tui/context/route"
@@ -111,6 +111,12 @@ import {
   deriveLiveSessionStageState,
   deriveLiveStreamStatus,
 } from "@/dax/presentation/session-surface"
+import {
+  resolveSessionSidebarVisibility,
+  shouldAutoOpenSidebar,
+  shouldShowInterventionQueue,
+  type DisplayMode,
+} from "@/dax/presentation/session-display"
 import { buildInterventionProjection, buildProposedChangesProjection } from "@/server/run-projections"
 import type { ProposedChange as ProjectedProposedChange, RunEvent } from "@/server/run-contract"
 import { VerificationReceipt } from "../../component/receipt"
@@ -340,6 +346,8 @@ export function Session() {
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+  const [displayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
+  const [queueVisibleRaw] = kv.signal<string | boolean>(DAX_SETTING.intervention_queue_visible, true)
   const [selectedProposedChangeId, setSelectedProposedChangeId] = createSignal<string>()
   // Track refined prompt - always read fresh from KV when render
   const refinedPrompt = createMemo(() => {
@@ -390,6 +398,11 @@ export function Session() {
     if (local.agent.current()?.name === mode) return
     if (!availableAgents.some((a) => a.name === mode)) return
     local.agent.set(mode)
+  })
+  createEffect(() => {
+    if (!session()?.parentID && shouldAutoOpenSidebar(displayMode())) {
+      setSidebarOpen(true)
+    }
   })
   onCleanup(() => {
     promptRef.set(undefined)
@@ -527,9 +540,18 @@ export function Session() {
   const wide = createMemo(() => dimensions().width > 120)
   const hasApprovalsNeed = createMemo(() => permissions().length > 0 || questions().length > 0)
   const sidebarVisible = createMemo(() => {
-    if (session()?.parentID) return false
-    return sidebarOpen()
+    return resolveSessionSidebarVisibility({
+      hasParentSession: !!session()?.parentID,
+      sidebarOpen: sidebarOpen(),
+      displayMode: displayMode(),
+    })
   })
+  const showInterventionQueue = createMemo(() =>
+    shouldShowInterventionQueue({
+      displayMode: displayMode(),
+      queueVisible: queueVisibleRaw() !== false && queueVisibleRaw() !== "false",
+    }),
+  )
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() && wide() ? 42 : 0) - 4)
   const liveStacked = createMemo(() => contentWidth() < 80)
@@ -1480,51 +1502,53 @@ export function Session() {
     }
   })
   const operatorNextMove = createMemo(() => {
+    const persona = activePersona()
+    const voice = (text: string) => applyPersonaVoice(text, persona)
     if (hasApprovalsNeed()) {
       return {
-        title: "Review the waiting decision",
-        detail: "Open approvals, inspect the reason or diff, then allow or deny the run.",
+        title: voice("Review the waiting decision"),
+        detail: voice("Open approvals, inspect the reason or diff, then allow or deny the run"),
         tone: "warning" as const,
       }
     }
     if (displayStageState().stage === "verifying" && hasAuditNeed()) {
       return {
-        title: "Inspect validation findings",
-        detail: "Use the audit pane to review warnings or blockers before you trust the result.",
+        title: voice("Inspect validation findings"),
+        detail: voice("Use the audit pane to review warnings or blockers before you trust the result"),
         tone: "accent" as const,
       }
     }
     if ((displayStageState().stage === "verifying" || displayStageState().stage === "done") && hasDiffNeed()) {
       return {
-        title: "Review the concrete changes",
-        detail: "Open changes to inspect the diff and confirm the workspace outcome.",
+        title: voice("Review the concrete changes"),
+        detail: voice("Open changes to inspect the diff and confirm the workspace outcome"),
         tone: "primary" as const,
       }
     }
     if (hasRefineNeed()) {
       return {
-        title: "Check the execution contract",
-        detail: "Review the refine pane before you continue, especially the risk and approval forecast.",
+        title: voice("Check the execution contract"),
+        detail: voice("Review the refine pane before you continue, especially the risk and approval forecast"),
         tone: "primary" as const,
       }
     }
     if (hasMemoryNeed()) {
       return {
-        title: "Capture durable context",
-        detail: "Use memory to preserve the decisions or repo context this run uncovered.",
+        title: voice("Capture durable context"),
+        detail: voice("Use memory to preserve the decisions or repo context this run uncovered"),
         tone: "muted" as const,
       }
     }
     if (displayStageState().stage === "done") {
       return {
-        title: "Choose the next operator move",
-        detail: "Use this completed state to verify, continue with a follow-up, or hand the result off cleanly.",
+        title: voice("Choose the next operator move"),
+        detail: voice("Use this completed state to verify, continue with a follow-up, or hand the result off cleanly"),
         tone: "muted" as const,
       }
     }
     return {
-      title: "Let the run build context",
-      detail: "The workstation will stay focused on live state until the run reaches a review-worthy checkpoint.",
+      title: voice("Let the run build context"),
+      detail: voice("The workstation will stay focused on live state until the run reaches a review-worthy checkpoint"),
       tone: "muted" as const,
     }
   })
@@ -3641,7 +3665,7 @@ export function Session() {
                                       </For>
                                     </box>
                                   </Show>
-                                  <Show when={workstationState().approvalSummary.pendingCount > 0}>
+                                  <Show when={showInterventionQueue() && workstationState().approvalSummary.pendingCount > 0}>
                                     <box
                                       flexDirection="column"
                                       gap={0}
@@ -3659,7 +3683,7 @@ export function Session() {
                                       </text>
                                     </box>
                                   </Show>
-                                  <Show when={activeInterventions().length > 0}>
+                                  <Show when={showInterventionQueue() && activeInterventions().length > 0}>
                                     <box
                                       flexDirection="column"
                                       gap={0}
@@ -4590,6 +4614,7 @@ function AssistantMessage(props: {
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const toggleEli12 = () => kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
   const showEli12Summary = createMemo(() => kv.get(DAX_SETTING.eli12_summary_visibility, false))
+  const personaVoice = (text: string) => (props.persona ? applyPersonaVoice(text, props.persona) : text)
   const parent = createMemo(() => messages().find((x) => x.id === props.message.parentID && x.role === "user"))
   const currentToolLabel = createMemo(() => {
     for (const part of [...props.parts].reverse()) {
@@ -4636,39 +4661,39 @@ function AssistantMessage(props: {
     return body.slice(0, 96) + "..."
   })
   const doing = createMemo(() => {
-    if (props.message.error) return "Something went wrong while working through the request."
-    if (runtimeStatus().type === "retry") return "Waiting for a short provider cooldown before continuing."
-    if (runtimeStatus().type === "delayed") return "Still waiting on the provider while keeping the run alive."
-    if (currentToolLabel()?.status === "pending") return `Working through ${currentToolLabel()!.label.toLowerCase()}.`
-    if (props.parts.some((x) => x.type === "reasoning")) return "Working through the request and shaping the answer."
-    if (props.last && !props.message.time.completed) return "Still working through the request."
-    return "Delivered the current answer cleanly."
+    if (props.message.error) return personaVoice("Something went wrong while working through the request")
+    if (runtimeStatus().type === "retry") return personaVoice("Waiting for a short provider cooldown before continuing")
+    if (runtimeStatus().type === "delayed") return personaVoice("Still waiting on the provider while keeping the run alive")
+    if (currentToolLabel()?.status === "pending") return personaVoice(`Working through ${currentToolLabel()!.label.toLowerCase()}`)
+    if (props.parts.some((x) => x.type === "reasoning")) return personaVoice("Working through the request and shaping the answer")
+    if (props.last && !props.message.time.completed) return personaVoice("Still working through the request")
+    return personaVoice("Delivered the current answer cleanly")
   })
   const next = createMemo(() => {
-    if (props.message.error) return "Retry, or adjust your request and run again."
-    if (runtimeStatus().type === "retry") return "DAX will retry automatically after the cooldown."
-    if (runtimeStatus().type === "delayed") return "DAX will continue automatically as soon as the provider responds."
-    if (currentToolLabel()?.status === "pending") return "I’ll keep this moving and surface the next useful finding here."
-    if (props.last && !props.message.time.completed) return "I’ll keep going and surface the next useful update here."
-    return "Continue with a follow-up request."
+    if (props.message.error) return personaVoice("Retry, or adjust your request and run again")
+    if (runtimeStatus().type === "retry") return personaVoice("DAX will retry automatically after the cooldown")
+    if (runtimeStatus().type === "delayed") return personaVoice("DAX will continue automatically as soon as the provider responds")
+    if (currentToolLabel()?.status === "pending") return personaVoice("I’ll keep this moving and surface the next useful finding here")
+    if (props.last && !props.message.time.completed) return personaVoice("I’ll keep going and surface the next useful update here")
+    return personaVoice("Continue with a follow-up request")
   })
   const showActiveNarrative = createMemo(() => props.last && !props.message.time.completed && !props.message.error)
   const liveWorkingNote = createMemo(() => {
     if (props.message.error) return undefined
     if (runtimeStatus().type === "retry") {
-      return "The provider is cooling down for a moment. I’m holding the thread and will continue automatically."
+      return personaVoice("The provider is cooling down for a moment. I’m holding the thread and will continue automatically")
     }
     if (runtimeStatus().type === "delayed") {
-      return "The run is still alive. I’m waiting on the provider to resume the next part of the answer."
+      return personaVoice("The run is still alive. I’m waiting on the provider to resume the next part of the answer")
     }
     if (props.parts.some((x) => x.type === "reasoning" && cleanReasoningText(x.text).length > 0)) {
-      return "I’m working through the task and shaping the next answer with the context gathered so far."
+      return personaVoice("I’m working through the task and shaping the next answer with the context gathered so far")
     }
     if (currentToolLabel()?.status === "pending") {
-      return `I’m using ${currentToolLabel()!.label.toLowerCase()} to build enough context before I answer.`
+      return personaVoice(`I’m using ${currentToolLabel()!.label.toLowerCase()} to build enough context before I answer`)
     }
     if (props.last && !props.message.time.completed) {
-      return "I’m still on it and will post the next concrete update here as soon as it’s ready."
+      return personaVoice("I’m still on it and will post the next concrete update here as soon as it’s ready")
     }
     return undefined
   })
@@ -4762,7 +4787,7 @@ function AssistantMessage(props: {
     deriveAssistantInsightCard({
       asked: asked(),
       doing: doing(),
-      next: next()! === "Continue with a follow-up request." ? "Awaiting your next instruction." : next(),
+      next: final() && props.message.time.completed ? personaVoice("Awaiting your next instruction") : next(),
       stage: props.stage,
       streamStatus: deriveLiveStreamStatus({
         pendingID: props.last && !props.message.time.completed ? props.message.id : undefined,

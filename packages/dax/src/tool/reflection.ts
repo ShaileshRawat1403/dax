@@ -61,23 +61,13 @@ export const ReflectionTool = Tool.define("reflection", {
         approvals: [],
         artifacts: [],
         audit_findings: [],
+        reflection_history: [],
       }
+      const history = currentState.reflection_history ?? []
       draft.state_v2 = {
         ...currentState,
-        reflection: {
-          goal: params.goal,
-          outcome_expected: params.outcome_expected,
-          assumptions: params.assumptions,
-          ambiguities: params.ambiguities,
-          risks: params.risks,
-          alternatives: params.alternatives,
-          decision: params.decision,
-          justification: params.justification,
-          confidence: params.confidence,
-          requiresApproval: params.requiresApproval,
-          verificationPlan: params.verificationPlan,
-          timestamp: new Date().toISOString(),
-        },
+        reflection,
+        reflection_history: [...history, reflection].slice(-8),
       }
     })
 

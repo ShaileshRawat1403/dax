@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { deriveSessionLifecycleFromMessages } from "./lifecycle"
+import { deriveSessionLifecycleFromMessages, deriveExplicitCompletionSignal } from "./lifecycle"
 
 describe("session lifecycle derivation", () => {
   test("keeps lightweight visible-answer runs active with reconciliation required", () => {
@@ -86,6 +86,41 @@ describe("session lifecycle derivation", () => {
     })
 
     expect(lifecycle.lifecycle_state).toBe("failed")
+    expect(lifecycle.terminal).toBe(true)
+    expect(lifecycle.requires_reconciliation).toBe(false)
+  })
+
+  test("uses explicit completion signal to settle sessions that already emitted a completion event", () => {
+    const messages = [
+      {
+        info: { role: "user", time: { created: 1 } },
+        parts: [{ type: "text" }],
+      },
+      {
+        info: { role: "assistant", time: { created: 2 } },
+        parts: [{ type: "tool", state: { status: "completed" } }, { type: "text" }],
+      },
+      {
+        info: { role: "user", time: { created: 3 } },
+        parts: [{ type: "text" }],
+      },
+    ] as any
+
+    expect(
+      deriveExplicitCompletionSignal({
+        messages,
+        pendingApprovalCount: 0,
+        sessionUpdatedAt: 4,
+      }),
+    ).toBe(true)
+
+    const lifecycle = deriveSessionLifecycleFromMessages({
+      pendingApprovalCount: 0,
+      messages,
+      sessionUpdatedAt: 4,
+    })
+
+    expect(lifecycle.lifecycle_state).toBe("completed")
     expect(lifecycle.terminal).toBe(true)
     expect(lifecycle.requires_reconciliation).toBe(false)
   })

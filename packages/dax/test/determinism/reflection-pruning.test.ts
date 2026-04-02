@@ -113,6 +113,8 @@ describe("reflection-pruning: createHistoricalReflectionSummary", () => {
     expect(summary.length).toBe(5)
     expect(summary[0].goal).toBe("Goal 5")
     expect(summary[4].goal).toBe("Goal 9")
+    expect(summary[4].confidence).toBe(0.5)
+    expect(summary[4].timestamp).toBeDefined()
   })
 
   test("handles empty array", () => {
