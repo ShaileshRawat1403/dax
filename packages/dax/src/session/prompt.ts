@@ -772,7 +772,7 @@ export namespace SessionPrompt {
       return true
     }
 
-    const context = (args: any, options: ToolCallOptions): Tool.Context => ({
+    const context = (args: any, options: ToolCallOptions, toolID?: string): Tool.Context => ({
       sessionID: input.session.id,
       abort: options.abortSignal!,
       messageID: input.processor.message.id,
@@ -798,6 +798,14 @@ export namespace SessionPrompt {
         }
       },
       async ask(req) {
+        const { enforceRuntimeGuard } = await import("@/execution/runtime-guard")
+        await enforceRuntimeGuard({
+          sessionID: input.session.id,
+          agent: input.agent.name,
+          toolID,
+          req,
+          callID: options.toolCallId,
+        })
         await Permission.ask({
           ...req,
           sessionID: input.session.id,
@@ -819,7 +827,7 @@ export namespace SessionPrompt {
         description: item.description,
         inputSchema: jsonSchema(schema as any),
         async execute(args, options) {
-          const ctx = context(args, options)
+          const ctx = context(args, options, item.id)
           await Plugin.trigger(
             "tool.execute.before",
             {
@@ -856,7 +864,7 @@ export namespace SessionPrompt {
       item.inputSchema = jsonSchema(transformed)
       // Wrap execute to add plugin hooks and format output
       item.execute = async (args, opts) => {
-        const ctx = context(args, opts)
+        const ctx = context(args, opts, key)
 
         await Plugin.trigger(
           "tool.execute.before",

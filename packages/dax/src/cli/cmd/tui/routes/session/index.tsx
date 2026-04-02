@@ -128,6 +128,7 @@ import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } fr
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
+import { deriveGitHubCINudge } from "@/dax/presentation/ci-guard"
 
 addDefaultParsers(parsers.parsers)
 
@@ -1078,7 +1079,7 @@ export function Session() {
     return sessionTitle || latestAsk
   })
   const recentTools = createMemo(() => {
-    const items: Array<{ tool: string; status: string; label: string }> = []
+    const items: Array<{ tool: string; status: string; label: string; command?: string; output?: string }> = []
     for (const msg of [...messages()].reverse()) {
       if (msg.role !== "assistant") continue
       for (const part of [...(sync.data.part[msg.id] ?? [])].reverse()) {
@@ -1088,6 +1089,9 @@ export function Session() {
           tool: part.tool,
           status: part.state.status,
           label: describeRecentTool(part.tool, input),
+          command: typeof input.command === "string" ? input.command : undefined,
+          output:
+            "output" in part.state && typeof part.state.output === "string" ? part.state.output : undefined,
         })
         if (items.length >= 5) return items
       }
@@ -1505,6 +1509,10 @@ export function Session() {
   const operatorNextMove = createMemo(() => {
     const persona = activePersona()
     const voice = (text: string) => applyPersonaVoice(text, persona)
+    const ciNudge = deriveGitHubCINudge({
+      recentTools: recentTools(),
+      branch: sync.data.vcs?.branch,
+    })
     const branchNudge = deriveFeatureBranchNudge({
       branch: sync.data.vcs?.branch,
       workflowMode: workflowMode(),
@@ -1515,6 +1523,13 @@ export function Session() {
         title: voice("Review the waiting decision"),
         detail: voice("Open approvals, inspect the reason or diff, then allow or deny the run"),
         tone: "warning" as const,
+      }
+    }
+    if (ciNudge) {
+      return {
+        title: voice(ciNudge.title),
+        detail: voice(ciNudge.detail),
+        tone: ciNudge.tone,
       }
     }
     if (branchNudge && workflowMode() === "build") {

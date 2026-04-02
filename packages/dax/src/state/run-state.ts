@@ -34,6 +34,42 @@ export const RunErrorSchema = z.object({
 })
 export type RunError = z.infer<typeof RunErrorSchema>
 
+export const RollbackAnchorSchema = z.object({
+  baselineRef: z.string().optional(),
+  snapshotId: z.string().optional(),
+  createdAt: z.string(),
+})
+export type RollbackAnchor = z.infer<typeof RollbackAnchorSchema>
+
+export const VerificationStateSchema = z.object({
+  required: z.boolean().default(false),
+  satisfied: z.boolean().default(false),
+  receiptIds: z.string().array().default([]),
+})
+export type VerificationState = z.infer<typeof VerificationStateSchema>
+
+export const RuntimeGovernanceSchema = z.object({
+  budget: z.object({
+    maxFilesTouched: z.number().int().positive().default(8),
+    maxMutatingCommands: z.number().int().positive().default(6),
+    maxApprovalRequests: z.number().int().positive().default(4),
+    maxRepeatedFailures: z.number().int().positive().default(3),
+    filesTouched: z.number().int().nonnegative().default(0),
+    mutatingCommands: z.number().int().nonnegative().default(0),
+    approvalsRequested: z.number().int().nonnegative().default(0),
+  }),
+  touchedFiles: z.string().array().default([]),
+  rollbackAnchor: RollbackAnchorSchema.nullable().default(null),
+  mutationReceiptIds: z.string().array().default([]),
+  verification: VerificationStateSchema.default({
+    required: false,
+    satisfied: false,
+    receiptIds: [],
+  }),
+  failureCounts: z.record(z.string(), z.number().int().nonnegative()).default({}),
+})
+export type RuntimeGovernance = z.infer<typeof RuntimeGovernanceSchema>
+
 export const RunStatusSchema = z.enum([
   "created",
   "compiled",
@@ -54,6 +90,26 @@ export const RunStateSchema = z.object({
   steps: StepRecordSchema.array(),
   pendingApprovalIds: z.string().array(),
   artifactIds: z.string().array(),
+  governance: RuntimeGovernanceSchema.default({
+    budget: {
+      maxFilesTouched: 8,
+      maxMutatingCommands: 6,
+      maxApprovalRequests: 4,
+      maxRepeatedFailures: 3,
+      filesTouched: 0,
+      mutatingCommands: 0,
+      approvalsRequested: 0,
+    },
+    touchedFiles: [],
+    rollbackAnchor: null,
+    mutationReceiptIds: [],
+    verification: {
+      required: false,
+      satisfied: false,
+      receiptIds: [],
+    },
+    failureCounts: {},
+  }),
   trust: TrustSummarySchema.nullable(),
   error: RunErrorSchema.nullable(),
   createdAt: z.string(),
@@ -89,6 +145,26 @@ export function createInitialRunState(runId: string, contractId: string): RunSta
     steps: [],
     pendingApprovalIds: [],
     artifactIds: [],
+    governance: {
+      budget: {
+        maxFilesTouched: 8,
+        maxMutatingCommands: 6,
+        maxApprovalRequests: 4,
+        maxRepeatedFailures: 3,
+        filesTouched: 0,
+        mutatingCommands: 0,
+        approvalsRequested: 0,
+      },
+      touchedFiles: [],
+      rollbackAnchor: null,
+      mutationReceiptIds: [],
+      verification: {
+        required: false,
+        satisfied: false,
+        receiptIds: [],
+      },
+      failureCounts: {},
+    },
     trust: null,
     error: null,
     createdAt: now,

@@ -187,8 +187,10 @@ export class DraftApproveExecuteWorkflow {
 
       const draft = drafts[0]
       const artifactId = `art_${Identifier.create("session", false)}`
+      const verificationArtifactId = `verification_${Identifier.create("session", false)}`
 
       await HybridTransitions.addArtifact(this.runId, artifactId)
+      await HybridTransitions.addArtifact(this.runId, verificationArtifactId)
 
       await HybridTransitions.completeStep(this.runId, stepId, [artifactId])
 
@@ -199,7 +201,14 @@ export class DraftApproveExecuteWorkflow {
       return {
         stepId,
         success: true,
-        outputs: [{ type: draft.type, content: draft.content, artifactId }],
+        outputs: [
+          { type: draft.type, content: draft.content, artifactId },
+          {
+            type: "report",
+            content: "Verification receipt recorded for approved draft execution.",
+            artifactId: verificationArtifactId,
+          },
+        ],
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -223,6 +232,7 @@ export class DraftApproveExecuteWorkflow {
     log.info("resuming after approval", { runId: this.runId, approvalId, decision })
 
     if (decision === "denied") {
+      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected")
       await HybridTransitions.transition(this.runId, "failed", "approval_denied")
       return {
         success: false,
@@ -231,11 +241,13 @@ export class DraftApproveExecuteWorkflow {
       }
     }
 
+    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved")
+
     const reconstructedDraft = await this.reconstructDraftArtifact()
     const executionResult = await this.executeCommitExecution(reconstructedDraft ? [reconstructedDraft] : [])
     return {
       success: executionResult.success,
-      finalArtifactId: executionResult.success ? `art_${Identifier.create("session", false)}` : undefined,
+      finalArtifactId: executionResult.success ? executionResult.outputs.find((item) => item.artifactId)?.artifactId : undefined,
       stepResults: [executionResult],
       error: executionResult.success ? undefined : executionResult.error,
     }

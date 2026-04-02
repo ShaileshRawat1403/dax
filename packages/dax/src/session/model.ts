@@ -173,6 +173,45 @@ export namespace SessionV2 {
     })
   export type Reflection = z.infer<typeof Reflection>
 
+  export const RuntimeGuardBudget = z.object({
+    maxFilesTouched: z.number().int().positive(),
+    maxMutatingCommands: z.number().int().positive(),
+    maxApprovalRequests: z.number().int().positive(),
+    maxRepeatedFailures: z.number().int().positive(),
+    filesTouched: z.number().int().nonnegative().default(0),
+    mutatingCommands: z.number().int().nonnegative().default(0),
+    approvalsRequested: z.number().int().nonnegative().default(0),
+  })
+  export type RuntimeGuardBudget = z.infer<typeof RuntimeGuardBudget>
+
+  export const RuntimeGuardRollbackAnchor = z.object({
+    baselineRef: z.string().optional(),
+    snapshotId: z.string().optional(),
+    createdAt: z.string(),
+    mutationReceiptIds: z.string().array().default([]),
+  })
+  export type RuntimeGuardRollbackAnchor = z.infer<typeof RuntimeGuardRollbackAnchor>
+
+  export const RuntimeGuardVerification = z.object({
+    required: z.boolean().default(false),
+    satisfied: z.boolean().default(false),
+    receipts: z.string().array().default([]),
+  })
+  export type RuntimeGuardVerification = z.infer<typeof RuntimeGuardVerification>
+
+  export const RuntimeGuardState = z.object({
+    budget: RuntimeGuardBudget,
+    touchedFiles: z.string().array().default([]),
+    rollbackAnchor: RuntimeGuardRollbackAnchor.optional(),
+    failureCounts: z.record(z.string(), z.number().int().nonnegative()).default({}),
+    verification: RuntimeGuardVerification.default({
+      required: false,
+      satisfied: false,
+      receipts: [],
+    }),
+  })
+  export type RuntimeGuardState = z.infer<typeof RuntimeGuardState>
+
   export const State = z
     .object({
       intent: Intent.optional(),
@@ -184,6 +223,7 @@ export namespace SessionV2 {
       trust_posture: z.any().optional(),
       reflection: Reflection.optional(),
       reflection_history: Reflection.array().optional(),
+      runtime_guard: RuntimeGuardState.optional(),
     })
     .meta({
       ref: "SessionStateV2",

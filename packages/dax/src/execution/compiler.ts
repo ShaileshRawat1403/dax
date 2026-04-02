@@ -2,7 +2,7 @@ import { Identifier } from "@/id/id"
 import * as crypto from "crypto"
 import type { WorkflowClass, RiskLevel } from "./workflow-class"
 import { WorkflowClassSchema, RiskLevelSchema } from "./workflow-class"
-import { ExecutionContract, ApprovalPolicy, deriveExecutionMode } from "./execution-contract"
+import { ExecutionContract, ApprovalPolicy, deriveExecutionMode, type RuntimePolicy } from "./execution-contract"
 import type { CreateRunRequest } from "@/server/run-contract"
 import z from "zod"
 
@@ -47,6 +47,72 @@ const APPROVAL_MODE_BY_PERSONA: Record<string, "auto" | "approval_gated" | "manu
   strict: "manual",
   balanced: "approval_gated",
   relaxed: "auto",
+}
+
+function unique(items: Array<string | undefined | null>): string[] {
+  return [...new Set(items.map((item) => item?.trim()).filter((item): item is string => Boolean(item)))]
+}
+
+function extractLikelyTargets(intent: string): string[] {
+  return unique(
+    Array.from(intent.matchAll(/\b(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9_-]+\b/g)).map((match) => match[0]),
+  ).slice(0, 8)
+}
+
+function deriveRuntimePolicy(
+  request: CreateRunRequest,
+  workflowClass: WorkflowClass,
+  riskLevel: RiskLevel,
+): RuntimePolicy {
+  const targetFiles = extractLikelyTargets(request.intent.input)
+  const avoidAreas = unique([
+    /\.env/i.test(request.intent.input) ? ".env*" : undefined,
+    /secret|credential|token/i.test(request.intent.input) ? "credentials" : undefined,
+    /github action|workflow|release/i.test(request.intent.input) ? ".github/workflows" : undefined,
+  ])
+  const validationCommands = unique([
+    /test|pytest|vitest|jest/i.test(request.intent.input) ? "run relevant tests" : undefined,
+    /lint|eslint|ruff/i.test(request.intent.input) ? "run relevant lint checks" : undefined,
+    /typecheck|tsc/i.test(request.intent.input) ? "run typecheck" : undefined,
+  ])
+
+  const verificationRequired =
+    workflowClass !== "repo_analyze" ||
+    riskLevel !== "low" ||
+    /verify|test|check|release|ship|fix|edit|write|change|patch/i.test(request.intent.input)
+
+  return {
+    scope: {
+      targetFiles,
+      targetSubsystems: [],
+      avoidAreas,
+    },
+    budgets: {
+      maxFilesTouched: 8,
+      maxMutatingCommands: 6,
+      maxApprovalRequests: 4,
+      maxRepeatedFailures: 3,
+    },
+    postconditions: {
+      verificationRequired,
+      validationPlan: verificationRequired ? ["Collect evidence before claiming completion"] : [],
+      validationCommands,
+    },
+    sensitivity: {
+      sensitivePatterns: [
+        ".env*",
+        ".github/workflows/*",
+        ".npmrc",
+        ".pypirc",
+        ".git/config",
+        "*secret*",
+        "*credential*",
+        "*token*",
+        "*auth*",
+      ],
+      forbiddenPatterns: ["../*", "~/.z*", "/etc/*"],
+    },
+  }
 }
 
 function classifyWorkflow(intent: string): WorkflowClass {
@@ -204,6 +270,7 @@ export function compile(input: CompileInput): CompileResult {
   const toolBlocklist = deriveToolBlocklist(intent, workflowClass)
   const approvalPolicy = deriveApprovalPolicy(workflowClass, riskLevel, request.personaPreset)
   const expectedOutputs = deriveExpectedOutputs(intent, workflowClass)
+  const runtimePolicy = deriveRuntimePolicy(request, workflowClass, riskLevel)
 
   if (toolAllowlist.length === 0) {
     warnings.push("Tool allowlist is empty - execution may be restricted")
@@ -224,6 +291,7 @@ export function compile(input: CompileInput): CompileResult {
     toolBlocklist,
     approvalPolicy,
     expectedOutputs,
+    runtimePolicy,
     providerHint: request.personaPreset?.providerHint,
     modelHint: request.personaPreset?.modelHint,
     repoPath: request.intent.repoPath ?? request.metadata?.targeting?.repoPath,

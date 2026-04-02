@@ -158,6 +158,16 @@ describe("Contract Structure", () => {
 
     expect(result.contract.contractId.startsWith("ctr_")).toBe(true)
   })
+
+  test("compiled contract carries default runtime hardening policy", () => {
+    const request = makeRequest("fix the build error in packages/dax/src/execution/compiler.ts and verify it")
+    const result = compile({ request })
+
+    expect(result.contract.runtimePolicy?.budgets.maxFilesTouched).toBe(8)
+    expect(result.contract.runtimePolicy?.budgets.maxMutatingCommands).toBe(6)
+    expect(result.contract.runtimePolicy?.postconditions.verificationRequired).toBe(true)
+    expect(result.contract.runtimePolicy?.scope.targetFiles).toContain("packages/dax/src/execution/compiler.ts")
+  })
 })
 
 describe("Approval Policy", () => {

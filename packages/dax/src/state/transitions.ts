@@ -35,6 +35,13 @@ export class RunStateNotFoundError extends Error {
   }
 }
 
+export class RunCompletionBlockedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "RunCompletionBlockedError"
+  }
+}
+
 async function getOrThrow(runId: string): Promise<RunState> {
   const state = await RunStore.get(runId)
   if (!state) {
@@ -48,6 +55,19 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
 
   if (!isLegalTransition(state.status, newStatus)) {
     throw new IllegalTransitionError(state.status, newStatus)
+  }
+
+  if (newStatus === "completed") {
+    if (state.pendingApprovalIds.length > 0) {
+      throw new RunCompletionBlockedError(
+        `Run ${runId} cannot complete with ${state.pendingApprovalIds.length} pending approval(s).`,
+      )
+    }
+    if (state.governance.verification.required && !state.governance.verification.satisfied) {
+      throw new RunCompletionBlockedError(
+        `Run ${runId} cannot complete without recorded verification evidence.`,
+      )
+    }
   }
 
   const updated: RunState = {
@@ -231,6 +251,13 @@ export async function addPendingApproval(runId: string, approvalId: string): Pro
   const updated: RunState = {
     ...state,
     pendingApprovalIds: [...state.pendingApprovalIds, approvalId],
+    governance: {
+      ...state.governance,
+      budget: {
+        ...state.governance.budget,
+        approvalsRequested: state.governance.budget.approvalsRequested + 1,
+      },
+    },
     updatedAt: new Date().toISOString(),
   }
 
@@ -267,6 +294,16 @@ export async function addArtifact(runId: string, artifactId: string): Promise<Ru
   const updated: RunState = {
     ...state,
     artifactIds: [...state.artifactIds, artifactId],
+    governance: {
+      ...state.governance,
+      verification: /verification/i.test(artifactId)
+        ? {
+            required: true,
+            satisfied: true,
+            receiptIds: [...new Set([...state.governance.verification.receiptIds, artifactId])],
+          }
+        : state.governance.verification,
+    },
     updatedAt: new Date().toISOString(),
   }
 

@@ -8,6 +8,30 @@ export type RunState = {
   steps: StepRecord[]
   pendingApprovalIds: string[]
   artifactIds: string[]
+  governance: {
+    budget: {
+      maxFilesTouched: number
+      maxMutatingCommands: number
+      maxApprovalRequests: number
+      maxRepeatedFailures: number
+      filesTouched: number
+      mutatingCommands: number
+      approvalsRequested: number
+    }
+    touchedFiles: string[]
+    rollbackAnchor: {
+      baselineRef?: string
+      snapshotId?: string
+      createdAt: string
+    } | null
+    mutationReceiptIds: string[]
+    verification: {
+      required: boolean
+      satisfied: boolean
+      receiptIds: string[]
+    }
+    failureCounts: Record<string, number>
+  }
   draft: DraftRecord | null
   trust: TrustSummary | null
   error: RunError | null
@@ -102,6 +126,26 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     steps: [],
     pendingApprovalIds: [],
     artifactIds: [],
+    governance: {
+      budget: {
+        maxFilesTouched: 8,
+        maxMutatingCommands: 6,
+        maxApprovalRequests: 4,
+        maxRepeatedFailures: 3,
+        filesTouched: 0,
+        mutatingCommands: 0,
+        approvalsRequested: 0,
+      },
+      touchedFiles: [],
+      rollbackAnchor: null,
+      mutationReceiptIds: [],
+      verification: {
+        required: false,
+        satisfied: false,
+        receiptIds: [],
+      },
+      failureCounts: {},
+    },
     draft: null,
     trust: null,
     error: null,
@@ -144,6 +188,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
           const payload = event.payload as { approvalId: string }
           if (!state.pendingApprovalIds.includes(payload.approvalId)) {
             state.pendingApprovalIds.push(payload.approvalId)
+            state.governance.budget.approvalsRequested += 1
           }
         }
         break
@@ -232,9 +277,16 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
       }
 
       case "artifact_created": {
-        const payload = event.payload as { artifactId: string }
+        const payload = event.payload as { artifactId: string; artifactType?: string }
         if (!state.artifactIds.includes(payload.artifactId)) {
           state.artifactIds.push(payload.artifactId)
+          if (/verification/i.test(payload.artifactType ?? "") || /verification/i.test(payload.artifactId)) {
+            state.governance.verification.required = true
+            state.governance.verification.satisfied = true
+            if (!state.governance.verification.receiptIds.includes(payload.artifactId)) {
+              state.governance.verification.receiptIds.push(payload.artifactId)
+            }
+          }
         }
         break
       }
@@ -269,6 +321,12 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
 
       case "run_completed": {
         if (!isTerminalStatus(state.status)) {
+          if (state.pendingApprovalIds.length > 0) {
+            throw new Error(`Run cannot complete with pending approvals: ${state.pendingApprovalIds.join(", ")}`)
+          }
+          if (state.governance.verification.required && !state.governance.verification.satisfied) {
+            throw new Error(`Run cannot complete without verification evidence`)
+          }
           state.status = "completed"
           state.currentStepId = null
           state.completedAt = event.occurredAt
