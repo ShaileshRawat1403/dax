@@ -242,6 +242,18 @@ describe("reduceRunState", () => {
       expect(state?.completedAt).not.toBeNull()
     })
 
+    test("run_completed rejects pending approvals", () => {
+      const events: RunEventEnvelope[] = [
+        makeEnvelope("contract_compiled", 0, { contractId: CONTRACT_ID }),
+        makeEnvelope("execution_queued", 1, {}),
+        makeEnvelope("workflow_started", 2, {}),
+        makeEnvelope("approval_requested", 3, { approvalId: "apr_pending", approvalType: "tool", risk: "medium" }),
+        makeEnvelope("run_completed", 4, {}),
+      ]
+
+      expect(() => reduceRunState(events)).toThrow("pending approvals")
+    })
+
     test("terminal state ignores subsequent events", () => {
       const events: RunEventEnvelope[] = [
         makeEnvelope("contract_compiled", 0, { contractId: CONTRACT_ID }),
@@ -313,6 +325,23 @@ describe("reduceRunState", () => {
       const state = reduceRunState(events)
 
       expect(state?.artifactIds).toContain("artifact_001")
+    })
+
+    test("verification artifacts satisfy verification evidence", () => {
+      const events: RunEventEnvelope[] = [
+        makeEnvelope("contract_compiled", 0, { contractId: CONTRACT_ID }),
+        makeEnvelope("execution_queued", 1, {}),
+        makeEnvelope("workflow_started", 2, {}),
+        makeEnvelope("artifact_created", 3, {
+          artifactId: "verification_report_001",
+          artifactType: "verification_report",
+        }),
+      ]
+
+      const state = reduceRunState(events)
+
+      expect(state?.governance.verification.satisfied).toBe(true)
+      expect(state?.governance.verification.receiptIds).toContain("verification_report_001")
     })
 
     test("duplicate artifact IDs are deduplicated", () => {

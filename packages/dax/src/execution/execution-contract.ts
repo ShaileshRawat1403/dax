@@ -38,6 +38,42 @@ export const FallbackPolicy = z.object({
 })
 export type FallbackPolicy = z.infer<typeof FallbackPolicy>
 
+export const ScopePolicy = z.object({
+  targetFiles: z.string().array().default([]),
+  targetSubsystems: z.string().array().default([]),
+  avoidAreas: z.string().array().default([]),
+})
+export type ScopePolicy = z.infer<typeof ScopePolicy>
+
+export const MutationBudgetPolicy = z.object({
+  maxFilesTouched: z.number().int().positive().default(8),
+  maxMutatingCommands: z.number().int().positive().default(6),
+  maxApprovalRequests: z.number().int().positive().default(4),
+  maxRepeatedFailures: z.number().int().positive().default(3),
+})
+export type MutationBudgetPolicy = z.infer<typeof MutationBudgetPolicy>
+
+export const PostconditionPolicy = z.object({
+  verificationRequired: z.boolean().default(false),
+  validationPlan: z.string().array().default([]),
+  validationCommands: z.string().array().default([]),
+})
+export type PostconditionPolicy = z.infer<typeof PostconditionPolicy>
+
+export const SensitivityPolicy = z.object({
+  sensitivePatterns: z.string().array().default([]),
+  forbiddenPatterns: z.string().array().default([]),
+})
+export type SensitivityPolicy = z.infer<typeof SensitivityPolicy>
+
+export const RuntimePolicy = z.object({
+  scope: ScopePolicy,
+  budgets: MutationBudgetPolicy,
+  postconditions: PostconditionPolicy,
+  sensitivity: SensitivityPolicy,
+})
+export type RuntimePolicy = z.infer<typeof RuntimePolicy>
+
 export const ExecutionContract = z.object({
   schemaVersion: SchemaVersion.default("v1"),
   contractId: z.string(),
@@ -57,6 +93,7 @@ export const ExecutionContract = z.object({
   timeoutMs: z.number().min(60000).max(3600000).default(1800000),
   fallbackPolicy: FallbackPolicy.optional(),
   retryPolicy: RetryPolicy.optional(),
+  runtimePolicy: RuntimePolicy.optional(),
   providerHint: z.string().optional(),
   modelHint: z.string().optional(),
   repoPath: z.string().optional(),
