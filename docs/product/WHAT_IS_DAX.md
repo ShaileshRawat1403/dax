@@ -122,7 +122,7 @@ graph TB
 
 The product direction is becoming clearer:
 
-- **`1.0.11`** tightens the final operator handoff with a compact session-close snapshot, safer planning fallbacks, and a cleaner release-ready finish.
+- **`1.0.12`** hardens mode truthfulness, provider-neutral reflection, and real operator controls so the workstation feels more stable and less decorative in live use.
 - **`1.1.x`** should deepen approvals and shared operator workflows.
 - **`1.2.x`** should expand remote governance and multi-surface continuity.
 
