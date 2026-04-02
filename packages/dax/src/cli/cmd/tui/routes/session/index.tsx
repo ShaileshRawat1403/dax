@@ -113,6 +113,7 @@ import {
 } from "@/dax/presentation/session-surface"
 import {
   resolveSessionSidebarVisibility,
+  resolveDisplayDetailToggles,
   shouldAutoOpenSidebar,
   shouldShowInterventionQueue,
   type DisplayMode,
@@ -552,6 +553,15 @@ export function Session() {
     shouldShowInterventionQueue({
       displayMode: displayMode(),
       queueVisible: queueVisibleRaw() !== false && queueVisibleRaw() !== "false",
+    }),
+  )
+  const displayDetailToggles = createMemo(() =>
+    resolveDisplayDetailToggles({
+      displayMode: displayMode(),
+      showThinking: showThinking(),
+      showTimestamps: timestamps() === "show",
+      showDetails: showDetails(),
+      showAssistantMetadata: showAssistantMetadata(),
     }),
   )
   const showTimestamps = createMemo(() => timestamps() === "show")
@@ -2865,10 +2875,10 @@ export function Session() {
         },
         sessionID: route.sessionID,
         conceal,
-        showThinking: () => showThinking() && !explainMode(),
-        showTimestamps,
-        showDetails,
-        showAssistantMetadata,
+        showThinking: () => displayDetailToggles().showThinking && !explainMode(),
+        showTimestamps: () => displayDetailToggles().showTimestamps,
+        showDetails: () => displayDetailToggles().showDetails,
+        showAssistantMetadata: () => displayDetailToggles().showAssistantMetadata,
         diffWrapMode,
         sync,
       }}
@@ -4010,6 +4020,7 @@ export function Session() {
             <Match when={wide()}>
               <Sidebar
                 sessionID={route.sessionID}
+                displayMode={displayMode()}
                 onInspectApprovals={() => {
                   setPaneMode(() => "approvals")
                   setPaneVisibility(() => "pinned")
@@ -4034,6 +4045,7 @@ export function Session() {
               >
                 <Sidebar
                   sessionID={route.sessionID}
+                  displayMode={displayMode()}
                   onInspectApprovals={() => {
                     setPaneMode(() => "approvals")
                     setPaneVisibility(() => "pinned")

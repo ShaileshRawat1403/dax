@@ -4,19 +4,19 @@ import { applyPersonaVoice, getPersona, PERSONAS } from "./persona"
 describe("persona voice", () => {
   test("auditor voice formalizes and punctuates operator text", () => {
     expect(applyPersonaVoice("i'm still on it and i'll continue automatically", PERSONAS.auditor)).toBe(
-      "I am still on it and I will continue automatically.",
+      "I am in progress and I will continue automatically.",
     )
   })
 
   test("commander voice adds a stable tactical prefix", () => {
     expect(applyPersonaVoice("review the waiting decision", PERSONAS.commander)).toBe(
-      "Status: review the waiting decision.",
+      "Status: review the holding decision.",
     )
   })
 
   test("detective voice stays subtle and signal-oriented", () => {
     expect(applyPersonaVoice("the run is waiting on provider output", PERSONAS.detective)).toBe(
-      "Signal: the run is waiting on provider output.",
+      "Signal: the run is waiting on upstream output.",
     )
   })
 

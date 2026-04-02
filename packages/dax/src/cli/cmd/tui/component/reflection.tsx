@@ -7,11 +7,24 @@ import { createHistoricalReflectionSummary } from "@/session/reflection-pruning"
 export function ReflectionPanel(props: { reflection?: ExecutionReflection; history?: ExecutionReflection[] }) {
   const { theme } = useTheme()
   const history = () => createHistoricalReflectionSummary(props.history ?? [])
+  const decisionCounts = () =>
+    history().reduce(
+      (acc, item) => {
+        acc[item.decision] = (acc[item.decision] ?? 0) + 1
+        return acc
+      },
+      {} as Record<string, number>,
+    )
+  const formatCheckpointTime = (timestamp: string) => {
+    const date = new Date(timestamp)
+    if (Number.isNaN(date.getTime())) return "unknown"
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
 
   return (
     <box flexDirection="column" paddingLeft={1} paddingRight={1} gap={1}>
       <Show
-        when={props.reflection}
+        when={props.reflection || history().length > 0}
         fallback={
           <box padding={1}>
             <text fg={theme.textMuted} attributes={TextAttributes.ITALIC}>
@@ -20,27 +33,29 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         }
       >
-        <box flexDirection="column" gap={0}>
-          <box flexDirection="row" justifyContent="space-between" alignItems="center">
-            <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-              UNDERSTOOD
-            </text>
-            <box
-              backgroundColor={props.reflection!.confidence > 0.8 ? theme.success : theme.warning}
-              paddingLeft={1}
-              paddingRight={1}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-            >
-              <text fg={theme.background}>
-                {Math.round(props.reflection!.confidence * 100)}% CONFIDENCE
+        <Show when={props.reflection}>
+          <box flexDirection="column" gap={0}>
+            <box flexDirection="row" justifyContent="space-between" alignItems="center">
+              <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                UNDERSTOOD
               </text>
+              <box
+                backgroundColor={props.reflection!.confidence > 0.8 ? theme.success : theme.warning}
+                paddingLeft={1}
+                paddingRight={1}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+              >
+                <text fg={theme.background}>
+                  {Math.round(props.reflection!.confidence * 100)}% CONFIDENCE
+                </text>
+              </box>
             </box>
+            <text fg={theme.primary}>{props.reflection!.goal}</text>
           </box>
-          <text fg={theme.primary}>{props.reflection!.goal}</text>
-        </box>
+        </Show>
 
-        <Show when={props.reflection!.requiresApproval}>
+        <Show when={props.reflection?.requiresApproval}>
           <box 
             backgroundColor={tint(theme.warning, theme.background, 0.15)} 
             padding={1} 
@@ -56,12 +71,12 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <Show when={props.reflection!.assumptions.length > 0}>
+        <Show when={(props.reflection?.assumptions?.length ?? 0) > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.accent} attributes={TextAttributes.BOLD}>
               ASSUMPTIONS
             </text>
-            <For each={props.reflection!.assumptions}>
+            <For each={props.reflection?.assumptions ?? []}>
               {(assumption) => (
                 <text fg={theme.text}>• {assumption}</text>
               )}
@@ -69,7 +84,7 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <Show when={props.reflection!.justification}>
+        <Show when={props.reflection?.justification}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.success} attributes={TextAttributes.BOLD}>
               PATH RATIONALE
@@ -80,12 +95,12 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <Show when={props.reflection!.ambiguities.length > 0}>
+        <Show when={(props.reflection?.ambiguities?.length ?? 0) > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.warning} attributes={TextAttributes.BOLD}>
               AMBIGUITIES
             </text>
-            <For each={props.reflection!.ambiguities}>
+            <For each={props.reflection?.ambiguities ?? []}>
               {(item) => (
                 <text fg={theme.text}>? {item}</text>
               )}
@@ -93,12 +108,12 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <Show when={props.reflection!.risks.length > 0}>
+        <Show when={(props.reflection?.risks?.length ?? 0) > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.error} attributes={TextAttributes.BOLD}>
               CONCERNS
             </text>
-            <For each={props.reflection!.risks}>
+            <For each={props.reflection?.risks ?? []}>
               {(risk) => (
                 <box flexDirection="row" gap={1}>
                   <text fg={risk.level === "high" ? theme.error : theme.warning}>
@@ -111,12 +126,12 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <Show when={props.reflection!.alternatives.length > 0}>
+        <Show when={(props.reflection?.alternatives?.length ?? 0) > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
               ALTERNATIVES CONSIDERED
             </text>
-            <For each={props.reflection!.alternatives}>
+            <For each={props.reflection?.alternatives ?? []}>
               {(alt) => (
                 <box flexDirection="column" paddingLeft={1}>
                   <text fg={theme.text}>• {alt.path}</text>
@@ -127,24 +142,26 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <box flexDirection="column" gap={0}>
-          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            NEXT MOVE
-          </text>
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.success} attributes={TextAttributes.BOLD}>
-              {props.reflection!.decision.toUpperCase()}
+        <Show when={props.reflection}>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+              NEXT MOVE
             </text>
-            <text fg={theme.text}>- {props.reflection!.outcome_expected}</text>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.success} attributes={TextAttributes.BOLD}>
+                {props.reflection!.decision.toUpperCase()}
+              </text>
+              <text fg={theme.text}>- {props.reflection!.outcome_expected}</text>
+            </box>
           </box>
-        </box>
+        </Show>
 
-        <Show when={props.reflection!.verificationPlan.length > 0}>
+        <Show when={(props.reflection?.verificationPlan?.length ?? 0) > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.accent} attributes={TextAttributes.BOLD}>
               VERIFICATION PLAN
             </text>
-            <For each={props.reflection!.verificationPlan}>
+            <For each={props.reflection?.verificationPlan ?? []}>
               {(check) => (
                 <text fg={theme.textMuted}>□ {check}</text>
               )}
@@ -152,20 +169,30 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection; histo
           </box>
         </Show>
 
-        <Show when={history().length > 1}>
+        <Show when={history().length > 0}>
           <box flexDirection="column" gap={0}>
             <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
               RECENT CHECKPOINTS
             </text>
-            <For each={history().slice(0, -1)}>
+            <box flexDirection="row" gap={1} flexWrap="wrap">
+              <For each={Object.entries(decisionCounts())}>
+                {([decision, count]) => (
+                  <text fg={theme.textMuted}>
+                    {decision}:{count}
+                  </text>
+                )}
+              </For>
+            </box>
+            <For each={history()}>
               {(item) => (
                 <box flexDirection="row" justifyContent="space-between" gap={1}>
-                  <text fg={item.requiresApproval ? theme.warning : theme.textMuted} wrapMode="truncate-end">
+                  <text fg={item.requiresApproval ? theme.warning : theme.textMuted} wrapMode="truncate-end" flexGrow={1}>
                     {item.decision.toUpperCase()} · {item.goal}
                   </text>
-                  <text fg={theme.textMuted}>
-                    {Math.round(item.confidence * 100)}%
-                  </text>
+                  <box flexDirection="row" gap={1} flexShrink={0}>
+                    <text fg={theme.textMuted}>{formatCheckpointTime(item.timestamp)}</text>
+                    <text fg={theme.textMuted}>{Math.round(item.confidence * 100)}%</text>
+                  </box>
                 </box>
               )}
             </For>

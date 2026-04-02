@@ -22,6 +22,24 @@ export function DialogConfirm(props: DialogConfirmProps) {
   })
 
   useKeyboard((evt) => {
+    if (evt.name === "escape") {
+      props.onCancel?.()
+      dialog.clear()
+      return
+    }
+
+    if (evt.name === "y") {
+      props.onConfirm?.()
+      dialog.clear()
+      return
+    }
+
+    if (evt.name === "n") {
+      props.onCancel?.()
+      dialog.clear()
+      return
+    }
+
     if (evt.name === "return") {
       if (store.active === "confirm") props.onConfirm?.()
       if (store.active === "cancel") props.onCancel?.()
@@ -50,8 +68,11 @@ export function DialogConfirm(props: DialogConfirmProps) {
         </box>
       </box>
       <box paddingBottom={1}>
-        <text fg={theme.textMuted}>{props.message}</text>
+        <text fg={theme.textMuted} wrapMode="word">
+          {props.message}
+        </text>
       </box>
+      <text fg={theme.textMuted}>Enter confirm · Esc cancel · Y/N quick choice</text>
       <box flexDirection="row" justifyContent="flex-end" paddingBottom={1}>
         <For each={["cancel", "confirm"]}>
           {(key) => (
