@@ -10,6 +10,7 @@ import { $ } from "bun"
 import path from "path"
 import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
 import { deriveCompletionProof } from "./completion-proof"
+import { MessageV2 } from "@/session/message-v2"
 
 export type RuntimeActionClass = "analyze" | "propose" | "mutate" | "commit" | "publish" | "verify"
 
@@ -126,6 +127,25 @@ function classifyActionClass(req: GuardRequest): RuntimeActionClass {
   if (COMMIT_COMMAND.test(command)) return "commit"
   if (MUTATING_COMMAND.test(command)) return "mutate"
   return "analyze"
+}
+
+function looksVagueIntent(input: string) {
+  const text = input.trim().toLowerCase()
+  if (!text) return true
+  if (text.length < 24) return true
+  const vagueVerb = /\b(fix|improve|update|help|do it|make it better|quickly|handle this|clean up)\b/
+  const concreteAnchor = /\b(file|path|src|test|workflow|module|component|api|contract|scope|verify|validation|line|function|class)\b/
+  return vagueVerb.test(text) && !concreteAnchor.test(text)
+}
+
+async function latestUserText(sessionID: string) {
+  for await (const message of MessageV2.stream(sessionID)) {
+    if (message.info.role !== "user") continue
+    for (const part of message.parts) {
+      if (part.type === "text" && part.text.trim()) return part.text.trim()
+    }
+  }
+  return ""
 }
 
 function isActionAllowed(mode: string, action: RuntimeActionClass, lifecycle: string) {
@@ -322,6 +342,44 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   const mode = session.state_v2?.intent?.activeMode ?? input.agent ?? "build"
   const runState = await RunStore.get(input.sessionID).catch(() => null)
   const lifecycle = runState?.status ?? "running"
+  const planQuality = session.state_v2?.plan_quality
+
+  const requiresStrictPlanBeforeMutation =
+    planQuality?.decision === "pause" && ["mutate", "commit", "publish"].includes(actionClass)
+  if (requiresStrictPlanBeforeMutation) {
+    const reason = `Plan quality is ${planQuality?.score ?? 0}/100 with unresolved checks (${(planQuality?.failedChecks ?? []).join(", ")}). DAX blocks mutating actions until the objective, scope, validation, and rollback signals are concrete.`
+    await blockViolation(input, {
+      code: "plan_quality_mutation_block",
+      title: "Weak plan cannot mutate",
+      reason,
+      risk: "critical",
+      context: {
+        toolName: input.toolID,
+        command: input.req.patterns.join(" && ") || undefined,
+        notes: planQuality?.guidance ?? [],
+      },
+    })
+  }
+
+  const scopeHasTargets = normalizeScope(sessionContract).targetFiles.length > 0
+  if (!scopeHasTargets && ["mutate", "commit", "publish"].includes(actionClass)) {
+    const intentText = await latestUserText(input.sessionID)
+    if (looksVagueIntent(intentText)) {
+      const reason =
+        "The current request is too vague for safe mutation and no scoped execution contract targets were found. Clarify objective, target files/subsystems, and validation before editing."
+      await blockViolation(input, {
+        code: "vague_intent_mutation_block",
+        title: "Vague intent cannot mutate",
+        reason,
+        risk: "critical",
+        context: {
+          toolName: input.toolID,
+          command: input.req.patterns.join(" && ") || undefined,
+          notes: intentText ? [`intent: ${intentText}`] : [],
+        },
+      })
+    }
+  }
 
   if (!isActionAllowed(mode, actionClass, lifecycle)) {
     const reason = `${mode} mode cannot perform ${actionClass} actions. Switch to build or change the workflow before continuing.`

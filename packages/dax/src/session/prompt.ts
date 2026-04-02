@@ -14,6 +14,7 @@ import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema }
 import { SessionCompaction } from "./compaction"
 import { Instance } from "../project/instance"
 import { Bus } from "../bus"
+import { Lifecycle } from "@/bus/lifecycle"
 import { ProviderTransform } from "../provider/transform"
 import { SystemPrompt } from "./system"
 import { InstructionPrompt } from "./instruction"
@@ -68,6 +69,7 @@ globalThis.AI_SDK_LOG_WARNINGS = false
 export namespace SessionPrompt {
   const log = Log.create({ service: "session.prompt" })
   export const OUTPUT_TOKEN_MAX = Flag.DAX_EXPERIMENTAL_OUTPUT_TOKEN_MAX || 32_000
+  const DEFAULT_PRIMARY_STEP_BUDGET = Math.max(4, Number(process.env.DAX_MAX_PRIMARY_STEPS ?? 12))
 
   const state = Instance.state(
     () => {
@@ -590,7 +592,17 @@ export namespace SessionPrompt {
 
       // normal processing
       const agent = await Agent.get(lastUser.agent)
-      const maxSteps = agent.steps ?? Infinity
+      const maxSteps = agent.steps ?? (agent.mode === "primary" ? DEFAULT_PRIMARY_STEP_BUDGET : Infinity)
+      const hardStepLimit = Number.isFinite(maxSteps) ? maxSteps + 2 : Infinity
+      if (step > hardStepLimit) {
+        await Bus.publish(Lifecycle.InterventionRequired, {
+          runId: sessionID,
+          type: "policy_violation",
+          reason: `Step budget exceeded (${step} > ${hardStepLimit}). Run paused to avoid indefinite drift. Clarify scope or continue with a tighter request.`,
+        })
+        log.warn("step budget exceeded, stopping loop", { sessionID, step, hardStepLimit })
+        break
+      }
       const isLastStep = step >= maxSteps
       msgs = await insertReminders({
         messages: msgs,
