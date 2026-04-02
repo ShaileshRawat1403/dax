@@ -11,6 +11,7 @@ import { TodoItem } from "../../component/todo-item"
 import { DAX_SETTING } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
+import { shouldShowSidebarSection, type DisplayMode } from "@/dax/presentation/session-display"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { deriveAuditHistory, deriveLiveSessionStageState } from "@/dax/presentation/session-surface"
 import { Locale } from "@/util/locale"
@@ -149,6 +150,7 @@ function SidebarCard(props: { children: any }) {
 
 export function Sidebar(props: {
   sessionID: string
+  displayMode: DisplayMode
   overlay?: boolean
   onInspectApprovals?: () => void
   onInspectDiff?: () => void
@@ -213,6 +215,11 @@ export function Sidebar(props: {
   const kv = useKV()
   const local = useLocal()
   const workflowMode = createMemo(() => kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))
+  const showSection = (section: Parameters<typeof shouldShowSidebarSection>[0]["section"]) =>
+    shouldShowSidebarSection({
+      displayMode: props.displayMode,
+      section,
+    })
   const pending = createMemo(() => messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id)
   const messageText = (messageID: string) =>
     (sync.data.part[messageID] ?? [])
@@ -298,17 +305,20 @@ export function Sidebar(props: {
               </box>
             </SidebarCard>
 
-            <Show when={workstationState().reflection}>
+            <Show when={showSection("reflection") && workstationState().reflection}>
               <SidebarCard>
                 <ReflectionPanel reflection={workstationState().reflection} history={workstationState().reflectionHistory} />
               </SidebarCard>
             </Show>
-            
-            <SidebarCard>
-              <TelemetryPanel state={workstationState()} />
-            </SidebarCard>
 
-            <SidebarCard>
+            <Show when={showSection("telemetry")}>
+              <SidebarCard>
+                <TelemetryPanel state={workstationState()} />
+              </SidebarCard>
+            </Show>
+
+            <Show when={showSection("runtime")}>
+              <SidebarCard>
               <text fg={theme.text}>
                 <b>Runtime</b>
               </text>
@@ -366,13 +376,14 @@ export function Sidebar(props: {
                 <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline} onPress={props.onOpenTimeline} muted />
                 <SidebarAction label={SESSION_COMMAND_LABELS.jumpLastRequest} onPress={props.onJumpLastUser} muted />
                 <Show when={runtimeStatus().type === "busy" || runtimeStatus().type === "retry" || runtimeStatus().type === "delayed"}>
-                  <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive} onPress={props.onJumpLive} muted />
+                <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive} onPress={props.onJumpLive} muted />
                 </Show>
                 <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
               </box>
-            </SidebarCard>
+              </SidebarCard>
+            </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
-            <Show when={todo().length > 0 && todo().some((t) => t.status !== "completed")}>
+            <Show when={showSection("todo") && todo().length > 0 && todo().some((t) => t.status !== "completed")}>
               <SidebarCard>
                 <box
                   flexDirection="row"
@@ -393,7 +404,7 @@ export function Sidebar(props: {
               </SidebarCard>
             </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
-            <Show when={diff().length > 0}>
+            <Show when={showSection("diff") && diff().length > 0}>
               <SidebarCard>
                 <box
                   flexDirection="row"
@@ -434,7 +445,8 @@ export function Sidebar(props: {
               </SidebarCard>
             </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
-            <SidebarCard>
+            <Show when={showSection("audit")}>
+              <SidebarCard>
               <SectionHeading title="Session" />
               <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
                 <text fg={theme.primary}>{workflowMode()}</text>
@@ -464,9 +476,10 @@ export function Sidebar(props: {
                   </box>
                 )}
               </Show>
-            </SidebarCard>
+              </SidebarCard>
+            </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
-            <Show when={mcpEntries().length > 0}>
+            <Show when={showSection("mcp") && mcpEntries().length > 0}>
               <SidebarCard>
                 <box
                   flexDirection="row"
@@ -529,7 +542,8 @@ export function Sidebar(props: {
               </SidebarCard>
             </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
-            <SidebarCard>
+            <Show when={showSection("lsp")}>
+              <SidebarCard>
               <box
                 flexDirection="row"
                 gap={1}
@@ -569,7 +583,8 @@ export function Sidebar(props: {
                   )}
                 </For>
               </Show>
-            </SidebarCard>
+              </SidebarCard>
+            </Show>
           </box>
         </scrollbox>
 

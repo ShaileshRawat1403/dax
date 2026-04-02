@@ -122,6 +122,8 @@ export function applyPersonaVoice(text: string, persona: PersonaPack): string {
     voiced = trimFiller(voiced)
   }
 
+  voiced = applyPersonaLexicon(voiced, persona)
+
   if (persona.id === "commander") {
     voiced = prefixSentence(voiced, "Status")
   } else if (persona.id === "detective") {
@@ -166,4 +168,28 @@ function formalizeContractions(text: string) {
     .replace(/\bwon't\b/gi, "will not")
     .replace(/\bdon't\b/gi, "do not")
     .replace(/\bit's\b/gi, "it is")
+}
+
+function applyPersonaLexicon(text: string, persona: PersonaPack) {
+  if (persona.id === "auditor") {
+    return text
+      .replace(/\bstill on it\b/gi, "in progress")
+      .replace(/\bworking through\b/gi, "executing")
+  }
+  if (persona.id === "commander") {
+    return text
+      .replace(/\bwaiting\b/gi, "holding")
+      .replace(/\bnext step\b/gi, "next move")
+  }
+  if (persona.id === "detective") {
+    return text
+      .replace(/\bprovider\b/gi, "upstream")
+      .replace(/\bissue\b/gi, "lead")
+  }
+  if (persona.id === "zen") {
+    return text
+      .replace(/\bworking through\b/gi, "moving through")
+      .replace(/\bmust\b/gi, "should")
+  }
+  return text
 }

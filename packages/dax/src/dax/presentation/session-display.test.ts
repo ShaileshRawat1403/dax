@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
   nextDisplayMode,
+  resolveDisplayDetailToggles,
   resolveSessionSidebarVisibility,
   shouldAutoOpenSidebar,
+  shouldShowSidebarSection,
   shouldShowInterventionQueue,
 } from "./session-display"
 
@@ -50,5 +52,62 @@ describe("session-display", () => {
         queueVisible: false,
       }),
     ).toBe(false)
+  })
+
+  test("inspect mode deepens detail visibility without changing thinking or timestamps", () => {
+    expect(
+      resolveDisplayDetailToggles({
+        displayMode: "inspect",
+        showThinking: false,
+        showTimestamps: true,
+        showDetails: false,
+        showAssistantMetadata: false,
+      }),
+    ).toEqual({
+      showThinking: false,
+      showTimestamps: true,
+      showDetails: true,
+      showAssistantMetadata: true,
+    })
+  })
+
+  test("quiet mode suppresses all secondary session chrome", () => {
+    expect(
+      resolveDisplayDetailToggles({
+        displayMode: "quiet",
+        showThinking: true,
+        showTimestamps: true,
+        showDetails: true,
+        showAssistantMetadata: true,
+      }),
+    ).toEqual({
+      showThinking: false,
+      showTimestamps: false,
+      showDetails: false,
+      showAssistantMetadata: false,
+    })
+  })
+
+  test("operator mode keeps runtime sections while inspect keeps all", () => {
+    expect(
+      shouldShowSidebarSection({
+        displayMode: "operator",
+        section: "runtime",
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldShowSidebarSection({
+        displayMode: "operator",
+        section: "reflection",
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldShowSidebarSection({
+        displayMode: "inspect",
+        section: "reflection",
+      }),
+    ).toBe(true)
   })
 })
