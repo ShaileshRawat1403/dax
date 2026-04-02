@@ -675,6 +675,12 @@ export namespace SessionPrompt {
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: sessionMessages })
 
       const reflectionSummary = createReflectionSummary(session.state_v2?.reflection)
+      const reflectionPolicy = [
+        "<reflection-policy>",
+        "Before taking significant actions (file edits, shell commands, or multi-step plans), use the reflection tool to record your goal, intended decision, approval needs, and verification plan.",
+        "Skip reflection for trivial conversational replies or when the current reflection already matches the next step.",
+        "</reflection-policy>",
+      ]
 
       const result = await processor.process({
         user: lastUser,
@@ -684,6 +690,7 @@ export namespace SessionPrompt {
         system: [
           ...(await SystemPrompt.environment(model)),
           ...(await InstructionPrompt.system()),
+          ...reflectionPolicy,
           ...(reflectionSummary
             ? [
                 `<reflection-context>`,
@@ -1379,20 +1386,22 @@ export namespace SessionPrompt {
       const plan = Session.plan(input.session)
       const exists = await Bun.file(plan).exists()
       if (!exists) await fs.mkdir(path.dirname(plan), { recursive: true })
-      const part = await Session.updatePart({
-        id: Identifier.ascending("part"),
-        messageID: userMessage.info.id,
-        sessionID: userMessage.info.sessionID,
-        type: "text",
-        text: `<system-reminder>
-The user wants planning only right now. Work read-only, except for the plan file mentioned below. Do not make edits elsewhere, run non-readonly tools, change configs, or make commits. This supersedes other instructions you have received.
-Do not repeat this reminder back to the user. Start with the plan, the first useful pass, or the next concrete insight.
-
-## Plan File Info:
-${exists ? `A plan file already exists at ${plan}. You can read it and make incremental edits using the edit tool.` : `No plan file exists yet. You should create your plan at ${plan} using the write tool.`}
-You should build your plan incrementally by writing to or editing this file. NOTE that this is the only file you are allowed to edit - other than this you are only allowed to take READ-ONLY actions.
-
-## Plan Workflow
+      const effectiveRules = Permission.merge(input.agent.permission, input.session.permission ?? [])
+      const questionAction = Permission.evaluate("question", "*", effectiveRules).action
+      const planExitAction = Permission.evaluate("plan_exit", "*", effectiveRules).action
+      const interactivePlanningAvailable = questionAction === "allow" && planExitAction === "allow"
+      const planModelID = "model" in userMessage.info ? userMessage.info.model.modelID : ""
+      const codexStylePatchModel =
+        planModelID.includes("gpt-") && !planModelID.includes("oss") && !planModelID.includes("gpt-4")
+      const planToolGuidance = codexStylePatchModel
+        ? exists
+          ? `The plan file already exists at ${plan}. Update it using the available file-edit tool (for Codex-style models this is usually apply_patch against that exact path).`
+          : `No plan file exists yet. Create ${plan} using the available file-edit tool (for Codex-style models this is usually apply_patch with an Add File hunk for that exact path).`
+        : exists
+          ? `A plan file already exists at ${plan}. You can read it and make incremental edits using the available file-edit tool.`
+          : `No plan file exists yet. You should create your plan at ${plan} using the available file-edit tool.`
+      const planWorkflow = interactivePlanningAvailable
+        ? `## Plan Workflow
 
 ### Phase 1: Initial Understanding
 Goal: Gain a comprehensive understanding of the user's request by reading through code and asking them questions. Critical: In this phase you should only use the explore subagent type.
@@ -1451,9 +1460,43 @@ Goal: Write your final plan to the plan file (the only file you can edit).
 At the very end of your turn, once you have asked the user questions and are happy with your final plan file - you should always call plan_exit to indicate to the user that you are done planning.
 This is critical - your turn should only end with either asking the user a question or calling plan_exit. Do not stop unless it's for these 2 reasons.
 
-**Important:** Use question tool to clarify requirements/approach, use plan_exit to request plan approval. Do NOT use question tool to ask "Is this plan okay?" - that's what plan_exit does.
+**Important:** Use question tool to clarify requirements/approach, use plan_exit to request plan approval. Do NOT use question tool to ask "Is this plan okay?" - that's what plan_exit does.`
+        : `## Non-Interactive Plan Workflow
 
-NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.
+This run is a one-shot planning command, not an interactive planning conversation.
+
+1. Read only the most relevant files and context needed to plan confidently.
+2. Do not spawn broad exploratory loops unless the task truly requires it.
+3. Do not call question or plan_exit.
+4. Write the best possible canonical plan file directly.
+5. If information is missing, record assumptions and open questions inside the plan instead of stalling.
+6. End once the plan artifact is usable and concise.
+
+Plan file requirements:
+- Goal
+- Constraints or assumptions
+- Recommended approach
+- Ordered implementation steps
+- Verification
+- Risks or follow-up`
+      const part = await Session.updatePart({
+        id: Identifier.ascending("part"),
+        messageID: userMessage.info.id,
+        sessionID: userMessage.info.sessionID,
+        type: "text",
+        text: `<system-reminder>
+The user wants planning only right now. Work read-only, except for the plan file mentioned below. Do not make edits elsewhere, run non-readonly tools, change configs, or make commits. This supersedes other instructions you have received.
+Do not repeat this reminder back to the user. Start with the plan, the first useful pass, or the next concrete insight.
+
+## Plan File Info:
+${planToolGuidance}
+You should build your plan incrementally by writing to or updating this file with whichever file-edit tool the runtime actually exposes. NOTE that this is the only file you are allowed to edit - other than this you are only allowed to take READ-ONLY actions.
+
+${planWorkflow}
+
+${interactivePlanningAvailable
+  ? `NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.`
+  : `NOTE: This is a non-interactive planning pass. Do not ask the user follow-up questions in this run; capture assumptions, open questions, and unresolved risk inside the plan file itself.`}
 </system-reminder>`,
         synthetic: true,
       })

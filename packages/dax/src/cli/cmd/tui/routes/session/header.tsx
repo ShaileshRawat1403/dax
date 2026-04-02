@@ -5,6 +5,7 @@ import { useKV } from "../../context/kv"
 import { DAX_SETTING } from "@/dax/settings"
 import { isEli12Mode } from "@/dax/intent"
 import type { PersonaPack } from "@/dax/presentation/persona"
+import { nextDisplayMode, type DisplayMode } from "@/dax/presentation/session-display"
 
 type HeaderAction = {
   label: string
@@ -26,21 +27,18 @@ export function Header(props: {
   const kv = useKV()
   const { theme } = useTheme()
 
+  const [displayMode, setDisplayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
+  const [queueVisibleRaw, setQueueVisibleRaw] = kv.signal<string | boolean>(DAX_SETTING.intervention_queue_visible, true)
+  const queueVisible = createMemo(() => queueVisibleRaw() !== false && queueVisibleRaw() !== "false")
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const displayMode = createMemo(() => kv.get(DAX_SETTING.display_mode, "operator"))
-  const queueVisible = createMemo(() => kv.get(DAX_SETTING.intervention_queue_visible, "true") === "true")
   const toggleEli12 = () => {
     kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
   }
   const cycleDisplayMode = () => {
-    const modes = ["operator", "inspect", "quiet"] as const
-    const current = displayMode()
-    const idx = modes.indexOf(current as any)
-    const next = modes[(idx + 1) % modes.length]
-    kv.set(DAX_SETTING.display_mode, next)
+    setDisplayMode(() => nextDisplayMode(displayMode()))
   }
   const toggleQueue = () => {
-    kv.set(DAX_SETTING.intervention_queue_visible, queueVisible() ? "false" : "true")
+    setQueueVisibleRaw(() => !queueVisible())
   }
 
   const [tick, setTick] = createSignal(0)
@@ -183,6 +181,7 @@ export function Header(props: {
                 <For each={props.actions}>
                   {(action) => (
                     <box
+                      onMouseUp={action.onPress}
                       paddingLeft={1}
                       paddingRight={1}
                       backgroundColor={action.primary ? theme.primary : theme.backgroundElement}

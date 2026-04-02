@@ -109,12 +109,61 @@ export function getPersona(id: string = "zen"): PersonaPack {
 }
 
 export function applyPersonaVoice(text: string, persona: PersonaPack): string {
-  // This is a simple placeholder. In a real system, this could use a small model or rule-based templates.
+  const normalized = normalizeSentence(text)
+  if (!normalized) return normalized
+
+  let voiced = normalized
+
   if (persona.voice.formality === "high") {
-    return text.charAt(0).toUpperCase() + text.slice(1)
+    voiced = formalizeContractions(voiced)
   }
-  if (persona.id === "detective") {
-    return `Look, ${text.toLowerCase().replace(/\.$/, "")}.`
+
+  if (persona.voice.verbosity === "tight") {
+    voiced = trimFiller(voiced)
   }
+
+  if (persona.id === "commander") {
+    voiced = prefixSentence(voiced, "Status")
+  } else if (persona.id === "detective") {
+    voiced = prefixSentence(voiced, "Signal")
+  } else if (persona.id === "zen") {
+    voiced = prefixSentence(voiced, "Focus")
+  }
+
+  return ensureSentencePunctuation(voiced)
+}
+
+function normalizeSentence(text: string) {
+  return text.replace(/\s+/g, " ").trim()
+}
+
+function ensureSentencePunctuation(text: string) {
+  const sentence = text.charAt(0).toUpperCase() + text.slice(1)
+  if (/[.!?]$/.test(sentence)) return sentence
+  return `${sentence}.`
+}
+
+function prefixSentence(text: string, prefix: string) {
+  if (new RegExp(`^${prefix}:`, "i").test(text)) return text
+  return `${prefix}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`
+}
+
+function trimFiller(text: string) {
   return text
+    .replace(/^the run /i, "run ")
+    .replace(/^the workstation /i, "workstation ")
+    .replace(/^there is /i, "")
+    .replace(/\bjust\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
+function formalizeContractions(text: string) {
+  return text
+    .replace(/\bi'm\b/gi, "I am")
+    .replace(/\bi'll\b/gi, "I will")
+    .replace(/\bcan't\b/gi, "cannot")
+    .replace(/\bwon't\b/gi, "will not")
+    .replace(/\bdon't\b/gi, "do not")
+    .replace(/\bit's\b/gi, "it is")
 }

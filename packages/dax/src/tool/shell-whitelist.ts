@@ -9,7 +9,7 @@ export function isWhitelistedVerificationCommand(command: string): boolean {
     /\s&&\s/,
     /;;$/,
     /^\$\(/,
-    /\bexec\b/,
+    /^exec\b/,
     /\bsource\b/,
     /\beval\b/,
     /\bbash\b/,
@@ -41,17 +41,25 @@ export function isWhitelistedVerificationCommand(command: string): boolean {
 
   for (const entry of VERIFICATION_SHELL_WHITELIST) {
     if (executable === entry.executable) {
+      if (entry.allowNestedExec && args[0] === "exec") {
+        const nestedArgs = args.slice(1)
+        if (nestedArgs.length === 0) return false
+        return isWhitelistedVerificationCommand(nestedArgs.join(" "))
+      }
+
       for (const arg of args) {
-        if (arg.startsWith("-")) {
-          const flag = arg.split("=")[0]
-          if (entry.allowedFlags.length > 0 && !entry.allowedFlags.includes(flag)) {
-            return false
-          }
-        } else {
-          if (entry.allowedSubcommands.length > 0 && !entry.allowedSubcommands.includes(arg)) {
-            return false
-          }
+        const token = arg.split("=")[0]!
+        const allowedTokens = new Set(
+          [...entry.allowedFlags, ...entry.allowedSubcommands].map((item) => item.toLowerCase()),
+        )
+
+        if (allowedTokens.has(token)) continue
+
+        if (entry.allowPathTargets && isSafeVerificationTarget(arg)) {
+          continue
         }
+
+        return false
       }
 
       return true
@@ -59,6 +67,14 @@ export function isWhitelistedVerificationCommand(command: string): boolean {
   }
 
   return false
+}
+
+function isSafeVerificationTarget(arg: string) {
+  if (!arg) return false
+  if (/[|&;<>()$`]/.test(arg)) return false
+  if (arg === "--") return true
+
+  return /^(?:\.{1,2}(?:\/|$)|\/|[a-z0-9_@][a-z0-9_./:@-]*|\.[a-z0-9_./-]+)$/.test(arg)
 }
 
 export function parseCommandExecutable(command: string): { executable: string; args: string[] } | null {

@@ -257,6 +257,7 @@ export function Sidebar(props: {
       goal: s?.title,
       todo: todo().map(t => ({ content: t.content, status: t.status })),
       reflection: (s?.state_v2 as any)?.reflection,
+      reflectionHistory: (s?.state_v2 as any)?.reflection_history ?? [],
       approvals: permissions().map(p => ({ label: p.permission, reason: p.metadata?.reason as string | undefined })),
       questions: questions().length,
       artifacts: art.map((a: any) => ({ label: a.path || a.id, kind: a.kind })),
@@ -299,7 +300,7 @@ export function Sidebar(props: {
 
             <Show when={workstationState().reflection}>
               <SidebarCard>
-                <ReflectionPanel reflection={workstationState().reflection} />
+                <ReflectionPanel reflection={workstationState().reflection} history={workstationState().reflectionHistory} />
               </SidebarCard>
             </Show>
             

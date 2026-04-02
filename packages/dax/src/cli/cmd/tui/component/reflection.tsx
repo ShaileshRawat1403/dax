@@ -2,9 +2,11 @@ import { For, Show } from "solid-js"
 import { useTheme, tint } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
 import type { ExecutionReflection } from "@/session/state-types"
+import { createHistoricalReflectionSummary } from "@/session/reflection-pruning"
 
-export function ReflectionPanel(props: { reflection?: ExecutionReflection }) {
+export function ReflectionPanel(props: { reflection?: ExecutionReflection; history?: ExecutionReflection[] }) {
   const { theme } = useTheme()
+  const history = () => createHistoricalReflectionSummary(props.history ?? [])
 
   return (
     <box flexDirection="column" paddingLeft={1} paddingRight={1} gap={1}>
@@ -145,6 +147,26 @@ export function ReflectionPanel(props: { reflection?: ExecutionReflection }) {
             <For each={props.reflection!.verificationPlan}>
               {(check) => (
                 <text fg={theme.textMuted}>□ {check}</text>
+              )}
+            </For>
+          </box>
+        </Show>
+
+        <Show when={history().length > 1}>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+              RECENT CHECKPOINTS
+            </text>
+            <For each={history().slice(0, -1)}>
+              {(item) => (
+                <box flexDirection="row" justifyContent="space-between" gap={1}>
+                  <text fg={item.requiresApproval ? theme.warning : theme.textMuted} wrapMode="truncate-end">
+                    {item.decision.toUpperCase()} · {item.goal}
+                  </text>
+                  <text fg={theme.textMuted}>
+                    {Math.round(item.confidence * 100)}%
+                  </text>
+                </box>
               )}
             </For>
           </box>

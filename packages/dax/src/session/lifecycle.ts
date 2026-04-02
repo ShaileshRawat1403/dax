@@ -20,6 +20,22 @@ export type SessionLifecycleSummary = {
   completion_reason?: string
 }
 
+export function deriveExplicitCompletionSignal(input: {
+  messages: MessageV2.WithParts[]
+  pendingApprovalCount: number
+  sessionUpdatedAt?: number
+}) {
+  const firstAssistant = input.messages.find((message) => message.info.role === "assistant")
+  const lastMessage = input.messages.at(-1)
+  return (
+    !!lastMessage &&
+    input.messages.length > 2 &&
+    input.pendingApprovalCount === 0 &&
+    typeof input.sessionUpdatedAt === "number" &&
+    input.sessionUpdatedAt > (firstAssistant?.info.time.created ?? 0)
+  )
+}
+
 type LifecycleMessageSignal = {
   role: MessageV2.Info["role"]
   finish?: string
@@ -38,6 +54,7 @@ export function deriveSessionLifecycleFromMessages(input: {
   messages: MessageV2.WithParts[]
   hasPlan?: boolean
   isPlanning?: boolean
+  sessionUpdatedAt?: number
 }): SessionLifecycleSummary {
   const signals = input.messages.map(toLifecycleMessageSignal)
   return evaluateSessionLifecycle({
@@ -48,6 +65,11 @@ export function deriveSessionLifecycleFromMessages(input: {
     signals,
     hasPlan: input.hasPlan,
     isPlanning: input.isPlanning,
+    hasExplicitCompletionSignal: deriveExplicitCompletionSignal({
+      messages: input.messages,
+      pendingApprovalCount: input.pendingApprovalCount,
+      sessionUpdatedAt: input.sessionUpdatedAt,
+    }),
   })
 }
 
@@ -59,6 +81,7 @@ export function evaluateSessionLifecycle(input: {
   signals: LifecycleMessageSignal[]
   hasPlan?: boolean
   isPlanning?: boolean
+  hasExplicitCompletionSignal?: boolean
 }): SessionLifecycleSummary {
   const assistantSignals = input.signals.filter((signal) => signal.role === "assistant")
   const executionStarted = assistantSignals.length > 0
@@ -117,13 +140,17 @@ export function evaluateSessionLifecycle(input: {
     }
   }
 
-  if (hasRecordedProgressionCompletion || hasToolDrivenTerminalCompletion) {
+  if (hasRecordedProgressionCompletion || hasToolDrivenTerminalCompletion || input.hasExplicitCompletionSignal) {
     return {
       lifecycle_state: "completed",
       terminal: true,
       requires_reconciliation: false,
       execution_started: executionStarted,
-      completion_reason: hasRecordedProgressionCompletion ? "execution_completed" : "tool_execution_completed",
+      completion_reason: hasRecordedProgressionCompletion
+        ? "execution_completed"
+        : hasToolDrivenTerminalCompletion
+          ? "tool_execution_completed"
+          : "explicit_completion_signal",
     }
   }
 

@@ -183,6 +183,7 @@ export namespace SessionV2 {
       audit_findings: AuditFinding.array(),
       trust_posture: z.any().optional(),
       reflection: Reflection.optional(),
+      reflection_history: Reflection.array().optional(),
     })
     .meta({
       ref: "SessionStateV2",
