@@ -127,6 +127,7 @@ import { DAX_SETTING } from "@/dax/settings"
 import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
+import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
 
 addDefaultParsers(parsers.parsers)
 
@@ -1504,11 +1505,23 @@ export function Session() {
   const operatorNextMove = createMemo(() => {
     const persona = activePersona()
     const voice = (text: string) => applyPersonaVoice(text, persona)
+    const branchNudge = deriveFeatureBranchNudge({
+      branch: sync.data.vcs?.branch,
+      workflowMode: workflowMode(),
+      hasConcreteChanges: hasDiffNeed(),
+    })
     if (hasApprovalsNeed()) {
       return {
         title: voice("Review the waiting decision"),
         detail: voice("Open approvals, inspect the reason or diff, then allow or deny the run"),
         tone: "warning" as const,
+      }
+    }
+    if (branchNudge && workflowMode() === "build") {
+      return {
+        title: voice(branchNudge.title),
+        detail: voice(branchNudge.detail),
+        tone: branchNudge.tone,
       }
     }
     if (displayStageState().stage === "verifying" && hasAuditNeed()) {
