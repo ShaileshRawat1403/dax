@@ -5,6 +5,16 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.13] - 2026-04-02
+
+### Changed
+- **Boundary Hardening for Vague Runs**: Runtime guard now blocks mutating actions when intent is vague and no concrete scoped contract targets are present.
+- **Primary Loop Safety Rails**: Session loop now enforces a hard primary step budget to prevent indefinite drift on under-specified tasks.
+
+### Fixed
+- **Codex Boundary Drift Path**: A vague prompt path that previously escalated into `apply_patch` under weak constraints is now stopped by trust guards.
+- **Provider Stall Recovery**: Session processor now enforces deterministic stream stall timeout behavior so long-running provider silence does not hang runs indefinitely.
+
 ## [1.0.12] - 2026-04-02
 
 ### Added
