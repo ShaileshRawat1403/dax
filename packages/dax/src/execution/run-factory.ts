@@ -13,6 +13,11 @@ import { Transitions } from "@/state/transitions"
 import { WorkflowRegistry } from "@/workflows/registry"
 import { isFixedWorkflow } from "@/workflows/types"
 import { Tracer } from "@/runtime/telemetry"
+import { evaluatePlanQuality } from "./plan-quality-gate"
+import { resolveGuardEnforcementMode } from "./guard-mode"
+import { createAndPersistApproval } from "@/approval/approval-transitions"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
 
 import { ContractGuardian } from "./contract-guardian"
 import {
@@ -193,6 +198,8 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 
   const { contract, warnings } = compileWithRunId(input, session.id)
   contract.runId = session.id
+  const guardMode = resolveGuardEnforcementMode()
+  const planQuality = evaluatePlanQuality(contract)
 
   await writeContract(session.id, contract)
 
@@ -203,9 +210,36 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   if (isEventPilot) {
     await createEventAuthorityRun(session.id, contract.contractId)
   } else {
-    const runState = await RunStore.create(session.id, contract.contractId)
+    await RunStore.create(session.id, contract.contractId)
     await Transitions.transition(session.id, "compiled", "contract_compiled")
+    await RunStore.update(session.id, (state) => ({
+      ...state,
+      governance: {
+        ...state.governance,
+        guardEnforcementMode: guardMode,
+        planQuality,
+      },
+    }))
   }
+
+  await Session.update(session.id, (draft) => {
+    const current = draft.state_v2
+    draft.state_v2 = {
+      intent: current?.intent,
+      plan: current?.plan,
+      activity_timeline: current?.activity_timeline ?? [],
+      approvals: current?.approvals ?? [],
+      artifacts: current?.artifacts ?? [],
+      audit_findings: current?.audit_findings ?? [],
+      trust_posture: current?.trust_posture,
+      reflection: current?.reflection,
+      reflection_history: current?.reflection_history,
+      runtime_guard: current?.runtime_guard,
+      plan_quality: planQuality,
+      completion_proof: current?.completion_proof,
+      guard_enforcement_mode: guardMode,
+    }
+  })
 
   await writeRunMeta(session.id, {
     sourceSystem: input.request.metadata?.source ?? "api",
@@ -221,6 +255,30 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 
   Tracer.runCreated(session.id, contract.workflowClass, contract.executionMode)
   Tracer.contractCompiled(session.id, contract.contractId, contract.riskLevel)
+  const requiresPauseForPlanQuality = planQuality.decision === "pause" && guardMode === "enforce"
+  if (planQuality.decision === "pause") {
+    const note = `Plan quality gate flagged this run (${planQuality.score}/100): ${planQuality.failedChecks.join(", ")}`
+    warnings.push(note)
+    if (guardMode === "enforce") {
+      await createAndPersistApproval({
+        runId: session.id,
+        type: "workflow_gate",
+        risk: "high",
+        title: "Plan quality gate paused execution",
+        reason: `Execution paused until operator review. Missing plan signals: ${planQuality.failedChecks.join(", ")}.`,
+        source: "system",
+        context: {
+          notes: planQuality.guidance,
+        },
+      })
+    } else {
+      await Bus.publish(Lifecycle.InterventionRequired, {
+        runId: session.id,
+        reason: `Plan quality warning (warn mode): ${planQuality.failedChecks.join(", ")}.`,
+        type: "policy_violation",
+      })
+    }
+  }
 
   if (isFixedWorkflow(contract.workflowClass)) {
     const workflow = WorkflowRegistry.create(contract.workflowClass, {
@@ -228,7 +286,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
       contract,
     })
 
-    if (workflow) {
+    if (workflow && !requiresPauseForPlanQuality) {
       if (isEventPilot) {
         await transitionEventAuthority(session.id, "queued", "execution_queued", {})
         await transitionEventAuthority(session.id, "running", "workflow_started", {})
@@ -245,11 +303,25 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
         })
       })
     } else {
-      finalStatus = "created"
+      if (requiresPauseForPlanQuality) {
+        await Transitions.transition(session.id, "queued", "execution_queued")
+        await Transitions.transition(session.id, "running", "execution_started")
+        await Transitions.transition(session.id, "waiting_approval", "plan_quality_gate")
+        finalStatus = "waiting_approval"
+      } else {
+        finalStatus = "created"
+      }
     }
   } else {
-    await startExecution(session.id, contract)
-    finalStatus = "running"
+    if (planQuality.decision === "pause" && guardMode === "enforce") {
+      await Transitions.transition(session.id, "queued", "execution_queued")
+      await Transitions.transition(session.id, "running", "execution_started")
+      await Transitions.transition(session.id, "waiting_approval", "plan_quality_gate")
+      finalStatus = "waiting_approval"
+    } else {
+      await startExecution(session.id, contract)
+      finalStatus = "running"
+    }
   }
 
   const response: CreateRunResponse = {

@@ -942,13 +942,14 @@ describe("run gateway v1 contract", () => {
 
         expect(projections.header.runId).toBe(create.runId)
         expect(projections.header.status).toBe("created")
-        
-        expect(projections.narrative).toHaveLength(3) // run.created, intent.created, plan.compiled
-        expect(projections.narrative[0].type).toBe("run.created")
-        expect(projections.narrative[1].type).toBe("intent.created")
-        expect(projections.narrative[1].message).toContain("Fix the bug")
-        expect(projections.narrative[2].type).toBe("plan.compiled")
-        expect(projections.narrative[2].message).toContain("1 tasks")
+
+        // P1.5 can add a non-blocking intervention narrative in warn mode.
+        expect(projections.narrative.length).toBeGreaterThanOrEqual(3)
+        expect(projections.narrative[0]?.type).toBe("run.created")
+        const intentNarrative = projections.narrative.find((item) => item.type === "intent.created")
+        const planNarrative = projections.narrative.find((item) => item.type === "plan.compiled")
+        expect(intentNarrative?.message).toContain("Fix the bug")
+        expect(planNarrative?.message).toContain("1 tasks")
 
         expect(projections.approvals).toEqual([])
         expect(projections.artifacts).toEqual([])

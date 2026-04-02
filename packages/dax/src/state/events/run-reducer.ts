@@ -9,6 +9,7 @@ export type RunState = {
   pendingApprovalIds: string[]
   artifactIds: string[]
   governance: {
+    guardEnforcementMode: "warn" | "enforce"
     budget: {
       maxFilesTouched: number
       maxMutatingCommands: number
@@ -30,6 +31,23 @@ export type RunState = {
       satisfied: boolean
       receiptIds: string[]
     }
+    planQuality: {
+      score: number
+      decision: "proceed" | "pause"
+      failedChecks: string[]
+      guidance: string[]
+      checkedAt: string
+    } | null
+    completionProof: {
+      ready: boolean
+      missing: string[]
+      verificationReceipts: number
+      mutationReceipts: number
+      artifactCount: number
+      scopeSatisfied: boolean
+      sensitiveChangesApproved: boolean
+      checkedAt: string
+    } | null
     failureCounts: Record<string, number>
   }
   draft: DraftRecord | null
@@ -127,6 +145,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     pendingApprovalIds: [],
     artifactIds: [],
     governance: {
+      guardEnforcementMode: "warn",
       budget: {
         maxFilesTouched: 8,
         maxMutatingCommands: 6,
@@ -144,6 +163,8 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         satisfied: false,
         receiptIds: [],
       },
+      planQuality: null,
+      completionProof: null,
       failureCounts: {},
     },
     draft: null,

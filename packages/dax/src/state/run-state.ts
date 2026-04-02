@@ -49,6 +49,7 @@ export const VerificationStateSchema = z.object({
 export type VerificationState = z.infer<typeof VerificationStateSchema>
 
 export const RuntimeGovernanceSchema = z.object({
+  guardEnforcementMode: z.enum(["warn", "enforce"]).default("warn"),
   budget: z.object({
     maxFilesTouched: z.number().int().positive().default(8),
     maxMutatingCommands: z.number().int().positive().default(6),
@@ -66,6 +67,29 @@ export const RuntimeGovernanceSchema = z.object({
     satisfied: false,
     receiptIds: [],
   }),
+  planQuality: z
+    .object({
+      score: z.number().int().min(0).max(100),
+      decision: z.enum(["proceed", "pause"]),
+      failedChecks: z.array(z.string()).default([]),
+      guidance: z.array(z.string()).default([]),
+      checkedAt: z.string(),
+    })
+    .nullable()
+    .default(null),
+  completionProof: z
+    .object({
+      ready: z.boolean(),
+      missing: z.array(z.string()).default([]),
+      verificationReceipts: z.number().int().nonnegative().default(0),
+      mutationReceipts: z.number().int().nonnegative().default(0),
+      artifactCount: z.number().int().nonnegative().default(0),
+      scopeSatisfied: z.boolean().default(true),
+      sensitiveChangesApproved: z.boolean().default(true),
+      checkedAt: z.string(),
+    })
+    .nullable()
+    .default(null),
   failureCounts: z.record(z.string(), z.number().int().nonnegative()).default({}),
 })
 export type RuntimeGovernance = z.infer<typeof RuntimeGovernanceSchema>
@@ -91,6 +115,7 @@ export const RunStateSchema = z.object({
   pendingApprovalIds: z.string().array(),
   artifactIds: z.string().array(),
   governance: RuntimeGovernanceSchema.default({
+    guardEnforcementMode: "warn",
     budget: {
       maxFilesTouched: 8,
       maxMutatingCommands: 6,
@@ -108,6 +133,8 @@ export const RunStateSchema = z.object({
       satisfied: false,
       receiptIds: [],
     },
+    planQuality: null,
+    completionProof: null,
     failureCounts: {},
   }),
   trust: TrustSummarySchema.nullable(),
@@ -146,6 +173,7 @@ export function createInitialRunState(runId: string, contractId: string): RunSta
     pendingApprovalIds: [],
     artifactIds: [],
     governance: {
+      guardEnforcementMode: "warn",
       budget: {
         maxFilesTouched: 8,
         maxMutatingCommands: 6,
@@ -163,6 +191,8 @@ export function createInitialRunState(runId: string, contractId: string): RunSta
         satisfied: false,
         receiptIds: [],
       },
+      planQuality: null,
+      completionProof: null,
       failureCounts: {},
     },
     trust: null,

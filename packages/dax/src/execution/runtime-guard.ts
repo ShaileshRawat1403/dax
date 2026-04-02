@@ -2,10 +2,14 @@ import { Session } from "@/session"
 import type { SessionV2 } from "@/session/model"
 import { ContractGuardian } from "./contract-guardian"
 import { createAndPersistApproval } from "@/approval/approval-transitions"
+import { Bus } from "@/bus"
+import { Lifecycle } from "@/bus/lifecycle"
 import { Instance } from "@/project/instance"
 import { RunStore } from "@/state/run-store"
 import { $ } from "bun"
 import path from "path"
+import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
+import { deriveCompletionProof } from "./completion-proof"
 
 export type RuntimeActionClass = "analyze" | "propose" | "mutate" | "commit" | "publish" | "verify"
 
@@ -208,6 +212,17 @@ async function ensureIntervention(input: {
   })
 }
 
+async function emitWarnIntervention(input: {
+  sessionID: string
+  reason: string
+}) {
+  await Bus.publish(Lifecycle.InterventionRequired, {
+    runId: input.sessionID,
+    reason: input.reason,
+    type: "policy_violation",
+  })
+}
+
 async function registerViolation(input: RuntimeGuardInput, code: string) {
   const fingerprint = violationFingerprint(input, code)
   const session = await Session.get(input.sessionID).catch(() => undefined)
@@ -245,6 +260,16 @@ async function blockViolation(
     }
   },
 ) {
+  const session = await Session.get(input.sessionID).catch(() => undefined)
+  const guardMode = resolveGuardEnforcementMode(session?.state_v2?.guard_enforcement_mode)
+  if (!shouldBlockViolation(guardMode, violation.risk)) {
+    await emitWarnIntervention({
+      sessionID: input.sessionID,
+      reason: `${violation.title}: ${violation.reason} Guard mode is warn, so this was recorded as review-needed instead of hard-blocking.`,
+    })
+    return
+  }
+
   const failure = await registerViolation(input, violation.code)
   const escalated = failure.exceeded
   await ensureIntervention({
@@ -279,6 +304,9 @@ async function updateRuntimeGuardState(sessionID: string, updater: (state: Runti
       reflection: draft.state_v2?.reflection,
       reflection_history: draft.state_v2?.reflection_history,
       runtime_guard: updater(current),
+      plan_quality: draft.state_v2?.plan_quality,
+      completion_proof: draft.state_v2?.completion_proof,
+      guard_enforcement_mode: draft.state_v2?.guard_enforcement_mode ?? resolveGuardEnforcementMode(),
     }
   })
 }
@@ -325,7 +353,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         code: "sensitive_path",
         title: "Sensitive path requires approval",
         reason,
-        risk: "high",
+        risk: "critical",
         context: { filePath: relativePath, toolName: input.toolID },
       })
     }
@@ -335,7 +363,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         code: "avoid_area",
         title: "Avoid area blocked",
         reason,
-        risk: "high",
+        risk: "critical",
         context: { filePath: relativePath, toolName: input.toolID, notes: scope.avoidAreas },
       })
     }
@@ -345,7 +373,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         code: "scope_drift",
         title: "Scope drift blocked",
         reason,
-        risk: "high",
+        risk: "critical",
         context: { filePath: relativePath, toolName: input.toolID, notes: scope.targetFiles },
       })
     }
@@ -365,7 +393,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       code: "mutation_budget",
       title: "Mutation budget reached",
       reason,
-      risk: "high",
+      risk: "critical",
       context: { toolName: input.toolID, notes: [...nextTouched] },
     })
   }
@@ -376,7 +404,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       code: "command_budget",
       title: "Mutation command budget reached",
       reason,
-      risk: "high",
+      risk: "critical",
       context: { command: input.req.patterns.join(" && ") || undefined, toolName: input.toolID },
     })
   }
@@ -473,8 +501,69 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
                   required: true,
                 }
               : state.governance.verification,
+        completionProof:
+          compiledContract && session.state_v2?.runtime_guard
+            ? deriveCompletionProof({
+                contract: compiledContract,
+                runState: {
+                  ...state,
+                  governance: {
+                    ...state.governance,
+                    touchedFiles: [...nextTouched],
+                    mutationReceiptIds:
+                      input.callID && (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish")
+                        ? [...new Set([...state.governance.mutationReceiptIds, input.callID])]
+                        : state.governance.mutationReceiptIds,
+                    verification:
+                      actionClass === "verify"
+                        ? {
+                            required: true,
+                            satisfied: true,
+                            receiptIds: input.callID
+                              ? [...new Set([...state.governance.verification.receiptIds, input.callID])]
+                              : state.governance.verification.receiptIds,
+                          }
+                        : actionClass === "mutate" || actionClass === "commit" || actionClass === "publish"
+                          ? {
+                              ...state.governance.verification,
+                              required: true,
+                            }
+                          : state.governance.verification,
+                  },
+                },
+              })
+            : state.governance.completionProof,
       }
       return next
     }).catch(() => undefined)
+  }
+
+  if (compiledContract) {
+    const latestRunState = await RunStore.get(input.sessionID).catch(() => null)
+    if (latestRunState) {
+      const proof = deriveCompletionProof({
+        contract: compiledContract,
+        runState: latestRunState,
+        artifactCountOverride: session.state_v2?.artifacts?.length ?? latestRunState.artifactIds.length,
+      })
+      await Session.update(input.sessionID, (draft) => {
+        const current = draft.state_v2
+        draft.state_v2 = {
+          intent: current?.intent,
+          plan: current?.plan,
+          activity_timeline: current?.activity_timeline ?? [],
+          approvals: current?.approvals ?? [],
+          artifacts: current?.artifacts ?? [],
+          audit_findings: current?.audit_findings ?? [],
+          trust_posture: current?.trust_posture,
+          reflection: current?.reflection,
+          reflection_history: current?.reflection_history,
+          runtime_guard: current?.runtime_guard,
+          plan_quality: current?.plan_quality,
+          completion_proof: proof,
+          guard_enforcement_mode: current?.guard_enforcement_mode ?? resolveGuardEnforcementMode(),
+        }
+      })
+    }
   }
 }

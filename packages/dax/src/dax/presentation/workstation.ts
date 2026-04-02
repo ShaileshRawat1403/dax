@@ -56,6 +56,15 @@ export type WorkstationState = {
     warningCount: number
     posture: WorkstationTrustPosture
   }
+  planQuality?: {
+    score: number
+    decision: "proceed" | "pause"
+    failedChecks: string[]
+  }
+  completionProof?: {
+    ready: boolean
+    missing: string[]
+  }
   alertSummary?: {
     level: "info" | "warning" | "error"
     message: string
@@ -82,6 +91,15 @@ export function deriveWorkstationState(input: {
     warningCount: number
     infoCount: number
   }
+  planQuality?: {
+    score: number
+    decision: "proceed" | "pause"
+    failedChecks: string[]
+  }
+  completionProof?: {
+    ready: boolean
+    missing: string[]
+  }
   alert?: {
     level: "info" | "warning" | "error" | "none"
     message: string
@@ -97,6 +115,7 @@ export function deriveWorkstationState(input: {
     evidencePresent,
     auditStatus: input.audit?.status,
     blockerCount: input.audit?.blockerCount ?? 0,
+    completionProofReady: input.completionProof?.ready,
   })
   const lifecycle = deriveLifecycle({
     stage: input.stage,
@@ -137,7 +156,13 @@ export function deriveWorkstationState(input: {
       totalSteps: input.todo.length,
     },
     activitySummary: {
-      items: compactActivityItems(input.stageReason, currentStep, input.recentTooling ?? []),
+      items: [
+        ...trustGuardSignals({
+          planQuality: input.planQuality,
+          completionProof: input.completionProof,
+        }),
+        ...compactActivityItems(input.stageReason, currentStep, input.recentTooling ?? []),
+      ].slice(0, 3),
       current: summarize(currentStep, 88),
     },
     approvalSummary: {
@@ -165,6 +190,8 @@ export function deriveWorkstationState(input: {
       warningCount: input.audit?.warningCount ?? 0,
       posture: trustPosture,
     },
+    planQuality: input.planQuality,
+    completionProof: input.completionProof,
     alertSummary: input.alert && input.alert.level !== "none" ? { ...input.alert, level: input.alert.level as any } : undefined,
   }
 }
@@ -215,8 +242,10 @@ function deriveTrustPosture(input: {
   evidencePresent: boolean
   auditStatus?: "pass" | "warn" | "fail"
   blockerCount: number
+  completionProofReady?: boolean
 }): WorkstationTrustPosture {
   if (input.blockerCount > 0 || input.auditStatus === "fail") return "blocked"
+  if (input.completionProofReady === false) return "review_needed"
   if (input.lifecycleHint === "completed" && input.approvalsPending === 0 && input.auditStatus !== "warn") return "clear"
   if (input.approvalsPending > 0 || !input.evidencePresent || input.auditStatus === "warn") return "review_needed"
   return "clear"
@@ -239,6 +268,22 @@ function compactActivityItems(
   return Array.from(new Set(items))
     .map((item) => summarize(item, 72) ?? item)
     .slice(0, 3)
+}
+
+function trustGuardSignals(input: {
+  planQuality?: { score: number; decision: "proceed" | "pause"; failedChecks: string[] }
+  completionProof?: { ready: boolean; missing: string[] }
+}) {
+  const items: string[] = []
+  if (input.planQuality?.decision === "pause") {
+    const failed = input.planQuality.failedChecks.length
+    items.push(`Plan gate ${input.planQuality.score}/100 (${failed} check${failed === 1 ? "" : "s"} flagged)`)
+  }
+  if (input.completionProof && input.completionProof.ready === false) {
+    const missing = input.completionProof.missing.slice(0, 2).join(", ") || "missing evidence"
+    items.push(`Completion proof missing: ${missing}`)
+  }
+  return items
 }
 
 function isLowSignalStageReason(value: string | undefined) {

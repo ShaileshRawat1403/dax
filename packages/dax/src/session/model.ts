@@ -212,6 +212,27 @@ export namespace SessionV2 {
   })
   export type RuntimeGuardState = z.infer<typeof RuntimeGuardState>
 
+  export const PlanQualityState = z.object({
+    score: z.number().int().min(0).max(100),
+    decision: z.enum(["proceed", "pause"]),
+    failedChecks: z.string().array().default([]),
+    guidance: z.string().array().default([]),
+    checkedAt: z.string(),
+  })
+  export type PlanQualityState = z.infer<typeof PlanQualityState>
+
+  export const CompletionProofState = z.object({
+    ready: z.boolean(),
+    missing: z.string().array().default([]),
+    verificationReceipts: z.number().int().nonnegative().default(0),
+    mutationReceipts: z.number().int().nonnegative().default(0),
+    artifactCount: z.number().int().nonnegative().default(0),
+    scopeSatisfied: z.boolean().default(true),
+    sensitiveChangesApproved: z.boolean().default(true),
+    checkedAt: z.string(),
+  })
+  export type CompletionProofState = z.infer<typeof CompletionProofState>
+
   export const State = z
     .object({
       intent: Intent.optional(),
@@ -224,6 +245,9 @@ export namespace SessionV2 {
       reflection: Reflection.optional(),
       reflection_history: Reflection.array().optional(),
       runtime_guard: RuntimeGuardState.optional(),
+      plan_quality: PlanQualityState.optional(),
+      completion_proof: CompletionProofState.optional(),
+      guard_enforcement_mode: z.enum(["warn", "enforce"]).optional(),
     })
     .meta({
       ref: "SessionStateV2",
