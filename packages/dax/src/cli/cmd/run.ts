@@ -610,6 +610,19 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
           if (event.type === "permission.asked") {
             const permission = event.properties
             if (permission.sessionID !== sessionID) continue
+            if (emit("permission_request", { permission })) {
+              await sdk.permission.reply({
+                requestID: permission.id,
+                reply: "reject",
+              })
+              emit("permission_auto_reject", {
+                requestID: permission.id,
+                permission: permission.permission,
+                patterns: permission.patterns,
+                reason: "non_interactive_default_reject",
+              })
+              continue
+            }
             UI.println(
               UI.Style.TEXT_WARNING_BOLD + "!",
               UI.Style.TEXT_NORMAL +

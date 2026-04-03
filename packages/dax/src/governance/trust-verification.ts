@@ -35,7 +35,7 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
 export async function collectVerificationSignals(sessionID: string): Promise<SessionVerificationSignals> {
   const session = await withLockedRetry(() => Session.get(sessionID))
   const messages = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
-  const audit = await (Audit as any).state().then((s: any) => s[sessionID])
+  const audit = await resolveAuditState(sessionID)
   const approvals = await listPendingApprovals(sessionID)
   const diffs = await Session.diff(sessionID)
   const artifacts = buildArtifactsForSession(session, messages, diffs)
@@ -105,9 +105,23 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
       artifact_count: artifacts.length,
     },
     trace: {
-      assistant_message_count: messages.filter((m: any) => m.role === "assistant").length,
+      assistant_message_count: messages.filter((m: any) => {
+        const role = m?.role ?? m?.info?.role
+        return role === "assistant"
+      }).length,
       latest_activity_at: messages.length > 0 ? messages[messages.length - 1].info.time.created : undefined,
     },
+  }
+}
+
+async function resolveAuditState(sessionID: string) {
+  const stateFn = (Audit as any)?.state
+  if (typeof stateFn !== "function") return undefined
+  try {
+    const state = await stateFn()
+    return state?.[sessionID]
+  } catch {
+    return undefined
   }
 }
 
