@@ -209,6 +209,8 @@ export namespace SessionV2 {
       satisfied: false,
       receipts: [],
     }),
+    lastToolCallFingerprint: z.string().optional(),
+    successiveCount: z.number().int().nonnegative().default(0),
   })
   export type RuntimeGuardState = z.infer<typeof RuntimeGuardState>
 
@@ -222,13 +224,13 @@ export namespace SessionV2 {
   export type PlanQualityState = z.infer<typeof PlanQualityState>
 
   export const CompletionProofState = z.object({
-    ready: z.boolean(),
-    missing: z.string().array().default([]),
-    verificationReceipts: z.number().int().nonnegative().default(0),
-    mutationReceipts: z.number().int().nonnegative().default(0),
-    artifactCount: z.number().int().nonnegative().default(0),
-    scopeSatisfied: z.boolean().default(true),
-    sensitiveChangesApproved: z.boolean().default(true),
+    decision: z.enum(["pass", "fail"]),
+    failedChecks: z.string().array().default([]),
+    verificationExecuted: z.boolean().default(false),
+    receiptIds: z.string().array().default([]),
+    artifactChecks: z.boolean().default(true),
+    scopeChecks: z.boolean().default(true),
+    sensitivePathApprovalChecks: z.boolean().default(true),
     checkedAt: z.string(),
   })
   export type CompletionProofState = z.infer<typeof CompletionProofState>

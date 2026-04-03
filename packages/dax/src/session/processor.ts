@@ -199,33 +199,6 @@ export namespace SessionProcessor {
                         metadata: value.providerMetadata,
                       })
                       toolcalls[value.toolCallId] = part as MessageV2.ToolPart
-
-                      const parts = await MessageV2.parts(input.assistantMessage.id)
-                      const lastThree = parts.slice(-DOOM_LOOP_THRESHOLD)
-
-                      if (
-                        lastThree.length === DOOM_LOOP_THRESHOLD &&
-                        lastThree.every(
-                          (p) =>
-                            p.type === "tool" &&
-                            p.tool === value.toolName &&
-                            p.state.status !== "pending" &&
-                            JSON.stringify(p.state.input) === JSON.stringify(value.input),
-                        )
-                      ) {
-                        const agent = await Agent.get(input.assistantMessage.agent)
-                        await Permission.ask({
-                          permission: "doom_loop",
-                          patterns: [value.toolName],
-                          sessionID: input.assistantMessage.sessionID,
-                          metadata: {
-                            tool: value.toolName,
-                            input: value.input,
-                          },
-                          always: [value.toolName],
-                          ruleset: agent.permission,
-                        })
-                      }
                     }
                     break
                   }
