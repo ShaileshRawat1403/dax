@@ -10,6 +10,14 @@ import { compileWithRunId } from "../../src/execution/compiler"
 
 async function setupE2ESession(mode: string, prompt: string) {
   const session = await Session.create({ title: "Headless E2E Dummy Run" })
+  const crossPlatformTargets = Array.from(
+    new Set([
+      "src/dummy.ts",
+      "src\\dummy.ts",
+      "packages/dax/src/dummy.ts",
+      "packages\\dax\\src\\dummy.ts",
+    ]),
+  )
   const request = {
     intent: {
       input: prompt,
@@ -25,7 +33,7 @@ async function setupE2ESession(mode: string, prompt: string) {
       scope: {
         // Runtime guard normalizes touched files relative to worktree root.
         // Keep both forms here so the test remains deterministic across nested package worktrees.
-        targetFiles: ["src/dummy.ts", "packages/dax/src/dummy.ts"],
+        targetFiles: crossPlatformTargets,
         targetSubsystems: [],
         avoidAreas: [],
       },
