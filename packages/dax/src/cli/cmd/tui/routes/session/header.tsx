@@ -23,6 +23,7 @@ export function Header(props: {
   emphasis?: "normal" | "muted"
   actions?: HeaderAction[]
   busy?: boolean
+  onCyclePersona?: () => void
 }) {
   const kv = useKV()
   const { theme } = useTheme()
@@ -97,12 +98,14 @@ export function Header(props: {
                 </For>
               }
             >
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                {props.persona!.ui.glyph}
-              </text>
-              <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                {props.persona!.label.toUpperCase()}
-              </text>
+              <box onMouseUp={() => props.onCyclePersona?.()}>
+                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                  {props.persona!.ui.glyph}
+                </text>
+                <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                  {props.persona!.label.toUpperCase()}
+                </text>
+              </box>
             </Show>
             <Show when={showLifecycleChip()}>
               <box

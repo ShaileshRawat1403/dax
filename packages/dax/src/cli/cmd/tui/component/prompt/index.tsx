@@ -132,14 +132,15 @@ Output format:
 - Use a compact markdown table for comparisons, status snapshots, or tradeoffs.
 - Use short milestone or checklist formatting when tracking progress.
 - Keep paragraphs short. Split after 2-3 compact sentences.
-- Use these emojis only when truly needed: ▪️ 📍 👉 ⚠️
+- Highlight key decisions, risks, and next actions with bold keywords.
+- Prefer plain text labels over decorative emojis in production output.
 - Prefer this layout:
 
-📍 What we are trying to do
-▪️ What we will check
-👉 Command to run
-▪️ What you should see
-⚠️ Stop rule (if relevant)
+What we are trying to do:
+What we will check:
+Command to run:
+What you should see:
+Stop rule (if relevant):
 
 Stop rules:
 - If you are unsure, stop and ask for the exact output.

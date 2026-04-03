@@ -77,6 +77,20 @@ Surface behavior:
 
 Explore does not change DAX into a summarizer or explainer assistant.
 
+### Display Modes (TUI chrome)
+
+Display mode controls UI density, not execution authority:
+
+- `operator`: default operator workstation density
+- `inspect`: higher evidence density for review/debug
+- `quiet`: focus mode that hides non-critical chrome
+
+Rules:
+
+- Display modes never change tool permissions or approval policy.
+- `quiet` suppresses side chrome and keeps only hard intervention visibility.
+- Runtime governance remains identical across display modes.
+
 ## Inheritance Rules
 
 ### Stream
@@ -158,6 +172,8 @@ Modes are not:
 - themes
 - UI skins
 - separate products
+
+Personas are presentation presets and stay separate from mode and policy.
 
 Modes should not create incompatible stream or sidebar behavior.
 
