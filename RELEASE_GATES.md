@@ -40,5 +40,5 @@ The following criteria must be met and verified for the release:
 ---
 
 ## References
-- [Production Readiness Plan](./.dax/plans/production-readiness-plan.md)
+- [Production Readiness Plan](./docs/releases/v1.0.14-production-readiness-plan.md)
 - [Architecture Guide](./docs/architecture/ARCHITECTURE.md)
