@@ -64,6 +64,7 @@ Deep dives into how to use DAX features for real-world delivery.
 - [**Project Memory Guide**](./product/PROJECT_MEMORY.md) - How PM notes, rules, and local memory work.
 - [**Policy Customization and RAO Tuning**](./product/POLICY_TUNING.md) - How to think about approvals, posture, and governance.
 - [**Runs, Approvals and Recovery**](./product/RUNS_APPROVALS_AND_RECOVERY.md) - Practical guide to runs, approvals, contracts, and crash recovery.
+- [**TUI Design Freeze (v1)**](./product/TUI_DESIGN_FREEZE_v1.md) - Canonical session-screen behavior contract to prevent UX drift.
 - [**Audit Agent Guide**](./product/audit-agent.md) - Governing actions and maintaining trust.
 - [**Workflows**](./product/WORKFLOWS.md) - Standardizing multi-step AI operations.
 - [**GitHub CI Integration**](./product/integrations-github-ci.md) - Automated safety gates in your pipeline.
