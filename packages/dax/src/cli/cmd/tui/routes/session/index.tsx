@@ -143,6 +143,8 @@ type PMTab = "note" | "list" | "rules"
 type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
 const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
 const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
+const MUTATION_INTENT_RE =
+  /\b(create|add|edit|update|change|fix|delete|remove|rename|move|install|run|execute|patch|write|commit|push|release|publish)\b/i
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -175,9 +177,15 @@ function use() {
   return ctx
 }
 
+function isLikelyMutationRequest(text: string | undefined) {
+  if (!text) return false
+  return MUTATION_INTENT_RE.test(text)
+}
+
 export function Session() {
   const local = useLocal()
   const PANE_MODES = PANE_MODE
+  let narrativeScroll: ScrollBoxRenderable | undefined
 
   const route = useRouteData("session")
   const { navigate } = useRoute()
@@ -722,6 +730,14 @@ export function Session() {
         workflowMode: workflowMode(),
         hasConcreteChanges: hasDiffNeed(),
       })
+      const latestUserMessage = [...messages()].reverse().find((msg) => msg.role === "user")
+      const latestUserText = latestUserMessage
+        ? (sync.data.part[latestUserMessage.id] ?? [])
+            .filter((part) => part.type === "text")
+            .map((part: any) => String(part.text ?? ""))
+            .join(" ")
+            .trim()
+        : ""
 
       if (mode === "awaiting_approval") {
         return {
@@ -736,6 +752,17 @@ export function Session() {
           tone: "error" as const,
           title: "Execution blocked",
           detail: voice("A policy or error is preventing progress. Check the details below."),
+        }
+      }
+
+      if (workflowMode() !== "build" && isLikelyMutationRequest(latestUserText)) {
+        const currentMode = workflowMode().toUpperCase()
+        return {
+          tone: "warning" as const,
+          title: "Promote to Build mode",
+          detail: voice(
+            `${currentMode} mode is read-first. Switch to Build for file edits or command execution, then approve any risky action.`,
+          ),
         }
       }
 
@@ -850,7 +877,12 @@ export function Session() {
   const scrollAcceleration = () => (process.platform === "darwin" ? new MacOSScrollAccel() : new CustomSpeedScroll(1))
 
   const scrollNarrative = () => {
-    // TODO: Fix scrolling with new renderer
+    if (!narrativeScroll) return
+    try {
+      narrativeScroll.scrollTo(narrativeScroll.scrollHeight)
+    } catch {
+      // Keep rendering resilient if scrollbox metrics are transiently unavailable.
+    }
   }
 
   const [lastMessageCount, setLastMessageCount] = createSignal(0)
@@ -1025,6 +1057,7 @@ export function Session() {
           {/* Main Narrative Stream */}
           <scrollbox
             id="narrative-scroll"
+            ref={narrativeScroll}
             flexGrow={mainPaneGrow()}
             width={liveStacked() ? "100%" : Math.max(48, contentWidth() - livePaneWidth() - 3)}
             minHeight={0}
@@ -1654,6 +1687,8 @@ function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: T
 function ActivityCluster(props: { tools: ToolPart[] }) {
   const { theme } = useTheme()
   const ctx = use()
+  const kv = useKV()
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const traces = createMemo(() =>
     props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })),
   )
@@ -1665,9 +1700,15 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
     const lastTrace = last()?.trace
     if (!firstTrace && !lastTrace) return undefined
     if (traces().length === 1 && firstTrace) {
+      if (explainMode()) {
+        return `What I did: ${firstTrace.action.toLowerCase()} on ${firstTrace.target}. Result: ${firstTrace.result}. Next safe step: ${firstTrace.next}.`
+      }
       return `I ran ${firstTrace.action.toLowerCase()} on ${firstTrace.target} and ${firstTrace.result}. Next: ${firstTrace.next}.`
     }
     if (firstTrace && lastTrace) {
+      if (explainMode()) {
+        return `I completed ${completed()} of ${traces().length} actions. Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}. Next safe step: ${lastTrace.next}.`
+      }
       return `I processed ${traces().length} steps (${completed()} complete). Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}. Next: ${lastTrace.next}.`
     }
     return undefined
