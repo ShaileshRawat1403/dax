@@ -1,9 +1,10 @@
-import { readEnv } from "@/flag/flag"
+import { Flag } from "@/flag/flag"
 
 export type GuardEnforcementMode = "warn" | "enforce"
 
 export function resolveGuardEnforcementMode(explicit?: string): GuardEnforcementMode {
-  const candidate = (explicit ?? readEnv("DAX_TRUST_GUARD_MODE") ?? "warn").trim().toLowerCase()
+  const fallback = Flag.DAX_PRODUCTION ? "enforce" : "warn"
+  const candidate = (explicit ?? Flag.DAX_TRUST_GUARD_MODE ?? fallback).trim().toLowerCase()
   if (candidate === "enforce") return "enforce"
   return "warn"
 }

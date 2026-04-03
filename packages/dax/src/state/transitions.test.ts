@@ -162,8 +162,8 @@ describe("run transition invariants", () => {
 
           const next = await Transitions.transition(runId, "completed", "finalize")
           expect(next.status).toBe("completed")
-          expect(next.governance.completionProof?.ready).toBe(false)
-          expect(next.governance.completionProof?.missing).toContain("expected artifact evidence")
+          expect(next.governance.completionProof?.decision).toBe("fail")
+          expect(next.governance.completionProof?.failedChecks).toContain("missing_artifacts")
         })
       } finally {
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME

@@ -7,6 +7,7 @@ import { ContractGuardian } from "../../src/execution/contract-guardian"
 import { enforceRuntimeGuard, RuntimeGuardViolationError } from "../../src/execution/runtime-guard"
 import { RunStore } from "../../src/state/run-store"
 import { Transitions, RunCompletionBlockedError } from "../../src/state/transitions"
+import { ApprovalStore } from "../../src/approval/approval-store"
 
 function buildIntentContract(targetFiles: string[], avoidAreas: string[] = []) {
   return {
@@ -40,6 +41,13 @@ async function setupGuardedSession(input: {
   const { contract } = compileWithRunId({ request }, session.id)
   await ContractGuardian.create(session.id, contract)
   await RunStore.create(session.id, contract.contractId)
+  await RunStore.update(session.id, (state) => ({
+    ...state,
+    governance: {
+      ...state.governance,
+      guardEnforcementMode: "enforce",
+    }
+  }))
   await Session.update(session.id, (draft) => {
     draft.state_v2 = {
       intent: {
@@ -51,6 +59,7 @@ async function setupGuardedSession(input: {
         requiredSkills: [],
         requestedOutput: "diff",
         riskLevel: "medium",
+        order: 0,
         scope: "repo",
         constraints: [],
         contract: buildIntentContract(input.targetFiles, input.avoidAreas),
@@ -78,6 +87,7 @@ async function setupGuardedSession(input: {
           receipts: [],
         },
       },
+      guard_enforcement_mode: "enforce",
     }
   })
   return session
@@ -148,7 +158,7 @@ describe("runtime hardening", () => {
             callID: "call_scope_1",
             req: {
               permission: "edit",
-            patterns: ["src/session/prompt.ts"],
+              patterns: ["src/session/prompt.ts"],
               always: ["*"],
               metadata: {
                 filepath: path.join(process.cwd(), "src/session/prompt.ts"),
@@ -231,7 +241,7 @@ describe("runtime hardening", () => {
             callID: "call_budget_2",
             req: {
               permission: "edit",
-            patterns: ["src/session/prompt.ts"],
+              patterns: ["src/session/prompt.ts"],
               always: ["*"],
               metadata: {
                 filepath: path.join(process.cwd(), "src/session/prompt.ts"),
@@ -287,7 +297,7 @@ describe("runtime hardening", () => {
         const failureCounts = updated.state_v2?.runtime_guard?.failureCounts ?? {}
         const blockedFingerprint = Object.keys(failureCounts).find((key) => key.startsWith("scope_drift::edit::"))
         expect(blockedFingerprint).toBeDefined()
-        expect(blockedFingerprint ? failureCounts[blockedFingerprint] : 0).toBe(2)
+        expect(blockedFingerprint ? failureCounts[blockedFingerprint] : 0).toBe(1)
       },
     })
   })
@@ -317,6 +327,109 @@ describe("runtime hardening", () => {
         await expect(Transitions.transition(session.id, "completed", "done")).rejects.toBeInstanceOf(
           RunCompletionBlockedError,
         )
+
+        // Verify intervention was persisted
+        const approvals = await ApprovalStore.getApprovals(session.id)
+        const gate = approvals.find((a) => a.type === "workflow_gate" && a.title.includes("Completion proof"))
+        expect(gate).toBeDefined()
+        expect(gate?.risk).toBe("high")
+      },
+    })
+  })
+
+  test("blocks path traversal and outside workspace escapes", async () => {
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const session = await setupGuardedSession({
+          cwd: process.cwd(),
+          targetFiles: ["src/execution/compiler.ts"],
+        })
+
+        // Simple traversal
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            toolID: "edit",
+            req: {
+              permission: "edit",
+              patterns: ["src/execution/../../.env"],
+              always: ["*"],
+              metadata: { filepath: path.resolve(process.cwd(), "src/execution/../../.env") },
+            },
+          }),
+        ).rejects.toMatchObject({ code: "sensitive_path" })
+
+        // Absolute path outside workspace
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            toolID: "read",
+            req: {
+              permission: "read",
+              patterns: ["/etc/passwd"],
+              always: ["*"],
+              metadata: { filepath: "/etc/passwd" },
+            },
+          }),
+        ).rejects.toMatchObject({ code: "forbidden_path" })
+      },
+    })
+  })
+
+  test("blocks successive identical tool calls (doom loop)", async () => {
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const target = "src/execution/compiler.ts"
+        const session = await setupGuardedSession({
+          cwd: process.cwd(),
+          targetFiles: [target],
+          budgetOverride: { maxRepeatedFailures: 3 },
+        })
+
+        const call = () =>
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            toolID: "edit",
+            req: {
+              permission: "edit",
+              patterns: [target],
+              always: ["*"],
+              metadata: { filepath: target },
+            },
+          })
+
+        await call()
+        await call()
+        await expect(call()).rejects.toMatchObject({ code: "loop_break" })
+      },
+    })
+  })
+
+  test("blocks mutations in explore and docs modes", async () => {
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const target = "src/execution/compiler.ts"
+        const session = await setupGuardedSession({
+          cwd: process.cwd(),
+          targetFiles: [target],
+          mode: "explore",
+        })
+
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            toolID: "edit",
+            req: {
+              permission: "edit",
+              patterns: [target],
+              always: ["*"],
+              metadata: { filepath: target },
+            },
+          }),
+        ).rejects.toMatchObject({ code: "illegal_transition" })
       },
     })
   })

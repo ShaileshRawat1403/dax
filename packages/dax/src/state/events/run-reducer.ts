@@ -39,13 +39,13 @@ export type RunState = {
       checkedAt: string
     } | null
     completionProof: {
-      ready: boolean
-      missing: string[]
-      verificationReceipts: number
-      mutationReceipts: number
-      artifactCount: number
-      scopeSatisfied: boolean
-      sensitiveChangesApproved: boolean
+      decision: "pass" | "fail"
+      failedChecks: string[]
+      verificationExecuted: boolean
+      receiptIds: string[]
+      artifactChecks: boolean
+      scopeChecks: boolean
+      sensitivePathApprovalChecks: boolean
       checkedAt: string
     } | null
     failureCounts: Record<string, number>
