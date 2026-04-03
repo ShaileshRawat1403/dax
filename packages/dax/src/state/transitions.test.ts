@@ -51,6 +51,39 @@ function contractFor(runId: string): ExecutionContract {
 
 describe("run transition invariants", () => {
   test(
+    "treats same-status transitions as idempotent no-ops",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-transition-idempotent-${Date.now().toString(36)}`)
+      const previousHome = process.env.DAX_TEST_HOME
+      process.env.DAX_TEST_HOME = testHome
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { RunStore } = await import("./run-store")
+        const { Transitions } = await import("./transitions")
+        const repoRoot = path.resolve(import.meta.dir, "../../..")
+        const runId = "run_waiting_idempotent"
+
+        await bootstrap(repoRoot, async () => {
+          await RunStore.create(runId, "ctr_waiting")
+          await RunStore.update(runId, (state) => ({
+            ...state,
+            status: "waiting_approval",
+          }))
+
+          const next = await Transitions.transition(runId, "waiting_approval", "approval_pending")
+          expect(next.status).toBe("waiting_approval")
+        })
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    40000,
+  )
+
+  test(
     "blocks waiting_approval -> running when approvals remain pending",
     async () => {
       const testHome = path.join(os.tmpdir(), `dax-transition-pending-${Date.now().toString(36)}`)
@@ -174,4 +207,3 @@ describe("run transition invariants", () => {
     40000,
   )
 })
-

@@ -66,6 +66,15 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
   let completionProof = state.governance.completionProof
   let guardEnforcementMode = state.governance.guardEnforcementMode
 
+  if (state.status === newStatus) {
+    log.info("run state transition skipped (already in status)", {
+      runId,
+      status: state.status,
+      reason,
+    })
+    return state
+  }
+
   if (!isLegalTransition(state.status, newStatus)) {
     throw new IllegalTransitionError(state.status, newStatus)
   }
