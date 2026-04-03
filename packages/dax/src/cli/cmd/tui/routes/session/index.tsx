@@ -562,20 +562,6 @@ export function Session() {
 
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() && wide() ? 42 : 0) - 4)
 
-  const liveRailHint = createMemo(() =>
-    deriveAssistantInsightCard({
-      asked: workstationState().goal || "Working...",
-      doing: doing(),
-      next: next(),
-      stage: workstationState().lifecycleLabel,
-      streamStatus: streamStatus(),
-      durationMs: 0,
-      totalTokens: 0,
-      tokensPerSecond: 0,
-      progress: undefined,
-    }),
-  )
-
   const livePaneWidth = createMemo(() => {
     if (liveStacked()) return contentWidth()
     const base = Math.floor(contentWidth() * 0.35)
@@ -651,6 +637,20 @@ export function Session() {
     })
   })
 
+  const liveRailHint = createMemo(() =>
+    deriveAssistantInsightCard({
+      asked: workstationState().goal || "Working...",
+      doing: doing(),
+      next: next(),
+      stage: workstationState().lifecycleLabel,
+      streamStatus: streamStatus(),
+      durationMs: 0,
+      totalTokens: 0,
+      tokensPerSecond: 0,
+      progress: undefined,
+    }),
+  )
+
   const hasLivePaneContext = createMemo(() => {
     if (activeInterventions().length > 0) return true
     if (proposedChanges().length > 0) return true
@@ -658,75 +658,96 @@ export function Session() {
     return false
   })
 
+  const voice = (text: string) => {
+    try {
+      return applyPersonaVoice(text, activePersona())
+    } catch {
+      return text
+    }
+  }
+
   const operatorNextMove = createMemo(() => {
-    const { stage, reason } = displayStageState()
-    const mode = workstationState().lifecycle
-    const current = workstationState()
-
-    if (mode === "awaiting_approval") {
-      return {
-        tone: "warning" as const,
-        title: "Review required",
-        detail: voice(current.approvalSummary.topReason ?? "Review the pending request to proceed."),
-      }
+    const fallback = {
+      tone: "muted" as const,
+      title: "Standing by",
+      detail: voice("Ready for your next direction."),
     }
+    try {
+      const stageState = displayStageState()
+      const stage = stageState?.stage ?? "ready"
+      const mode = workstationState().lifecycle
+      const current = workstationState()
 
-    if (mode === "blocked") {
-      return {
-        tone: "error" as const,
-        title: "Execution blocked",
-        detail: voice("A policy or error is preventing progress. Check the details below."),
+      if (mode === "awaiting_approval") {
+        return {
+          tone: "warning" as const,
+          title: "Review required",
+          detail: voice(current.approvalSummary.topReason ?? "Review the pending request to proceed."),
+        }
       }
-    }
 
-    if (mode === "completed") {
-      return {
-        tone: "success" as const,
-        title: "Run finished",
-        detail: voice("The execution goal has been reached. Review results or start a new task."),
+      if (mode === "blocked") {
+        return {
+          tone: "error" as const,
+          title: "Execution blocked",
+          detail: voice("A policy or error is preventing progress. Check the details below."),
+        }
       }
-    }
 
-    if (stage === "thinking" || stage === "exploring") {
-      return {
-        tone: "primary" as const,
-        title: "Analyzing request",
-        detail: voice("Building context and evaluating execution strategy."),
+      if (mode === "completed") {
+        return {
+          tone: "success" as const,
+          title: "Run finished",
+          detail: voice("The execution goal has been reached. Review results or start a new task."),
+        }
       }
-    }
 
-    if (stage === "planning") {
-      return {
-        tone: "primary" as const,
-        title: "Drafting plan",
-        detail: voice("Structuring the implementation path and safety boundaries."),
+      if (stage === "thinking" || stage === "exploring") {
+        return {
+          tone: "primary" as const,
+          title: "Analyzing request",
+          detail: voice("Building context and evaluating execution strategy."),
+        }
       }
-    }
 
-    if (stage === "executing") {
-      return {
-        tone: "accent" as const,
-        title: "Applying changes",
-        detail: voice("Executing tools and modifying the workspace as planned."),
+      if (stage === "planning") {
+        return {
+          tone: "primary" as const,
+          title: "Drafting plan",
+          detail: voice("Structuring the implementation path and safety boundaries."),
+        }
       }
-    }
 
-    if (stage === "verifying") {
-      return {
-        tone: "success" as const,
-        title: "Verifying result",
-        detail: voice("Running validation steps to ensure correctness and stability."),
+      if (stage === "executing") {
+        return {
+          tone: "accent" as const,
+          title: "Applying changes",
+          detail: voice("Executing tools and modifying the workspace as planned."),
+        }
       }
-    }
 
+      if (stage === "verifying") {
+        return {
+          tone: "success" as const,
+          title: "Verifying result",
+          detail: voice("Running validation steps to ensure correctness and stability."),
+        }
+      }
+      return fallback
+    } catch {
+      return fallback
+    }
+  })
+
+  const operatorNextMoveSafe = createMemo(() => {
+    const nextMove = operatorNextMove()
+    if (nextMove?.title) return nextMove
     return {
       tone: "muted" as const,
       title: "Standing by",
       detail: voice("Ready for your next direction."),
     }
   })
-
-  const voice = (text: string) => applyPersonaVoice(text, activePersona())
 
   function cyclePaneVisibility() {
     const next = paneVisibility() === "auto" ? "pinned" : paneVisibility() === "pinned" ? "hidden" : "auto"
@@ -1286,9 +1307,9 @@ export function Session() {
                             borderColor={theme.accent}
                           >
                             <text fg={theme.accent} bold>NEXT STEP</text>
-                            <text fg={theme.text} wrapMode="word">{operatorNextMove().title}</text>
-                            <Show when={operatorNextMove().detail}>
-                              <text fg={theme.textMuted} wrapMode="word">{operatorNextMove().detail}</text>
+                            <text fg={theme.text} wrapMode="word">{operatorNextMoveSafe().title}</text>
+                            <Show when={operatorNextMoveSafe().detail}>
+                              <text fg={theme.textMuted} wrapMode="word">{operatorNextMoveSafe().detail}</text>
                             </Show>
                           </box>
 

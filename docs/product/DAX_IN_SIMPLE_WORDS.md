@@ -34,7 +34,7 @@ graph TB
     Radio -->|"intent"| DAX
     DAX -->|"uses"| MCP
     DAX -->|"requests clearance"| Soothsayer
-    Soothsayer -->|"approved ✅"| DAX
+    Soothsayer -->|"approved"| DAX
     DAX -->|"fixes the bug"| P
 
     style DAX fill:#4a90d9,stroke:#2c5f8a,color:#fff
