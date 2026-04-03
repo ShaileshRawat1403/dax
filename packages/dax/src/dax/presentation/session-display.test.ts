@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
+  hasMemoryContext,
   nextDisplayMode,
   resolveDisplayDetailToggles,
   resolveSessionSidebarVisibility,
+  shouldShowWorkstationPane,
   shouldAutoOpenSidebar,
   shouldShowSidebarSection,
   shouldShowInterventionQueue,
@@ -107,6 +109,55 @@ describe("session-display", () => {
       shouldShowSidebarSection({
         displayMode: "inspect",
         section: "reflection",
+      }),
+    ).toBe(true)
+  })
+
+  test("quiet mode hides workstation pane unless critical intervention is present", () => {
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "quiet",
+        paneVisibility: "auto",
+        hasCriticalIntervention: false,
+        isRuntimeCritical: true,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "quiet",
+        paneVisibility: "auto",
+        hasCriticalIntervention: true,
+        isRuntimeCritical: false,
+      }),
+    ).toBe(true)
+  })
+
+  test("memory context derives from reflection or PM snapshots", () => {
+    expect(
+      hasMemoryContext({
+        reflectionPresent: false,
+        reflectionHistoryCount: 0,
+        pmListCount: 0,
+        pmRuleCount: 0,
+      }),
+    ).toBe(false)
+
+    expect(
+      hasMemoryContext({
+        reflectionPresent: true,
+        reflectionHistoryCount: 0,
+        pmListCount: 0,
+        pmRuleCount: 0,
+      }),
+    ).toBe(true)
+
+    expect(
+      hasMemoryContext({
+        reflectionPresent: false,
+        reflectionHistoryCount: 0,
+        pmListCount: 2,
+        pmRuleCount: 0,
       }),
     ).toBe(true)
   })

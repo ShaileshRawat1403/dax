@@ -82,6 +82,7 @@ import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
 import { Identifier } from "@/id/id"
 import { Auth } from "@/auth"
+import { Instance } from "@/project/instance"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
@@ -91,13 +92,13 @@ import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
 import { labelStage, type StreamStage } from "@/dax/workflow/stage"
-import { parsePMList, parsePMRules } from "@/pm/format"
+import { PM } from "@/pm"
+import { formatPMList, formatPMRules, parsePMList, parsePMRules } from "@/pm/format"
 import {
   PANE_MODE,
   deriveActivePaneMode,
   deriveAutoPaneMode,
   paneCompactLabel,
-  shouldAutoShowPane,
   type PaneFollowMode,
   type PaneMode,
   type PaneVisibility,
@@ -113,8 +114,10 @@ import {
   deriveOperatorTraceLine,
 } from "@/dax/presentation/session-surface"
 import {
+  hasMemoryContext,
   resolveSessionSidebarVisibility,
   resolveDisplayDetailToggles,
+  shouldShowWorkstationPane,
   shouldAutoOpenSidebar,
   shouldShowInterventionQueue,
   type DisplayMode,
@@ -360,8 +363,12 @@ export function Session() {
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
   const [displayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
+  const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
   const [queueVisibleRaw, setQueueVisibleRaw] = kv.signal<string | boolean>(DAX_SETTING.intervention_queue_visible, true)
   const [selectedProposedChangeId, setSelectedProposedChangeId] = createSignal<string>()
+  const [memoryListText, setMemoryListText] = createSignal("")
+  const [memoryRulesText, setMemoryRulesText] = createSignal("")
+  const [memoryLoadError, setMemoryLoadError] = createSignal<string | undefined>(undefined)
   // Track refined prompt - always read fresh from KV when render
   const refinedPrompt = createMemo(() => {
     // Force re-read whenever these change
@@ -552,7 +559,15 @@ export function Session() {
   })
 
   const showActiveNarrative = createMemo(() => chatActive() || !session()?.parentID)
-  const showThinkingOption = createMemo(() => showThinking())
+  const detailToggles = createMemo(() =>
+    resolveDisplayDetailToggles({
+      displayMode: displayMode(),
+      showThinking: showThinking(),
+      showTimestamps: timestamps() === "show",
+      showDetails: showDetails(),
+      showAssistantMetadata: showAssistantMetadata(),
+    }),
+  )
   const showLiveStatusNote = createMemo(() => !chatActive() && displayStageState().stage !== "done")
   const modeLabel = createMemo(() => local.agent.current().name.toUpperCase())
 
@@ -667,6 +682,28 @@ export function Session() {
     if (workstationState().planSummary.totalSteps > 0) return true
     return false
   })
+
+  const memoryList = createMemo(() => parsePMList(memoryListText()))
+  const memoryRules = createMemo(() => parsePMRules(memoryRulesText()))
+  const memoryNote = createMemo(() => {
+    const current = workstationState().reflection
+    const previous = workstationState().reflectionHistory[0]
+    if (current?.goal) {
+      return current.goal
+    }
+    if (previous?.goal) {
+      return previous.goal
+    }
+    return workstationState().goal
+  })
+  const memoryHasContext = createMemo(() =>
+    hasMemoryContext({
+      reflectionPresent: !!workstationState().reflection,
+      reflectionHistoryCount: workstationState().reflectionHistory.length,
+      pmListCount: memoryList().rows.length,
+      pmRuleCount: memoryRules().rows.length,
+    }),
+  )
 
   const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
   const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0)
@@ -935,18 +972,22 @@ export function Session() {
   }
 
   const showPane = createMemo(() => {
-    if (paneVisibility() === "hidden") return false
-    if (paneVisibility() === "pinned") return true
-    return shouldAutoShowPane({
-      wide: wide(),
-      hasApprovals: hasApprovalsNeed(),
-      hasRefineDraft: hasRefineNeed(),
-      hasAuditAttention: hasAuditNeed(),
-      hasDiffContext: proposedChanges().length > 0,
-      hasLiveContext: hasLivePaneContext(),
-      hasMemoryContext: false,
-      hasPlanContext: workstationState().planSummary.totalSteps > 0,
+    const stage = displayStageState().stage
+    return shouldShowWorkstationPane({
+      displayMode: displayMode(),
+      paneVisibility: paneVisibility(),
+      hasCriticalIntervention: hasApprovalsNeed(),
+      isRuntimeCritical: sessionStatusType() === "busy" || stage === "executing" || stage === "verifying",
     })
+  })
+
+  createEffect(() => {
+    if (paneVisibility() !== "hidden") return
+    const stage = displayStageState().stage
+    const shouldRecover = hasApprovalsNeed() || sessionStatusType() === "busy" || stage === "executing" || stage === "verifying"
+    if (shouldRecover) {
+      setPaneVisibility(() => "auto")
+    }
   })
 
   const priorityPaneMode = createMemo<PaneMode>(() => {
@@ -962,7 +1003,7 @@ export function Session() {
       hasAuditAttention: hasAuditNeed(),
       hasDiffContext: proposedChanges().length > 0,
       hasLiveContext: hasLivePaneContext(),
-      hasMemoryContext: false,
+      hasMemoryContext: memoryHasContext(),
       hasPlanContext: workstationState().planSummary.totalSteps > 0,
       liveStage: displayStageState().stage,
       fallback: priorityPaneMode(),
@@ -972,6 +1013,35 @@ export function Session() {
       smartFollowActive: smartFollowActive(),
     }),
   )
+
+  const refreshMemorySnapshot = async () => {
+    try {
+      const project_id = Instance.project.id
+      const [notes, rules] = await Promise.all([
+        PM.list_dsr({ project_id, limit: 20 }),
+        PM.list_constraints({ project_id, limit: 30 }),
+      ])
+      const listText = formatPMList(notes.map((x) => ({ day: x.day, title: x.title, tags: x.tags })))
+      const rulesText = formatPMRules(
+        rules.map((x) => ({
+          ruleType: x.rule_type,
+          pattern: x.pattern,
+          action: x.action,
+          source: x.source,
+        })),
+      )
+      setMemoryListText(listText)
+      setMemoryRulesText(rulesText)
+      setMemoryLoadError(undefined)
+    } catch (error) {
+      setMemoryLoadError(error instanceof Error ? error.message : "Unable to load memory snapshot")
+    }
+  }
+
+  createEffect(on(() => route.sessionID, () => void refreshMemorySnapshot(), { defer: false }))
+  createEffect(() => {
+    if (activePaneMode() === "memory") void refreshMemorySnapshot()
+  })
 
   const paneBadge = (mode: PaneMode) => {
     switch (mode) {
@@ -1028,10 +1098,10 @@ export function Session() {
         wide: wide(),
         sessionID: route.sessionID,
         conceal: () => conceal(),
-        showThinking: () => showThinkingOption(),
-        showTimestamps: () => timestamps() === "show",
-        showDetails: () => showDetails(),
-        showAssistantMetadata: () => showAssistantMetadata(),
+        showThinking: () => detailToggles().showThinking,
+        showTimestamps: () => detailToggles().showTimestamps,
+        showDetails: () => detailToggles().showDetails,
+        showAssistantMetadata: () => detailToggles().showAssistantMetadata,
         diffWrapMode: () => diffWrapMode(),
         sync,
       }}
@@ -1039,6 +1109,7 @@ export function Session() {
       <box id="session-root" height="100%" flexDirection="column" backgroundColor={theme.background}>
         <Header
           persona={activePersona()}
+          onCyclePersona={cyclePersona}
           sessionLabel={session()?.title}
           lifecycleLabel={workstationState().lifecycleLabel}
           decisionState={stageLabel()}
@@ -1065,6 +1136,22 @@ export function Session() {
             paddingBottom={1}
           >
             <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} gap={1}>
+              <Show when={narrative().length === 0}>
+                <box
+                  paddingLeft={2}
+                  paddingRight={2}
+                  paddingTop={1}
+                  paddingBottom={1}
+                  borderStyle="round"
+                  borderColor={theme.borderSubtle}
+                  backgroundColor={tint(theme.background, theme.backgroundElement, 0.22)}
+                  flexDirection="column"
+                  gap={0}
+                >
+                  <text fg={theme.text}>No activity in this session yet.</text>
+                  <text fg={theme.textMuted}>Send a prompt to start a governed run and stream live execution context.</text>
+                </box>
+              </Show>
               <For each={narrative()}>
                 {(item, index) => (
                   <Show when={item.type === "message"}>
@@ -1477,6 +1564,128 @@ export function Session() {
                         setSmartFollowActive(true)
                       }}
                     />
+                  </Match>
+
+                  <Match when={activePaneMode() === "memory"}>
+                    <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
+                      <box
+                        flexDirection="row"
+                        gap={1}
+                        alignItems="center"
+                        border={["bottom"]}
+                        borderColor={theme.borderSubtle}
+                        paddingBottom={1}
+                      >
+                        <For each={(["note", "list", "rules"] as PMTab[])}>
+                          {(tab) => (
+                            <box
+                              onMouseUp={() => setPmTab(() => tab)}
+                              paddingLeft={1}
+                              paddingRight={1}
+                              border={["round"]}
+                              borderColor={pmTab() === tab ? theme.borderActive : theme.borderSubtle}
+                              backgroundColor={pmTab() === tab ? tint(theme.backgroundElement, theme.primary, 0.16) : theme.backgroundElement}
+                            >
+                              <text
+                                fg={pmTab() === tab ? theme.primary : theme.textMuted}
+                                attributes={pmTab() === tab ? TextAttributes.BOLD : undefined}
+                              >
+                                {tab}
+                              </text>
+                            </box>
+                          )}
+                        </For>
+                      </box>
+
+                      <Show when={memoryLoadError()}>
+                        <box
+                          flexDirection="column"
+                          gap={0}
+                          padding={1}
+                          border={["round"]}
+                          borderColor={theme.error}
+                          backgroundColor={tint(theme.backgroundElement, theme.error, 0.08)}
+                        >
+                          <text fg={theme.error} bold>Memory load error</text>
+                          <text fg={theme.textMuted} wrapMode="word">{memoryLoadError()}</text>
+                        </box>
+                      </Show>
+
+                      <Switch>
+                        <Match when={pmTab() === "note"}>
+                          <box
+                            flexDirection="column"
+                            gap={1}
+                            padding={1}
+                            border={["round"]}
+                            borderColor={theme.borderSubtle}
+                            backgroundColor={theme.backgroundElement}
+                          >
+                            <Show when={memoryNote()} fallback={<text fg={theme.textMuted}>No memory note yet. Add one with `/pm note`.</text>}>
+                              <text fg={theme.text} wrapMode="word">{memoryNote()}</text>
+                            </Show>
+                            <Show when={(workstationState().reflection?.verificationPlan?.length ?? 0) > 0}>
+                              <box flexDirection="column" gap={0}>
+                                <text fg={theme.accent} bold>Verification plan</text>
+                                <For each={workstationState().reflection?.verificationPlan ?? []}>
+                                  {(item) => <text fg={theme.text}>- {item}</text>}
+                                </For>
+                              </box>
+                            </Show>
+                            <Show when={workstationState().reflectionHistory.length > 0}>
+                              <box flexDirection="column" gap={0}>
+                                <text fg={theme.textMuted} bold>Recent reflections</text>
+                                <For each={workstationState().reflectionHistory.slice(0, 3)}>
+                                  {(item) => <text fg={theme.textMuted}>- {summarize(item.goal, 56) ?? item.goal}</text>}
+                                </For>
+                              </box>
+                            </Show>
+                          </box>
+                        </Match>
+
+                        <Match when={pmTab() === "list"}>
+                          <box flexDirection="column" gap={0}>
+                            <Show when={memoryList().rows.length > 0} fallback={<text fg={theme.textMuted}>{memoryList().info ?? "No PM notes found."}</text>}>
+                              <box flexDirection="row" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={0}>
+                                <text fg={theme.textMuted} width={12}>DAY</text>
+                                <text fg={theme.textMuted} flexGrow={1}>TITLE</text>
+                                <text fg={theme.textMuted} width={22}>TAGS</text>
+                              </box>
+                              <For each={memoryList().rows}>
+                                {(row) => (
+                                  <box flexDirection="row" gap={1} paddingTop={0} paddingBottom={0}>
+                                    <text fg={theme.text} width={12}>{row.day}</text>
+                                    <text fg={theme.text} flexGrow={1} wrapMode="truncate-end">{row.title}</text>
+                                    <text fg={theme.textMuted} width={22} wrapMode="truncate-end">{row.tags.join(", ")}</text>
+                                  </box>
+                                )}
+                              </For>
+                            </Show>
+                          </box>
+                        </Match>
+
+                        <Match when={pmTab() === "rules"}>
+                          <box flexDirection="column" gap={0}>
+                            <Show when={memoryRules().rows.length > 0} fallback={<text fg={theme.textMuted}>{memoryRules().info ?? "No PM rules set."}</text>}>
+                              <box flexDirection="row" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={0}>
+                                <text fg={theme.textMuted} width={18}>RULE</text>
+                                <text fg={theme.textMuted} flexGrow={1}>PATTERN</text>
+                                <text fg={theme.textMuted} width={8}>ACTION</text>
+                              </box>
+                              <For each={memoryRules().rows}>
+                                {(row) => (
+                                  <box flexDirection="row" gap={1} paddingTop={0} paddingBottom={0}>
+                                    <text fg={theme.text} width={18} wrapMode="truncate-end">{row.ruleType}</text>
+                                    <text fg={theme.text} flexGrow={1} wrapMode="truncate-end">{row.pattern}</text>
+                                    <text fg={theme.primary} width={8}>{row.action}</text>
+                                  </box>
+                                )}
+                              </For>
+                            </Show>
+                          </box>
+                        </Match>
+                      </Switch>
+                    </box>
                   </Match>
                 </Switch>
               </box>

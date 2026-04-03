@@ -73,3 +73,29 @@ export function shouldShowSidebarSection(input: {
   // Operator mode keeps runtime-critical sections visible and hides deep inspection-heavy sections.
   return input.section !== "reflection" && input.section !== "telemetry"
 }
+
+export function shouldShowWorkstationPane(input: {
+  displayMode: DisplayMode
+  paneVisibility: "auto" | "pinned" | "hidden"
+  hasCriticalIntervention: boolean
+  isRuntimeCritical: boolean
+}) {
+  if (input.displayMode === "quiet") {
+    // Quiet mode stays minimal and only surfaces hard intervention checkpoints.
+    return input.hasCriticalIntervention
+  }
+  if (input.paneVisibility === "hidden") {
+    return input.hasCriticalIntervention || input.isRuntimeCritical
+  }
+  if (input.paneVisibility === "pinned") return true
+  return true
+}
+
+export function hasMemoryContext(input: {
+  reflectionPresent: boolean
+  reflectionHistoryCount: number
+  pmListCount: number
+  pmRuleCount: number
+}) {
+  return input.reflectionPresent || input.reflectionHistoryCount > 0 || input.pmListCount > 0 || input.pmRuleCount > 0
+}

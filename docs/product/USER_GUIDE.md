@@ -108,7 +108,7 @@ If you want help writing stronger intents, read the [Intent Guide](./INTENT_GUID
 
 ## Step 4: Understand What DAX Shows You
 
-When DAX starts working, pay attention to four things:
+When DAX starts working, pay attention to five things:
 
 ### 1. Execution preview
 
@@ -127,6 +127,28 @@ DAX can search, read, inspect, fetch, edit, or execute depending on the situatio
 If something is risky, DAX should stop and ask.
 
 That is not friction by accident. It is part of the product.
+
+### 5. Right pane state and memory
+
+The right pane is your operational control surface:
+
+- status and next operator action
+- approvals and trust posture
+- memory context (reflection + PM notes/rules)
+
+Use `memory` when you want grounded continuity instead of only current-turn activity.
+
+## Display Mode + ELI12 + Persona (what each one does)
+
+These are separate controls with different jobs:
+
+| Control | Changes | Does not change |
+| --- | --- | --- |
+| Display mode (`operator`, `inspect`, `quiet`) | UI density and how much chrome is visible | permissions, approvals, policy |
+| ELI12 toggle | explanation simplicity and wording | execution authority, tool access |
+| Persona | presentation style labels/voice | policy, governance, capability gates |
+
+`quiet` is for focus. It hides non-critical side chrome and keeps the stream readable.
 
 ## Step 5: Approvals Are a Feature, Not a Failure
 

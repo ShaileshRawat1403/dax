@@ -117,6 +117,33 @@ Inspect mode:
 - Permit more evidence density in right panel and message metadata in left.
 - Do not change structure; only increase detail visibility.
 
+Quiet mode:
+
+- Hide the right governance pane by default.
+- Keep left narrative + bottom prompt as the primary surface.
+- Only allow right-pane resurfacing for hard intervention checkpoints.
+- Quiet mode is a focus mode, not a behavior or policy bypass.
+
+---
+
+## Memory pane contract
+
+The `memory` pane must be functional and data-backed.
+
+Sources:
+
+- current reflection state
+- recent reflection history
+- PM notes (`/pm list`)
+- PM rules (`/pm rules`)
+
+Required behavior:
+
+- `note` tab shows current memory summary and verification intent.
+- `list` tab shows PM notes in compact table format.
+- `rules` tab shows PM constraints in compact table format.
+- Empty states must be explicit and actionable, not blank.
+
 ---
 
 ## Anti-drift rules
@@ -158,4 +185,3 @@ Any change to this design freeze requires:
 2. Statement of operator value.
 3. Before/after screenshot comparison.
 4. Explicit note of what section ownership changed (left/right/bottom).
-
