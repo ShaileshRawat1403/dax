@@ -23,7 +23,9 @@ async function setupE2ESession(mode: string, prompt: string) {
     ...contract,
     runtimePolicy: {
       scope: {
-        targetFiles: ["src/dummy.ts"],
+        // Runtime guard normalizes touched files relative to worktree root.
+        // Keep both forms here so the test remains deterministic across nested package worktrees.
+        targetFiles: ["src/dummy.ts", "packages/dax/src/dummy.ts"],
         targetSubsystems: [],
         avoidAreas: [],
       },

@@ -179,7 +179,7 @@ describe("run gateway v1 contract", () => {
         expect(snapshot.schemaVersion).toBe("v1")
         expect(snapshot.authority).toBe("dax-state-machine")
         expect(snapshot.sourceSystem).toBe("soothsayer")
-        expect(snapshot.status).toBe("created")
+        expect(snapshot.status).toBe("running")
       })
     } finally {
       if (previousHome === undefined) delete process.env.DAX_TEST_HOME
@@ -265,8 +265,7 @@ describe("run gateway v1 contract", () => {
           },
         })
 
-        await TransitionsModule.Transitions.transition(create.runId, "queued", "execution_queued")
-        await TransitionsModule.Transitions.transition(create.runId, "running", "execution_started")
+        // External run creation now advances lifecycle to running.
 
         const stepId = Identifier.ascending("part")
         await TransitionsModule.Transitions.addStep(create.runId, stepId, "apply_patch", "executed")
@@ -395,8 +394,7 @@ describe("run gateway v1 contract", () => {
           },
         })
 
-        await TransitionsModule.Transitions.transition(create.runId, "queued", "execution_queued")
-        await TransitionsModule.Transitions.transition(create.runId, "running", "execution_started")
+        // External run creation now advances lifecycle to running.
 
         const stepId = Identifier.ascending("part")
         await TransitionsModule.Transitions.addStep(create.runId, stepId, "execute_workflow", "executed")
@@ -506,8 +504,7 @@ describe("run gateway v1 contract", () => {
           metadata: { source: "soothsayer", initiatedBy: "user_immutable_msg" },
         })
 
-        await Transitions.transition(create.runId, "queued", "execution_queued")
-        await Transitions.transition(create.runId, "running", "execution_started")
+        // External run creation now advances lifecycle to running.
 
         const stepId = Identifier.ascending("part")
         await Transitions.addStep(create.runId, stepId, "execute_workflow", "executed")
@@ -670,8 +667,7 @@ describe("run gateway v1 contract", () => {
           },
         })
 
-        await Transitions.transition(recent.runId, "queued", "execution_queued")
-        await Transitions.transition(recent.runId, "running", "execution_started")
+        // External run creation now advances lifecycle to running.
         const recentStepId = Identifier.ascending("part")
         await Transitions.addStep(recent.runId, recentStepId, "apply_patch", "executed")
         await Transitions.startStep(recent.runId, recentStepId)
@@ -941,7 +937,7 @@ describe("run gateway v1 contract", () => {
         const projections = await RunGateway.getProjections(create.runId)
 
         expect(projections.header.runId).toBe(create.runId)
-        expect(projections.header.status).toBe("created")
+        expect(projections.header.status).toBe("running")
 
         // P1.5 can add a non-blocking intervention narrative in warn mode.
         expect(projections.narrative.length).toBeGreaterThanOrEqual(3)
