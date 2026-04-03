@@ -5,6 +5,23 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.14] - 2026-04-03
+
+### Added
+- **Deterministic Completion Proofs**: Introduced a hard evidence-based gate for mutating runs. Completion now requires verifiable receipts for all mutations and validation commands.
+- **Production Guard Defaults**: DAX now defaults to `enforce` mode in production builds, ensuring safety gates cannot be bypassed without explicit override.
+- **Cross-Platform CI Matrix**: Automated validation now runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` to guarantee stability across all major operating systems.
+- **Doom Loop Breaker**: Consolidated tool-call fingerprinting to detect and block successive identical attempts, preventing automated retry loops.
+
+### Changed
+- **TUI Stability Pass**: Optimized the Workstation pane for high-signal production use. Reorganized into deterministic sections: Status, why blocked, approvals, completion proof, and next steps.
+- **Header Signal Muting**: Header and stream status chips are now suppressed when the Workstation pane is active to provide a single, consistent source of truth.
+- **Harden Path Security**: Updated path normalization to use canonical resolution (`realpath`), closing potential escapes via symlinks or complex traversal.
+
+### Fixed
+- **JSX Nesting & Syntax**: Resolved syntax errors in the TUI routes and synchronized component logic with the latest SDK version.
+- **Schema Synchronization**: Fixed mismatches between Session intent contracts and the Execution runtime state.
+
 ## [1.0.13] - 2026-04-02
 
 ### Changed

@@ -8,6 +8,7 @@ import { Instance } from "@/project/instance"
 import { RunStore } from "@/state/run-store"
 import { $ } from "bun"
 import path from "path"
+import fs from "fs"
 import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
 import { deriveCompletionProof } from "./completion-proof"
 import { MessageV2 } from "@/session/message-v2"
@@ -70,6 +71,8 @@ function defaultRuntimeGuardState(): RuntimeGuardState {
       satisfied: false,
       receipts: [],
     },
+    lastToolCallFingerprint: undefined,
+    successiveCount: 0,
   }
 }
 
@@ -82,7 +85,18 @@ function violationFingerprint(input: RuntimeGuardInput, code: string) {
 function normalizeRelative(filePath: string) {
   if (!filePath) return filePath
   const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(Instance.directory, filePath)
-  return path.relative(Instance.worktree, absolute)
+
+  let resolvedAbsolute = absolute
+  try {
+    // Follow symlinks and resolve '..' to get canonical path
+    resolvedAbsolute = fs.realpathSync(absolute)
+  } catch {
+    // If file doesn't exist, we still want to resolve '..' and normalize separators
+    resolvedAbsolute = path.resolve(absolute)
+  }
+
+  const relative = path.relative(Instance.worktree, resolvedAbsolute)
+  return relative
 }
 
 function collectTouchedPaths(req: GuardRequest): string[] {
@@ -94,20 +108,27 @@ function collectTouchedPaths(req: GuardRequest): string[] {
   return [...new Set([...fromFiles, ...fromSingle, ...fromPatterns].map((item) => normalizeRelative(String(item))))]
 }
 
-function normalizeScope(contract?: RuntimeContract | null) {
+function normalizeScope(contract?: any | null) {
   const targetFiles = [
     ...(contract?.targetFiles ?? []),
     ...(contract?.repoImpact?.targetFiles ?? []),
     ...(contract?.likelyWrites ?? []),
+    ...(contract?.runtimePolicy?.scope?.targetFiles ?? []),
   ]
     .map((item) => normalizeRelative(item))
     .filter(Boolean)
-  const avoidAreas = (contract?.repoImpact?.avoidAreas ?? []).map((item) => normalizeRelative(item)).filter(Boolean)
+  const avoidAreas = [
+    ...(contract?.repoImpact?.avoidAreas ?? []),
+    ...(contract?.runtimePolicy?.scope?.avoidAreas ?? []),
+  ]
+    .map((item) => normalizeRelative(item))
+    .filter(Boolean)
   const validation = [
     ...(contract?.validationPlan?.preflight ?? []),
     ...(contract?.validationPlan?.postChange ?? []),
     ...(contract?.validationPlan?.shipReadiness ?? []),
     ...(contract?.validationCommands ?? []),
+    ...(contract?.runtimePolicy?.postconditions?.validationCommands ?? []),
   ]
   return {
     targetFiles: [...new Set(targetFiles)],
@@ -331,18 +352,40 @@ async function updateRuntimeGuardState(sessionID: string, updater: (state: Runti
   })
 }
 
+function stableStringify(obj: any): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj)
+  if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(",")}]`
+  const keys = Object.keys(obj).sort()
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`
+}
+
 export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   const session = await Session.get(input.sessionID).catch(() => undefined)
   if (!session) return
 
-  const sessionContract = session.state_v2?.intent?.contract
+  const state = session.state_v2
+  const currentGuard = state?.runtime_guard ?? defaultRuntimeGuardState()
+  const mode = state?.intent?.activeMode ?? input.agent ?? "build"
+  const sessionContract = state?.intent?.contract
+  const planQuality = state?.plan_quality
+
   const compiledContract = await ContractGuardian.get(input.sessionID).catch(() => null)
   const scope = normalizeScope(sessionContract)
   const actionClass = classifyActionClass(input.req)
-  const mode = session.state_v2?.intent?.activeMode ?? input.agent ?? "build"
   const runState = await RunStore.get(input.sessionID).catch(() => null)
   const lifecycle = runState?.status ?? "running"
-  const planQuality = session.state_v2?.plan_quality
+
+  const toolFingerprint = [input.toolID, stableStringify(input.req.patterns), stableStringify(input.req.metadata)].join("::")
+  const lastFingerprint = currentGuard.lastToolCallFingerprint
+  const isIdentical = toolFingerprint === lastFingerprint
+  const nextSuccessiveCount = isIdentical ? (currentGuard.successiveCount ?? 0) + 1 : 1
+
+  // Update successive count in DB immediately so it's persisted even if the call fails later
+  await updateRuntimeGuardState(input.sessionID, (guard) => ({
+    ...guard,
+    lastToolCallFingerprint: toolFingerprint,
+    successiveCount: nextSuccessiveCount,
+  }))
 
   const requiresStrictPlanBeforeMutation =
     planQuality?.decision === "pause" && ["mutate", "commit", "publish"].includes(actionClass)
@@ -387,8 +430,25 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       code: "illegal_transition",
       title: "Mode boundary blocked",
       reason,
-      risk: "high",
+      risk: "critical",
       context: { toolName: input.toolID, command: input.req.patterns.join(" && ") || undefined },
+    })
+  }
+
+  // Loop breaker check - only fire if we have exceeded threshold of successive identical calls
+  const loopThreshold = currentGuard.budget.maxRepeatedFailures || DEFAULT_BUDGET.maxRepeatedFailures
+  if (nextSuccessiveCount >= loopThreshold) {
+    const reason = `DAX has detected ${nextSuccessiveCount} successive identical tool calls for '${input.toolID}'. This pattern suggests an automated doom-loop. Pause, summarize your progress, and wait for human direction.`
+    await blockViolation(input, {
+      code: "loop_break",
+      title: "Doom loop detected",
+      reason,
+      risk: "critical",
+      context: {
+        toolName: input.toolID,
+        command: input.req.patterns.join(" && ") || undefined,
+        notes: [`fingerprint: ${toolFingerprint}`]
+      },
     })
   }
 
@@ -437,7 +497,6 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     }
   }
 
-  const currentGuard = session.state_v2?.runtime_guard ?? defaultRuntimeGuardState()
   const nextTouched = new Set(currentGuard.touchedFiles)
   touchedFiles.forEach((item) => nextTouched.add(item))
 
