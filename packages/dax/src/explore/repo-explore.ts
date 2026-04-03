@@ -1215,7 +1215,7 @@ export async function runBoundaryPass(root: string): Promise<RepoExplorePassDelt
 
       if (signals.length === 0) continue
 
-      const relativeChild = path.join(containerName, child)
+      const relativeChild = path.posix.join(containerName, child)
       childBoundaries.push(relativeChild)
       addImportantFile(relativeChild, `${containerName.slice(0, -1)} boundary`)
 
@@ -1280,7 +1280,7 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
   }
 
   for (const packageRoot of packageRoots) {
-    const relativeRoot = path.relative(resolvedRoot, packageRoot) || "."
+    const relativeRoot = path.relative(resolvedRoot, packageRoot).replace(/\\/g, "/") || "."
     const packageJsonPath = path.join(packageRoot, "package.json")
     const packageJson = await readJsonIfExists(packageJsonPath)
 
@@ -1395,7 +1395,7 @@ export async function runIntegrationPass(root: string): Promise<RepoExplorePassD
   }
 
   for (const packageRoot of packageRoots) {
-    const relativeRoot = path.relative(resolvedRoot, packageRoot) || "."
+    const relativeRoot = path.relative(resolvedRoot, packageRoot).replace(/\\/g, "/") || "."
     const packageJsonPath = path.join(packageRoot, "package.json")
     const packageJson = await readJsonIfExists(packageJsonPath)
     if (packageJson && typeof packageJson === "object") {

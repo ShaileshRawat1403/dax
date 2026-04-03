@@ -35,9 +35,10 @@ describe("skill loading", () => {
       await bootstrap(packageRoot, async () => {
         const skills = await Skill.all()
         const repoExplore = skills.find((skill) => skill.name === "repo-explore")
+        const normalizedLocation = repoExplore?.location.replaceAll("\\", "/")
 
         expect(repoExplore).toBeDefined()
-        expect(repoExplore?.location).toContain("/skills/repo-explore/SKILL.md")
+        expect(normalizedLocation).toContain("/skills/repo-explore/SKILL.md")
       })
     } finally {
       if (previous === undefined) delete process.env.DAX_DISABLE_EXTERNAL_SKILLS
