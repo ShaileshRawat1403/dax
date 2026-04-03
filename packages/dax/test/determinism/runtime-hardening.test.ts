@@ -134,7 +134,11 @@ describe("runtime hardening", () => {
         })
 
         const updated = await Session.get(session.id)
-        expect(updated.state_v2?.runtime_guard?.touchedFiles.some((item) => item.endsWith(target))).toBe(true)
+        expect(
+          updated.state_v2?.runtime_guard?.touchedFiles.some((item) =>
+            item.replaceAll("\\", "/").endsWith(target.replaceAll("\\", "/")),
+          ),
+        ).toBe(true)
         expect(updated.state_v2?.runtime_guard?.verification.satisfied).toBe(true)
         expect(updated.state_v2?.runtime_guard?.rollbackAnchor?.createdAt).toBeDefined()
       },
