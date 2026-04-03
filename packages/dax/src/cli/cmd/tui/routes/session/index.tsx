@@ -679,6 +679,15 @@ export function Session() {
       const stage = stageState?.stage ?? "ready"
       const mode = workstationState().lifecycle
       const current = workstationState()
+      const ciNudge = deriveGitHubCINudge({
+        recentTools: recentTools(),
+        branch: sync.data.vcs?.branch,
+      })
+      const branchNudge = deriveFeatureBranchNudge({
+        branch: sync.data.vcs?.branch,
+        workflowMode: workflowMode(),
+        hasConcreteChanges: hasDiffNeed(),
+      })
 
       if (mode === "awaiting_approval") {
         return {
@@ -693,6 +702,54 @@ export function Session() {
           tone: "error" as const,
           title: "Execution blocked",
           detail: voice("A policy or error is preventing progress. Check the details below."),
+        }
+      }
+
+      if (current.completionProof && !current.completionProof.ready) {
+        return {
+          tone: "warning" as const,
+          title: "Completion evidence missing",
+          detail: voice(`Resolve: ${current.completionProof.missing.slice(0, 2).join(", ") || "verification evidence"}.`),
+        }
+      }
+
+      if (current.planQuality?.decision === "pause") {
+        return {
+          tone: "warning" as const,
+          title: "Refine execution contract",
+          detail: voice("Plan quality is paused. Use refine to add scope, validation, and rollback detail before edits."),
+        }
+      }
+
+      if (ciNudge) {
+        return {
+          tone: ciNudge.tone,
+          title: ciNudge.title,
+          detail: voice(ciNudge.detail),
+        }
+      }
+
+      if (branchNudge && (workflowMode() === "build" || hasDiffNeed())) {
+        return {
+          tone: branchNudge.tone,
+          title: branchNudge.title,
+          detail: voice(branchNudge.detail),
+        }
+      }
+
+      if (stage === "verifying" && hasAuditNeed()) {
+        return {
+          tone: "accent" as const,
+          title: "Inspect validation findings",
+          detail: voice("Review the audit pane before treating this run as complete."),
+        }
+      }
+
+      if ((stage === "verifying" || stage === "done") && hasDiffNeed()) {
+        return {
+          tone: "primary" as const,
+          title: "Review concrete changes",
+          detail: voice("Open changes to inspect the diff and confirm workspace outcome."),
         }
       }
 
@@ -816,9 +873,9 @@ export function Session() {
     if (paneVisibility() === "pinned") return true
     return shouldAutoShowPane({
       wide: wide(),
-      hasApprovals: activeInterventions().length > 0,
-      hasRefineDraft: !!refinedPrompt(),
-      hasAuditAttention: workstationState().auditSummary.posture !== "clear",
+      hasApprovals: hasApprovalsNeed(),
+      hasRefineDraft: hasRefineNeed(),
+      hasAuditAttention: hasAuditNeed(),
       hasDiffContext: proposedChanges().length > 0,
       hasLiveContext: hasLivePaneContext(),
       hasMemoryContext: false,
@@ -827,16 +884,16 @@ export function Session() {
   })
 
   const priorityPaneMode = createMemo<PaneMode>(() => {
-    if (activeInterventions().length > 0) return "approvals"
+    if (hasApprovalsNeed()) return "approvals"
     if (proposedChanges().length > 0) return "diff"
     return "plan"
   })
 
   const activePaneMode = createMemo<PaneMode>(() =>
     deriveActivePaneMode({
-      hasApprovals: activeInterventions().length > 0,
-      hasRefineDraft: !!refinedPrompt(),
-      hasAuditAttention: workstationState().auditSummary.posture !== "clear",
+      hasApprovals: hasApprovalsNeed(),
+      hasRefineDraft: hasRefineNeed(),
+      hasAuditAttention: hasAuditNeed(),
       hasDiffContext: proposedChanges().length > 0,
       hasLiveContext: hasLivePaneContext(),
       hasMemoryContext: false,
@@ -870,6 +927,9 @@ export function Session() {
   })
 
   const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
+  const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0)
+  const hasAuditNeed = createMemo(() => workstationState().auditSummary.posture !== "clear")
+  const hasRefineNeed = createMemo(() => !!refinedPrompt() || workstationState().planQuality?.decision === "pause")
 
   const paneDiffFiletype = createMemo(() => {
     const change = selectedProposedChange()
@@ -893,6 +953,35 @@ export function Session() {
       label: `${quality.score}/100`,
       reason: voice("The plan is concrete and ready for execution."),
     }
+  })
+
+  const recentTools = createMemo(() => {
+    const items: Array<{ tool: string; status: string; label: string; command?: string; output?: string }> = []
+    for (const msg of messages().slice(-5)) {
+      if (msg.role !== "assistant") continue
+      const parts = sync.data.part[msg.id] ?? []
+      for (const part of parts) {
+        if (part.type !== "tool") continue
+        const trace = deriveOperatorTraceLine(part)
+        const metadata =
+          "metadata" in part.state ? ((part.state.metadata ?? {}) as Record<string, unknown>) : ({} as Record<string, unknown>)
+        const input = (part.state.input ?? {}) as Record<string, unknown>
+        const output =
+          typeof metadata.output === "string"
+            ? metadata.output
+            : typeof metadata.result === "string"
+              ? metadata.result
+              : undefined
+        items.push({
+          tool: part.tool,
+          status: part.state.status,
+          label: trace?.summary ?? part.tool,
+          command: typeof input.command === "string" ? input.command : undefined,
+          output,
+        })
+      }
+    }
+    return items.slice(-20).reverse()
   })
 
   const trustSurface = createMemo(() => ({
@@ -1564,25 +1653,42 @@ function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: T
 
 function ActivityCluster(props: { tools: ToolPart[] }) {
   const { theme } = useTheme()
+  const ctx = use()
+  const traces = createMemo(() =>
+    props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })),
+  )
+  const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
+  const first = createMemo(() => traces()[0])
+  const last = createMemo(() => traces()[traces().length - 1])
+  const narrative = createMemo(() => {
+    const firstTrace = first()?.trace
+    const lastTrace = last()?.trace
+    if (!firstTrace && !lastTrace) return undefined
+    if (traces().length === 1 && firstTrace) {
+      return `I ran ${firstTrace.action.toLowerCase()} on ${firstTrace.target} and ${firstTrace.result}. Next: ${firstTrace.next}.`
+    }
+    if (firstTrace && lastTrace) {
+      return `I processed ${traces().length} steps (${completed()} complete). Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}. Next: ${lastTrace.next}.`
+    }
+    return undefined
+  })
+
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
-      <For each={props.tools}>
-        {(tool) => {
-          const trace = deriveOperatorTraceLine(tool)
-          return (
-            <box flexDirection="column" gap={0}>
-              <text fg={tool.state.status === "completed" ? theme.textMuted : theme.primary}>
-                {tool.state.status === "completed" ? "✓" : "◌"} {trace?.summary ?? tool.tool}
+      <Show when={narrative()}>
+        <text fg={theme.text} wrapMode="word">{narrative()}</text>
+      </Show>
+      <Show when={ctx.showAssistantMetadata()}>
+        <box flexDirection="column" gap={0} paddingTop={1}>
+          <For each={traces()}>
+            {(item) => (
+              <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>
+                {item.tool.state.status === "completed" ? "✓" : "◌"} {item.trace?.summary ?? item.tool.tool}
               </text>
-              <Show when={trace}>
-                <text fg={theme.textMuted} wrapMode="word">
-                  why: {trace!.why} · next: {trace!.next}
-                </text>
-              </Show>
-            </box>
-          )
-        }}
-      </For>
+            )}
+          </For>
+        </box>
+      </Show>
     </box>
   )
 }
