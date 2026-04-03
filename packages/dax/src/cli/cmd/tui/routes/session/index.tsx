@@ -110,6 +110,7 @@ import {
   deriveAuditHistory,
   deriveLiveSessionStageState,
   deriveLiveStreamStatus,
+  deriveOperatorTraceLine,
 } from "@/dax/presentation/session-surface"
 import {
   resolveSessionSidebarVisibility,
@@ -585,7 +586,8 @@ export function Session() {
       const parts = sync.data.part[msg.id] ?? []
       for (const p of parts) {
         if (p.type === "tool") {
-          items.push({ label: p.tool, status: p.state.status })
+          const trace = deriveOperatorTraceLine(p)
+          items.push({ label: trace?.summary ?? p.tool, status: p.state.status })
         }
       }
     }
@@ -706,7 +708,7 @@ export function Session() {
         return {
           tone: "primary" as const,
           title: "Analyzing request",
-          detail: voice("Building context and evaluating execution strategy."),
+          detail: voice(current.currentStep ?? "Collecting context for the next governed step."),
         }
       }
 
@@ -714,7 +716,7 @@ export function Session() {
         return {
           tone: "primary" as const,
           title: "Drafting plan",
-          detail: voice("Structuring the implementation path and safety boundaries."),
+          detail: voice(current.currentStep ?? "Structuring the next step with scope and verification."),
         }
       }
 
@@ -722,7 +724,7 @@ export function Session() {
         return {
           tone: "accent" as const,
           title: "Applying changes",
-          detail: voice("Executing tools and modifying the workspace as planned."),
+          detail: voice(current.currentStep ?? "Running the current tool action in scoped mode."),
         }
       }
 
@@ -730,7 +732,7 @@ export function Session() {
         return {
           tone: "success" as const,
           title: "Verifying result",
-          detail: voice("Running validation steps to ensure correctness and stability."),
+          detail: voice(current.currentStep ?? "Collecting verification evidence before completion."),
         }
       }
       return fallback
@@ -1565,11 +1567,21 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
       <For each={props.tools}>
-        {(tool) => (
-          <text fg={tool.state.status === "completed" ? theme.textMuted : theme.primary}>
-            {tool.state.status === "completed" ? "✓" : "◌"} {tool.tool}
-          </text>
-        )}
+        {(tool) => {
+          const trace = deriveOperatorTraceLine(tool)
+          return (
+            <box flexDirection="column" gap={0}>
+              <text fg={tool.state.status === "completed" ? theme.textMuted : theme.primary}>
+                {tool.state.status === "completed" ? "✓" : "◌"} {trace?.summary ?? tool.tool}
+              </text>
+              <Show when={trace}>
+                <text fg={theme.textMuted} wrapMode="word">
+                  why: {trace!.why} · next: {trace!.next}
+                </text>
+              </Show>
+            </box>
+          )
+        }}
       </For>
     </box>
   )

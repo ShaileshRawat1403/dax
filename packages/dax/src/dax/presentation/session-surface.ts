@@ -83,8 +83,158 @@ function describeToolProgress(tool: string) {
       return "waiting for clarification"
     case "skill":
       return "loading a skill"
+    case "reflection":
+      return "recording reflection"
     default:
       return `${tool} in progress`
+  }
+}
+
+export type OperatorTraceLine = {
+  action: string
+  target: string
+  why: string
+  result: string
+  next: string
+  summary: string
+}
+
+function summarizeValue(value: string | undefined, max = 72) {
+  if (!value) return undefined
+  const normalized = value.replace(/\s+/g, " ").trim()
+  if (!normalized) return undefined
+  if (normalized.length <= max) return normalized
+  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`
+}
+
+function normalizePathLike(value: string | undefined) {
+  if (!value) return undefined
+  return summarizeValue(value.replace(/\\/g, "/"), 64)
+}
+
+function stripQuotes(value: string | undefined) {
+  if (!value) return value
+  return value.replace(/^['"]|['"]$/g, "")
+}
+
+function extractTarget(part: any): string {
+  const input = part?.state?.input ?? {}
+  const metadata = part?.state?.metadata ?? {}
+  const tool = String(part?.tool ?? "").toLowerCase()
+  if (tool === "shell") return summarizeValue(input.command, 56) ?? "shell command"
+  if (tool === "reflection") return summarizeValue(input.goal, 56) ?? "execution reflection"
+  if (tool === "read" || tool === "write" || tool === "edit") {
+    return normalizePathLike(input.filePath ?? input.path) ?? "workspace file"
+  }
+  if (tool === "apply_patch") {
+    return normalizePathLike(metadata.filePath ?? input.filePath) ?? "workspace patch"
+  }
+  if (tool === "grep" || tool === "codesearch" || tool === "websearch") {
+    return summarizeValue(stripQuotes(input.pattern ?? input.query), 56) ?? "search query"
+  }
+  if (tool === "glob" || tool === "list") {
+    return summarizeValue(input.pattern ?? input.path, 56) ?? "workspace listing"
+  }
+  if (tool === "webfetch") return summarizeValue(input.url, 56) ?? "external URL"
+  if (tool === "task" || tool === "question" || tool === "skill") {
+    return summarizeValue(input.description ?? input.prompt ?? input.name, 56) ?? "operator step"
+  }
+  return summarizeValue(input.filePath ?? input.path ?? input.query ?? input.pattern ?? input.command, 56) ?? "runtime target"
+}
+
+function deriveWhy(tool: string) {
+  switch (tool) {
+    case "read":
+    case "glob":
+    case "grep":
+    case "list":
+    case "codesearch":
+    case "websearch":
+    case "webfetch":
+      return "gather context"
+    case "task":
+    case "todowrite":
+    case "question":
+    case "skill":
+    case "reflection":
+      return "shape execution plan"
+    case "write":
+    case "edit":
+    case "apply_patch":
+      return "apply scoped change"
+    case "shell":
+      return "execute workflow command"
+    default:
+      return "advance current run"
+  }
+}
+
+function deriveResult(part: any) {
+  const status = String(part?.state?.status ?? "pending").toLowerCase()
+  const metadata = part?.state?.metadata ?? {}
+  if (status === "pending" || status === "running") return "in progress"
+  if (status === "error" || status === "failed") return "failed"
+  if (status !== "completed") return status
+
+  if (typeof metadata?.exitCode === "number") return metadata.exitCode === 0 ? "completed (exit 0)" : `completed (exit ${metadata.exitCode})`
+  if (typeof metadata?.matchCount === "number") return `completed (${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"})`
+  if (Array.isArray(metadata?.matches)) return `completed (${metadata.matches.length} match${metadata.matches.length === 1 ? "" : "es"})`
+  if (Array.isArray(metadata?.paths)) return `completed (${metadata.paths.length} path${metadata.paths.length === 1 ? "" : "s"})`
+  if (metadata?.written === true) return "completed (workspace updated)"
+  if (metadata?.read === true) return "completed (content loaded)"
+  return "completed"
+}
+
+function deriveNext(tool: string, result: string) {
+  const done = result.startsWith("completed")
+  switch (tool) {
+    case "read":
+    case "glob":
+    case "grep":
+    case "list":
+    case "codesearch":
+    case "websearch":
+    case "webfetch":
+      return done ? "decide next operation" : "wait for context"
+    case "task":
+    case "todowrite":
+    case "question":
+    case "skill":
+    case "reflection":
+      return done ? "continue plan execution" : "wait for planning step"
+    case "write":
+    case "edit":
+    case "apply_patch":
+      return done ? "run verification" : "wait for mutation"
+    case "shell":
+      return done ? "capture evidence and verify" : "wait for command completion"
+    default:
+      return done ? "continue governed run" : "wait for tool completion"
+  }
+}
+
+function normalizeAction(tool: string) {
+  const upper = tool.toUpperCase()
+  if (upper === "TODOWRITE") return "TODO"
+  if (upper === "APPLY_PATCH") return "PATCH"
+  return upper
+}
+
+export function deriveOperatorTraceLine(part: Part): OperatorTraceLine | undefined {
+  if (part.type !== "tool") return
+  const tool = String(part.tool ?? "").toLowerCase()
+  const action = normalizeAction(tool)
+  const target = extractTarget(part)
+  const why = deriveWhy(tool)
+  const result = deriveResult(part)
+  const next = deriveNext(tool, result)
+  return {
+    action,
+    target,
+    why,
+    result,
+    next,
+    summary: `${action} ${target} · ${result}`,
   }
 }
 
