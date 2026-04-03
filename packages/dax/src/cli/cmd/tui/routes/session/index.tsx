@@ -660,6 +660,40 @@ export function Session() {
     return false
   })
 
+  const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
+  const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0)
+  const hasAuditNeed = createMemo(() => workstationState().auditSummary.posture !== "clear")
+  const hasRefineNeed = createMemo(() => !!refinedPrompt() || workstationState().planQuality?.decision === "pause")
+
+  const recentTools = createMemo(() => {
+    const items: Array<{ tool: string; status: string; label: string; command?: string; output?: string }> = []
+    for (const msg of messages().slice(-5)) {
+      if (msg.role !== "assistant") continue
+      const parts = sync.data.part[msg.id] ?? []
+      for (const part of parts) {
+        if (part.type !== "tool") continue
+        const trace = deriveOperatorTraceLine(part)
+        const metadata =
+          "metadata" in part.state ? ((part.state.metadata ?? {}) as Record<string, unknown>) : ({} as Record<string, unknown>)
+        const input = (part.state.input ?? {}) as Record<string, unknown>
+        const output =
+          typeof metadata.output === "string"
+            ? metadata.output
+            : typeof metadata.result === "string"
+              ? metadata.result
+              : undefined
+        items.push({
+          tool: part.tool,
+          status: part.state.status,
+          label: trace?.summary ?? part.tool,
+          command: typeof input.command === "string" ? input.command : undefined,
+          output,
+        })
+      }
+    }
+    return items.slice(-20).reverse()
+  })
+
   const voice = (text: string) => {
     try {
       return applyPersonaVoice(text, activePersona())
@@ -926,11 +960,6 @@ export function Session() {
     return reason
   })
 
-  const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
-  const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0)
-  const hasAuditNeed = createMemo(() => workstationState().auditSummary.posture !== "clear")
-  const hasRefineNeed = createMemo(() => !!refinedPrompt() || workstationState().planQuality?.decision === "pause")
-
   const paneDiffFiletype = createMemo(() => {
     const change = selectedProposedChange()
     if (!change) return "text"
@@ -953,35 +982,6 @@ export function Session() {
       label: `${quality.score}/100`,
       reason: voice("The plan is concrete and ready for execution."),
     }
-  })
-
-  const recentTools = createMemo(() => {
-    const items: Array<{ tool: string; status: string; label: string; command?: string; output?: string }> = []
-    for (const msg of messages().slice(-5)) {
-      if (msg.role !== "assistant") continue
-      const parts = sync.data.part[msg.id] ?? []
-      for (const part of parts) {
-        if (part.type !== "tool") continue
-        const trace = deriveOperatorTraceLine(part)
-        const metadata =
-          "metadata" in part.state ? ((part.state.metadata ?? {}) as Record<string, unknown>) : ({} as Record<string, unknown>)
-        const input = (part.state.input ?? {}) as Record<string, unknown>
-        const output =
-          typeof metadata.output === "string"
-            ? metadata.output
-            : typeof metadata.result === "string"
-              ? metadata.result
-              : undefined
-        items.push({
-          tool: part.tool,
-          status: part.state.status,
-          label: trace?.summary ?? part.tool,
-          command: typeof input.command === "string" ? input.command : undefined,
-          output,
-        })
-      }
-    }
-    return items.slice(-20).reverse()
   })
 
   const trustSurface = createMemo(() => ({
