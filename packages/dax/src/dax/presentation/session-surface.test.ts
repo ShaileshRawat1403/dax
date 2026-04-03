@@ -4,6 +4,7 @@ import {
   deriveAuditHistory,
   deriveLiveSessionStageState,
   deriveLiveStreamStatus,
+  deriveOperatorTraceLine,
   deriveStreamFidelitySnapshot,
   parseAuditResult,
 } from "./session-surface"
@@ -222,5 +223,44 @@ describe("session surface helpers", () => {
       hasVisibleReasoning: false,
       hasVisibleText: false,
     })
+  })
+
+  test("formats deterministic operator trace lines for tool activity", () => {
+    const line = deriveOperatorTraceLine({
+      type: "tool",
+      tool: "read",
+      state: {
+        status: "completed",
+        input: { filePath: "packages\\dax\\src\\session\\prompt.ts" },
+        metadata: { read: true },
+      },
+    } as any)
+
+    expect(line).toEqual({
+      action: "READ",
+      target: "packages/dax/src/session/prompt.ts",
+      why: "gather context",
+      result: "completed (content loaded)",
+      next: "decide next operation",
+      summary: "READ packages/dax/src/session/prompt.ts · completed (content loaded)",
+    })
+  })
+
+  test("formats shell trace lines with command target and next step", () => {
+    const line = deriveOperatorTraceLine({
+      type: "tool",
+      tool: "shell",
+      state: {
+        status: "pending",
+        input: { command: "bun run typecheck:dax" },
+        metadata: {},
+      },
+    } as any)
+
+    expect(line?.action).toBe("SHELL")
+    expect(line?.target).toBe("bun run typecheck:dax")
+    expect(line?.why).toBe("execute workflow command")
+    expect(line?.result).toBe("in progress")
+    expect(line?.next).toBe("wait for command completion")
   })
 })
