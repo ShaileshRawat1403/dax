@@ -39,7 +39,62 @@ While standard AI chat interfaces are built for conversation, DAX is built for *
 
 **DAX is the governed execution workstation for AI-driven software work, giving teams approvals, replayability, and audit-grade control instead of black-box agent behavior.**
 
-### ⚖️ The RAO Governance Loop
+## System Maps
+
+### Architecture map
+
+```mermaid
+graph LR
+  U[Operator Intent] --> C[Contract Compile]
+  C --> G[Runtime Guards]
+  G --> T[Tool Execution]
+  T --> E[Event Stream]
+  E --> P[TUI Projections]
+  E --> R[Recovery and Replay]
+```
+
+### Execution workflow
+
+```mermaid
+flowchart TD
+  A[Intent Submitted] --> B[Plan and Scope Check]
+  B --> C{Risky or Sensitive?}
+  C -- Yes --> D[Approval Required]
+  D --> E{Approved?}
+  E -- No --> X[Blocked and Intervention]
+  E -- Yes --> F[Execute Tools]
+  C -- No --> F
+  F --> G[Verification Receipts]
+  G --> H{Completion Proof Pass?}
+  H -- No --> X
+  H -- Yes --> I[Completed with Evidence]
+```
+
+### Product mindmap
+
+```mermaid
+mindmap
+  root((DAX))
+    Governed execution
+      Contract
+      Approvals
+      Completion proof
+    Operator UX
+      Narrative stream
+      Workstation pane
+      Audit surfaces
+    Safety
+      Scope guard
+      Path guard
+      Mutation budget
+      Loop breaker
+    Integrations
+      Providers
+      FastMCP
+      CI signals
+```
+
+### The RAO Governance Loop
 
 DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 
@@ -49,7 +104,7 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 
 ---
 
-## ✨ Core Capabilities
+## Core Capabilities
 
 - **Governed Workstation**: A dual-surface TUI with a narrative execution stream and a dedicated control pane for changes, audits, and approvals.
 - **Multi-Provider Substrate**: Seamless integration with OpenAI, Google Gemini, Anthropic, Ollama, and custom MCP servers.
@@ -62,7 +117,7 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
   - `dax verify`: Evidence-based session validation.
   - `dax plan`: Inspect and refine task graphs before execution.
 
-## 🧭 How DAX Differs
+## How DAX Differs
 
 DAX is not trying to be the fastest “AI coding assistant” in an editor tab. It is trying to be the most trustworthy execution system when the work actually matters.
 
@@ -83,7 +138,7 @@ DAX is not trying to be the fastest “AI coding assistant” in an editor tab. 
 
 ---
 
-## 📖 Documentation Index
+## Documentation Index
 
 | Category              | Guides                                                                                                                                                                                                                                             |
 | :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -96,9 +151,9 @@ DAX is not trying to be the fastest “AI coding assistant” in an editor tab. 
 
 ---
 
-## 🛠️ Installation
+## Installation
 
-### 🍎 macOS & 🐧 Linux
+### macOS and Linux
 
 The recommended way to install the DAX binary is via the universal installation script:
 
@@ -107,7 +162,7 @@ The recommended way to install the DAX binary is via the universal installation 
 curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
 ```
 
-### 🍺 macOS & 🐧 Linux via Homebrew
+### macOS and Linux via Homebrew
 
 If you prefer Homebrew, DAX is also available from the public tap:
 
@@ -115,7 +170,7 @@ If you prefer Homebrew, DAX is also available from the public tap:
 brew install ShaileshRawat1403/tap/dax
 ```
 
-### 🪟 Windows
+### Windows
 
 You can install DAX using **WinGet**:
 
@@ -123,7 +178,7 @@ You can install DAX using **WinGet**:
 winget install DaxAi.DAX
 ```
 
-### 🌿 Local Development
+### Local Development
 
 If you are contributing to this repository, you can link your local version globally:
 
@@ -174,7 +229,7 @@ It was built from a systems-thinking, orchestration, and technical-communication
 
 ---
 
-## 🏗️ Workspace Integration
+## Workspace Integration
 
 DAX is part of a larger ecosystem designed for enterprise-grade AI orchestration:
 
@@ -229,7 +284,7 @@ bun run test
 
 ---
 
-## ⚠️ Disclaimer & Safety
+## Disclaimer & Safety
 
 **DAX is professional software for governed AI execution.**
 
@@ -239,12 +294,12 @@ bun run test
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for standards and setup instructions.
 
 If DAX is useful to you, fork it, explore it, and open a PR. Great contributions are not limited to code. Clearer docs, safer workflows, better onboarding, better approvals UX, and sharper trust/governance surfaces all move the project forward.
 
-## 📄 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.

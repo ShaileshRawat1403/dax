@@ -112,10 +112,10 @@ export function Header(props: {
                 paddingLeft={1}
                 paddingRight={1}
               >
-                <text fg={lifecycleColor()}>{props.lifecycleLabel?.toLowerCase()}</text>
+                <text fg={lifecycleColor()}>{props.lifecycleLabel?.toUpperCase()}</text>
               </box>
             </Show>
-            <Show when={props.decisionState}>
+            <Show when={props.decisionState && props.emphasis !== "muted"}>
               <box
                 backgroundColor={theme.backgroundElement}
                 border={["round"]}

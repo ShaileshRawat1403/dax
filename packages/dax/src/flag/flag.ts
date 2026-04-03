@@ -78,6 +78,8 @@ export namespace Flag {
   export const DAX_DISABLE_CONFIG_AUTO_INSTALL = truthy("DAX_DISABLE_CONFIG_AUTO_INSTALL")
   export const DAX_MODELS_URL = readEnv("DAX_MODELS_URL")
   export const DAX_MODELS_PATH = readEnv("DAX_MODELS_PATH")
+  export const DAX_TRUST_GUARD_MODE = readEnv("DAX_TRUST_GUARD_MODE")
+  export const DAX_PRODUCTION = truthy("DAX_PRODUCTION")
 
   function number(key: string) {
     const value = readEnv(key)

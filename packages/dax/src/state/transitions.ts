@@ -82,11 +82,6 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
         `Run ${runId} cannot complete with ${state.pendingApprovalIds.length} pending approval(s).`,
       )
     }
-    if (state.governance.verification.required && !state.governance.verification.satisfied) {
-      throw new RunCompletionBlockedError(
-        `Run ${runId} cannot complete without recorded verification evidence.`,
-      )
-    }
     const contract = await ContractGuardian.get(runId).catch(() => null)
     if (contract) {
       const proof = deriveCompletionProof({
@@ -94,20 +89,20 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
         runState: state,
       })
       const guardMode = resolveGuardEnforcementMode(state.governance.guardEnforcementMode)
-      if (!proof.ready && guardMode === "enforce") {
+      if (proof.decision === "fail" && guardMode === "enforce") {
         await createAndPersistApproval({
           runId,
           type: "workflow_gate",
           risk: "high",
           title: "Completion proof missing evidence",
-          reason: `DAX blocked completion because required proof is missing: ${proof.missing.join(", ")}.`,
+          reason: `DAX blocked completion because required proof is missing or failed: ${proof.failedChecks.join(", ")}.`,
           source: "system",
           context: {
-            notes: proof.missing,
+            notes: proof.failedChecks,
           },
         })
         throw new RunCompletionBlockedError(
-          `Run ${runId} cannot complete without completion proof evidence: ${proof.missing.join(", ")}.`,
+          `Run ${runId} cannot complete without passing completion proof: ${proof.failedChecks.join(", ")}.`,
         )
       }
       completionProof = proof

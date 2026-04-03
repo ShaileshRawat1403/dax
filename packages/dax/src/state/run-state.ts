@@ -79,13 +79,13 @@ export const RuntimeGovernanceSchema = z.object({
     .default(null),
   completionProof: z
     .object({
-      ready: z.boolean(),
-      missing: z.array(z.string()).default([]),
-      verificationReceipts: z.number().int().nonnegative().default(0),
-      mutationReceipts: z.number().int().nonnegative().default(0),
-      artifactCount: z.number().int().nonnegative().default(0),
-      scopeSatisfied: z.boolean().default(true),
-      sensitiveChangesApproved: z.boolean().default(true),
+      decision: z.enum(["pass", "fail"]),
+      failedChecks: z.array(z.string()).default([]),
+      verificationExecuted: z.boolean().default(false),
+      receiptIds: z.string().array().default([]),
+      artifactChecks: z.boolean().default(true),
+      scopeChecks: z.boolean().default(true),
+      sensitivePathApprovalChecks: z.boolean().default(true),
       checkedAt: z.string(),
     })
     .nullable()

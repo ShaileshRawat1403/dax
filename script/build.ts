@@ -17,6 +17,9 @@ const buildOptions: esbuild.BuildOptions = {
   format: "esm",
   external: [],
   sourcemap: true,
+  define: {
+    "process.env.DAX_PRODUCTION": '"true"',
+  },
 };
 
 if (isWatch) {

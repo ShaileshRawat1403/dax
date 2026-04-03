@@ -1,6 +1,8 @@
-# 📚 DAX Documentation Portal
+# DAX Documentation Portal
 
 Welcome to the canonical documentation for **DAX (Deterministic AI eXecution)**. This portal is designed to provide clear guidance for users, contributors, and architects.
+
+This index is release-facing. Internal planning and maintainer-only notes are intentionally excluded from the links below.
 
 ---
 
@@ -27,11 +29,7 @@ mindmap
       Contributing
 ```
 
-## Start Here
-
-If you are new to DAX, start here to understand the core concepts and get your environment ready.
-
-## 🚀 Getting Started
+## Getting Started
 
 If you are new to DAX, start here to understand the core concepts and get your environment ready.
 
@@ -57,7 +55,7 @@ If you are operating DAX as a reviewer, approver, or non-coding stakeholder, sta
 
 These are the main guides for using the shipped DAX product in day-to-day work.
 
-## 🛠️ Product & Usage Guides
+## Product & Usage Guides
 
 Deep dives into how to use DAX features for real-world delivery.
 
@@ -75,7 +73,7 @@ Deep dives into how to use DAX features for real-world delivery.
 
 ---
 
-## 🎯 Product Framing
+## Product Framing
 
 If you want the shortest explanation of what DAX is trying to become:
 
@@ -96,7 +94,7 @@ graph LR
 
 ---
 
-## 🏗️ Architecture & Governance
+## Architecture & Governance
 
 The internal models and decision records that power the deterministic runtime.
 
@@ -110,15 +108,13 @@ The internal models and decision records that power the deterministic runtime.
 
 ### Strategic Plans
 
-- [**Soothsayer Workstation Plan**](./architecture/DAX_SOOTHSAYER_WORKSTATION_PLAN.md) - The roadmap for web-based multi-user governance.
 - [**Release Readiness**](./product/release-readiness.md) - Pre-flight checklist for stable cuts.
 - [**Stack Roadmap**](./OPEN_SOURCE_STACK_ROADMAP.md) - Integration phases: FastMCP, NATS, Infisical, ZITADEL, OTel.
 - [**Deployment Guide**](./OPEN_SOURCE_STACK_DEPLOYMENT.md) - Three deployment profiles with env var reference.
-- [**Repo Agent Templates**](./repo-agents) - Copy-ready repo-specific `AGENTS.md` guidance for DAX, Picobot, and Soothsayer.
 
 ---
 
-## ✨ Feature Spotlights
+## Feature Spotlights
 
 Detailed specifications for the key surfaces of the DAX workstation.
 
@@ -133,7 +129,7 @@ Detailed specifications for the key surfaces of the DAX workstation.
 
 Use the contributor guides when you are changing DAX itself, extending its workflows, or preparing the current merge target for release.
 
-## 🤝 Community & Support
+## Community & Support
 
 - [**Transparency and Limitations**](./product/TRANSPARENCY_AND_LIMITATIONS.md) - What DAX can do, what it cannot guarantee, and why human oversight matters.
 - [**Contributor Start Here**](./product/contributor-start-here.md) - Joining the mission.

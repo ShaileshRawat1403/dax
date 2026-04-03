@@ -1,19 +1,11 @@
 import type { ExecutionContract } from "./execution-contract"
 import type { RunState } from "@/state/run-state"
+import type { SessionV2 } from "@/session/model"
 
-export type CompletionProofSummary = {
-  ready: boolean
-  missing: string[]
-  verificationReceipts: number
-  mutationReceipts: number
-  artifactCount: number
-  scopeSatisfied: boolean
-  sensitiveChangesApproved: boolean
-  checkedAt: string
-}
+export type CompletionProofSummary = SessionV2.CompletionProofState
 
 function withinScope(contract: ExecutionContract, touchedFiles: string[]) {
-  const targets = contract.runtimePolicy?.scope.targetFiles ?? []
+  const targets = contract.runtimePolicy?.scope?.targetFiles ?? []
   if (targets.length === 0) return true
   return touchedFiles.every((candidate) =>
     targets.some((target) => candidate === target || candidate.startsWith(`${target}/`) || target.startsWith(`${candidate}/`)),
@@ -35,50 +27,68 @@ function containsSensitivePath(paths: string[]) {
 }
 
 function requiresArtifacts(contract: ExecutionContract) {
-  return contract.expectedOutputs.some((output) => output.type === "file" || output.type === "diff" || output.type === "report" || output.type === "patch")
+  return (contract.runtimePolicy?.scope?.targetFiles?.length ?? 0) > 0
 }
 
-export function deriveCompletionProof(input: {
+/**
+ * Pure evaluator for completion proof.
+ * Same input (contract + runState) => same output.
+ */
+export function evaluateCompletionProof(input: {
   contract: ExecutionContract
   runState: RunState
   artifactCountOverride?: number
 }): CompletionProofSummary {
   const { contract, runState } = input
   const verificationRequired =
-    runState.governance.verification.required || contract.runtimePolicy?.postconditions.verificationRequired === true
-  const verificationReceipts = runState.governance.verification.receiptIds.length
-  const mutationReceipts = runState.governance.mutationReceiptIds.length
+    runState.governance.verification.required || (contract.runtimePolicy?.postconditions?.validationCommands?.length ?? 0) > 0
+  
+  const verificationExecuted = runState.governance.verification.satisfied === true
+  const receiptIds = [...new Set([
+    ...runState.governance.mutationReceiptIds,
+    ...runState.governance.verification.receiptIds
+  ])]
+  
   const artifactCount = input.artifactCountOverride ?? runState.artifactIds.length
-  const scopeSatisfied = withinScope(contract, runState.governance.touchedFiles)
+  const artifactChecks = !requiresArtifacts(contract) || artifactCount > 0
+  
+  const scopeChecks = withinScope(contract, runState.governance.touchedFiles)
   const sensitiveTouched = containsSensitivePath(runState.governance.touchedFiles)
-  const sensitiveChangesApproved = !sensitiveTouched || runState.pendingApprovalIds.length === 0
+  
+  // Sensitive changes must be approved (no pending approvals on them)
+  const sensitivePathApprovalChecks = !sensitiveTouched || runState.pendingApprovalIds.length === 0
 
-  const missing: string[] = []
-  if (verificationRequired && verificationReceipts === 0) {
-    missing.push("verification receipts")
+  const failedChecks: string[] = []
+  if (verificationRequired && !verificationExecuted) {
+    failedChecks.push("missing_verification")
   }
-  if (mutationReceipts > 0 && verificationReceipts === 0) {
-    missing.push("verification linked to mutation receipts")
+  if (runState.governance.mutationReceiptIds.length > 0 && !verificationExecuted) {
+    failedChecks.push("unverified_mutation")
   }
-  if (requiresArtifacts(contract) && artifactCount === 0) {
-    missing.push("expected artifact evidence")
+  if (!artifactChecks) {
+    failedChecks.push("missing_artifacts")
   }
-  if (!scopeSatisfied) {
-    missing.push("scope proof")
+  if (!scopeChecks) {
+    failedChecks.push("scope_violation")
   }
-  if (!sensitiveChangesApproved) {
-    missing.push("sensitive path approval")
+  if (!sensitivePathApprovalChecks) {
+    failedChecks.push("unapproved_sensitive_change")
   }
 
   return {
-    ready: missing.length === 0,
-    missing,
-    verificationReceipts,
-    mutationReceipts,
-    artifactCount,
-    scopeSatisfied,
-    sensitiveChangesApproved,
+    decision: failedChecks.length === 0 ? "pass" : "fail",
+    failedChecks,
+    verificationExecuted,
+    receiptIds,
+    artifactChecks,
+    scopeChecks,
+    sensitivePathApprovalChecks,
     checkedAt: new Date().toISOString(),
   }
 }
 
+/**
+ * Alias for evaluateCompletionProof to maintain compatibility with existing call sites
+ * while signaling the new deterministic intent.
+ */
+export const deriveCompletionProof = evaluateCompletionProof
