@@ -61,6 +61,16 @@ async function getOrThrow(runId: string): Promise<RunState> {
   return state
 }
 
+/**
+ * Transitions a run to a new status.
+ * Validates that the transition is legal and updates state accordingly.
+ *
+ * @param runId - The run ID to transition
+ * @param newStatus - The target status
+ * @param reason - Optional reason for the transition
+ * @returns The updated run state
+ * @throws IllegalTransitionError if transition is not allowed
+ */
 export async function transitionTo(runId: string, newStatus: RunStatus, reason?: string): Promise<RunState> {
   const state = await getOrThrow(runId)
   let completionProof = state.governance.completionProof
@@ -153,6 +163,15 @@ export async function transitionTo(runId: string, newStatus: RunStatus, reason?:
   return updated
 }
 
+/**
+ * Adds a new step to a run.
+ *
+ * @param runId - The run ID
+ * @param stepId - Unique step identifier
+ * @param title - Step title
+ * @param type - Step type (default: "executed")
+ * @returns Updated run state
+ */
 export async function addStep(
   runId: string,
   stepId: string,
@@ -190,6 +209,13 @@ export async function addStep(
   return updated
 }
 
+/**
+ * Marks a step as started.
+ *
+ * @param runId - The run ID
+ * @param stepId - The step ID to start
+ * @returns Updated run state
+ */
 export async function startStep(runId: string, stepId: string): Promise<RunState> {
   const state = await getOrThrow(runId)
   const stepIndex = state.steps.findIndex((s) => s.stepId === stepId)
@@ -224,6 +250,14 @@ export async function startStep(runId: string, stepId: string): Promise<RunState
   return updated
 }
 
+/**
+ * Marks a step as completed with outputs.
+ *
+ * @param runId - The run ID
+ * @param stepId - The step ID to complete
+ * @param outputs - Optional step outputs
+ * @returns Updated run state
+ */
 export async function completeStep(runId: string, stepId: string, outputs: string[] = []): Promise<RunState> {
   const state = await getOrThrow(runId)
   const stepIndex = state.steps.findIndex((s) => s.stepId === stepId)
@@ -259,6 +293,14 @@ export async function completeStep(runId: string, stepId: string, outputs: strin
   return updated
 }
 
+/**
+ * Marks a step as failed with an error.
+ *
+ * @param runId - The run ID
+ * @param stepId - The step ID that failed
+ * @param error - Error code and message
+ * @returns Updated run state
+ */
 export async function failStep(
   runId: string,
   stepId: string,

@@ -341,10 +341,19 @@ export namespace Agent {
     return result
   })
 
+  /**
+   * Gets a specific agent by name.
+   * @param agent - Agent name to retrieve
+   * @returns Agent.Info or undefined if not found
+   */
   export async function get(agent: string) {
     return state().then((x) => x[agent])
   }
 
+  /**
+   * Lists all agents, sorted by default agent first, then by name.
+   * @returns Array of Agent.Info sorted by preference
+   */
   export async function list() {
     const cfg = await Config.get()
     return pipe(
@@ -354,6 +363,11 @@ export namespace Agent {
     )
   }
 
+  /**
+   * Gets the default agent from config or falls back to first visible primary agent.
+   * @returns The default agent name
+   * @throws Error if no suitable default agent found
+   */
   export async function defaultAgent() {
     const cfg = await Config.get()
     const agents = await state()
@@ -371,6 +385,11 @@ export namespace Agent {
     return primaryVisible.name
   }
 
+  /**
+   * Generates a new agent using AI based on a description.
+   * @param input - Generation input with description and optional model
+   * @returns The generated agent name
+   */
   export async function generate(input: { description: string; model?: { providerID: string; modelID: string } }) {
     const cfg = await Config.get()
     const defaultModel = input.model ?? (await Provider.defaultModel())
