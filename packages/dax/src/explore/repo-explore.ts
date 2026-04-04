@@ -144,14 +144,20 @@ export function buildExploreResult(outputs: RepoExplorePassOutputs): RepoExplore
   const synthesized = synthesizeExploreOutputs(outputs)
   return {
     sections: [
-      ...((["repository_shape", "entry_points", "execution_graph", "orchestration_loop", "integrations"] as ExploreSectionKey[]).map(
-        (key) => ({
-          key,
-          title: SECTION_TITLES[key],
-          confidence: synthesized[key].confidence,
-          findings: synthesized[key].findings,
-        }),
-      )),
+      ...(
+        [
+          "repository_shape",
+          "entry_points",
+          "execution_graph",
+          "orchestration_loop",
+          "integrations",
+        ] as ExploreSectionKey[]
+      ).map((key) => ({
+        key,
+        title: SECTION_TITLES[key],
+        confidence: synthesized[key].confidence,
+        findings: synthesized[key].findings,
+      })),
       {
         key: "important_files",
         title: "Important files" as const,
@@ -186,7 +192,11 @@ function importantFilePriority(role: string) {
 }
 
 function isTestPath(filePath: string) {
-  return /(^|\/)(test|tests|__tests__)\b/.test(filePath) || /\.test\.[^/]+$/.test(filePath) || /\.spec\.[^/]+$/.test(filePath)
+  return (
+    /(^|\/)(test|tests|__tests__)\b/.test(filePath) ||
+    /\.test\.[^/]+$/.test(filePath) ||
+    /\.spec\.[^/]+$/.test(filePath)
+  )
 }
 
 function isExploreSelfPath(filePath: string) {
@@ -236,7 +246,13 @@ function sanitizeSection(section: ExploreEvidenceSection): ExploreEvidenceSectio
   const observedCount = findings.filter((finding) => finding.kind === "observed").length
   const inferredCount = findings.filter((finding) => finding.kind === "inferred").length
   const confidence: ExploreConfidence =
-    observedCount >= 2 ? "high_confidence" : observedCount >= 1 ? "medium_confidence" : inferredCount >= 1 ? "low_confidence" : "unknown"
+    observedCount >= 2
+      ? "high_confidence"
+      : observedCount >= 1
+        ? "medium_confidence"
+        : inferredCount >= 1
+          ? "low_confidence"
+          : "unknown"
 
   return {
     confidence,
@@ -272,7 +288,10 @@ function importanceReason(role: string) {
 function normalizeFollowUp(summary: string): string {
   return summary
     .replace(/^no clear runtime entry point confirmed under /, "Confirm runtime start under ")
-    .replace(/^package appears library-only; no clear runtime entry point confirmed under /, "Confirm library-only package under ")
+    .replace(
+      /^package appears library-only; no clear runtime entry point confirmed under /,
+      "Confirm library-only package under ",
+    )
 }
 
 export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoExplorePassOutputs {
@@ -322,13 +341,7 @@ export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoE
     derivedFollowUps.push(item)
   }
 
-  for (const section of [
-    repository_shape,
-    entry_points,
-    execution_graph,
-    orchestration_loop,
-    integrations,
-  ]) {
+  for (const section of [repository_shape, entry_points, execution_graph, orchestration_loop, integrations]) {
     for (const finding of section.findings) {
       if (finding.kind === "unknown") {
         pushDerived({
@@ -347,7 +360,9 @@ export function synthesizeExploreOutputs(outputs: RepoExplorePassOutputs): RepoE
 
   const unknownsFollowUpTargets = [...outputs.unknowns_follow_up_targets]
   for (const item of derivedFollowUps) {
-    if (!unknownsFollowUpTargets.some((candidate) => candidate.kind === item.kind && candidate.summary === item.summary)) {
+    if (
+      !unknownsFollowUpTargets.some((candidate) => candidate.kind === item.kind && candidate.summary === item.summary)
+    ) {
       unknownsFollowUpTargets.push(item)
     }
   }
@@ -407,8 +422,7 @@ function formatFinding(
   const pathList = formatPathList(finding.paths, { compact: options?.compact })
   const suffix = pathList ? ` (${pathList})` : ""
   if (options?.eli12) {
-    const label =
-      finding.kind === "observed" ? "Confirmed" : finding.kind === "inferred" ? "Likely" : "Unknown"
+    const label = finding.kind === "observed" ? "Confirmed" : finding.kind === "inferred" ? "Likely" : "Unknown"
     return `- ${label}: ${finding.summary}${suffix}`
   }
   return `- ${formatFindingKind(finding.kind)}: ${finding.summary}${suffix}`
@@ -464,7 +478,9 @@ export function renderExploreResult(
       lines.push(`Confidence: ${formatConfidence(section.confidence)}`)
 
       if (section.findings.length === 0) {
-        lines.push(eli12 ? "- Unknown: DAX could not confirm this section yet." : "- Unknown: no confirmed findings yet")
+        lines.push(
+          eli12 ? "- Unknown: DAX could not confirm this section yet." : "- Unknown: no confirmed findings yet",
+        )
       } else {
         lines.push(...section.findings.map((finding) => formatFinding(finding, { eli12, compact: true })))
       }
@@ -482,17 +498,16 @@ export function renderExploreResult(
           ...section.steps.flatMap((step, index) =>
             eli12
               ? [`${index + 1}. ${step.path} — ${step.reason}`]
-              : [
-                  `${index + 1}. ${step.path}`,
-                  `   Reason: ${step.reason}`,
-                ],
+              : [`${index + 1}. ${step.path}`, `   Reason: ${step.reason}`],
           ),
         )
       }
     } else if (section.items.length === 0) {
       lines.push("- None")
     } else {
-      lines.push(...section.items.map((item) => (eli12 ? formatUnknownOrFollowUpEli12(item) : formatUnknownOrFollowUp(item))))
+      lines.push(
+        ...section.items.map((item) => (eli12 ? formatUnknownOrFollowUpEli12(item) : formatUnknownOrFollowUp(item))),
+      )
     }
 
     lines.push("")
@@ -501,6 +516,12 @@ export function renderExploreResult(
   return lines.join("\n").trimEnd()
 }
 
+/**
+ * Explores a repository and builds a comprehensive result.
+ * Runs multiple passes: boundary, entry points, integrations, and execution flow.
+ * @param root - Repository root directory path
+ * @returns ExploreResult with all discovered information
+ */
 export async function exploreRepository(root: string) {
   const outputs = mergeExplorePassOutputs(
     mergeExplorePassOutputs(
@@ -558,14 +579,7 @@ const ENTRY_POINT_FILENAMES = [
 ] as const
 
 type RuntimeEntryType = "cli" | "server" | "worker" | "tui"
-type IntegrationCategory =
-  | "provider"
-  | "mcp"
-  | "storage"
-  | "queue"
-  | "ci"
-  | "platform"
-  | "auth"
+type IntegrationCategory = "provider" | "mcp" | "storage" | "queue" | "ci" | "platform" | "auth"
 
 type ExecutionFlowLabel =
   | "cli_command_flow"
@@ -841,10 +855,7 @@ async function extractRelativeImports(absoluteFile: string, content: string) {
 
 function extractImportSpecifiers(content: string) {
   const specifiers: string[] = []
-  const patterns = [
-    /import\s+(?:[^'"]+?\s+from\s+)?["']([^"']+)["']/g,
-    /await\s+import\(["']([^"']+)["']\)/g,
-  ]
+  const patterns = [/import\s+(?:[^'"]+?\s+from\s+)?["']([^"']+)["']/g, /await\s+import\(["']([^"']+)["']\)/g]
 
   for (const pattern of patterns) {
     for (const match of content.matchAll(pattern)) {
@@ -876,10 +887,7 @@ async function resolveWorkspacePackageImport(root: string, specifier: string, pa
         path.join(descriptor.absoluteRoot, subpath, "index.ts"),
         path.join(descriptor.absoluteRoot, subpath, "index.tsx"),
       ]
-    : [
-        path.join(descriptor.absoluteRoot, "src", "index.ts"),
-        path.join(descriptor.absoluteRoot, "src", "index.tsx"),
-      ]
+    : [path.join(descriptor.absoluteRoot, "src", "index.ts"), path.join(descriptor.absoluteRoot, "src", "index.tsx")]
 
   for (const candidate of candidates) {
     if (await Filesystem.exists(candidate)) {
@@ -905,7 +913,9 @@ function isRuntimeRelevantIntegrationFile(relativePath: string) {
   return (
     looksExecutionSurfaceFile(relativePath) ||
     looksOrchestrationFile(relativePath) ||
-    /(integrations?|providers?|storage|redis|database|db|queue|worker|server|api|client|auth|mcp|config|adapter)/i.test(relativePath)
+    /(integrations?|providers?|storage|redis|database|db|queue|worker|server|api|client|auth|mcp|config|adapter)/i.test(
+      relativePath,
+    )
   )
 }
 
@@ -914,7 +924,9 @@ function shouldAcceptContentIntegration(category: IntegrationCategory, relativeP
 
   switch (category) {
     case "provider":
-      return /fetch\(\s*["'`]https?:\/\/|axios(?:\.create)?\(|@octokit\/|https:\/\/api\.|openai|anthropic|gemini|vertex/i.test(content)
+      return /fetch\(\s*["'`]https?:\/\/|axios(?:\.create)?\(|@octokit\/|https:\/\/api\.|openai|anthropic|gemini|vertex/i.test(
+        content,
+      )
     case "mcp":
       return /mcp|modelcontextprotocol/i.test(content)
     case "storage":
@@ -922,7 +934,9 @@ function shouldAcceptContentIntegration(category: IntegrationCategory, relativeP
     case "queue":
       return /queue\.process|scheduler|cron|background/i.test(content)
     case "auth":
-      return /process\.env\.[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)|dotenv(?:\/config)?|oauth|authorization|bearer\s+/i.test(content)
+      return /process\.env\.[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)|dotenv(?:\/config)?|oauth|authorization|bearer\s+/i.test(
+        content,
+      )
     case "platform":
       return /aws_|@aws-sdk|aws-sdk|azure\/identity|google[_-]?cloud|google_vertex|vercel|bedrock|gcp/i.test(content)
     case "ci":
@@ -934,7 +948,11 @@ function classifyPackageFlowRole(relativeRoot: string, intent: PackageRuntimeInt
   const normalized = relativeRoot.replace(/\\/g, "/")
 
   if (intent === "library") return "supporting_library"
-  if (/(^|\/)(core|runtime|session|engine|kernel|workflow|orchestration|governance|server|worker|service)(\/|$)/i.test(normalized)) {
+  if (
+    /(^|\/)(core|runtime|session|engine|kernel|workflow|orchestration|governance|server|worker|service)(\/|$)/i.test(
+      normalized,
+    )
+  ) {
     return "orchestration_core"
   }
   if (/(^|\/)(cli|console|web|app|api|tui|frontend|ui)(\/|$)/i.test(normalized)) {
@@ -961,11 +979,17 @@ function packageRoleSummary(relativeRoot: string, role: PackageFlowRole) {
 }
 
 function looksExecutionSurfaceFile(relativePath: string) {
-  return /(\/|^)(index|main|server|worker|app|cli)\.[^/]+$/i.test(relativePath) || /\/cli\/cmd\//.test(relativePath) || /\/routes?\//.test(relativePath)
+  return (
+    /(\/|^)(index|main|server|worker|app|cli)\.[^/]+$/i.test(relativePath) ||
+    /\/cli\/cmd\//.test(relativePath) ||
+    /\/routes?\//.test(relativePath)
+  )
 }
 
 function looksOrchestrationFile(relativePath: string) {
-  return /(session|runtime|workflow|dispatch|processor|prompt|approval|govern|orchestrat|execute|runner)/i.test(relativePath)
+  return /(session|runtime|workflow|dispatch|processor|prompt|approval|govern|orchestrat|execute|runner)/i.test(
+    relativePath,
+  )
 }
 
 function looksExecutionContractFile(relativePath: string) {
@@ -979,10 +1003,18 @@ function detectExecutionSurfaceKind(relativePath: string, content: string) {
   if (lower.includes("new worker(") || lower.includes("queue.process") || /(^|\/)worker\.[^/]+$/i.test(relativePath)) {
     return "worker"
   }
-  if (lower.includes("nestfactory.create(") || /(^|\/)main\.ts$/i.test(relativePath) || /(^|\/)server\.[^/]+$/i.test(relativePath)) {
+  if (
+    lower.includes("nestfactory.create(") ||
+    /(^|\/)main\.ts$/i.test(relativePath) ||
+    /(^|\/)server\.[^/]+$/i.test(relativePath)
+  ) {
     return "server"
   }
-  if (lower.includes("createroot(") || lower.includes("reactdom.createroot(") || /(^|\/)main\.tsx$/i.test(relativePath)) {
+  if (
+    lower.includes("createroot(") ||
+    lower.includes("reactdom.createroot(") ||
+    /(^|\/)main\.tsx$/i.test(relativePath)
+  ) {
     return "web"
   }
   if (lower.includes("yargs") || lower.includes("commander") || /\/cli\/cmd\//.test(relativePath)) {
@@ -992,8 +1024,8 @@ function detectExecutionSurfaceKind(relativePath: string, content: string) {
 }
 
 function selectBootstrapTargets(relativeFile: string, importRelatives: string[]) {
-  const preferred = importRelatives.filter((item) =>
-    looksOrchestrationFile(item) || looksExecutionContractFile(item) || looksExecutionSurfaceFile(item),
+  const preferred = importRelatives.filter(
+    (item) => looksOrchestrationFile(item) || looksExecutionContractFile(item) || looksExecutionSurfaceFile(item),
   )
   if (preferred.length > 0) return preferred
   return importRelatives.filter((item) => item !== relativeFile && !isTestPath(item) && !isExploreSelfPath(item))
@@ -1080,12 +1112,17 @@ function classifyEntryFile(relativePath: string, content: string | undefined): E
   return undefined
 }
 
-function inferPackageRuntimeIntent(relativeRoot: string, packageJson: Record<string, unknown> | undefined): PackageRuntimeIntent {
+function inferPackageRuntimeIntent(
+  relativeRoot: string,
+  packageJson: Record<string, unknown> | undefined,
+): PackageRuntimeIntent {
   if (!packageJson) return "unknown"
 
   const scripts = packageJson.scripts
   const scriptKeys =
-    scripts && typeof scripts === "object" ? Object.keys(scripts as Record<string, unknown>).map((key) => key.toLowerCase()) : []
+    scripts && typeof scripts === "object"
+      ? Object.keys(scripts as Record<string, unknown>).map((key) => key.toLowerCase())
+      : []
   const hasRuntimeScripts = scriptKeys.some((key) =>
     ["start", "dev", "serve", "worker", "cli", "daemon", "scheduler"].includes(key),
   )
@@ -1123,6 +1160,11 @@ function shouldTreatMainAsRuntimeCandidate(
   )
 }
 
+/**
+ * Runs the boundary pass to identify project boundaries and structure.
+ * @param root - Repository root directory
+ * @returns Delta with findings and important files
+ */
 export async function runBoundaryPass(root: string): Promise<RepoExplorePassDelta> {
   const resolvedRoot = path.resolve(root)
   const findings: ExploreFinding[] = []
@@ -1253,6 +1295,11 @@ export async function runBoundaryPass(root: string): Promise<RepoExplorePassDelt
   }
 }
 
+/**
+ * Runs the entry point pass to identify main entry files.
+ * @param root - Repository root directory
+ * @returns Delta with findings and important files
+ */
 export async function runEntryPointPass(root: string): Promise<RepoExplorePassDelta> {
   const resolvedRoot = path.resolve(root)
   const findings: ExploreFinding[] = []
@@ -1296,12 +1343,18 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
             paths: [relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json"), entryFile],
             reason: "package.json bin mapping points to runtime bootstrap",
           })
-          addImportantFile(relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json"), "runtime package manifest")
+          addImportantFile(
+            relativeRoot === "." ? "package.json" : path.posix.join(relativeRoot, "package.json"),
+            "runtime package manifest",
+          )
           addImportantFile(entryFile, "cli bootstrap")
         }
       }
 
-      if (typeof packageJson.main === "string" && shouldTreatMainAsRuntimeCandidate(relativeRoot, packageJson as Record<string, unknown>, packageJson.main)) {
+      if (
+        typeof packageJson.main === "string" &&
+        shouldTreatMainAsRuntimeCandidate(relativeRoot, packageJson as Record<string, unknown>, packageJson.main)
+      ) {
         const mainTarget = path.normalize(path.join(relativeRoot, packageJson.main)).replace(/\\/g, "/")
         addFinding({
           type: "cli",
@@ -1318,9 +1371,7 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
     for (const candidateFile of ENTRY_POINT_FILENAMES) {
       const absolute = path.join(packageRoot, candidateFile)
       const content = await readTextIfExists(absolute)
-      const relativePath = path
-        .relative(resolvedRoot, absolute)
-        .replace(/\\/g, "/")
+      const relativePath = path.relative(resolvedRoot, absolute).replace(/\\/g, "/")
       const candidate = classifyEntryFile(relativePath, content)
       if (!candidate) continue
       packageHadRuntime = true
@@ -1338,7 +1389,10 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
     }
 
     if (!packageHadRuntime && relativeRoot !== ".") {
-      const intent = inferPackageRuntimeIntent(relativeRoot, packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined)
+      const intent = inferPackageRuntimeIntent(
+        relativeRoot,
+        packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined,
+      )
       findings.push({
         kind: "unknown",
         summary:
@@ -1366,6 +1420,11 @@ export async function runEntryPointPass(root: string): Promise<RepoExplorePassDe
   }
 }
 
+/**
+ * Runs the integration pass to identify external integrations and dependencies.
+ * @param root - Repository root directory
+ * @returns Delta with findings and important files
+ */
 export async function runIntegrationPass(root: string): Promise<RepoExplorePassDelta> {
   const resolvedRoot = path.resolve(root)
   const findings: ExploreFinding[] = []
@@ -1414,12 +1473,7 @@ export async function runIntegrationPass(root: string): Promise<RepoExplorePassD
       }
     }
 
-    const sourceFiles = await listExistingFiles(packageRoot, [
-      "src/**/*.ts",
-      "src/**/*.tsx",
-      "*.ts",
-      "*.tsx",
-    ])
+    const sourceFiles = await listExistingFiles(packageRoot, ["src/**/*.ts", "src/**/*.tsx", "*.ts", "*.tsx"])
 
     for (const relativeFile of sourceFiles) {
       const absolute = path.join(packageRoot, relativeFile)
@@ -1477,6 +1531,11 @@ export async function runIntegrationPass(root: string): Promise<RepoExplorePassD
   }
 }
 
+/**
+ * Runs the execution flow pass to identify runtime and orchestration patterns.
+ * @param root - Repository root directory
+ * @returns Delta with findings and important files
+ */
 export async function runExecutionFlowPass(root: string): Promise<RepoExplorePassDelta> {
   const resolvedRoot = path.resolve(root)
   const executionFindings: ExploreFinding[] = []
@@ -1492,10 +1551,7 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       const packageJson = await readJsonIfExists(path.join(packageRoot, "package.json"))
       const packageRecord =
         packageJson && typeof packageJson === "object" ? (packageJson as Record<string, unknown>) : undefined
-      const intent = inferPackageRuntimeIntent(
-        relativeRoot,
-        packageRecord,
-      )
+      const intent = inferPackageRuntimeIntent(relativeRoot, packageRecord)
       return {
         absoluteRoot: packageRoot,
         relativeRoot,
@@ -1565,7 +1621,9 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
           descriptor: packageDescriptors.find((item) => item.relativeRoot === targetPackageRoot),
         }
       })
-      .filter((item) => item.packageRoot !== sourcePackageRoot && !isTestPath(item.path) && !isExploreSelfPath(item.path))
+      .filter(
+        (item) => item.packageRoot !== sourcePackageRoot && !isTestPath(item.path) && !isExploreSelfPath(item.path),
+      )
     const localBootstrapTargets = selectBootstrapTargets(relativeFile, importRelatives).slice(0, 3)
 
     if (relativeFile.endsWith("src/index.ts") && content.includes(".command(")) {
@@ -1593,7 +1651,10 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       }
     }
 
-    if ((executionSurfaceKind === "server" || executionSurfaceKind === "web") && looksExecutionSurfaceFile(relativeFile)) {
+    if (
+      (executionSurfaceKind === "server" || executionSurfaceKind === "web") &&
+      looksExecutionSurfaceFile(relativeFile)
+    ) {
       if (localBootstrapTargets.length > 0) {
         const hasConfirmedBoundary = localBootstrapTargets.some(
           (item) => looksOrchestrationFile(item) || looksExecutionContractFile(item),
@@ -1631,7 +1692,9 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       if (
         (content.match(/new Worker\(/g)?.length ?? 0) >= 2 ||
         (content.includes("job.data") &&
-          (content.toLowerCase().includes("workflow step") || content.includes("switch (") || content.includes("switch(")))
+          (content.toLowerCase().includes("workflow step") ||
+            content.includes("switch (") ||
+            content.includes("switch(")))
       ) {
         addFlow({
           label: "worker_dispatch_flow",
@@ -1650,7 +1713,9 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       content.includes("sdk.client.session.prompt(") ||
       content.includes("sdk.client.session.shell(")
     ) {
-      const sessionTargets = importRelatives.filter((item) => item.includes("/session/") || item.includes("/cli/cmd/tui/"))
+      const sessionTargets = importRelatives.filter(
+        (item) => item.includes("/session/") || item.includes("/cli/cmd/tui/"),
+      )
       addFlow({
         label: "tui_action_flow",
         section: "execution_graph",
@@ -1712,7 +1777,10 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       }
     }
 
-    if ((content.includes("new Worker(") || content.includes("Rpc.client")) && content.includes("client.call(\"server\"")) {
+    if (
+      (content.includes("new Worker(") || content.includes("Rpc.client")) &&
+      content.includes('client.call("server"')
+    ) {
       addFlow({
         label: "worker_dispatch_flow",
         section: "execution_graph",
@@ -1742,7 +1810,10 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
     const relevantCrossPackageTargets = crossPackageTargets.filter((item) => {
       const targetRole = item.descriptor?.role ?? "unknown"
       if (targetRole === "supporting_library") {
-        return looksExecutionContractFile(item.path) && (sourcePackage?.role === "runtime_surface" || looksExecutionSurfaceFile(relativeFile))
+        return (
+          looksExecutionContractFile(item.path) &&
+          (sourcePackage?.role === "runtime_surface" || looksExecutionSurfaceFile(relativeFile))
+        )
       }
       return (
         looksOrchestrationFile(item.path) ||
@@ -1764,17 +1835,19 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
           ? "runtime surface hands execution into workspace orchestration package"
           : targetRole === "supporting_library" && isContractTarget
             ? "runtime surface relies on a workspace contract or runtime boundary package"
-          : "runtime surface likely hands execution into another workspace runtime boundary"
+            : "runtime surface likely hands execution into another workspace runtime boundary"
       const handoffReason =
         targetRole === "orchestration_core"
           ? "cross-package import points from a runtime surface into an orchestration file"
           : targetRole === "supporting_library" && isContractTarget
             ? "cross-package import points from a runtime surface into workflow, tool, model, persona, or api contract files"
-          : "cross-package import points into a runtime-adjacent package, but the final orchestration role is not fully confirmed"
+            : "cross-package import points into a runtime-adjacent package, but the final orchestration role is not fully confirmed"
       addFlow({
         label: "workspace_handoff_flow",
         section:
-          targetRole === "orchestration_core" || looksOrchestrationFile(target.path) || (targetRole === "supporting_library" && isContractTarget)
+          targetRole === "orchestration_core" ||
+          looksOrchestrationFile(target.path) ||
+          (targetRole === "supporting_library" && isContractTarget)
             ? "orchestration_loop"
             : "execution_graph",
         kind: handoffKind,
@@ -1808,12 +1881,11 @@ export async function runExecutionFlowPass(root: string): Promise<RepoExplorePas
       : executionFindings.length > 0
         ? "medium_confidence"
         : "unknown"
-  const orchestrationConfidence: ExploreConfidence =
-    orchestrationFindings.some((item) => item.kind === "observed")
-      ? "high_confidence"
-      : orchestrationFindings.length > 0
-        ? "medium_confidence"
-        : "unknown"
+  const orchestrationConfidence: ExploreConfidence = orchestrationFindings.some((item) => item.kind === "observed")
+    ? "high_confidence"
+    : orchestrationFindings.length > 0
+      ? "medium_confidence"
+      : "unknown"
 
   return {
     execution_graph: {
