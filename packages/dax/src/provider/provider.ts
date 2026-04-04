@@ -1054,6 +1054,12 @@ export namespace Provider {
     }
   })
 
+  /**
+   * Lists all configured providers and their models.
+   * Returns a map of provider ID to provider info including available models.
+   *
+   * @returns Record mapping provider ID to Provider.Info
+   */
   export async function list() {
     return state().then((state) => state.providers)
   }
@@ -1158,10 +1164,24 @@ export namespace Provider {
     }
   }
 
+  /**
+   * Gets a specific provider by ID.
+   *
+   * @param providerID - The provider identifier (e.g., "openai", "anthropic")
+   * @returns Provider.Info or undefined if not found
+   */
   export async function getProvider(providerID: string) {
     return state().then((s) => s.providers[providerID])
   }
 
+  /**
+   * Gets a specific model from a provider.
+   *
+   * @param providerID - The provider identifier
+   * @param modelID - The model identifier
+   * @returns The model configuration
+   * @throws ModelNotFoundError if provider or model not found
+   */
   export async function getModel(providerID: string, modelID: string) {
     const s = await state()
     const provider = s.providers[providerID]
@@ -1209,6 +1229,14 @@ export namespace Provider {
     }
   }
 
+  /**
+   * Finds the closest matching model for a provider based on a query.
+   * Uses fuzzy matching to find models similar to the query terms.
+   *
+   * @param providerID - The provider identifier
+   * @param query - Array of search terms
+   * @returns Array of matching models sorted by relevance
+   */
   export async function closest(providerID: string, query: string[]) {
     const s = await state()
     const provider = s.providers[providerID]
@@ -1224,6 +1252,14 @@ export namespace Provider {
     }
   }
 
+  /**
+   * Gets the preferred small/fast model for a provider.
+   * Used for lightweight operations that don't need the best model.
+   * Considers config.small_model override, then falls back to provider defaults.
+   *
+   * @param providerID - The provider identifier
+   * @returns The small model configuration or undefined
+   */
   export async function getSmallModel(providerID: string) {
     const cfg = await Config.get()
 
@@ -1293,6 +1329,15 @@ export namespace Provider {
 
   // Model sorting priority - used to sort available models by preference.
   const priority = ["gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
+
+  /**
+   * Sorts models by priority preference.
+   * Prioritizes: gpt-5, claude-sonnet-4, big-pickle, gemini-3-pro
+   * Secondary sort: non-"latest" models first, then by ID descending
+   *
+   * @param models - Array of models to sort
+   * @returns Sorted array of models
+   */
   export function sort(models: Model[]) {
     return sortBy(
       models,
@@ -1302,6 +1347,14 @@ export namespace Provider {
     )
   }
 
+  /**
+   * Gets the default model for the current configuration.
+   * Uses config.model if set, otherwise selects the first available model
+   * from the first configured provider, sorted by preference.
+   *
+   * @returns The default model with provider and model ID
+   * @throws Error if no providers or models are available
+   */
   export async function defaultModel() {
     const cfg = await Config.get()
     if (cfg.model) return parseModel(cfg.model)
