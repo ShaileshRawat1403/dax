@@ -5,6 +5,28 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.16] - 2026-04-04
+
+### Changed
+- **Unified Workflow Posture**: Formally defined Workflow Mode as a global workstation preference rather than session-local state. This ensures a consistent operating posture across Home and Session views.
+- **Synchronized Agent State**: Added a global synchronization effect that keeps the workstation's workflow mode in lockstep with the active agent.
+
+### Fixed
+- **TUI Tab Cycling**: Resolved a regression where the Tab key would stop toggling agents once a session started.
+- **Reactive Mode Labels**: Fixed non-reactive indicator labels in the prompt box; the current workflow mode now updates instantly upon switching.
+- **Agent Ring Fallback**: Improved cycling logic to robustly handle specialized or non-primary agents, ensuring the operator can always return to the primary workflow ring.
+
+## [1.0.15] - 2026-04-03
+
+### Changed
+- **Quiet Mode Enforcement**: Hardened "quiet" mode to hide non-critical right-pane chrome while preserving mandatory intervention visibility.
+- **Memory Surface Activation**: Fully enabled the `note`, `list`, and `rules` memory tabs, providing live views of PM-backed operational context.
+- **Stream Stability**: Improved coupling between the left narrative stream and right workstation pane to prevent flickering during stage transitions.
+
+### Fixed
+- **Initialization Race**: Resolved a memo initialization order issue that caused intermittent crashes in the session route.
+- **ELI12 Transparency**: Ensured ELI12 explanation mode remains strictly presentational and does not drift into governance or permission logic.
+
 ## [1.0.14] - 2026-04-03
 
 ### Added
