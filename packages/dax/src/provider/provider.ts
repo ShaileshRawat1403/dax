@@ -54,6 +54,10 @@ export namespace Provider {
     return isGpt5OrLater(modelID) && !modelID.startsWith("gpt-5-mini")
   }
 
+  // BUNDLED_PROVIDERS maps npm package names to their factory functions.
+  // Each provider has its own specific settings type (e.g., OpenAIProviderSettings, AnthropicProviderSettings),
+  // so we use a generic function type. The SDK type from 'ai' package is the common interface.
+  // TODO: Consider using a union type or generics for stronger type safety across all providers.
   const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
     "@ai-sdk/amazon-bedrock": createAmazonBedrock,
     "@ai-sdk/anthropic": createAnthropic,
@@ -66,7 +70,7 @@ export namespace Provider {
     "@openrouter/ai-sdk-provider": createOpenRouter,
     "@ai-sdk/xai": createXai,
     "@ai-sdk/mistral": createMistral,
-    "ollama": createOpenAICompatible,
+    ollama: createOpenAICompatible,
     "@ai-sdk/groq": createGroq,
     "@ai-sdk/deepinfra": createDeepInfra,
     "@ai-sdk/cerebras": createCerebras,
@@ -79,6 +83,11 @@ export namespace Provider {
     "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
   }
 
+  // CustomModelLoader is used to dynamically load models from different providers.
+  // The sdk parameter is the provider SDK instance (varies by provider), and the returned
+  // model is provider-specific. Using 'any' here because each provider (OpenAI, Anthropic, etc.)
+  // has its own model type from the AI SDK.
+  // TODO: Consider using a union type or generics for stronger type safety.
   type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
   type CustomLoader = (provider: Info) => Promise<{
     autoload: boolean
@@ -1215,6 +1224,8 @@ export namespace Provider {
 
     const provider = await state().then((state) => state.providers[providerID])
     if (provider) {
+      // Small model priority list - used for getSmallModel function.
+      // Each provider can override this with their preferred models.
       let priority = [
         "claude-haiku-4-5",
         "claude-haiku-4.5",
@@ -1228,7 +1239,6 @@ export namespace Provider {
         priority = ["gpt-5-nano"]
       }
       if (providerID.startsWith("github-copilot")) {
-        // prioritize free models for github copilot
         priority = ["gpt-5-mini", "claude-haiku-4.5", ...priority]
       }
       for (const item of priority) {
@@ -1271,6 +1281,7 @@ export namespace Provider {
     return undefined
   }
 
+  // Model sorting priority - used to sort available models by preference.
   const priority = ["gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
   export function sort(models: Model[]) {
     return sortBy(

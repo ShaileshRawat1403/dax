@@ -77,7 +77,9 @@ export namespace Pty {
       for (const session of sessions.values()) {
         try {
           session.process.kill()
-        } catch {}
+        } catch {
+          log.debug("failed to kill process", { pid: session.process.pid })
+        }
         for (const ws of session.subscribers) {
           ws.close()
         }
@@ -193,7 +195,9 @@ export namespace Pty {
     log.info("removing session", { id })
     try {
       session.process.kill()
-    } catch {}
+    } catch {
+      log.debug("failed to kill process on remove", { id })
+    }
     for (const ws of session.subscribers) {
       ws.close()
     }
