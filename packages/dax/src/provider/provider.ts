@@ -57,7 +57,15 @@ export namespace Provider {
   // BUNDLED_PROVIDERS maps npm package names to their factory functions.
   // Each provider has its own specific settings type (e.g., OpenAIProviderSettings, AnthropicProviderSettings),
   // so we use a generic function type. The SDK type from 'ai' package is the common interface.
-  // TODO: Consider using a union type or generics for stronger type safety across all providers.
+  //
+  // NOTE: To achieve proper type safety across all providers, we would need to:
+  // 1. Create a union type of all possible provider settings
+  // 2. Use function overloads to map each provider to its settings type
+  // 3. Update this whenever a new provider is added
+  //
+  // This is a known trade-off - the current approach allows easy provider addition
+  // at the cost of type safety in the provider factory map.
+  // TODO: Consider using a mapped type with provider-specific settings
   const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
     "@ai-sdk/amazon-bedrock": createAmazonBedrock,
     "@ai-sdk/anthropic": createAnthropic,
