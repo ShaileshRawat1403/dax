@@ -2,8 +2,11 @@ import { BusEvent } from "@/bus/bus-event"
 import z from "zod"
 import { NamedError } from "@dax-ai/util/error"
 import { APICallError, convertToModelMessages, LoadAPIKeyError, type ModelMessage, type UIMessage } from "ai"
+import { Log } from "@/util/log"
 import { Identifier } from "../id/id"
 import { LSP } from "../lsp"
+
+const log = Log.create({ service: "message-v2" })
 import { Snapshot } from "@/snapshot"
 import { fn } from "@/util/fn"
 import { Storage } from "@/storage/storage"
@@ -780,12 +783,13 @@ export namespace MessageV2 {
 
           try {
             const body = JSON.parse(e.responseBody)
-            // try to extract common error message fields
             const errMsg = body.message || body.error || body.error?.message
             if (errMsg && typeof errMsg === "string") {
               return `${msg}: ${errMsg}`
             }
-          } catch {}
+          } catch {
+            log.debug("failed to parse error response body", { responseBody: e.responseBody })
+          }
 
           return `${msg}: ${e.responseBody}`
         }).trim()
@@ -873,7 +877,9 @@ export namespace MessageV2 {
               }
             }
           }
-        } catch {}
+        } catch {
+          log.debug("failed to process error object", { error: String(e) })
+        }
         return new NamedError.Unknown({ message: JSON.stringify(e) }, { cause: e }).toObject()
     }
   }
