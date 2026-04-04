@@ -1,6 +1,9 @@
 import type { NamedError } from "@dax-ai/util/error"
 import { MessageV2 } from "./message-v2"
 import { iife } from "@/util/iife"
+import { Log } from "@/util/log"
+
+const log = Log.create({ service: "session.retry" })
 
 export namespace SessionRetry {
   export const RETRY_INITIAL_DELAY = 2000
@@ -78,6 +81,9 @@ export namespace SessionRetry {
 
         return JSON.parse(error.data.message)
       } catch {
+        log.debug("failed to parse error message as JSON", {
+          message: error.data?.message?.substring?.(0, 200) ?? "non-string",
+        })
         return undefined
       }
     })

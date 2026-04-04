@@ -74,7 +74,17 @@ export namespace Config {
     })
     .optional()
 
-  // Custom merge function that concatenates array fields instead of replacing them
+  /**
+   * Merges two config objects with custom array concatenation logic.
+   * Unlike default deep merge which replaces arrays, this function:
+   * - Concatenates array fields (plugin, instructions, instruction_url_allowlist)
+   * - Removes duplicates using Set
+   * - Deep merges nested objects (like audit.auto_triggers)
+   *
+   * @param target - Base config to merge into
+   * @param source - Config to merge from (higher precedence)
+   * @returns Merged config with concatenated arrays
+   */
   function mergeConfigConcatArrays(target: Info, source: Info): Info {
     const merged = mergeDeep(target, source)
     if (target.plugin && source.plugin) {

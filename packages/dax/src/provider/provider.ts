@@ -205,8 +205,9 @@ export namespace Provider {
 
       const awsAccessKeyId = Env.get("AWS_ACCESS_KEY_ID")
 
-      // TODO: Using process.env directly because Env.set only updates a process.env shallow copy,
-      // until the scope of the Env API is clarified (test only or runtime?)
+      // Note: Using process.env directly because the Env namespace maintains a shallow copy
+      // for test isolation. External SDKs (AWS Bedrock, SAP AI Core) read directly from
+      // process.env, so we must update the actual environment for them to pick up credentials.
       const awsBearerToken = iife(() => {
         const envToken = process.env.AWS_BEARER_TOKEN_BEDROCK
         if (envToken) return envToken
@@ -441,8 +442,9 @@ export namespace Provider {
     },
     "sap-ai-core": async () => {
       const auth = await Auth.get("sap-ai-core")
-      // TODO: Using process.env directly because Env.set only updates a shallow copy (not process.env),
-      // until the scope of the Env API is clarified (test only or runtime?)
+      // Note: Using process.env directly because the Env namespace maintains a shallow copy
+      // for test isolation. External SDKs (AWS Bedrock, SAP AI Core) read directly from
+      // process.env, so we must update the actual environment for them to pick up credentials.
       const envServiceKey = iife(() => {
         const envAICoreServiceKey = process.env.AICORE_SERVICE_KEY
         if (envAICoreServiceKey) return envAICoreServiceKey
