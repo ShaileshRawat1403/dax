@@ -87,7 +87,8 @@ export type PromptRef = {
 
 const PLACEHOLDERS = ["Plan this project in plain language", "Ship one safe improvement", "Find the best next step"]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
-const WORKFLOW_AGENT_MODES = new Set(["plan", "build", "explore", "docs", "audit"])
+const WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"]
+const WORKFLOW_AGENT_MODES = new Set(WORKFLOW_MODES)
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
 
 You are DAX.
@@ -185,6 +186,7 @@ export function Prompt(props: PromptProps) {
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const kv = useKV()
+  const [workflowMode, setWorkflowMode] = kv.signal<string>(DAX_SETTING.session_workflow_mode, "plan")
   const log = Log.create({ service: "tui.prompt" })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const isPanePinned = createMemo(() => props.panePinned ?? kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
@@ -1311,13 +1313,18 @@ export function Prompt(props: PromptProps) {
                     let direction = 0
                     if (e.name === "tab") {
                       direction = e.shift ? -1 : 1
-                    } else {
-                      direction = keybind.match("agent_cycle", e) ? 1 : keybind.match("agent_cycle_reverse", e) ? -1 : 0
+                    } else if (keybind.match("agent_cycle", e)) {
+                      direction = 1
+                    } else if (keybind.match("agent_cycle_reverse", e)) {
+                      direction = -1
                     }
-                    if (direction) {
-                      local.agent.move(direction as 1 | -1)
-                      const current = local.agent.current()?.name
-                      if (current) kv.set(DAX_SETTING.session_workflow_mode, current)
+
+                    if (direction !== 0) {
+                      const current = workflowMode()
+                      const idx = WORKFLOW_MODES.indexOf(current)
+                      const next = WORKFLOW_MODES[(idx + direction + WORKFLOW_MODES.length) % WORKFLOW_MODES.length]
+                      setWorkflowMode(next)
+                      local.agent.set(next)
                       e.preventDefault()
                       return
                     }

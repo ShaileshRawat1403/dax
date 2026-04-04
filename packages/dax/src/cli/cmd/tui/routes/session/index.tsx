@@ -953,15 +953,7 @@ export function Session() {
   })
 
   const renderer = useRenderer()
-  useKeyboard((evt) => {
-    if (evt.name === "tab") {
-      const direction = evt.shift ? -1 : 1
-      local.agent.move(direction)
-      const current = local.agent.current()?.name
-      if (current) kv.set(DAX_SETTING.session_workflow_mode, current)
-      evt.preventDefault()
-    }
-  })
+  const keyboard = useKeyboard(() => {})
 
   const openTimeline = () => {
     setPaneMode(() => "plan")
@@ -1133,26 +1125,6 @@ export function Session() {
         />
 
         <box flexGrow={1} flexDirection={liveStacked() ? "column" : "row"} minHeight={0}>
-          {/* Left Sidebar */}
-          <Show when={sidebarVisible()}>
-            <box
-              width={wide() ? 42 : "100%"}
-              height={wide() ? "100%" : "auto"}
-              border={wide() ? ["right"] : ["bottom"]}
-              borderColor={theme.border}
-            >
-              <Sidebar
-                sessionID={route.sessionID}
-                displayMode={displayMode()}
-                onInspectApprovals={() => selectPaneMode("approvals")}
-                onInspectDiff={() => selectPaneMode("diff")}
-                onOpenPm={openPmPane}
-                onOpenTimeline={openTimeline}
-                onJumpLive={scrollNarrative}
-              />
-            </box>
-          </Show>
-
           {/* Main Narrative Stream */}
           <scrollbox
             id="narrative-scroll"
