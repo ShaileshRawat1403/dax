@@ -1323,7 +1323,7 @@ export function Prompt(props: PromptProps) {
                       const current = workflowMode()
                       const idx = WORKFLOW_MODES.indexOf(current)
                       const next = WORKFLOW_MODES[(idx + direction + WORKFLOW_MODES.length) % WORKFLOW_MODES.length]
-                      setWorkflowMode(next)
+                      setWorkflowMode(() => next)
                       local.agent.set(next)
                       e.preventDefault()
                       return

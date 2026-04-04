@@ -199,8 +199,8 @@ export function Session() {
   const activePersona = createMemo(() => getPersona(personaId()))
   const cyclePersona = () => {
     const ids = Object.keys(PERSONAS)
-    const next = ids[(ids.indexOf(personaId()) + 1) % ids.length]
-    setPersonaId(next)
+    const next = ids[(ids.indexOf(personaId()) + 1) % ids.length]!
+    setPersonaId(() => next)
   }
   const themeState = useTheme()
   const theme = new Proxy({} as any, {
