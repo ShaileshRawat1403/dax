@@ -296,6 +296,13 @@ export namespace MCP {
     return commands
   }
 
+  /**
+   * Adds a new MCP server configuration and optionally connects to it.
+   *
+   * @param name - Unique name identifier for the MCP server
+   * @param mcp - MCP configuration (local, remote, or OAuth)
+   * @returns Result with status and optionally the connection
+   */
   export async function add(name: string, mcp: Config.Mcp) {
     const s = await state()
     const result = await create(name, mcp)
@@ -535,6 +542,12 @@ export namespace MCP {
     }
   }
 
+  /**
+   * Gets the connection status of all configured MCP servers.
+   * Returns status for all MCP servers in config, not just connected ones.
+   *
+   * @returns Record mapping server name to Status (connected, disabled, failed, needs_auth)
+   */
   export async function status() {
     const s = await state()
     const cfg = await Config.get()
@@ -550,10 +563,21 @@ export namespace MCP {
     return result
   }
 
+  /**
+   * Gets all connected MCP clients.
+   *
+   * @returns Map of client name to MCP client instance
+   */
   export async function clients() {
     return state().then((state) => state.clients)
   }
 
+  /**
+   * Connects to an MCP server by name.
+   * Creates client transport (stdio, HTTP, or SSE) and initializes the MCP client.
+   *
+   * @param name - Server name from config
+   */
   export async function connect(name: string) {
     const cfg = await Config.get()
     const config = cfg.mcp ?? {}
@@ -593,6 +617,11 @@ export namespace MCP {
     }
   }
 
+  /**
+   * Disconnects from an MCP server by closing the client connection.
+   *
+   * @param name - Server name to disconnect from
+   */
   export async function disconnect(name: string) {
     const s = await state()
     const client = s.clients[name]
@@ -605,6 +634,12 @@ export namespace MCP {
     s.status[name] = { status: "disabled" }
   }
 
+  /**
+   * Lists all available tools from all connected MCP servers.
+   * Combines tools from multiple MCP clients into a single dictionary.
+   *
+   * @returns Record mapping tool name to MCP Tool definition
+   */
   export async function tools() {
     const result: Record<string, Tool> = {}
     const s = await state()
@@ -644,6 +679,11 @@ export namespace MCP {
     return result
   }
 
+  /**
+   * Lists all available prompts from all connected MCP servers.
+   *
+   * @returns Record mapping prompt name to PromptInfo with client metadata
+   */
   export async function prompts() {
     const s = await state()
     const clientsSnapshot = await clients()
@@ -665,6 +705,11 @@ export namespace MCP {
     return prompts
   }
 
+  /**
+   * Lists all available resources from all connected MCP servers.
+   *
+   * @returns Record mapping resource URI to ResourceInfo with client metadata
+   */
   export async function resources() {
     const s = await state()
     const clientsSnapshot = await clients()
@@ -688,7 +733,9 @@ export namespace MCP {
 
   export async function toolCatalog(name?: string) {
     const clientsSnapshot = await clients()
-    const entries = name ? Object.entries(clientsSnapshot).filter(([key]) => key === name) : Object.entries(clientsSnapshot)
+    const entries = name
+      ? Object.entries(clientsSnapshot).filter(([key]) => key === name)
+      : Object.entries(clientsSnapshot)
     const result: ToolSummary[] = []
 
     for (const [server, client] of entries) {

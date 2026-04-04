@@ -296,11 +296,23 @@ export namespace Config {
     }
   })
 
+  /**
+   * Waits for all dependency installations to complete.
+   * Dependencies are installed asynchronously when config loads.
+   *
+   * @returns Resolves when all dependencies are installed
+   */
   export async function waitForDependencies() {
     const deps = await state().then((x) => x.deps)
     await Promise.all(deps)
   }
 
+  /**
+   * Installs DAX plugin dependency in the specified directory.
+   * Updates package.json with the appropriate plugin version reference.
+   *
+   * @param dir - Directory path containing package.json
+   */
   export async function installDependencies(dir: string) {
     const pkg = path.join(dir, "package.json")
     const targetVersion = Installation.isLocal()
@@ -536,6 +548,9 @@ export namespace Config {
    * getPluginName("file:///path/to/plugin/foo.js") // "foo"
    * getPluginName("oh-my-dax@2.4.3") // "oh-my-dax"
    * getPluginName("@scope/pkg@1.0.0") // "@scope/pkg"
+   *
+   * @param plugin - Full plugin specifier (e.g., "@scope/pkg@1.0.0" or "file:///path/to/plugin")
+   * @returns The plugin name without version specifier
    */
   export function getPluginName(plugin: string): string {
     if (plugin.startsWith("file://")) {
@@ -558,6 +573,9 @@ export namespace Config {
    *
    * Since plugins are added in low-to-high priority order,
    * we reverse, deduplicate (keeping first occurrence), then restore order.
+   *
+   * @param plugins - Array of plugin specifiers with potential duplicates
+   * @returns Deduplicated array with later entries taking precedence
    */
   export function deduplicatePlugins(plugins: string[]): string[] {
     // seenNames: canonical plugin names for duplicate detection
@@ -1431,14 +1449,32 @@ export namespace Config {
     }),
   )
 
+  /**
+   * Returns the current resolved configuration.
+   * Uses cached state - configuration is loaded once and cached.
+   *
+   * @returns The current Config.Info object with all merged configurations
+   */
   export async function get() {
     return state().then((x) => x.config)
   }
 
+  /**
+   * Returns the global (user-level) configuration.
+   * Does not include project-specific or instance-level overrides.
+   *
+   * @returns The global Config.Info object from ~/.config/dax/
+   */
   export async function getGlobal() {
     return global()
   }
 
+  /**
+   * Updates the project-level configuration by merging with existing config.
+   * Writes to {project}/config.json and triggers instance disposal to reload.
+   *
+   * @param config - Partial config to merge with existing project config
+   */
   export async function update(config: Info) {
     const filepath = path.join(Instance.directory, "config.json")
     const existing = await loadFile(filepath)
@@ -1549,6 +1585,12 @@ export namespace Config {
     return next
   }
 
+  /**
+   * Returns the directory paths used by the current config instance.
+   * Includes paths for config files, cache, logs, etc.
+   *
+   * @returns Object containing various DAX directory paths
+   */
   export async function directories() {
     return state().then((x) => x.directories)
   }
