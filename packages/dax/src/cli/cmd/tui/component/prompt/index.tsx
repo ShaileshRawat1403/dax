@@ -20,6 +20,7 @@ import {
   Switch,
   Match,
   For,
+  batch,
 } from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
@@ -1139,7 +1140,7 @@ export function Prompt(props: PromptProps) {
   const activeWorkflowLabel = createMemo(() => {
     const current = local.agent.current()?.name
     if (current && WORKFLOW_AGENT_MODES.has(current)) return Locale.titlecase(current)
-    return Locale.titlecase(kv.get(DAX_SETTING.session_workflow_mode, current ?? "plan"))
+    return Locale.titlecase(workflowMode())
   })
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
@@ -1321,10 +1322,15 @@ export function Prompt(props: PromptProps) {
 
                     if (direction !== 0) {
                       const current = workflowMode()
-                      const idx = WORKFLOW_MODES.indexOf(current)
+                      let idx = WORKFLOW_MODES.indexOf(current)
+                      if (idx === -1) {
+                        idx = WORKFLOW_MODES.indexOf(local.agent.current()?.name as any)
+                      }
                       const next = WORKFLOW_MODES[(idx + direction + WORKFLOW_MODES.length) % WORKFLOW_MODES.length]
-                      setWorkflowMode(() => next)
-                      local.agent.set(next)
+                      batch(() => {
+                        setWorkflowMode(() => next)
+                        local.agent.set(next)
+                      })
                       e.preventDefault()
                       return
                     }
