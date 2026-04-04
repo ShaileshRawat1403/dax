@@ -206,6 +206,14 @@ function App() {
     ),
   )
 
+  const WORKFLOW_AGENT_MODES = new Set(["plan", "build", "explore", "docs", "audit"])
+  createEffect(() => {
+    const current = local.agent.current()?.name
+    if (current && WORKFLOW_AGENT_MODES.has(current)) {
+      kv.set(DAX_SETTING.session_workflow_mode, current)
+    }
+  })
+
   renderer.console.onCopySelection = async (text: string) => {
     if (!text || text.length === 0) return
 
