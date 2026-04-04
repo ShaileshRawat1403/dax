@@ -1,5 +1,6 @@
 import { EOL } from "os"
 import { Audit } from "./audit"
+import { AuditFinding } from "./audit-types"
 import { RAOLedger } from "../rao"
 import { Session } from "../session"
 import { MessageV2 } from "../session/message-v2"
@@ -52,7 +53,7 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
 
   const writeGovernanceClassification = deriveWriteGovernanceClassification({
     sessionDirectory: session.directory,
-    references: artifacts.map(a => a.id)
+    references: artifacts.map((a) => a.id),
   })
 
   return {
@@ -66,9 +67,11 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
     audit: {
       present: !!audit,
       status: audit?.status,
-      blocker_count: audit?.findings.filter((f: any) => f.severity === "critical").length ?? 0,
-      warning_count: audit?.findings.filter((f: any) => f.severity === "major").length ?? 0,
-      info_count: audit?.findings.filter((f: any) => f.severity === "minor" || f.severity === "info").length ?? 0,
+      blocker_count: audit?.findings.filter((f: AuditFinding) => f.severity === "critical").length ?? 0,
+      warning_count:
+        audit?.findings.filter((f: AuditFinding) => f.severity === "high" || f.severity === "medium").length ?? 0,
+      info_count:
+        audit?.findings.filter((f: AuditFinding) => f.severity === "low" || f.severity === "info").length ?? 0,
     },
     approvals: {
       pending_count: approvals.length,
@@ -79,7 +82,7 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
         pending_approval_count: approvals.length,
         workspace_write_artifact_count: writeGovernanceClassification?.workspaceWriteCount ?? 0,
         override_count: overrides.length,
-        policy_evaluated: !!audit, 
+        policy_evaluated: !!audit,
         lifecycle_terminal: lifecycle.terminal,
         lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
       }),
@@ -220,9 +223,7 @@ function evaluateApprovalsCheck(approvals: SessionVerificationSignals["approvals
   }
 }
 
-function evaluateWriteGovernanceCheck(
-  write: SessionVerificationSignals["write_governance"],
-): VerificationCheck {
+function evaluateWriteGovernanceCheck(write: SessionVerificationSignals["write_governance"]): VerificationCheck {
   if (write.status === "blocked") {
     return {
       id: "write_governance",
@@ -311,7 +312,9 @@ export function formatSessionVerification(verification: SessionVerification): st
     `Lifecycle: ${formatLifecycleState(verification.lifecycle_state)}${verification.lifecycle_requires_reconciliation ? " (needs reconciliation)" : ""}`,
     `Verification: ${formatVerificationResult(verification.verification_result)}`,
     `Trust posture: ${formatTrustPosture(verification.trust_posture)}`,
-    verification.latest_activity_at ? `Latest activity: ${Locale.todayTimeOrDateTime(verification.latest_activity_at)}` : undefined,
+    verification.latest_activity_at
+      ? `Latest activity: ${Locale.todayTimeOrDateTime(verification.latest_activity_at)}`
+      : undefined,
     "",
     "Checks:",
     ...verification.checks.map((c) => `  ${formatCheckStatus(c.status)} ${c.label}: ${c.summary}`),
