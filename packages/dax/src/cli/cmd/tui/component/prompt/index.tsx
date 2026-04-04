@@ -1308,11 +1308,12 @@ export function Prompt(props: PromptProps) {
                     }
                   }
                   if (!autocomplete.visible) {
-                    const direction = keybind.match("agent_cycle", e)
-                      ? 1
-                      : keybind.match("agent_cycle_reverse", e)
-                        ? -1
-                        : 0
+                    let direction = 0
+                    if (e.name === "tab") {
+                      direction = e.shift ? -1 : 1
+                    } else {
+                      direction = keybind.match("agent_cycle", e) ? 1 : keybind.match("agent_cycle_reverse", e) ? -1 : 0
+                    }
                     if (direction) {
                       local.agent.move(direction as 1 | -1)
                       const current = local.agent.current()?.name
@@ -1487,7 +1488,9 @@ export function Prompt(props: PromptProps) {
                 flexDirection="row"
                 gap={1}
                 flexGrow={1}
-                justifyContent={status().type === "retry" || status().type === "delayed" ? "space-between" : "flex-start"}
+                justifyContent={
+                  status().type === "retry" || status().type === "delayed" ? "space-between" : "flex-start"
+                }
               >
                 <box flexShrink={0} flexDirection="row" gap={0}>
                   <box marginLeft={1}>
