@@ -15,6 +15,16 @@ import { MessageV2 } from "@/session/message-v2"
 
 export type RuntimeActionClass = "analyze" | "propose" | "mutate" | "commit" | "publish" | "verify"
 
+/**
+ * Represents a file touched by a tool operation.
+ * Used in GuardRequest metadata for runtime guard enforcement.
+ */
+interface FileMetadata {
+  filePath?: string
+  movePath?: string
+  relativePath?: string
+}
+
 export class RuntimeGuardViolationError extends Error {
   constructor(
     public readonly code: string,
@@ -54,9 +64,11 @@ const DEFAULT_BUDGET = {
   approvalsRequested: 0,
 } as const
 
-const VERIFY_COMMAND = /\b(pytest|vitest|jest|cargo test|go test|bun test|npm test|pnpm test|tsc --noEmit|typecheck|ruff check|eslint)\b/i
+const VERIFY_COMMAND =
+  /\b(pytest|vitest|jest|cargo test|go test|bun test|npm test|pnpm test|tsc --noEmit|typecheck|ruff check|eslint)\b/i
 const COMMIT_COMMAND = /\bgit\s+(commit|merge|rebase|cherry-pick)\b/i
-const PUBLISH_COMMAND = /\b(git\s+push|gh\s+pr\s+create|gh\s+release\s+create|npm\s+publish|pnpm\s+publish|cargo\s+publish)\b/i
+const PUBLISH_COMMAND =
+  /\b(git\s+push|gh\s+pr\s+create|gh\s+release\s+create|npm\s+publish|pnpm\s+publish|cargo\s+publish)\b/i
 const MUTATING_COMMAND =
   /\b(rm|mv|cp|mkdir|touch|git\s+add|git\s+restore|git\s+reset|sed\s+-i|perl\s+-pi|tee)\b|[>]{1,2}|\bapply_patch\b/i
 
@@ -101,13 +113,21 @@ function normalizeRelative(filePath: string) {
 
 function collectTouchedPaths(req: GuardRequest): string[] {
   const fromFiles = Array.isArray(req.metadata?.files)
-    ? req.metadata.files.flatMap((item: any) => [item?.filePath, item?.movePath, item?.relativePath].filter(Boolean))
+    ? req.metadata.files.flatMap((item: FileMetadata) =>
+        [item?.filePath, item?.movePath, item?.relativePath].filter(Boolean),
+      )
     : []
   const fromSingle = [req.metadata?.filepath, req.metadata?.filePath].filter(Boolean)
   const fromPatterns = req.permission === "edit" ? req.patterns : []
   return [...new Set([...fromFiles, ...fromSingle, ...fromPatterns].map((item) => normalizeRelative(String(item))))]
 }
 
+/**
+ * Normalizes file paths from a contract for scope validation.
+ * The contract may have extended properties (targetFiles, repoImpact, etc.)
+ * that are not part of the base ExecutionContract type.
+ * Using 'any' here because these extensions vary by contract version.
+ */
 function normalizeScope(contract?: any | null) {
   const targetFiles = [
     ...(contract?.targetFiles ?? []),
@@ -155,7 +175,8 @@ function looksVagueIntent(input: string) {
   if (!text) return true
   if (text.length < 24) return true
   const vagueVerb = /\b(fix|improve|update|help|do it|make it better|quickly|handle this|clean up)\b/
-  const concreteAnchor = /\b(file|path|src|test|workflow|module|component|api|contract|scope|verify|validation|line|function|class)\b/
+  const concreteAnchor =
+    /\b(file|path|src|test|workflow|module|component|api|contract|scope|verify|validation|line|function|class)\b/
   return vagueVerb.test(text) && !concreteAnchor.test(text)
 }
 
@@ -186,11 +207,15 @@ function isActionAllowed(mode: string, action: RuntimeActionClass, lifecycle: st
 
 function matchesScopedPath(targets: string[], candidate: string) {
   if (targets.length === 0) return true
-  return targets.some((target) => candidate === target || candidate.startsWith(`${target}/`) || target.startsWith(`${candidate}/`))
+  return targets.some(
+    (target) => candidate === target || candidate.startsWith(`${target}/`) || target.startsWith(`${candidate}/`),
+  )
 }
 
 function matchesAvoidArea(avoidAreas: string[], candidate: string) {
-  return avoidAreas.some((item) => candidate === item || candidate.startsWith(`${item}/`) || item.startsWith(`${candidate}/`))
+  return avoidAreas.some(
+    (item) => candidate === item || candidate.startsWith(`${item}/`) || item.startsWith(`${candidate}/`),
+  )
 }
 
 function classifyPathZone(relativePath: string) {
@@ -253,10 +278,7 @@ async function ensureIntervention(input: {
   })
 }
 
-async function emitWarnIntervention(input: {
-  sessionID: string
-  reason: string
-}) {
+async function emitWarnIntervention(input: { sessionID: string; reason: string }) {
   await Bus.publish(Lifecycle.InterventionRequired, {
     runId: input.sessionID,
     reason: input.reason,
@@ -352,6 +374,12 @@ async function updateRuntimeGuardState(sessionID: string, updater: (state: Runti
   })
 }
 
+/**
+ * Creates a stable JSON string representation for hashing/comparison.
+ * Handles any object shape recursively to ensure consistent output.
+ * Using 'any' since this function must handle arbitrary object structures
+ * from various runtime sources (contracts, metadata, state).
+ */
 function stableStringify(obj: any): string {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj)
   if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(",")}]`
@@ -375,7 +403,9 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   const runState = await RunStore.get(input.sessionID).catch(() => null)
   const lifecycle = runState?.status ?? "running"
 
-  const toolFingerprint = [input.toolID, stableStringify(input.req.patterns), stableStringify(input.req.metadata)].join("::")
+  const toolFingerprint = [input.toolID, stableStringify(input.req.patterns), stableStringify(input.req.metadata)].join(
+    "::",
+  )
   const lastFingerprint = currentGuard.lastToolCallFingerprint
   const isIdentical = toolFingerprint === lastFingerprint
   const nextSuccessiveCount = isIdentical ? (currentGuard.successiveCount ?? 0) + 1 : 1
@@ -447,7 +477,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       context: {
         toolName: input.toolID,
         command: input.req.patterns.join(" && ") || undefined,
-        notes: [`fingerprint: ${toolFingerprint}`]
+        notes: [`fingerprint: ${toolFingerprint}`],
       },
     })
   }
@@ -502,7 +532,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
 
   const nextFilesTouched = nextTouched.size
   const nextMutatingCommands =
-    currentGuard.budget.mutatingCommands + (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish" ? 1 : 0)
+    currentGuard.budget.mutatingCommands +
+    (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish" ? 1 : 0)
 
   if (nextFilesTouched > currentGuard.budget.maxFilesTouched) {
     const reason = `This run would touch ${nextFilesTouched} files, exceeding the mutation budget of ${currentGuard.budget.maxFilesTouched}. Pause and confirm direction.`
@@ -556,13 +587,15 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       next.verification = {
         required: true,
         satisfied: true,
-        receipts: input.callID ? [...new Set([...next.verification.receipts, input.callID])] : next.verification.receipts,
+        receipts: input.callID
+          ? [...new Set([...next.verification.receipts, input.callID])]
+          : next.verification.receipts,
       }
     }
     return next
   })
 
-  const needsBaseline = (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish")
+  const needsBaseline = actionClass === "mutate" || actionClass === "commit" || actionClass === "publish"
   if (needsBaseline) {
     const baselineRef = await resolveBaselineRef()
     if (baselineRef) {
@@ -592,7 +625,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         },
         rollbackAnchor:
           state.governance.rollbackAnchor ??
-          ((actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") && session.state_v2?.runtime_guard?.rollbackAnchor
+          ((actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") &&
+          session.state_v2?.runtime_guard?.rollbackAnchor
             ? {
                 baselineRef: session.state_v2.runtime_guard.rollbackAnchor.baselineRef,
                 snapshotId: session.state_v2.runtime_guard.rollbackAnchor.snapshotId,
@@ -628,7 +662,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
                     ...state.governance,
                     touchedFiles: [...nextTouched],
                     mutationReceiptIds:
-                      input.callID && (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish")
+                      input.callID &&
+                      (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish")
                         ? [...new Set([...state.governance.mutationReceiptIds, input.callID])]
                         : state.governance.mutationReceiptIds,
                     verification:

@@ -731,6 +731,13 @@ export namespace MCP {
     return result
   }
 
+  /**
+   * Gets a catalog of all available tools from MCP servers.
+   * Similar to tools() but returns ToolSummary objects with server metadata.
+   *
+   * @param name - Optional server name to filter results
+   * @returns Array of ToolSummary with server, name, and description
+   */
   export async function toolCatalog(name?: string) {
     const clientsSnapshot = await clients()
     const entries = name
@@ -756,6 +763,12 @@ export namespace MCP {
     return result
   }
 
+  /**
+   * Gets a catalog of all available prompts from MCP servers.
+   *
+   * @param name - Optional server name to filter results
+   * @returns Array of PromptSummary with server, name, and description
+   */
   export async function promptCatalog(name?: string) {
     const all = await prompts()
     return Object.values(all)
@@ -767,11 +780,23 @@ export namespace MCP {
       }))
   }
 
+  /**
+   * Gets a catalog of all available resources from MCP servers.
+   *
+   * @param name - Optional server name to filter results
+   * @returns Array of ResourceInfo filtered by server
+   */
   export async function resourceCatalog(name?: string) {
     const all = await resources()
     return Object.values(all).filter((item) => !name || item.client === name)
   }
 
+  /**
+   * Inspects an MCP server's status, tools, prompts, and resources.
+   *
+   * @param name - Server name to inspect
+   * @returns Inspect object with status and catalog information
+   */
   export async function inspect(name: string): Promise<Inspect> {
     const statuses = await status()
     return {
@@ -783,6 +808,12 @@ export namespace MCP {
     }
   }
 
+  /**
+   * Pings an MCP server to check connectivity and latency.
+   *
+   * @param name - Server name to ping
+   * @returns Ping result with latency, tool count, and status
+   */
   export async function ping(name: string): Promise<Ping> {
     const statuses = await status()
     const current = statuses[name]
@@ -829,6 +860,14 @@ export namespace MCP {
     }
   }
 
+  /**
+   * Gets a prompt from an MCP server with optional arguments.
+   *
+   * @param clientName - Server/client name
+   * @param name - Prompt name to retrieve
+   * @param args - Optional arguments for the prompt
+   * @returns Prompt result or undefined if not found
+   */
   export async function getPrompt(clientName: string, name: string, args?: Record<string, string>) {
     const clientsSnapshot = await clients()
     const client = clientsSnapshot[clientName]
@@ -857,6 +896,13 @@ export namespace MCP {
     return result
   }
 
+  /**
+   * Reads a resource from an MCP server by URI.
+   *
+   * @param clientName - Server/client name
+   * @param resourceUri - Resource URI to read
+   * @returns Resource contents or undefined if not found
+   */
   export async function readResource(clientName: string, resourceUri: string) {
     const clientsSnapshot = await clients()
     const client = clientsSnapshot[clientName]
