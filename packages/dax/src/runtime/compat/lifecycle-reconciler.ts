@@ -24,6 +24,11 @@ export interface ReconciliationResult {
   issues: string[]
 }
 
+/**
+ * Derives external run status from lifecycle.
+ * @param input - Reconciliation input
+ * @returns External run status
+ */
 export function deriveStatusFromLifecycle(input: ReconciliationInput): RunStatusExternal {
   const lifecycle = deriveSessionLifecycleFromMessages({
     archivedAt: input.session.time.archived,
@@ -55,6 +60,11 @@ export function deriveStatusFromLifecycle(input: ReconciliationInput): RunStatus
   }
 }
 
+/**
+ * Converts internal run status to external status.
+ * @param internal - Internal run status
+ * @returns External run status
+ */
 export function toExternalStatus(internal: RunStatusInternal): RunStatusExternal {
   switch (internal) {
     case "compiled":
@@ -72,6 +82,11 @@ export function toExternalStatus(internal: RunStatusInternal): RunStatusExternal
   }
 }
 
+/**
+ * Reconciles run state by comparing persisted state with derived state.
+ * @param input - Reconciliation input
+ * @returns Reconciliation result with status and mismatch info
+ */
 export async function reconcileRunState(input: ReconciliationInput): Promise<ReconciliationResult> {
   const state = await RunStore.get(input.runId)
   const derivedStatus = deriveStatusFromLifecycle(input)

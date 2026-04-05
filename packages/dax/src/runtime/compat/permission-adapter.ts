@@ -44,6 +44,13 @@ function buildReason(patterns: string[]): string {
   return patterns.join(", ")
 }
 
+/**
+ * Adapts a permission request to an approval.
+ * Converts runtime permission requests into approval workflow.
+ * @param request - Permission request to adapt
+ * @param stepId - Optional step ID
+ * @returns Created approval
+ */
 export async function adaptPermissionRequest(request: PermissionRequest, stepId?: string): Promise<Approval> {
   const type = inferApprovalType(request.permission)
   const risk = inferRiskLevel(request.permission, type)
@@ -78,6 +85,12 @@ export async function adaptPermissionRequest(request: PermissionRequest, stepId?
   return approval
 }
 
+/**
+ * Resolves a permission request from user reply.
+ * @param runId - Run ID
+ * @param permissionId - Permission ID to resolve
+ * @param reply - User reply (allow, deny, reject)
+ */
 export async function resolveFromPermissionReply(
   runId: string,
   permissionId: string,
