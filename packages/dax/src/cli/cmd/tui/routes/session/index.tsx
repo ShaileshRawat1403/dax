@@ -597,9 +597,11 @@ export function Session() {
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
 
   const wide = createMemo(() => dimensions().width > 120)
+  const narrow = createMemo(() => dimensions().width < 80)
   const liveStacked = createMemo(() => !wide())
 
   const sidebarVisible = createMemo(() => {
+    if (narrow()) return false
     return resolveSessionSidebarVisibility({
       hasParentSession: !!session()?.parentID,
       sidebarOpen: sidebarOpen(),
@@ -2399,8 +2401,8 @@ function InlineTool(props: {
   const statusIndicator = createMemo(() => {
     if (props.complete) return ""
     if (isRunning()) {
-      const dots = ".".repeat((tick() % 3) + 1)
-      return dots
+      const frames = ["◐", "◑", "◒", "◓"]
+      return frames[tick() % frames.length]
     }
     return ""
   })
@@ -2412,7 +2414,7 @@ function InlineTool(props: {
           <span style={{ fg: accent() }}>{props.icon}</span> {props.children}
         </Show>
         <Show when={statusIndicator()}>
-          <text fg={theme.warning}>{statusIndicator()}</text>
+          <text fg={theme.warning}> {statusIndicator()}</text>
         </Show>
       </text>
     </box>
@@ -2439,8 +2441,8 @@ function BlockTool(props: {
   const statusText = createMemo(() => {
     if (hasError()) return "error"
     if (isCompleted()) return "done"
-    const dots = ".".repeat((tick() % 3) + 1)
-    return `running${dots}`
+    const frames = ["◐", "◑", "◒", "◓"]
+    return frames[tick() % frames.length]
   })
 
   return (
@@ -2455,16 +2457,13 @@ function BlockTool(props: {
     >
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
         <text fg={hasError() ? theme.error : isCompleted() ? theme.success : theme.warning}>
-          {hasError() ? "✗" : isCompleted() ? "✓" : "◌"}
+          {hasError() ? "✗" : isCompleted() ? "✓" : statusText()}
         </text>
         <text
           fg={hasError() ? theme.error : isCompleted() ? theme.textMuted : theme.text}
           attributes={props.isRunning ? TextAttributes.BOLD : undefined}
         >
           {props.title}
-        </text>
-        <text fg={hasError() ? theme.error : props.isRunning ? theme.warning : theme.textMuted} dim>
-          ({statusText()})
         </text>
         <Show when={props.children}>
           <text fg={theme.textMuted} dim>

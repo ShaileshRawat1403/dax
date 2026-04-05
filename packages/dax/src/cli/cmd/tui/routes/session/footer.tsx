@@ -27,12 +27,12 @@ export function Footer(props?: { lifecycleLabel?: string }) {
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
+  const narrow = createMemo(() => width() < 120)
 
   const mode = createMemo(() => {
     if (route.data.type !== "session") return "LAUNCH"
     return (props?.lifecycleLabel ?? "READY").toUpperCase()
   })
-  const showDirectory = createMemo(() => !small())
 
   const looksLikeHelpKey = (evt: any) =>
     (!evt.ctrl && !evt.meta && !evt.super && evt.shift && evt.name === "/") ||
@@ -62,7 +62,8 @@ export function Footer(props?: { lifecycleLabel?: string }) {
       paddingRight={1}
       backgroundColor={theme.backgroundPanel}
     >
-      <box flexDirection="row" gap={1}>
+      {/* Left: mode + directory */}
+      <box flexDirection="row" gap={1} alignItems="center">
         <box
           backgroundColor={theme.primary}
           border={["round"]}
@@ -74,78 +75,129 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             {mode()}
           </text>
         </box>
-        <Show when={showDirectory()}>
-          <text fg={theme.textMuted}>{directory()}</text>
+        <Show when={!tiny()}>
+          <text fg={theme.textMuted} dim>
+            {directory()}
+          </text>
         </Show>
       </box>
 
-      <box gap={2} flexDirection="row" flexShrink={0} alignItems="center">
-        <box flexDirection="row" gap={1}>
-          <box
-            onMouseUp={() => command.trigger("help.show")}
-            flexDirection="row"
-            gap={1}
-            alignItems="center"
-            paddingLeft={1}
-            paddingRight={1}
-            backgroundColor={theme.backgroundElement}
-            border={["round"]}
-            borderColor={theme.borderSubtle}
-          >
-            <box
-              backgroundColor={theme.background}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={theme.textMuted}>?</text>
-            </box>
-            <text fg={theme.textMuted}>Help</text>
-          </box>
-          <box
-            onMouseUp={() => command.show()}
-            flexDirection="row"
-            gap={1}
-            alignItems="center"
-            paddingLeft={1}
-            paddingRight={1}
-            backgroundColor={theme.backgroundElement}
-            border={["round"]}
-            borderColor={theme.borderSubtle}
-          >
-            <box
-              backgroundColor={theme.background}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={theme.textMuted}>/</text>
-            </box>
-            <text fg={theme.textMuted}>Actions</text>
-          </box>
-          <Show when={mcpTotal() > 0}>
-            <box
-              backgroundColor={
-                mcpAttention()
-                  ? tint(theme.backgroundElement, mcpBlocked() ? theme.warning : theme.error, 0.08)
-                  : theme.backgroundElement
-              }
-              border={["round"]}
-              borderColor={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.textMuted}>
-                {mcpAttention() ? "!" : "●"} MCP:{mcp()}/{mcpTotal()}
-              </text>
+      {/* Center: shortcuts (hidden on tiny screens) */}
+      <Show when={!tiny()}>
+        <box flexDirection="row" gap={1} alignItems="center">
+          <Show when={!narrow()}>
+            <box flexDirection="row" gap={1} alignItems="center">
+              <box
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.textMuted}>
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    ^R
+                  </text>{" "}
+                  refine
+                </text>
+              </box>
+              <box
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.textMuted}>
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    ^K
+                  </text>{" "}
+                  stash
+                </text>
+              </box>
+              <box
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.textMuted}>
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    ^G
+                  </text>{" "}
+                  diff
+                </text>
+              </box>
             </box>
           </Show>
-          <Show when={lsp().length > 0}>
-            <box backgroundColor={theme.backgroundElement} border={["round"]} borderColor={theme.borderSubtle} paddingLeft={1} paddingRight={1}>
-              <text fg={theme.textMuted}>● LSP:{lsp().length}</text>
-            </box>
+        </box>
+      </Show>
+
+      {/* Right: status indicators + actions */}
+      <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
+        <Show when={mcpTotal() > 0 && !tiny()}>
+          <box
+            backgroundColor={
+              mcpAttention()
+                ? tint(theme.backgroundElement, mcpBlocked() ? theme.warning : theme.error, 0.08)
+                : theme.backgroundElement
+            }
+            border={["round"]}
+            borderColor={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.borderSubtle}
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <text fg={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.textMuted}>
+              {mcpAttention() ? "!" : "●"} MCP:{mcp()}/{mcpTotal()}
+            </text>
+          </box>
+        </Show>
+        <Show when={lsp().length > 0 && !tiny()}>
+          <box
+            backgroundColor={theme.backgroundElement}
+            border={["round"]}
+            borderColor={theme.borderSubtle}
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <text fg={theme.textMuted}>● LSP:{lsp().length}</text>
+          </box>
+        </Show>
+        <box
+          onMouseUp={() => command.show()}
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          paddingLeft={1}
+          paddingRight={1}
+          backgroundColor={theme.backgroundElement}
+          border={["round"]}
+          borderColor={theme.borderSubtle}
+        >
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            /
+          </text>
+          <Show when={!small()}>
+            <text fg={theme.textMuted}>Actions</text>
+          </Show>
+        </box>
+        <box
+          onMouseUp={() => command.trigger("help.show")}
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          paddingLeft={1}
+          paddingRight={1}
+          backgroundColor={theme.backgroundElement}
+          border={["round"]}
+          borderColor={theme.borderSubtle}
+        >
+          <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            ?
+          </text>
+          <Show when={!small()}>
+            <text fg={theme.textMuted}>Help</text>
           </Show>
         </box>
       </box>

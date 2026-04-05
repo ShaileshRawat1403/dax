@@ -89,7 +89,7 @@ export type PromptRef = {
 const PLACEHOLDERS = ["Plan this project in plain language", "Ship one safe improvement", "Find the best next step"]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
 const WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"]
-const WORKFLOW_MODE_HINT = "Tab: cycle Plan → Build → Explore → Docs → Audit"
+const WORKFLOW_MODE_HINT = "Tab: cycle mode"
 const WORKFLOW_AGENT_MODES = new Set(WORKFLOW_MODES)
 const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
 
@@ -1615,10 +1615,17 @@ export function Prompt(props: PromptProps) {
                 <box paddingLeft={1} paddingRight={1}>
                   <text fg={theme.textMuted}>🤖 {local.model.parsed().model}</text>
                 </box>
-                <box paddingLeft={1} paddingRight={1}>
-                  <text fg={theme.textMuted} dim>
-                    {WORKFLOW_MODE_HINT}
+                <box
+                  backgroundColor={theme.backgroundElement}
+                  border={["round"]}
+                  borderColor={theme.borderSubtle}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                    {workflowMode().toUpperCase()}
                   </text>
+                  <text fg={theme.textMuted}> tab</text>
                 </box>
               </box>
               <box flexDirection="row" gap={2}>
