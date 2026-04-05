@@ -74,7 +74,9 @@ const targets = singleFlag
 await $`rm -rf dist`
 
 const binaries: Record<string, string> = {}
-const watcherVersion = pkg.dependencies?.["@parcel/watcher"] ?? pkg.devDependencies?.["@parcel/watcher"]
+const pkgDeps = pkg.dependencies as Record<string, string>
+const pkgDevDeps = (pkg.devDependencies ?? {}) as Record<string, string>
+const watcherVersion = pkgDeps["@parcel/watcher"] ?? pkgDevDeps["@parcel/watcher"]
 if (!skipInstall) {
   if (!watcherVersion) {
     throw new Error("Missing @parcel/watcher version in package.json")
