@@ -5,6 +5,46 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.20] - 2026-04-06
+
+### Added
+
+- **Footer Component**: Added dedicated footer bar with lifecycle state, workflow mode, MCP/LSP status, and action shortcuts.
+- **Workflow Mode in Footer**: Clickable workflow mode badge (Plan/Build/Explore/Docs/Audit) moved from prompt box to footer.
+
+### Changed
+
+- **Minimal Prompt Box**: Removed model name display, workflow mode badge, and "tab" label. Prompt box now shows only ELI12 toggle and Submit button.
+- **Professional Footer Design**: Clean, aligned footer with consistent badge styling, no emojis, proper responsive behavior.
+- **Claude Pro/Plus OAuth Restored**: Both `claude-code` and `anthropic` providers now show API Key and Pro/Plus Sign-In options in TUI.
+- **Build.ts LSP Fix**: Resolved TypeScript error for `@parcel/watcher` devDependency access.
+
+### Removed
+
+- **Duplicate Model Name**: Removed redundant model name display from prompt box (already shown in provider selection).
+- **Emoji Icons**: Removed all emoji icons from prompt box and footer for professional appearance.
+
+## [1.0.19] - 2026-04-06
+
+### Added
+
+- **Gemini Session Persistence Fix**: 3-step recovery chain for CLI-imported credentials — re-reads file, tries direct refresh, checks recent modification.
+- **UX Contract Components**: Phase bar, role-tagged transcript, approval sheet, trust ribbon, artifact drawer.
+- **Gemini Subscription Scheduler**: Serial request queue with concurrency=1, adaptive pacing, and disk-persisted cooldown.
+- **Context Tool Grouping**: Consecutive read/glob/grep/list tools collapsed into single "Gathering context" block.
+- **Inline vs Block Tool Rendering**: Read-only tools as single-line, heavy tools as bordered boxes.
+- **Animated Status Titles**: Running tools show pulsing spinner animation.
+- **Responsive Sidebar**: Auto-hides on terminals < 80 cols.
+
+### Changed
+
+- **models-snapshot.ts**: Added to .gitignore — auto-generated file no longer tracked.
+
+### Fixed
+
+- **Anthropic Pro/Plus Auth**: Restored OAuth method with token refresh and loader.
+- **Footer Design**: Clean layout with status indicators, no emojis, proper alignment.
+
 ## [1.0.18] - 2026-04-06
 
 ### Added
