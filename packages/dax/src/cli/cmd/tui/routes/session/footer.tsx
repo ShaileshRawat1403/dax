@@ -1,4 +1,4 @@
-import { createMemo, Match, Show, Switch } from "solid-js"
+import { createMemo, Show } from "solid-js"
 import { tint, useTheme } from "../../context/theme"
 import { useSync } from "../../context/sync"
 import { useDirectory } from "../../context/directory"
@@ -27,7 +27,6 @@ export function Footer(props?: { lifecycleLabel?: string }) {
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
-  const narrow = createMemo(() => width() < 120)
 
   const mode = createMemo(() => {
     if (route.data.type !== "session") return "LAUNCH"
@@ -50,6 +49,11 @@ export function Footer(props?: { lifecycleLabel?: string }) {
       command.trigger("help.show")
       return
     }
+  })
+
+  const mcpColor = createMemo(() => {
+    if (!mcpAttention()) return undefined
+    return mcpBlocked() ? theme.error : theme.warning
   })
 
   return (
@@ -82,65 +86,13 @@ export function Footer(props?: { lifecycleLabel?: string }) {
         </Show>
       </box>
 
-      {/* Center: shortcuts (hidden on tiny screens) */}
-      <Show when={!tiny()}>
-        <box flexDirection="row" gap={1} alignItems="center">
-          <Show when={!narrow()}>
-            <box flexDirection="row" gap={1} alignItems="center">
-              <box
-                backgroundColor={theme.backgroundElement}
-                border={["round"]}
-                borderColor={theme.borderSubtle}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={theme.textMuted}>
-                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                    ^R
-                  </text>{" "}
-                  refine
-                </text>
-              </box>
-              <box
-                backgroundColor={theme.backgroundElement}
-                border={["round"]}
-                borderColor={theme.borderSubtle}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={theme.textMuted}>
-                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                    ^K
-                  </text>{" "}
-                  stash
-                </text>
-              </box>
-              <box
-                backgroundColor={theme.backgroundElement}
-                border={["round"]}
-                borderColor={theme.borderSubtle}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={theme.textMuted}>
-                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                    ^G
-                  </text>{" "}
-                  diff
-                </text>
-              </box>
-            </box>
-          </Show>
-        </box>
-      </Show>
-
       {/* Right: status indicators + actions */}
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
         <Show when={mcpTotal() > 0 && !tiny()}>
           <box
             backgroundColor={
               mcpAttention()
-                ? tint(theme.backgroundElement, mcpBlocked() ? theme.warning : theme.error, 0.08)
+                ? tint(theme.backgroundElement, mcpBlocked() ? theme.error : theme.warning, 0.08)
                 : theme.backgroundElement
             }
             border={["round"]}
@@ -148,8 +100,8 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             paddingLeft={1}
             paddingRight={1}
           >
-            <text fg={mcpAttention() ? (mcpBlocked() ? theme.warning : theme.error) : theme.textMuted}>
-              {mcpAttention() ? "!" : "●"} MCP:{mcp()}/{mcpTotal()}
+            <text fg={mcpColor() ?? theme.textMuted}>
+              {mcpAttention() ? "!" : "●"} MCP {mcp()}/{mcpTotal()}
             </text>
           </box>
         </Show>
@@ -161,7 +113,7 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             paddingLeft={1}
             paddingRight={1}
           >
-            <text fg={theme.textMuted}>● LSP:{lsp().length}</text>
+            <text fg={theme.textMuted}>● LSP {lsp().length}</text>
           </box>
         </Show>
         <box
@@ -175,9 +127,15 @@ export function Footer(props?: { lifecycleLabel?: string }) {
           border={["round"]}
           borderColor={theme.borderSubtle}
         >
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            /
-          </text>
+          <box
+            backgroundColor={theme.background}
+            border={["round"]}
+            borderColor={theme.borderSubtle}
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <text fg={theme.textMuted}>/</text>
+          </box>
           <Show when={!small()}>
             <text fg={theme.textMuted}>Actions</text>
           </Show>
@@ -193,9 +151,15 @@ export function Footer(props?: { lifecycleLabel?: string }) {
           border={["round"]}
           borderColor={theme.borderSubtle}
         >
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            ?
-          </text>
+          <box
+            backgroundColor={theme.background}
+            border={["round"]}
+            borderColor={theme.borderSubtle}
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <text fg={theme.textMuted}>?</text>
+          </box>
           <Show when={!small()}>
             <text fg={theme.textMuted}>Help</text>
           </Show>
