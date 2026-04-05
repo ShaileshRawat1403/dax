@@ -1840,6 +1840,7 @@ export function Session() {
             sessionID={route.sessionID}
           />
         </box>
+        <Footer lifecycleLabel={workstationState().lifecycleLabel} />
       </box>
     </context.Provider>
   )
