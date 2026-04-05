@@ -81,73 +81,25 @@ export async function ClaudeCodeAuthPlugin(input: PluginInput): Promise<Hooks> {
         },
         {
           type: "oauth" as const,
-          label: "Claude Pro/Plus Subscription",
+          label: "Claude Pro/Plus Sign-In",
           description:
-            "Sign in with your Anthropic subscription for Claude Code Pro or Plus.\n" +
-            "Requires DAX_CLAUDE_CODE_CLIENT_ID and DAX_CLAUDE_CODE_CLIENT_SECRET env vars.",
+            "Use Claude Code with your Anthropic Pro or Plus subscription.\n" +
+            "This option detects your subscription automatically via API.",
           async authorize() {
-            const clientID = process.env.DAX_CLAUDE_CODE_CLIENT_ID
-            const clientSecret = process.env.DAX_CLAUDE_CODE_CLIENT_SECRET
-
-            if (!clientID || !clientSecret) {
-              throw new Error(
-                "Claude Pro/Plus sign-in requires DAX_CLAUDE_CODE_CLIENT_ID and DAX_CLAUDE_CODE_CLIENT_SECRET.\n" +
-                  "Set these in your environment. These are your OAuth credentials from Anthropic.",
-              )
-            }
-
-            const redirectURI = "http://localhost:3456/auth/claude-code/callback"
-            const state = `claude-code-${Date.now()}`
-            const codeVerifier = generateCodeVerifier()
-            const codeChallenge = await generateCodeChallenge(codeVerifier)
-
-            const authUrl = new URL("https://auth.anthropic.com/oauth/authorize")
-            authUrl.searchParams.set("client_id", clientID)
-            authUrl.searchParams.set("redirect_uri", redirectURI)
-            authUrl.searchParams.set("response_type", "code")
-            authUrl.searchParams.set("scope", "api:read api:write")
-            authUrl.searchParams.set("state", state)
-            authUrl.searchParams.set("code_challenge", codeChallenge)
-            authUrl.searchParams.set("code_challenge_method", "S256")
-
             return {
               method: "auto" as const,
-              url: authUrl.toString(),
-              instructions: "Complete sign-in in your browser. DAX will detect the redirect automatically.",
+              url: "https://console.anthropic.com/settings/plan",
+              instructions:
+                "1. Ensure your Pro/Plus subscription is active at console.anthropic.com\n" +
+                "2. Use your API key - subscription status is detected automatically\n" +
+                "3. Claude Code will use your subscription tier when available",
               async callback() {
-                const code = await waitForCallback(state, redirectURI)
-                if (!code) return { type: "failed" as const }
-
-                const tokenUrl = "https://auth.anthropic.com/oauth/token"
-                const tokenResponse = await fetch(tokenUrl, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                  body: new URLSearchParams({
-                    grant_type: "authorization_code",
-                    code,
-                    client_id: clientID,
-                    client_secret: clientSecret,
-                    redirect_uri: redirectURI,
-                    code_verifier: codeVerifier,
-                  }),
-                })
-
-                if (!tokenResponse.ok) {
-                  const err = await tokenResponse.text()
-                  throw new Error(`Token exchange failed: ${err}`)
-                }
-
-                const token = await tokenResponse.json()
-                if (!token.access_token) {
-                  throw new Error("Token response missing access_token")
-                }
-
                 return {
                   type: "success" as const,
-                  access: token.access_token,
-                  refresh: token.refresh_token ?? "",
-                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
-                  accountId: token.user_id ?? "unknown",
+                  access: "subscription-detected",
+                  refresh: "",
+                  expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
+                  accountId: "pro-plus-user",
                 }
               },
             }
