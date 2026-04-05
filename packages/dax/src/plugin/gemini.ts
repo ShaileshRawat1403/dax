@@ -313,8 +313,39 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
 
 const refreshStoredGoogleAccess = async (oauth: OAuthState | undefined, refreshToken: string) => {
   if (oauth?.mode === "cli-import" && (!oauth.clientID || !oauth.clientSecret)) {
+    // For CLI-imported credentials without client secrets, try two strategies:
+    // 1. Re-read the CLI creds file — the user may have run `gemini` again in the background
+    //    and the file might have a fresh access token we can use without refreshing.
+    // 2. Try refreshing the token directly (works for some OAuth flows without client secrets).
+    const freshFile = await readCliCreds()
+    if (freshFile?.access && freshFile.expires && freshFile.expires > Date.now()) {
+      return { access: freshFile.access, expires: freshFile.expires }
+    }
+
+    // If the file doesn't have a fresh token, try the direct refresh.
+    // If that also fails, check if the CLI file was recently updated (within last 5 minutes).
+    // If so, the user likely just ran `gemini` but the token hasn't propagated yet — wait briefly.
     const fromEnv = refreshGoogleToken(refreshToken)
-    if ((await fromEnv)?.access) return fromEnv
+    const envResult = await fromEnv
+    if (envResult?.access) return envResult
+
+    // Last resort: check if CLI file was recently modified (user may have just run `gemini`)
+    for (const item of credsPaths()) {
+      try {
+        const stat = await Bun.file(item).stat()
+        const ageMs = Date.now() - stat.mtime.getTime()
+        if (ageMs < 5 * 60 * 1000) {
+          // File was modified recently, try reading it one more time
+          const retryFile = await readCliCreds()
+          if (retryFile?.access && retryFile.expires && retryFile.expires > Date.now()) {
+            return { access: retryFile.access, expires: retryFile.expires }
+          }
+        }
+      } catch {
+        // File doesn't exist or can't be stat'd, continue
+      }
+    }
+
     throw importedGeminiCliExpiredError()
   }
   return refreshGoogleToken(refreshToken, oauth?.clientID, oauth?.clientSecret)
