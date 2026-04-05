@@ -147,18 +147,36 @@ function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
   methods: T[],
   env: NodeJS.ProcessEnv = process.env,
 ): VisibleProviderAuthMethod<T>[] {
+  const visible: VisibleProviderAuthMethod<T>[] = []
+
   const apiKeyIndex = methods.findIndex((m) => m.label.toLowerCase().includes("api key"))
   if (apiKeyIndex >= 0) {
-    return [
-      {
-        method: methods[apiKeyIndex]!,
-        originalIndex: apiKeyIndex,
-        title: "Claude API Key",
-        description: "Use your API key from console.anthropic.com",
-        hint: "API usage tracking",
-      },
-    ]
+    visible.push({
+      method: methods[apiKeyIndex]!,
+      originalIndex: apiKeyIndex,
+      title: "Claude API Key",
+      description: "Use your API key from console.anthropic.com",
+      hint: "API usage tracking",
+    })
   }
 
-  return methods.map((m, i) => ({ method: m, originalIndex: i, title: m.label, description: m.description }))
+  const oauthIndex = methods.findIndex(
+    (m) =>
+      m.label.toLowerCase().includes("pro") ||
+      m.label.toLowerCase().includes("plus") ||
+      m.label.toLowerCase().includes("sign-in"),
+  )
+  if (oauthIndex >= 0) {
+    visible.push({
+      method: methods[oauthIndex]!,
+      originalIndex: oauthIndex,
+      title: "Claude Pro/Plus Sign-In",
+      description: "Use Claude with your Anthropic Pro or Plus subscription",
+      hint: "Subscription access",
+    })
+  }
+
+  return visible.length > 0
+    ? visible
+    : methods.map((m, i) => ({ method: m, originalIndex: i, title: m.label, description: m.description }))
 }
