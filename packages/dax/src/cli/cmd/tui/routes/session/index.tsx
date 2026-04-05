@@ -126,7 +126,10 @@ import { buildInterventionProjection, buildProposedChangesProjection } from "@/s
 import type { ProposedChange as ProjectedProposedChange, RunEvent } from "@/server/run-contract"
 import { VerificationReceipt } from "../../component/receipt"
 
-type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] }
+type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] } | { type: "context-group"; tools: ToolPart[] }
+
+const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
+const HIDDEN_TOOLS = new Set(["todowrite"])
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
@@ -1947,21 +1950,39 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
   const renderableParts = createMemo(() => {
     const result: GroupedPart[] = []
     let currentCluster: ToolPart[] = []
+    let contextGroup: ToolPart[] = []
+
+    const flushContextGroup = () => {
+      if (contextGroup.length > 0) {
+        result.push({ type: "context-group", tools: contextGroup })
+        contextGroup = []
+      }
+    }
+    const flushCluster = () => {
+      if (currentCluster.length > 0) {
+        result.push({ type: "activity-cluster", tools: currentCluster })
+        currentCluster = []
+      }
+    }
 
     for (const part of parts()) {
       if (part.type === "tool") {
-        currentCluster.push(part)
-      } else {
-        if (currentCluster.length > 0) {
-          result.push({ type: "activity-cluster", tools: currentCluster })
-          currentCluster = []
+        if (HIDDEN_TOOLS.has(part.tool)) continue
+        if (CONTEXT_GROUP_TOOLS.has(part.tool)) {
+          flushCluster()
+          contextGroup.push(part)
+        } else {
+          flushContextGroup()
+          currentCluster.push(part)
         }
+      } else {
+        flushContextGroup()
+        flushCluster()
         result.push(part)
       }
     }
-    if (currentCluster.length > 0) {
-      result.push({ type: "activity-cluster", tools: currentCluster })
-    }
+    flushContextGroup()
+    flushCluster()
     return result
   })
 
@@ -2068,6 +2089,82 @@ const PART_MAPPING = {
   tool: ToolPart,
   reasoning: ReasoningPart,
   "activity-cluster": ActivityClusterPart,
+  "context-group": ContextGroupPart,
+}
+
+function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPart[] } }) {
+  const { theme } = useTheme()
+  const ctx = use()
+  const tools = props.part.tools
+  const allCompleted = createMemo(() => tools.every((t) => t.state.status === "completed"))
+  const hasActive = createMemo(() => tools.some((t) => t.state.status === "pending" || t.state.status === "running"))
+
+  const counts = createMemo(() => {
+    const c: Record<string, number> = {}
+    for (const t of tools) {
+      const label =
+        t.tool === "webfetch"
+          ? "fetches"
+          : t.tool === "websearch"
+            ? "searches"
+            : t.tool === "codesearch"
+              ? "code searches"
+              : t.tool === "list"
+                ? "listings"
+                : t.tool === "read"
+                  ? "files read"
+                  : t.tool === "glob"
+                    ? "globs"
+                    : t.tool === "grep"
+                      ? "greps"
+                      : t.tool + "s"
+      c[label] = (c[label] ?? 0) + 1
+    }
+    return Object.entries(c)
+      .map(([label, count]) => `${count} ${label}`)
+      .join(", ")
+  })
+
+  return (
+    <box
+      flexDirection="column"
+      gap={0}
+      marginTop={1}
+      marginBottom={0}
+      border={["left"]}
+      borderColor={theme.borderSubtle}
+      paddingLeft={1}
+    >
+      <box flexDirection="row" gap={1} alignItems="center" paddingBottom={allCompleted() ? 0 : 1}>
+        <text fg={hasActive() ? theme.warning : theme.success}>{hasActive() ? "◌" : "✓"}</text>
+        <text
+          fg={hasActive() ? theme.warning : theme.textMuted}
+          attributes={hasActive() ? TextAttributes.BOLD : undefined}
+        >
+          {hasActive() ? "Gathering context" : "Gathered context"}
+        </text>
+        <Show when={allCompleted()}>
+          <text fg={theme.textMuted} dim>
+            ({counts()})
+          </text>
+        </Show>
+      </box>
+      <Show when={allCompleted() && ctx.showAssistantMetadata()}>
+        <box flexDirection="column" gap={0} paddingTop={0}>
+          <For each={tools}>
+            {(tool) => {
+              const trace = deriveOperatorTraceLine(tool)
+              return (
+                <text fg={theme.textMuted} dim>
+                  • {trace?.summary ?? tool.tool}
+                </text>
+              )
+            }}
+          </For>
+        </box>
+      </Show>
+    </box>
+  )
 }
 
 function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: ToolPart[] } }) {
@@ -2184,9 +2281,12 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   )
 }
 
+const BLOCK_TOOLS = new Set(["shell", "edit", "write", "apply_patch", "task", "question"])
+
 function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
   const sync = useSync()
+  const { theme } = useTheme()
 
   const toolprops = {
     get metadata() {
@@ -2214,6 +2314,9 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
     },
   }
 
+  const isBlock = BLOCK_TOOLS.has(props.part.tool)
+  const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
+
   return (
     <Switch>
       <Match when={props.part.tool === "shell"}>
@@ -2225,14 +2328,52 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
       <Match when={props.part.tool === "edit"}>
         <Edit {...toolprops} />
       </Match>
+      <Match when={isBlock}>
+        <BlockTool
+          title={props.part.tool}
+          isRunning={isRunning()}
+          part={props.part}
+          input={toolprops.input}
+          output={toolprops.output}
+        >
+          <Switch>
+            <Match when={props.part.tool === "task"}>
+              <text fg={theme.text}>
+                {(toolprops.input as any).subagent_type ?? "Task"}: {(toolprops.input as any).description ?? ""}
+              </text>
+            </Match>
+            <Match when={props.part.tool === "question"}>
+              <text fg={theme.text}>{(toolprops.input as any).question ?? ""}</text>
+            </Match>
+            <Match when={props.part.tool === "apply_patch"}>
+              <text fg={theme.text}>
+                {Object.keys((toolprops.input as any).changes ?? {}).length} file
+                {Object.keys((toolprops.input as any).changes ?? {}).length === 1 ? "" : "s"} patched
+              </text>
+            </Match>
+          </Switch>
+        </BlockTool>
+      </Match>
       <Match when={true}>
         <InlineTool
-          icon={props.part.state.status === "completed" ? "✓" : "⚙"}
+          icon={props.part.state.status === "completed" ? "✓" : "◌"}
           complete={props.part.state.status === "completed"}
           pending={`Running ${props.part.tool}...`}
           part={props.part}
         >
           {props.part.tool}
+          <Show when={props.part.state.status === "completed" && (toolprops.input as any).filePath}>
+            <text fg={theme.textMuted}> {(toolprops.input as any).filePath}</text>
+          </Show>
+          <Show when={props.part.state.status === "completed" && (toolprops.input as any).pattern}>
+            <text fg={theme.textMuted}> {(toolprops.input as any).pattern}</text>
+          </Show>
+          <Show when={props.part.state.status === "completed" && (toolprops.input as any).url}>
+            <text fg={theme.textMuted}> {(toolprops.input as any).url}</text>
+          </Show>
+          <Show when={props.part.state.status === "completed" && (toolprops.input as any).query}>
+            <text fg={theme.textMuted}> {(toolprops.input as any).query}</text>
+          </Show>
         </InlineTool>
       </Match>
     </Switch>
@@ -2248,6 +2389,21 @@ function InlineTool(props: {
 }) {
   const { theme } = useTheme()
   const accent = createMemo(() => (props.part.tool === "shell" ? theme.accent : theme.primary))
+  const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
+  const [tick, setTick] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setTick((t) => (t + 1) % 4), 400)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const statusIndicator = createMemo(() => {
+    if (props.complete) return ""
+    if (isRunning()) {
+      const dots = ".".repeat((tick() % 3) + 1)
+      return dots
+    }
+    return ""
+  })
 
   return (
     <box paddingLeft={1} border={["left"]} borderColor={accent()}>
@@ -2255,7 +2411,67 @@ function InlineTool(props: {
         <Show fallback={<>~ {props.pending}</>} when={props.complete}>
           <span style={{ fg: accent() }}>{props.icon}</span> {props.children}
         </Show>
+        <Show when={statusIndicator()}>
+          <text fg={theme.warning}>{statusIndicator()}</text>
+        </Show>
       </text>
+    </box>
+  )
+}
+
+function BlockTool(props: {
+  title: string
+  isRunning: boolean
+  part: ToolPart
+  input: Record<string, unknown>
+  output?: unknown
+  children?: JSX.Element
+}) {
+  const { theme } = useTheme()
+  const isCompleted = createMemo(() => props.part.state.status === "completed")
+  const hasError = createMemo(() => props.part.state.status === "error")
+  const [tick, setTick] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setTick((t) => (t + 1) % 4), 400)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const statusText = createMemo(() => {
+    if (hasError()) return "error"
+    if (isCompleted()) return "done"
+    const dots = ".".repeat((tick() % 3) + 1)
+    return `running${dots}`
+  })
+
+  return (
+    <box
+      flexDirection="column"
+      gap={0}
+      marginTop={1}
+      marginBottom={0}
+      border={["left"]}
+      borderColor={hasError() ? theme.error : isCompleted() ? theme.borderSubtle : theme.warning}
+      paddingLeft={1}
+    >
+      <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
+        <text fg={hasError() ? theme.error : isCompleted() ? theme.success : theme.warning}>
+          {hasError() ? "✗" : isCompleted() ? "✓" : "◌"}
+        </text>
+        <text
+          fg={hasError() ? theme.error : isCompleted() ? theme.textMuted : theme.text}
+          attributes={props.isRunning ? TextAttributes.BOLD : undefined}
+        >
+          {props.title}
+        </text>
+        <text fg={hasError() ? theme.error : props.isRunning ? theme.warning : theme.textMuted} dim>
+          ({statusText()})
+        </text>
+        <Show when={props.children}>
+          <text fg={theme.textMuted} dim>
+            — {props.children}
+          </text>
+        </Show>
+      </box>
     </box>
   )
 }
