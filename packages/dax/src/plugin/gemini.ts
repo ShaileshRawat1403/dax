@@ -1,6 +1,7 @@
 import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
-import { parseGeminiSubscriptionRetryMs, shouldWaitForGeminiSubscriptionCooldown } from "./gemini-rate-limit"
+import { parseGeminiSubscriptionRetryMs } from "./gemini-rate-limit"
+import { scheduleGeminiSubscriptionRequest, persistGeminiSubscriptionCooldown } from "./gemini-scheduler"
 import { Global } from "@/global"
 import path from "path"
 
@@ -26,20 +27,6 @@ const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.G
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
 
 let cachedCloudCodeProjectId: string | undefined = undefined
-let geminiSubscriptionCooldownUntil = 0
-const geminiSubscriptionCooldownFile = path.join(Global.Path.state, "gemini-subscription-cooldown.json")
-
-async function readPersistedGeminiSubscriptionCooldown() {
-  const data = await Bun.file(geminiSubscriptionCooldownFile)
-    .json()
-    .catch(() => undefined as undefined | { until?: number })
-  return typeof data?.until === "number" ? data.until : 0
-}
-
-async function persistGeminiSubscriptionCooldown(until: number) {
-  geminiSubscriptionCooldownUntil = until
-  await Bun.write(geminiSubscriptionCooldownFile, JSON.stringify({ until }, null, 2)).catch(() => undefined)
-}
 
 async function resolveCloudCodeProject(accessToken: string): Promise<string> {
   if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
@@ -650,45 +637,57 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             }
 
             const executeFetch = async (fetchReq: URL, fetchHeaders: Headers, fetchBody: any) => {
-              if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
-                const persistedCooldownUntil = await readPersistedGeminiSubscriptionCooldown()
-                const effectiveCooldownUntil = Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil)
-                const waitMs = shouldWaitForGeminiSubscriptionCooldown(effectiveCooldownUntil)
-                if (waitMs > 0) {
-                  await Bun.sleep(waitMs)
+              const doFetch = async () => {
+                const response = await fetch(fetchReq, { ...init, headers: fetchHeaders, body: fetchBody })
+
+                if (!response.ok && response.status === 429 && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+                  try {
+                    const text = await response.text()
+                    const json = JSON.parse(text)
+                    const message = json.error?.message || ""
+                    const retryMs = parseGeminiSubscriptionRetryMs({
+                      retryAfter: response.headers.get("retry-after"),
+                      retryAfterMs: response.headers.get("retry-after-ms"),
+                      message,
+                    })
+                    const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
+                    await persistGeminiSubscriptionCooldown(Date.now() + retryMs)
+
+                    const newHeaders = new Headers(response.headers)
+                    newHeaders.set("Retry-After", retrySec.toString())
+                    newHeaders.set("retry-after-ms", retryMs.toString())
+                    newHeaders.set("x-dax-rate-limit-lane", "gemini-subscription")
+                    newHeaders.set("x-dax-rate-limit-provider", "google")
+                    newHeaders.set("x-dax-rate-limit-kind", "subscription-quota")
+
+                    const err: any = new Error("Throttled")
+                    err.status = 429
+                    err.response = new Response(text, {
+                      status: 429,
+                      statusText: response.statusText,
+                      headers: newHeaders,
+                    })
+                    throw err
+                  } catch (e: any) {
+                    if (e.status === 429) throw e
+                  }
                 }
+                return response
               }
 
-              const response = await fetch(fetchReq, { ...init, headers: fetchHeaders, body: fetchBody })
-
-              if (!response.ok && response.status === 429 && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+              let response: Response
+              if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
                 try {
-                  const text = await response.text()
-                  const json = JSON.parse(text)
-                  const message = json.error?.message || ""
-                  const retryMs = parseGeminiSubscriptionRetryMs({
-                    retryAfter: response.headers.get("retry-after"),
-                    retryAfterMs: response.headers.get("retry-after-ms"),
-                    message,
-                  })
-                  const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
-                  await persistGeminiSubscriptionCooldown(Date.now() + retryMs)
-
-                  const newHeaders = new Headers(response.headers)
-                  newHeaders.set("Retry-After", retrySec.toString())
-                  newHeaders.set("retry-after-ms", retryMs.toString())
-                  newHeaders.set("x-dax-rate-limit-lane", "gemini-subscription")
-                  newHeaders.set("x-dax-rate-limit-provider", "google")
-                  newHeaders.set("x-dax-rate-limit-kind", "subscription-quota")
-
-                  return new Response(text, {
-                    status: 429,
-                    statusText: response.statusText,
-                    headers: newHeaders,
-                  })
-                } catch {
-                  // Fallback to original response
+                  response = await scheduleGeminiSubscriptionRequest(doFetch)
+                } catch (e: any) {
+                  if (e.status === 429 && e.response) {
+                    response = e.response
+                  } else {
+                    throw e
+                  }
                 }
+              } else {
+                response = await doFetch()
               }
 
               // Only rewrite successful responses from Code Assist API

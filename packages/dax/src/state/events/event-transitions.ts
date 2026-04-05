@@ -156,4 +156,12 @@ export async function addDraftEvent(
   return appendEventOnly(runId, "draft_created", { draftId, type, content, targetPath }, commandId)
 }
 
+export async function updateProviderPressure(
+  runId: string,
+  payload: { lane?: string; throttles: number; inFlight: number; queueLength: number },
+): Promise<RunState> {
+  const commandId = `cmd_pressure_${Date.now()}`
+  return appendEventOnly(runId, "provider_pressure_updated", payload, commandId)
+}
+
 export type { RunState }

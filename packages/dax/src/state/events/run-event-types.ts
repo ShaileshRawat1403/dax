@@ -13,6 +13,7 @@ export type RunEventType =
   | "trust_updated"
   | "run_failed"
   | "run_completed"
+  | "provider_pressure_updated"
 
 export type RunEventPayload =
   | { type: "contract_compiled"; payload: { contractId: string } }
@@ -48,6 +49,10 @@ export type RunEventPayload =
     }
   | { type: "run_failed"; payload: { error: { code: string; message: string; retryable: boolean } } }
   | { type: "run_completed"; payload: Record<string, never> }
+  | {
+      type: "provider_pressure_updated"
+      payload: { lane?: string; throttles: number; inFlight: number; queueLength: number }
+    }
 
 export type RunEventEnvelope = {
   eventId: string

@@ -66,6 +66,11 @@ const mockRunState = (overrides: Partial<RunState> = {}): RunState => ({
       mutatingCommands: 0,
       approvalsRequested: 0,
     },
+    providerPressure: {
+      throttles: 0,
+      inFlight: 0,
+      queueLength: 0,
+    },
     guardEnforcementMode: "enforce",
     failureCounts: {},
     completionProof: null,
