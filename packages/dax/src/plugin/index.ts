@@ -12,6 +12,7 @@ import { Session } from "../session"
 import { NamedError } from "@dax-ai/util/error"
 import { GeminiAuthPlugin } from "./gemini"
 import { ClaudeCodeAuthPlugin } from "./claude-code"
+import { AnthropicAuthPlugin } from "./anthropic"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -21,7 +22,12 @@ export namespace Plugin {
   // Built-in plugins that are directly imported (not installed from npm).
   // Most plugin hooks remain experimental unless they are called out in docs
   // as a supported customization path.
-  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, GeminiAuthPlugin, ClaudeCodeAuthPlugin]
+  const INTERNAL_PLUGINS: PluginInstance[] = [
+    CodexAuthPlugin,
+    GeminiAuthPlugin,
+    ClaudeCodeAuthPlugin,
+    AnthropicAuthPlugin,
+  ]
 
   const state = Instance.state(async () => {
     const client = createDaxClient({
