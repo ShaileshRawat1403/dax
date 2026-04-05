@@ -5,13 +5,36 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2026-04-05
+
+### Added
+
+- **Claude Pro/Plus Integration**: Added native support for the `claude-code` provider and expanded `anthropic` provider auth options.
+- **Anthropic API Key Auth**: Established robust, dedicated API Key authentication flows for both Claude and Claude Code providers.
+
+### Changed
+
+- **TUI Clarity**: Renamed confusing tab cycling to `Workstation: auto/pinned/hidden` for explicit workstation visibility control.
+- **Explicit Persona Selection**: Made the persona selector visible and explicit in the header instead of implicit tab cycling.
+- **Completion Proof Hardening**: Separated proof evaluation from derivation to guarantee execution purity and eliminate state drift during verification.
+- **Strict Execution Mode Boundaries**: Enforced run state validation at the runtime guard level, blocking mutations on vague requests or boundary drift.
+
+### Fixed
+
+- **ELI12 Duplication**: Removed redundant ELI12 mode rendering from the header, moving it to the prompt box where the mode hint naturally belongs.
+- **QUEUE Control Visibility**: Hid the legacy QUEUE control, which clutterd the UI and didn't align with the deterministic execution cycle.
+- **Approval Budget Limits**: Implemented hard blocks for `maxApprovalRequests` to stop runaway recursive approvals.
+- **Gemini Token Refresh**: Fixed Gemini token refresh failing on CLI imported sessions that lack explicit client secrets.
+
 ## [1.0.16] - 2026-04-04
 
 ### Changed
+
 - **Unified Workflow Posture**: Formally defined Workflow Mode as a global workstation preference rather than session-local state. This ensures a consistent operating posture across Home and Session views.
 - **Synchronized Agent State**: Added a global synchronization effect that keeps the workstation's workflow mode in lockstep with the active agent.
 
 ### Fixed
+
 - **TUI Tab Cycling**: Resolved a regression where the Tab key would stop toggling agents once a session started.
 - **Reactive Mode Labels**: Fixed non-reactive indicator labels in the prompt box; the current workflow mode now updates instantly upon switching.
 - **Agent Ring Fallback**: Improved cycling logic to robustly handle specialized or non-primary agents, ensuring the operator can always return to the primary workflow ring.
@@ -19,53 +42,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.15] - 2026-04-03
 
 ### Changed
+
 - **Quiet Mode Enforcement**: Hardened "quiet" mode to hide non-critical right-pane chrome while preserving mandatory intervention visibility.
 - **Memory Surface Activation**: Fully enabled the `note`, `list`, and `rules` memory tabs, providing live views of PM-backed operational context.
 - **Stream Stability**: Improved coupling between the left narrative stream and right workstation pane to prevent flickering during stage transitions.
 
 ### Fixed
+
 - **Initialization Race**: Resolved a memo initialization order issue that caused intermittent crashes in the session route.
 - **ELI12 Transparency**: Ensured ELI12 explanation mode remains strictly presentational and does not drift into governance or permission logic.
 
 ## [1.0.14] - 2026-04-03
 
 ### Added
+
 - **Deterministic Completion Proofs**: Introduced a hard evidence-based gate for mutating runs. Completion now requires verifiable receipts for all mutations and validation commands.
 - **Production Guard Defaults**: DAX now defaults to `enforce` mode in production builds, ensuring safety gates cannot be bypassed without explicit override.
 - **Cross-Platform CI Matrix**: Automated validation now runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` to guarantee stability across all major operating systems.
 - **Doom Loop Breaker**: Consolidated tool-call fingerprinting to detect and block successive identical attempts, preventing automated retry loops.
 
 ### Changed
+
 - **TUI Stability Pass**: Optimized the Workstation pane for high-signal production use. Reorganized into deterministic sections: Status, why blocked, approvals, completion proof, and next steps.
 - **Header Signal Muting**: Header and stream status chips are now suppressed when the Workstation pane is active to provide a single, consistent source of truth.
 - **Harden Path Security**: Updated path normalization to use canonical resolution (`realpath`), closing potential escapes via symlinks or complex traversal.
 
 ### Fixed
+
 - **JSX Nesting & Syntax**: Resolved syntax errors in the TUI routes and synchronized component logic with the latest SDK version.
 - **Schema Synchronization**: Fixed mismatches between Session intent contracts and the Execution runtime state.
 
 ## [1.0.13] - 2026-04-02
 
 ### Changed
+
 - **Boundary Hardening for Vague Runs**: Runtime guard now blocks mutating actions when intent is vague and no concrete scoped contract targets are present.
 - **Primary Loop Safety Rails**: Session loop now enforces a hard primary step budget to prevent indefinite drift on under-specified tasks.
 
 ### Fixed
+
 - **Codex Boundary Drift Path**: A vague prompt path that previously escalated into `apply_patch` under weak constraints is now stopped by trust guards.
 - **Provider Stall Recovery**: Session processor now enforces deterministic stream stall timeout behavior so long-running provider silence does not hang runs indefinitely.
 
 ## [1.0.12] - 2026-04-02
 
 ### Added
+
 - **Bounded Reflection History**: Reflection checkpoints now keep a compact recent history that can be surfaced in the workstation instead of acting like a one-shot hidden tool event.
 - **Mode Regression Coverage**: Added focused tests around session display behavior, persona rendering, reflection pruning, and non-interactive planning so the new workstation surfaces stay honest as DAX evolves.
 
 ### Changed
+
 - **Mode Truthfulness**: `plan`, `explore`, `docs`, and `audit` now describe their real authority and constraints more accurately instead of drifting into cross-mode promises.
 - **Provider-Neutral Reflection Guidance**: Reflection policy now lives in the shared session prompt path rather than being taught primarily through one provider family.
 - **Operator Controls**: `DISPLAY_MODE` and `QUEUE` in the session header now control real UI behavior instead of only toggling stored state.
 
 ### Fixed
+
 - **Header Action Chips**: Restored click handling for header actions so visible operator controls are interactive again.
 - **Shell Verification Allowlist**: Hardened the parser and tests so safe verification commands like `python -m pytest`, `go test ./...`, and `npm/pnpm exec vitest run` behave as intended.
 - **Non-Interactive Planning Stability**: `dax plan` now only reports ready state when a canonical plan artifact exists, with safe materialization fallback when the assistant draft needs to be captured into a plan file.
@@ -73,36 +106,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.11] - 2026-03-30
 
 ### Added
+
 - **Session Close Snapshot**: Closing the TUI now leaves behind a concise DAX-branded handoff with resume command, session title, and useful run metrics when available.
 - **Exit Message Coverage**: Added regression tests for the close banner so the handoff stays compact and truthful as the TUI evolves.
 
 ### Changed
+
 - **OTel Startup Noise**: The default “OTel disabled” message is now debug-level so normal local sessions do not look unhealthy when telemetry is intentionally off.
 - **Planning Fallback Honesty**: `dax plan` now treats assistant-only drafts as incomplete until the canonical plan file exists, instead of presenting them as ready execution plans.
 
 ### Fixed
+
 - **Release Audit Docs Gate**: Added the required docs section headings so strict audit passes cleanly before release.
 - **Status Surface Robustness**: LSP and skills remain visible as operator-facing capabilities even when they are idle rather than actively attached.
 
 ## [1.0.10] - 2026-03-30
 
 ### Added
+
 - **Refine Contract v2**: Refine now produces richer operator-grade execution contracts with execution profile, contract delta, staged validation, governance hints, and repo impact.
 - **Operator Next Moves**: Completed runs can now end with mode-aware next-step guidance when the result leaves the operator in a meaningful decision state.
 - **Right-Rail Live Lane**: The workstation pane now explains the live lane, current control surface, and the most useful operator move from the current run state.
 
 ### Changed
+
 - **Refine UX**: The refine pane now reads more like an execution contract workbench than a prompt helper, with clearer cards for mission, impact, validation, and governance.
 - **Smart Pane Following**: The right pane can now favor `audit` or `changes` once a live run moves into verification or completion instead of staying pinned to workstation unnecessarily.
 - **Session Formatting**: Plain-text assistant summaries are enriched into clearer markdown-like structure with stronger headings and lead emphasis.
 
 ### Fixed
+
 - **DAX Theme Regression**: Restored the sharper DAX-native palette, removed the unwanted yellow emphasis drift, and kept prompt/refine editor surfaces on the intended dark background.
 - **Home / Workstation Noise**: Reduced duplicate state chrome on the home surface and fixed stale `Completed + Review needed` posture on settled runs.
 
 ## [1.0.9] - 2026-03-29
 
 ### Added
+
 - **Canonical Event-Driven Lifecycle**: Replaced property-based state with an immutable RunEvent stream as the system of record.
 - **Projection-First Workstation**: TUI now derives all views (narrative, diffs, interventions) from pure event stream projections.
 - **Hardened Interventions**: Formal model for operational blocks (ambiguity, recovery, risk) with unique `interventionId` tracking.
@@ -113,6 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **First-Run Operator Guidance**: Home screen now explains safe first steps, approvals, and when to use `dax doctor`.
 
 ### Changed
+
 - **Trust Normalization**: Retired legacy `trust.updated` events in favor of the canonical `audit.posture_updated` family.
 - **Workstation UI**: Integrated intervention markers and unified speculative/historical diff views.
 - **Governance Language**: Approval, intervention, and proposed-change wording now reads more like an operator workflow and less like schema state.
