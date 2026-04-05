@@ -194,7 +194,7 @@ export function Session() {
   const { navigate } = useRoute()
   const sync = useSync()
   const kv = useKV()
-  
+
   const [personaId, setPersonaId] = kv.signal<string>(DAX_SETTING.session_persona, "zen")
   const activePersona = createMemo(() => getPersona(personaId()))
   const cyclePersona = () => {
@@ -219,45 +219,49 @@ export function Session() {
   })
   const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const lifecycle = createMemo(() => (route.sessionID ? (sync.data.lifecycle[route.sessionID] ?? []) : []))
-  
+
   const projectedLifecycleEvents = createMemo<RunEvent[]>(() => {
     return lifecycle().flatMap<RunEvent>((event) => {
       const runId = event.properties?.runId || event.properties?.sessionId || route.sessionID
       if (!runId) return []
       if (event.type === "intervention.required") {
-        return [{
-          schemaVersion: "v1",
-          eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-          sequence: 0,
-          cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-          runId,
-          timestamp: event.timestamp,
-          type: "intervention.required",
-          payload: {
-            interventionId: event.properties.interventionId,
-            reason: event.properties.reason,
-            kind: event.properties.kind,
-            approvalId: event.properties.approvalId,
-            metadata: event.properties.metadata,
+        return [
+          {
+            schemaVersion: "v1",
+            eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+            sequence: 0,
+            cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+            runId,
+            timestamp: event.timestamp,
+            type: "intervention.required",
+            payload: {
+              interventionId: event.properties.interventionId,
+              reason: event.properties.reason,
+              kind: event.properties.kind,
+              approvalId: event.properties.approvalId,
+              metadata: event.properties.metadata,
+            },
           },
-        }]
+        ]
       }
       if (event.type === "intervention.resolved") {
-        return [{
-          schemaVersion: "v1",
-          eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-          sequence: 0,
-          cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-          runId,
-          timestamp: event.timestamp,
-          type: "intervention.resolved",
-          payload: {
-            interventionId: event.properties.interventionId,
-            status: event.properties.status,
-            comment: event.properties.comment,
-            resolvedAt: event.properties.resolvedAt ?? event.timestamp,
+        return [
+          {
+            schemaVersion: "v1",
+            eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+            sequence: 0,
+            cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
+            runId,
+            timestamp: event.timestamp,
+            type: "intervention.resolved",
+            payload: {
+              interventionId: event.properties.interventionId,
+              status: event.properties.status,
+              comment: event.properties.comment,
+              resolvedAt: event.properties.resolvedAt ?? event.timestamp,
+            },
           },
-        }]
+        ]
       }
       return []
     })
@@ -268,12 +272,15 @@ export function Session() {
   const permissions = createMemo(() => {
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.permission[x.id] ?? [])
-    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => (a.type as string) !== "question"))
+    const modern = children().flatMap((x) =>
+      (sync.data.approvals[x.id] ?? []).filter((a) => (a.type as string) !== "question"),
+    )
     return modern.length > 0 ? (modern as any) : legacy
   })
 
   const projectedApprovalRecords = createMemo(() => {
-    if (route.sessionID && (sync.data.approvals[route.sessionID]?.length ?? 0) > 0) return sync.data.approvals[route.sessionID] ?? []
+    if (route.sessionID && (sync.data.approvals[route.sessionID]?.length ?? 0) > 0)
+      return sync.data.approvals[route.sessionID] ?? []
     if (!session() || session()?.parentID) return []
     return children().flatMap((child) => sync.data.approvals[child.id] ?? [])
   })
@@ -305,33 +312,40 @@ export function Session() {
   const narrative = createMemo(() => {
     const combined = [
       ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
-      ...lifecycle().map((l) => ({ type: "lifecycle" as const, id: l.timestamp + l.type, timestamp: new Date(l.timestamp).getTime(), data: l })),
+      ...lifecycle().map((l) => ({
+        type: "lifecycle" as const,
+        id: l.timestamp + l.type,
+        timestamp: new Date(l.timestamp).getTime(),
+        data: l,
+      })),
     ]
     return combined.toSorted((a, b) => a.timestamp - b.timestamp)
   })
 
   const currentRun = createMemo(() => {
     const events = lifecycle()
-    const stateEvent = events.findLast(e => e.type === "run.state_changed")
+    const stateEvent = events.findLast((e) => e.type === "run.state_changed")
     return stateEvent?.properties
   })
 
   const currentStep = createMemo(() => {
     const events = lifecycle()
-    const stepEvent = events.findLast(e => e.type === "plan.step_promoted")
+    const stepEvent = events.findLast((e) => e.type === "plan.step_promoted")
     return stepEvent?.properties
   })
 
   const modernTrust = createMemo(() => {
     const events = lifecycle()
-    const auditEvent = events.findLast(e => e.type === "audit.posture_updated")
+    const auditEvent = events.findLast((e) => e.type === "audit.posture_updated")
     return auditEvent?.properties?.trust
   })
 
   const questions = createMemo(() => {
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.question[x.id] ?? [])
-    const modern = children().flatMap((x) => (sync.data.approvals[x.id] ?? []).filter(a => (a.type as string) === "question"))
+    const modern = children().flatMap((x) =>
+      (sync.data.approvals[x.id] ?? []).filter((a) => (a.type as string) === "question"),
+    )
     return modern.length > 0 ? (modern as any) : legacy
   })
 
@@ -361,10 +375,14 @@ export function Session() {
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "plan")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
+  // TODO: slowStream setting is defined but not used anywhere - implement or remove
   const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
   const [displayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
   const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
-  const [queueVisibleRaw, setQueueVisibleRaw] = kv.signal<string | boolean>(DAX_SETTING.intervention_queue_visible, true)
+  const [queueVisibleRaw, setQueueVisibleRaw] = kv.signal<string | boolean>(
+    DAX_SETTING.intervention_queue_visible,
+    true,
+  )
   const [selectedProposedChangeId, setSelectedProposedChangeId] = createSignal<string>()
   const [memoryListText, setMemoryListText] = createSignal("")
   const [memoryRulesText, setMemoryRulesText] = createSignal("")
@@ -414,7 +432,7 @@ export function Session() {
     const mode = workflowMode()
     if (!WORKFLOW_MODES.includes(mode)) return
     const local = useLocal()
-  const availableAgents = local.agent.list()
+    const availableAgents = local.agent.list()
     if (availableAgents.length === 0) return
     if (local.agent.current()?.name === mode) return
     if (!availableAgents.some((a) => a.name === mode)) return
@@ -532,10 +550,12 @@ export function Session() {
   })
 
   const stageLabel = createMemo(() => labelStage(displayStageState().stage, explainMode()))
-  const streamStatus = createMemo(() => deriveLiveStreamStatus({
-    pendingID: pending(),
-    partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
-  }))
+  const streamStatus = createMemo(() =>
+    deriveLiveStreamStatus({
+      pendingID: pending(),
+      partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
+    }),
+  )
   const stageReasonText = createMemo(() => displayStageState().reason)
 
   const doing = createMemo(() => {
@@ -633,17 +653,20 @@ export function Session() {
     const s = session()
     const audit = latestAudit()?.result
     const art = (sync.data as any).session_artifact?.[route.sessionID] ?? []
-    
+
     return deriveWorkstationState({
       sessionID: route.sessionID,
       stage: displayStageState().stage,
       stageReason: displayStageState().reason,
       sessionStatusType: sessionStatusType() as any,
       goal: s?.title,
-      todo: todo().map(t => ({ content: t.content, status: t.status })),
+      todo: todo().map((t) => ({ content: t.content, status: t.status })),
       reflection: (s?.state_v2 as any)?.reflection,
       reflectionHistory: (s?.state_v2 as any)?.reflection_history ?? [],
-      approvals: (permissions() as any[]).map((p: any) => ({ label: p.permission, reason: p.metadata?.reason as string | undefined })),
+      approvals: (permissions() as any[]).map((p: any) => ({
+        label: p.permission,
+        reason: p.metadata?.reason as string | undefined,
+      })),
       questions: questions().length,
       artifacts: art.map((a: any) => ({ label: a.path || a.id, kind: a.kind })),
       diffCount: proposedChanges().length,
@@ -719,7 +742,9 @@ export function Session() {
         if (part.type !== "tool") continue
         const trace = deriveOperatorTraceLine(part)
         const metadata =
-          "metadata" in part.state ? ((part.state.metadata ?? {}) as Record<string, unknown>) : ({} as Record<string, unknown>)
+          "metadata" in part.state
+            ? ((part.state.metadata ?? {}) as Record<string, unknown>)
+            : ({} as Record<string, unknown>)
         const input = (part.state.input ?? {}) as Record<string, unknown>
         const output =
           typeof metadata.output === "string"
@@ -807,7 +832,9 @@ export function Session() {
         return {
           tone: "warning" as const,
           title: "Completion evidence missing",
-          detail: voice(`Resolve: ${current.completionProof.missing.slice(0, 2).join(", ") || "verification evidence"}.`),
+          detail: voice(
+            `Resolve: ${current.completionProof.missing.slice(0, 2).join(", ") || "verification evidence"}.`,
+          ),
         }
       }
 
@@ -815,7 +842,9 @@ export function Session() {
         return {
           tone: "warning" as const,
           title: "Refine execution contract",
-          detail: voice("Plan quality is paused. Use refine to add scope, validation, and rollback detail before edits."),
+          detail: voice(
+            "Plan quality is paused. Use refine to add scope, validation, and rollback detail before edits.",
+          ),
         }
       }
 
@@ -984,7 +1013,8 @@ export function Session() {
   createEffect(() => {
     if (paneVisibility() !== "hidden") return
     const stage = displayStageState().stage
-    const shouldRecover = hasApprovalsNeed() || sessionStatusType() === "busy" || stage === "executing" || stage === "verifying"
+    const shouldRecover =
+      hasApprovalsNeed() || sessionStatusType() === "busy" || stage === "executing" || stage === "verifying"
     if (shouldRecover) {
       setPaneVisibility(() => "auto")
     }
@@ -1038,7 +1068,13 @@ export function Session() {
     }
   }
 
-  createEffect(on(() => route.sessionID, () => void refreshMemorySnapshot(), { defer: false }))
+  createEffect(
+    on(
+      () => route.sessionID,
+      () => void refreshMemorySnapshot(),
+      { defer: false },
+    ),
+  )
   createEffect(() => {
     if (activePaneMode() === "memory") void refreshMemorySnapshot()
   })
@@ -1088,7 +1124,12 @@ export function Session() {
 
   const trustSurface = createMemo(() => ({
     label: workstationState().trustLabel.toLowerCase(),
-    color: workstationState().trustPosture === "blocked" ? theme.error : workstationState().trustPosture === "review_needed" ? theme.warning : theme.success,
+    color:
+      workstationState().trustPosture === "blocked"
+        ? theme.error
+        : workstationState().trustPosture === "review_needed"
+          ? theme.warning
+          : theme.success,
   }))
 
   return (
@@ -1118,7 +1159,7 @@ export function Session() {
           busy={sessionStatusType() === "busy"}
           actions={[
             {
-              label: paneVisibility() === "hidden" ? "Show Workstation" : "Cycle Views",
+              label: paneVisibility() === "hidden" ? "Show Workstation" : `Workstation: ${paneVisibility()}`,
               onPress: cyclePaneVisibility,
             },
           ]}
@@ -1149,7 +1190,9 @@ export function Session() {
                   gap={0}
                 >
                   <text fg={theme.text}>No activity in this session yet.</text>
-                  <text fg={theme.textMuted}>Send a prompt to start a governed run and stream live execution context.</text>
+                  <text fg={theme.textMuted}>
+                    Send a prompt to start a governed run and stream live execution context.
+                  </text>
                 </box>
               </Show>
               <For each={narrative()}>
@@ -1159,7 +1202,7 @@ export function Session() {
                   </Show>
                 )}
               </For>
-              
+
               <Show when={showLiveStatusNote() && !showActiveNarrative() && !showPane()}>
                 <box paddingLeft={2} paddingRight={2} marginTop={1}>
                   <box
@@ -1174,7 +1217,11 @@ export function Session() {
                     paddingBottom={1}
                   >
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                      <box backgroundColor={tint(theme.background, theme.primary, 0.24)} paddingLeft={1} paddingRight={1}>
+                      <box
+                        backgroundColor={tint(theme.background, theme.primary, 0.24)}
+                        paddingLeft={1}
+                        paddingRight={1}
+                      >
                         <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                           {modeLabel()}
                         </text>
@@ -1210,13 +1257,7 @@ export function Session() {
               scrollAcceleration={scrollAcceleration()}
             >
               <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
-                <box
-                  flexDirection="column"
-                  gap={1}
-                  border={["bottom"]}
-                  borderColor={theme.border}
-                  paddingBottom={1}
-                >
+                <box flexDirection="column" gap={1} border={["bottom"]} borderColor={theme.border} paddingBottom={1}>
                   <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <For each={PANE_MODES}>
                       {(mode) => (
@@ -1263,7 +1304,9 @@ export function Session() {
                       <box flexDirection="column" gap={1} flexGrow={1} width="100%">
                         <Show when={proposedChanges().length > 0}>
                           <box flexDirection="column" gap={0} marginBottom={1}>
-                            <text fg={theme.primary} bold>PROPOSED CHANGES</text>
+                            <text fg={theme.primary} bold>
+                              PROPOSED CHANGES
+                            </text>
                             <For each={proposedChanges()}>
                               {(change) => (
                                 <box
@@ -1283,7 +1326,9 @@ export function Session() {
                                     selectedProposedChangeId() === change.changeId ? theme.primary : theme.borderSubtle
                                   }
                                 >
-                                  <text fg={selectedProposedChangeId() === change.changeId ? theme.primary : theme.text}>
+                                  <text
+                                    fg={selectedProposedChangeId() === change.changeId ? theme.primary : theme.text}
+                                  >
                                     {selectedProposedChangeId() === change.changeId ? ">" : " "} {change.filePath}
                                   </text>
                                   <text fg={proposedChangeStatusColor(change.status)}>
@@ -1375,7 +1420,9 @@ export function Session() {
                           >
                             <Show when={sessionStatusType() === "busy"}>
                               <box backgroundColor={theme.accent} paddingLeft={1} paddingRight={1} marginRight={1}>
-                                <text fg={theme.background} bold>LIVE</text>
+                                <text fg={theme.background} bold>
+                                  LIVE
+                                </text>
                               </box>
                             </Show>
                             <box
@@ -1403,7 +1450,8 @@ export function Session() {
                             >
                               <text
                                 fg={
-                                  workstationState().lifecycle === "blocked" || workstationState().lifecycle === "failed"
+                                  workstationState().lifecycle === "blocked" ||
+                                  workstationState().lifecycle === "failed"
                                     ? theme.error
                                     : workstationState().lifecycle === "awaiting_approval"
                                       ? theme.warning
@@ -1426,9 +1474,7 @@ export function Session() {
                                 paddingLeft={1}
                                 paddingRight={1}
                               >
-                                <text
-                                  fg={workstationState().trustPosture === "blocked" ? theme.error : theme.warning}
-                                >
+                                <text fg={workstationState().trustPosture === "blocked" ? theme.error : theme.warning}>
                                   TRUST: {workstationState().trustLabel.toUpperCase()}
                                 </text>
                               </box>
@@ -1445,12 +1491,16 @@ export function Session() {
                               border={["round"]}
                               borderColor={theme.error}
                             >
-                              <text fg={theme.error} bold>WHY BLOCKED</text>
+                              <text fg={theme.error} bold>
+                                WHY BLOCKED
+                              </text>
                               <For each={activeInterventions().slice(0, 3)}>
                                 {(item) => (
                                   <box flexDirection="column" gap={0} paddingTop={1}>
                                     <text fg={theme.text}>! {interventionKindLabel(item.kind)}</text>
-                                    <text fg={theme.textMuted} wrapMode="word">{item.reason}</text>
+                                    <text fg={theme.textMuted} wrapMode="word">
+                                      {item.reason}
+                                    </text>
                                   </box>
                                 )}
                               </For>
@@ -1467,11 +1517,16 @@ export function Session() {
                               border={["round"]}
                               borderColor={theme.warning}
                             >
-                              <text fg={theme.warning} bold>PENDING APPROVALS</text>
-                              <text fg={theme.text}>
-                                {workstationState().approvalSummary.pendingCount} item{workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} waiting
+                              <text fg={theme.warning} bold>
+                                PENDING APPROVALS
                               </text>
-                              <text fg={theme.textMuted} wrapMode="word">Top: {workstationState().approvalSummary.topReason}</text>
+                              <text fg={theme.text}>
+                                {workstationState().approvalSummary.pendingCount} item
+                                {workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} waiting
+                              </text>
+                              <text fg={theme.textMuted} wrapMode="word">
+                                Top: {workstationState().approvalSummary.topReason}
+                              </text>
                             </box>
                           </Show>
 
@@ -1490,7 +1545,10 @@ export function Session() {
                               borderColor={workstationState().completionProof!.ready ? theme.success : theme.warning}
                             >
                               <box flexDirection="row" justifyContent="space-between">
-                                <text fg={workstationState().completionProof!.ready ? theme.success : theme.warning} bold>
+                                <text
+                                  fg={workstationState().completionProof!.ready ? theme.success : theme.warning}
+                                  bold
+                                >
                                   COMPLETION PROOF
                                 </text>
                                 <text fg={workstationState().completionProof!.ready ? theme.success : theme.warning}>
@@ -1517,17 +1575,27 @@ export function Session() {
                             border={["round"]}
                             borderColor={theme.accent}
                           >
-                            <text fg={theme.accent} bold>NEXT STEP</text>
-                            <text fg={theme.text} wrapMode="word">{operatorNextMoveSafe().title}</text>
+                            <text fg={theme.accent} bold>
+                              NEXT STEP
+                            </text>
+                            <text fg={theme.text} wrapMode="word">
+                              {operatorNextMoveSafe().title}
+                            </text>
                             <Show when={operatorNextMoveSafe().detail}>
-                              <text fg={theme.textMuted} wrapMode="word">{operatorNextMoveSafe().detail}</text>
+                              <text fg={theme.textMuted} wrapMode="word">
+                                {operatorNextMoveSafe().detail}
+                              </text>
                             </Show>
                           </box>
 
                           <Show when={workstationState().goal}>
                             <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1}>
-                              <text fg={theme.textMuted} bold>GOAL:</text>
-                              <text fg={theme.textMuted} wrapMode="word">{summarize(workstationState().goal, 60)}</text>
+                              <text fg={theme.textMuted} bold>
+                                GOAL:
+                              </text>
+                              <text fg={theme.textMuted} wrapMode="word">
+                                {summarize(workstationState().goal, 60)}
+                              </text>
                             </box>
                           </Show>
                         </box>
@@ -1537,11 +1605,7 @@ export function Session() {
 
                   <Match when={activePaneMode() === "approvals"}>
                     <box flexGrow={1} minHeight={0}>
-                      <RAOPane
-                        permissions={permissions()}
-                        questions={questions()}
-                        sessionID={route.sessionID}
-                      />
+                      <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
                     </box>
                   </Match>
 
@@ -1576,7 +1640,7 @@ export function Session() {
                         borderColor={theme.borderSubtle}
                         paddingBottom={1}
                       >
-                        <For each={(["note", "list", "rules"] as PMTab[])}>
+                        <For each={["note", "list", "rules"] as PMTab[]}>
                           {(tab) => (
                             <box
                               onMouseUp={() => setPmTab(() => tab)}
@@ -1584,7 +1648,11 @@ export function Session() {
                               paddingRight={1}
                               border={["round"]}
                               borderColor={pmTab() === tab ? theme.borderActive : theme.borderSubtle}
-                              backgroundColor={pmTab() === tab ? tint(theme.backgroundElement, theme.primary, 0.16) : theme.backgroundElement}
+                              backgroundColor={
+                                pmTab() === tab
+                                  ? tint(theme.backgroundElement, theme.primary, 0.16)
+                                  : theme.backgroundElement
+                              }
                             >
                               <text
                                 fg={pmTab() === tab ? theme.primary : theme.textMuted}
@@ -1606,8 +1674,12 @@ export function Session() {
                           borderColor={theme.error}
                           backgroundColor={tint(theme.backgroundElement, theme.error, 0.08)}
                         >
-                          <text fg={theme.error} bold>Memory load error</text>
-                          <text fg={theme.textMuted} wrapMode="word">{memoryLoadError()}</text>
+                          <text fg={theme.error} bold>
+                            Memory load error
+                          </text>
+                          <text fg={theme.textMuted} wrapMode="word">
+                            {memoryLoadError()}
+                          </text>
                         </box>
                       </Show>
 
@@ -1621,12 +1693,19 @@ export function Session() {
                             borderColor={theme.borderSubtle}
                             backgroundColor={theme.backgroundElement}
                           >
-                            <Show when={memoryNote()} fallback={<text fg={theme.textMuted}>No memory note yet. Add one with `/pm note`.</text>}>
-                              <text fg={theme.text} wrapMode="word">{memoryNote()}</text>
+                            <Show
+                              when={memoryNote()}
+                              fallback={<text fg={theme.textMuted}>No memory note yet. Add one with `/pm note`.</text>}
+                            >
+                              <text fg={theme.text} wrapMode="word">
+                                {memoryNote()}
+                              </text>
                             </Show>
                             <Show when={(workstationState().reflection?.verificationPlan?.length ?? 0) > 0}>
                               <box flexDirection="column" gap={0}>
-                                <text fg={theme.accent} bold>Verification plan</text>
+                                <text fg={theme.accent} bold>
+                                  Verification plan
+                                </text>
                                 <For each={workstationState().reflection?.verificationPlan ?? []}>
                                   {(item) => <text fg={theme.text}>- {item}</text>}
                                 </For>
@@ -1634,9 +1713,13 @@ export function Session() {
                             </Show>
                             <Show when={workstationState().reflectionHistory.length > 0}>
                               <box flexDirection="column" gap={0}>
-                                <text fg={theme.textMuted} bold>Recent reflections</text>
+                                <text fg={theme.textMuted} bold>
+                                  Recent reflections
+                                </text>
                                 <For each={workstationState().reflectionHistory.slice(0, 3)}>
-                                  {(item) => <text fg={theme.textMuted}>- {summarize(item.goal, 56) ?? item.goal}</text>}
+                                  {(item) => (
+                                    <text fg={theme.textMuted}>- {summarize(item.goal, 56) ?? item.goal}</text>
+                                  )}
                                 </For>
                               </box>
                             </Show>
@@ -1645,18 +1728,39 @@ export function Session() {
 
                         <Match when={pmTab() === "list"}>
                           <box flexDirection="column" gap={0}>
-                            <Show when={memoryList().rows.length > 0} fallback={<text fg={theme.textMuted}>{memoryList().info ?? "No PM notes found."}</text>}>
-                              <box flexDirection="row" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={0}>
-                                <text fg={theme.textMuted} width={12}>DAY</text>
-                                <text fg={theme.textMuted} flexGrow={1}>TITLE</text>
-                                <text fg={theme.textMuted} width={22}>TAGS</text>
+                            <Show
+                              when={memoryList().rows.length > 0}
+                              fallback={<text fg={theme.textMuted}>{memoryList().info ?? "No PM notes found."}</text>}
+                            >
+                              <box
+                                flexDirection="row"
+                                gap={1}
+                                border={["bottom"]}
+                                borderColor={theme.borderSubtle}
+                                paddingBottom={0}
+                              >
+                                <text fg={theme.textMuted} width={12}>
+                                  DAY
+                                </text>
+                                <text fg={theme.textMuted} flexGrow={1}>
+                                  TITLE
+                                </text>
+                                <text fg={theme.textMuted} width={22}>
+                                  TAGS
+                                </text>
                               </box>
                               <For each={memoryList().rows}>
                                 {(row) => (
                                   <box flexDirection="row" gap={1} paddingTop={0} paddingBottom={0}>
-                                    <text fg={theme.text} width={12}>{row.day}</text>
-                                    <text fg={theme.text} flexGrow={1} wrapMode="truncate-end">{row.title}</text>
-                                    <text fg={theme.textMuted} width={22} wrapMode="truncate-end">{row.tags.join(", ")}</text>
+                                    <text fg={theme.text} width={12}>
+                                      {row.day}
+                                    </text>
+                                    <text fg={theme.text} flexGrow={1} wrapMode="truncate-end">
+                                      {row.title}
+                                    </text>
+                                    <text fg={theme.textMuted} width={22} wrapMode="truncate-end">
+                                      {row.tags.join(", ")}
+                                    </text>
                                   </box>
                                 )}
                               </For>
@@ -1666,18 +1770,39 @@ export function Session() {
 
                         <Match when={pmTab() === "rules"}>
                           <box flexDirection="column" gap={0}>
-                            <Show when={memoryRules().rows.length > 0} fallback={<text fg={theme.textMuted}>{memoryRules().info ?? "No PM rules set."}</text>}>
-                              <box flexDirection="row" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={0}>
-                                <text fg={theme.textMuted} width={18}>RULE</text>
-                                <text fg={theme.textMuted} flexGrow={1}>PATTERN</text>
-                                <text fg={theme.textMuted} width={8}>ACTION</text>
+                            <Show
+                              when={memoryRules().rows.length > 0}
+                              fallback={<text fg={theme.textMuted}>{memoryRules().info ?? "No PM rules set."}</text>}
+                            >
+                              <box
+                                flexDirection="row"
+                                gap={1}
+                                border={["bottom"]}
+                                borderColor={theme.borderSubtle}
+                                paddingBottom={0}
+                              >
+                                <text fg={theme.textMuted} width={18}>
+                                  RULE
+                                </text>
+                                <text fg={theme.textMuted} flexGrow={1}>
+                                  PATTERN
+                                </text>
+                                <text fg={theme.textMuted} width={8}>
+                                  ACTION
+                                </text>
                               </box>
                               <For each={memoryRules().rows}>
                                 {(row) => (
                                   <box flexDirection="row" gap={1} paddingTop={0} paddingBottom={0}>
-                                    <text fg={theme.text} width={18} wrapMode="truncate-end">{row.ruleType}</text>
-                                    <text fg={theme.text} flexGrow={1} wrapMode="truncate-end">{row.pattern}</text>
-                                    <text fg={theme.primary} width={8}>{row.action}</text>
+                                    <text fg={theme.text} width={18} wrapMode="truncate-end">
+                                      {row.ruleType}
+                                    </text>
+                                    <text fg={theme.text} flexGrow={1} wrapMode="truncate-end">
+                                      {row.pattern}
+                                    </text>
+                                    <text fg={theme.primary} width={8}>
+                                      {row.action}
+                                    </text>
                                   </box>
                                 )}
                               </For>
@@ -1794,7 +1919,9 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
   })
 
   const derivedReasoning = createMemo(() => {
-    const text = reasoningParts().map((p) => p.text).join("")
+    const text = reasoningParts()
+      .map((p) => p.text)
+      .join("")
     return cleanReasoningText(text)
   })
 
@@ -1898,9 +2025,7 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   const ctx = use()
   const kv = useKV()
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const traces = createMemo(() =>
-    props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })),
-  )
+  const traces = createMemo(() => props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })))
   const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
   const first = createMemo(() => traces()[0])
   const last = createMemo(() => traces()[traces().length - 1])
@@ -1926,7 +2051,9 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
       <Show when={narrative()}>
-        <text fg={theme.text} wrapMode="word">{narrative()}</text>
+        <text fg={theme.text} wrapMode="word">
+          {narrative()}
+        </text>
       </Show>
       <Show when={ctx.showAssistantMetadata()}>
         <box flexDirection="column" gap={0} paddingTop={1}>
@@ -2093,7 +2220,10 @@ function Bash(props: ToolProps<typeof ShellTool>) {
     >
       $ {(props.input as any).command}
       <Show when={output()}>
-        <text fg={theme.textMuted} dim> [{output().split("\n").length} lines output]</text>
+        <text fg={theme.textMuted} dim>
+          {" "}
+          [{output().split("\n").length} lines output]
+        </text>
       </Show>
     </InlineTool>
   )
@@ -2102,12 +2232,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
 function Write(props: ToolProps<typeof WriteTool>) {
   const { theme } = useTheme()
   return (
-    <InlineTool
-      icon="✓"
-      pending="Writing file..."
-      complete={props.part.state.status === "completed"}
-      part={props.part}
-    >
+    <InlineTool icon="✓" pending="Writing file..." complete={props.part.state.status === "completed"} part={props.part}>
       Wrote {normalizePath((props.input as any).filePath!)}
     </InlineTool>
   )
@@ -2116,12 +2241,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
 function Edit(props: ToolProps<typeof EditTool>) {
   const { theme } = useTheme()
   return (
-    <InlineTool
-      icon="✓"
-      pending="Editing file..."
-      complete={props.part.state.status === "completed"}
-      part={props.part}
-    >
+    <InlineTool icon="✓" pending="Editing file..." complete={props.part.state.status === "completed"} part={props.part}>
       Edited {normalizePath((props.input as any).filePath!)}
     </InlineTool>
   )
