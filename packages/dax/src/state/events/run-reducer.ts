@@ -20,7 +20,7 @@ export type RunState = {
       approvalsRequested: number
     }
     touchedFiles: string[]
-    rollbackAnchor: {
+    baselineCheckpoint: {
       baselineRef?: string
       snapshotId?: string
       createdAt: string
@@ -156,7 +156,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         approvalsRequested: 0,
       },
       touchedFiles: [],
-      rollbackAnchor: null,
+      baselineCheckpoint: null,
       mutationReceiptIds: [],
       verification: {
         required: false,

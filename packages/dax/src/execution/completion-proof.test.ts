@@ -36,9 +36,9 @@ const mockContract: ExecutionContract = {
     sensitivity: {
       sensitivePatterns: [],
       forbiddenPatterns: [],
-    }
+    },
   },
-  schemaVersion: "v1"
+  schemaVersion: "v1",
 }
 
 const mockRunState = (overrides: Partial<RunState> = {}): RunState => ({
@@ -69,7 +69,7 @@ const mockRunState = (overrides: Partial<RunState> = {}): RunState => ({
     guardEnforcementMode: "enforce",
     failureCounts: {},
     completionProof: null,
-    rollbackAnchor: null,
+    baselineCheckpoint: null,
     planQuality: null,
   },
   trust: null,
@@ -93,8 +93,8 @@ describe("Completion Proof Logic", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -112,8 +112,8 @@ describe("Completion Proof Logic", () => {
           required: false,
           satisfied: false,
           receiptIds: [],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -131,8 +131,8 @@ describe("Completion Proof Logic", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })

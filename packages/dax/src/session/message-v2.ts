@@ -621,12 +621,23 @@ export namespace MessageV2 {
                 ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
               })
           }
+          // Check if reasoning replay is enabled (default off for sanctity)
+          const replayReasoning = process.env.DAX_REPLAY_REASONING === "true"
           if (part.type === "reasoning") {
-            assistantMessage.parts.push({
-              type: "reasoning",
-              text: part.text,
-              ...(differentModel ? {} : { providerMetadata: part.metadata }),
-            })
+            // WARNING: This replays raw reasoning back into model context.
+            // TODO: Replace with structured reflection summary only -
+            // raw reasoning should not influence future model turns.
+            // See product philosophy: "structured reflection, not raw monologue"
+            // Only replay if explicitly enabled via environment variable
+            if (replayReasoning) {
+              assistantMessage.parts.push({
+                type: "reasoning",
+                text: part.text,
+                ...(differentModel ? {} : { providerMetadata: part.metadata }),
+              })
+            }
+            // Note: Reasoning replay is now disabled by default for sanctity.
+            // Set DAX_REPLAY_REASONING=true to enable raw reasoning replay.
           }
         }
         if (assistantMessage.parts.length > 0) {

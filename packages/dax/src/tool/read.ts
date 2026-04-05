@@ -6,10 +6,15 @@ import { LSP } from "../lsp"
 import { FileTime } from "../file/time"
 import DESCRIPTION from "./read.txt"
 import { Instance } from "../project/instance"
-import { Identifier } from "../id/id"
+import { Identifier } from "@/id/id"
 import { assertExternalDirectory } from "./external-directory"
 import { InstructionPrompt } from "../session/instruction"
 
+/**
+ * Reads file contents from the filesystem.
+ * Supports reading specific line ranges, with configurable offset and limit.
+ * Automatically handles external directory access permissions.
+ */
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
 const MAX_BYTES = 50 * 1024

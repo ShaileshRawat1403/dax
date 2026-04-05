@@ -1,3 +1,8 @@
+/**
+ * RPC utilities for worker/message communication.
+ * Uses explicit any types because RPC endpoints accept arbitrary method names and data shapes.
+ * This is a known tradeoff for flexible inter-process communication.
+ */
 export namespace Rpc {
   type Definition = {
     [method: string]: (input: any) => any

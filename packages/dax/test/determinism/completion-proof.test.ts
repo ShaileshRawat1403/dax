@@ -36,9 +36,9 @@ const mockContract: ExecutionContract = {
     sensitivity: {
       sensitivePatterns: [],
       forbiddenPatterns: [],
-    }
+    },
   },
-  schemaVersion: "v1"
+  schemaVersion: "v1",
 }
 
 const mockRunState = (overrides: Partial<RunState> = {}): RunState => ({
@@ -69,7 +69,7 @@ const mockRunState = (overrides: Partial<RunState> = {}): RunState => ({
     guardEnforcementMode: "enforce",
     failureCounts: {},
     completionProof: null,
-    rollbackAnchor: null,
+    baselineCheckpoint: null,
     planQuality: null,
   },
   trust: null,
@@ -93,8 +93,8 @@ describe("Completion Proof Determinism", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -115,8 +115,8 @@ describe("Completion Proof Determinism", () => {
           required: false,
           satisfied: false,
           receiptIds: [],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -135,8 +135,8 @@ describe("Completion Proof Determinism", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -155,8 +155,8 @@ describe("Completion Proof Determinism", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -176,8 +176,8 @@ describe("Completion Proof Determinism", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
@@ -196,14 +196,14 @@ describe("Completion Proof Determinism", () => {
           required: true,
           satisfied: true,
           receiptIds: ["call_2"],
-        }
-      }
+        },
+      },
     })
 
     const proof1 = evaluateCompletionProof({ contract: mockContract, runState })
     const proof2 = evaluateCompletionProof({ contract: mockContract, runState })
 
-    // Use a custom matcher or check specific fields since checkedAt will differ
+    // evaluateCompletionProof is pure - same inputs produce same outputs (no checkedAt)
     expect(proof1.decision).toBe(proof2.decision)
     expect(proof1.failedChecks).toEqual(proof2.failedChecks)
     expect(proof1.verificationExecuted).toBe(proof2.verificationExecuted)

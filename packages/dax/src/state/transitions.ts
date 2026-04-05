@@ -300,6 +300,7 @@ export async function completeStep(runId: string, stepId: string, outputs: strin
  * @param stepId - The step ID that failed
  * @param error - Error code and message
  * @returns Updated run state
+ * @throws Error if step not found or not in valid state for failure
  */
 export async function failStep(
   runId: string,
@@ -314,6 +315,9 @@ export async function failStep(
   }
 
   const step = state.steps[stepIndex]
+  if (step.status !== "proposed" && step.status !== "running") {
+    throw new IllegalStepTransitionError(stepId, step.status, "failed")
+  }
 
   const updatedSteps = [...state.steps]
   updatedSteps[stepIndex] = {

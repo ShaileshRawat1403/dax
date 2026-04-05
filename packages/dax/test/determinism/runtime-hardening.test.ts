@@ -46,7 +46,7 @@ async function setupGuardedSession(input: {
     governance: {
       ...state.governance,
       guardEnforcementMode: "enforce",
-    }
+    },
   }))
   await Session.update(session.id, (draft) => {
     draft.state_v2 = {
@@ -140,7 +140,7 @@ describe("runtime hardening", () => {
           ),
         ).toBe(true)
         expect(updated.state_v2?.runtime_guard?.verification.satisfied).toBe(true)
-        expect(updated.state_v2?.runtime_guard?.rollbackAnchor?.createdAt).toBeDefined()
+        expect(updated.state_v2?.runtime_guard?.baselineCheckpoint?.createdAt).toBeDefined()
       },
     })
   })
