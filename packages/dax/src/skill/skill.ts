@@ -179,14 +179,27 @@ export namespace Skill {
     }
   })
 
+  /**
+   * Gets a specific skill by name.
+   * @param name - Skill name to retrieve
+   * @returns Skill definition or undefined
+   */
   export async function get(name: string) {
     return state().then((x) => x.skills[name])
   }
 
+  /**
+   * Lists all available skills.
+   * @returns Array of all skill definitions
+   */
   export async function all() {
     return state().then((x) => Object.values(x.skills))
   }
 
+  /**
+   * Gets the directories where skills are stored.
+   * @returns Array of directory paths
+   */
   export async function dirs() {
     return state().then((x) => x.dirs)
   }

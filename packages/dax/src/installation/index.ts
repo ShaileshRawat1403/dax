@@ -42,6 +42,10 @@ export namespace Installation {
     })
   export type Info = z.infer<typeof Info>
 
+  /**
+   * Gets current installation info (version and latest available).
+   * @returns Object with current version and latest version info
+   */
   export async function info() {
     return {
       version: VERSION,
@@ -49,14 +53,26 @@ export namespace Installation {
     }
   }
 
+  /**
+   * Checks if running preview/beta channel.
+   * @returns true if not on latest stable channel
+   */
   export function isPreview() {
     return CHANNEL !== "latest"
   }
 
+  /**
+   * Checks if running from local development.
+   * @returns true if running in local dev mode
+   */
   export function isLocal() {
     return CHANNEL === "local"
   }
 
+  /**
+   * Gets the installation method (curl, npm, etc).
+   * @returns Installation method string
+   */
   export async function method() {
     if (process.execPath.includes(path.join(".dax", "bin"))) return "curl"
     if (process.execPath.includes(path.join(".local", "bin"))) return "curl"
@@ -103,8 +119,7 @@ export namespace Installation {
 
     for (const check of checks) {
       const output = await check.command()
-      const installedName =
-        check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "dax" : "dax-ai"
+      const installedName = check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "dax" : "dax-ai"
       if (output.includes(installedName)) {
         return check.name
       }
@@ -128,6 +143,12 @@ export namespace Installation {
     return "dax"
   }
 
+  /**
+   * Upgrades DAX to a specific version using the given method.
+   * @param method - Installation method (curl, npm, etc)
+   * @param target - Target version to upgrade to
+   * @throws UpgradeFailedError if upgrade fails
+   */
   export async function upgrade(method: Method, target: string) {
     let cmd
     switch (method) {

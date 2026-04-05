@@ -83,6 +83,11 @@ export namespace ToolRegistry {
     }
   }
 
+  /**
+   * Registers a custom tool in the registry.
+   * Updates existing tool if same ID, otherwise adds new.
+   * @param tool - Tool definition to register
+   */
   export async function register(tool: Tool.Info) {
     const { custom } = await state()
     const idx = custom.findIndex((t) => t.id === tool.id)
