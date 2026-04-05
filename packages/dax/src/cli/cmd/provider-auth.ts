@@ -19,6 +19,10 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
   methods: T[],
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<VisibleProviderAuthMethod<T>[]> {
+  if (isClaudeCodeProvider(providerID)) {
+    return getClaudeCodeAuthMethods(methods, env)
+  }
+
   if (!isGoogleLikeProvider(providerID)) {
     return methods.map((method, originalIndex) => ({
       method,
@@ -133,4 +137,46 @@ function looksLikeAdvancedGoogleSignIn(label: string) {
 
 function looksLikeCustomGoogleOauth(label: string) {
   return label.toLowerCase().includes("oauth")
+}
+
+function isClaudeCodeProvider(providerID: string): boolean {
+  return providerID === "claude-code" || providerID === "anthropic"
+}
+
+function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
+  methods: T[],
+  env: NodeJS.ProcessEnv = process.env,
+): VisibleProviderAuthMethod<T>[] {
+  const visible: VisibleProviderAuthMethod<T>[] = []
+
+  const apiKeyIndex = methods.findIndex((m) => m.label.toLowerCase().includes("api key"))
+  if (apiKeyIndex >= 0) {
+    visible.push({
+      method: methods[apiKeyIndex]!,
+      originalIndex: apiKeyIndex,
+      title: "Claude API Key",
+      description: "Use your API key from console.anthropic.com",
+      hint: "API usage tracking",
+    })
+  }
+
+  const subscriptionIndex = methods.findIndex(
+    (m) =>
+      m.label.toLowerCase().includes("pro") ||
+      m.label.toLowerCase().includes("plus") ||
+      m.label.toLowerCase().includes("subscription"),
+  )
+  if (subscriptionIndex >= 0) {
+    visible.push({
+      method: methods[subscriptionIndex]!,
+      originalIndex: subscriptionIndex,
+      title: "Claude Pro/Plus Subscription",
+      description: "Sign in with your Anthropic subscription for Pro or Plus access",
+      hint: "Requires OAuth credentials",
+    })
+  }
+
+  return visible.length > 0
+    ? visible
+    : methods.map((m, i) => ({ method: m, originalIndex: i, title: m.label, description: m.description }))
 }

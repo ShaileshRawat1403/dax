@@ -19,8 +19,17 @@ export class ProviderAuthPreflightError extends Error {
 
 export type AuthDiagnostics = {
   providerID: string
-  mode: "gemini-api-key" | "gemini-oauth" | "cli-import" | "codeassist" | "custom-oauth" | "vertex-adc" | "missing"
-  lane?: "gemini-api" | "gemini-subscription" | "vertex"
+  mode:
+    | "gemini-api-key"
+    | "gemini-oauth"
+    | "cli-import"
+    | "codeassist"
+    | "custom-oauth"
+    | "vertex-adc"
+    | "missing"
+    | "anthropic-api"
+    | "anthropic-oauth"
+  lane?: "gemini-api" | "gemini-subscription" | "vertex" | "anthropic-api" | "anthropic-subscription"
   source?: "api-key" | "stored-oauth" | "cli-import" | "adc" | "env"
   endpoint?: "generativelanguage" | "cloudcode-pa" | "vertex"
   ok: boolean
@@ -227,8 +236,8 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
 
   if (auth?.type === "oauth") {
     const mode = (auth.mode as any) ?? (cliCreds?.refresh ? "cli-import" : "gemini-oauth")
-    const accessToken = mode === "cli-import" ? cliCreds?.access ?? auth.access : auth.access
-    const refreshToken = mode === "cli-import" ? cliCreds?.refresh ?? auth.refresh : auth.refresh
+    const accessToken = mode === "cli-import" ? (cliCreds?.access ?? auth.access) : auth.access
+    const refreshToken = mode === "cli-import" ? (cliCreds?.refresh ?? auth.refresh) : auth.refresh
     const token = await validateGoogleOAuthAccessToken(accessToken)
     const hasRefresh = Boolean(refreshToken)
     const isSubscription = mode === "codeassist" || mode === "cli-import"
@@ -333,6 +342,9 @@ export async function diagnoseProviderAuth(providerID: string): Promise<AuthDiag
   if (providerID === "google-vertex" || providerID === "google-vertex-anthropic") {
     return diagnoseVertexProvider(providerID)
   }
+  if (providerID === "claude-code" || providerID === "anthropic") {
+    return diagnoseAnthropicProvider(providerID)
+  }
   return {
     providerID,
     mode: "missing",
@@ -344,7 +356,14 @@ export async function diagnoseProviderAuth(providerID: string): Promise<AuthDiag
 }
 
 export async function assertProviderAuth(providerID: string) {
-  if (providerID !== "google" && providerID !== "google-vertex" && providerID !== "google-vertex-anthropic") return
+  if (
+    providerID !== "google" &&
+    providerID !== "google-vertex" &&
+    providerID !== "google-vertex-anthropic" &&
+    providerID !== "claude-code" &&
+    providerID !== "anthropic"
+  )
+    return
   const report = await diagnoseProviderAuth(providerID)
   if (!report.ok) {
     throw new ProviderAuthPreflightError(providerID, report.error ?? "Provider auth preflight failed.")
@@ -368,4 +387,50 @@ export function expectedGoogleOauthClientIds() {
   return [env("DAX_GEMINI_OAUTH_CLIENT_ID"), env("GEMINI_OAUTH_CLIENT_ID"), env("GOOGLE_OAUTH_CLIENT_ID")].filter(
     Boolean,
   ) as string[]
+}
+
+async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagnostics> {
+  const auth = await Auth.get(providerID)
+  const hasApiKey = Boolean(env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY"))
+
+  if (auth?.type === "oauth") {
+    return {
+      providerID,
+      mode: "anthropic-oauth",
+      lane: "anthropic-subscription",
+      ok: true,
+      requiredEnv: [],
+      missingEnv: [],
+      details: [`${providerID} authenticated via OAuth (Pro/Plus subscription)`],
+    }
+  }
+
+  if (auth?.type === "api" || hasApiKey) {
+    return {
+      providerID,
+      mode: "anthropic-api",
+      lane: "anthropic-api",
+      source: hasApiKey ? "env" : "api-key",
+      ok: true,
+      requiredEnv: ["ANTHROPIC_API_KEY or CLAUDE_API_KEY"],
+      missingEnv: hasApiKey ? [] : ["ANTHROPIC_API_KEY"],
+      details: hasApiKey
+        ? [`${providerID} authenticated via API key`]
+        : [`${providerID} API key not found. Set ANTHROPIC_API_KEY or run 'dax auth login'.`],
+    }
+  }
+
+  return {
+    providerID,
+    mode: "missing",
+    ok: false,
+    requiredEnv: ["ANTHROPIC_API_KEY"],
+    missingEnv: ["ANTHROPIC_API_KEY"],
+    error: `${providerID} auth not configured. Run 'dax auth login ${providerID}' or set ANTHROPIC_API_KEY.`,
+    details: [
+      providerID === "claude-code"
+        ? "Claude Code (Pro/Plus) requires OAuth subscription or API key"
+        : "Anthropic provider requires ANTHROPIC_API_KEY or OAuth login",
+    ],
+  }
 }
