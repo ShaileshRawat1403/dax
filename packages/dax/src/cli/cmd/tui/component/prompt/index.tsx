@@ -1592,28 +1592,43 @@ export function Prompt(props: PromptProps) {
             </Show>
           </box>
 
-          <box flexShrink={0} flexDirection="row" gap={2} alignItems="center">
+          <box flexShrink={0} flexDirection="row" gap={1} alignItems="center" justifyContent="space-between">
             <Show when={status().type !== "retry"}>
-              <box flexDirection="row" gap={2}>
+              <box flexDirection="row" gap={1} alignItems="center">
                 <Show when={store.prompt.input.length > 0}>
-                  <box onMouseUp={handleRefine} backgroundColor={theme.accent} paddingLeft={1} paddingRight={1}>
+                  <box
+                    onMouseUp={handleRefine}
+                    backgroundColor={theme.accent}
+                    border={["round"]}
+                    borderColor={theme.borderActive}
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
                     <text fg={theme.background} attributes={TextAttributes.BOLD}>
-                      ✦ Refine Current
+                      Refine
                     </text>
                   </box>
                 </Show>
                 <box
                   onMouseUp={() => setExplainMode(!explainMode())}
                   backgroundColor={explainMode() ? theme.success : theme.backgroundElement}
+                  border={["round"]}
+                  borderColor={explainMode() ? theme.borderActive : theme.borderSubtle}
                   paddingLeft={1}
                   paddingRight={1}
                 >
                   <text fg={explainMode() ? theme.background : theme.textMuted}>
-                    📚 ELI12: {explainMode() ? "ON" : "OFF"}
+                    ELI12: {explainMode() ? "ON" : "OFF"}
                   </text>
                 </box>
-                <box paddingLeft={1} paddingRight={1}>
-                  <text fg={theme.textMuted}>🤖 {local.model.parsed().model}</text>
+                <box
+                  backgroundColor={theme.backgroundElement}
+                  border={["round"]}
+                  borderColor={theme.borderSubtle}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
+                  <text fg={theme.textMuted}>{local.model.parsed().model}</text>
                 </box>
                 <box
                   backgroundColor={theme.backgroundElement}
@@ -1628,15 +1643,15 @@ export function Prompt(props: PromptProps) {
                   <text fg={theme.textMuted}> tab</text>
                 </box>
               </box>
-              <box flexDirection="row" gap={2}>
-                <box
-                  onMouseUp={submit}
-                  backgroundColor={store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
-                  <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>↑ Submit [enter]</text>
-                </box>
+              <box
+                onMouseUp={submit}
+                backgroundColor={store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
+                border={["round"]}
+                borderColor={store.prompt.input.length > 0 ? theme.borderActive : theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>Submit [enter]</text>
               </box>
             </Show>
           </box>
