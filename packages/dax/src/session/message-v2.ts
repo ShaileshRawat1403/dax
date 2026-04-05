@@ -698,6 +698,12 @@ export namespace MessageV2 {
     },
   )
 
+  /**
+   * Filters and compacts a stream of messages by removing redundant content.
+   * Removes compaction markers and deduplicates completed messages.
+   * @param stream - Async iterable of messages to filter
+   * @returns Filtered array of messages
+   */
   export async function filterCompacted(stream: AsyncIterable<MessageV2.WithParts>) {
     const result = [] as MessageV2.WithParts[]
     const completed = new Set<string>()

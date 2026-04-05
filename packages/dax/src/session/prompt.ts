@@ -242,6 +242,12 @@ export namespace SessionPrompt {
     return loop({ sessionID: input.sessionID })
   })
 
+  /**
+   * Resolves prompt parts from a template string.
+   * Extracts markdown files and converts them to prompt input parts.
+   * @param template - Template string to resolve
+   * @returns Array of prompt input parts
+   */
   export async function resolvePromptParts(template: string): Promise<PromptInput["parts"]> {
     const parts: PromptInput["parts"] = [
       {
@@ -1514,9 +1520,11 @@ You should build your plan incrementally by writing to or updating this file wit
 
 ${planWorkflow}
 
-${interactivePlanningAvailable
-  ? `NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.`
-  : `NOTE: This is a non-interactive planning pass. Do not ask the user follow-up questions in this run; capture assumptions, open questions, and unresolved risk inside the plan file itself.`}
+${
+  interactivePlanningAvailable
+    ? `NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.`
+    : `NOTE: This is a non-interactive planning pass. Do not ask the user follow-up questions in this run; capture assumptions, open questions, and unresolved risk inside the plan file itself.`
+}
 </system-reminder>`,
         synthetic: true,
       })
