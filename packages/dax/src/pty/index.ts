@@ -96,6 +96,11 @@ export namespace Pty {
     return state().get(id)?.info
   }
 
+  /**
+   * Creates a new PTY session.
+   * @param input - PTY creation input (command, args, cwd, env)
+   * @returns Created PTY session info
+   */
   export async function create(input: CreateInput) {
     const id = Identifier.create("pty", false)
     const command = input.command || Shell.preferred()
@@ -176,6 +181,12 @@ export namespace Pty {
     return info
   }
 
+  /**
+   * Updates an existing PTY session (title, size).
+   * @param id - PTY session ID
+   * @param input - Update input
+   * @returns Updated PTY info
+   */
   export async function update(id: string, input: UpdateInput) {
     const session = state().get(id)
     if (!session) return
@@ -189,6 +200,10 @@ export namespace Pty {
     return session.info
   }
 
+  /**
+   * Removes and cleans up a PTY session.
+   * @param id - PTY session ID to remove
+   */
   export async function remove(id: string) {
     const session = state().get(id)
     if (!session) return

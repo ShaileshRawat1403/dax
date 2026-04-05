@@ -263,10 +263,23 @@ function isPending(status: ApprovalStatus): boolean {
 }
 
 export namespace ApprovalTransitions {
+  /**
+   * Creates a new approval request.
+   * @param params - Approval creation parameters
+   * @returns Created approval
+   */
   export async function create(params: CreateApprovalParams): Promise<Approval> {
     return createAndPersistApproval(params)
   }
 
+  /**
+   * Approves a pending approval.
+   * @param runId - Run ID
+   * @param approvalId - Approval ID to approve
+   * @param actorId - Optional actor ID
+   * @param comment - Optional approval comment
+   * @returns Updated approval
+   */
   export async function approve(
     runId: string,
     approvalId: string,

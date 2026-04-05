@@ -55,6 +55,11 @@ export namespace Snapshot {
     log.info("cleanup", { prune })
   }
 
+  /**
+   * Tracks current state by creating a git snapshot.
+   * Initializes git directory if needed and commits current state.
+   * @returns Promise that resolves when tracking completes
+   */
   export async function track() {
     if (Instance.project.vcs !== "git") return
     const cfg = await Config.get()
