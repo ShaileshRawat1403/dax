@@ -356,14 +356,29 @@ export async function hasContract(runId: string): Promise<boolean> {
 }
 
 export namespace RunFactory {
+  /**
+   * Creates a new run from an execution contract.
+   * @param input - Run factory input with contract and metadata
+   * @returns Created run factory result
+   */
   export async function create(input: RunFactoryInput): Promise<RunFactoryResult> {
     return createRunFromContract(input)
   }
 
+  /**
+   * Gets the execution contract for a run.
+   * @param runId - Run ID to get contract for
+   * @returns Execution contract or undefined
+   */
   export async function getContract(runId: string): Promise<ExecutionContract | undefined> {
     return getContractForRun(runId)
   }
 
+  /**
+   * Checks if a run has an execution contract.
+   * @param runId - Run ID to check
+   * @returns true if contract exists
+   */
   export async function hasContract(runId: string): Promise<boolean> {
     return hasContract(runId)
   }

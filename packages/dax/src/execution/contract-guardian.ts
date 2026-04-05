@@ -106,14 +106,29 @@ function contractPath(runId: string): string[] {
 }
 
 export namespace ContractGuardian {
+  /**
+   * Gets the execution contract for a run.
+   * @param runId - Run ID to get contract for
+   * @returns Execution contract or null
+   */
   export async function get(runId: string): Promise<ExecutionContract | null> {
     return readContract(runId)
   }
 
+  /**
+   * Creates an execution contract for a run if not already started.
+   * @param runId - Run ID
+   * @param contract - Contract to create
+   */
   export async function create(runId: string, contract: ExecutionContract): Promise<void> {
     return writeContractIfNotStarted(runId, contract)
   }
 
+  /**
+   * Verifies the integrity of an execution contract.
+   * @param runId - Run ID to verify
+   * @returns true if contract is valid
+   */
   export async function verify(runId: string): Promise<boolean> {
     const result = await verifyContractIntegrity(runId)
     return result.valid
