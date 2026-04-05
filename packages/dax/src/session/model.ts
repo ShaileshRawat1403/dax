@@ -184,13 +184,13 @@ export namespace SessionV2 {
   })
   export type RuntimeGuardBudget = z.infer<typeof RuntimeGuardBudget>
 
-  export const RuntimeGuardRollbackAnchor = z.object({
+  export const RuntimeGuardBaselineCheckpoint = z.object({
     baselineRef: z.string().optional(),
     snapshotId: z.string().optional(),
     createdAt: z.string(),
     mutationReceiptIds: z.string().array().default([]),
   })
-  export type RuntimeGuardRollbackAnchor = z.infer<typeof RuntimeGuardRollbackAnchor>
+  export type RuntimeGuardBaselineCheckpoint = z.infer<typeof RuntimeGuardBaselineCheckpoint>
 
   export const RuntimeGuardVerification = z.object({
     required: z.boolean().default(false),
@@ -202,7 +202,7 @@ export namespace SessionV2 {
   export const RuntimeGuardState = z.object({
     budget: RuntimeGuardBudget,
     touchedFiles: z.string().array().default([]),
-    rollbackAnchor: RuntimeGuardRollbackAnchor.optional(),
+    baselineCheckpoint: RuntimeGuardBaselineCheckpoint.optional(),
     failureCounts: z.record(z.string(), z.number().int().nonnegative()).default({}),
     verification: RuntimeGuardVerification.default({
       required: false,

@@ -12,6 +12,7 @@ import fs from "fs"
 import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
 import { deriveCompletionProof } from "./completion-proof"
 import { MessageV2 } from "@/session/message-v2"
+import { BashArity } from "@/governance/arity"
 
 export type RuntimeActionClass = "analyze" | "propose" | "mutate" | "commit" | "publish" | "verify"
 
@@ -72,11 +73,61 @@ const PUBLISH_COMMAND =
 const MUTATING_COMMAND =
   /\b(rm|mv|cp|mkdir|touch|git\s+add|git\s+restore|git\s+reset|sed\s+-i|perl\s+-pi|tee)\b|[>]{1,2}|\bapply_patch\b/i
 
+function tokenizeCommand(command: string): string[] {
+  const tokens: string[] = []
+  let current = ""
+  let inSingleQuote = false
+  let inDoubleQuote = false
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]
+
+    if (inSingleQuote) {
+      if (char === "'") {
+        inSingleQuote = false
+      } else {
+        current += char
+      }
+    } else if (inDoubleQuote) {
+      if (char === '"') {
+        inDoubleQuote = false
+      } else if (char === "\\" && i + 1 < command.length) {
+        current += command[i + 1]
+        i++
+      } else {
+        current += char
+      }
+    } else {
+      if (char === "'") {
+        inSingleQuote = true
+      } else if (char === '"') {
+        inDoubleQuote = true
+      } else if (char === "\\" && i + 1 < command.length) {
+        current += command[i + 1]
+        i++
+      } else if (/\s/.test(char)) {
+        if (current) {
+          tokens.push(current)
+          current = ""
+        }
+      } else {
+        current += char
+      }
+    }
+  }
+
+  if (current) {
+    tokens.push(current)
+  }
+
+  return tokens
+}
+
 function defaultRuntimeGuardState(): RuntimeGuardState {
   return {
     budget: { ...DEFAULT_BUDGET },
     touchedFiles: [],
-    rollbackAnchor: undefined,
+    baselineCheckpoint: undefined,
     failureCounts: {},
     verification: {
       required: false,
@@ -162,11 +213,42 @@ function classifyActionClass(req: GuardRequest): RuntimeActionClass {
   if (req.permission === "edit") return "mutate"
   if (req.permission === "external_directory") return "analyze"
   if (req.permission !== "shell") return "analyze"
-  const command = req.patterns.join(" && ")
-  if (VERIFY_COMMAND.test(command)) return "verify"
-  if (PUBLISH_COMMAND.test(command)) return "publish"
-  if (COMMIT_COMMAND.test(command)) return "commit"
-  if (MUTATING_COMMAND.test(command)) return "mutate"
+
+  const commandText = req.patterns.join(" && ")
+  const tokens = tokenizeCommand(commandText)
+  const prefix = BashArity.prefix(tokens).join(" ")
+
+  const verifyPrefixes = ["pytest", "vitest", "jest", "cargo test", "go test", "bun test", "npm test", "pnpm test"]
+  const publishPrefixes = [
+    "git push",
+    "gh pr create",
+    "gh release create",
+    "npm publish",
+    "pnpm publish",
+    "cargo publish",
+  ]
+  const commitPrefixes = ["git commit", "git merge", "git rebase", "git cherry-pick"]
+  const mutatingPrefixes = [
+    "rm",
+    "mv",
+    "cp",
+    "mkdir",
+    "touch",
+    "git add",
+    "git restore",
+    "git reset",
+    "sed -i",
+    "perl -pi",
+    "tee",
+  ]
+
+  if (verifyPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "verify"
+  if (publishPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "publish"
+  if (commitPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "commit"
+  if (mutatingPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "mutate"
+
+  if (/>=?/.test(commandText)) return "mutate"
+
   return "analyze"
 }
 
@@ -320,6 +402,8 @@ async function blockViolation(
       toolName?: string
       diffPreview?: string
       notes?: string[]
+      approvalsRequested?: number
+      maxApprovalRequests?: number
     }
   },
 ) {
@@ -557,6 +641,21 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     })
   }
 
+  if (currentGuard.budget.approvalsRequested >= currentGuard.budget.maxApprovalRequests) {
+    const reason = `This run has already requested ${currentGuard.budget.approvalsRequested} approvals, reaching the maximum budget of ${currentGuard.budget.maxApprovalRequests}. Complete existing approvals before requesting more.`
+    await blockViolation(input, {
+      code: "approval_budget",
+      title: "Approval request budget reached",
+      reason,
+      risk: "critical",
+      context: {
+        approvalsRequested: currentGuard.budget.approvalsRequested,
+        maxApprovalRequests: currentGuard.budget.maxApprovalRequests,
+        toolName: input.toolID,
+      },
+    })
+  }
+
   await updateRuntimeGuardState(input.sessionID, (guard) => {
     const next = { ...guard }
     next.budget = {
@@ -565,8 +664,11 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       mutatingCommands: nextMutatingCommands,
     }
     next.touchedFiles = [...nextTouched]
-    if ((actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") && !next.rollbackAnchor) {
-      next.rollbackAnchor = {
+    if (
+      (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") &&
+      !next.baselineCheckpoint
+    ) {
+      next.baselineCheckpoint = {
         baselineRef: undefined,
         createdAt: new Date().toISOString(),
         mutationReceiptIds: input.callID ? [input.callID] : [],
@@ -576,12 +678,12 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         required: true,
       }
     } else if ((actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") && input.callID) {
-      next.rollbackAnchor = next.rollbackAnchor
+      next.baselineCheckpoint = next.baselineCheckpoint
         ? {
-            ...next.rollbackAnchor,
-            mutationReceiptIds: [...new Set([...(next.rollbackAnchor.mutationReceiptIds ?? []), input.callID])],
+            ...next.baselineCheckpoint,
+            mutationReceiptIds: [...new Set([...(next.baselineCheckpoint.mutationReceiptIds ?? []), input.callID])],
           }
-        : next.rollbackAnchor
+        : next.baselineCheckpoint
     }
     if (actionClass === "verify") {
       next.verification = {
@@ -600,11 +702,11 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     const baselineRef = await resolveBaselineRef()
     if (baselineRef) {
       await updateRuntimeGuardState(input.sessionID, (guard) => {
-        if (!guard.rollbackAnchor || guard.rollbackAnchor.baselineRef) return guard
+        if (!guard.baselineCheckpoint || guard.baselineCheckpoint.baselineRef) return guard
         return {
           ...guard,
-          rollbackAnchor: {
-            ...guard.rollbackAnchor,
+          baselineCheckpoint: {
+            ...guard.baselineCheckpoint,
             baselineRef,
           },
         }
@@ -623,16 +725,16 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
           filesTouched: nextFilesTouched,
           mutatingCommands: nextMutatingCommands,
         },
-        rollbackAnchor:
-          state.governance.rollbackAnchor ??
+        baselineCheckpoint:
+          state.governance.baselineCheckpoint ??
           ((actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") &&
-          session.state_v2?.runtime_guard?.rollbackAnchor
+          session.state_v2?.runtime_guard?.baselineCheckpoint
             ? {
-                baselineRef: session.state_v2.runtime_guard.rollbackAnchor.baselineRef,
-                snapshotId: session.state_v2.runtime_guard.rollbackAnchor.snapshotId,
-                createdAt: session.state_v2.runtime_guard.rollbackAnchor.createdAt,
+                baselineRef: session.state_v2.runtime_guard.baselineCheckpoint.baselineRef,
+                snapshotId: session.state_v2.runtime_guard.baselineCheckpoint.snapshotId,
+                createdAt: session.state_v2.runtime_guard.baselineCheckpoint.createdAt,
               }
-            : state.governance.rollbackAnchor),
+            : state.governance.baselineCheckpoint),
         mutationReceiptIds:
           input.callID && (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish")
             ? [...new Set([...state.governance.mutationReceiptIds, input.callID])]

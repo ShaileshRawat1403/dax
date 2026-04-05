@@ -188,7 +188,21 @@ export namespace Agent {
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
             shell: {
-              "*": "ask",
+              // Only allow verified read-only commands - blocks mutating commands at permission layer
+              // Runtime guard further restricts to verify-only via classifyActionClass
+              "pytest*": "allow",
+              "vitest*": "allow",
+              "jest*": "allow",
+              "cargo test*": "allow",
+              "go test*": "allow",
+              "bun test*": "allow",
+              "npm test*": "allow",
+              "pnpm test*": "allow",
+              "tsc*": "allow",
+              "typecheck*": "allow",
+              "ruff*": "allow",
+              "eslint*": "allow",
+              "*": "deny", // Explicit deny for non-verification commands
             },
             external_directory: {
               [Truncate.GLOB]: "allow",
@@ -233,7 +247,21 @@ export namespace Agent {
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
             shell: {
-              "*": "ask",
+              // Only allow verified read-only commands - blocks mutating commands at permission layer
+              // Runtime guard further restricts to verify-only via classifyActionClass
+              "pytest*": "allow",
+              "vitest*": "allow",
+              "jest*": "allow",
+              "cargo test*": "allow",
+              "go test*": "allow",
+              "bun test*": "allow",
+              "npm test*": "allow",
+              "pnpm test*": "allow",
+              "tsc*": "allow",
+              "typecheck*": "allow",
+              "ruff*": "allow",
+              "eslint*": "allow",
+              "*": "deny", // Explicit deny for non-verification commands
             },
             external_directory: {
               [Truncate.GLOB]: "allow",

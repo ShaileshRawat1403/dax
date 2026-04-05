@@ -34,12 +34,12 @@ export const RunErrorSchema = z.object({
 })
 export type RunError = z.infer<typeof RunErrorSchema>
 
-export const RollbackAnchorSchema = z.object({
+export const BaselineCheckpointSchema = z.object({
   baselineRef: z.string().optional(),
   snapshotId: z.string().optional(),
   createdAt: z.string(),
 })
-export type RollbackAnchor = z.infer<typeof RollbackAnchorSchema>
+export type BaselineCheckpoint = z.infer<typeof BaselineCheckpointSchema>
 
 export const VerificationStateSchema = z.object({
   required: z.boolean().default(false),
@@ -60,7 +60,7 @@ export const RuntimeGovernanceSchema = z.object({
     approvalsRequested: z.number().int().nonnegative().default(0),
   }),
   touchedFiles: z.string().array().default([]),
-  rollbackAnchor: RollbackAnchorSchema.nullable().default(null),
+  baselineCheckpoint: BaselineCheckpointSchema.nullable().default(null),
   mutationReceiptIds: z.string().array().default([]),
   verification: VerificationStateSchema.default({
     required: false,
@@ -126,7 +126,7 @@ export const RunStateSchema = z.object({
       approvalsRequested: 0,
     },
     touchedFiles: [],
-    rollbackAnchor: null,
+    baselineCheckpoint: null,
     mutationReceiptIds: [],
     verification: {
       required: false,
@@ -184,7 +184,7 @@ export function createInitialRunState(runId: string, contractId: string): RunSta
         approvalsRequested: 0,
       },
       touchedFiles: [],
-      rollbackAnchor: null,
+      baselineCheckpoint: null,
       mutationReceiptIds: [],
       verification: {
         required: false,

@@ -6,7 +6,7 @@ import { UI } from "./ui"
 
 export function FormatError(input: unknown) {
   if (MCP.Failed.isInstance(input))
-    return `MCP server "${input.data.name}" failed. Note, dax does not support MCP authentication yet.`
+    return `MCP server "${input.data.name}" failed. Run \`dax mcp auth ${input.data.name}\` to authenticate, or \`dax mcp list\` to check server status.`
   if (Provider.ModelNotFoundError.isInstance(input)) {
     const { providerID, modelID, suggestions } = input.data
     return [

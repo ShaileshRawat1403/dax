@@ -60,6 +60,21 @@ export const ProviderRoutes = lazy(() =>
           mapValues(filteredProviders, (x) => Provider.fromModelsDevProvider(x)),
           connected,
         )
+
+        if (providers["anthropic"]) {
+          providers["claude-code"] = {
+            ...providers["anthropic"],
+            id: "claude-code",
+            name: "Claude Code (Pro/Plus)",
+            models: Object.fromEntries(
+              Object.entries(providers["anthropic"].models).map(([modelID, model]) => [
+                modelID,
+                { ...model, providerID: "claude-code" },
+              ]),
+            ),
+          }
+        }
+
         return c.json({
           all: Object.values(providers),
           default: mapValues(providers, (item) => {
