@@ -1628,15 +1628,6 @@ export function Prompt(props: PromptProps) {
                   paddingLeft={1}
                   paddingRight={1}
                 >
-                  <text fg={theme.textMuted}>{local.model.parsed().model}</text>
-                </box>
-                <box
-                  backgroundColor={theme.backgroundElement}
-                  border={["round"]}
-                  borderColor={theme.borderSubtle}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
                   <text fg={theme.accent} attributes={TextAttributes.BOLD}>
                     {workflowMode().toUpperCase()}
                   </text>
