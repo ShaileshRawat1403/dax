@@ -1152,9 +1152,15 @@ export function Session() {
           persona={activePersona()}
           onCyclePersona={cyclePersona}
           sessionLabel={session()?.title}
+          lifecycle={workstationState().lifecycle}
           lifecycleLabel={workstationState().lifecycleLabel}
           decisionState={stageLabel()}
           trustLabel={workstationState().trustLabel}
+          trustPosture={workstationState().trustPosture}
+          pendingApprovals={workstationState().approvalSummary.pendingCount}
+          verificationStatus={
+            workstationState().completionProof?.ready ? "PASS" : workstationState().completionProof ? "FAIL" : undefined
+          }
           emphasis={showPane() ? "muted" : "normal"}
           busy={sessionStatusType() === "busy"}
           actions={[
@@ -1886,6 +1892,54 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
 
   const daxSpeaking = createMemo(() => props.message.agent === "dax")
 
+  const roleLabel = createMemo(() => {
+    if (props.message.role === "user") return "USER"
+    const agent = (props.message as AssistantMessage).agent.toLowerCase()
+    switch (agent) {
+      case "dax":
+        return "EXECUTOR"
+      case "explore":
+        return "EXPLORER"
+      case "plan":
+      case "planner":
+        return "PLANNER"
+      case "review":
+        return "REVIEWER"
+      case "verify":
+      case "verifier":
+        return "VERIFIER"
+      case "audit":
+      case "auditor":
+        return "AUDITOR"
+      default:
+        return agent.toUpperCase()
+    }
+  })
+
+  const roleColor = createMemo(() => {
+    if (props.message.role === "user") return theme.primary
+    const agent = (props.message as AssistantMessage).agent.toLowerCase()
+    switch (agent) {
+      case "dax":
+        return theme.primary
+      case "explore":
+        return theme.secondary
+      case "plan":
+      case "planner":
+        return theme.accent
+      case "review":
+        return theme.warning
+      case "verify":
+      case "verifier":
+        return theme.success
+      case "audit":
+      case "auditor":
+        return theme.error
+      default:
+        return theme.primary
+    }
+  })
+
   const reasoningParts = createMemo(() => parts().filter((p): p is ReasoningPart => p.type === "reasoning"))
   const toolParts = createMemo(() => parts().filter((p): p is ToolPart => p.type === "tool"))
   const textParts = createMemo(() => parts().filter((p): p is TextPart => p.type === "text"))
@@ -1958,13 +2012,13 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             backgroundColor={tint(theme.background, theme.backgroundElement, 0.28)}
           >
             <box
-              backgroundColor={tint(theme.background, theme.primary, 0.34)}
+              backgroundColor={tint(theme.background, roleColor(), 0.34)}
               paddingLeft={1}
               paddingRight={1}
               marginRight={1}
             >
-              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                {props.message.agent.toUpperCase()}
+              <text fg={roleColor()} attributes={TextAttributes.BOLD}>
+                {roleLabel()}
               </text>
             </box>
             <Show when={ctx.showTimestamps()}>

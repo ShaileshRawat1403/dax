@@ -1,7 +1,7 @@
 import { useSync } from "@tui/context/sync"
 import { createMemo, createSignal, For, onCleanup, onMount, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useTheme } from "../../context/theme"
+import { useTheme, tint } from "../../context/theme"
 import { TextAttributes } from "@opentui/core"
 import { Installation } from "@/installation"
 import { useDirectory } from "../../context/directory"
@@ -255,17 +255,17 @@ export function Sidebar(props: {
       pendingID: pending(),
       partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
     })
-    
+
     return deriveWorkstationState({
       sessionID: props.sessionID,
       stage: stage.stage,
       stageReason: stage.reason,
       sessionStatusType: runtimeStatus().type as any,
       goal: s?.title,
-      todo: todo().map(t => ({ content: t.content, status: t.status })),
+      todo: todo().map((t) => ({ content: t.content, status: t.status })),
       reflection: (s?.state_v2 as any)?.reflection,
       reflectionHistory: (s?.state_v2 as any)?.reflection_history ?? [],
-      approvals: permissions().map(p => ({ label: p.permission, reason: p.metadata?.reason as string | undefined })),
+      approvals: permissions().map((p) => ({ label: p.permission, reason: p.metadata?.reason as string | undefined })),
       questions: questions().length,
       artifacts: art.map((a: any) => ({ label: a.path || a.id, kind: a.kind })),
       diffCount: diff().length,
@@ -276,7 +276,7 @@ export function Sidebar(props: {
             warningCount: audit.summary.warning_count,
             infoCount: audit.summary.info_count,
           }
-        : undefined
+        : undefined,
     })
   })
 
@@ -307,7 +307,10 @@ export function Sidebar(props: {
 
             <Show when={showSection("reflection") && workstationState().reflection}>
               <SidebarCard>
-                <ReflectionPanel reflection={workstationState().reflection} history={workstationState().reflectionHistory} />
+                <ReflectionPanel
+                  reflection={workstationState().reflection}
+                  history={workstationState().reflectionHistory}
+                />
               </SidebarCard>
             </Show>
 
@@ -317,69 +320,153 @@ export function Sidebar(props: {
               </SidebarCard>
             </Show>
 
+            <Show when={showSection("artifacts") && workstationState().artifactSummary.count > 0}>
+              <SidebarCard>
+                <box flexDirection="column" gap={1}>
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    Artifacts
+                  </text>
+                  <box flexDirection="row" gap={1} flexWrap="wrap">
+                    <Show when={workstationState().artifactSummary.workspaceWrites > 0}>
+                      <box
+                        flexDirection="row"
+                        gap={1}
+                        backgroundColor={tint(theme.background, theme.primary, 0.15)}
+                        border={["round"]}
+                        borderColor={theme.primary}
+                        paddingLeft={1}
+                        paddingRight={1}
+                      >
+                        <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                          {workstationState().artifactSummary.workspaceWrites} File
+                          {workstationState().artifactSummary.workspaceWrites === 1 ? "" : "s"}
+                        </text>
+                      </box>
+                    </Show>
+                    <Show when={workstationState().artifactSummary.reports > 0}>
+                      <box
+                        flexDirection="row"
+                        gap={1}
+                        backgroundColor={tint(theme.background, theme.secondary, 0.15)}
+                        border={["round"]}
+                        borderColor={theme.secondary}
+                        paddingLeft={1}
+                        paddingRight={1}
+                      >
+                        <text fg={theme.secondary} attributes={TextAttributes.BOLD}>
+                          {workstationState().artifactSummary.reports} Report
+                          {workstationState().artifactSummary.reports === 1 ? "" : "s"}
+                        </text>
+                      </box>
+                    </Show>
+                    <Show when={workstationState().artifactSummary.metadata > 0}>
+                      <box
+                        flexDirection="row"
+                        gap={1}
+                        backgroundColor={tint(theme.background, theme.textMuted, 0.1)}
+                        border={["round"]}
+                        borderColor={theme.borderSubtle}
+                        paddingLeft={1}
+                        paddingRight={1}
+                      >
+                        <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                          {workstationState().artifactSummary.metadata} Meta
+                        </text>
+                      </box>
+                    </Show>
+                  </box>
+                  <Show when={workstationState().artifactSummary.items.length > 0}>
+                    <box flexDirection="column" gap={0} paddingLeft={1}>
+                      <For each={workstationState().artifactSummary.items.slice(-5)}>
+                        {(artifact) => (
+                          <text fg={theme.textMuted} wrapMode="word" dim>
+                            • {artifact.label}
+                          </text>
+                        )}
+                      </For>
+                    </box>
+                  </Show>
+                </box>
+              </SidebarCard>
+            </Show>
+
             <Show when={showSection("runtime")}>
               <SidebarCard>
-              <text fg={theme.text}>
-                <b>Runtime</b>
-              </text>
-              <text fg={runtimeStatus().type === "retry" || runtimeStatus().type === "delayed" ? theme.warning : theme.textMuted}>
-                {runtimeStatus().type === "busy"
-                  ? "working"
-                  : runtimeStatus().type === "retry"
-                    ? "cooling down"
-                    : runtimeStatus().type === "delayed"
-                      ? "provider delayed"
-                      : "connected"}
-              </text>
-              <Show when={retryMessage()}>
-                {(message) => (
-                  <>
+                <text fg={theme.text}>
+                  <b>Runtime</b>
+                </text>
+                <text
+                  fg={
+                    runtimeStatus().type === "retry" || runtimeStatus().type === "delayed"
+                      ? theme.warning
+                      : theme.textMuted
+                  }
+                >
+                  {runtimeStatus().type === "busy"
+                    ? "working"
+                    : runtimeStatus().type === "retry"
+                      ? "cooling down"
+                      : runtimeStatus().type === "delayed"
+                        ? "provider delayed"
+                        : "connected"}
+                </text>
+                <Show when={retryMessage()}>
+                  {(message) => (
+                    <>
+                      <text fg={theme.warning} wrapMode="word">
+                        {message()}
+                      </text>
+                      <Show when={retryCountdown()}>
+                        {(ms) => (
+                          <text fg={theme.textMuted} wrapMode="word">
+                            retry in: {Locale.duration(ms())}
+                          </text>
+                        )}
+                      </Show>
+                      <text fg={theme.textMuted} wrapMode="word">
+                        next: {nextActionForErrorMessage(message())}
+                      </text>
+                    </>
+                  )}
+                </Show>
+                <Show when={delayedMessage()}>
+                  {(message) => (
                     <text fg={theme.warning} wrapMode="word">
                       {message()}
                     </text>
-                    <Show when={retryCountdown()}>
-                      {(ms) => (
-                        <text fg={theme.textMuted} wrapMode="word">
-                          retry in: {Locale.duration(ms())}
-                        </text>
-                      )}
-                    </Show>
-                    <text fg={theme.textMuted} wrapMode="word">
-                      next: {nextActionForErrorMessage(message())}
-                    </text>
-                  </>
-                )}
-              </Show>
-              <Show when={delayedMessage()}>
-                {(message) => (
-                  <text fg={theme.warning} wrapMode="word">
-                    {message()}
-                  </text>
-                )}
-              </Show>
-              <Show when={permissions().length > 0 || questions().length > 0}>
-                <text fg={theme.warning}>
-                  {permissions().length > 0
-                    ? `${permissions().length} approval${permissions().length === 1 ? "" : "s"}`
-                    : ""}
-                  {permissions().length > 0 && questions().length > 0 ? " · " : ""}
-                  {questions().length > 0 ? `${questions().length} question${questions().length === 1 ? "" : "s"}` : ""}
-                </text>
-              </Show>
-              <box flexDirection="row" gap={1} flexWrap="wrap">
+                  )}
+                </Show>
                 <Show when={permissions().length > 0 || questions().length > 0}>
-                  <SidebarAction label={SESSION_COMMAND_LABELS.reviewApprovals} onPress={props.onInspectApprovals} />
+                  <text fg={theme.warning}>
+                    {permissions().length > 0
+                      ? `${permissions().length} approval${permissions().length === 1 ? "" : "s"}`
+                      : ""}
+                    {permissions().length > 0 && questions().length > 0 ? " · " : ""}
+                    {questions().length > 0
+                      ? `${questions().length} question${questions().length === 1 ? "" : "s"}`
+                      : ""}
+                  </text>
                 </Show>
-                <Show when={diff().length > 0}>
-                  <SidebarAction label={SESSION_COMMAND_LABELS.reviewDiff} onPress={props.onInspectDiff} />
-                </Show>
-                <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline} onPress={props.onOpenTimeline} muted />
-                <SidebarAction label={SESSION_COMMAND_LABELS.jumpLastRequest} onPress={props.onJumpLastUser} muted />
-                <Show when={runtimeStatus().type === "busy" || runtimeStatus().type === "retry" || runtimeStatus().type === "delayed"}>
-                <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive} onPress={props.onJumpLive} muted />
-                </Show>
-                <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
-              </box>
+                <box flexDirection="row" gap={1} flexWrap="wrap">
+                  <Show when={permissions().length > 0 || questions().length > 0}>
+                    <SidebarAction label={SESSION_COMMAND_LABELS.reviewApprovals} onPress={props.onInspectApprovals} />
+                  </Show>
+                  <Show when={diff().length > 0}>
+                    <SidebarAction label={SESSION_COMMAND_LABELS.reviewDiff} onPress={props.onInspectDiff} />
+                  </Show>
+                  <SidebarAction label={SESSION_COMMAND_LABELS.jumpTimeline} onPress={props.onOpenTimeline} muted />
+                  <SidebarAction label={SESSION_COMMAND_LABELS.jumpLastRequest} onPress={props.onJumpLastUser} muted />
+                  <Show
+                    when={
+                      runtimeStatus().type === "busy" ||
+                      runtimeStatus().type === "retry" ||
+                      runtimeStatus().type === "delayed"
+                    }
+                  >
+                    <SidebarAction label={SESSION_COMMAND_LABELS.jumpLive} onPress={props.onJumpLive} muted />
+                  </Show>
+                  <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
+                </box>
               </SidebarCard>
             </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
@@ -447,35 +534,35 @@ export function Sidebar(props: {
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <Show when={showSection("audit")}>
               <SidebarCard>
-              <SectionHeading title="Session" />
-              <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
-                <text fg={theme.primary}>{workflowMode()}</text>
-                <text fg={theme.textMuted}>·</text>
-                <text fg={theme.textMuted}>{userTurnCount()} turns</text>
-                <Show when={permissions().length + questions().length > 0}>
-                  <>
-                    <text fg={theme.textMuted}>·</text>
-                    <text fg={theme.warning}>{permissions().length + questions().length} waiting</text>
-                  </>
+                <SectionHeading title="Session" />
+                <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
+                  <text fg={theme.primary}>{workflowMode()}</text>
+                  <text fg={theme.textMuted}>·</text>
+                  <text fg={theme.textMuted}>{userTurnCount()} turns</text>
+                  <Show when={permissions().length + questions().length > 0}>
+                    <>
+                      <text fg={theme.textMuted}>·</text>
+                      <text fg={theme.warning}>{permissions().length + questions().length} waiting</text>
+                    </>
+                  </Show>
+                  <Show when={incompleteTodoCount() > 0}>
+                    <>
+                      <text fg={theme.textMuted}>·</text>
+                      <text fg={theme.textMuted}>{incompleteTodoCount()} todos</text>
+                    </>
+                  </Show>
+                </box>
+                <Show when={latestAudit()}>
+                  {(audit) => (
+                    <box flexDirection="row" gap={1} marginTop={1}>
+                      <text fg={theme.textMuted}>audit</text>
+                      <text fg={theme.text}>{audit().result?.status}</text>
+                      <Show when={audit().commandText !== "/audit"}>
+                        <text fg={theme.textMuted}>({audit().commandText})</text>
+                      </Show>
+                    </box>
+                  )}
                 </Show>
-                <Show when={incompleteTodoCount() > 0}>
-                  <>
-                    <text fg={theme.textMuted}>·</text>
-                    <text fg={theme.textMuted}>{incompleteTodoCount()} todos</text>
-                  </>
-                </Show>
-              </box>
-              <Show when={latestAudit()}>
-                {(audit) => (
-                  <box flexDirection="row" gap={1} marginTop={1}>
-                    <text fg={theme.textMuted}>audit</text>
-                    <text fg={theme.text}>{audit().result?.status}</text>
-                    <Show when={audit().commandText !== "/audit"}>
-                      <text fg={theme.textMuted}>({audit().commandText})</text>
-                    </Show>
-                  </box>
-                )}
-              </Show>
               </SidebarCard>
             </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
@@ -544,45 +631,45 @@ export function Sidebar(props: {
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
             <Show when={showSection("lsp")}>
               <SidebarCard>
-              <box
-                flexDirection="row"
-                gap={1}
-                onMouseDown={() => sync.data.lsp.length > 2 && setExpanded("lsp", !expanded.lsp)}
-              >
-                <Show when={sync.data.lsp.length > 2}>
-                  <text fg={theme.text}>{expanded.lsp ? "▼" : "▶"}</text>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  onMouseDown={() => sync.data.lsp.length > 2 && setExpanded("lsp", !expanded.lsp)}
+                >
+                  <Show when={sync.data.lsp.length > 2}>
+                    <text fg={theme.text}>{expanded.lsp ? "▼" : "▶"}</text>
+                  </Show>
+                  <SectionHeading title="LSP" />
+                </box>
+                <Show when={sync.data.lsp.length <= 2 || expanded.lsp}>
+                  <Show when={sync.data.lsp.length === 0}>
+                    <text fg={theme.textMuted}>
+                      {sync.data.config.lsp === false
+                        ? "LSPs have been disabled in settings"
+                        : "LSPs will activate as files are read"}
+                    </text>
+                  </Show>
+                  <For each={sync.data.lsp}>
+                    {(item) => (
+                      <box flexDirection="row" gap={1}>
+                        <text
+                          flexShrink={0}
+                          style={{
+                            fg: {
+                              connected: theme.success,
+                              error: theme.error,
+                            }[item.status],
+                          }}
+                        >
+                          •
+                        </text>
+                        <text fg={theme.textMuted}>
+                          {item.id} {item.root}
+                        </text>
+                      </box>
+                    )}
+                  </For>
                 </Show>
-                <SectionHeading title="LSP" />
-              </box>
-              <Show when={sync.data.lsp.length <= 2 || expanded.lsp}>
-                <Show when={sync.data.lsp.length === 0}>
-                  <text fg={theme.textMuted}>
-                    {sync.data.config.lsp === false
-                      ? "LSPs have been disabled in settings"
-                      : "LSPs will activate as files are read"}
-                  </text>
-                </Show>
-                <For each={sync.data.lsp}>
-                  {(item) => (
-                    <box flexDirection="row" gap={1}>
-                      <text
-                        flexShrink={0}
-                        style={{
-                          fg: {
-                            connected: theme.success,
-                            error: theme.error,
-                          }[item.status],
-                        }}
-                      >
-                        •
-                      </text>
-                      <text fg={theme.textMuted}>
-                        {item.id} {item.root}
-                      </text>
-                    </box>
-                  )}
-                </For>
-              </Show>
               </SidebarCard>
             </Show>
           </box>

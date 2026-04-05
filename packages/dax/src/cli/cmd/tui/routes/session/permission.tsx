@@ -241,6 +241,16 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
   const risk = createMemo(() => classifyPermissionRisk(props.request, input(), profile()))
   const elevated = createMemo(() => risk().level !== "normal")
 
+  const governanceSummary = createMemo(() => {
+    const s = session() as any
+    if (!s?.state_v2?.runtime_guard) return undefined
+    const budget = s.state_v2.runtime_guard.budget
+    return {
+      files: `${budget.filesTouched}/${budget.maxFilesTouched}`,
+      commands: `${budget.mutatingCommands}/${budget.maxMutatingCommands}`,
+    }
+  })
+
   return (
     <Switch>
       <Match when={store.stage === "always"}>
@@ -313,6 +323,18 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                     suggestion={risk().suggestion}
                     profile={profile()}
                   />
+                  <Show when={governanceSummary()}>
+                    <box flexDirection="row" gap={2} paddingLeft={1}>
+                      <box flexDirection="row" gap={1}>
+                        <text fg={theme.textMuted}>Files Touched:</text>
+                        <text fg={theme.primary}>{governanceSummary()!.files}</text>
+                      </box>
+                      <box flexDirection="row" gap={1}>
+                        <text fg={theme.textMuted}>Mutations:</text>
+                        <text fg={theme.primary}>{governanceSummary()!.commands}</text>
+                      </box>
+                    </box>
+                  </Show>
                   <Switch>
                     <Match when={props.request.permission === "edit"}>
                       <EditBody request={props.request} />
