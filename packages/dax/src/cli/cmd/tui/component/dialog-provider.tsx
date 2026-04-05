@@ -19,7 +19,8 @@ const CORE_PROVIDER_PRIORITY: Record<string, number> = {
   openai: 0,
   google: 1,
   anthropic: 2,
-  ollama: 3,
+  "claude-code": 3,
+  ollama: 4,
 }
 
 export function createDialogProviderOptions() {
@@ -120,12 +121,22 @@ export function createDialogProviderOptions() {
               if (!result?.data) return
               if (result.data.method === "code") {
                 dialog.replace(() => (
-                  <CodeMethod providerID={provider.id} title={selectedTitle} index={index} authorization={result.data} />
+                  <CodeMethod
+                    providerID={provider.id}
+                    title={selectedTitle}
+                    index={index}
+                    authorization={result.data}
+                  />
                 ))
               }
               if (result.data.method === "auto") {
                 dialog.replace(() => (
-                  <AutoMethod providerID={provider.id} title={selectedTitle} index={index} authorization={result.data} />
+                  <AutoMethod
+                    providerID={provider.id}
+                    title={selectedTitle}
+                    index={index}
+                    authorization={result.data}
+                  />
                 ))
               }
             }
