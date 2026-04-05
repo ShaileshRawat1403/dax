@@ -5,6 +5,7 @@ bun.lockb
 # Build artifacts
 dist/
 artifacts/
+packages/dax/src/provider/models-snapshot.ts
 
 # Local state
 .dax/
