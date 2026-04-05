@@ -29,17 +29,9 @@ export function Header(props: {
   const { theme } = useTheme()
 
   const [displayMode, setDisplayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
-  const [queueVisibleRaw, setQueueVisibleRaw] = kv.signal<string | boolean>(DAX_SETTING.intervention_queue_visible, true)
-  const queueVisible = createMemo(() => queueVisibleRaw() !== false && queueVisibleRaw() !== "false")
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const toggleEli12 = () => {
-    kv.set(DAX_SETTING.explain_mode, explainMode() ? "normal" : "eli12")
-  }
   const cycleDisplayMode = () => {
     setDisplayMode(() => nextDisplayMode(displayMode()))
-  }
-  const toggleQueue = () => {
-    setQueueVisibleRaw(() => !queueVisible())
   }
 
   const [tick, setTick] = createSignal(0)
@@ -98,7 +90,17 @@ export function Header(props: {
                 </For>
               }
             >
-              <box onMouseUp={() => props.onCyclePersona?.()}>
+              <box
+                onMouseUp={() => props.onCyclePersona?.()}
+                flexDirection="row"
+                alignItems="center"
+                gap={1}
+                paddingLeft={1}
+                paddingRight={1}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+              >
+                <text fg={theme.textMuted}>Persona:</text>
                 <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                   {props.persona!.ui.glyph}
                 </text>
@@ -135,29 +137,6 @@ export function Header(props: {
 
           <box flexDirection="row" gap={1} alignItems="center">
             <box
-              onMouseUp={toggleEli12}
-              flexDirection="row"
-              backgroundColor={theme.backgroundElement}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text
-                fg={!explainMode() ? theme.primary : theme.textMuted}
-                attributes={!explainMode() ? TextAttributes.BOLD : undefined}
-              >
-                NORMAL
-              </text>
-              <text fg={theme.textMuted}>|</text>
-              <text
-                fg={explainMode() ? theme.primary : theme.textMuted}
-                attributes={explainMode() ? TextAttributes.BOLD : undefined}
-              >
-                ELI12
-              </text>
-            </box>
-            <box
               onMouseUp={cycleDisplayMode}
               flexDirection="row"
               backgroundColor={theme.backgroundElement}
@@ -167,17 +146,6 @@ export function Header(props: {
               paddingRight={1}
             >
               <text fg={theme.textMuted}>{displayMode().toUpperCase()}</text>
-            </box>
-            <box
-              onMouseUp={toggleQueue}
-              flexDirection="row"
-              backgroundColor={theme.backgroundElement}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={queueVisible() ? theme.primary : theme.textMuted}>QUEUE</text>
             </box>
             <Show when={props.actions?.length}>
               <box flexDirection="row" gap={1} alignItems="center">
