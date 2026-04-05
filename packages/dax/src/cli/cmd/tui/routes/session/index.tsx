@@ -1840,7 +1840,15 @@ export function Session() {
             sessionID={route.sessionID}
           />
         </box>
-        <Footer lifecycleLabel={workstationState().lifecycleLabel} />
+        <Footer
+          lifecycleLabel={workstationState().lifecycleLabel}
+          workflowMode={workflowMode()}
+          onCycleWorkflowMode={() => {
+            const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
+            const idx = modes.indexOf(workflowMode())
+            setWorkflowMode(() => modes[(idx + 1) % modes.length])
+          }}
+        />
       </box>
     </context.Provider>
   )
