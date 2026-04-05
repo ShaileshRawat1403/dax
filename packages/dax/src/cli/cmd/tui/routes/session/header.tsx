@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
-import { useTheme } from "@tui/context/theme"
+import { useTheme, tint } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
 import { useKV } from "../../context/kv"
 import { DAX_SETTING } from "@/dax/settings"
@@ -15,11 +15,15 @@ type HeaderAction = {
 
 export function Header(props: {
   sessionLabel?: string
+  lifecycle?: string
   lifecycleLabel?: string
   decisionState?: string
   persona?: PersonaPack
   currentStep?: string
   trustLabel?: string
+  trustPosture?: string
+  pendingApprovals?: number
+  verificationStatus?: string
   emphasis?: "normal" | "muted"
   actions?: HeaderAction[]
   busy?: boolean
@@ -73,9 +77,40 @@ export function Header(props: {
   }
   const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
 
+  const phases = ["Intent", "Plan", "Approval", "Execution", "Verification", "Output"]
+  const currentPhaseIndex = createMemo(() => {
+    const state = props.lifecycle ?? "ready"
+    switch (state) {
+      case "understanding":
+      case "ready":
+        return 0 // Intent
+      case "planning":
+        return 1 // Plan
+      case "awaiting_approval":
+        return 2 // Approval
+      case "executing":
+        return 3 // Execution
+      case "verifying":
+        return 4 // Verification
+      case "completed":
+        return 5 // Output
+      default:
+        // For "blocked", keep whatever the current active index would be, or fallback to execution
+        return 3
+    }
+  })
+
   return (
     <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
-      <box paddingTop={0} paddingBottom={0} paddingLeft={1} paddingRight={1} flexShrink={0}>
+      <box
+        paddingTop={0}
+        paddingBottom={0}
+        paddingLeft={1}
+        paddingRight={1}
+        flexShrink={0}
+        flexDirection="column"
+        gap={0}
+      >
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
           <box flexDirection="row" gap={1} alignItems="center">
             <Show
@@ -167,6 +202,99 @@ export function Header(props: {
             </Show>
           </box>
         </box>
+        <Show when={props.lifecycle !== undefined}>
+          <box flexDirection="row" alignItems="center" gap={1} marginTop={1} marginBottom={0}>
+            <For each={phases}>
+              {(phase, index) => {
+                const isActive = index() === currentPhaseIndex()
+                const isPast = index() < currentPhaseIndex()
+                const color = isActive ? theme.primary : isPast ? theme.text : theme.textMuted
+                const isLast = index() === phases.length - 1
+                return (
+                  <box flexDirection="row" alignItems="center" gap={1}>
+                    <text fg={color} attributes={isActive ? TextAttributes.BOLD : undefined}>
+                      {phase.toUpperCase()}
+                    </text>
+                    <Show when={!isLast}>
+                      <text fg={theme.borderSubtle}>›</text>
+                    </Show>
+                  </box>
+                )
+              }}
+            </For>
+          </box>
+        </Show>
+        <Show when={props.trustPosture !== undefined || props.pendingApprovals !== undefined}>
+          <box flexDirection="row" alignItems="center" gap={1} marginTop={0} marginBottom={0}>
+            <Show when={props.trustPosture}>
+              <box
+                flexDirection="row"
+                gap={1}
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={
+                  props.trustPosture === "blocked"
+                    ? theme.error
+                    : props.trustPosture === "review_needed"
+                      ? theme.warning
+                      : theme.success
+                }
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.textMuted}>Trust:</text>
+                <text
+                  fg={
+                    props.trustPosture === "blocked"
+                      ? theme.error
+                      : props.trustPosture === "review_needed"
+                        ? theme.warning
+                        : theme.success
+                  }
+                  attributes={TextAttributes.BOLD}
+                >
+                  {props.trustPosture === "blocked"
+                    ? "BLOCKED"
+                    : props.trustPosture === "review_needed"
+                      ? "REVIEW"
+                      : "CLEAR"}
+                </text>
+              </box>
+            </Show>
+            <Show when={props.pendingApprovals !== undefined && props.pendingApprovals > 0}>
+              <box
+                flexDirection="row"
+                gap={1}
+                backgroundColor={tint(theme.background, theme.warning, 0.15)}
+                border={["round"]}
+                borderColor={theme.warning}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+                  {props.pendingApprovals!} APPROVAL
+                  {props.pendingApprovals! > 1 ? "S" : ""} PENDING
+                </text>
+              </box>
+            </Show>
+            <Show when={props.verificationStatus}>
+              <box
+                flexDirection="row"
+                gap={1}
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.textMuted}>Verification:</text>
+                <text fg={theme.secondary} attributes={TextAttributes.BOLD}>
+                  {props.verificationStatus?.toUpperCase()}
+                </text>
+              </box>
+            </Show>
+          </box>
+        </Show>
       </box>
     </box>
   )

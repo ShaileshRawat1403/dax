@@ -1,7 +1,16 @@
 export const DISPLAY_MODES = ["operator", "inspect", "quiet"] as const
 
 export type DisplayMode = (typeof DISPLAY_MODES)[number]
-export type SidebarSection = "reflection" | "telemetry" | "runtime" | "todo" | "diff" | "audit" | "mcp" | "lsp"
+export type SidebarSection =
+  | "reflection"
+  | "telemetry"
+  | "runtime"
+  | "todo"
+  | "diff"
+  | "audit"
+  | "mcp"
+  | "lsp"
+  | "artifacts"
 
 export function nextDisplayMode(current: string): DisplayMode {
   const index = DISPLAY_MODES.indexOf(current as DisplayMode)
@@ -22,10 +31,7 @@ export function shouldAutoOpenSidebar(displayMode: DisplayMode) {
   return displayMode === "inspect"
 }
 
-export function shouldShowInterventionQueue(input: {
-  displayMode: DisplayMode
-  queueVisible: boolean
-}) {
+export function shouldShowInterventionQueue(input: { displayMode: DisplayMode; queueVisible: boolean }) {
   if (input.displayMode === "quiet") return false
   return input.queueVisible
 }
@@ -63,10 +69,7 @@ export function resolveDisplayDetailToggles(input: {
   }
 }
 
-export function shouldShowSidebarSection(input: {
-  displayMode: DisplayMode
-  section: SidebarSection
-}) {
+export function shouldShowSidebarSection(input: { displayMode: DisplayMode; section: SidebarSection }) {
   if (input.displayMode === "quiet") return false
   if (input.displayMode === "inspect") return true
 
