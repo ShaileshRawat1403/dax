@@ -115,6 +115,23 @@ export namespace Provider {
         },
       }
     },
+    async "claude-code"() {
+      /**
+       * Claude Code provider for Pro/Plus subscriptions.
+       * Uses Anthropic API with Claude Code beta features enabled.
+       * This provider inherits models from the main Anthropic provider.
+       * @returns Provider configuration with beta headers for Claude Code features
+       */
+      return {
+        autoload: false,
+        options: {
+          headers: {
+            "anthropic-beta":
+              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+          },
+        },
+      }
+    },
     async dax(input) {
       const hasKey = await (async () => {
         const env = Env.all()
@@ -814,6 +831,20 @@ export namespace Provider {
       }
     }
 
+    // Add Claude Code provider (Pro/Plus subscription) that inherits models from Anthropic API
+    if (database["anthropic"]) {
+      const anthropic = database["anthropic"]
+      database["claude-code"] = {
+        ...anthropic,
+        id: "claude-code",
+        name: "Claude Code (Pro/Plus)",
+        models: mapValues(anthropic.models, (model) => ({
+          ...model,
+          providerID: "claude-code",
+        })),
+      }
+    }
+
     function mergeProvider(providerID: string, provider: Partial<Info>) {
       const existing = providers[providerID]
       if (existing) {
@@ -1286,6 +1317,9 @@ export namespace Provider {
       }
       if (providerID.startsWith("github-copilot")) {
         priority = ["gpt-5-mini", "claude-haiku-4.5", ...priority]
+      }
+      if (providerID === "claude-code") {
+        priority = ["claude-haiku-4.5", "claude-sonnet-4-5", ...priority]
       }
       for (const item of priority) {
         if (providerID === "amazon-bedrock") {
