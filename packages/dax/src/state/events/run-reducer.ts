@@ -19,6 +19,12 @@ export type RunState = {
       mutatingCommands: number
       approvalsRequested: number
     }
+    providerPressure: {
+      lane?: string
+      throttles: number
+      inFlight: number
+      queueLength: number
+    }
     touchedFiles: string[]
     baselineCheckpoint: {
       baselineRef?: string
@@ -154,6 +160,11 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         filesTouched: 0,
         mutatingCommands: 0,
         approvalsRequested: 0,
+      },
+      providerPressure: {
+        throttles: 0,
+        inFlight: 0,
+        queueLength: 0,
       },
       touchedFiles: [],
       baselineCheckpoint: null,
@@ -356,6 +367,17 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
       }
 
       case "contract_compiled": {
+        break
+      }
+
+      case "provider_pressure_updated": {
+        const payload = event.payload as { lane?: string; throttles: number; inFlight: number; queueLength: number }
+        state.governance.providerPressure = {
+          lane: payload.lane,
+          throttles: payload.throttles,
+          inFlight: payload.inFlight,
+          queueLength: payload.queueLength,
+        }
         break
       }
     }

@@ -15,6 +15,8 @@ import { Config } from "@/config/config"
 import { SessionCompaction } from "./compaction"
 import { Permission } from "@/governance"
 import { Question } from "@/question"
+import { updateProviderPressure } from "@/state/events/event-transitions"
+import { getGeminiSubscriptionPressure } from "@/plugin/gemini-scheduler"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -66,9 +68,30 @@ export namespace SessionProcessor {
               input.model.providerID === "google"
                 ? "Gemini is slow right now. The run is still alive and waiting on the provider."
                 : "Provider response is delayed. The run is still alive and waiting."
+            const trackPressure = () => {
+              if (input.model.providerID === "google") {
+                const pressure = getGeminiSubscriptionPressure()
+                updateProviderPressure(input.sessionID, {
+                  lane: "gemini-subscription",
+                  inFlight: pressure.inFlight,
+                  queueLength: pressure.queueLength,
+                  throttles: pressure.consecutiveThrottles,
+                }).catch((e) => log.error("failed to update provider pressure", { error: String(e) }))
+
+                if (pressure.consecutiveThrottles > 0) {
+                  SessionStatus.set(input.sessionID, {
+                    type: "delayed",
+                    message: `Gemini subscription lane throttled. Waiting to retry... (Throttles: ${pressure.consecutiveThrottles}). Switch to Gemini API Key lane for steadier throughput.`,
+                    since: lastProgressAt,
+                  })
+                  delayedRaised = true
+                }
+              }
+            }
             const delayedMonitor =
               shouldTrackDelayedProvider &&
               setInterval(() => {
+                trackPressure()
                 if (delayedRaised) return
                 if (Date.now() - lastProgressAt < PROVIDER_DELAY_THRESHOLD_MS) return
                 delayedRaised = true
@@ -80,6 +103,8 @@ export namespace SessionProcessor {
               }, 1000)
             const timeoutSignal = AbortSignal.timeout(PROVIDER_STALL_TIMEOUT_MS)
             const combinedAbort = AbortSignal.any([input.abort, timeoutSignal])
+
+            trackPressure()
             const stream = await LLM.stream({
               ...streamInput,
               abort: combinedAbort,

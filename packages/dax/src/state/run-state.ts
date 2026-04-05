@@ -59,6 +59,18 @@ export const RuntimeGovernanceSchema = z.object({
     mutatingCommands: z.number().int().nonnegative().default(0),
     approvalsRequested: z.number().int().nonnegative().default(0),
   }),
+  providerPressure: z
+    .object({
+      lane: z.string().optional(),
+      throttles: z.number().int().nonnegative().default(0),
+      inFlight: z.number().int().nonnegative().default(0),
+      queueLength: z.number().int().nonnegative().default(0),
+    })
+    .default({
+      throttles: 0,
+      inFlight: 0,
+      queueLength: 0,
+    }),
   touchedFiles: z.string().array().default([]),
   baselineCheckpoint: BaselineCheckpointSchema.nullable().default(null),
   mutationReceiptIds: z.string().array().default([]),
@@ -125,6 +137,11 @@ export const RunStateSchema = z.object({
       mutatingCommands: 0,
       approvalsRequested: 0,
     },
+    providerPressure: {
+      throttles: 0,
+      inFlight: 0,
+      queueLength: 0,
+    },
     touchedFiles: [],
     baselineCheckpoint: null,
     mutationReceiptIds: [],
@@ -182,6 +199,11 @@ export function createInitialRunState(runId: string, contractId: string): RunSta
         filesTouched: 0,
         mutatingCommands: 0,
         approvalsRequested: 0,
+      },
+      providerPressure: {
+        throttles: 0,
+        inFlight: 0,
+        queueLength: 0,
       },
       touchedFiles: [],
       baselineCheckpoint: null,
