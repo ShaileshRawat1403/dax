@@ -259,13 +259,41 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
 
 const refreshGoogleToken = async (refreshToken: string, clientID?: string, clientSecret?: string) => {
   if (refreshToken.startsWith(ACCESS_ONLY_PREFIX)) return undefined
-  const id =
-    clientID ?? getGoogleCliClientId() ?? Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
-  const secret =
-    clientSecret ??
-    getGoogleCliClientSecret() ??
-    Bun.env.DAX_GEMINI_OAUTH_CLIENT_SECRET ??
-    Bun.env.GEMINI_OAUTH_CLIENT_SECRET
+
+  // If no client credentials available, try using the refresh token directly
+  // This works for CLI-imported credentials that don't have associated client secrets
+  const useClientCreds = clientID && clientSecret
+
+  if (!useClientCreds) {
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    })
+
+    const result = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    }).catch(() => undefined)
+
+    if (!result?.ok) return undefined
+
+    const json = (await result.json().catch(() => undefined)) as
+      | { access_token?: string; expires_in?: number }
+      | undefined
+
+    if (!json?.access_token) return undefined
+
+    return {
+      access: json.access_token,
+      expires: Date.now() + (json.expires_in ?? 3600) * 1000,
+    }
+  }
+
+  // Use client credentials for refresh
+  const id = clientID
+  const secret = clientSecret
+
   if (!id || !secret) {
     throw new Error(
       "OAuth credentials required for token refresh. Provide client_id and client_secret:\n" +
@@ -273,6 +301,7 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
         "  2. Set DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET environment variables",
     )
   }
+
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
@@ -283,12 +312,8 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
-  }).catch((err) => {
-    return undefined
-  })
-  if (!result?.ok) {
-    return undefined
-  }
+  }).catch(() => undefined)
+  if (!result?.ok) return undefined
   const json = (await result.json().catch(() => undefined)) as
     | { access_token?: string; expires_in?: number }
     | undefined
@@ -301,6 +326,8 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
 
 const refreshStoredGoogleAccess = async (oauth: OAuthState | undefined, refreshToken: string) => {
   if (oauth?.mode === "cli-import" && (!oauth.clientID || !oauth.clientSecret)) {
+    const fromEnv = refreshGoogleToken(refreshToken)
+    if ((await fromEnv)?.access) return fromEnv
     throw importedGeminiCliExpiredError()
   }
   return refreshGoogleToken(refreshToken, oauth?.clientID, oauth?.clientSecret)
@@ -589,10 +616,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             // Native DAX routing for Pro/Plus Subscriptions (Code Assist API)
             // If the auth mode is explicitly Code Assist or CLI import, route to cloudcode-pa
-            if (
-              isSubscriptionMode(fresh?.mode) &&
-              req.href.includes("generativelanguage.googleapis.com")
-            ) {
+            if (isSubscriptionMode(fresh?.mode) && req.href.includes("generativelanguage.googleapis.com")) {
               const isStream = req.href.includes("streamGenerateContent")
               const action = isStream ? "streamGenerateContent" : "generateContent"
               req = new URL(`https://cloudcode-pa.googleapis.com/v1internal:${action}${isStream ? "?alt=sse" : ""}`)
@@ -911,13 +935,20 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
                 if (!health.ok && health.reason === "token_expired") {
                   if (!creds.clientID || !creds.clientSecret) {
-                    throw importedGeminiCliExpiredError()
+                    const renewed = await refreshGoogleToken(creds.refresh)
+                    if (!renewed?.access) {
+                      throw importedGeminiCliExpiredError()
+                    }
+                    access = renewed.access
+                    expires = renewed.expires
+                    health = await checkTokenHealth(access)
+                  } else {
+                    const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
+                    if (!renewed?.access) return { type: "failed" as const }
+                    access = renewed.access
+                    expires = renewed.expires
+                    health = await checkTokenHealth(access)
                   }
-                  const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
-                  if (!renewed?.access) return { type: "failed" as const }
-                  access = renewed.access
-                  expires = renewed.expires
-                  health = await checkTokenHealth(access)
                 }
 
                 if (!health.ok) {
