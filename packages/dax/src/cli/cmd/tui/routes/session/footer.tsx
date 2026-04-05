@@ -61,7 +61,7 @@ function StatusIndicator(props: { label: string; attention?: boolean; blocked?: 
   )
 }
 
-export function Footer(props?: { lifecycleLabel?: string }) {
+export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string; onCycleWorkflowMode?: () => void }) {
   const { theme } = useTheme()
   const sync = useSync()
   const route = useRoute()
@@ -113,7 +113,7 @@ export function Footer(props?: { lifecycleLabel?: string }) {
       paddingRight={1}
       backgroundColor={theme.backgroundPanel}
     >
-      {/* Left: mode + directory */}
+      {/* Left: mode + workflow + directory */}
       <box flexDirection="row" gap={1} alignItems="center">
         <box
           backgroundColor={theme.primary}
@@ -126,6 +126,20 @@ export function Footer(props?: { lifecycleLabel?: string }) {
             {mode()}
           </text>
         </box>
+        <Show when={props?.workflowMode}>
+          <box
+            onMouseUp={() => props?.onCycleWorkflowMode?.()}
+            backgroundColor={theme.backgroundElement}
+            border={["round"]}
+            borderColor={theme.borderSubtle}
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+              {props?.workflowMode?.toUpperCase()}
+            </text>
+          </box>
+        </Show>
         <Show when={!tiny()}>
           <text fg={theme.textMuted} dim>
             {directory()}

@@ -1621,18 +1621,6 @@ export function Prompt(props: PromptProps) {
                     ELI12: {explainMode() ? "ON" : "OFF"}
                   </text>
                 </box>
-                <box
-                  backgroundColor={theme.backgroundElement}
-                  border={["round"]}
-                  borderColor={theme.borderSubtle}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
-                  <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-                    {workflowMode().toUpperCase()}
-                  </text>
-                  <text fg={theme.textMuted}> tab</text>
-                </box>
               </box>
               <box
                 onMouseUp={submit}
