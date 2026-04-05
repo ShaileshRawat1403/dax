@@ -5,6 +5,34 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.18] - 2026-04-06
+
+### Added
+
+- **Gemini Subscription Scheduler**: Serial request queue with concurrency=1, adaptive pacing, and disk-persisted cooldown for Gemini Pro/Plus subscription lane.
+- **Provider Pressure Tracking**: Real-time `providerPressure` state in run governance with lane, throttles, in-flight, and queue length metrics.
+- **UX Contract Architecture**: Formalized 4-layer architecture (Execution Kernel, Projection, Interaction, Authoring) in `docs/UX_CONTRACT.md`.
+- **Phase Bar**: Lifecycle progression ribbon (`Intent → Plan → Approval → Execution → Verification → Output`) in session header.
+- **Role-Tagged Transcript**: Sub-agents mapped to specialist roles (`EXPLORER`, `PLANNER`, `REVIEWER`, `VERIFIER`, `AUDITOR`, `EXECUTOR`) with distinct theme colors.
+- **Trust Ribbon**: Persistent header showing trust posture (`CLEAR`/`REVIEW`/`BLOCKED`), pending approvals count, and verification status.
+- **Artifact Drawer**: Evidence-forward sidebar showing files/reports/metadata counts with artifact listing.
+- **Context Tool Grouping**: Consecutive read/glob/grep/list tools collapsed into single "Gathering context" block.
+- **Inline vs Block Tool Rendering**: Read-only tools as single-line, heavy tools (bash, edit, write) as bordered boxes.
+- **Animated Status Titles**: Running tools show pulsing spinner animation (`◐◑◒◓`), completed show `✓`, errors show `✗`.
+- **Approval Sheet Enhancement**: Governance summary (files touched, mutations) added to permission prompts alongside risk callouts.
+
+### Changed
+
+- **Minimal Workflow Hint**: Replaced long "Tab: cycle Plan → Build → Explore → Docs → Audit" with compact mode badge + `tab`.
+- **Responsive Sidebar**: Auto-hides on terminals < 80 cols. Layout stacks vertically below 120 cols.
+- **Redesigned Footer**: Three-zone layout with shortcut hints (`^R` refine, `^K` stash, `^G` diff), MCP/LSP indicators, and compact action buttons.
+- **Gemini Auth Persistence**: 3-step recovery chain for CLI-imported credentials — re-reads file, tries direct refresh, checks recent modification before throwing expired error.
+
+### Fixed
+
+- **Gemini Session Persistence**: Resolved issue where closing DAX required re-running `gemini` — now re-reads CLI creds file on restart and recovers fresh tokens automatically.
+- **Placeholder Claude Pro/Plus Auth Removed**: Removed non-functional OAuth placeholder, keeping only reliable API Key auth for Claude providers.
+
 ## [1.0.17] - 2026-04-05
 
 ### Added
