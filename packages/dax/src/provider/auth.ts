@@ -148,7 +148,10 @@ export namespace ProviderAuth {
         return
       }
 
-      throw new OauthCallbackFailed({})
+      // Callback returned "failed" — auth is not ready yet (e.g. CLI import
+      // waiting for the user to run `gemini`). Throw OauthMissing so the TUI
+      // shows "Authorization not ready, press r to retry" instead of a fatal error.
+      throw new OauthMissing({ providerID: input.providerID })
     },
   )
 
