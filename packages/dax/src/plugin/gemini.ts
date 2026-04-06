@@ -28,7 +28,7 @@ const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? B
 
 let cachedCloudCodeProjectId: string | undefined = undefined
 
-async function resolveCloudCodeProject(accessToken: string): Promise<string> {
+async function resolveCloudCodeProject(accessToken: string, refreshToken?: string): Promise<string> {
   if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
 
   const metadata = {
@@ -37,15 +37,16 @@ async function resolveCloudCodeProject(accessToken: string): Promise<string> {
     pluginType: "GEMINI",
   }
 
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
+  const makeHeaders = (token: string) => ({
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
     "User-Agent": "GoogleCloud/1.0.0 (Windows NT 10.0; Win64; x64) GeminiCLI/0.34.0",
-  }
+  })
 
-  const loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
+  // Try loadCodeAssist with current token
+  let loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
     method: "POST",
-    headers,
+    headers: makeHeaders(accessToken),
     body: JSON.stringify({ metadata }),
   }).catch(() => null)
 
@@ -57,11 +58,50 @@ async function resolveCloudCodeProject(accessToken: string): Promise<string> {
     }
   }
 
-  // Fallback onboard attempt if not loaded
+  // If loadCodeAssist failed, try to get a fresh token
+  // Strategy 1: Re-read CLI file (user may have run `gemini`)
+  const freshCreds = await readCliCreds()
+  if (freshCreds?.access && freshCreds.expires && freshCreds.expires > Date.now()) {
+    loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
+      method: "POST",
+      headers: makeHeaders(freshCreds.access),
+      body: JSON.stringify({ metadata }),
+    }).catch(() => null)
+
+    if (loadRes?.ok) {
+      const data = await loadRes.json().catch(() => ({}))
+      if (data.cloudaicompanionProject) {
+        cachedCloudCodeProjectId = data.cloudaicompanionProject
+        return cachedCloudCodeProjectId as string
+      }
+    }
+  }
+
+  // Strategy 2: Refresh the token using the refresh token
+  if (refreshToken) {
+    const refreshed = await refreshGoogleToken(refreshToken)
+    if (refreshed?.access) {
+      loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
+        method: "POST",
+        headers: makeHeaders(refreshed.access),
+        body: JSON.stringify({ metadata }),
+      }).catch(() => null)
+
+      if (loadRes?.ok) {
+        const data = await loadRes.json().catch(() => ({}))
+        if (data.cloudaicompanionProject) {
+          cachedCloudCodeProjectId = data.cloudaicompanionProject
+          return cachedCloudCodeProjectId as string
+        }
+      }
+    }
+  }
+
+  // Fallback onboard attempt
   const onboardRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:onboardUser", {
     method: "POST",
-    headers,
-    body: JSON.stringify({ tierId: "free-tier", metadata }),
+    headers: makeHeaders(accessToken),
+    body: JSON.stringify({ tierId: "standard-tier", metadata }),
   }).catch(() => null)
 
   if (onboardRes?.ok) {
@@ -75,7 +115,7 @@ async function resolveCloudCodeProject(accessToken: string): Promise<string> {
     }
   }
 
-  cachedCloudCodeProjectId = "free-tier"
+  cachedCloudCodeProjectId = "default"
   return cachedCloudCodeProjectId
 }
 
@@ -637,7 +677,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               const action = isStream ? "streamGenerateContent" : "generateContent"
               req = new URL(`https://cloudcode-pa.googleapis.com/v1internal:${action}${isStream ? "?alt=sse" : ""}`)
 
-              const resolvedProject = await resolveCloudCodeProject(access!)
+              const resolvedProject = await resolveCloudCodeProject(access!, refresh)
 
               if (typeof reqBody === "string") {
                 try {
