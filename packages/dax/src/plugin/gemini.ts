@@ -670,51 +670,28 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 const response = await fetch(fetchReq, { ...init, headers: fetchHeaders, body: fetchBody })
 
                 if (!response.ok && response.status === 429 && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
-                  try {
-                    const text = await response.text()
-                    const json = JSON.parse(text)
-                    const message = json.error?.message || ""
-                    const retryMs = parseGeminiSubscriptionRetryMs({
-                      retryAfter: response.headers.get("retry-after"),
-                      retryAfterMs: response.headers.get("retry-after-ms"),
-                      message,
-                    })
-                    const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
-                    await persistGeminiSubscriptionCooldown(Date.now() + retryMs)
+                  const text = await response.text()
+                  const json = JSON.parse(text)
+                  const message = json.error?.message || ""
+                  const retryMs = parseGeminiSubscriptionRetryMs({
+                    retryAfter: response.headers.get("retry-after"),
+                    retryAfterMs: response.headers.get("retry-after-ms"),
+                    message,
+                  })
+                  const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
+                  await persistGeminiSubscriptionCooldown(Date.now() + retryMs)
 
-                    const newHeaders = new Headers(response.headers)
-                    newHeaders.set("Retry-After", retrySec.toString())
-                    newHeaders.set("retry-after-ms", retryMs.toString())
-                    newHeaders.set("x-dax-rate-limit-lane", "gemini-subscription")
-                    newHeaders.set("x-dax-rate-limit-provider", "google")
-                    newHeaders.set("x-dax-rate-limit-kind", "subscription-quota")
-
-                    const err: any = new Error("Throttled")
-                    err.status = 429
-                    err.response = new Response(text, {
-                      status: 429,
-                      statusText: response.statusText,
-                      headers: newHeaders,
-                    })
-                    throw err
-                  } catch (e: any) {
-                    if (e.status === 429) throw e
-                  }
+                  const err: any = new Error("Throttled")
+                  err.status = 429
+                  err.retryAfterMs = retryMs
+                  throw err
                 }
                 return response
               }
 
               let response: Response
               if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
-                try {
-                  response = await scheduleGeminiSubscriptionRequest(doFetch)
-                } catch (e: any) {
-                  if (e.status === 429 && e.response) {
-                    response = e.response
-                  } else {
-                    throw e
-                  }
-                }
+                response = await scheduleGeminiSubscriptionRequest(doFetch)
               } else {
                 response = await doFetch()
               }
@@ -729,13 +706,17 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   const encoder = new TextEncoder()
                   let buffer = ""
                   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+                  const CHUNK_TIMEOUT_MS = 30_000
 
                   const stream = new ReadableStream<Uint8Array>({
                     start(controller) {
                       reader = response.body!.getReader()
                       const pump = (): void => {
-                        reader!
-                          .read()
+                        const readPromise = reader!.read()
+                        const timeoutPromise = new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
+                          setTimeout(() => reject(new Error("chunk_timeout")), CHUNK_TIMEOUT_MS)
+                        })
+                        Promise.race([readPromise, timeoutPromise])
                           .then(({ done, value }) => {
                             if (done) {
                               if (buffer.length > 0) {
@@ -793,7 +774,19 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                             }
                             pump()
                           })
-                          .catch((err) => controller.error(err))
+                          .catch((err) => {
+                            if (err.message === "chunk_timeout") {
+                              console.error("[Gemini] stream chunk timeout, closing stream", {
+                                timeoutMs: CHUNK_TIMEOUT_MS,
+                              })
+                              if (buffer.length > 0) {
+                                controller.enqueue(encoder.encode(buffer + "\n"))
+                              }
+                              controller.close()
+                            } else {
+                              controller.error(err)
+                            }
+                          })
                       }
                       pump()
                     },
