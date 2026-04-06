@@ -10,10 +10,14 @@ const geminiSubscriptionCooldownFile = path.join(Global.Path.state, "gemini-subs
 let geminiSubscriptionCooldownUntil = 0
 let inFlight = 0
 let consecutiveThrottles = 0
+const MAX_RETRIES = 8
+const RETRY_DELAY_MS = 3000
+
 const requestQueue: Array<{
   fn: () => Promise<Response>
   resolve: (value: Response) => void
   reject: (reason?: any) => void
+  retries: number
 }> = []
 
 export async function readPersistedGeminiSubscriptionCooldown() {
@@ -42,6 +46,7 @@ export async function scheduleGeminiSubscriptionRequest<T>(fn: () => Promise<T>)
       fn: fn as () => Promise<Response>,
       resolve: resolve as (value: Response) => void,
       reject,
+      retries: 0,
     })
     if (inFlight === 0) {
       processNext()
@@ -75,17 +80,16 @@ async function processNext() {
   } catch (err: any) {
     if (err?.status === 429) {
       consecutiveThrottles++
-      const retryMs = err.retryAfterMs ?? 15000
-      log.warn("gemini subscription throttled", { consecutiveThrottles, retryAfterMs: retryMs })
-      // Reset cooldown so next request starts fresh
-      geminiSubscriptionCooldownUntil = 0
-      await Bun.file(geminiSubscriptionCooldownFile)
-        .delete()
-        .catch(() => {})
-      // Re-queue for retry after the server-specified delay
-      requestQueue.unshift(next)
-      // Wait the cooldown before processing next
-      await Bun.sleep(retryMs)
+      next.retries++
+      log.warn("gemini subscription throttled", { retries: next.retries, consecutiveThrottles })
+
+      if (next.retries >= MAX_RETRIES) {
+        next.reject(err)
+        consecutiveThrottles = 0
+      } else {
+        requestQueue.unshift(next)
+        await Bun.sleep(RETRY_DELAY_MS)
+      }
     } else {
       next.reject(err)
     }

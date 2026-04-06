@@ -1,4 +1,4 @@
-export const DEFAULT_GEMINI_SUBSCRIPTION_RETRY_MS = 15_000
+export const DEFAULT_GEMINI_SUBSCRIPTION_RETRY_MS = 3_000
 
 export function parseGeminiSubscriptionRetryMs(input: {
   retryAfter?: string | null
