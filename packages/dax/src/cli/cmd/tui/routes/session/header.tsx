@@ -135,10 +135,6 @@ export function Header(props: {
                 border={["round"]}
                 borderColor={theme.borderSubtle}
               >
-                <text fg={theme.textMuted}>Persona:</text>
-                <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                  {props.persona!.ui.glyph}
-                </text>
                 <text fg={theme.text} attributes={TextAttributes.BOLD}>
                   {props.persona!.label.toUpperCase()}
                 </text>
