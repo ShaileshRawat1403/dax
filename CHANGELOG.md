@@ -5,6 +5,32 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.21] - 2026-04-06
+
+### Added
+
+- **Gemini Project Resolution Fix**: `resolveCloudCodeProject` now uses refresh token fallback to resolve the correct GCP project (e.g., `inlaid-airway-pjcz2`) instead of defaulting to `"default"` which caused 403 errors.
+- **Gemini SSE Chunk Timeout**: 10s timeout on idle SSE streams prevents indefinite hangs when the Code Assist API stops sending data.
+- **Gemini Scheduler Improvements**: Reduced throttle retry delay from 15s to 3s, capped at 8 retries with proper backoff.
+
+### Changed
+
+- **Gemini Throttle Delay**: Reduced from 15s to 3s for faster recovery from 429 rate limits.
+- **Anthropic Plugin**: Restored Pro/Plus OAuth method with token refresh and loader.
+- **Claude Code Plugin**: Restored Pro/Plus OAuth method with token refresh and loader.
+- **Auth Callback Retry**: When OAuth callback returns `{ type: "failed" }`, throws `OauthMissing` instead of `OauthCallbackFailed` so TUI shows "press r to retry" instead of fatal error.
+- **Minimal Header Persona**: Removed "Persona:" label, kept glyph + name only.
+- **Prompt Box Cleanup**: Removed duplicate model name display, workflow mode moved to footer.
+- **Footer Redesign**: Clean layout with lifecycle state, workflow mode, MCP/LSP status, and action shortcuts.
+- **Claude Pro/Plus Auth**: Restored in both `claude-code` and `anthropic` providers with proper OAuth method display in TUI.
+
+### Fixed
+
+- **Gemini Session Persistence**: 3-step recovery chain for CLI-imported credentials — re-reads file, tries direct refresh, checks recent file modification.
+- **Gemini Project 403**: Fixed `resolveCloudCodeProject` returning `"default"` instead of actual project ID.
+- **models-snapshot.ts**: Added to .gitignore — auto-generated file no longer tracked.
+- **Build.ts LSP Error**: Resolved TypeScript error for `@parcel/watcher` devDependency access.
+
 ## [1.0.20] - 2026-04-06
 
 ### Added
