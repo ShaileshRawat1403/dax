@@ -68,6 +68,7 @@ export namespace SessionProcessor {
               input.model.providerID === "google"
                 ? "Gemini is slow right now. The run is still alive and waiting on the provider."
                 : "Provider response is delayed. The run is still alive and waiting."
+            let pressureNotified = false
             const trackPressure = () => {
               if (input.model.providerID === "google") {
                 const pressure = getGeminiSubscriptionPressure()
@@ -78,10 +79,11 @@ export namespace SessionProcessor {
                   throttles: pressure.consecutiveThrottles,
                 }).catch((e) => log.error("failed to update provider pressure", { error: String(e) }))
 
-                if (pressure.consecutiveThrottles > 0) {
+                if (pressure.consecutiveThrottles > 0 && !pressureNotified) {
+                  pressureNotified = true
                   SessionStatus.set(input.sessionID, {
                     type: "delayed",
-                    message: `Gemini subscription lane throttled. Waiting to retry... (Throttles: ${pressure.consecutiveThrottles}). Switch to Gemini API Key lane for steadier throughput.`,
+                    message: `Gemini subscription lane throttled. (Throttles: ${pressure.consecutiveThrottles}). Switch to Gemini API Key lane for steadier throughput.`,
                     since: lastProgressAt,
                   })
                   delayedRaised = true
