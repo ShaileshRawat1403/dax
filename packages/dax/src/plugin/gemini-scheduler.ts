@@ -11,8 +11,8 @@ let geminiSubscriptionCooldownUntil = 0
 let inFlight = 0
 let consecutiveThrottles = 0
 const requestQueue: Array<{
-  fn: () => Promise<any>
-  resolve: (value: any) => void
+  fn: () => Promise<Response>
+  resolve: (value: Response) => void
   reject: (reason?: any) => void
 }> = []
 
@@ -38,7 +38,11 @@ export function getGeminiSubscriptionPressure() {
 
 export async function scheduleGeminiSubscriptionRequest<T>(fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    requestQueue.push({ fn, resolve, reject })
+    requestQueue.push({
+      fn: fn as () => Promise<Response>,
+      resolve: resolve as (value: Response) => void,
+      reject,
+    })
     if (inFlight === 0) {
       processNext()
     } else {
@@ -65,23 +69,28 @@ async function processNext() {
       await Bun.sleep(waitMs)
     }
 
-    // Add a small jittered pacing between requests to prevent burst storm
-    // High throttle count increases pacing
-    const pacing = 200 + Math.random() * 300 + consecutiveThrottles * 500
-    await Bun.sleep(pacing)
-
     const result = await next.fn()
-    consecutiveThrottles = 0 // Reset on success
+    consecutiveThrottles = 0
     next.resolve(result)
   } catch (err: any) {
     if (err?.status === 429) {
       consecutiveThrottles++
-      log.warn("gemini subscription throttled", { consecutiveThrottles })
+      const retryMs = err.retryAfterMs ?? 15000
+      log.warn("gemini subscription throttled", { consecutiveThrottles, retryAfterMs: retryMs })
+      // Reset cooldown so next request starts fresh
+      geminiSubscriptionCooldownUntil = 0
+      await Bun.file(geminiSubscriptionCooldownFile)
+        .delete()
+        .catch(() => {})
+      // Re-queue for retry after the server-specified delay
+      requestQueue.unshift(next)
+      // Wait the cooldown before processing next
+      await Bun.sleep(retryMs)
+    } else {
+      next.reject(err)
     }
-    next.reject(err)
   } finally {
     inFlight--
-    // Schedule next
     processNext()
   }
 }
