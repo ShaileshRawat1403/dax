@@ -13,11 +13,11 @@ describe("orchestration contract", () => {
   })
 
   it("uses product-facing labels for the workstation phases", () => {
-    expect(labelOrchestrationPhase("understand", false)).toBe("Analysis")
-    expect(labelOrchestrationPhase("plan", false)).toBe("Strategy")
-    expect(labelOrchestrationPhase("execute", false)).toBe("Action")
-    expect(labelOrchestrationPhase("verify", false)).toBe("Audit")
-    expect(labelOrchestrationPhase("waiting", false)).toBe("Review Required")
-    expect(labelOrchestrationPhase("complete", false)).toBe("Done")
+    expect(labelOrchestrationPhase("understand", false)).toBe("Intel")
+    expect(labelOrchestrationPhase("plan", false)).toBe("Briefing")
+    expect(labelOrchestrationPhase("execute", false)).toBe("Engaged")
+    expect(labelOrchestrationPhase("verify", false)).toBe("Debrief")
+    expect(labelOrchestrationPhase("waiting", false)).toBe("Hold")
+    expect(labelOrchestrationPhase("complete", false)).toBe("Complete")
   })
 })
