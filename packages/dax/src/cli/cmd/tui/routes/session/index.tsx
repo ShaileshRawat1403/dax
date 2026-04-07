@@ -2446,13 +2446,13 @@ function InlineTool(props: {
   const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
 
   return (
-    <box paddingLeft={1} border={["left"]} borderColor={accent()}>
+    <box paddingLeft={1} border={["left"]} borderColor={accent()} flexDirection="row" alignItems="center" gap={1}>
+      <Show when={isRunning() && !props.complete}>
+        <Spinner color={theme.warning} />
+      </Show>
       <text fg={props.complete ? theme.textMuted : theme.text}>
         <Show fallback={<>~ {props.pending}</>} when={props.complete}>
           <span style={{ fg: accent() }}>{props.icon}</span> {props.children}
-        </Show>
-        <Show when={isRunning() && !props.complete}>
-          <Spinner color={theme.warning} />
         </Show>
       </text>
     </box>

@@ -10,6 +10,10 @@ export namespace SessionRetry {
   export const RETRY_BACKOFF_FACTOR = 2
   export const RETRY_MAX_DELAY_NO_HEADERS = 30_000 // 30 seconds
   export const RETRY_MAX_DELAY = 2_147_483_647 // max 32-bit signed integer for setTimeout
+  // Maximum number of automatic retries before giving up and surfacing the error.
+  // This prevents infinite retry loops when the provider is persistently unavailable
+  // or the user has genuine quota exhaustion (not transient overload).
+  export const MAX_ATTEMPTS = 8
 
   export async function sleep(ms: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -61,15 +65,30 @@ export namespace SessionRetry {
     return Math.min(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS)
   }
 
-  export function retryable(error: ReturnType<NamedError["toObject"]>) {
+  export function retryable(error: ReturnType<NamedError["toObject"]>, attempt: number = 0) {
+    // Stop retrying after MAX_ATTEMPTS to prevent infinite loops on persistent errors
+    if (attempt >= MAX_ATTEMPTS) return undefined
+
     if (MessageV2.APIError.isInstance(error)) {
       if (!error.data.isRetryable) return undefined
+
       const lane = error.data.responseHeaders?.["x-dax-rate-limit-lane"]
       const kind = error.data.responseHeaders?.["x-dax-rate-limit-kind"]
       if (lane === "gemini-subscription" && kind === "subscription-quota") {
         return "Gemini subscription lane is busy"
       }
-      return error.data.message.includes("Overloaded") ? "Provider is overloaded" : error.data.message
+
+      const status = error.data.statusCode
+      // 529 = Anthropic overloaded, 503 = upstream unavailable — always retryable
+      if (status === 529 || status === 503) {
+        return "Provider is overloaded, retrying…"
+      }
+      // 429 = rate limited — retryable, surface a clear message
+      if (status === 429) {
+        return "Rate limited by provider, waiting for quota to recover…"
+      }
+
+      return error.data.message.includes("Overloaded") ? "Provider is overloaded, retrying…" : error.data.message
     }
 
     const json = iife(() => {
@@ -78,7 +97,6 @@ export namespace SessionRetry {
           const parsed = JSON.parse(error.data.message)
           return parsed
         }
-
         return JSON.parse(error.data.message)
       } catch {
         log.debug("failed to parse error message as JSON", {
@@ -92,15 +110,16 @@ export namespace SessionRetry {
       const code = typeof json.code === "string" ? json.code : ""
 
       if (json.type === "error" && json.error?.type === "too_many_requests") {
-        return "Too Many Requests"
+        return "Rate limited by provider, waiting for quota to recover…"
       }
       if (code.includes("exhausted") || code.includes("unavailable")) {
-        return "Provider is overloaded"
+        return "Provider is overloaded, retrying…"
       }
       if (json.type === "error" && json.error?.code?.includes("rate_limit")) {
-        return "Rate Limited"
+        return "Rate limited by provider, waiting for quota to recover…"
       }
-      return JSON.stringify(json)
+      // Do NOT fall through with JSON.stringify — unknown JSON errors are not retryable
+      return undefined
     } catch {
       return undefined
     }
