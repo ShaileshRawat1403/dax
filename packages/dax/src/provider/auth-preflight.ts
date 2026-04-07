@@ -394,6 +394,21 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
   const hasApiKey = Boolean(env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY"))
 
   if (auth?.type === "oauth") {
+    // Detect stale placeholder token written by the old stub implementation.
+    if (!auth.access || auth.access === "subscription-detected") {
+      return {
+        providerID,
+        mode: "anthropic-oauth",
+        ok: false,
+        requiredEnv: [],
+        missingEnv: [],
+        details: [
+          `${providerID} OAuth token is a stale placeholder from a previous version.`,
+          "Re-authenticate with 'dax auth login' to get a real token.",
+        ],
+        error: `${providerID} OAuth session is invalid. Run 'dax auth login ${providerID}' to re-authenticate.`,
+      }
+    }
     return {
       providerID,
       mode: "anthropic-oauth",
@@ -401,7 +416,7 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
       ok: true,
       requiredEnv: [],
       missingEnv: [],
-      details: [`${providerID} authenticated via OAuth (Pro/Plus subscription)`],
+      details: [`${providerID} authenticated via OAuth (Pro/Max subscription)`],
     }
   }
 

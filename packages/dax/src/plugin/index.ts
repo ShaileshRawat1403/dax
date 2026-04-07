@@ -25,7 +25,6 @@ export namespace Plugin {
   const INTERNAL_PLUGINS: PluginInstance[] = [
     CodexAuthPlugin,
     GeminiAuthPlugin,
-    ClaudeCodeAuthPlugin,
     AnthropicAuthPlugin,
   ]
 
