@@ -10,8 +10,10 @@ const geminiSubscriptionCooldownFile = path.join(Global.Path.state, "gemini-subs
 let geminiSubscriptionCooldownUntil = 0
 let inFlight = 0
 let consecutiveThrottles = 0
+let currentCooldownPromise: Promise<void> | null = null
 const MAX_RETRIES = 8
-const RETRY_DELAY_MS = 3000
+const RETRY_DELAY_MS = 1000
+const MAX_CONCURRENCY = 5
 
 const requestQueue: Array<{
   fn: () => Promise<Response>
@@ -28,6 +30,7 @@ export async function readPersistedGeminiSubscriptionCooldown() {
 }
 
 export async function persistGeminiSubscriptionCooldown(until: number) {
+  if (until <= geminiSubscriptionCooldownUntil) return
   geminiSubscriptionCooldownUntil = until
   await Bun.write(geminiSubscriptionCooldownFile, JSON.stringify({ until }, null, 2)).catch(() => undefined)
 }
@@ -48,30 +51,41 @@ export async function scheduleGeminiSubscriptionRequest<T>(fn: () => Promise<T>)
       reject,
       retries: 0,
     })
-    if (inFlight === 0) {
-      processNext()
-    } else {
-      log.debug("gemini subscription request queued", { queueLength: requestQueue.length })
-    }
+    processNext()
   })
 }
 
 async function processNext() {
   if (requestQueue.length === 0) return
-  if (inFlight > 0) return
+  if (inFlight >= MAX_CONCURRENCY) return
+
+  // If we are currently waiting for a global cooldown, don't start new requests
+  if (currentCooldownPromise) {
+    await currentCooldownPromise
+    // After cooldown, try again
+    processNext()
+    return
+  }
 
   const next = requestQueue.shift()
   if (!next) return
 
   inFlight++
+  processNext() // Try to start next one immediately if we have capacity
 
   try {
     const persistedCooldownUntil = await readPersistedGeminiSubscriptionCooldown()
     const effectiveCooldownUntil = Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil)
     const waitMs = shouldWaitForGeminiSubscriptionCooldown(effectiveCooldownUntil)
+    
     if (waitMs > 0) {
-      log.info("gemini subscription waiting for cooldown", { waitMs })
-      await Bun.sleep(waitMs)
+      if (!currentCooldownPromise) {
+        log.info("gemini subscription waiting for cooldown", { waitMs })
+        currentCooldownPromise = Bun.sleep(waitMs).then(() => {
+          currentCooldownPromise = null
+        })
+      }
+      await currentCooldownPromise
     }
 
     const result = await next.fn()
@@ -87,8 +101,9 @@ async function processNext() {
         next.reject(err)
         consecutiveThrottles = 0
       } else {
+        // Apply backoff delay before re-queuing
+        await Bun.sleep(RETRY_DELAY_MS * Math.pow(1.5, next.retries - 1))
         requestQueue.unshift(next)
-        await Bun.sleep(RETRY_DELAY_MS)
       }
     } else {
       next.reject(err)

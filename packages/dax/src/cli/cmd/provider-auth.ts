@@ -49,21 +49,13 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     })
   }
 
-  const subscriptionIndex = await resolveGoogleSubscriptionIndex({
-    cliImportIndex,
-    directSignInIndex,
-    env,
-  })
-  if (subscriptionIndex != null) {
+  if (cliImportIndex >= 0) {
     visible.push({
-      method: methods[subscriptionIndex]!,
-      originalIndex: subscriptionIndex,
+      method: methods[cliImportIndex]!,
+      originalIndex: cliImportIndex,
       title: "Gemini Subscription Sign-In",
-      description: "Use Gemini Pro or Plus through your Gemini CLI session or direct subscription sign-in.",
-      hint:
-        subscriptionIndex === cliImportIndex
-          ? "Uses your local Gemini CLI session"
-          : "Uses direct subscription sign-in",
+      description: "Use your Gemini Pro or Plus subscription from the terminal.",
+      hint: "Import from Gemini CLI",
     })
   }
 
@@ -78,45 +70,6 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
   }
 
   return visible
-}
-
-async function resolveGoogleSubscriptionIndex(input: {
-  cliImportIndex: number
-  directSignInIndex: number
-  env: NodeJS.ProcessEnv
-}) {
-  if (await hasGeminiCliSession(input.env)) {
-    if (input.cliImportIndex >= 0) return input.cliImportIndex
-  }
-
-  if (hasAdvancedGoogleClient(input.env)) {
-    if (input.directSignInIndex >= 0) return input.directSignInIndex
-  }
-
-  if (input.cliImportIndex >= 0) return input.cliImportIndex
-  if (input.directSignInIndex >= 0) return input.directSignInIndex
-  return undefined
-}
-
-async function hasGeminiCliSession(env: NodeJS.ProcessEnv) {
-  for (const item of geminiCredPaths(env)) {
-    const creds = await Bun.file(item)
-      .json()
-      .then((value) => value as { access_token?: string; refresh_token?: string })
-      .catch(() => undefined)
-    if (creds?.access_token || creds?.refresh_token) return true
-  }
-  return false
-}
-
-function geminiCredPaths(env: NodeJS.ProcessEnv) {
-  const home = env.HOME ?? Bun.env.HOME ?? ""
-  return [
-    env.GEMINI_OAUTH_CREDS_PATH,
-    `${home}/.gemini/oauth_creds.json`,
-    `${home}/.config/gemini/oauth_creds.json`,
-    `${home}/.config/google-gemini/oauth_creds.json`,
-  ].filter(Boolean) as string[]
 }
 
 function isGoogleLikeProvider(providerID: string) {

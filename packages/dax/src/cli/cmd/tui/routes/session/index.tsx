@@ -14,7 +14,13 @@ import {
   Switch,
   useContext,
 } from "solid-js"
-import { applyPersonaVoice, getPersona, PERSONAS, type PersonaPack } from "@/dax/presentation/persona"
+import {
+  applyPersonaVoice,
+  getPersona,
+  PERSONAS,
+  PERSONA_SWITCH_MESSAGES,
+  type PersonaPack,
+} from "@/dax/presentation/persona"
 import { Dynamic } from "solid-js/web"
 import path from "path"
 import { useRoute, useRouteData } from "@tui/context/route"
@@ -197,13 +203,28 @@ export function Session() {
   const { navigate } = useRoute()
   const sync = useSync()
   const kv = useKV()
+  const sdk = useSDK()
 
-  const [personaId, setPersonaId] = kv.signal<string>(DAX_SETTING.session_persona, "zen")
+  const [personaId, setPersonaId] = kv.signal<string>(DAX_SETTING.session_persona, "mission")
   const activePersona = createMemo(() => getPersona(personaId()))
   const cyclePersona = () => {
     const ids = Object.keys(PERSONAS)
-    const next = ids[(ids.indexOf(personaId()) + 1) % ids.length]!
-    setPersonaId(() => next)
+    const nextId = ids[(ids.indexOf(personaId()) + 1) % ids.length]!
+    setPersonaId(() => nextId)
+
+    // Inject switch notification
+    const nextPersona = getPersona(nextId)
+    const rawMessage = PERSONA_SWITCH_MESSAGES[nextId] || `Switched to ${nextPersona.label}`
+    const voicedMessage = applyPersonaVoice(rawMessage, nextPersona)
+
+    sdk.client.message
+      .append({
+        sessionID: route.sessionID,
+        role: "assistant",
+        content: voicedMessage,
+        synthetic: true,
+      })
+      .catch(() => {})
   }
   const themeState = useTheme()
   const theme = new Proxy({} as any, {

@@ -23,7 +23,9 @@ const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
 // Google's official OAuth credentials for direct sign-in (Pro/Plus)
 // Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
-const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
+// Default to Google Cloud SDK client ID for public sign-in flow (PKCE)
+const GOOGLE_CLOUD_SDK_CLIENT_ID = "764086051750-76sqf96j9pjkndisqve66smditp53m6j.apps.googleusercontent.com"
+const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GOOGLE_CLOUD_SDK_CLIENT_ID
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
 
 let cachedCloudCodeProjectId: string | undefined = undefined
@@ -175,7 +177,7 @@ function isSubscriptionMode(mode: OAuthState["mode"]) {
 
 function importedGeminiCliExpiredError() {
   return new Error(
-    "Your imported Gemini CLI session expired. Run `gemini` to refresh your local login, then choose 'Gemini Subscription Sign-In' again.",
+    "Your imported Gemini CLI session expired. Reconnect with 'Gemini Subscription Sign-In' for a more permanent browser-based login, or run `gemini` again to refresh your local terminal login.",
   )
 }
 
@@ -689,13 +691,14 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                     delete parsed.generationConfig.thinkingConfig
                   }
 
+                  const effectiveSessionID = (input as any).sessionID || crypto.randomUUID()
                   reqBody = JSON.stringify({
                     project: resolvedProject,
                     model: effectiveModel,
                     user_prompt_id: crypto.randomUUID(),
                     request: {
                       ...parsed,
-                      session_id: crypto.randomUUID(),
+                      session_id: effectiveSessionID,
                     },
                   })
                 } catch (e) {}
@@ -760,57 +763,18 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                           .then(({ done, value }) => {
                             if (done) {
                               if (buffer.length > 0) {
-                                if (buffer.startsWith("data:")) {
-                                  try {
-                                    const json = JSON.parse(buffer.slice(5).trim())
-                                    if (json.response !== undefined) {
-                                      controller.enqueue(encoder.encode(`data: ${JSON.stringify(json.response)}\n`))
-                                    } else {
-                                      controller.enqueue(encoder.encode(buffer + "\n"))
-                                    }
-                                  } catch {
-                                    controller.enqueue(encoder.encode(buffer + "\n"))
-                                  }
-                                } else {
-                                  controller.enqueue(encoder.encode(buffer + "\n"))
-                                }
+                                processLine(buffer, controller, encoder, false)
                               }
                               controller.close()
                               return
                             }
 
                             buffer += decoder.decode(value, { stream: true })
-                            let newlineIndex = buffer.indexOf("\n")
-                            while (newlineIndex !== -1) {
+                            let newlineIndex: number
+                            while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
                               const line = buffer.slice(0, newlineIndex)
                               buffer = buffer.slice(newlineIndex + 1)
-                              const hasCr = line.endsWith("\r")
-                              const rawLine = hasCr ? line.slice(0, -1) : line
-
-                              if (rawLine.startsWith("data:")) {
-                                try {
-                                  const jsonText = rawLine.slice(5).trim()
-                                  if (jsonText) {
-                                    const json = JSON.parse(jsonText)
-                                    if (json.response !== undefined) {
-                                      controller.enqueue(
-                                        encoder.encode(
-                                          `data: ${JSON.stringify(json.response)}${hasCr ? "\r\n" : "\n"}`,
-                                        ),
-                                      )
-                                    } else {
-                                      controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
-                                    }
-                                  } else {
-                                    controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
-                                  }
-                                } catch {
-                                  controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
-                                }
-                              } else {
-                                controller.enqueue(encoder.encode(`${rawLine}${hasCr ? "\r\n" : "\n"}`))
-                              }
-                              newlineIndex = buffer.indexOf("\n")
+                              processLine(line, controller, encoder, true)
                             }
                             pump()
                           })
@@ -834,6 +798,33 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                       if (reader) reader.cancel(reason).catch(() => {})
                     },
                   })
+
+                  const processLine = (
+                    line: string,
+                    controller: ReadableStreamDefaultController<Uint8Array>,
+                    encoder: TextEncoder,
+                    appendNewline: boolean,
+                  ) => {
+                    const hasCr = line.endsWith("\r")
+                    const rawLine = hasCr ? line.slice(0, -1) : line
+                    const suffix = appendNewline ? (hasCr ? "\r\n" : "\n") : ""
+
+                    if (rawLine.startsWith("data:")) {
+                      const jsonText = rawLine.slice(5).trim()
+                      if (jsonText) {
+                        try {
+                          const json = JSON.parse(jsonText)
+                          if (json.response !== undefined) {
+                            controller.enqueue(encoder.encode(`data: ${JSON.stringify(json.response)}${suffix}`))
+                            return
+                          }
+                        } catch {
+                          // Fall through to raw enqueue on parse error
+                        }
+                      }
+                    }
+                    controller.enqueue(encoder.encode(line + suffix))
+                  }
 
                   return new Response(stream, {
                     status: response.status,
