@@ -2056,10 +2056,10 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
           paddingLeft={0}
           paddingRight={0}
           flexDirection="column"
-          borderStyle="round"
-          borderColor={tint(theme.primary, theme.border, 0.45)}
-          backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.055)}
-          marginTop={1}
+          borderStyle="none"
+          borderColor={theme.borderSubtle}
+          backgroundColor="transparent"
+          marginTop={0}
           marginBottom={0}
         >
           <box
@@ -2067,16 +2067,15 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             gap={1}
             alignItems="center"
             paddingTop={0}
-            paddingBottom={1}
+            paddingBottom={0}
             border={["bottom"]}
-            borderColor={theme.border}
+            borderColor={tint(theme.border, theme.background, 0.5)}
             marginBottom={1}
             paddingLeft={1}
             paddingRight={1}
-            backgroundColor={tint(theme.background, theme.backgroundElement, 0.28)}
           >
             <box
-              backgroundColor={tint(theme.background, roleColor(), 0.34)}
+              backgroundColor={tint(theme.background, roleColor(), 0.15)}
               paddingLeft={1}
               paddingRight={1}
               marginRight={1}
@@ -2091,7 +2090,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
               </text>
             </Show>
           </box>
-          <box paddingLeft={1} paddingRight={1} paddingBottom={1} flexDirection="column" gap={0}>
+          <box paddingLeft={1} paddingRight={1} paddingBottom={0} flexDirection="column" gap={0}>
             <For each={renderableParts()}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
