@@ -11,8 +11,8 @@ import { CodexAuthPlugin } from "./codex"
 import { Session } from "../session"
 import { NamedError } from "@dax-ai/util/error"
 import { GeminiAuthPlugin } from "./gemini"
-import { ClaudeCodeAuthPlugin } from "./claude-code"
 import { AnthropicAuthPlugin } from "./anthropic"
+import { ClaudeCodeAuthPlugin } from "./claude-code"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -26,6 +26,7 @@ export namespace Plugin {
     CodexAuthPlugin,
     GeminiAuthPlugin,
     AnthropicAuthPlugin,
+    ClaudeCodeAuthPlugin,
   ]
 
   const state = Instance.state(async () => {

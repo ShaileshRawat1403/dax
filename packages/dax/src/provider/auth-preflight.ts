@@ -337,6 +337,79 @@ async function diagnoseVertexProvider(providerID: string): Promise<AuthDiagnosti
   }
 }
 
+async function diagnoseCopilotProvider(providerID: string): Promise<AuthDiagnostics> {
+  const auth = await Auth.get(providerID)
+  const enterpriseAuth = providerID === "github-copilot" ? await Auth.get("github-copilot-enterprise") : undefined
+  const hasAuth = auth?.type === "oauth" || enterpriseAuth?.type === "oauth"
+
+  if (hasAuth) {
+    const isEnterprise = enterpriseAuth?.type === "oauth"
+    return {
+      providerID,
+      mode: "custom-oauth",
+      ok: true,
+      requiredEnv: [],
+      missingEnv: [],
+      details: [
+        isEnterprise
+          ? "GitHub Copilot Enterprise OAuth session found."
+          : "GitHub Copilot OAuth session found.",
+        "Cost is $0 — uses your Copilot subscription.",
+      ],
+    }
+  }
+
+  return {
+    providerID,
+    mode: "missing",
+    ok: false,
+    requiredEnv: [],
+    missingEnv: ["GitHub Copilot OAuth token"],
+    error: `GitHub Copilot not authenticated. Run 'dax auth login' and select 'GitHub Copilot'.`,
+    details: [
+      "GitHub Copilot requires a GitHub account with an active Copilot subscription.",
+      "Run 'dax auth login' → select 'GitHub Copilot' to authenticate via device code flow.",
+    ],
+  }
+}
+
+async function diagnoseOpenAIOAuthProvider(providerID: string): Promise<AuthDiagnostics> {
+  const auth = await Auth.get(providerID)
+  const hasApiKey = Boolean(env("OPENAI_API_KEY"))
+
+  if (auth?.type === "oauth") {
+    return {
+      providerID,
+      mode: "custom-oauth",
+      ok: true,
+      requiredEnv: [],
+      missingEnv: [],
+      details: [`${providerID} authenticated via OAuth (ChatGPT Plus/Pro subscription)`],
+    }
+  }
+
+  if (auth?.type === "api" || hasApiKey) {
+    return {
+      providerID,
+      mode: "anthropic-api",
+      ok: true,
+      requiredEnv: ["OPENAI_API_KEY"],
+      missingEnv: hasApiKey ? [] : ["OPENAI_API_KEY"],
+      details: [`${providerID} authenticated via API key`],
+    }
+  }
+
+  return {
+    providerID,
+    mode: "missing",
+    ok: false,
+    requiredEnv: ["OPENAI_API_KEY"],
+    missingEnv: ["OPENAI_API_KEY or OAuth login"],
+    error: `${providerID} not authenticated. Run 'dax auth login' or set OPENAI_API_KEY.`,
+    details: ["OpenAI requires an API key or ChatGPT Plus/Pro OAuth login."],
+  }
+}
+
 export async function diagnoseProviderAuth(providerID: string): Promise<AuthDiagnostics> {
   if (providerID === "google") return diagnoseGoogleProvider(providerID)
   if (providerID === "google-vertex" || providerID === "google-vertex-anthropic") {
@@ -344,6 +417,12 @@ export async function diagnoseProviderAuth(providerID: string): Promise<AuthDiag
   }
   if (providerID === "claude-code" || providerID === "anthropic") {
     return diagnoseAnthropicProvider(providerID)
+  }
+  if (providerID === "github-copilot" || providerID === "github-copilot-enterprise") {
+    return diagnoseCopilotProvider(providerID)
+  }
+  if (providerID === "openai") {
+    return diagnoseOpenAIOAuthProvider(providerID)
   }
   return {
     providerID,
@@ -361,7 +440,10 @@ export async function assertProviderAuth(providerID: string) {
     providerID !== "google-vertex" &&
     providerID !== "google-vertex-anthropic" &&
     providerID !== "claude-code" &&
-    providerID !== "anthropic"
+    providerID !== "anthropic" &&
+    providerID !== "github-copilot" &&
+    providerID !== "github-copilot-enterprise" &&
+    providerID !== "openai"
   )
     return
   const report = await diagnoseProviderAuth(providerID)
