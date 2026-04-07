@@ -49,13 +49,19 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     })
   }
 
-  if (cliImportIndex >= 0) {
+  // When the operator has configured a custom Google OAuth client via env vars,
+  // prefer the direct sign-in method. Fall back to CLI import otherwise.
+  const useDirectSignIn = hasAdvancedGoogleClient(env) && directSignInIndex >= 0
+  const subscriptionIndex = useDirectSignIn ? directSignInIndex : cliImportIndex
+  if (subscriptionIndex >= 0) {
     visible.push({
-      method: methods[cliImportIndex]!,
-      originalIndex: cliImportIndex,
+      method: methods[subscriptionIndex]!,
+      originalIndex: subscriptionIndex,
       title: "Gemini Subscription Sign-In",
-      description: "Use your Gemini Pro or Plus subscription from the terminal.",
-      hint: "Import from Gemini CLI",
+      description: useDirectSignIn
+        ? "Sign in directly with your Google account using your OAuth client."
+        : "Use your Gemini Pro or Plus subscription from the terminal.",
+      hint: useDirectSignIn ? "Direct sign-in with custom OAuth client" : "Import from Gemini CLI",
     })
   }
 
