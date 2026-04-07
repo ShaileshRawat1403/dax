@@ -5,7 +5,8 @@ import type { JSX } from "@opentui/solid"
 import type { RGBA } from "@opentui/core"
 import "opentui-spinner/solid"
 
-const frames = ["◐", "◑", "◒", "◓", "◔", "◕", "◴", "◵", "◶", "◷"]
+// BOUNCE — braille fill expand/collapse. Elastic, precise, very DAX.
+const frames = ["⠁", "⠃", "⠇", "⠏", "⠟", "⠿", "⠟", "⠏", "⠇", "⠃"]
 
 export function Spinner(props: { children?: JSX.Element; color?: RGBA }) {
   const { theme } = useTheme()
