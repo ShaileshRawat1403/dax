@@ -29,25 +29,15 @@ export function streamStageToOrchestrationPhase(stage: StreamStage): Orchestrati
   }
 }
 
-export function labelOrchestrationPhase(phase: OrchestrationPhase, eli12: boolean) {
-  if (eli12) {
-    return {
-      understand: "Analysis",
-      plan: "Strategy",
-      execute: "Action",
-      verify: "Audit",
-      waiting: "Review",
-      complete: "Done",
-    }[phase]
-  }
-
+// FIELD word set — tactical ops, mission-flavored, punchy operator energy
+export function labelOrchestrationPhase(phase: OrchestrationPhase, _eli12: boolean) {
   return {
-    understand: "Analysis",
-    plan: "Strategy",
-    execute: "Action",
-    verify: "Audit",
-    waiting: "Review Required",
-    complete: "Done",
+    understand: "Intel",
+    plan: "Briefing",
+    execute: "Engaged",
+    verify: "Debrief",
+    waiting: "Hold",
+    complete: "Complete",
   }[phase]
 }
 
