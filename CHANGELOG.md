@@ -5,6 +5,19 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.25] - 2026-04-08
+
+### Fixed
+
+- **Gemini Subscription Flow**: Restored direct browser-based sign-in for Gemini Pro/Plus, avoiding the forced CLI dependency.
+- **Claude Pro/Max Subscription Lane**: Fixed a bug in the Anthropic plugin's network logic and added missing beta headers (`interleaved-thinking`, `fine-grained-tool-streaming`) for modern models like Haiku.
+- **Child Provider Plugin Matching**: Fixed a core issue where plugins for parent providers (Google/Anthropic) were not correctly applied when using child provider IDs (`gemini`, `claude-code`).
+- **Reference Errors**: Resolved `ReferenceError: iife is not defined` in multiple plugins.
+
+### Added
+
+- **Expanded Release Artifacts**: Expanded standard release packaging to include all built variants (baseline, musl) for maximum cross-platform compatibility (11 unique binaries).
+
 ## [1.0.21] - 2026-04-06
 
 ### Added
