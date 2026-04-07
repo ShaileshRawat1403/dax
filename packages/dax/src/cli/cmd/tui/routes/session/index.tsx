@@ -1173,7 +1173,7 @@ export function Session() {
             workstationState().completionProof?.ready ? "PASS" : workstationState().completionProof ? "FAIL" : undefined
           }
           emphasis={showPane() ? "muted" : "normal"}
-          busy={sessionStatusType() === "busy"}
+          busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
           actions={[
             {
               label: paneVisibility() === "hidden" ? "Show Workstation" : `Workstation: ${paneVisibility()}`,
@@ -1234,6 +1234,7 @@ export function Session() {
                     paddingBottom={1}
                   >
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                      <Spinner color={theme.primary} />
                       <box
                         backgroundColor={tint(theme.background, theme.primary, 0.24)}
                         paddingLeft={1}
@@ -2165,7 +2166,9 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
       paddingLeft={1}
     >
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={allCompleted() ? 0 : 1}>
-        <text fg={hasActive() ? theme.warning : theme.success}>{hasActive() ? "◌" : "✓"}</text>
+        <Show when={hasActive()} fallback={<text fg={theme.success}>✓</text>}>
+          <Spinner color={theme.warning} />
+        </Show>
         <text
           fg={hasActive() ? theme.warning : theme.textMuted}
           attributes={hasActive() ? TextAttributes.BOLD : undefined}
@@ -2239,9 +2242,17 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
         <box flexDirection="column" gap={0} paddingTop={1}>
           <For each={traces()}>
             {(item) => (
-              <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>
-                {item.tool.state.status === "completed" ? "✓" : "◌"} {item.trace?.summary ?? item.tool.tool}
-              </text>
+              <box flexDirection="row" gap={1} alignItems="center">
+                <Show
+                  when={item.tool.state.status === "completed"}
+                  fallback={<Spinner color={theme.primary} />}
+                >
+                  <text fg={theme.textMuted}>✓</text>
+                </Show>
+                <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>
+                  {item.trace?.summary ?? item.tool.tool}
+                </text>
+              </box>
             )}
           </For>
         </box>
