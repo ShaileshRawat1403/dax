@@ -343,8 +343,11 @@ export const AuthLoginCommand = cmd({
               let providerHint = {
                 dax: "recommended",
                 anthropic: "Claude Max or API key",
+                "claude-code": "Claude Pro/Max subscription",
                 openai: "ChatGPT Plus/Pro or API key",
                 google: "Google account for Gemini Pro/Plus",
+                "github-copilot": "GitHub Copilot subscription — free to use",
+                "github-copilot-enterprise": "GitHub Copilot Enterprise subscription",
               }[id]
 
               if (!providerHint && (id.includes("google") || id.includes("gemini"))) {

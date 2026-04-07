@@ -217,12 +217,11 @@ export function Session() {
     const rawMessage = PERSONA_SWITCH_MESSAGES[nextId] || `Switched to ${nextPersona.label}`
     const voicedMessage = applyPersonaVoice(rawMessage, nextPersona)
 
-    sdk.client.message
-      .append({
+    sdk.client.session
+      .prompt({
         sessionID: route.sessionID,
-        role: "assistant",
-        content: voicedMessage,
-        synthetic: true,
+        parts: [{ type: "text", text: voicedMessage }],
+        noReply: true,
       })
       .catch(() => {})
   }
@@ -399,8 +398,7 @@ export function Session() {
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "plan")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
-  // TODO: slowStream setting is defined but not used anywhere - implement or remove
-  const [slowStream, setSlowStream] = kv.signal(DAX_SETTING.session_stream_slow, true)
+
   const [displayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
   const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
   const [queueVisibleRaw, setQueueVisibleRaw] = kv.signal<string | boolean>(

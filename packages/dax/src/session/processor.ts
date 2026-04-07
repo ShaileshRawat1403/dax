@@ -54,7 +54,7 @@ export namespace SessionProcessor {
           try {
             let currentText: MessageV2.TextPart | undefined
             const reasoningMap: Record<string, MessageV2.ReasoningPart> = {}
-            const shouldTrackDelayedProvider = input.model.providerID === "google"
+            const shouldTrackDelayedProvider = true
             let lastProgressAt = Date.now()
             let delayedRaised = false
             const touchProgress = () => {

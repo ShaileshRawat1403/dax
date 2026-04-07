@@ -528,7 +528,10 @@ export namespace ACP {
     }
 
     async authenticate(_params: AuthenticateRequest) {
-      throw new Error("Authentication not implemented")
+      // ACP authenticate is not used — DAX auth is handled out-of-band
+      // via `dax auth login` (described in initialize authMethods).
+      // Return an empty valid response so ACP clients don't hard-fail.
+      return {}
     }
 
     async newSession(params: NewSessionRequest) {
