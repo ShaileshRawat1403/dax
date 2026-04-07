@@ -23,7 +23,7 @@ describe("SessionRetry.retryable", () => {
       isRetryable: true,
     }).toObject()
 
-    expect(SessionRetry.retryable(error)).toBe("Provider is overloaded")
+    expect(SessionRetry.retryable(error)).toContain("overloaded")
   })
 
   test("returns undefined for non-retryable errors", () => {
@@ -50,7 +50,7 @@ describe("SessionRetry.retryable", () => {
     expect(SessionRetry.retryable(error)).toBeDefined()
   })
 
-  test("extracts too_many_requests from JSON error body", () => {
+  test("returns rate-limit message for 429 errors", () => {
     const error = new MessageV2.APIError({
       message: JSON.stringify({ type: "error", error: { type: "too_many_requests" } }),
       statusCode: 429,
@@ -59,10 +59,12 @@ describe("SessionRetry.retryable", () => {
       responseHeaders: {},
     }).toObject()
 
-    expect(SessionRetry.retryable(error)).toContain("too_many_requests")
+    const result = SessionRetry.retryable(error)
+    expect(result).toBeDefined()
+    expect(result).toContain("Rate limited")
   })
 
-  test("extracts rate_limit from JSON error code", () => {
+  test("returns rate-limit message for 429 with rate_limit error code", () => {
     const error = new MessageV2.APIError({
       message: JSON.stringify({ code: "rate_limit_exceeded" }),
       statusCode: 429,
@@ -71,7 +73,19 @@ describe("SessionRetry.retryable", () => {
       responseHeaders: {},
     }).toObject()
 
-    expect(SessionRetry.retryable(error)).toContain("rate_limit")
+    const result = SessionRetry.retryable(error)
+    expect(result).toBeDefined()
+    expect(result).toContain("Rate limited")
+  })
+
+  test("stops retrying after MAX_ATTEMPTS", () => {
+    const error = new MessageV2.APIError({
+      message: "Overloaded",
+      isRetryable: true,
+    }).toObject()
+
+    expect(SessionRetry.retryable(error, SessionRetry.MAX_ATTEMPTS)).toBeUndefined()
+    expect(SessionRetry.retryable(error, SessionRetry.MAX_ATTEMPTS - 1)).toBeDefined()
   })
 })
 

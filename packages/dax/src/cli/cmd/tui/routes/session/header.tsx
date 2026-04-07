@@ -6,6 +6,7 @@ import { DAX_SETTING } from "@/dax/settings"
 import { isEli12Mode } from "@/dax/intent"
 import type { PersonaPack } from "@/dax/presentation/persona"
 import { nextDisplayMode, type DisplayMode } from "@/dax/presentation/session-display"
+import { Spinner } from "@tui/component/spinner"
 
 type HeaderAction = {
   label: string
@@ -38,11 +39,19 @@ export function Header(props: {
     setDisplayMode(() => nextDisplayMode(displayMode()))
   }
 
+  // Animated DAX logo (only shown when no persona is set)
   const [tick, setTick] = createSignal(0)
   onMount(() => {
     const timer = setInterval(() => setTick((t) => (t + 1) % 10), 140)
     onCleanup(() => clearInterval(timer))
   })
+
+  const letters = ["D", "A", "X"]
+  const letterColor = (index: number) => {
+    const palette = [theme.primary, theme.accent, theme.secondary]
+    return palette[(tick() + index) % palette.length] ?? theme.primary
+  }
+  const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
 
   const lifecycleColor = createMemo(() => {
     const label = props.lifecycleLabel ?? ""
@@ -64,10 +73,10 @@ export function Header(props: {
     return theme.textMuted
   })
 
-  // Pulse the decision label briefly when the state changes
+  // Pulse the decision label briefly when state changes
   const [pulsing, setPulsing] = createSignal(false)
   createEffect(() => {
-    const _ = props.decisionState // track it
+    const _ = props.decisionState
     setPulsing(true)
     const t = setTimeout(() => setPulsing(false), 800)
     onCleanup(() => clearTimeout(t))
@@ -78,36 +87,6 @@ export function Header(props: {
     if (!props.persona || !props.decisionState) return props.decisionState
     const state = props.decisionState.toLowerCase().split(" ")[0]!
     return props.persona.ui.statusLabels[state] ?? props.decisionState
-  })
-
-  const letters = ["D", "A", "X"]
-  const letterColor = (index: number) => {
-    const palette = [theme.primary, theme.accent, theme.secondary]
-    return palette[(tick() + index) % palette.length] ?? theme.primary
-  }
-  const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
-
-  const phases = ["Intent", "Plan", "Approval", "Execution", "Verification", "Output"]
-  const currentPhaseIndex = createMemo(() => {
-    const state = props.lifecycle ?? "ready"
-    switch (state) {
-      case "understanding":
-      case "ready":
-        return 0 // Intent
-      case "planning":
-        return 1 // Plan
-      case "awaiting_approval":
-        return 2 // Approval
-      case "executing":
-        return 3 // Execution
-      case "verifying":
-        return 4 // Verification
-      case "completed":
-        return 5 // Output
-      default:
-        // For "blocked", keep whatever the current active index would be, or fallback to execution
-        return 3
-    }
   })
 
   return (
@@ -122,6 +101,7 @@ export function Header(props: {
         gap={0}
       >
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
+          {/* Left: persona/logo + lifecycle chip + decision chip with spinner */}
           <box flexDirection="row" gap={1} alignItems="center">
             <Show
               when={props.persona}
@@ -153,6 +133,7 @@ export function Header(props: {
                 </text>
               </box>
             </Show>
+
             <Show when={showLifecycleChip()}>
               <box
                 backgroundColor={theme.backgroundElement}
@@ -164,14 +145,21 @@ export function Header(props: {
                 <text fg={lifecycleColor()}>{props.lifecycleLabel?.toUpperCase()}</text>
               </box>
             </Show>
+
             <Show when={props.decisionState && props.emphasis !== "muted"}>
               <box
+                flexDirection="row"
+                alignItems="center"
+                gap={1}
                 backgroundColor={theme.backgroundElement}
                 border={["round"]}
-                borderColor={theme.borderSubtle}
+                borderColor={pulsing() ? theme.borderActive : theme.borderSubtle}
                 paddingLeft={1}
                 paddingRight={1}
               >
+                <Show when={props.busy}>
+                  <Spinner color={baseDecisionColor()} />
+                </Show>
                 <text fg={decisionColor()} attributes={TextAttributes.BOLD}>
                   {personaLabel()?.toUpperCase()}
                 </text>
@@ -179,6 +167,7 @@ export function Header(props: {
             </Show>
           </box>
 
+          {/* Right: display mode + actions */}
           <box flexDirection="row" gap={1} alignItems="center">
             <box
               onMouseUp={cycleDisplayMode}
@@ -211,31 +200,8 @@ export function Header(props: {
             </Show>
           </box>
         </box>
-        <Show when={props.lifecycle !== undefined}>
-          <box flexDirection="row" alignItems="center" gap={1} marginTop={1} marginBottom={0}>
-            <For each={phases}>
-              {(phase, index) => {
-                const isActive = index() === currentPhaseIndex()
-                const isPast = index() < currentPhaseIndex()
-                const color = isActive ? theme.primary : isPast ? theme.success : theme.textMuted
-                const isLast = index() === phases.length - 1
-                return (
-                  <box flexDirection="row" alignItems="center" gap={1}>
-                    <Show when={isPast}>
-                      <text fg={theme.success}>✓</text>
-                    </Show>
-                    <text fg={color} attributes={isActive ? TextAttributes.BOLD : undefined}>
-                      {phase.toUpperCase()}
-                    </text>
-                    <Show when={!isLast}>
-                      <text fg={isActive || isPast ? theme.borderActive : theme.borderSubtle}>›</text>
-                    </Show>
-                  </box>
-                )
-              }}
-            </For>
-          </box>
-        </Show>
+
+        {/* Trust / approvals / verification row */}
         <Show when={props.trustPosture !== undefined || props.pendingApprovals !== undefined}>
           <box flexDirection="row" alignItems="center" gap={1} marginTop={0} marginBottom={0}>
             <Show when={props.trustPosture}>
