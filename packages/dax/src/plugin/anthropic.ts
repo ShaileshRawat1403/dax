@@ -292,7 +292,10 @@ export async function AnthropicAuthPlugin(input: PluginInput): Promise<Hooks> {
               if (access && access !== FAKE_ACCESS_TOKEN) {
                 headers.set("Authorization", `Bearer ${access}`)
               }
-              headers.set("anthropic-beta", "oauth-2025-04-20")
+              const existingBeta = headers.get("anthropic-beta")
+              const betaFlags = new Set(existingBeta ? existingBeta.split(",").map((s) => s.trim()) : [])
+              betaFlags.add("oauth-2025-04-20")
+              headers.set("anthropic-beta", [...betaFlags].join(","))
 
               const urlStr = typeof request === "string" ? request : String(request)
               const fullUrl = urlStr.startsWith("http") ? urlStr : `https://api.anthropic.com${urlStr}`
