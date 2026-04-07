@@ -1,5 +1,6 @@
 import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Log } from "../util/log"
+import { iife } from "@/util/iife"
 
 const log = Log.create({ service: "plugin.anthropic" })
 
@@ -295,9 +296,16 @@ export async function AnthropicAuthPlugin(input: PluginInput): Promise<Hooks> {
               const existingBeta = headers.get("anthropic-beta")
               const betaFlags = new Set(existingBeta ? existingBeta.split(",").map((s) => s.trim()) : [])
               betaFlags.add("oauth-2025-04-20")
+              betaFlags.add("claude-code-20250219")
+              betaFlags.add("interleaved-thinking-2025-05-14")
+              betaFlags.add("fine-grained-tool-streaming-2025-05-14")
               headers.set("anthropic-beta", [...betaFlags].join(","))
 
-              const urlStr = typeof request === "string" ? request : String(request)
+              const urlStr = iife(() => {
+                if (request instanceof URL) return request.href
+                if (request instanceof Request) return request.url
+                return String(request)
+              })
               const fullUrl = urlStr.startsWith("http") ? urlStr : `https://api.anthropic.com${urlStr}`
               return fetch(fullUrl, { ...init, headers })
             },
