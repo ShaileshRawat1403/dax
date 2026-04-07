@@ -11,7 +11,7 @@ describe("home layout model", () => {
     })
 
     expect(layout.showInput).toBe(true)
-    expect(layout.showStages).toBe(true)
+    expect(layout.showMascot).toBe(false)
     expect(layout.showFirstRunGuide).toBe(false)
     expect(layout.showSessions).toBe(false)
     expect(layout.outerJustify).toBe("flex-start")
@@ -26,7 +26,7 @@ describe("home layout model", () => {
     })
 
     expect(layout.showInput).toBe(true)
-    expect(layout.showFirstRunGuide).toBe(true)
+    expect(layout.showFirstRunGuide).toBe(false)
     expect(layout.showSessions).toBe(false)
     expect(layout.showTips).toBe(false)
   })
@@ -39,9 +39,9 @@ describe("home layout model", () => {
       tipsVisible: true,
     })
 
-    expect(layout.showStages).toBe(true)
+    expect(layout.showMascot).toBe(true)
     expect(layout.showActions).toBe(true)
-    expect(layout.showFirstRunGuide).toBe(true)
+    expect(layout.showFirstRunGuide).toBe(false)
     expect(layout.showSessions).toBe(true)
     expect(layout.showTips).toBe(true)
     expect(layout.outerJustify).toBe("center")

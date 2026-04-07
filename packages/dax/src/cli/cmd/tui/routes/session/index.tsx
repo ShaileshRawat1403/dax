@@ -1912,7 +1912,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
         <box paddingLeft={2} marginTop={0}>
           <text fg={fadeFg() ?? theme.text} wrapMode="word">
             {(sync.data.part[props.message.id] ?? [])
-              .filter((p): p is TextPart => p.type === "text")
+              .filter((p): p is TextPart => p.type === "text" && !p.synthetic)
               .map((p) => p.text)
               .join("")}
           </text>

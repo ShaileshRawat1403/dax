@@ -1,7 +1,7 @@
 export type HomeLayout = {
   size: "tiny" | "small" | "medium"
   showInput: boolean
-  showStages: boolean
+  showMascot: boolean
   showActions: boolean
   showFirstRunGuide: boolean
   showSessions: boolean
@@ -23,9 +23,9 @@ export function deriveHomeLayout(input: {
   return {
     size,
     showInput: height >= 14,
-    showStages: width >= 56 && height >= 18,
+    showMascot: width >= 50 && height >= 22 && size !== "tiny",
     showActions: width >= 52 && height >= 16,
-    showFirstRunGuide: width >= 60 && height >= 22,
+    showFirstRunGuide: width >= 60 && height >= 26 && sessionCount === 0,
     showSessions: width >= 60 && height >= 24 && sessionCount > 0,
     showTips: width >= 64 && height >= 30 && tipsVisible && sessionCount > 0,
     outerJustify: height >= 34 ? "center" : "flex-start",
