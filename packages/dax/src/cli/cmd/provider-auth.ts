@@ -61,7 +61,7 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
       description: useDirectSignIn
         ? "Sign in directly with your Google account using your OAuth client."
         : "Use your Gemini Pro or Plus subscription from the terminal.",
-      hint: useDirectSignIn ? "Direct sign-in with custom OAuth client" : "Import from Gemini CLI",
+      hint: useDirectSignIn ? "Browser-based login (Pro/Plus)" : "Import from Gemini CLI",
     })
   }
 

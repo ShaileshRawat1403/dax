@@ -4,6 +4,7 @@ import { parseGeminiSubscriptionRetryMs } from "./gemini-rate-limit"
 import { scheduleGeminiSubscriptionRequest, persistGeminiSubscriptionCooldown } from "./gemini-scheduler"
 import { Global } from "@/global"
 import path from "path"
+import { iife } from "../util/iife"
 
 const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -23,7 +24,6 @@ const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
 // Google's official OAuth credentials for direct sign-in (Pro/Plus)
 // Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
-// Default to Google Cloud SDK client ID for public sign-in flow (PKCE)
 const GOOGLE_CLOUD_SDK_CLIENT_ID = "764086051750-76sqf96j9pjkndisqve66smditp53m6j.apps.googleusercontent.com"
 const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GOOGLE_CLOUD_SDK_CLIENT_ID
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
@@ -1022,6 +1022,139 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   clientSecret: creds.clientSecret,
                   accountId: health.email,
                   mode: "cli-import" as const,
+                }
+              },
+            }
+          },
+        },
+        {
+          type: "oauth" as const,
+          label: "Google Code Assist / Pro-Plus Sign-In",
+          description:
+            "Sign in directly with your Google account for Gemini Pro or Plus subscriptions.\n" +
+            "Uses a secure browser flow — no CLI install required.",
+          async authorize() {
+            const clientID = getGoogleCliClientId()
+            const clientSecret = getGoogleCliClientSecret()
+
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            const state = generateState()
+            const pkce = await generatePKCE()
+            return {
+              method: "auto" as const,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID, "compat"),
+              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
+              async callback() {
+                const code = await waitForOAuthCode(state)
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
+
+                if (!token.access_token) throw new Error("Token response missing access_token")
+
+                const health = await checkTokenHealth(token.access_token)
+                if (!health.ok) {
+                  if (health.reason === "scope_missing")
+                    throw new Error(
+                      "Google account token is missing required scopes (cloud-platform, peruserquota, or retriever.readonly).",
+                    )
+                  if (health.reason === "token_expired")
+                    throw new Error("Token expired during verification. Retry sign-in.")
+                  throw new Error(`Token verification failed: ${health.reason}`)
+                }
+
+                const current = await readCreds()
+                return {
+                  type: "success" as const,
+                  access: token.access_token,
+                  refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                  clientID,
+                  clientSecret,
+                  accountId: health.email,
+                  mode: "codeassist" as const,
+                }
+              },
+            }
+          },
+        },
+        {
+          type: "oauth" as const,
+          label: "Custom Google OAuth Client",
+          description:
+            "Sign in with your own OAuth credentials. Requires creating an OAuth client in Google Cloud Console.",
+          prompts: [
+            {
+              key: "clientID",
+              type: "text",
+              message: "Enter your Google OAuth Client ID",
+              placeholder: "e.g. 123456789-abc.apps.googleusercontent.com",
+              validate: (x: string) =>
+                x && x.includes("apps.googleusercontent.com") ? undefined : "Must be a valid Google OAuth Client ID",
+            },
+            {
+              key: "clientSecret",
+              type: "text",
+              message: "Enter your Google OAuth Client Secret",
+              placeholder: "e.g. GOCSPX-...",
+              validate: (x: string) => (x && x.length > 0 ? undefined : "Required"),
+            },
+          ],
+          async authorize(inputs: any) {
+            const customAuth = await Auth.get("google").then((x: any) =>
+              x?.type === "oauth-custom" ? x : undefined,
+            )
+
+            const clientID =
+              inputs.clientID ||
+              customAuth?.clientID ||
+              Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ||
+              Bun.env.GEMINI_OAUTH_CLIENT_ID ||
+              GOOGLE_CLOUD_SDK_CLIENT_ID
+            const clientSecret = inputs.clientSecret || customAuth?.clientSecret
+
+            if (!clientID) {
+              throw new Error(
+                "OAuth credentials required. Please provide Client ID.\n" +
+                  "Create OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient",
+              )
+            }
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            const state = generateState()
+            const pkce = await generatePKCE()
+            return {
+              method: "auto" as const,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID),
+              instructions:
+                "Complete sign-in in your browser. DAX will detect the localhost redirect automatically. " +
+                `OAuth client: ${clientID}. Redirect: ${redirectURI}.`,
+              async callback() {
+                const code = await waitForOAuthCode(state)
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
+
+                if (!token.access_token) throw new Error("Token response missing access_token")
+
+                const health = await checkTokenHealth(token.access_token)
+                if (!health.ok) {
+                  if (health.reason === "scope_missing")
+                    throw new Error(
+                      "Google account token is missing required scopes (cloud-platform, peruserquota, or retriever.readonly).",
+                    )
+                  if (health.reason === "token_expired")
+                    throw new Error("Token expired during verification. Retry sign-in.")
+                  throw new Error(`Token verification failed: ${health.reason}`)
+                }
+
+                const current = await readCreds()
+                return {
+                  type: "success" as const,
+                  access: token.access_token,
+                  refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                  clientID,
+                  clientSecret,
+                  accountId: health.email,
+                  mode: "custom-oauth" as const,
                 }
               },
             }

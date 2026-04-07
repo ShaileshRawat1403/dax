@@ -370,7 +370,15 @@ export const AuthLoginCommand = cmd({
 
       if (prompts.isCancel(provider)) throw new UI.CancelledError()
 
-      const plugin = await Plugin.list().then((x) => x.findLast((x) => x.auth?.provider === provider))
+      const plugin = await Plugin.list().then((x) =>
+        x.findLast((x) => {
+          if (!x.auth) return false
+          if (x.auth.provider === provider) return true
+          if (x.auth.provider === "google" && provider === "gemini") return true
+          if (x.auth.provider === "anthropic" && provider === "claude-code") return true
+          return false
+        }),
+      )
       if (plugin && plugin.auth) {
         const handled = await handlePluginAuth({ auth: plugin.auth }, provider)
         if (handled) return

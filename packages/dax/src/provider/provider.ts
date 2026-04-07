@@ -966,48 +966,25 @@ export namespace Provider {
 
     for (const plugin of await Plugin.list()) {
       if (!plugin.auth) continue
-      const providerID = plugin.auth.provider
-      if (disabled.has(providerID)) continue
-
-      // For github-copilot plugin, check if auth exists for either github-copilot or github-copilot-enterprise
-      let hasAuth = false
-      const auth = await Auth.get(providerID)
-      if (auth) hasAuth = true
-
-      // Special handling for github-copilot: also check for enterprise auth
-      if (providerID === "github-copilot" && !hasAuth) {
-        const enterpriseAuth = await Auth.get("github-copilot-enterprise")
-        if (enterpriseAuth) hasAuth = true
-      }
-
-      if (!hasAuth) continue
+      const pluginProviderID = plugin.auth.provider
+      if (disabled.has(pluginProviderID)) continue
       if (!plugin.auth.loader) continue
 
-      // Load for the main provider if auth exists
-      if (auth) {
-        const options = await plugin.auth.loader(() => Auth.get(providerID) as any, database[plugin.auth.provider])
-        const opts = options ?? {}
-        const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
-        mergeProvider(providerID, patch)
-      }
+      // Find all target providers that should use this plugin's auth
+      const targetProviderIDs = [pluginProviderID]
+      if (pluginProviderID === "google") targetProviderIDs.push("gemini")
+      if (pluginProviderID === "anthropic") targetProviderIDs.push("claude-code")
+      if (pluginProviderID === "github-copilot") targetProviderIDs.push("github-copilot-enterprise")
 
-      // If this is github-copilot plugin, also register for github-copilot-enterprise if auth exists
-      if (providerID === "github-copilot") {
-        const enterpriseProviderID = "github-copilot-enterprise"
-        if (!disabled.has(enterpriseProviderID)) {
-          const enterpriseAuth = await Auth.get(enterpriseProviderID)
-          if (enterpriseAuth) {
-            const enterpriseOptions = await plugin.auth.loader(
-              () => Auth.get(enterpriseProviderID) as any,
-              database[enterpriseProviderID],
-            )
-            const opts = enterpriseOptions ?? {}
-            const patch: Partial<Info> = providers[enterpriseProviderID]
-              ? { options: opts }
-              : { source: "custom", options: opts }
-            mergeProvider(enterpriseProviderID, patch)
-          }
-        }
+      for (const targetID of targetProviderIDs) {
+        if (disabled.has(targetID)) continue
+        const auth = await Auth.get(targetID)
+        if (!auth) continue
+
+        const options = await plugin.auth.loader(() => Auth.get(targetID) as any, database[targetID])
+        const opts = options ?? {}
+        const patch: Partial<Info> = providers[targetID] ? { options: opts } : { source: "custom", options: opts }
+        mergeProvider(targetID, patch)
       }
     }
 
