@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { useTheme, tint } from "@tui/context/theme"
 import { TextAttributes } from "@opentui/core"
 import { useKV } from "../../context/kv"
@@ -55,7 +55,7 @@ export function Header(props: {
     () => !!props.lifecycleLabel && props.lifecycleLabel.toLowerCase() !== "idle" && props.emphasis === "normal",
   )
 
-  const decisionColor = createMemo(() => {
+  const baseDecisionColor = createMemo(() => {
     const state = props.decisionState?.toLowerCase() ?? ""
     if (state === "critiquing" || state === "interpreting") return theme.accent
     if (state === "verifying") return theme.secondary
@@ -63,6 +63,16 @@ export function Header(props: {
     if (state === "recovering") return theme.warning
     return theme.textMuted
   })
+
+  // Pulse the decision label briefly when the state changes
+  const [pulsing, setPulsing] = createSignal(false)
+  createEffect(() => {
+    const _ = props.decisionState // track it
+    setPulsing(true)
+    const t = setTimeout(() => setPulsing(false), 800)
+    onCleanup(() => clearTimeout(t))
+  })
+  const decisionColor = createMemo(() => (pulsing() ? theme.text : baseDecisionColor()))
 
   const personaLabel = createMemo(() => {
     if (!props.persona || !props.decisionState) return props.decisionState
@@ -207,15 +217,18 @@ export function Header(props: {
               {(phase, index) => {
                 const isActive = index() === currentPhaseIndex()
                 const isPast = index() < currentPhaseIndex()
-                const color = isActive ? theme.primary : isPast ? theme.text : theme.textMuted
+                const color = isActive ? theme.primary : isPast ? theme.success : theme.textMuted
                 const isLast = index() === phases.length - 1
                 return (
                   <box flexDirection="row" alignItems="center" gap={1}>
+                    <Show when={isPast}>
+                      <text fg={theme.success}>✓</text>
+                    </Show>
                     <text fg={color} attributes={isActive ? TextAttributes.BOLD : undefined}>
                       {phase.toUpperCase()}
                     </text>
                     <Show when={!isLast}>
-                      <text fg={theme.borderSubtle}>›</text>
+                      <text fg={isActive || isPast ? theme.borderActive : theme.borderSubtle}>›</text>
                     </Show>
                   </box>
                 )
