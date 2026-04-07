@@ -16,6 +16,7 @@ import {
   RunEvent,
   RunSnapshot,
   RunSummary,
+  ProjectedRun,
 } from "../run-contract"
 import { RunGateway } from "../run-gateway"
 
@@ -244,6 +245,29 @@ export const RunRoutes = lazy(() =>
       validator("param", z.object({ runID: z.string() })),
       async (c) => {
         return c.json(await RunGateway.getSummary(c.req.valid("param").runID))
+      },
+    )
+    .get(
+      "/:runID/projections",
+      describeRoute({
+        summary: "Get run projections",
+        description: "Return the canonical workstation projections for a DAX-backed run.",
+        operationId: "run.projections",
+        responses: {
+          200: {
+            description: "Run projections",
+            content: {
+              "application/json": {
+                schema: resolver(ProjectedRun),
+              },
+            },
+          },
+          ...errors(404),
+        },
+      }),
+      validator("param", z.object({ runID: z.string() })),
+      async (c) => {
+        return c.json(await RunGateway.getProjections(c.req.valid("param").runID))
       },
     ),
 )

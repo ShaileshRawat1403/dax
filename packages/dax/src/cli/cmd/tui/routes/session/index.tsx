@@ -243,96 +243,41 @@ export function Session() {
   const messages = createMemo(() => (route.sessionID ? (sync.data.message[route.sessionID] ?? []) : []))
   const lifecycle = createMemo(() => (route.sessionID ? (sync.data.lifecycle[route.sessionID] ?? []) : []))
 
-  const projectedLifecycleEvents = createMemo<RunEvent[]>(() => {
-    return lifecycle().flatMap<RunEvent>((event) => {
-      const runId = event.properties?.runId || event.properties?.sessionId || route.sessionID
-      if (!runId) return []
-      if (event.type === "intervention.required") {
-        return [
-          {
-            schemaVersion: "v1",
-            eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-            sequence: 0,
-            cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-            runId,
-            timestamp: event.timestamp,
-            type: "intervention.required",
-            payload: {
-              interventionId: event.properties.interventionId,
-              reason: event.properties.reason,
-              kind: event.properties.kind,
-              approvalId: event.properties.approvalId,
-              metadata: event.properties.metadata,
-            },
-          },
-        ]
-      }
-      if (event.type === "intervention.resolved") {
-        return [
-          {
-            schemaVersion: "v1",
-            eventId: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-            sequence: 0,
-            cursor: `${event.type}:${event.properties.interventionId ?? event.timestamp}`,
-            runId,
-            timestamp: event.timestamp,
-            type: "intervention.resolved",
-            payload: {
-              interventionId: event.properties.interventionId,
-              status: event.properties.status,
-              comment: event.properties.comment,
-              resolvedAt: event.properties.resolvedAt ?? event.timestamp,
-            },
-          },
-        ]
-      }
-      return []
-    })
-  })
+  const projectedRun = createMemo(() => sync.data.run[route.sessionID])
 
-  const interventions = createMemo(() => buildInterventionProjection(projectedLifecycleEvents()))
+  const interventions = createMemo(() => projectedRun()?.interventions ?? [])
 
   const permissions = createMemo(() => {
+    if (projectedRun()) {
+      return (projectedRun()?.approvals ?? [])
+        .filter((a) => a.type !== "question")
+        .map((a) => ({
+          id: a.approvalId,
+          sessionID: a.runId,
+          permission: a.type,
+          patterns: [a.reason],
+          always: [],
+          createdAt: new Date(a.createdAt).getTime(),
+          tool: a.context?.stepId ? { messageID: "", callID: a.context.stepId } : undefined,
+          metadata: {
+            command: a.context?.command,
+            filePath: a.context?.filePath,
+            diff: a.context?.diffPreview,
+          },
+        }))
+    }
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.permission[x.id] ?? [])
-    const modern = children().flatMap((x) =>
-      (sync.data.approvals[x.id] ?? []).filter((a) => (a.type as string) !== "question"),
-    )
-    return modern.length > 0 ? (modern as any) : legacy
-  })
-
-  const projectedApprovalRecords = createMemo(() => {
-    if (route.sessionID && (sync.data.approvals[route.sessionID]?.length ?? 0) > 0)
-      return sync.data.approvals[route.sessionID] ?? []
-    if (!session() || session()?.parentID) return []
-    return children().flatMap((child) => sync.data.approvals[child.id] ?? [])
+    return legacy
   })
 
   const proposedChanges = createMemo<ProjectedProposedChange[]>(() => {
-    if (projectedApprovalRecords().length > 0) return buildProposedChangesProjection(projectedApprovalRecords())
-    return permissions()
-      .filter((p: any) => p.context?.diffPreview)
-      .map((approval: any) => ({
-        changeId: `legacy_${approval.id ?? approval.approvalId ?? approval.createdAt ?? Math.random().toString(36).slice(2)}`,
-        runId: approval.runId ?? route.sessionID,
-        approvalId: approval.approvalId,
-        stepId: approval.context?.stepId,
-        type: approval.type === "patch_apply" ? "patch" : "file_edit",
-        filePath: approval.context?.filePath ?? "unknown",
-        diff: approval.context?.diffPreview ?? "",
-        status:
-          approval.status === "pending"
-            ? "pending"
-            : approval.status === "approved"
-              ? "approved_not_applied"
-              : approval.status === "denied"
-                ? "rejected"
-                : "stale",
-        createdAt: approval.createdAt ?? new Date().toISOString(),
-      }))
+    if (projectedRun()) return projectedRun()?.proposedChanges ?? []
+    return []
   })
 
   const narrative = createMemo(() => {
+    if (projectedRun()) return projectedRun()?.narrative ?? []
     const combined = [
       ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
       ...lifecycle().map((l) => ({
@@ -342,13 +287,11 @@ export function Session() {
         data: l,
       })),
     ]
-    return combined.toSorted((a, b) => a.timestamp - b.timestamp)
+    return (combined as any[]).toSorted((a, b) => a.timestamp - b.timestamp)
   })
 
   const currentRun = createMemo(() => {
-    const events = lifecycle()
-    const stateEvent = events.findLast((e) => e.type === "run.state_changed")
-    return stateEvent?.properties
+    return projectedRun()?.header
   })
 
   const currentStep = createMemo(() => {
@@ -364,12 +307,24 @@ export function Session() {
   })
 
   const questions = createMemo(() => {
+    if (projectedRun()) {
+      return (projectedRun()?.approvals ?? [])
+        .filter((a) => a.type === "question")
+        .map((a) => ({
+          id: a.approvalId,
+          sessionID: a.runId,
+          questions: [
+            {
+              question: a.reason,
+              header: a.title,
+              options: [],
+            },
+          ],
+        }))
+    }
     if (!session() || session()?.parentID) return []
     const legacy = children().flatMap((x) => sync.data.question[x.id] ?? [])
-    const modern = children().flatMap((x) =>
-      (sync.data.approvals[x.id] ?? []).filter((a) => (a.type as string) === "question"),
-    )
-    return modern.length > 0 ? (modern as any) : legacy
+    return legacy
   })
 
   const pending = createMemo(() => {
@@ -675,8 +630,40 @@ export function Session() {
 
   const workstationState = createMemo(() => {
     const s = session()
+    const pr = projectedRun()
+    const summary = pr?.summary
     const audit = latestAudit()?.result
     const art = (sync.data as any).session_artifact?.[route.sessionID] ?? []
+
+    if (summary) {
+      return deriveWorkstationState({
+        sessionID: route.sessionID,
+        stage: displayStageState().stage,
+        stageReason: displayStageState().reason,
+        sessionStatusType: summary.status === "running" ? "busy" : "idle",
+        goal: summary.outcome?.summaryText || s?.title,
+        todo: todo().map((t) => ({ content: t.content, status: t.status })),
+        reflection: (s?.state_v2 as any)?.reflection,
+        reflectionHistory: (s?.state_v2 as any)?.reflection_history ?? [],
+        approvals: (pr.approvals as any[]).map((p: any) => ({
+          label: p.title || p.permission,
+          reason: p.reason || (p.metadata?.reason as string | undefined),
+        })),
+        questions: questions().length,
+        artifacts: pr.artifacts.map((a: any) => ({ label: a.title || a.path || a.id, kind: a.type })),
+        diffCount: pr.proposedChanges.length,
+        audit: summary.trust ? {
+          status: summary.trust.posture as any,
+          blockerCount: summary.trust.blocked ? 1 : 0, // Simplified for now
+          warningCount: 0,
+          infoCount: 0,
+        } : undefined,
+        planQuality: (s?.state_v2 as any)?.plan_quality,
+        completionProof: (s?.state_v2 as any)?.completion_proof,
+        recentTooling: recentTooling(),
+        alert: undefined,
+      })
+    }
 
     return deriveWorkstationState({
       sessionID: route.sessionID,

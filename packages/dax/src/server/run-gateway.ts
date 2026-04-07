@@ -1288,14 +1288,15 @@ export namespace RunGateway {
 
   export async function getProjections(runId: string): Promise<ProjectedRun> {
     initialize()
-    const [snapshot, events, approvals, artifacts] = await Promise.all([
+    const [snapshot, events, approvals, artifacts, summary] = await Promise.all([
       getSnapshot(runId),
       readEvents(runId),
       getApprovals(runId),
       listArtifacts(runId),
+      getSummary(runId),
     ])
 
-    return buildProjectedRun(snapshot, events, approvals, artifacts)
+    return buildProjectedRun(snapshot, events, approvals, artifacts, summary)
   }
 
   export async function replayEvents(runId: string, cursor?: string) {

@@ -629,6 +629,7 @@ export type ProposedChange = z.infer<typeof ProposedChange>
 
 export const ProjectedRun = z.object({
   header: RunHeaderProjection,
+  summary: RunSummary.optional(),
   narrative: RunNarrativeItem.array(),
   approvals: ApprovalRecord.array(),
   artifacts: ArtifactRecord.array(),
