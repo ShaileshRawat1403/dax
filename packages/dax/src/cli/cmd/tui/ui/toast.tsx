@@ -1,6 +1,6 @@
-import { createContext, useContext, type ParentProps, Show } from "solid-js"
+import { createContext, createEffect, createSignal, onCleanup, useContext, type ParentProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useTheme } from "@tui/context/theme"
+import { useTheme, tint } from "@tui/context/theme"
 import { useTerminalDimensions } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import z from "zod"
@@ -10,6 +10,8 @@ export type ToastOptions = z.infer<typeof TuiEvent.ToastShow.properties>
 export type ToastPosition = "top-left" | "top-center" | "top-right"
 export type ToastStyle = "pill" | "band" | "card"
 
+// Toast renders with a 3-frame flash on appear: bright → settled background.
+// This gives a "pop-in" feel without requiring layout animation.
 export function Toast() {
   const toast = useToast()
   const themeState = useTheme()
@@ -17,35 +19,45 @@ export function Toast() {
     get: (_target, prop: string) => (themeState.theme as any)[prop],
   })
   const dimensions = useTerminalDimensions()
+  const [flash, setFlash] = createSignal(false)
+
+  createEffect(() => {
+    const current = toast.currentToast
+    if (!current) return
+    setFlash(true)
+    const t1 = setTimeout(() => setFlash(false), 160)
+    onCleanup(() => clearTimeout(t1))
+  })
 
   return (
     <Show when={toast.currentToast}>
-      {(current) => (
-        <box
-          position="absolute"
-          justifyContent="center"
-          alignItems="flex-start"
-          top={1}
-          left={Math.max(
-            1,
-            Math.floor(
-              (dimensions().width - Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))) /
-                2,
-            ),
-          )}
-          width={Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))}
-          maxWidth={Math.min(72, dimensions().width - 4)}
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={0}
-          paddingBottom={0}
-          backgroundColor={theme[current().variant]}
-        >
-          <text fg={theme.background} attributes={TextAttributes.BOLD} wrapMode="word" width="100%">
-            {current().title ? `${current().title}: ${current().message}` : current().message}
-          </text>
-        </box>
-      )}
+      {(current) => {
+        const toastWidth = Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))
+        const bg = () =>
+          flash()
+            ? tint(theme[current().variant], theme.text, 0.35)
+            : theme[current().variant]
+        return (
+          <box
+            position="absolute"
+            justifyContent="center"
+            alignItems="flex-start"
+            top={1}
+            left={Math.max(1, Math.floor((dimensions().width - toastWidth) / 2))}
+            width={toastWidth}
+            maxWidth={Math.min(72, dimensions().width - 4)}
+            paddingLeft={2}
+            paddingRight={2}
+            paddingTop={0}
+            paddingBottom={0}
+            backgroundColor={bg()}
+          >
+            <text fg={theme.background} attributes={TextAttributes.BOLD} wrapMode="word" width="100%">
+              {current().title ? `${current().title}: ${current().message}` : current().message}
+            </text>
+          </box>
+        )
+      }}
     </Show>
   )
 }

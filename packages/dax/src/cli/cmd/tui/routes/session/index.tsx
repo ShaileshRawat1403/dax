@@ -1879,6 +1879,19 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
   const { theme } = useTheme()
   const local = useLocal()
 
+  // Fade-in: start at dim step 2, step down to 0 (normal) over ~200ms
+  const [fadeStep, setFadeStep] = createSignal(2)
+  onMount(() => {
+    const t1 = setTimeout(() => setFadeStep(1), 80)
+    const t2 = setTimeout(() => setFadeStep(0), 180)
+    onCleanup(() => { clearTimeout(t1); clearTimeout(t2) })
+  })
+  const fadeFg = createMemo(() => {
+    const step = fadeStep()
+    if (step === 0) return undefined // use natural fg
+    return step === 1 ? theme.textMuted : theme.borderSubtle
+  })
+
   const final = createMemo(() => {
     if (props.message.role === "user") return true
     return (props.message as AssistantMessage).time.completed !== undefined
@@ -1899,7 +1912,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     return (
       <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
         <box flexDirection="row" gap={1} alignItems="center">
-          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+          <text fg={fadeFg() ?? theme.primary} attributes={TextAttributes.BOLD}>
             ● USER
           </text>
           <Show when={ctx.showTimestamps()}>
@@ -1909,7 +1922,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
           </Show>
         </box>
         <box paddingLeft={2} marginTop={0}>
-          <text fg={theme.text} wrapMode="word">
+          <text fg={fadeFg() ?? theme.text} wrapMode="word">
             {(sync.data.part[props.message.id] ?? [])
               .filter((p): p is TextPart => p.type === "text")
               .map((p) => p.text)
@@ -2294,7 +2307,13 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
 
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
-  const { syntax } = useTheme()
+  const { syntax, theme } = useTheme()
+  const isStreaming = createMemo(() => props.last && !props.message.time.completed)
+  const [cursorOn, setCursorOn] = createSignal(true)
+  onMount(() => {
+    const timer = setInterval(() => setCursorOn((v) => !v), 530)
+    onCleanup(() => clearInterval(timer))
+  })
   return (
     <Show when={props.part.text.trim()}>
       <box
@@ -2306,6 +2325,11 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
         flexShrink={0}
       >
         <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
+        <Show when={isStreaming()}>
+          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+            {cursorOn() ? "▋" : " "}
+          </text>
+        </Show>
       </box>
     </Show>
   )
@@ -2420,20 +2444,6 @@ function InlineTool(props: {
   const { theme } = useTheme()
   const accent = createMemo(() => (props.part.tool === "shell" ? theme.accent : theme.primary))
   const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
-  const [tick, setTick] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => setTick((t) => (t + 1) % 4), 400)
-    onCleanup(() => clearInterval(timer))
-  })
-
-  const statusIndicator = createMemo(() => {
-    if (props.complete) return ""
-    if (isRunning()) {
-      const frames = ["◐", "◑", "◒", "◓"]
-      return frames[tick() % frames.length]
-    }
-    return ""
-  })
 
   return (
     <box paddingLeft={1} border={["left"]} borderColor={accent()}>
@@ -2441,8 +2451,8 @@ function InlineTool(props: {
         <Show fallback={<>~ {props.pending}</>} when={props.complete}>
           <span style={{ fg: accent() }}>{props.icon}</span> {props.children}
         </Show>
-        <Show when={statusIndicator()}>
-          <text fg={theme.warning}> {statusIndicator()}</text>
+        <Show when={isRunning() && !props.complete}>
+          <Spinner color={theme.warning} />
         </Show>
       </text>
     </box>
@@ -2460,18 +2470,6 @@ function BlockTool(props: {
   const { theme } = useTheme()
   const isCompleted = createMemo(() => props.part.state.status === "completed")
   const hasError = createMemo(() => props.part.state.status === "error")
-  const [tick, setTick] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => setTick((t) => (t + 1) % 4), 400)
-    onCleanup(() => clearInterval(timer))
-  })
-
-  const statusText = createMemo(() => {
-    if (hasError()) return "error"
-    if (isCompleted()) return "done"
-    const frames = ["◐", "◑", "◒", "◓"]
-    return frames[tick() % frames.length]
-  })
 
   return (
     <box
@@ -2484,9 +2482,14 @@ function BlockTool(props: {
       paddingLeft={1}
     >
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
-        <text fg={hasError() ? theme.error : isCompleted() ? theme.success : theme.warning}>
-          {hasError() ? "✗" : isCompleted() ? "✓" : statusText()}
-        </text>
+        <Show
+          when={!hasError() && !isCompleted()}
+          fallback={
+            <text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "✓"}</text>
+          }
+        >
+          <Spinner color={theme.warning} />
+        </Show>
         <text
           fg={hasError() ? theme.error : isCompleted() ? theme.textMuted : theme.text}
           attributes={props.isRunning ? TextAttributes.BOLD : undefined}
