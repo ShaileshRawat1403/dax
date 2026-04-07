@@ -2,26 +2,26 @@ import { describe, expect, test } from "bun:test"
 import { applyPersonaVoice, getPersona, PERSONAS } from "./persona"
 
 describe("persona voice", () => {
-  test("auditor voice formalizes and punctuates operator text", () => {
-    expect(applyPersonaVoice("i'm still on it and i'll continue automatically", PERSONAS.auditor)).toBe(
-      "I am in progress and I will continue automatically.",
+  test("jarvis voice formalizes contractions and trims filler", () => {
+    expect(applyPersonaVoice("i'm still on it and i'll continue automatically", PERSONAS.jarvis)).toBe(
+      "Report: i am in progress and I will continue automatically.",
     )
   })
 
-  test("commander voice adds a stable tactical prefix", () => {
-    expect(applyPersonaVoice("review the waiting decision", PERSONAS.commander)).toBe(
+  test("mission voice adds Status prefix and tactical lexicon", () => {
+    expect(applyPersonaVoice("review the waiting decision", PERSONAS.mission)).toBe(
       "Status: review the holding decision.",
     )
   })
 
-  test("detective voice stays subtle and signal-oriented", () => {
-    expect(applyPersonaVoice("the run is waiting on provider output", PERSONAS.detective)).toBe(
+  test("heisenberg voice applies Signal prefix and provider lexicon", () => {
+    expect(applyPersonaVoice("the run is waiting on provider output", PERSONAS.heisenberg)).toBe(
       "Signal: the run is waiting on upstream output.",
     )
   })
 
-  test("zen voice trims filler and keeps the message calm", () => {
-    expect(applyPersonaVoice("the workstation will stay focused on live state", PERSONAS.zen)).toBe(
+  test("darwin voice trims filler and adds Focus prefix", () => {
+    expect(applyPersonaVoice("the workstation will stay focused on live state", PERSONAS.darwin)).toBe(
       "Focus: workstation will stay focused on live state.",
     )
   })
@@ -36,7 +36,11 @@ describe("persona voice", () => {
     }
   })
 
-  test("unknown persona ids fall back safely to zen", () => {
-    expect(getPersona("not-real").id).toBe("zen")
+  test("unknown persona ids fall back safely to mission", () => {
+    expect(getPersona("not-real").id).toBe("mission")
+  })
+
+  test("exactly 4 personas are defined", () => {
+    expect(Object.keys(PERSONAS)).toEqual(["mission", "jarvis", "heisenberg", "darwin"])
   })
 })
