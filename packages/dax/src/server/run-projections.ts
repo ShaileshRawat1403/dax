@@ -9,6 +9,7 @@ import {
   RunIntervention,
   InterventionKind,
   ProposedChange,
+  RunSummary,
 } from "./run-contract"
 
 function interventionKindTitle(kind: InterventionKind): string {
@@ -262,12 +263,14 @@ export function buildProjectedRun(
   snapshot: RunSnapshot,
   events: RunEvent[],
   approvals: ApprovalRecord[],
-  artifacts: ArtifactRecord[]
+  artifacts: ArtifactRecord[],
+  summary?: RunSummary,
 ): ProjectedRun {
   const interventions = buildInterventionProjection(events)
   const proposedChanges = buildProposedChangesProjection(approvals)
   return {
     header: buildHeaderProjection(snapshot, interventions),
+    summary,
     narrative: buildNarrativeProjection(events),
     approvals,
     artifacts,

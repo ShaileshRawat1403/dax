@@ -25,10 +25,11 @@ import { createSimpleContext } from "./helper"
 import type { Snapshot } from "@/snapshot"
 import { useExit } from "./exit"
 import { useArgs } from "./args"
-import { batch, onMount } from "solid-js"
+import { batch, createEffect, onMount } from "solid-js"
 import { Log } from "@/util/log"
 import type { Path } from "@dax-ai/sdk"
-import type { ApprovalRecord, ArtifactRecord } from "@/server/run-contract"
+import type { ApprovalRecord, ArtifactRecord, ProjectedRun, RunSnapshot } from "@/server/run-contract"
+import { buildProjectedRun } from "@/server/run-projections"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -70,6 +71,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       artifacts: {
         [sessionID: string]: ArtifactRecord[]
       }
+      run: {
+        [sessionID: string]: ProjectedRun
+      }
       part: {
         [messageID: string]: Part[]
       }
@@ -108,6 +112,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       lifecycle: {},
       approvals: {},
       artifacts: {},
+      run: {},
       part: {},
       lsp: [],
       mcp: {},
@@ -118,6 +123,30 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
     })
 
     const sdk = useSDK()
+
+    const updateProjection = async (sessionID: string) => {
+      try {
+        const [snapshotRes, summaryRes] = await Promise.all([
+          // @ts-ignore - runs is missing from generated SDK
+          sdk.client.runs.get({ runID: sessionID }),
+          // @ts-ignore - runs is missing from generated SDK
+          sdk.client.runs.summary({ runID: sessionID })
+        ])
+        
+        if (!snapshotRes.data) return
+        
+        const snapshot = snapshotRes.data as RunSnapshot
+        const summary = summaryRes.data || undefined
+        const events = store.lifecycle[sessionID] || []
+        const approvals = store.approvals[sessionID] || []
+        const artifacts = store.artifacts[sessionID] || []
+        
+        const projection = buildProjectedRun(snapshot, events, approvals, artifacts, summary as any)
+        setStore("run", sessionID, projection)
+      } catch (err) {
+        // Silently fail if projection cannot be built yet
+      }
+    }
 
     sdk.event.listen((e) => {
       const event = e.details as any
@@ -224,6 +253,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           const result = Binary.search(store.session, event.properties.info.id, (s) => s.id)
           if (result.found) {
             setStore("session", result.index, reconcile(event.properties.info))
+            updateProjection(event.properties.info.id)
             break
           }
           setStore(
@@ -232,11 +262,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               draft.splice(result.index, 0, event.properties.info)
             }),
           )
+          updateProjection(event.properties.info.id)
           break
         }
 
         case "session.status": {
           setStore("session_status", event.properties.sessionID, event.properties.status)
+          updateProjection(event.properties.sessionID)
           break
         }
 
@@ -389,6 +421,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               draft.push(event.payload.artifact)
             }))
           }
+          
+          updateProjection(runId)
           break
         }
       }
@@ -531,6 +565,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               draft.session_diff[sessionID] = diff.data ?? []
             }),
           )
+          updateProjection(sessionID)
           fullSyncedSessions.add(sessionID)
         },
       },
