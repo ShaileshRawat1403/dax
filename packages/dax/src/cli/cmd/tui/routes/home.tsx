@@ -15,7 +15,6 @@ import { Installation } from "@/installation"
 import { useKV } from "../context/kv"
 import { useCommandDialog } from "../component/dialog-command"
 import { useTerminalDimensions } from "@opentui/solid"
-import { HOME_STAGE, HOME_STAGE_ELI12 } from "@/dax/workflow/stage"
 import { isEli12Mode, nextIntentMode } from "@/dax/intent"
 import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
@@ -105,7 +104,7 @@ function HomeInfoCard(props: {
       gap={0}
       paddingLeft={1}
       paddingRight={1}
-      paddingTop={1}
+      paddingTop={0}
       paddingBottom={1}
       backgroundColor={backgroundColor}
       border={["round"]}
@@ -123,28 +122,38 @@ function HomeInfoCard(props: {
   )
 }
 
-function MetaChip(props: {
-  label: string
-  value?: string
-  tone?: "primary" | "muted"
-  onPress?: () => void
-  theme: any
-}) {
+function DaxMascot(props: { theme: any }) {
+  const [tick, setTick] = createSignal(0)
+
+  onMount(() => {
+    const timer = setInterval(() => setTick((v) => v + 1), 480)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const EYE_FRAMES = ["◎", "◉", "◎", "◉", "●", "◉", "◎"]
+  const eyeL = createMemo(() => EYE_FRAMES[tick() % EYE_FRAMES.length])
+  const eyeR = createMemo(() => EYE_FRAMES[(tick() + 3) % EYE_FRAMES.length])
+  const scan = createMemo(() => {
+    const s = ["─", "═", "─", "·"]
+    return s[Math.floor(tick() / 2) % s.length]
+  })
+  const eyeColor = createMemo(() => {
+    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
+    return colors[Math.floor(tick() / 3) % colors.length]
+  })
+
   return (
-    <box
-      onMouseUp={props.onPress}
-      paddingLeft={1}
-      paddingRight={1}
-      backgroundColor={props.theme.backgroundElement}
-      border={["round"]}
-      borderColor={props.tone === "primary" ? props.theme.borderActive : props.theme.borderSubtle}
-    >
-      <text fg={props.tone === "primary" ? props.theme.accent : props.theme.textMuted}>
-        {props.label}
-        <Show when={props.value}>
-          <span style={{ fg: props.tone === "primary" ? props.theme.primary : props.theme.text }}> {props.value}</span>
-        </Show>
-      </text>
+    <box flexDirection="column" alignItems="center" gap={0}>
+      <text fg={props.theme.borderSubtle}>┌───┐</text>
+      <box flexDirection="row" alignItems="center">
+        <text fg={props.theme.borderSubtle}>│</text>
+        <text fg={eyeColor()}>{eyeL()}</text>
+        <text fg={scan() === "═" ? props.theme.primary : props.theme.textMuted}>{scan()}</text>
+        <text fg={eyeColor()}>{eyeR()}</text>
+        <text fg={props.theme.borderSubtle}>│</text>
+      </box>
+      <text fg={props.theme.borderSubtle}>└───┘</text>
+      <text fg={props.theme.textMuted} attributes={TextAttributes.DIM}>operative · online</text>
     </box>
   )
 }
@@ -183,7 +192,6 @@ export function Home() {
     promptRef.set(undefined)
   })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const stages = createMemo(() => (explainMode() ? HOME_STAGE_ELI12 : HOME_STAGE))
 
   const workflowModes = createMemo(() =>
     local.agent.list().filter((agent) => HOME_WORKFLOW_MODES.includes(agent.name as HomeWorkflowMode)),
@@ -356,7 +364,7 @@ export function Home() {
   const tiny = createMemo(() => layout().size === "tiny")
   const small = createMemo(() => layout().size === "small")
   const showInput = createMemo(() => layout().showInput)
-  const showStages = createMemo(() => layout().showStages)
+  const showMascot = createMemo(() => layout().showMascot && !isFirstTimeUser())
   const showActions = createMemo(() => layout().showActions)
   const showFirstRunGuide = createMemo(() => !tiny() && layout().showFirstRunGuide)
   const showSessions = createMemo(() => !tiny() && layout().showSessions)
@@ -407,29 +415,8 @@ export function Home() {
           <box width="100%" maxWidth={layout().maxWidth} alignItems="center" gap={tiny() ? 0 : 1}>
             <BrandHeader theme={theme} />
 
-            <Show when={showStages()}>
-              <box
-                width="100%"
-                justifyContent="center"
-                backgroundColor={theme.backgroundPanel}
-                border={["round"]}
-                borderColor={theme.borderSubtle}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <StageIndicator stages={stages()} current={0} theme={theme} />
-              </box>
-            </Show>
-
-            <Show when={!tiny() && showActions()}>
-              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
-                <MetaChip
-                  label="eli12"
-                  value={explainMode() ? "On" : "Off"}
-                  theme={theme}
-                  onPress={() => command.trigger("eli12.toggle")}
-                />
-              </box>
+            <Show when={showMascot()}>
+              <DaxMascot theme={theme} />
             </Show>
 
             <box
@@ -448,59 +435,51 @@ export function Home() {
               />
             </box>
 
+            <Show when={showActions() && !tiny()}>
+              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
+                <PromptStarter
+                  label="Explore"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
+                />
+                <PromptStarter
+                  label="Plan"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
+                />
+                <PromptStarter
+                  label="Audit"
+                  theme={theme}
+                  onPress={() => setPromptDraft(promptText("audit"), false, "audit")}
+                />
+              </box>
+            </Show>
+
             <Show when={showFirstRunGuide()}>
               <box width="100%" flexDirection="column" gap={1}>
-                <box flexDirection="row" justifyContent="space-between" alignItems="center" flexWrap="wrap">
-                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
-                    {isFirstTimeUser() ? "Start here" : "Operator guide"}
-                  </text>
-                  <Show when={isFirstTimeUser()}>
-                    <text fg={theme.textMuted}>First session</text>
-                  </Show>
-                </box>
                 <box width="100%" flexDirection="row" gap={1} flexWrap="wrap">
                   <HomeInfoCard
-                    title="1. Start safe"
-                    body="Use Explore or Plan first so DAX can build context before any risky action."
+                    title="Start safe"
+                    body="Run Explore or Plan first — DAX needs context before taking risky action."
                     theme={theme}
                     tone="accent"
                   />
                   <HomeInfoCard
-                    title="2. Review pauses"
-                    body="If DAX asks for approval, inspect the diff or reason before allowing it to continue."
-                    theme={theme}
-                  />
-                  <HomeInfoCard
-                    title="3. Check readiness"
+                    title="Review pauses"
                     body={doctorSummary()}
                     theme={theme}
                     tone={mcpAttention() ? "warning" : "default"}
                   />
-                  <Show when={branchNudge()}>
-                    {(nudge) => (
-                      <HomeInfoCard
-                        title={nudge().title}
-                        body={nudge().detail}
-                        theme={theme}
-                        tone={nudge().tone === "warning" ? "warning" : "default"}
-                      />
-                    )}
-                  </Show>
                 </box>
                 <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
                   <PromptStarter
-                    label="Safe first task"
+                    label="Explore repo"
                     theme={theme}
                     onPress={() => setPromptDraft(firstRunIntent(), false, "explore")}
                   />
-                  <PromptStarter
-                    label="Open docs prompt"
-                    theme={theme}
-                    onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
-                  />
                   <Show when={mcpAttention()}>
                     <PromptStarter
-                      label="Run dax doctor"
+                      label="dax doctor"
                       theme={theme}
                       onPress={() =>
                         setPromptDraft(
@@ -512,36 +491,6 @@ export function Home() {
                     />
                   </Show>
                 </box>
-              </box>
-            </Show>
-
-            <Show when={!tiny()}>
-              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
-                <PromptStarter
-                  label="Build"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("build"), false, "build")}
-                />
-                <PromptStarter
-                  label="Plan"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
-                />
-                <PromptStarter
-                  label="Explore"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
-                />
-                <PromptStarter
-                  label="Audit"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("audit"), false, "audit")}
-                />
-                <PromptStarter
-                  label="Docs"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("docs"), false, "docs")}
-                />
               </box>
             </Show>
 
@@ -617,40 +566,3 @@ export function Home() {
   )
 }
 
-function StageIndicator(props: { stages: readonly string[]; current: number; theme: any }) {
-  const activeColor = () => props.theme.accent
-  const doneColor = () => props.theme.success
-  const pendingColor = () => props.theme.textMuted
-
-  return (
-    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" justifyContent="center" paddingTop={0} paddingBottom={0}>
-      <For each={props.stages}>
-        {(stage, index) => {
-          const isActive = () => index() === props.current
-          const isDone = () => index() < props.current
-
-          return (
-            <box flexDirection="row" gap={0} alignItems="center">
-              <text
-                fg={isDone() ? doneColor() : isActive() ? activeColor() : pendingColor()}
-                attributes={isActive() ? TextAttributes.BOLD : undefined}
-              >
-                {isDone() ? "●" : isActive() ? "●" : "○"}
-              </text>
-              <text
-                fg={isActive() ? activeColor() : pendingColor()}
-                attributes={isActive() ? TextAttributes.BOLD : undefined}
-              >
-                {" "}
-                {stage}
-              </text>
-              <Show when={index() !== props.stages.length - 1}>
-                <text fg={pendingColor()}> ·</text>
-              </Show>
-            </box>
-          )
-        }}
-      </For>
-    </box>
-  )
-}
