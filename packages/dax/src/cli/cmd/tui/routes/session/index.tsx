@@ -335,19 +335,6 @@ export function Session() {
     }
   })
 
-  const sessionSafeguards = createMemo(() => {
-    const ciNudge = deriveGitHubCINudge({
-      recentTools: recentTools(),
-      branch: sync.data.vcs?.branch,
-    })
-    const branchNudge = deriveFeatureBranchNudge({
-      branch: sync.data.vcs?.branch,
-      workflowMode: workflowMode(),
-      hasConcreteChanges: hasDiffNeed(),
-    })
-    return { ciNudge, branchNudge }
-  })
-
   const currentRun = createMemo(() => {
     return projectedRun()?.header
   })
@@ -838,6 +825,19 @@ export function Session() {
       }
     }
     return items.slice(-20).reverse()
+  })
+
+  const sessionSafeguards = createMemo(() => {
+    const ciNudge = deriveGitHubCINudge({
+      recentTools: recentTools(),
+      branch: sync.data.vcs?.branch,
+    })
+    const branchNudge = deriveFeatureBranchNudge({
+      branch: sync.data.vcs?.branch,
+      workflowMode: workflowMode(),
+      hasConcreteChanges: hasDiffNeed(),
+    })
+    return { ciNudge, branchNudge }
   })
 
   const voice = (text: string) => {
