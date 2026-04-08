@@ -306,6 +306,16 @@ export function Session() {
     return buildStreamItems(projectedRun(), messages(), sync.data.part)
   })
 
+  const lastMessageIndex = createMemo(() => {
+    const items = streamItems()
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].kind === "message.user" || items[i].kind === "message.assistant") {
+        return i
+      }
+    }
+    return -1
+  })
+
   const currentRun = createMemo(() => {
     return projectedRun()?.header
   })
@@ -1240,7 +1250,7 @@ export function Session() {
                   <StreamItem
                     item={item}
                     expanded={isPhaseExpanded(item.phase)}
-                    isLast={index() === streamItems().length - 1}
+                    isLast={index() === lastMessageIndex()}
                     onTogglePhase={() => item.phase && togglePhase(item.phase)}
                     MessageComponent={Message}
                   />

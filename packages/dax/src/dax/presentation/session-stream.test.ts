@@ -223,7 +223,7 @@ describe("session-stream presentation model", () => {
       expect(phases.size).toBe(1)
     })
 
-    it("returns multiple active phases", () => {
+    it("returns only truly active phase marker", () => {
       const items: RenderableStreamItem[] = [
         {
           id: "phase-1",
@@ -242,8 +242,40 @@ describe("session-stream presentation model", () => {
       ]
 
       const phases = getActivePhases(items)
-      expect(phases.has("planning")).toBe(true)
       expect(phases.has("executing")).toBe(true)
+      expect(phases.has("planning")).toBe(false)
+    })
+
+    it("returns phase with active run event", () => {
+      const items: RenderableStreamItem[] = [
+        {
+          id: "event-1",
+          kind: "run.event",
+          timestamp: Date.now(),
+          phase: "executing",
+          type: "step.started",
+          status: "active",
+        },
+      ]
+
+      const phases = getActivePhases(items)
+      expect(phases.has("executing")).toBe(true)
+    })
+
+    it("returns phase with pending alert", () => {
+      const items: RenderableStreamItem[] = [
+        {
+          id: "alert-1",
+          kind: "alert.inline",
+          timestamp: Date.now(),
+          phase: "planning",
+          type: "approval.requested",
+          status: "pending",
+        },
+      ]
+
+      const phases = getActivePhases(items)
+      expect(phases.has("planning")).toBe(true)
     })
   })
 

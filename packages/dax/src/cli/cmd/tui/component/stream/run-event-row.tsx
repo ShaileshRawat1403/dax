@@ -1,5 +1,4 @@
 import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
-import type { RunNarrativeItem } from "@/server/run-contract"
 
 function getEventIcon(type: string, status: "pending" | "active" | "completed" | "failed"): string {
   if (status === "active") return "●"
@@ -45,7 +44,6 @@ function getEventTypeLabel(type: string): string {
 }
 
 export function RunEventRow(props: { item: RenderableStreamItem }) {
-  const narrativeItem = props.item.data as RunNarrativeItem
   const icon = () => getEventIcon(props.item.type ?? "", props.item.status ?? "pending")
   const color = () => getEventColor(props.item.status ?? "pending")
   const typeLabel = () => getEventTypeLabel(props.item.type ?? "")

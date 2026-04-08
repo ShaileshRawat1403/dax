@@ -265,11 +265,25 @@ export function getCurrentPhase(items: RenderableStreamItem[]): RunPhase {
 
 export function getActivePhases(items: RenderableStreamItem[]): Set<RunPhase> {
   const phases = new Set<RunPhase>()
-  for (const item of items) {
-    if (item.phase && (item.status === "active" || item.kind === "phase.marker")) {
+
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (!item.phase) continue
+
+    if (item.kind === "phase.marker" && item.status === "active") {
+      phases.add(item.phase)
+      break
+    }
+
+    if (item.kind === "run.event" && item.status === "active") {
+      phases.add(item.phase)
+    }
+
+    if (item.kind === "alert.inline" && item.status === "pending") {
       phases.add(item.phase)
     }
   }
+
   if (phases.size === 0) {
     phases.add("executing")
   }
