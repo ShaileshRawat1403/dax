@@ -5,6 +5,18 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.26] - 2026-04-08
+
+### Added
+
+- **Projection-Native Workstation**: Fully transitioned the TUI to a projection-native architecture. The workstation now consumes canonical run truth directly from the server (`runs.projections` and `runs.overview`), eliminating local state reconstruction and split-brain inconsistencies.
+- **Run Overview Integration**: Home route now displays a rich, list-oriented operator view of active and recent runs driven by the server.
+
+### Fixed
+
+- **SDK Type Integrity**: Hardened the run contract with precise type metadata, ensuring the generated SDK provides robust, well-named types for workstation projections.
+- **Stability**: Resolved regressions in session timeline and audit history rendering by centering on the server-backed projected run.
+
 ## [1.0.25] - 2026-04-08
 
 ### Fixed
