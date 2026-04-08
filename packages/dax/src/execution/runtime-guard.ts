@@ -12,7 +12,7 @@ import fs from "fs"
 import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
 import { deriveCompletionProof } from "./completion-proof"
 import { MessageV2 } from "@/session/message-v2"
-import { BashArity } from "@/governance/arity"
+import { deriveRuntimeActionSemantics } from "./action-semantics"
 
 export type RuntimeActionClass = "analyze" | "propose" | "mutate" | "commit" | "publish" | "verify"
 
@@ -72,56 +72,6 @@ const PUBLISH_COMMAND =
   /\b(git\s+push|gh\s+pr\s+create|gh\s+release\s+create|npm\s+publish|pnpm\s+publish|cargo\s+publish)\b/i
 const MUTATING_COMMAND =
   /\b(rm|mv|cp|mkdir|touch|git\s+add|git\s+restore|git\s+reset|sed\s+-i|perl\s+-pi|tee)\b|[>]{1,2}|\bapply_patch\b/i
-
-function tokenizeCommand(command: string): string[] {
-  const tokens: string[] = []
-  let current = ""
-  let inSingleQuote = false
-  let inDoubleQuote = false
-
-  for (let i = 0; i < command.length; i++) {
-    const char = command[i]
-
-    if (inSingleQuote) {
-      if (char === "'") {
-        inSingleQuote = false
-      } else {
-        current += char
-      }
-    } else if (inDoubleQuote) {
-      if (char === '"') {
-        inDoubleQuote = false
-      } else if (char === "\\" && i + 1 < command.length) {
-        current += command[i + 1]
-        i++
-      } else {
-        current += char
-      }
-    } else {
-      if (char === "'") {
-        inSingleQuote = true
-      } else if (char === '"') {
-        inDoubleQuote = true
-      } else if (char === "\\" && i + 1 < command.length) {
-        current += command[i + 1]
-        i++
-      } else if (/\s/.test(char)) {
-        if (current) {
-          tokens.push(current)
-          current = ""
-        }
-      } else {
-        current += char
-      }
-    }
-  }
-
-  if (current) {
-    tokens.push(current)
-  }
-
-  return tokens
-}
 
 function defaultRuntimeGuardState(): RuntimeGuardState {
   return {
@@ -207,49 +157,6 @@ function normalizeScope(contract?: any | null) {
     validation,
     rollbackPlan: contract?.rollbackPlan ?? [],
   }
-}
-
-function classifyActionClass(req: GuardRequest): RuntimeActionClass {
-  if (req.permission === "edit") return "mutate"
-  if (req.permission === "external_directory") return "analyze"
-  if (req.permission !== "shell") return "analyze"
-
-  const commandText = req.patterns.join(" && ")
-  const tokens = tokenizeCommand(commandText)
-  const prefix = BashArity.prefix(tokens).join(" ")
-
-  const verifyPrefixes = ["pytest", "vitest", "jest", "cargo test", "go test", "bun test", "npm test", "pnpm test"]
-  const publishPrefixes = [
-    "git push",
-    "gh pr create",
-    "gh release create",
-    "npm publish",
-    "pnpm publish",
-    "cargo publish",
-  ]
-  const commitPrefixes = ["git commit", "git merge", "git rebase", "git cherry-pick"]
-  const mutatingPrefixes = [
-    "rm",
-    "mv",
-    "cp",
-    "mkdir",
-    "touch",
-    "git add",
-    "git restore",
-    "git reset",
-    "sed -i",
-    "perl -pi",
-    "tee",
-  ]
-
-  if (verifyPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "verify"
-  if (publishPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "publish"
-  if (commitPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "commit"
-  if (mutatingPrefixes.some((p) => prefix.startsWith(p) || commandText.includes(p))) return "mutate"
-
-  if (/>=?/.test(commandText)) return "mutate"
-
-  return "analyze"
 }
 
 function looksVagueIntent(input: string) {
@@ -483,7 +390,11 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
 
   const compiledContract = await ContractGuardian.get(input.sessionID).catch(() => null)
   const scope = normalizeScope(sessionContract)
-  const actionClass = classifyActionClass(input.req)
+  const actionSemantics = deriveRuntimeActionSemantics({
+    toolID: input.toolID,
+    req: input.req,
+  })
+  const actionClass = actionSemantics.actionClass
   const runState = await RunStore.get(input.sessionID).catch(() => null)
   const lifecycle = runState?.status ?? "running"
 
