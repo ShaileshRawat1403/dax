@@ -366,6 +366,14 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               draft.splice(result.index, 0, event.properties.part)
             }),
           )
+          const messageID = event.properties.part.messageID
+          for (const [sessionID, messages] of Object.entries(store.message)) {
+            const match = Binary.search(messages, messageID, (m) => m.id)
+            if (match.found) {
+              debouncedProjectionRefresh(sessionID)
+              break
+            }
+          }
           break
         }
 

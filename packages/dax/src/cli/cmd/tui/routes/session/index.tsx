@@ -1240,6 +1240,7 @@ export function Session() {
                   <StreamItem
                     item={item}
                     expanded={isPhaseExpanded(item.phase)}
+                    isLast={index() === streamItems().length - 1}
                     onTogglePhase={() => item.phase && togglePhase(item.phase)}
                     MessageComponent={Message}
                   />
