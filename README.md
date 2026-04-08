@@ -4,7 +4,7 @@
   <br>
   <img src="./dax-hound.svg" alt="DAX-hound mascot" width="320">
   <br>
-  <b>Deterministic AI eXecution</b>
+  <b>Deterministic runtime contract around stochastic model execution</b>
   <br>
   <i>The execution control plane for AI-assisted SDLC.</i>
 </p>
@@ -32,6 +32,8 @@
 ## Overview
 
 **DAX** is a **projection-first governed execution workstation** designed for engineering teams and ambitious builders. Driven by a canonical event language, DAX treats AI reasoning and tool execution as a verifiable audit trail rather than a black box.
+
+Its core claim is intentionally narrow: DAX provides a **deterministic runtime contract around stochastic model execution**, not a promise that model outputs themselves will be identical across runs.
 
 While standard AI chat interfaces are built for conversation, DAX is built for **delivery**. It provides explicit control, traceability, and governance over AI operations within your software development lifecycle.
 

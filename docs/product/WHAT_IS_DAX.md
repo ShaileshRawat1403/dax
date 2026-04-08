@@ -1,6 +1,6 @@
 # What Is DAX?
 
-DAX stands for **Deterministic AI eXecution**. It is a governed execution control plane for AI-assisted software development.
+DAX is a governed execution control plane for AI-assisted software development. Its core promise is a **deterministic runtime contract around stochastic model execution**.
 
 ## What It Is
 

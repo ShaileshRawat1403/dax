@@ -2,7 +2,7 @@
 
 ## Core Thesis
 
-DAX is the **execution authority**. It is not a chat interface with good manners. It is not an autonomous coding agent that happens to ask permission sometimes. It is a governed execution system that produces deterministic, auditable, replayable outcomes.
+DAX is the **execution authority**. It is not a chat interface with good manners. It is not an autonomous coding agent that happens to ask permission sometimes. It is a governed execution system built around a deterministic runtime contract around stochastic model execution.
 
 ---
 
@@ -107,7 +107,7 @@ The model never receives raw intent text as a prompt first.
 | D0    | Inspectable       | Output is logged, not guaranteed                     |
 | D1    | Bounded           | Tool access is allowlisted, resources metered        |
 | D2    | Approval-Gated    | Explicit pauses with human decision                  |
-| D3    | Compiled Workflow | Fixed step graph, full replay, deterministic outputs |
+| D3    | Compiled Workflow | Fixed step graph, full replay, deterministic runtime semantics |
 
 DAX targets D3 for authored workflows. External intent-first runs operate at D1-D2.
 
@@ -146,7 +146,7 @@ Adapters live in `packages/dax/src/runtime/compat/`.
 
 DAX is:
 
-> **The bounded, authored, approval-aware execution authority that produces deterministic, replayable, auditable outcomes.**
+> **The bounded, authored, approval-aware execution authority that provides a deterministic runtime contract around stochastic model execution.**
 
 DAX is not:
 

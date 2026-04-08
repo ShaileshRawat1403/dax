@@ -1,5 +1,15 @@
 # DAX Peer Pre-release Guide
 
+## Release Truth Workflow
+
+Treat release boundaries as product boundaries:
+
+- `main = next development line`
+- `release tag = shipped truth`
+- `CHANGELOG` entry = exact shipped delta
+
+After a release is tagged, all follow-up changes land in `## [Unreleased]` until the next cut. Do not silently blend post-release work into the last shipped narrative.
+
 ## Install
 
 ```bash
@@ -76,6 +86,11 @@ bun run release:verify
 bun run build
 ```
 
+Release artifacts produced by `bun run release:check`:
+
+- `artifacts/audit-result.json`
+- `artifacts/doctor-auth.json`
+
 Google auth checks:
 
 ```bash
@@ -110,6 +125,20 @@ Open an issue at <https://github.com/ShaileshRawat1403/dax-tui/issues> with:
 - Screenshot or terminal log (if available)
 
 ## Build and Publish (Maintainers)
+
+Maintainer release blockers:
+
+- do not defer release-facing docs with "docs updated later"
+- do not tag first and sort truth later
+- do not publish when provider wording is knowingly ahead of shipped behavior
+
+Required sign-off evidence for every release:
+
+- tag
+- release notes in `CHANGELOG`
+- package version aligned with the latest tagged changelog entry
+- `artifacts/audit-result.json`
+- `artifacts/doctor-auth.json`
 
 ```bash
 bun run release:verify
