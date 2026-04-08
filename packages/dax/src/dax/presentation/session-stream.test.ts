@@ -1,0 +1,315 @@
+import { describe, expect, it } from "bun:test"
+import {
+  buildStreamItems,
+  getCurrentPhase,
+  getActivePhases,
+  PHASE_ORDER,
+  getPhaseLabel,
+  type RenderableStreamItem,
+  type RunPhase,
+} from "./session-stream"
+import type { ProjectedRun } from "@/server/run-contract"
+
+function createMockProjectedRun(
+  narrativeTypes: Array<{ type: string; message: string; timestamp?: string }>,
+): ProjectedRun {
+  return {
+    header: {
+      runId: "run-123",
+      title: "Test Run",
+      status: "running",
+      createdAt: "2026-04-08T10:00:00Z",
+      updatedAt: "2026-04-08T10:00:00Z",
+    },
+    summary: undefined,
+    narrative: narrativeTypes.map((n, i) => ({
+      id: `narrative-${i}`,
+      type: n.type,
+      message: n.message,
+      timestamp: n.timestamp ?? `2026-04-08T10:0${i}:00Z`,
+      metadata: {},
+    })),
+    approvals: [],
+    artifacts: [],
+    interventions: [],
+    proposedChanges: [],
+  }
+}
+
+function createMockMessages(roles: Array<"user" | "assistant">): any[] {
+  return roles.map((role, i) => ({
+    id: `msg-${i}`,
+    role,
+    sessionID: "session-123",
+    time: { created: Date.now() + i * 1000, completed: role === "assistant" ? Date.now() + i * 1000 + 500 : undefined },
+    agent: role === "assistant" ? "dax" : undefined,
+    model: role === "assistant" ? { providerID: "google", modelID: "gemini-2.5" } : undefined,
+  }))
+}
+
+describe("session-stream presentation model", () => {
+  describe("buildStreamItems", () => {
+    it("returns empty array when no projectedRun and no messages", () => {
+      const items = buildStreamItems(undefined, [], {})
+      expect(items).toEqual([])
+    })
+
+    it("returns legacy messages when no projectedRun exists", () => {
+      const messages = createMockMessages(["user", "assistant"])
+      const items = buildStreamItems(undefined, messages, {})
+
+      expect(items.length).toBe(2)
+      expect(items[0].kind).toBe("message.user")
+      expect(items[1].kind).toBe("message.assistant")
+    })
+
+    it("renders projected narrative items when projectedRun exists", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session initialized" },
+        { type: "intent.created", message: "Target identified: fix auth" },
+        { type: "plan.compiled", message: "Strategy locked: 3 tasks mapped" },
+      ])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      expect(items.length).toBeGreaterThanOrEqual(3)
+
+      const runEvents = items.filter((item) => item.kind === "run.event")
+      expect(runEvents.length).toBeGreaterThanOrEqual(3)
+
+      const runCreated = runEvents.find((item) => item.type === "run.created")
+      expect(runCreated?.message).toBe("Session initialized")
+
+      const planCompiled = runEvents.find((item) => item.type === "plan.compiled")
+      expect(planCompiled?.message).toBe("Strategy locked: 3 tasks mapped")
+    })
+
+    it("renders phase markers for structural narrative items", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session initialized" },
+        { type: "plan.compiled", message: "Strategy locked" },
+        { type: "step.started", message: "Executing: Task 1" },
+      ])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
+      expect(phaseMarkers.length).toBeGreaterThanOrEqual(2)
+
+      expect(phaseMarkers.some((m) => m.phase === "understanding")).toBe(true)
+      expect(phaseMarkers.some((m) => m.phase === "planning")).toBe(true)
+      expect(phaseMarkers.some((m) => m.phase === "executing")).toBe(true)
+    })
+
+    it("renders alert items for intervention.required", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "intervention.required", message: "Needs direction: ambiguous target" },
+      ])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      const alertItems = items.filter((item) => item.kind === "alert.inline")
+      expect(alertItems.length).toBe(1)
+      expect(alertItems[0].message).toBe("Needs direction: ambiguous target")
+      expect(alertItems[0].status).toBe("pending")
+    })
+
+    it("renders alert items for approval.requested", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "approval.requested", message: "Policy Gate: Write to production (HIGH RISK)" },
+      ])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      const alertItems = items.filter((item) => item.kind === "alert.inline")
+      expect(alertItems.length).toBe(1)
+      expect(alertItems[0].message).toBe("Policy Gate: Write to production (HIGH RISK)")
+    })
+
+    it("renders both projected narrative and messages together", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session initialized" },
+        { type: "plan.compiled", message: "Strategy locked" },
+      ])
+
+      const messages = createMockMessages(["user", "assistant"])
+      const items = buildStreamItems(projectedRun, messages, {})
+
+      const runEvents = items.filter((item) => item.kind === "run.event")
+      const messageItems = items.filter((item) => item.kind === "message.user" || item.kind === "message.assistant")
+
+      expect(runEvents.length).toBeGreaterThanOrEqual(2)
+      expect(messageItems.length).toBe(2)
+
+      const sortedByTimestamp = items.toSorted((a, b) => a.timestamp - b.timestamp)
+      const firstItem = sortedByTimestamp[0]
+
+      expect(firstItem.timestamp).toBeLessThanOrEqual(Date.now())
+    })
+
+    it("never returns an empty stream when projectedRun has narrative", () => {
+      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      expect(items.length).toBeGreaterThan(0)
+      expect(items.some((item) => item.kind === "run.event" || item.kind === "phase.marker")).toBe(true)
+    })
+
+    it("sorts all items by timestamp", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "First", timestamp: "2026-04-08T10:00:00Z" },
+        { type: "step.started", message: "Third", timestamp: "2026-04-08T10:02:00Z" },
+        { type: "plan.compiled", message: "Second", timestamp: "2026-04-08T10:01:00Z" },
+      ])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      const timestamps = items.map((item) => item.timestamp)
+      const sortedTimestamps = [...timestamps].sort((a, b) => a - b)
+      expect(timestamps).toEqual(sortedTimestamps)
+    })
+  })
+
+  describe("getCurrentPhase", () => {
+    it("returns 'executing' as default when no items", () => {
+      const phase = getCurrentPhase([])
+      expect(phase).toBe("executing")
+    })
+
+    it("returns the active phase when a phase marker is active", () => {
+      const items: RenderableStreamItem[] = [
+        {
+          id: "phase-1",
+          kind: "phase.marker",
+          timestamp: Date.now() - 1000,
+          phase: "planning",
+          status: "completed",
+        },
+        {
+          id: "phase-2",
+          kind: "phase.marker",
+          timestamp: Date.now(),
+          phase: "executing",
+          status: "active",
+        },
+      ]
+
+      const phase = getCurrentPhase(items)
+      expect(phase).toBe("executing")
+    })
+
+    it("returns 'executing' when no active phase marker but has active run event", () => {
+      const items: RenderableStreamItem[] = [
+        {
+          id: "event-1",
+          kind: "run.event",
+          timestamp: Date.now(),
+          phase: "executing",
+          type: "step.started",
+          status: "active",
+        },
+      ]
+
+      const phase = getCurrentPhase(items)
+      expect(phase).toBe("executing")
+    })
+  })
+
+  describe("getActivePhases", () => {
+    it("returns 'executing' as default when no items", () => {
+      const phases = getActivePhases([])
+      expect(phases.has("executing")).toBe(true)
+      expect(phases.size).toBe(1)
+    })
+
+    it("returns multiple active phases", () => {
+      const items: RenderableStreamItem[] = [
+        {
+          id: "phase-1",
+          kind: "phase.marker",
+          timestamp: Date.now() - 1000,
+          phase: "planning",
+          status: "completed",
+        },
+        {
+          id: "phase-2",
+          kind: "phase.marker",
+          timestamp: Date.now(),
+          phase: "executing",
+          status: "active",
+        },
+      ]
+
+      const phases = getActivePhases(items)
+      expect(phases.has("planning")).toBe(true)
+      expect(phases.has("executing")).toBe(true)
+    })
+  })
+
+  describe("PHASE_ORDER and getPhaseLabel", () => {
+    it("has correct phase order", () => {
+      expect(PHASE_ORDER).toEqual(["understanding", "planning", "executing", "verifying", "complete"])
+    })
+
+    it("returns correct labels for each phase", () => {
+      expect(getPhaseLabel("understanding")).toBe("Understanding")
+      expect(getPhaseLabel("planning")).toBe("Planning")
+      expect(getPhaseLabel("executing")).toBe("Executing")
+      expect(getPhaseLabel("verifying")).toBe("Verifying")
+      expect(getPhaseLabel("complete")).toBe("Complete")
+    })
+  })
+
+  describe("regression: narrative rendering never blanks", () => {
+    it("only run.created narrative item still renders visible rows", () => {
+      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      expect(items.length).toBeGreaterThan(0)
+
+      const visibleItems = items.filter(
+        (item) => item.kind === "run.event" || item.kind === "phase.marker" || item.kind === "alert.inline",
+      )
+      expect(visibleItems.length).toBeGreaterThan(0)
+    })
+
+    it("only plan.compiled narrative item still renders visible rows", () => {
+      const projectedRun = createMockProjectedRun([{ type: "plan.compiled", message: "Strategy locked: 5 tasks" }])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      expect(items.length).toBeGreaterThan(0)
+
+      const visibleItems = items.filter(
+        (item) => item.kind === "run.event" || item.kind === "phase.marker" || item.kind === "alert.inline",
+      )
+      expect(visibleItems.length).toBeGreaterThan(0)
+    })
+
+    it("mixed narrative types all render correctly", () => {
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session initialized" },
+        { type: "intent.created", message: "Target identified" },
+        { type: "plan.compiled", message: "Strategy locked" },
+        { type: "step.started", message: "Executing task" },
+        { type: "step.completed", message: "Task done" },
+        { type: "approval.requested", message: "Approval needed" },
+        { type: "run.completed", message: "Goal reached" },
+      ])
+
+      const items = buildStreamItems(projectedRun, [], {})
+
+      expect(items.length).toBeGreaterThanOrEqual(7)
+
+      const runEvents = items.filter((item) => item.kind === "run.event")
+      const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
+      const alertItems = items.filter((item) => item.kind === "alert.inline")
+
+      expect(runEvents.length).toBeGreaterThanOrEqual(5)
+      expect(phaseMarkers.length).toBeGreaterThanOrEqual(3)
+      expect(alertItems.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+})

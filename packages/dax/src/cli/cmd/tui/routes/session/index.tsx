@@ -105,6 +105,7 @@ import {
   deriveActivePaneMode,
   deriveAutoPaneMode,
   paneCompactLabel,
+  paneContextLabel,
   type PaneFollowMode,
   type PaneMode,
   type PaneVisibility,
@@ -131,6 +132,14 @@ import {
 import { buildInterventionProjection, buildProposedChangesProjection } from "@/server/run-projections"
 import type { ProposedChange as ProjectedProposedChange, RunEvent } from "@/server/run-contract"
 import { VerificationReceipt } from "../../component/receipt"
+import {
+  buildStreamItems,
+  getCurrentPhase,
+  getActivePhases,
+  type RenderableStreamItem,
+  type RunPhase,
+} from "@/dax/presentation/session-stream"
+import { StreamItem } from "../../component/stream"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] } | { type: "context-group"; tools: ToolPart[] }
 
@@ -276,18 +285,25 @@ export function Session() {
     return []
   })
 
-  const narrative = createMemo(() => {
-    if (projectedRun()) return projectedRun()?.narrative ?? []
-    const combined = [
-      ...messages().map((m) => ({ type: "message" as const, id: m.id, timestamp: m.time.created, data: m })),
-      ...lifecycle().map((l) => ({
-        type: "lifecycle" as const,
-        id: l.timestamp + l.type,
-        timestamp: new Date(l.timestamp).getTime(),
-        data: l,
-      })),
-    ]
-    return (combined as any[]).toSorted((a, b) => a.timestamp - b.timestamp)
+  const [collapsedPhases, setCollapsedPhases] = createSignal<Set<RunPhase>>(new Set())
+
+  const togglePhase = (phase: RunPhase) => {
+    setCollapsedPhases((prev) => {
+      const next = new Set(prev)
+      next.has(phase) ? next.delete(phase) : next.add(phase)
+      return next
+    })
+  }
+
+  const isPhaseExpanded = (phase: RunPhase | undefined): boolean => {
+    if (!phase) return true
+    const activePhases = getActivePhases(streamItems())
+    if (activePhases.has(phase)) return true
+    return !collapsedPhases().has(phase)
+  }
+
+  const streamItems = createMemo((): RenderableStreamItem[] => {
+    return buildStreamItems(projectedRun(), messages(), sync.data.part)
   })
 
   const currentRun = createMemo(() => {
@@ -657,12 +673,14 @@ export function Session() {
         questions: questions().length,
         artifacts: pr.artifacts.map((a: any) => ({ label: a.title || a.path || a.id, kind: a.type })),
         diffCount: pr.proposedChanges.length,
-        audit: summary.trust ? {
-          status: summary.trust.posture as any,
-          blockerCount: summary.trust.blocked ? 1 : 0, // Simplified for now
-          warningCount: 0,
-          infoCount: 0,
-        } : undefined,
+        audit: summary.trust
+          ? {
+              status: summary.trust.posture as any,
+              blockerCount: summary.trust.blocked ? 1 : 0, // Simplified for now
+              warningCount: 0,
+              infoCount: 0,
+            }
+          : undefined,
         planQuality: (s?.state_v2 as any)?.plan_quality,
         completionProof: (s?.state_v2 as any)?.completion_proof,
         recentTooling: recentTooling(),
@@ -969,7 +987,7 @@ export function Session() {
 
   const [lastMessageCount, setLastMessageCount] = createSignal(0)
   createEffect(() => {
-    const count = narrative().length
+    const count = streamItems().length
     if (count !== lastMessageCount()) {
       setLastMessageCount(count)
       scrollNarrative()
@@ -1199,7 +1217,7 @@ export function Session() {
             paddingBottom={1}
           >
             <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} gap={1}>
-              <Show when={narrative().length === 0}>
+              <Show when={streamItems().length === 0}>
                 <box
                   paddingLeft={2}
                   paddingRight={2}
@@ -1217,11 +1235,14 @@ export function Session() {
                   </text>
                 </box>
               </Show>
-              <For each={narrative()}>
+              <For each={streamItems()}>
                 {(item, index) => (
-                  <Show when={item.type === "message"}>
-                    <Message message={item.data} last={index() === narrative().length - 1} />
-                  </Show>
+                  <StreamItem
+                    item={item}
+                    expanded={isPhaseExpanded(item.phase)}
+                    onTogglePhase={() => item.phase && togglePhase(item.phase)}
+                    MessageComponent={Message}
+                  />
                 )}
               </For>
 
@@ -1401,7 +1422,7 @@ export function Session() {
                         <text fg={theme.primary} bold>
                           Workstation
                         </text>
-                        <text fg={theme.textMuted}>Production control plane</text>
+                        <text fg={theme.textMuted}>{paneContextLabel(activePaneMode())}</text>
                       </box>
                       <Show
                         when={
@@ -1877,7 +1898,10 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
   onMount(() => {
     const t1 = setTimeout(() => setFadeStep(1), 80)
     const t2 = setTimeout(() => setFadeStep(0), 180)
-    onCleanup(() => { clearTimeout(t1); clearTimeout(t2) })
+    onCleanup(() => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    })
   })
   const fadeFg = createMemo(() => {
     const step = fadeStep()
@@ -2217,7 +2241,7 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
   const first = createMemo(() => traces()[0])
   const last = createMemo(() => traces()[traces().length - 1])
-  const narrative = createMemo(() => {
+  const traceNarrative = createMemo(() => {
     const firstTrace = first()?.trace
     const lastTrace = last()?.trace
     if (!firstTrace && !lastTrace) return undefined
@@ -2238,9 +2262,9 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
 
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
-      <Show when={narrative()}>
+      <Show when={traceNarrative()}>
         <text fg={theme.text} wrapMode="word">
-          {narrative()}
+          {traceNarrative()}
         </text>
       </Show>
       <Show when={ctx.showAssistantMetadata()}>
@@ -2248,10 +2272,7 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
           <For each={traces()}>
             {(item) => (
               <box flexDirection="row" gap={1} alignItems="center">
-                <Show
-                  when={item.tool.state.status === "completed"}
-                  fallback={<Spinner color={theme.primary} />}
-                >
+                <Show when={item.tool.state.status === "completed"} fallback={<Spinner color={theme.primary} />}>
                   <text fg={theme.textMuted}>✓</text>
                 </Show>
                 <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>
@@ -2486,9 +2507,7 @@ function BlockTool(props: {
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
         <Show
           when={!hasError() && !isCompleted()}
-          fallback={
-            <text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "✓"}</text>
-          }
+          fallback={<text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "✓"}</text>}
         >
           <Spinner color={theme.warning} />
         </Show>
