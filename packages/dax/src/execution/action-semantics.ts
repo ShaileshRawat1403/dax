@@ -208,6 +208,28 @@ export function deriveRuntimeActionSemantics(input: { toolID?: string; req: Guar
     }
   }
 
+  if (PUBLISH_PREFIXES.some((item) => prefix.startsWith(item))) {
+    return {
+      actionClass: "publish",
+      actionFamily: "shell",
+      governanceIntent: "publish",
+      pathTargets: input.req.patterns,
+      commandSummary,
+      typedSource: "derived",
+    }
+  }
+
+  if (COMMIT_PREFIXES.some((item) => prefix.startsWith(item))) {
+    return {
+      actionClass: "commit",
+      actionFamily: "shell",
+      governanceIntent: "commit",
+      pathTargets: input.req.patterns,
+      commandSummary,
+      typedSource: "derived",
+    }
+  }
+
   if (/>>{0,1}/.test(commandText) || MUTATING_PREFIXES.some((item) => prefix.startsWith(item))) {
     return {
       actionClass: "mutate",
@@ -219,5 +241,12 @@ export function deriveRuntimeActionSemantics(input: { toolID?: string; req: Guar
     }
   }
 
-  return buildHeuristicFallback(input, commandText)
+  return {
+    actionClass: "analyze",
+    actionFamily: "shell",
+    governanceIntent: "inspect",
+    pathTargets: input.req.patterns,
+    commandSummary,
+    typedSource: "derived",
+  }
 }
