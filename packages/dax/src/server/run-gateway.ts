@@ -421,7 +421,7 @@ async function appendEvent(runId: string, event: any) {
     const events = await readEvents(runId)
     const sequence = (events.at(-1)?.sequence ?? 0) + 1
     const eventId = `evt_${runId}_${sequence}`
-    
+
     // Compute polished narrative message
     const narrativeItem = mapEventToNarrativeItem({
       schemaVersion: "v1",
@@ -852,11 +852,7 @@ async function handleBusEvent(event: any) {
       break
     case "run.state_changed":
       if (event.properties.runId) {
-        await emitRunState(
-          event.properties.runId,
-          event.properties.currentStatus,
-          event.properties.reason
-        )
+        await emitRunState(event.properties.runId, event.properties.currentStatus, event.properties.reason)
       }
       break
   }
@@ -1112,12 +1108,14 @@ export namespace RunGateway {
         createdAt: approval.requestedAt,
         updatedAt: approval.resolvedAt ?? approval.requestedAt,
         resolvedAt: approval.resolvedAt ?? undefined,
-        resolution: approval.resolution ? {
-          decision: approval.resolution.decision,
-          source: "system",
-          actorId: approval.resolution.actorId,
-          comment: approval.resolution.comment,
-        } : undefined,
+        resolution: approval.resolution
+          ? {
+              decision: approval.resolution.decision,
+              source: "system",
+              actorId: approval.resolution.actorId,
+              comment: approval.resolution.comment,
+            }
+          : undefined,
       }))
     }
     const legacyApprovals = await getPendingApprovalsForRun(runId)
@@ -1271,7 +1269,7 @@ export namespace RunGateway {
       approvalCount: approvalCount || approvedApprovals + deniedApprovals,
       approvedCount: approvedApprovals || undefined,
       deniedCount: deniedApprovals || undefined,
-      pendingApprovalCount: runState ? runState.pendingApprovalIds.length : (snapshot.pendingApprovalCount || undefined),
+      pendingApprovalCount: runState ? runState.pendingApprovalIds.length : snapshot.pendingApprovalCount || undefined,
       artifactCount,
       trust: snapshot.trust,
       workflow: buildWorkflowSummary(meta?.workflowClass, runState),
@@ -1332,8 +1330,16 @@ export namespace RunGateway {
       (item): item is RunListItem => Boolean(item),
     )
 
+    const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000
+    const now = Date.now()
+
     const activeRuns = listItems
-      .filter((item) => ["created", "queued", "running", "waiting_approval"].includes(item.status))
+      .filter((item) => {
+        if (!["created", "queued", "running", "waiting_approval"].includes(item.status)) return false
+        const ageMs = now - Date.parse(item.updatedAt)
+        if (item.status === "waiting_approval" && ageMs > STALE_THRESHOLD_MS) return false
+        return true
+      })
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
       .slice(0, limit)
 
