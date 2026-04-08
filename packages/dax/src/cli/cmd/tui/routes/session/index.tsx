@@ -335,6 +335,19 @@ export function Session() {
     }
   })
 
+  const sessionSafeguards = createMemo(() => {
+    const ciNudge = deriveGitHubCINudge({
+      recentTools: recentTools(),
+      branch: sync.data.vcs?.branch,
+    })
+    const branchNudge = deriveFeatureBranchNudge({
+      branch: sync.data.vcs?.branch,
+      workflowMode: workflowMode(),
+      hasConcreteChanges: hasDiffNeed(),
+    })
+    return { ciNudge, branchNudge }
+  })
+
   const currentRun = createMemo(() => {
     return projectedRun()?.header
   })
@@ -1494,6 +1507,54 @@ export function Session() {
                               </text>
                               <text fg={theme.text}>{formatUsd(sessionTelemetry().cost)}</text>
                             </box>
+                          </Show>
+                        </box>
+                      </Show>
+                      <Show when={sessionSafeguards().ciNudge || sessionSafeguards().branchNudge}>
+                        <box
+                          flexDirection="column"
+                          gap={0}
+                          padding={1}
+                          border={["round"]}
+                          borderColor={
+                            sessionSafeguards().ciNudge?.status === "failed"
+                              ? theme.error
+                              : sessionSafeguards().ciNudge?.tone === "warning" ||
+                                  sessionSafeguards().branchNudge?.tone === "warning"
+                                ? theme.warning
+                                : theme.primary
+                          }
+                          backgroundColor={theme.backgroundElement}
+                        >
+                          <Show when={sessionSafeguards().ciNudge}>
+                            <text
+                              fg={
+                                sessionSafeguards().ciNudge?.status === "failed"
+                                  ? theme.error
+                                  : sessionSafeguards().ciNudge?.tone === "warning"
+                                    ? theme.warning
+                                    : sessionSafeguards().ciNudge?.tone === "primary"
+                                      ? theme.primary
+                                      : theme.textMuted
+                              }
+                              bold
+                            >
+                              {sessionSafeguards().ciNudge?.title}
+                            </text>
+                            <text fg={theme.textMuted} wrapMode="word">
+                              {sessionSafeguards().ciNudge?.detail}
+                            </text>
+                          </Show>
+                          <Show when={sessionSafeguards().branchNudge && (workflowMode() === "build" || hasDiffNeed())}>
+                            <text
+                              fg={sessionSafeguards().branchNudge?.tone === "warning" ? theme.warning : theme.textMuted}
+                              bold
+                            >
+                              {sessionSafeguards().branchNudge?.title}
+                            </text>
+                            <text fg={theme.textMuted} wrapMode="word">
+                              {sessionSafeguards().branchNudge?.detail}
+                            </text>
                           </Show>
                         </box>
                       </Show>
