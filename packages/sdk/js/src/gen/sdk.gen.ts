@@ -19,6 +19,7 @@ import type {
   ConfigProvidersResponses,
   ConfigUpdateErrors,
   ConfigUpdateResponses,
+  CreateRunRequestV1,
   EventSubscribeResponses,
   EventTuiCommandExecute,
   EventTuiPromptAppend,
@@ -101,6 +102,23 @@ import type {
   QuestionRejectResponses,
   QuestionReplyErrors,
   QuestionReplyResponses,
+  ResolveApprovalRequestV1,
+  RunApprovalsListResponses,
+  RunApprovalsResolveErrors,
+  RunApprovalsResolveResponses,
+  RunArtifactsListErrors,
+  RunArtifactsListResponses,
+  RunCreateErrors,
+  RunCreateResponses,
+  RunEventsErrors,
+  RunEventsResponses,
+  RunGetErrors,
+  RunGetResponses,
+  RunOverviewResponses,
+  RunProjectionsErrors,
+  RunProjectionsResponses,
+  RunSummaryErrors,
+  RunSummaryResponses,
   SessionAbortErrors,
   SessionAbortResponses,
   SessionChildrenErrors,
@@ -144,6 +162,16 @@ import type {
   SessionUnshareResponses,
   SessionUpdateErrors,
   SessionUpdateResponses,
+  SoothsayerApprovalsResponses,
+  SoothsayerOverviewResponses,
+  SoothsayerRunNeedsRecoveryResponses,
+  SoothsayerRunRecoverResponses,
+  SoothsayerRunsApprovalsResolveErrors,
+  SoothsayerRunsApprovalsResolveResponses,
+  SoothsayerRunsApprovalsResponses,
+  SoothsayerRunsCreateResponses,
+  SoothsayerRunsGetErrors,
+  SoothsayerRunsGetResponses,
   SubtaskPartInput,
   TextPartInput,
   ToolIdsErrors,
@@ -1947,6 +1975,546 @@ export class Permission extends HeyApiClient {
   }
 }
 
+export class Approvals extends HeyApiClient {
+  /**
+   * Get run approvals
+   *
+   * Return the current approval queue for a run.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunApprovalsListResponses, unknown, ThrowOnError>({
+      url: "/runs/{runID}/approvals",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Resolve approval
+   *
+   * Approve or deny a pending run approval through the external run API.
+   */
+  public resolve<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      approvalID: string
+      directory?: string
+      resolveApprovalRequestV1?: ResolveApprovalRequestV1
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "approvalID" },
+            { in: "query", key: "directory" },
+            { key: "resolveApprovalRequestV1", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunApprovalsResolveResponses, RunApprovalsResolveErrors, ThrowOnError>(
+      {
+        url: "/runs/{runID}/approvals/{approvalID}",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+}
+
+export class Artifacts extends HeyApiClient {
+  /**
+   * List run artifacts
+   *
+   * Return the currently known artifacts for a run.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunArtifactsListResponses, RunArtifactsListErrors, ThrowOnError>({
+      url: "/runs/{runID}/artifacts",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Run extends HeyApiClient {
+  /**
+   * Get run overview
+   *
+   * Return list-oriented operator views for active runs, pending approvals, and recent runs.
+   */
+  public overview<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      limit?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunOverviewResponses, unknown, ThrowOnError>({
+      url: "/runs/overview",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create run
+   *
+   * Create a DAX-backed external run and start execution against the current workspace.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      createRunRequestV1?: CreateRunRequestV1
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { key: "createRunRequestV1", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunCreateResponses, RunCreateErrors, ThrowOnError>({
+      url: "/runs",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get run snapshot
+   *
+   * Return the durable run snapshot used for reconnect and recovery.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunGetResponses, RunGetErrors, ThrowOnError>({
+      url: "/runs/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Stream run events
+   *
+   * Subscribe to the run event stream using cursor-based SSE replay.
+   */
+  public events<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      cursor?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "cursor" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).sse.get<RunEventsResponses, RunEventsErrors, ThrowOnError>({
+      url: "/runs/{runID}/events",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get run summary
+   *
+   * Return the external summary view for a DAX-backed run.
+   */
+  public summary<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunSummaryResponses, RunSummaryErrors, ThrowOnError>({
+      url: "/runs/{runID}/summary",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get run projections
+   *
+   * Return the canonical workstation projections for a DAX-backed run.
+   */
+  public projections<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunProjectionsResponses, RunProjectionsErrors, ThrowOnError>({
+      url: "/runs/{runID}/projections",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _approvals?: Approvals
+  get approvals(): Approvals {
+    return (this._approvals ??= new Approvals({ client: this.client }))
+  }
+
+  private _artifacts?: Artifacts
+  get artifacts(): Artifacts {
+    return (this._artifacts ??= new Artifacts({ client: this.client }))
+  }
+}
+
+export class Approvals2 extends HeyApiClient {
+  /**
+   * Resolve Soothsayer approval
+   *
+   * Approve or deny a pending approval.
+   */
+  public resolve<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      approvalID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "path", key: "approvalID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SoothsayerRunsApprovalsResolveResponses,
+      SoothsayerRunsApprovalsResolveErrors,
+      ThrowOnError
+    >({
+      url: "/soothsayer/runs/{runID}/approvals/{approvalID}",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Runs extends HeyApiClient {
+  /**
+   * Create Soothsayer run
+   *
+   * Create a DAX run with presentation metadata for Picobot/WhatsApp ingress.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }])
+    return (options?.client ?? this.client).post<SoothsayerRunsCreateResponses, unknown, ThrowOnError>({
+      url: "/soothsayer/runs",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get Soothsayer run detail
+   *
+   * Return presentation-safe run detail with human-readable labels.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SoothsayerRunsGetResponses, SoothsayerRunsGetErrors, ThrowOnError>({
+      url: "/soothsayer/runs/{runID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get Soothsayer approval queue
+   *
+   * Return presentation-safe approval queue with human-readable labels and whatHappensNext.
+   */
+  public approvals<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SoothsayerRunsApprovalsResponses, unknown, ThrowOnError>({
+      url: "/soothsayer/runs/{runID}/approvals",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _approvals?: Approvals2
+  get approvals2(): Approvals2 {
+    return (this._approvals ??= new Approvals2({ client: this.client }))
+  }
+}
+
+export class Run2 extends HeyApiClient {
+  /**
+   * Check if run needs recovery
+   *
+   * Checks if a run was interrupted and needs to be recovered from the event log.
+   */
+  public needsRecovery<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SoothsayerRunNeedsRecoveryResponses, unknown, ThrowOnError>({
+      url: "/soothsayer/runs/{id}/recovery",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Recover a run
+   *
+   * Recovers a run from its event log, reconstructing the RunState.
+   */
+  public recover<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SoothsayerRunRecoverResponses, unknown, ThrowOnError>({
+      url: "/soothsayer/runs/{id}/recover",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Soothsayer extends HeyApiClient {
+  /**
+   * Get Soothsayer overview
+   *
+   * Return presentation-safe overview with human-readable labels for active runs, pending approvals, and authority metrics.
+   */
+  public overview<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }])
+    return (options?.client ?? this.client).get<SoothsayerOverviewResponses, unknown, ThrowOnError>({
+      url: "/soothsayer/overview",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get global approval queue
+   *
+   * Return all pending approvals across all active runs.
+   */
+  public approvals<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }])
+    return (options?.client ?? this.client).get<SoothsayerApprovalsResponses, unknown, ThrowOnError>({
+      url: "/soothsayer/approvals",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _runs?: Runs
+  get runs(): Runs {
+    return (this._runs ??= new Runs({ client: this.client }))
+  }
+
+  private _run?: Run2
+  get run(): Run2 {
+    return (this._run ??= new Run2({ client: this.client }))
+  }
+}
+
 export class Question extends HeyApiClient {
   /**
    * List pending questions
@@ -2046,7 +2614,9 @@ export class Oauth extends HeyApiClient {
       providerID: string
       directory?: string
       method?: number
-      inputs?: Record<string, string>
+      inputs?: {
+        [key: string]: string
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3396,6 +3966,16 @@ export class DaxClient extends HeyApiClient {
   private _permission?: Permission
   get permission(): Permission {
     return (this._permission ??= new Permission({ client: this.client }))
+  }
+
+  private _run?: Run
+  get run(): Run {
+    return (this._run ??= new Run({ client: this.client }))
+  }
+
+  private _soothsayer?: Soothsayer
+  get soothsayer(): Soothsayer {
+    return (this._soothsayer ??= new Soothsayer({ client: this.client }))
   }
 
   private _question?: Question

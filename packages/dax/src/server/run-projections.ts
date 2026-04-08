@@ -40,11 +40,12 @@ export function buildHeaderProjection(snapshot: RunSnapshot, interventions: RunI
     runId: snapshot.runId,
     title: snapshot.title,
     status: snapshot.status,
+    currentStep: snapshot.currentStep,
     createdAt: snapshot.createdAt,
     updatedAt: snapshot.updatedAt,
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
-    targeting: snapshot.metadata?.targeting,
+    targeting: snapshot.targeting,
     interventionSummary,
   }
 }

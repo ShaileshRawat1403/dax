@@ -180,8 +180,8 @@ export function Home() {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
 
-  const isFirstTimeUser = createMemo(() => sync.data.session.length === 0)
-  const sessionCount = createMemo(() => sync.data.session.length)
+  const isFirstTimeUser = createMemo(() => (sync.data.overview?.recentRuns.length ?? 0) === 0 && (sync.data.overview?.activeRuns.length ?? 0) === 0)
+  const sessionCount = createMemo(() => (sync.data.overview?.recentRuns.length ?? 0) + (sync.data.overview?.activeRuns.length ?? 0))
   const tipsHidden = createMemo(() => kv.get("tips_hidden", true))
   const showTips = createMemo(() => {
     if (isFirstTimeUser()) return false
@@ -496,15 +496,41 @@ export function Home() {
 
             <Show when={showSessions()}>
               <box width="100%" marginTop={1} flexDirection="column" gap={0}>
+                <Show when={(sync.data.overview?.activeRuns.length ?? 0) > 0}>
+                  <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                    {"  "}ACTIVE RUNS
+                  </text>
+                  <box flexDirection="column" gap={0} marginBottom={1}>
+                    <For each={sync.data.overview?.activeRuns.slice(0, 3)}>
+                      {(r) => (
+                        <box
+                          onMouseUp={() => {
+                            navigate({ type: "session", sessionID: r.runId })
+                          }}
+                          paddingLeft={2}
+                          paddingRight={2}
+                          paddingTop={0}
+                          paddingBottom={0}
+                          flexDirection="row"
+                          justifyContent="space-between"
+                        >
+                          <text fg={theme.primary}>▸ {r.title ? (r.title.length > 50 ? r.title.slice(0, 47) + "..." : r.title) : r.runId.slice(0, 8)}</text>
+                          <text fg={theme.textMuted}>{r.status}</text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </Show>
+
                 <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                  {"  "}RECENT SESSIONS
+                  {"  "}RECENT RUNS
                 </text>
                 <box flexDirection="column" gap={0}>
-                  <For each={sync.data.session.slice(0, 3)}>
-                    {(s) => (
+                  <For each={sync.data.overview?.recentRuns.slice(0, 3)}>
+                    {(r) => (
                       <box
                         onMouseUp={() => {
-                          navigate({ type: "session", sessionID: s.id })
+                          navigate({ type: "session", sessionID: r.runId })
                         }}
                         paddingLeft={2}
                         paddingRight={2}
@@ -513,8 +539,8 @@ export function Home() {
                         flexDirection="row"
                         justifyContent="space-between"
                       >
-                        <text fg={theme.text}>▸ {s.title.length > 50 ? s.title.slice(0, 47) + "..." : s.title}</text>
-                        <text fg={theme.textMuted}>{new Date(s.time.updated).toLocaleDateString()}</text>
+                        <text fg={theme.text}>▸ {r.title ? (r.title.length > 50 ? r.title.slice(0, 47) + "..." : r.title) : r.runId.slice(0, 8)}</text>
+                        <text fg={theme.textMuted}>{new Date(r.updatedAt).toLocaleDateString()}</text>
                       </box>
                     )}
                   </For>

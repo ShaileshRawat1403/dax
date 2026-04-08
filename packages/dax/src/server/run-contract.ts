@@ -26,14 +26,16 @@ export const WorkflowTerminalReason = z.enum([
 ])
 export type WorkflowTerminalReason = z.infer<typeof WorkflowTerminalReason>
 
-export const WorkflowSummary = z.object({
-  workflowClass: WorkflowClass,
-  stepGraph: z.string().array(),
-  currentStepIndex: z.number().optional(),
-  totalSteps: z.number(),
-  trustPosture: WorkflowTrustPosture,
-  terminalReason: WorkflowTerminalReason.optional(),
-})
+export const WorkflowSummary = z
+  .object({
+    workflowClass: WorkflowClass,
+    stepGraph: z.string().array(),
+    currentStepIndex: z.number().optional(),
+    totalSteps: z.number(),
+    trustPosture: WorkflowTrustPosture,
+    terminalReason: WorkflowTerminalReason.optional(),
+  })
+  .meta({ ref: "WorkflowSummaryV1" })
 export type WorkflowSummary = z.infer<typeof WorkflowSummary>
 
 export const RunStatus = z.enum([
@@ -108,18 +110,22 @@ export const RunCurrentStep = z
   .meta({ ref: "RunCurrentStepV1" })
 export type RunCurrentStep = z.infer<typeof RunCurrentStep>
 
-export const RunPlanTask = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  dependencies: z.string().array(),
-})
+export const RunPlanTask = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    dependencies: z.string().array(),
+  })
+  .meta({ ref: "RunPlanTaskV1" })
 export type RunPlanTask = z.infer<typeof RunPlanTask>
 
-export const RunPlan = z.object({
-  planId: z.string(),
-  tasks: RunPlanTask.array(),
-})
+export const RunPlan = z
+  .object({
+    planId: z.string(),
+    tasks: RunPlanTask.array(),
+  })
+  .meta({ ref: "RunPlanV1" })
 export type RunPlan = z.infer<typeof RunPlan>
 
 export const RunSnapshot = z
@@ -158,7 +164,7 @@ export type RunSnapshot = z.infer<typeof RunSnapshot>
 
 export const ApprovalResolution = z
   .object({
-    decision: ApprovalDecision,
+    decision: z.enum(["approve", "deny"]),
     actorId: z.string().optional(),
     source: z.enum(["soothsayer", "dax", "cli", "system"]),
     comment: z.string().optional(),
@@ -574,68 +580,81 @@ export const RunEvent = z
   .meta({ ref: "RunEventV1" })
 export type RunEvent = z.infer<typeof RunEvent>
 
-export const RunNarrativeItem = z.object({
-  id: z.string(),
-  timestamp: z.string(),
-  type: z.string(),
-  message: z.string(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+export const RunNarrativeItem = z
+  .object({
+    id: z.string(),
+    timestamp: z.string(),
+    type: z.string(),
+    message: z.string(),
+    metadata: z.record(z.string(), z.any()).optional(),
+  })
+  .meta({ ref: "RunNarrativeItemV1" })
 export type RunNarrativeItem = z.infer<typeof RunNarrativeItem>
 
-export const RunHeaderProjection = z.object({
-  runId: z.string(),
-  title: z.string().optional(),
-  status: RunStatus,
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  startedAt: z.string().optional(),
-  completedAt: z.string().optional(),
-  targeting: RunTargetingSummary.optional(),
-  interventionSummary: z.object({
-    activeCount: z.number(),
-    primaryKind: InterventionKind.optional(),
-    message: z.string().optional(),
-  }).optional(),
-})
+export const RunHeaderProjection = z
+  .object({
+    runId: z.string(),
+    title: z.string().optional(),
+    status: RunStatus,
+    currentStep: RunCurrentStep.optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    startedAt: z.string().optional(),
+    completedAt: z.string().optional(),
+    targeting: RunTargetingSummary.optional(),
+    interventionSummary: z
+      .object({
+        activeCount: z.number(),
+        primaryKind: InterventionKind.optional(),
+        message: z.string().optional(),
+      })
+      .optional(),
+  })
+  .meta({ ref: "RunHeaderProjectionV1" })
 export type RunHeaderProjection = z.infer<typeof RunHeaderProjection>
 
-export const RunIntervention = z.object({
-  interventionId: z.string(),
-  runId: z.string(),
-  kind: InterventionKind,
-  status: InterventionStatus,
-  title: z.string(),
-  reason: z.string(),
-  createdAt: z.string(),
-  resolvedAt: z.string().optional(),
-  approvalId: z.string().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-})
+export const RunIntervention = z
+  .object({
+    interventionId: z.string(),
+    runId: z.string(),
+    kind: InterventionKind,
+    status: InterventionStatus,
+    title: z.string(),
+    reason: z.string(),
+    createdAt: z.string(),
+    resolvedAt: z.string().optional(),
+    approvalId: z.string().optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
+  })
+  .meta({ ref: "RunInterventionV1" })
 export type RunIntervention = z.infer<typeof RunIntervention>
 
-export const ProposedChange = z.object({
-  changeId: z.string(),
-  runId: z.string(),
-  approvalId: z.string().optional(),
-  stepId: z.string().optional(),
-  type: z.enum(["file_edit", "file_create", "file_delete", "patch"]),
-  filePath: z.string(),
-  diff: z.string(),
-  status: z.enum(["pending", "approved_not_applied", "applied", "rejected", "stale"]),
-  createdAt: z.string(),
-})
+export const ProposedChange = z
+  .object({
+    changeId: z.string(),
+    runId: z.string(),
+    approvalId: z.string().optional(),
+    stepId: z.string().optional(),
+    type: z.enum(["file_edit", "file_create", "file_delete", "patch"]),
+    filePath: z.string(),
+    diff: z.string(),
+    status: z.enum(["pending", "approved_not_applied", "applied", "rejected", "stale"]),
+    createdAt: z.string(),
+  })
+  .meta({ ref: "ProposedChangeV1" })
 export type ProposedChange = z.infer<typeof ProposedChange>
 
-export const ProjectedRun = z.object({
-  header: RunHeaderProjection,
-  summary: RunSummary.optional(),
-  narrative: RunNarrativeItem.array(),
-  approvals: ApprovalRecord.array(),
-  artifacts: ArtifactRecord.array(),
-  interventions: RunIntervention.array(),
-  proposedChanges: ProposedChange.array(),
-})
+export const ProjectedRun = z
+  .object({
+    header: RunHeaderProjection,
+    summary: RunSummary.optional(),
+    narrative: RunNarrativeItem.array(),
+    approvals: ApprovalRecord.array(),
+    artifacts: ArtifactRecord.array(),
+    interventions: RunIntervention.array(),
+    proposedChanges: ProposedChange.array(),
+  })
+  .meta({ ref: "ProjectedRunV1" })
 export type ProjectedRun = z.infer<typeof ProjectedRun>
 
 export const GetApprovalsResponse = z

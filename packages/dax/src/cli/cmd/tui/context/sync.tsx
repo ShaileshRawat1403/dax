@@ -17,6 +17,10 @@ import type {
   ProviderListResponse,
   ProviderAuthMethod,
   VcsInfo,
+  ArtifactRecordV1 as ArtifactRecord,
+  ApprovalRecordV1 as ApprovalRecord,
+  ProjectedRunV1 as ProjectedRun,
+  RunOverviewResponseV1 as RunOverviewResponse,
 } from "@dax-ai/sdk/v2"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useSDK } from "@tui/context/sdk"
@@ -28,8 +32,6 @@ import { useArgs } from "./args"
 import { batch, createEffect, onMount } from "solid-js"
 import { Log } from "@/util/log"
 import type { Path } from "@dax-ai/sdk"
-import type { ApprovalRecord, ArtifactRecord, ProjectedRun, RunSnapshot } from "@/server/run-contract"
-import { buildProjectedRun } from "@/server/run-projections"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -74,9 +76,11 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       run: {
         [sessionID: string]: ProjectedRun
       }
+      overview: RunOverviewResponse | undefined
       part: {
         [messageID: string]: Part[]
       }
+
       lsp: LspStatus[]
       mcp: {
         [key: string]: McpStatus
@@ -113,6 +117,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       approvals: {},
       artifacts: {},
       run: {},
+      overview: undefined,
       part: {},
       lsp: [],
       mcp: {},
@@ -126,25 +131,22 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
     const updateProjection = async (sessionID: string) => {
       try {
-        const [snapshotRes, summaryRes] = await Promise.all([
-          // @ts-ignore - runs is missing from generated SDK
-          sdk.client.runs.get({ runID: sessionID }),
-          // @ts-ignore - runs is missing from generated SDK
-          sdk.client.runs.summary({ runID: sessionID })
-        ])
-        
-        if (!snapshotRes.data) return
-        
-        const snapshot = snapshotRes.data as RunSnapshot
-        const summary = summaryRes.data || undefined
-        const events = store.lifecycle[sessionID] || []
-        const approvals = store.approvals[sessionID] || []
-        const artifacts = store.artifacts[sessionID] || []
-        
-        const projection = buildProjectedRun(snapshot, events, approvals, artifacts, summary as any)
-        setStore("run", sessionID, projection)
+        const response = await sdk.client.run.projections({ runID: sessionID })
+        if (!response.data) return
+        setStore("run", sessionID, reconcile(response.data))
       } catch (err) {
-        // Silently fail if projection cannot be built yet
+        // Silently fail if projection cannot be fetched yet
+      }
+    }
+
+    const updateOverview = async () => {
+      try {
+        const response = await sdk.client.run.overview({ limit: 25 })
+        if (response.data) {
+          setStore("overview", reconcile(response.data))
+        }
+      } catch (err) {
+        // Silently fail
       }
     }
 
@@ -247,6 +249,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               }),
             )
           }
+          updateOverview()
           break
         }
         case "session.updated": {
@@ -254,6 +257,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           if (result.found) {
             setStore("session", result.index, reconcile(event.properties.info))
             updateProjection(event.properties.info.id)
+            updateOverview()
             break
           }
           setStore(
@@ -263,12 +267,14 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             }),
           )
           updateProjection(event.properties.info.id)
+          updateOverview()
           break
         }
 
         case "session.status": {
           setStore("session_status", event.properties.sessionID, event.properties.status)
           updateProjection(event.properties.sessionID)
+          updateOverview()
           break
         }
 
@@ -423,6 +429,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           }
           
           updateProjection(runId)
+          updateOverview()
           break
         }
       }
@@ -497,6 +504,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             sdk.client.provider.auth().then((x) => setStore("provider_auth", reconcile(x.data ?? {}))),
             sdk.client.vcs.get().then((x) => setStore("vcs", reconcile(x.data))),
             sdk.client.path.get().then((x) => setStore("path", reconcile(x.data!))),
+            updateOverview(),
           ]).then(() => {
             setStore("status", "complete")
           })

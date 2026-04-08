@@ -295,12 +295,17 @@ export function Session() {
   })
 
   const currentStep = createMemo(() => {
+    if (projectedRun()) return projectedRun()?.header.currentStep
     const events = lifecycle()
     const stepEvent = events.findLast((e) => e.type === "plan.step_promoted")
     return stepEvent?.properties
   })
 
   const modernTrust = createMemo(() => {
+    if (projectedRun()) {
+      const summary = projectedRun()?.summary
+      if (summary?.trust) return summary.trust
+    }
     const events = lifecycle()
     const auditEvent = events.findLast((e) => e.type === "audit.posture_updated")
     return auditEvent?.properties?.trust

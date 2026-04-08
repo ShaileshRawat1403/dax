@@ -495,6 +495,21 @@ export type EventMessagePartRemoved = {
   }
 }
 
+export type EventFileWatcherUpdated = {
+  type: "file.watcher.updated"
+  properties: {
+    file: string
+    event: "add" | "change" | "unlink"
+  }
+}
+
+export type EventVcsBranchUpdated = {
+  type: "vcs.branch.updated"
+  properties: {
+    branch?: string
+  }
+}
+
 export type PermissionRequest = {
   id: string
   createdAt: number
@@ -637,11 +652,156 @@ export type EventSessionCompacted = {
   }
 }
 
-export type EventFileWatcherUpdated = {
-  type: "file.watcher.updated"
+export type EventIntentCreated = {
+  type: "intent.created"
   properties: {
-    file: string
-    event: "add" | "change" | "unlink"
+    runId: string
+    intentType: string
+    goal: string
+    riskLevel: "low" | "medium" | "high"
+    confidence: number
+  }
+}
+
+export type EventPlanCompiled = {
+  type: "plan.compiled"
+  properties: {
+    runId: string
+    planId: string
+    tasks: Array<{
+      id: string
+      name: string
+      description: string
+      dependencies: Array<string>
+    }>
+  }
+}
+
+export type EventPlanStepPromoted = {
+  type: "plan.step_promoted"
+  properties: {
+    runId: string
+    stepId: string
+    status: "proposed" | "running" | "completed" | "failed" | "blocked"
+  }
+}
+
+export type EventInterventionRequired = {
+  type: "intervention.required"
+  properties: {
+    runId: string
+    reason: string
+    type: "policy_violation" | "hitl_task" | "ambiguity" | "error_recovery"
+    approvalId?: string
+  }
+}
+
+export type ApprovalContextV1 = {
+  stepId?: string
+  filePath?: string
+  command?: string
+  toolName?: string
+  diffPreview?: string
+  notes?: Array<string>
+  originalPermissionId?: string
+}
+
+export type ApprovalResolutionV1 = {
+  decision: "approve" | "deny"
+  actorId?: string
+  source: "soothsayer" | "dax" | "cli" | "system"
+  comment?: string
+}
+
+export type ApprovalRecordV1 = {
+  approvalId: string
+  runId: string
+  type: "file_write" | "command_execute" | "patch_apply" | "tool_use" | "workflow_gate" | "question"
+  status: "pending" | "approved" | "denied" | "expired" | "cancelled"
+  risk: "low" | "medium" | "high" | "critical"
+  title: string
+  reason: string
+  context?: ApprovalContextV1
+  createdAt: string
+  updatedAt: string
+  resolvedAt?: string
+  resolution?: ApprovalResolutionV1
+}
+
+export type EventApprovalRequested = {
+  type: "approval.requested"
+  properties: {
+    runId: string
+    approval: ApprovalRecordV1
+  }
+}
+
+export type EventApprovalResolved = {
+  type: "approval.resolved"
+  properties: {
+    runId: string
+    approvalId: string
+    decision: "approve" | "deny"
+    comment?: string
+  }
+}
+
+export type ArtifactRecordV1 = {
+  artifactId: string
+  runId: string
+  type: "diff" | "file" | "report" | "log" | "summary" | "patch"
+  title: string
+  createdAt: string
+  path?: string
+  mimeType?: string
+  preview?: {
+    text?: string
+    truncated?: boolean
+  }
+  metadata?: {
+    [key: string]: string | number | boolean | null
+  }
+  links?: {
+    self?: string
+    download?: string
+  }
+}
+
+export type EventArtifactCreated = {
+  type: "artifact.created"
+  properties: {
+    runId: string
+    artifact: ArtifactRecordV1
+  }
+}
+
+export type RunTrustStateV1 = {
+  score?: number
+  posture?: "low" | "guarded" | "moderate" | "strong"
+  blocked?: boolean
+  reasons?: Array<string>
+}
+
+export type EventAuditPostureUpdated = {
+  type: "audit.posture_updated"
+  properties: {
+    runId: string
+    trust: RunTrustStateV1
+    finding?: {
+      type: string
+      severity: "critical" | "major" | "minor" | "info"
+      title: string
+    }
+  }
+}
+
+export type EventRunStateChanged = {
+  type: "run.state_changed"
+  properties: {
+    runId: string
+    previousStatus: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+    currentStatus: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+    reason?: string
   }
 }
 
@@ -776,6 +936,47 @@ export type SessionIntent = {
     goal: string
     successCriteria: Array<string>
     explicitConstraints: Array<string>
+    executionProfile?: {
+      mode: "fast" | "balanced" | "safe" | "audit-heavy"
+      riskLevel: "low" | "medium" | "high"
+      writeScope: "none" | "single_file" | "multi_file" | "unknown"
+      approvalLikelihood: "low" | "medium" | "high"
+    }
+    contractDelta?: {
+      inferredScope?: Array<string>
+      inferredTargets?: Array<string>
+      addedValidation?: Array<string>
+      unresolvedUnknowns?: Array<string>
+    }
+    validationPlan?: {
+      preflight?: Array<string>
+      postChange?: Array<string>
+      shipReadiness?: Array<string>
+    }
+    governanceHints?: {
+      likelyTriggers?: Array<string>
+      lowerRiskAlternatives?: Array<string>
+      operatorDecisionsNeeded?: Array<string>
+    }
+    repoImpact?: {
+      targetFiles?: Array<string>
+      targetSubsystems?: Array<string>
+      docsImpact?: boolean
+      testImpact?: boolean
+      avoidAreas?: Array<string>
+    }
+    executionPlan?: Array<string>
+    contextSignals?: Array<string>
+    operatorWatchouts?: Array<string>
+    targetFiles?: Array<string>
+    validationCommands?: Array<string>
+    executionMode?: "fast" | "balanced" | "safe" | "audit-heavy"
+    riskLevel?: "low" | "medium" | "high"
+    likelyWrites?: Array<string>
+    approvalForecast?: Array<string>
+    unknowns?: Array<string>
+    rollbackPlan?: Array<string>
+    formattedPrompt?: string
     requiredFramework?: string
   }
 }
@@ -824,6 +1025,29 @@ export type ArtifactRecord = {
   created_at: number
 }
 
+export type ExecutionReflection = {
+  goal: string
+  outcome_expected: string
+  assumptions: Array<string>
+  ambiguities: Array<string>
+  risks: Array<{
+    level: "low" | "medium" | "high"
+    item: string
+    mitigation?: string
+  }>
+  alternatives: Array<{
+    id: string
+    path: string
+    tradeoff: string
+  }>
+  decision: "proceed" | "ask" | "branch" | "stop"
+  justification?: string
+  confidence: number
+  requiresApproval: boolean
+  verificationPlan: Array<string>
+  timestamp: string
+}
+
 export type SessionStateV2 = {
   intent?: SessionIntent
   plan?: SessionPlan
@@ -842,6 +1066,54 @@ export type SessionStateV2 = {
     blocking: boolean
   }>
   trust_posture?: unknown
+  reflection?: ExecutionReflection
+  reflection_history?: Array<ExecutionReflection>
+  runtime_guard?: {
+    budget: {
+      maxFilesTouched: number
+      maxMutatingCommands: number
+      maxApprovalRequests: number
+      maxRepeatedFailures: number
+      filesTouched?: number
+      mutatingCommands?: number
+      approvalsRequested?: number
+    }
+    touchedFiles?: Array<string>
+    baselineCheckpoint?: {
+      baselineRef?: string
+      snapshotId?: string
+      createdAt: string
+      mutationReceiptIds?: Array<string>
+    }
+    failureCounts?: {
+      [key: string]: number
+    }
+    verification?: {
+      required?: boolean
+      satisfied?: boolean
+      receipts?: Array<string>
+    }
+    lastToolCallFingerprint?: string
+    successiveCount?: number
+  }
+  plan_quality?: {
+    score: number
+    decision: "proceed" | "pause"
+    failedChecks?: Array<string>
+    guidance?: Array<string>
+    checkedAt: string
+  }
+  completion_proof?: {
+    decision: "pass" | "fail"
+    failedChecks?: Array<string>
+    verificationExecuted?: boolean
+    receiptIds?: Array<string>
+    artifactChecks?: boolean
+    scopeChecks?: boolean
+    sensitivePathApprovalChecks?: boolean
+    checkedAt: string
+  }
+  guard_enforcement_mode?: "warn" | "enforce"
 }
 
 export type Session = {
@@ -914,13 +1186,6 @@ export type EventSessionError = {
   }
 }
 
-export type EventVcsBranchUpdated = {
-  type: "vcs.branch.updated"
-  properties: {
-    branch?: string
-  }
-}
-
 export type Pty = {
   id: string
   title: string
@@ -989,6 +1254,8 @@ export type Event =
   | EventMessageRemoved
   | EventMessagePartUpdated
   | EventMessagePartRemoved
+  | EventFileWatcherUpdated
+  | EventVcsBranchUpdated
   | EventPermissionAsked
   | EventPermissionReplied
   | EventSessionStatus
@@ -997,7 +1264,15 @@ export type Event =
   | EventQuestionReplied
   | EventQuestionRejected
   | EventSessionCompacted
-  | EventFileWatcherUpdated
+  | EventIntentCreated
+  | EventPlanCompiled
+  | EventPlanStepPromoted
+  | EventInterventionRequired
+  | EventApprovalRequested
+  | EventApprovalResolved
+  | EventArtifactCreated
+  | EventAuditPostureUpdated
+  | EventRunStateChanged
   | EventTodoUpdated
   | EventTuiPromptAppend
   | EventTuiCommandExecute
@@ -1011,7 +1286,6 @@ export type Event =
   | EventSessionDeleted
   | EventSessionDiff
   | EventSessionError
-  | EventVcsBranchUpdated
   | EventPtyCreated
   | EventPtyUpdated
   | EventPtyExited
@@ -1469,7 +1743,7 @@ export type PermissionConfig =
       glob?: PermissionRuleConfig
       grep?: PermissionRuleConfig
       list?: PermissionRuleConfig
-      bash?: PermissionRuleConfig
+      shell?: PermissionRuleConfig
       task?: PermissionRuleConfig
       external_directory?: PermissionRuleConfig
       todowrite?: PermissionActionConfig
@@ -1980,6 +2254,7 @@ export type OAuth = {
   clientID?: string
   clientSecret?: string
   quotaProjectID?: string
+  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
 }
 
 export type ApiAuth = {
@@ -2183,9 +2458,492 @@ export type SubtaskPartInput = {
   command?: string
 }
 
+export type RunCurrentStepV1 = {
+  stepId: string
+  status: "proposed" | "running" | "completed" | "failed" | "blocked"
+  title: string
+  detail?: string
+}
+
+export type RunTargetingSummaryV1 = {
+  mode: "explicit_repo_path" | "default_cwd"
+  repoPath?: string
+}
+
+export type RunListItemV1 = {
+  runId: string
+  title?: string
+  status: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+  sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
+  sourceSurface: "chat" | "workflow" | "direct" | "unknown"
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  completedAt?: string
+  currentStep?: RunCurrentStepV1
+  pendingApprovalCount: number
+  targeting?: RunTargetingSummaryV1
+  workspaceId?: string
+  projectId?: string
+  chatId?: string
+  workflowId?: string
+}
+
+export type PendingApprovalSummaryV1 = {
+  approvalId: string
+  runId: string
+  type: "file_write" | "command_execute" | "patch_apply" | "tool_use" | "workflow_gate" | "question"
+  risk: "low" | "medium" | "high" | "critical"
+  title: string
+  reason: string
+  createdAt: string
+  targeting?: RunTargetingSummaryV1
+  sourceSurface: "chat" | "workflow" | "direct" | "unknown"
+  workspaceId?: string
+  projectId?: string
+}
+
+export type RunOverviewResponseV1 = {
+  activeRuns: Array<RunListItemV1>
+  recentRuns: Array<RunListItemV1>
+  pendingApprovals: Array<PendingApprovalSummaryV1>
+}
+
+export type CreateRunResponseV1 = {
+  runId: string
+  status: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+  createdAt: string
+  workflowHint?: "draft_and_approve" | "repo_analyze" | "review_and_signoff" | "generic"
+  workflowHintAccepted?: boolean
+  workflowClass?: "draft_and_approve" | "repo_analyze" | "review_and_signoff" | "generic"
+  warnings?: Array<string>
+}
+
+export type RunIntentV1 = {
+  input: string
+  kind?: "general" | "analysis" | "edit" | "workflow_step"
+  repoPath?: string
+  branch?: string
+  metadata?: {
+    [key: string]: string | number | boolean | null
+  }
+}
+
+export type PersonaPresetV1 = {
+  personaId: string
+  providerHint?: string
+  modelHint?: string
+  temperature?: number
+  verbosity?: "concise" | "balanced" | "detailed"
+  tone?: "technical" | "formal" | "friendly" | "direct"
+  riskLevel?: "low" | "medium" | "high" | "critical"
+  approvalMode?: "strict" | "balanced" | "relaxed"
+  preferredCapabilityClasses?: Array<"analysis" | "planning" | "code" | "refactor" | "review" | "shell" | "docs">
+  eli12?: boolean
+}
+
+export type CreateRunRequestV1 = {
+  intent: RunIntentV1
+  personaPreset?: PersonaPresetV1
+  workflowHint?: "draft_and_approve" | "repo_analyze" | "review_and_signoff"
+  metadata?: {
+    initiatedBy?: string
+    source?: "soothsayer" | "api" | "cli" | "dax"
+    workspaceId?: string
+    projectId?: string
+    chatId?: string
+    workflowId?: string
+    channel?: string
+    sessionId?: string
+    allowLegacyFallback?: boolean
+    targeting?: {
+      mode: "explicit_repo_path" | "default_cwd"
+      repoPath?: string
+    }
+  }
+}
+
+export type RunPlanTaskV1 = {
+  id: string
+  name: string
+  description: string
+  dependencies: Array<string>
+}
+
+export type RunPlanV1 = {
+  planId: string
+  tasks: Array<RunPlanTaskV1>
+}
+
+export type RunArtifactSummaryV1 = {
+  total: number
+  byType?: {
+    [key: string]: number
+  }
+  latestArtifactIds?: Array<string>
+}
+
+export type WorkflowSummaryV1 = {
+  workflowClass: "draft_and_approve" | "repo_analyze" | "review_and_signoff" | "generic"
+  stepGraph: Array<string>
+  currentStepIndex?: number
+  totalSteps: number
+  trustPosture: "high" | "medium" | "low" | "minimal"
+  terminalReason?:
+    | "workflow_completed"
+    | "workflow_failed"
+    | "workflow_signed_off"
+    | "workflow_rejected"
+    | "workflow_expired"
+    | "workflow_cancelled"
+    | "execution_error"
+    | "permission_denied"
+    | "timeout"
+    | "contract_mutation"
+}
+
+export type RunSnapshotV1 = {
+  schemaVersion: "v1"
+  authority: "dax" | "dax-state-machine" | "dax-legacy"
+  sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
+  runId: string
+  status: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  completedAt?: string
+  title?: string
+  intent?: RunIntentV1
+  plan?: RunPlanV1
+  currentStep?: RunCurrentStepV1
+  pendingApprovalCount: number
+  trust?: RunTrustStateV1
+  artifactSummary?: RunArtifactSummaryV1
+  workflow?: WorkflowSummaryV1
+  terminalReason?:
+    | "workflow_completed"
+    | "workflow_failed"
+    | "workflow_signed_off"
+    | "workflow_rejected"
+    | "workflow_expired"
+    | "workflow_cancelled"
+    | "execution_error"
+    | "permission_denied"
+    | "timeout"
+    | "contract_mutation"
+  metadata?: {
+    [key: string]: unknown
+  }
+  lastEvent?: {
+    eventId: string
+    sequence: number
+    cursor: string
+    timestamp: string
+  } | null
+}
+
+export type RunEventV1 = {
+  schemaVersion: "v1"
+  eventId: string
+  sequence: number
+  cursor: string
+  runId: string
+  timestamp: string
+  message?: string
+} & (
+  | {
+      type: "run.created"
+      payload: {
+        status: "created"
+        title?: string
+      }
+    }
+  | {
+      type: "run.started"
+      payload: {
+        status: "running"
+      }
+    }
+  | {
+      type: "run.state_changed"
+      payload: {
+        previousStatus: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+        currentStatus: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+        reason?: string
+      }
+    }
+  | {
+      type: "step.proposed"
+      payload: {
+        stepId: string
+        title: string
+        detail?: string
+        risk?: "low" | "medium" | "high" | "critical"
+      }
+    }
+  | {
+      type: "step.started"
+      payload: {
+        stepId: string
+        title: string
+        detail?: string
+      }
+    }
+  | {
+      type: "step.completed"
+      payload: {
+        stepId: string
+        title: string
+        detail?: string
+        durationMs?: number
+      }
+    }
+  | {
+      type: "step.failed"
+      payload: {
+        stepId: string
+        title: string
+        error: {
+          code: string
+          message: string
+        }
+      }
+    }
+  | {
+      type: "approval.requested"
+      payload: {
+        approval: ApprovalRecordV1
+      }
+    }
+  | {
+      type: "approval.resolved"
+      payload: {
+        approvalId: string
+        status: "pending" | "approved" | "denied" | "expired" | "cancelled"
+        decision: "approve" | "deny"
+        actorId?: string
+        source: "soothsayer" | "dax" | "cli" | "system"
+        comment?: string
+        resolvedAt: string
+      }
+    }
+  | {
+      type: "artifact.created"
+      payload: {
+        artifact: ArtifactRecordV1
+      }
+    }
+  | {
+      type: "run.completed"
+      payload: {
+        status: "completed"
+        summaryAvailable: boolean
+      }
+    }
+  | {
+      type: "run.failed"
+      payload: {
+        status: "failed"
+        error: {
+          code: string
+          message: string
+          retryable?: boolean
+        }
+      }
+    }
+  | {
+      type: "intent.created"
+      payload: {
+        intentType: string
+        goal: string
+        riskLevel: "low" | "medium" | "high" | "critical"
+        confidence: number
+      }
+    }
+  | {
+      type: "plan.compiled"
+      payload: {
+        planId: string
+        tasks: Array<{
+          id: string
+          name: string
+          description: string
+          dependencies: Array<string>
+        }>
+      }
+    }
+  | {
+      type: "plan.step_promoted"
+      payload: {
+        stepId: string
+        status: "proposed" | "running" | "completed" | "failed" | "blocked"
+      }
+    }
+  | {
+      type: "intervention.required"
+      payload: {
+        interventionId: string
+        reason: string
+        kind: "approval" | "ambiguity" | "recovery" | "policy_violation" | "risk_escalation"
+        approvalId?: string
+        metadata?: {
+          [key: string]: unknown
+        }
+      }
+    }
+  | {
+      type: "intervention.resolved"
+      payload: {
+        interventionId: string
+        status: "resolved" | "dismissed" | "escalated"
+        comment?: string
+        resolvedAt: string
+      }
+    }
+  | {
+      type: "audit.posture_updated"
+      payload: {
+        trust: RunTrustStateV1
+        finding?: {
+          type: string
+          severity: "critical" | "major" | "minor" | "info"
+          title: string
+        }
+      }
+    }
+)
+
+export type GetApprovalsResponseV1 = {
+  runId: string
+  approvals: Array<ApprovalRecordV1>
+}
+
+export type ResolveApprovalResponseV1 = {
+  approvalId: string
+  status: "pending" | "approved" | "denied" | "expired" | "cancelled"
+  resolution: ApprovalResolutionV1
+  resolvedAt?: string
+}
+
+export type ResolveApprovalRequestV1 = {
+  decision: "approve" | "deny"
+  actorId: string
+  source?: "soothsayer" | "api" | "dax"
+  comment?: string
+  requestId?: string
+}
+
+export type RunSummaryV1 = {
+  runId: string
+  status: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+  authority?: "dax" | "dax-state-machine" | "dax-legacy"
+  startedAt?: string
+  completedAt?: string
+  stepCount: number
+  completedStepCount?: number
+  failedStepCount?: number
+  pendingStepCount?: number
+  approvalCount: number
+  approvedCount?: number
+  deniedCount?: number
+  pendingApprovalCount?: number
+  artifactCount: number
+  trust?: RunTrustStateV1
+  workflow?: WorkflowSummaryV1
+  terminalReason?:
+    | "workflow_completed"
+    | "workflow_failed"
+    | "workflow_signed_off"
+    | "workflow_rejected"
+    | "workflow_expired"
+    | "workflow_cancelled"
+    | "execution_error"
+    | "permission_denied"
+    | "timeout"
+    | "contract_mutation"
+  outcome?: {
+    summaryText?: string
+    result?: "success" | "failure" | "partial" | "pending"
+    terminalReason?: string
+  }
+}
+
+export type RunHeaderProjectionV1 = {
+  runId: string
+  title?: string
+  status: "created" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled"
+  currentStep?: RunCurrentStepV1
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  completedAt?: string
+  targeting?: RunTargetingSummaryV1
+  interventionSummary?: {
+    activeCount: number
+    primaryKind?: "approval" | "ambiguity" | "recovery" | "policy_violation" | "risk_escalation"
+    message?: string
+  }
+}
+
+export type RunNarrativeItemV1 = {
+  id: string
+  timestamp: string
+  type: string
+  message: string
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
+export type RunInterventionV1 = {
+  interventionId: string
+  runId: string
+  kind: "approval" | "ambiguity" | "recovery" | "policy_violation" | "risk_escalation"
+  status: "requested" | "pending" | "resolved" | "dismissed" | "escalated"
+  title: string
+  reason: string
+  createdAt: string
+  resolvedAt?: string
+  approvalId?: string
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
+export type ProposedChangeV1 = {
+  changeId: string
+  runId: string
+  approvalId?: string
+  stepId?: string
+  type: "file_edit" | "file_create" | "file_delete" | "patch"
+  filePath: string
+  diff: string
+  status: "pending" | "approved_not_applied" | "applied" | "rejected" | "stale"
+  createdAt: string
+}
+
+export type ProjectedRunV1 = {
+  header: RunHeaderProjectionV1
+  summary?: RunSummaryV1
+  narrative: Array<RunNarrativeItemV1>
+  approvals: Array<ApprovalRecordV1>
+  artifacts: Array<ArtifactRecordV1>
+  interventions: Array<RunInterventionV1>
+  proposedChanges: Array<ProposedChangeV1>
+}
+
+export type ProviderAuthPrompt = {
+  key: string
+  type: string
+  message: string
+  placeholder?: string
+}
+
 export type ProviderAuthMethod = {
   type: "oauth" | "api"
   label: string
+  description?: string
+  prompts?: Array<ProviderAuthPrompt>
 }
 
 export type ProviderAuthAuthorization = {
@@ -3978,6 +4736,579 @@ export type PermissionRespondResponses = {
 
 export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
 
+export type RunOverviewData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    limit?: number
+  }
+  url: "/runs/overview"
+}
+
+export type RunOverviewResponses = {
+  /**
+   * Run overview
+   */
+  200: RunOverviewResponseV1
+}
+
+export type RunOverviewResponse = RunOverviewResponses[keyof RunOverviewResponses]
+
+export type RunCreateData = {
+  body?: CreateRunRequestV1
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/runs"
+}
+
+export type RunCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type RunCreateError = RunCreateErrors[keyof RunCreateErrors]
+
+export type RunCreateResponses = {
+  /**
+   * Run created
+   */
+  200: CreateRunResponseV1
+}
+
+export type RunCreateResponse = RunCreateResponses[keyof RunCreateResponses]
+
+export type RunGetData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}"
+}
+
+export type RunGetErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunGetError = RunGetErrors[keyof RunGetErrors]
+
+export type RunGetResponses = {
+  /**
+   * Run snapshot
+   */
+  200: RunSnapshotV1
+}
+
+export type RunGetResponse = RunGetResponses[keyof RunGetResponses]
+
+export type RunEventsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+    cursor?: string
+  }
+  url: "/runs/{runID}/events"
+}
+
+export type RunEventsErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunEventsError = RunEventsErrors[keyof RunEventsErrors]
+
+export type RunEventsResponses = {
+  /**
+   * Run event stream
+   */
+  200: RunEventV1
+}
+
+export type RunEventsResponse = RunEventsResponses[keyof RunEventsResponses]
+
+export type RunApprovalsListData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/approvals"
+}
+
+export type RunApprovalsListResponses = {
+  /**
+   * Run approvals
+   */
+  200: GetApprovalsResponseV1
+}
+
+export type RunApprovalsListResponse = RunApprovalsListResponses[keyof RunApprovalsListResponses]
+
+export type RunApprovalsResolveData = {
+  body?: ResolveApprovalRequestV1
+  path: {
+    runID: string
+    approvalID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/approvals/{approvalID}"
+}
+
+export type RunApprovalsResolveErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunApprovalsResolveError = RunApprovalsResolveErrors[keyof RunApprovalsResolveErrors]
+
+export type RunApprovalsResolveResponses = {
+  /**
+   * Approval resolved
+   */
+  200: ResolveApprovalResponseV1
+}
+
+export type RunApprovalsResolveResponse = RunApprovalsResolveResponses[keyof RunApprovalsResolveResponses]
+
+export type RunArtifactsListData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/artifacts"
+}
+
+export type RunArtifactsListErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunArtifactsListError = RunArtifactsListErrors[keyof RunArtifactsListErrors]
+
+export type RunArtifactsListResponses = {
+  /**
+   * Run artifacts
+   */
+  200: Array<ArtifactRecordV1>
+}
+
+export type RunArtifactsListResponse = RunArtifactsListResponses[keyof RunArtifactsListResponses]
+
+export type RunSummaryData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/summary"
+}
+
+export type RunSummaryErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunSummaryError = RunSummaryErrors[keyof RunSummaryErrors]
+
+export type RunSummaryResponses = {
+  /**
+   * Run summary
+   */
+  200: RunSummaryV1
+}
+
+export type RunSummaryResponse = RunSummaryResponses[keyof RunSummaryResponses]
+
+export type RunProjectionsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/projections"
+}
+
+export type RunProjectionsErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type RunProjectionsError = RunProjectionsErrors[keyof RunProjectionsErrors]
+
+export type RunProjectionsResponses = {
+  /**
+   * Run projections
+   */
+  200: ProjectedRunV1
+}
+
+export type RunProjectionsResponse = RunProjectionsResponses[keyof RunProjectionsResponses]
+
+export type SoothsayerOverviewData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/overview"
+}
+
+export type SoothsayerOverviewResponses = {
+  /**
+   * Soothsayer overview
+   */
+  200: {
+    activeRuns: Array<{
+      runId: string
+      title?: string
+      workflowClass: string
+      workflowClassLabel?: string
+      workflowClassDescription?: string
+      status: string
+      trustPosture: string
+      trustPostureLabel?: string
+      progress: {
+        currentStep: string
+        currentStepLabel?: string
+        currentStepDescription?: string
+        currentStepIndex: number
+        totalSteps: number
+        percentage: number
+      }
+      terminalReason?: string
+      terminalReasonLabel?: string
+      terminalReasonSeverity?: string
+      createdAt: string
+      completedAt?: string
+    }>
+    recentRuns: Array<{
+      runId: string
+      title?: string
+      workflowClass: string
+      workflowClassLabel?: string
+      workflowClassDescription?: string
+      status: string
+      trustPosture: string
+      trustPostureLabel?: string
+      progress: {
+        currentStep: string
+        currentStepLabel?: string
+        currentStepDescription?: string
+        currentStepIndex: number
+        totalSteps: number
+        percentage: number
+      }
+      terminalReason?: string
+      terminalReasonLabel?: string
+      terminalReasonSeverity?: string
+      createdAt: string
+      completedAt?: string
+    }>
+    pendingApprovals: Array<{
+      approvalId: string
+      runId: string
+      type: string
+      typeLabel?: string
+      typeDescription?: string
+      typeIcon?: string
+      status: string
+      risk: string
+      riskLabel?: string
+      riskDescription?: string
+      riskSeverity?: number
+      riskColor?: string
+      title: string
+      titleEnriched?: string
+      reason: string
+      context: {
+        stepId?: string
+        filePath?: string
+        command?: string
+        toolName?: string
+        diffPreview?: string
+        notes?: Array<string>
+      }
+      createdAt: string
+      updatedAt: string
+      whatHappensNext?: {
+        afterApprove: string
+        afterDeny?: string
+      }
+    }>
+    authorityMetrics: {
+      dax_state_machine: number
+      dax_legacy: number
+      total: number
+    }
+  }
+}
+
+export type SoothsayerOverviewResponse = SoothsayerOverviewResponses[keyof SoothsayerOverviewResponses]
+
+export type SoothsayerRunsCreateData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/runs"
+}
+
+export type SoothsayerRunsCreateResponses = {
+  /**
+   * Run created
+   */
+  200: CreateRunResponseV1
+}
+
+export type SoothsayerRunsCreateResponse = SoothsayerRunsCreateResponses[keyof SoothsayerRunsCreateResponses]
+
+export type SoothsayerRunsGetData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/runs/{runID}"
+}
+
+export type SoothsayerRunsGetErrors = {
+  /**
+   * Run not found
+   */
+  404: unknown
+}
+
+export type SoothsayerRunsGetResponses = {
+  /**
+   * Run detail
+   */
+  200: {
+    runId: string
+    status: string
+    authority: string
+    sourceSystem?: string
+    title?: string
+    metadata?: {
+      [key: string]: unknown
+    }
+    createdAt: string
+    updatedAt: string
+    startedAt?: string
+    completedAt?: string
+    progress: {
+      currentStep: string
+      currentStepLabel?: string
+      currentStepDescription?: string
+      totalSteps: number
+      percentage: number
+    }
+    trust: {
+      posture: string
+      postureLabel?: string
+      postureDescription?: string
+      blocked: boolean
+    }
+    workflow: {
+      class: string
+      classLabel?: string
+      classDescription?: string
+      stepGraph: Array<string>
+      currentStepIndex: number
+      trustPosture: string
+      trustPostureLabel?: string
+    } | null
+    terminalReason?: string
+    terminalReasonLabel?: string
+    terminalReasonDescription?: string
+    terminalReasonSeverity?: string
+    approvals: {
+      pending: number
+      approved: number
+      denied: number
+    }
+    artifacts: {
+      total: number
+      latestIds: Array<string>
+    }
+    lastEvent?: {
+      eventId: string
+      sequence: number
+      cursor: string
+      timestamp: string
+    }
+  }
+}
+
+export type SoothsayerRunsGetResponse = SoothsayerRunsGetResponses[keyof SoothsayerRunsGetResponses]
+
+export type SoothsayerRunsApprovalsData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/runs/{runID}/approvals"
+}
+
+export type SoothsayerRunsApprovalsResponses = {
+  /**
+   * Approval queue
+   */
+  200: Array<{
+    approvalId: string
+    runId: string
+    type: string
+    typeLabel?: string
+    typeDescription?: string
+    typeIcon?: string
+    status: string
+    risk: string
+    riskLabel?: string
+    riskDescription?: string
+    riskSeverity?: number
+    riskColor?: string
+    title: string
+    titleEnriched?: string
+    reason: string
+    context: {
+      stepId?: string
+      filePath?: string
+      command?: string
+      toolName?: string
+      diffPreview?: string
+      notes?: Array<string>
+    }
+    createdAt: string
+    updatedAt: string
+    whatHappensNext?: {
+      afterApprove: string
+      afterDeny?: string
+    }
+  }>
+}
+
+export type SoothsayerRunsApprovalsResponse = SoothsayerRunsApprovalsResponses[keyof SoothsayerRunsApprovalsResponses]
+
+export type SoothsayerRunsApprovalsResolveData = {
+  body?: never
+  path: {
+    runID: string
+    approvalID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/runs/{runID}/approvals/{approvalID}"
+}
+
+export type SoothsayerRunsApprovalsResolveErrors = {
+  /**
+   * Approval not found
+   */
+  404: unknown
+}
+
+export type SoothsayerRunsApprovalsResolveResponses = {
+  /**
+   * Approval resolved
+   */
+  200: ResolveApprovalResponseV1
+}
+
+export type SoothsayerRunsApprovalsResolveResponse =
+  SoothsayerRunsApprovalsResolveResponses[keyof SoothsayerRunsApprovalsResolveResponses]
+
+export type SoothsayerApprovalsData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/approvals"
+}
+
+export type SoothsayerApprovalsResponses = {
+  /**
+   * Global approval queue
+   */
+  200: unknown
+}
+
+export type SoothsayerRunNeedsRecoveryData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/runs/{id}/recovery"
+}
+
+export type SoothsayerRunNeedsRecoveryResponses = {
+  /**
+   * Recovery summary
+   */
+  200: unknown
+}
+
+export type SoothsayerRunRecoverData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/soothsayer/runs/{id}/recover"
+}
+
+export type SoothsayerRunRecoverResponses = {
+  /**
+   * Recovery result
+   */
+  200: unknown
+}
+
 export type PermissionReplyData = {
   body?: {
     reply: "once" | "always" | "reject"
@@ -4231,6 +5562,9 @@ export type ProviderOauthAuthorizeData = {
      * Auth method index
      */
     method: number
+    inputs?: {
+      [key: string]: string
+    }
   }
   path: {
     /**
