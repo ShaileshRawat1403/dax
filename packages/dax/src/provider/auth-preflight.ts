@@ -1,5 +1,12 @@
 import { Auth } from "@/auth"
 import { Env } from "@/env"
+import {
+  classifyProviderFailure,
+  providerFailureNextStep,
+  providerLaneLabel,
+  type ProviderFailureCategory,
+  type ProviderLane,
+} from "@/provider/diagnostics"
 
 const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 const GOOGLE_SCOPE_CLOUD = "https://www.googleapis.com/auth/cloud-platform"
@@ -25,17 +32,15 @@ export type AuthDiagnostics = {
     | "cli-import"
     | "codeassist"
     | "custom-oauth"
+    | "openai-api"
+    | "openai-oauth"
+    | "copilot-oauth"
     | "vertex-adc"
     | "missing"
     | "anthropic-api"
     | "anthropic-oauth"
-  lane?:
-    | "gemini-api"
-    | "gemini-cli-import"
-    | "google-oauth-client"
-    | "vertex"
-    | "anthropic-api"
-    | "anthropic-subscription"
+  lane?: ProviderLane
+  laneLabel?: string
   source?: "api-key" | "stored-oauth" | "cli-import" | "adc" | "env"
   endpoint?: "generativelanguage" | "cloudcode-pa" | "vertex"
   ok: boolean
@@ -43,6 +48,8 @@ export type AuthDiagnostics = {
   missingEnv: string[]
   details: string[]
   error?: string
+  failureCategory?: ProviderFailureCategory
+  next?: string[]
 }
 
 type GoogleTokenInfo = {
@@ -236,6 +243,7 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       providerID,
       mode: "gemini-api-key",
       lane: "gemini-api",
+      laneLabel: providerLaneLabel("gemini-api"),
       source: "api-key",
       endpoint: "generativelanguage",
       ok: true,
@@ -243,6 +251,7 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       missingEnv: [],
       details: [
         "Using Gemini API key mode.",
+        `Lane: ${providerLaneLabel("gemini-api")}.`,
         `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
         project
           ? "GOOGLE_CLOUD_PROJECT is also set. Keep Google models on `google/*`; use `google-vertex/*` only when using ADC."
@@ -259,6 +268,22 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
     const hasRefresh = Boolean(refreshToken)
     const isSubscription = mode === "codeassist" || mode === "cli-import"
     const source = mode === "cli-import" && cliCreds?.refresh ? "cli-import" : "stored-oauth"
+    const lane: ProviderLane =
+      mode === "cli-import"
+        ? "gemini-cli-import"
+        : mode === "codeassist" || mode === "custom-oauth"
+          ? "google-oauth-client"
+          : "gemini-api"
+    const failureCategory =
+      token.ok || hasRefresh
+        ? undefined
+        : classifyProviderFailure({
+            providerID,
+            message:
+              token.reason === "scope_missing" || token.reason === "audience_mismatch"
+                ? `misconfigured: ${token.message}`
+                : token.message,
+          })
 
     const details = token.ok
       ? [
@@ -288,12 +313,8 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
     return {
       providerID,
       mode,
-      lane:
-        mode === "cli-import"
-          ? "gemini-cli-import"
-          : mode === "codeassist" || mode === "custom-oauth"
-            ? "google-oauth-client"
-            : "gemini-api",
+      lane,
+      laneLabel: providerLaneLabel(lane),
       source,
       endpoint: isSubscription ? "cloudcode-pa" : "generativelanguage",
       ok: token.ok || hasRefresh,
@@ -301,6 +322,8 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       missingEnv: [],
       details,
       error: token.ok || hasRefresh ? undefined : token.message,
+      failureCategory,
+      next: failureCategory ? [providerFailureNextStep({ category: failureCategory, providerID, lane })] : undefined,
     }
   }
 
@@ -308,12 +331,15 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
     providerID,
     mode: "missing",
     lane: "gemini-api",
+    laneLabel: providerLaneLabel("gemini-api"),
     source: "env",
     endpoint: "generativelanguage",
     ok: false,
     requiredEnv: ["GEMINI_API_KEY (or GOOGLE_API_KEY)"],
     missingEnv: ["GEMINI_API_KEY/GOOGLE_API_KEY or google OAuth login"],
     details: [`OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`],
+    failureCategory: "auth_missing",
+    next: [providerFailureNextStep({ category: "auth_missing", providerID, lane: "gemini-api" })],
     error:
       "Google provider requires Gemini API key or Google OAuth token. Run `dax auth login` for provider `google`, or set GEMINI_API_KEY.",
   }
@@ -340,6 +366,7 @@ async function diagnoseVertexProvider(providerID: string): Promise<AuthDiagnosti
     providerID,
     mode: ok ? "vertex-adc" : "missing",
     lane: "vertex",
+    laneLabel: providerLaneLabel("vertex"),
     source: explicit ? "env" : "adc",
     endpoint: "vertex",
     ok,
@@ -355,6 +382,8 @@ async function diagnoseVertexProvider(providerID: string): Promise<AuthDiagnosti
           ? `ADC path detected: ${defaultPath}`
           : "No ADC file found in default gcloud location.",
     ],
+    failureCategory: ok ? undefined : "misconfigured",
+    next: ok ? undefined : [providerFailureNextStep({ category: "misconfigured", providerID, lane: "vertex" })],
     error: ok
       ? undefined
       : "Vertex provider requires GOOGLE_CLOUD_PROJECT plus ADC. For Gemini API OAuth/API key, use `google/*` models instead.",
@@ -370,7 +399,9 @@ async function diagnoseCopilotProvider(providerID: string): Promise<AuthDiagnost
     const isEnterprise = enterpriseAuth?.type === "oauth"
     return {
       providerID,
-      mode: "custom-oauth",
+      mode: "copilot-oauth",
+      lane: "copilot-oauth",
+      laneLabel: providerLaneLabel("copilot-oauth"),
       ok: true,
       requiredEnv: [],
       missingEnv: [],
@@ -386,9 +417,13 @@ async function diagnoseCopilotProvider(providerID: string): Promise<AuthDiagnost
   return {
     providerID,
     mode: "missing",
+    lane: "copilot-oauth",
+    laneLabel: providerLaneLabel("copilot-oauth"),
     ok: false,
     requiredEnv: [],
     missingEnv: ["GitHub Copilot OAuth token"],
+    failureCategory: "auth_missing",
+    next: [providerFailureNextStep({ category: "auth_missing", providerID, lane: "copilot-oauth" })],
     error: `GitHub Copilot not authenticated. Run 'dax auth login' and select 'GitHub Copilot'.`,
     details: [
       "GitHub Copilot requires a GitHub account with an active Copilot subscription.",
@@ -404,7 +439,9 @@ async function diagnoseOpenAIOAuthProvider(providerID: string): Promise<AuthDiag
   if (auth?.type === "oauth") {
     return {
       providerID,
-      mode: "custom-oauth",
+      mode: "openai-oauth",
+      lane: "openai-chatgpt",
+      laneLabel: providerLaneLabel("openai-chatgpt"),
       ok: true,
       requiredEnv: [],
       missingEnv: [],
@@ -415,7 +452,9 @@ async function diagnoseOpenAIOAuthProvider(providerID: string): Promise<AuthDiag
   if (auth?.type === "api" || hasApiKey) {
     return {
       providerID,
-      mode: "anthropic-api",
+      mode: "openai-api",
+      lane: "openai-api",
+      laneLabel: providerLaneLabel("openai-api"),
       ok: true,
       requiredEnv: ["OPENAI_API_KEY"],
       missingEnv: hasApiKey ? [] : ["OPENAI_API_KEY"],
@@ -426,9 +465,13 @@ async function diagnoseOpenAIOAuthProvider(providerID: string): Promise<AuthDiag
   return {
     providerID,
     mode: "missing",
+    lane: "openai-api",
+    laneLabel: providerLaneLabel("openai-api"),
     ok: false,
     requiredEnv: ["OPENAI_API_KEY"],
     missingEnv: ["OPENAI_API_KEY or OAuth login"],
+    failureCategory: "auth_missing",
+    next: [providerFailureNextStep({ category: "auth_missing", providerID, lane: "openai-api" })],
     error: `${providerID} not authenticated. Run 'dax auth login' or set OPENAI_API_KEY.`,
     details: ["OpenAI requires an API key or ChatGPT Plus/Pro OAuth login."],
   }
@@ -500,17 +543,28 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
   const hasApiKey = Boolean(env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY"))
 
   if (auth?.type === "oauth") {
+    const expired = auth.expires <= Date.now()
     // Detect stale placeholder token written by the old stub implementation.
     if (!auth.access || auth.access === "subscription-detected") {
       return {
         providerID,
         mode: "anthropic-oauth",
+        lane: "anthropic-subscription",
+        laneLabel: providerLaneLabel("anthropic-subscription"),
         ok: false,
         requiredEnv: [],
         missingEnv: [],
         details: [
           `${providerID} OAuth token is a stale placeholder from a previous version.`,
           "Re-authenticate with 'dax auth login' to get a real token.",
+        ],
+        failureCategory: "auth_expired",
+        next: [
+          providerFailureNextStep({
+            category: "auth_expired",
+            providerID,
+            lane: "anthropic-subscription",
+          }),
         ],
         error: `${providerID} OAuth session is invalid. Run 'dax auth login ${providerID}' to re-authenticate.`,
       }
@@ -519,7 +573,8 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
       providerID,
       mode: "anthropic-oauth",
       lane: "anthropic-subscription",
-      ok: true,
+      laneLabel: providerLaneLabel("anthropic-subscription"),
+      ok: !expired,
       requiredEnv: [],
       missingEnv: [],
       details: [
@@ -528,6 +583,17 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
         `OAuth expiry timestamp: ${new Date(auth.expires).toISOString()}`,
         "This lane can be rate-limited by Anthropic independently of claude.ai web usage.",
       ],
+      failureCategory: expired ? "auth_expired" : undefined,
+      next: expired
+        ? [
+            providerFailureNextStep({
+              category: "auth_expired",
+              providerID,
+              lane: "anthropic-subscription",
+            }),
+          ]
+        : undefined,
+      error: expired ? `${providerID} OAuth token is expired. Re-authenticate before retrying this lane.` : undefined,
     }
   }
 
@@ -536,6 +602,7 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
       providerID,
       mode: "anthropic-api",
       lane: "anthropic-api",
+      laneLabel: providerLaneLabel("anthropic-api"),
       source: hasApiKey ? "env" : "api-key",
       ok: true,
       requiredEnv: ["ANTHROPIC_API_KEY or CLAUDE_API_KEY"],
@@ -549,9 +616,13 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
   return {
     providerID,
     mode: "missing",
+    lane: "anthropic-api",
+    laneLabel: providerLaneLabel("anthropic-api"),
     ok: false,
     requiredEnv: ["ANTHROPIC_API_KEY"],
     missingEnv: ["ANTHROPIC_API_KEY"],
+    failureCategory: "auth_missing",
+    next: [providerFailureNextStep({ category: "auth_missing", providerID, lane: "anthropic-api" })],
     error: `${providerID} auth not configured. Run 'dax auth login ${providerID}' or set ANTHROPIC_API_KEY.`,
     details: [
       providerID === "claude-code"

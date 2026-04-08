@@ -42,6 +42,7 @@ describe("getVisibleProviderAuthMethods", () => {
       "Gemini CLI Session Import",
       "Google OAuth Client Sign-In",
     ])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "gemini-cli-import", "google-oauth-client"])
     expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
     await rm(dir, { recursive: true, force: true })
   })
@@ -59,6 +60,7 @@ describe("getVisibleProviderAuthMethods", () => {
       "Gemini CLI Session Import",
       "Google OAuth Client Sign-In",
     ])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "gemini-cli-import", "google-oauth-client"])
     expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 2])
     await rm(dir, { recursive: true, force: true })
   })
@@ -74,16 +76,17 @@ describe("getVisibleProviderAuthMethods", () => {
       "Gemini CLI Session Import",
       "Google OAuth Client Sign-In",
     ])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "gemini-cli-import", "google-oauth-client"])
     expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
     await rm(dir, { recursive: true, force: true })
   })
 
-  test("leaves non-google providers unchanged", async () => {
-    const visible = await getVisibleProviderAuthMethods("openai", [
+  test("leaves unsupported providers unchanged", async () => {
+    const visible = await getVisibleProviderAuthMethods("ollama", [
       {
         type: "api" as const,
         label: "API key",
-        description: "Use your OpenAI API key.",
+        description: "Use your API key.",
       },
     ])
 
@@ -107,5 +110,33 @@ describe("getVisibleProviderAuthMethods", () => {
     ])
 
     expect(visible.map((item) => item.title)).toEqual(["Claude API Key", "Claude Pro/Max Sign-In"])
+    expect(visible.map((item) => item.lane)).toEqual(["anthropic-api", "anthropic-subscription"])
+  })
+
+  test("normalizes openai auth method titles without changing method count", async () => {
+    const visible = await getVisibleProviderAuthMethods("openai", [
+      {
+        type: "oauth" as const,
+        label: "ChatGPT Pro/Plus (browser)",
+        description: "Use your ChatGPT subscription in a browser flow.",
+      },
+      {
+        type: "oauth" as const,
+        label: "ChatGPT Pro/Plus (headless)",
+        description: "Use your ChatGPT subscription in a headless flow.",
+      },
+      {
+        type: "api" as const,
+        label: "Manually enter API Key",
+        description: "Use your OpenAI API key.",
+      },
+    ])
+
+    expect(visible.map((item) => item.title)).toEqual([
+      "ChatGPT Plus/Pro Sign-In (browser)",
+      "ChatGPT Plus/Pro Sign-In (headless)",
+      "OpenAI API Key",
+    ])
+    expect(visible.map((item) => item.lane)).toEqual(["openai-chatgpt", "openai-chatgpt", "openai-api"])
   })
 })

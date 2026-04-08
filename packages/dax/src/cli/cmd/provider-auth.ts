@@ -1,4 +1,5 @@
 import type { ProviderAuthMethod } from "@dax-ai/sdk/v2"
+import { providerLaneLabel, type ProviderLane } from "@/provider/diagnostics"
 
 type ProviderAuthMethodLike = Pick<ProviderAuthMethod, "label" | "description">
 
@@ -8,6 +9,7 @@ export type VisibleProviderAuthMethod<T extends ProviderAuthMethodLike> = {
   title: string
   description?: string
   hint?: string
+  lane?: ProviderLane
 }
 
 export function hasAdvancedGoogleClient(env: NodeJS.ProcessEnv = process.env) {
@@ -21,6 +23,10 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
 ): Promise<VisibleProviderAuthMethod<T>[]> {
   if (isClaudeCodeProvider(providerID)) {
     return getClaudeCodeAuthMethods(methods, env)
+  }
+
+  if (isOpenAIProvider(providerID)) {
+    return getOpenAIAuthMethods(methods)
   }
 
   if (!isGoogleLikeProvider(providerID)) {
@@ -43,9 +49,10 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     visible.push({
       method: methods[apiKeyIndex]!,
       originalIndex: apiKeyIndex,
-      title: "Gemini API Key",
+      title: providerLaneLabel("gemini-api")!,
       description: "Use your API key from Google AI Studio.",
       hint: "Free tier or pay-as-you-go",
+      lane: "gemini-api",
     })
   }
 
@@ -53,9 +60,10 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     visible.push({
       method: methods[cliImportIndex]!,
       originalIndex: cliImportIndex,
-      title: "Gemini CLI Session Import",
+      title: providerLaneLabel("gemini-cli-import")!,
       description: "Reuse your local `gemini` CLI login for the Gemini subscription lane.",
       hint: "Imported from Gemini CLI",
+      lane: "gemini-cli-import",
     })
   }
 
@@ -71,11 +79,12 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     visible.push({
       method: methods[oauthSignInIndex]!,
       originalIndex: oauthSignInIndex,
-      title: "Google OAuth Client Sign-In",
+      title: providerLaneLabel("google-oauth-client")!,
       description: usesConfiguredClient
         ? "Sign in in your browser using the Google OAuth client configured for DAX."
         : "Sign in in your browser with your own Google OAuth client credentials.",
       hint: usesConfiguredClient ? "Browser sign-in" : "Requires client ID and secret",
+      lane: "google-oauth-client",
     })
   }
 
@@ -106,6 +115,10 @@ function isClaudeCodeProvider(providerID: string): boolean {
   return providerID === "claude-code" || providerID === "anthropic"
 }
 
+function isOpenAIProvider(providerID: string): boolean {
+  return providerID === "openai"
+}
+
 function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
   methods: T[],
   env: NodeJS.ProcessEnv = process.env,
@@ -117,9 +130,10 @@ function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
     visible.push({
       method: methods[apiKeyIndex]!,
       originalIndex: apiKeyIndex,
-      title: "Claude API Key",
+      title: providerLaneLabel("anthropic-api")!,
       description: "Use your API key from console.anthropic.com",
       hint: "API usage tracking",
+      lane: "anthropic-api",
     })
   }
 
@@ -134,13 +148,50 @@ function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
     visible.push({
       method: methods[oauthIndex]!,
       originalIndex: oauthIndex,
-      title: "Claude Pro/Max Sign-In",
+      title: providerLaneLabel("anthropic-subscription")!,
       description: "Use Claude with your Anthropic Pro or Max subscription",
       hint: "Subscription access",
+      lane: "anthropic-subscription",
     })
   }
 
   return visible.length > 0
     ? visible
     : methods.map((m, i) => ({ method: m, originalIndex: i, title: m.label, description: m.description }))
+}
+
+function getOpenAIAuthMethods<T extends ProviderAuthMethodLike>(methods: T[]): VisibleProviderAuthMethod<T>[] {
+  return methods.map((method, originalIndex) => {
+    const label = method.label.toLowerCase()
+    if (label.includes("api key")) {
+      return {
+        method,
+        originalIndex,
+        title: providerLaneLabel("openai-api")!,
+        description: "Use your OpenAI API key.",
+        hint: "API usage tracking",
+        lane: "openai-api" as const,
+      }
+    }
+    if (label.includes("chatgpt") || label.includes("plus") || label.includes("pro")) {
+      return {
+        method,
+        originalIndex,
+        title: label.includes("headless")
+          ? `${providerLaneLabel("openai-chatgpt")} (headless)`
+          : label.includes("browser")
+            ? `${providerLaneLabel("openai-chatgpt")} (browser)`
+            : providerLaneLabel("openai-chatgpt")!,
+        description: method.description,
+        hint: "Subscription access",
+        lane: "openai-chatgpt" as const,
+      }
+    }
+    return {
+      method,
+      originalIndex,
+      title: method.label,
+      description: method.description,
+    }
+  })
 }
