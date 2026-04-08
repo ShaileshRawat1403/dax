@@ -19,9 +19,11 @@ import { isEli12Mode, nextIntentMode } from "@/dax/intent"
 import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
 import { useLocal } from "../context/local"
+import { useSDK } from "../context/sdk"
 import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
 import { deriveHomeLayout } from "./home-layout"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
+import { DAX_GUIDE_SESSION_FOOTER, DAX_GUIDE_SESSION_PROMPT, DAX_GUIDE_SESSION_TITLE } from "../util/guide-session"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
@@ -80,17 +82,82 @@ function BrandHeader(props: { theme: any }) {
 }
 
 function PromptStarter(props: { label: string; onPress: () => void; theme: any }) {
+  const [hover, setHover] = createSignal(false)
   return (
     <box
       onMouseUp={props.onPress}
+      onMouseOver={() => setHover(true)}
+      onMouseOut={() => setHover(false)}
       paddingLeft={1}
       paddingRight={1}
-      backgroundColor={props.theme.backgroundElement}
+      backgroundColor={hover() ? tint(props.theme.backgroundElement, props.theme.primary, 0.18) : props.theme.backgroundElement}
       border={["round"]}
-      borderColor={props.theme.borderSubtle}
+      borderColor={hover() ? props.theme.borderActive : props.theme.borderSubtle}
     >
-      <text fg={props.theme.text}>{props.label}</text>
+      <text
+        fg={hover() ? props.theme.primary : props.theme.text}
+        attributes={hover() ? TextAttributes.BOLD : undefined}
+      >
+        {hover() ? `▸ ${props.label}` : `  ${props.label}`}
+      </text>
     </box>
+  )
+}
+
+function RecentRunRow(props: {
+  title: string
+  status: string
+  ageMs: number
+  theme: any
+  onOpen: () => void
+}) {
+  const [hover, setHover] = createSignal(false)
+  const dot = () => {
+    if (props.status === "completed") return props.theme.success
+    if (props.status === "failed" || props.status === "errored") return props.theme.error
+    if (props.status === "waiting_approval") return props.theme.warning
+    return props.theme.textMuted
+  }
+  return (
+    <box
+      onMouseUp={props.onOpen}
+      onMouseOver={() => setHover(true)}
+      onMouseOut={() => setHover(false)}
+      paddingLeft={2}
+      paddingRight={2}
+      flexDirection="row"
+      justifyContent="space-between"
+      backgroundColor={hover() ? tint(props.theme.backgroundElement, props.theme.primary, 0.12) : undefined}
+    >
+      <box flexDirection="row" gap={1}>
+        <text fg={dot()}>●</text>
+        <text fg={hover() ? props.theme.primary : props.theme.text} attributes={hover() ? TextAttributes.BOLD : undefined}>
+          {props.title.length > 48 ? props.title.slice(0, 45) + "..." : props.title}
+        </text>
+      </box>
+      <text fg={props.theme.textMuted} attributes={TextAttributes.DIM}>
+        {formatAge(props.ageMs)} ago
+      </text>
+    </box>
+  )
+}
+
+function PulseArrow(props: { theme: any }) {
+  const [tick, setTick] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => setTick((v) => v + 1), 280)
+    onCleanup(() => clearInterval(timer))
+  })
+  const FRAMES = ["▸", "▹", "▸", "►"]
+  const glyph = createMemo(() => FRAMES[tick() % FRAMES.length])
+  const bright = createMemo(() => tick() % 4 < 2)
+  return (
+    <text
+      fg={bright() ? props.theme.primary : props.theme.accent}
+      attributes={bright() ? TextAttributes.BOLD : undefined}
+    >
+      {glyph()}
+    </text>
   )
 }
 
@@ -183,6 +250,7 @@ export function Home() {
   const command = useCommandDialog()
   const toast = useToast()
   const local = useLocal()
+  const sdk = useSDK()
   const dimensions = useTerminalDimensions()
   const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
   const mcpAttention = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusAttention(x as any)))
@@ -192,12 +260,40 @@ export function Home() {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
 
+  // Establish a "first launch" baseline the first time the user opens DAX so we can
+  // hide pre-existing dev/test sessions on a fresh install. Stored as ms-since-epoch.
+  // We pass `0` as the default so we can detect "never set" without confusing it with
+  // a legitimate timestamp. On first read we lock in `Date.now()`.
+  const installBaseline = createMemo<number>(() => {
+    const stored = kv.get("install_baseline_at", 0)
+    if (stored && typeof stored === "number") return stored
+    const now = Date.now()
+    kv.set("install_baseline_at", now)
+    return now
+  })
+
+  function isAfterBaseline(iso: string | undefined): boolean {
+    if (!iso) return false
+    const t = new Date(iso).getTime()
+    if (Number.isNaN(t)) return false
+    return t >= installBaseline()
+  }
+
+  const visibleRecentRuns = createMemo(() =>
+    (sync.data.overview?.recentRuns ?? []).filter((r) => isAfterBaseline(r.updatedAt)),
+  )
+  const visibleActiveRuns = createMemo(() =>
+    (sync.data.overview?.activeRuns ?? []).filter((r) => isAfterBaseline(r.updatedAt)),
+  )
+
   const isFirstTimeUser = createMemo(
-    () => (sync.data.overview?.recentRuns.length ?? 0) === 0 && (sync.data.overview?.activeRuns.length ?? 0) === 0,
+    () =>
+      sync.status === "complete" &&
+      sync.data.overview !== undefined &&
+      visibleRecentRuns().length === 0 &&
+      visibleActiveRuns().length === 0,
   )
-  const sessionCount = createMemo(
-    () => (sync.data.overview?.recentRuns.length ?? 0) + (sync.data.overview?.activeRuns.length ?? 0),
-  )
+  const sessionCount = createMemo(() => visibleRecentRuns().length + visibleActiveRuns().length)
   const tipsHidden = createMemo(() => kv.get("tips_hidden", true))
   const showTips = createMemo(() => {
     if (isFirstTimeUser()) return false
@@ -380,9 +476,8 @@ export function Home() {
   const tiny = createMemo(() => layout().size === "tiny")
   const small = createMemo(() => layout().size === "small")
   const showInput = createMemo(() => layout().showInput)
-  const showMascot = createMemo(() => layout().showMascot && !isFirstTimeUser())
+  const showMascot = createMemo(() => layout().showMascot)
   const showActions = createMemo(() => layout().showActions)
-  const showFirstRunGuide = createMemo(() => !tiny() && layout().showFirstRunGuide)
   const showSessions = createMemo(() => !tiny() && layout().showSessions)
   const showHomeTips = createMemo(() => !tiny() && layout().showTips)
   const firstRunIntent = createMemo(() =>
@@ -390,17 +485,6 @@ export function Home() {
       ? "Explore this repository and explain the main parts in simple language."
       : "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
   )
-  const doctorSummary = createMemo(() => {
-    if (!mcp()) return "Core DAX is ready. Add MCP later if you need extra tools."
-    if (mcpBlocked()) return "Some MCP servers need authentication or client registration before they can connect."
-    if (mcpAttention()) return "Optional MCP setup needs attention. Run dax doctor if anything feels unclear."
-    if (connectedMcpCount() > 0) return "MCP is connected and ready for richer repository context."
-    return "No MCP servers are connected yet. DAX still works without MCP."
-  })
-  const welcomeSummary = createMemo(() => {
-    if (mcpBlocked()) return "Check MCP server config and credentials."
-    return "Type a prompt or click Explore to begin."
-  })
   const branchNudge = createMemo(() =>
     deriveFeatureBranchNudge({
       branch: sync.data.vcs?.branch,
@@ -411,6 +495,20 @@ export function Home() {
 
   const bg = createMemo(() => theme.background)
   const inputBg = createMemo(() => theme.backgroundPanel)
+
+  async function openGuideSession() {
+    const result = await sdk.client.session.create({ title: DAX_GUIDE_SESSION_TITLE })
+    const sessionID = result.data?.id
+    if (!sessionID) return
+    navigate({
+      type: "session",
+      sessionID,
+      initialPrompt: {
+        input: DAX_GUIDE_SESSION_PROMPT,
+        parts: [],
+      },
+    })
+  }
 
   return (
     <>
@@ -475,61 +573,30 @@ export function Home() {
               </box>
             </Show>
 
-            <Show when={showFirstRunGuide()}>
-              <box width="100%" flexDirection="column" gap={1}>
-                <box width="100%" flexDirection="row" gap={1} flexWrap="wrap">
-                  <HomeInfoCard title="Quick Start" body={welcomeSummary()} theme={theme} tone="accent" />
-                  <HomeInfoCard
-                    title="DAX Modes"
-                    body="Plan: Safe steps · Build: Implement changes · Explore: Learn codebase · Audit: Find risks"
-                    theme={theme}
-                    tone="default"
-                  />
-                </box>
-                <box width="100%" flexDirection="row" gap={1} flexWrap="wrap">
-                  <HomeInfoCard
-                    title="Safety First"
-                    body="DAX pauses for review before risky actions. Approve, deny, or allow patterns."
-                    theme={theme}
-                    tone="default"
-                  />
-                  <HomeInfoCard
-                    title="Setup Status"
-                    body={doctorSummary()}
-                    theme={theme}
-                    tone={mcpAttention() || mcpBlocked() ? "warning" : "default"}
-                  />
-                </box>
-                <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
-                  <PromptStarter
-                    label="Explore repo"
-                    theme={theme}
-                    onPress={() => setPromptDraft(firstRunIntent(), false, "explore")}
-                  />
-                  <PromptStarter
-                    label="Plan next steps"
-                    theme={theme}
-                    onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
-                  />
-                  <Show when={mcpAttention() || mcpBlocked()}>
-                    <PromptStarter
-                      label="dax doctor"
-                      theme={theme}
-                      onPress={() =>
-                        setPromptDraft(
-                          "Explain what `dax doctor` checks, what is optional, and how to fix the current setup issues.",
-                          false,
-                          "docs",
-                        )
-                      }
-                    />
-                  </Show>
-                </box>
-              </box>
-            </Show>
-
             <Show when={showSessions()}>
               <box width="100%" marginTop={1} flexDirection="column" gap={0}>
+                <Show when={isFirstTimeUser()}>
+                  <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                    {"  "}START HERE
+                  </text>
+                  <box
+                    flexDirection="row"
+                    justifyContent="space-between"
+                    paddingLeft={2}
+                    paddingRight={2}
+                    onMouseUp={() => {
+                      openGuideSession().catch(() => {})
+                    }}
+                  >
+                    <box flexDirection="row" gap={1}>
+                      <PulseArrow theme={theme} />
+                      <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                        {DAX_GUIDE_SESSION_TITLE}
+                      </text>
+                    </box>
+                    <text fg={theme.textMuted}>{DAX_GUIDE_SESSION_FOOTER}</text>
+                  </box>
+                </Show>
                 <Show when={(sync.data.overview?.pendingApprovals.length ?? 0) > 0}>
                   <text fg={theme.warning} attributes={TextAttributes.BOLD}>
                     {"  "}PENDING APPROVALS
@@ -568,12 +635,12 @@ export function Home() {
                   </box>
                 </Show>
 
-                <Show when={(sync.data.overview?.activeRuns.length ?? 0) > 0}>
+                <Show when={visibleActiveRuns().length > 0}>
                   <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
                     {"  "}ACTIVE RUNS
                   </text>
                   <box flexDirection="column" gap={0} marginBottom={1}>
-                    <For each={sync.data.overview?.activeRuns.slice(0, 3)}>
+                    <For each={visibleActiveRuns().slice(0, 3)}>
                       {(r) => (
                         <box
                           onMouseUp={() => {
@@ -603,7 +670,7 @@ export function Home() {
                           </box>
                           <box flexDirection="column" gap={0} alignItems="flex-end">
                             <text fg={theme.textMuted}>{r.status}</text>
-                            <Show when={r.pendingApprovalCount > 0}>
+                            <Show when={r.status === "waiting_approval" && r.pendingApprovalCount > 0}>
                               <text fg={theme.warning} dim>
                                 ⚠ {r.pendingApprovalCount}
                               </text>
@@ -615,33 +682,21 @@ export function Home() {
                   </box>
                 </Show>
 
-                <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                  {"  "}RECENT RUNS
-                </text>
+                <Show when={visibleRecentRuns().length > 0}>
+                  <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                    {"  "}RECENT RUNS
+                  </text>
+                </Show>
                 <box flexDirection="column" gap={0}>
-                  <For each={sync.data.overview?.recentRuns.slice(0, 3)}>
+                  <For each={visibleRecentRuns().slice(0, 5)}>
                     {(r) => (
-                      <box
-                        onMouseUp={() => {
-                          navigate({ type: "session", sessionID: r.runId })
-                        }}
-                        paddingLeft={2}
-                        paddingRight={2}
-                        paddingTop={0}
-                        paddingBottom={0}
-                        flexDirection="row"
-                        justifyContent="space-between"
-                      >
-                        <text fg={theme.text}>
-                          ▸{" "}
-                          {r.title
-                            ? r.title.length > 50
-                              ? r.title.slice(0, 47) + "..."
-                              : r.title
-                            : r.runId.slice(0, 8)}
-                        </text>
-                        <text fg={theme.textMuted}>{new Date(r.updatedAt).toLocaleDateString()}</text>
-                      </box>
+                      <RecentRunRow
+                        title={r.title ?? r.runId.slice(0, 8)}
+                        status={r.status}
+                        ageMs={Date.now() - new Date(r.updatedAt).getTime()}
+                        theme={theme}
+                        onOpen={() => navigate({ type: "session", sessionID: r.runId })}
+                      />
                     )}
                   </For>
                 </box>
