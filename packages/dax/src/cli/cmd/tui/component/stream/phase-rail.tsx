@@ -1,5 +1,3 @@
-import { Show } from "solid-js"
-import type { RGBA } from "@opentui/core"
 import type { RunPhase } from "@/dax/presentation/session-stream"
 
 export function PhaseRail(props: {
@@ -9,20 +7,6 @@ export function PhaseRail(props: {
   expanded: boolean
   onToggle: () => void
 }) {
-  const statusIcon = () => {
-    switch (props.status) {
-      case "active":
-        return "●"
-      case "completed":
-        return "✓"
-      case "failed":
-        return "✗"
-      case "pending":
-      default:
-        return "○"
-    }
-  }
-
   const statusColor = () => {
     switch (props.status) {
       case "active":

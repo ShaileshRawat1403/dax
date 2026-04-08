@@ -83,14 +83,13 @@ function PromptStarter(props: { label: string; onPress: () => void; theme: any }
   )
 }
 
-function HomeInfoCard(props: {
-  title: string
-  body: string
-  theme: any
-  tone?: "default" | "accent" | "warning"
-}) {
+function HomeInfoCard(props: { title: string; body: string; theme: any; tone?: "default" | "accent" | "warning" }) {
   const borderColor =
-    props.tone === "accent" ? props.theme.borderActive : props.tone === "warning" ? props.theme.warning : props.theme.border
+    props.tone === "accent"
+      ? props.theme.borderActive
+      : props.tone === "warning"
+        ? props.theme.warning
+        : props.theme.border
   const backgroundColor =
     props.tone === "accent"
       ? tint(props.theme.backgroundElement, props.theme.primary, 0.06)
@@ -153,7 +152,9 @@ function DaxMascot(props: { theme: any }) {
         <text fg={props.theme.borderSubtle}>│</text>
       </box>
       <text fg={props.theme.borderSubtle}>└───┘</text>
-      <text fg={props.theme.textMuted} attributes={TextAttributes.DIM}>operative · online</text>
+      <text fg={props.theme.textMuted} attributes={TextAttributes.DIM}>
+        operative · online
+      </text>
     </box>
   )
 }
@@ -180,8 +181,12 @@ export function Home() {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
 
-  const isFirstTimeUser = createMemo(() => (sync.data.overview?.recentRuns.length ?? 0) === 0 && (sync.data.overview?.activeRuns.length ?? 0) === 0)
-  const sessionCount = createMemo(() => (sync.data.overview?.recentRuns.length ?? 0) + (sync.data.overview?.activeRuns.length ?? 0))
+  const isFirstTimeUser = createMemo(
+    () => (sync.data.overview?.recentRuns.length ?? 0) === 0 && (sync.data.overview?.activeRuns.length ?? 0) === 0,
+  )
+  const sessionCount = createMemo(
+    () => (sync.data.overview?.recentRuns.length ?? 0) + (sync.data.overview?.activeRuns.length ?? 0),
+  )
   const tipsHidden = createMemo(() => kv.get("tips_hidden", true))
   const showTips = createMemo(() => {
     if (isFirstTimeUser()) return false
@@ -496,6 +501,34 @@ export function Home() {
 
             <Show when={showSessions()}>
               <box width="100%" marginTop={1} flexDirection="column" gap={0}>
+                <Show when={(sync.data.overview?.pendingApprovals.length ?? 0) > 0}>
+                  <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+                    {"  "}PENDING APPROVALS
+                  </text>
+                  <box flexDirection="column" gap={0} marginBottom={1}>
+                    <For each={sync.data.overview?.pendingApprovals.slice(0, 2)}>
+                      {(approval) => (
+                        <box
+                          onMouseUp={() => {
+                            navigate({ type: "session", sessionID: approval.runId })
+                          }}
+                          paddingLeft={2}
+                          paddingRight={2}
+                          paddingTop={0}
+                          paddingBottom={0}
+                          flexDirection="row"
+                          justifyContent="space-between"
+                        >
+                          <text fg={theme.warning}>
+                            ⚠ {approval.title.length > 40 ? approval.title.slice(0, 37) + "..." : approval.title}
+                          </text>
+                          <text fg={theme.textMuted}>{approval.risk}</text>
+                        </box>
+                      )}
+                    </For>
+                  </box>
+                </Show>
+
                 <Show when={(sync.data.overview?.activeRuns.length ?? 0) > 0}>
                   <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
                     {"  "}ACTIVE RUNS
@@ -514,8 +547,29 @@ export function Home() {
                           flexDirection="row"
                           justifyContent="space-between"
                         >
-                          <text fg={theme.primary}>▸ {r.title ? (r.title.length > 50 ? r.title.slice(0, 47) + "..." : r.title) : r.runId.slice(0, 8)}</text>
-                          <text fg={theme.textMuted}>{r.status}</text>
+                          <box flexDirection="column" gap={0}>
+                            <text fg={theme.primary}>
+                              ▸{" "}
+                              {r.title
+                                ? r.title.length > 45
+                                  ? r.title.slice(0, 42) + "..."
+                                  : r.title
+                                : r.runId.slice(0, 8)}
+                            </text>
+                            <Show when={r.currentStep}>
+                              <text fg={theme.textMuted} dim>
+                                {r.currentStep?.title?.slice(0, 35) ?? "in progress"}
+                              </text>
+                            </Show>
+                          </box>
+                          <box flexDirection="column" gap={0} alignItems="flex-end">
+                            <text fg={theme.textMuted}>{r.status}</text>
+                            <Show when={r.pendingApprovalCount > 0}>
+                              <text fg={theme.warning} dim>
+                                ⚠ {r.pendingApprovalCount}
+                              </text>
+                            </Show>
+                          </box>
                         </box>
                       )}
                     </For>
@@ -539,7 +593,14 @@ export function Home() {
                         flexDirection="row"
                         justifyContent="space-between"
                       >
-                        <text fg={theme.text}>▸ {r.title ? (r.title.length > 50 ? r.title.slice(0, 47) + "..." : r.title) : r.runId.slice(0, 8)}</text>
+                        <text fg={theme.text}>
+                          ▸{" "}
+                          {r.title
+                            ? r.title.length > 50
+                              ? r.title.slice(0, 47) + "..."
+                              : r.title
+                            : r.runId.slice(0, 8)}
+                        </text>
                         <text fg={theme.textMuted}>{new Date(r.updatedAt).toLocaleDateString()}</text>
                       </box>
                     )}
@@ -591,4 +652,3 @@ export function Home() {
     </>
   )
 }
-
