@@ -29,6 +29,7 @@ async function setupE2ESession(mode: string, prompt: string) {
   // Hard override contract to match our test expectations and use modern schema
   const testContract = {
     ...contract,
+    expectedOutputs: [{ type: "file", description: "Updated source file" }],
     runtimePolicy: {
       scope: {
         // Runtime guard normalizes touched files relative to worktree root.
@@ -138,6 +139,21 @@ describe("Headless E2E Dummy Run", () => {
           ...state,
           artifactIds: ["art_1"]
         }))
+        await Session.update(session.id, (draft) => {
+          draft.state_v2 = {
+            ...draft.state_v2,
+            artifacts: [
+              ...(draft.state_v2?.artifacts ?? []),
+              {
+                id: "art_1",
+                kind: "file",
+                path: "src/dummy.ts",
+                metadata: {},
+                created_at: Date.now(),
+              },
+            ],
+          }
+        })
 
         // 4. Attempt Completion (should block due to missing verification)
         await expect(Transitions.transition(session.id, "completed")).rejects.toThrow(/cannot complete without passing completion proof/)

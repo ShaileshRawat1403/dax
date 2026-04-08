@@ -105,6 +105,79 @@ describe("Completion Proof Determinism", () => {
     expect(proof.receiptIds).toContain("call_2")
   })
 
+  test("Passes when expected output type is evidenced by observed artifacts", () => {
+    const contract: ExecutionContract = {
+      ...mockContract,
+      expectedOutputs: [{ type: "report", description: "Analysis report" }],
+      runtimePolicy: {
+        ...mockContract.runtimePolicy!,
+        scope: { targetFiles: [], targetSubsystems: [], avoidAreas: [] },
+      },
+    }
+    const runState = mockRunState({
+      artifactIds: ["art_report"],
+      governance: {
+        ...mockRunState().governance,
+        verification: {
+          required: true,
+          satisfied: true,
+          receiptIds: ["call_2"],
+        },
+      },
+    })
+
+    const proof = evaluateCompletionProof({
+      contract,
+      runState,
+      observedArtifacts: [{ kind: "report" }],
+    })
+
+    expect(proof.decision).toBe("pass")
+    expect(proof.expectedOutputChecks).toBe(true)
+    expect(proof.expectedOutputTypesSatisfied).toEqual(["report"])
+    expect(proof.expectedOutputTypesMissing).toEqual([])
+  })
+
+  test("Derives expected output evidence from run state when explicit artifact kinds are absent", () => {
+    const contract: ExecutionContract = {
+      ...mockContract,
+      expectedOutputs: [{ type: "summary", description: "Context summary" }],
+      runtimePolicy: {
+        ...mockContract.runtimePolicy!,
+        scope: { targetFiles: [], targetSubsystems: [], avoidAreas: [] },
+      },
+    }
+    const runState = mockRunState({
+      artifactIds: ["art_summary"],
+      steps: [
+        {
+          stepId: "step_1",
+          title: "Collect Context",
+          type: "executed",
+          status: "completed",
+          startedAt: null,
+          completedAt: new Date().toISOString(),
+          error: null,
+          outputs: ["context:collected"],
+        },
+      ],
+      governance: {
+        ...mockRunState().governance,
+        verification: {
+          required: true,
+          satisfied: true,
+          receiptIds: ["call_2"],
+        },
+      },
+    })
+
+    const proof = evaluateCompletionProof({ contract, runState })
+
+    expect(proof.decision).toBe("pass")
+    expect(proof.expectedOutputChecks).toBe(true)
+    expect(proof.expectedOutputTypesSatisfied).toEqual(["summary"])
+  })
+
   test("Fails when verification is missing for mutations", () => {
     const runState = mockRunState({
       governance: {
@@ -122,6 +195,35 @@ describe("Completion Proof Determinism", () => {
     const proof = evaluateCompletionProof({ contract: mockContract, runState })
     expect(proof.decision).toBe("fail")
     expect(proof.failedChecks).toContain("unverified_mutation")
+  })
+
+  test("Fails when promised expected outputs are not evidenced", () => {
+    const contract: ExecutionContract = {
+      ...mockContract,
+      expectedOutputs: [{ type: "report", description: "Analysis report" }],
+      runtimePolicy: {
+        ...mockContract.runtimePolicy!,
+        scope: { targetFiles: [], targetSubsystems: [], avoidAreas: [] },
+      },
+    }
+    const runState = mockRunState({
+      artifactIds: ["art_1"],
+      governance: {
+        ...mockRunState().governance,
+        verification: {
+          required: true,
+          satisfied: true,
+          receiptIds: ["call_2"],
+        },
+      },
+    })
+
+    const proof = evaluateCompletionProof({ contract, runState })
+
+    expect(proof.decision).toBe("fail")
+    expect(proof.failedChecks).toContain("missing_expected_outputs")
+    expect(proof.expectedOutputChecks).toBe(false)
+    expect(proof.expectedOutputTypesMissing).toEqual(["report"])
   })
 
   test("Fails when artifacts are missing for expected writes", () => {
@@ -209,6 +311,9 @@ describe("Completion Proof Determinism", () => {
     expect(proof1.verificationExecuted).toBe(proof2.verificationExecuted)
     expect(proof1.receiptIds).toEqual(proof2.receiptIds)
     expect(proof1.artifactChecks).toBe(proof2.artifactChecks)
+    expect(proof1.expectedOutputChecks).toBe(proof2.expectedOutputChecks)
+    expect(proof1.expectedOutputTypesSatisfied).toEqual(proof2.expectedOutputTypesSatisfied)
+    expect(proof1.expectedOutputTypesMissing).toEqual(proof2.expectedOutputTypesMissing)
     expect(proof1.scopeChecks).toBe(proof2.scopeChecks)
     expect(proof1.sensitivePathApprovalChecks).toBe(proof2.sensitivePathApprovalChecks)
   })
