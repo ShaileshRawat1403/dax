@@ -26,6 +26,17 @@ import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
 
+function formatAge(ms: number): string {
+  const minutes = Math.floor(ms / 60000)
+  const hours = Math.floor(ms / 3600000)
+  const days = Math.floor(ms / 86400000)
+  if (minutes < 1) return "now"
+  if (minutes < 60) return `${minutes}m`
+  if (hours < 24) return `${hours}h`
+  if (days < 7) return `${days}d`
+  return `${Math.floor(days / 7)}w`
+}
+
 let once = false
 
 function BrandHeader(props: { theme: any }) {
@@ -525,24 +536,34 @@ export function Home() {
                   </text>
                   <box flexDirection="column" gap={0} marginBottom={1}>
                     <For each={sync.data.overview?.pendingApprovals.slice(0, 2)}>
-                      {(approval) => (
-                        <box
-                          onMouseUp={() => {
-                            navigate({ type: "session", sessionID: approval.runId })
-                          }}
-                          paddingLeft={2}
-                          paddingRight={2}
-                          paddingTop={0}
-                          paddingBottom={0}
-                          flexDirection="row"
-                          justifyContent="space-between"
-                        >
-                          <text fg={theme.warning}>
-                            ⚠ {approval.title.length > 40 ? approval.title.slice(0, 37) + "..." : approval.title}
-                          </text>
-                          <text fg={theme.textMuted}>{approval.risk}</text>
-                        </box>
-                      )}
+                      {(approval) => {
+                        const ageMs = Date.now() - new Date(approval.createdAt).getTime()
+                        const ageLabel = formatAge(ageMs)
+                        const isStale = ageMs > 7 * 24 * 60 * 60 * 1000
+                        return (
+                          <box
+                            onMouseUp={() => {
+                              navigate({ type: "session", sessionID: approval.runId })
+                            }}
+                            paddingLeft={2}
+                            paddingRight={2}
+                            paddingTop={0}
+                            paddingBottom={0}
+                            flexDirection="row"
+                            justifyContent="space-between"
+                          >
+                            <text fg={theme.warning}>
+                              ⚠ {approval.title.length > 35 ? approval.title.slice(0, 32) + "..." : approval.title}
+                            </text>
+                            <box flexDirection="row" gap={1}>
+                              <text fg={isStale ? theme.warning : theme.textMuted} dim={!isStale}>
+                                {ageLabel}
+                              </text>
+                              <text fg={theme.textMuted}>{approval.risk}</text>
+                            </box>
+                          </box>
+                        )
+                      }}
                     </For>
                   </box>
                 </Show>
