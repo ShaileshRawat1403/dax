@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+## [1.0.27] - 2026-04-09
+
+### Added
+
+- **Release Provenance Receipts**: Release verification now writes machine-readable provenance output alongside audit and auth artifacts, tying package version, changelog version, git identity, and release artifact inventory to the cut.
+- **Provider Diagnostics Normalization**: Added a shared provider diagnostics layer for canonical lane labels, failure categories, and next-step guidance across doctor, CLI, and TUI surfaces.
+
+### Changed
+
+- **Release Checks**: Hardened release-mode verification to require clean git state, matching release tags at `HEAD`, and shell-neutral git execution for provenance checks.
+- **Google Auth Lane Naming**: Google auth methods now surface as truthful lanes: `Gemini API Key`, `Gemini CLI Session Import`, and `Google OAuth Client Sign-In`.
+
+### Fixed
+
+- **Gemini CLI Import**: Fixed stale local `gemini` credentials being treated as a fresh login during TUI import flow.
+- **Provider Edge Diagnostics**: Auth failures now report consistent lane names and operator next steps, while unknown failures stay explicitly unknown instead of being over-classified.
+- **Anthropic Auth Truth**: Expired Anthropic OAuth sessions are no longer reported as effectively connected in doctor output.
+
 ## [1.0.26] - 2026-04-08
 
 ### Added
