@@ -659,7 +659,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
               : state.governance.verification,
         completionProof:
           compiledContract && session.state_v2?.runtime_guard
-            ? deriveCompletionProof({
+              ? deriveCompletionProof({
                 contract: compiledContract,
                 runState: {
                   ...state,
@@ -688,6 +688,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
                           : state.governance.verification,
                   },
                 },
+                observedArtifacts: session.state_v2?.artifacts ?? [],
               })
             : state.governance.completionProof,
       }
@@ -702,6 +703,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         contract: compiledContract,
         runState: latestRunState,
         artifactCountOverride: session.state_v2?.artifacts?.length ?? latestRunState.artifactIds.length,
+        observedArtifacts: session.state_v2?.artifacts ?? [],
       })
       await Session.update(input.sessionID, (draft) => {
         const current = draft.state_v2

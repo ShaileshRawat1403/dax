@@ -3,6 +3,7 @@ import type { RunState } from "@/state/run-state"
 import type { SessionV2 } from "@/session/model"
 
 export type CompletionProofSummary = SessionV2.CompletionProofState
+type ArtifactObservation = Pick<SessionV2.ArtifactRecord, "kind">
 
 function withinScope(contract: ExecutionContract, touchedFiles: string[]) {
   const targets = contract.runtimePolicy?.scope?.targetFiles ?? []
@@ -32,6 +33,56 @@ function requiresArtifacts(contract: ExecutionContract) {
   return (contract.runtimePolicy?.scope?.targetFiles?.length ?? 0) > 0
 }
 
+function normalizeOutputType(value: string | undefined): "file" | "patch" | "report" | "summary" | "message" | null {
+  const lower = value?.trim().toLowerCase()
+  if (!lower) return null
+  if (lower === "diff") return "patch"
+  if (lower === "file" || lower === "patch" || lower === "report" || lower === "summary" || lower === "message") {
+    return lower
+  }
+  return null
+}
+
+function deriveObservedOutputTypes(input: {
+  contract: ExecutionContract
+  runState: RunState
+  observedArtifacts?: ArtifactObservation[]
+}): Set<"file" | "patch" | "report" | "summary" | "message"> {
+  const observed = new Set<"file" | "patch" | "report" | "summary" | "message">()
+
+  for (const artifact of input.observedArtifacts ?? []) {
+    const normalized = normalizeOutputType(artifact.kind)
+    if (normalized) observed.add(normalized)
+  }
+
+  if (observed.size > 0) return observed
+
+  const hasArtifacts = input.runState.artifactIds.length > 0
+  const hasTouchedFiles = input.runState.governance.touchedFiles.length > 0
+  const completedOutputs = input.runState.steps
+    .filter((step) => step.status === "completed")
+    .flatMap((step) => step.outputs)
+    .map((output) => output.toLowerCase())
+
+  if (hasArtifacts && hasTouchedFiles) {
+    observed.add("file")
+    if (input.contract.expectedOutputs.some((output) => output.type === "patch" || output.type === "diff")) {
+      observed.add("patch")
+    }
+  }
+  if (hasArtifacts && completedOutputs.some((output) => output.includes("summary") || output.includes("context:"))) {
+    observed.add("summary")
+  }
+  if (hasArtifacts && completedOutputs.some((output) => output.includes("report") || output.includes("finding"))) {
+    observed.add("report")
+  }
+  if (hasArtifacts && completedOutputs.some((output) => output.includes("message") || output.includes("outcome:"))) {
+    observed.add("message")
+  }
+
+  return observed
+}
+
 /**
  * Pure evaluator for completion proof.
  * Same input (contract + runState) => same output.
@@ -42,6 +93,7 @@ export function evaluateCompletionProof(input: {
   contract: ExecutionContract
   runState: RunState
   artifactCountOverride?: number
+  observedArtifacts?: ArtifactObservation[]
 }): Omit<CompletionProofSummary, "checkedAt"> {
   const { contract, runState } = input
   const verificationRequired =
@@ -55,6 +107,13 @@ export function evaluateCompletionProof(input: {
 
   const artifactCount = input.artifactCountOverride ?? runState.artifactIds.length
   const artifactChecks = !requiresArtifacts(contract) || artifactCount > 0
+  const observedOutputTypes = deriveObservedOutputTypes({ contract, runState, observedArtifacts: input.observedArtifacts })
+  const expectedOutputTypes = Array.from(
+    new Set(contract.expectedOutputs.map((output) => normalizeOutputType(output.type)).filter(Boolean)),
+  ) as Array<"file" | "patch" | "report" | "summary" | "message">
+  const expectedOutputTypesSatisfied = expectedOutputTypes.filter((outputType) => observedOutputTypes.has(outputType))
+  const expectedOutputTypesMissing = expectedOutputTypes.filter((outputType) => !observedOutputTypes.has(outputType))
+  const expectedOutputChecks = expectedOutputTypesMissing.length === 0
 
   const scopeChecks = withinScope(contract, runState.governance.touchedFiles)
   const sensitiveTouched = containsSensitivePath(runState.governance.touchedFiles)
@@ -72,6 +131,9 @@ export function evaluateCompletionProof(input: {
   if (!artifactChecks) {
     failedChecks.push("missing_artifacts")
   }
+  if (!expectedOutputChecks) {
+    failedChecks.push("missing_expected_outputs")
+  }
   if (!scopeChecks) {
     failedChecks.push("scope_violation")
   }
@@ -85,6 +147,9 @@ export function evaluateCompletionProof(input: {
     verificationExecuted,
     receiptIds,
     artifactChecks,
+    expectedOutputChecks,
+    expectedOutputTypesSatisfied,
+    expectedOutputTypesMissing,
     scopeChecks,
     sensitivePathApprovalChecks,
   }
@@ -99,6 +164,7 @@ export function deriveCompletionProof(input: {
   contract: ExecutionContract
   runState: RunState
   artifactCountOverride?: number
+  observedArtifacts?: ArtifactObservation[]
 }): CompletionProofSummary {
   const proof = evaluateCompletionProof(input)
   return {
