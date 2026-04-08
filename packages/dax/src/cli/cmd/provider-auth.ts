@@ -49,29 +49,33 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     })
   }
 
-  // When the operator has configured a custom Google OAuth client via env vars,
-  // prefer the direct sign-in method. Fall back to CLI import otherwise.
-  const useDirectSignIn = hasAdvancedGoogleClient(env) && directSignInIndex >= 0
-  const subscriptionIndex = useDirectSignIn ? directSignInIndex : cliImportIndex
-  if (subscriptionIndex >= 0) {
+  if (cliImportIndex >= 0) {
     visible.push({
-      method: methods[subscriptionIndex]!,
-      originalIndex: subscriptionIndex,
-      title: "Gemini Subscription Sign-In",
-      description: useDirectSignIn
-        ? "Sign in directly with your Google account using your OAuth client."
-        : "Use your Gemini Pro or Plus subscription from the terminal.",
-      hint: useDirectSignIn ? "Browser-based login (Pro/Plus)" : "Import from Gemini CLI",
+      method: methods[cliImportIndex]!,
+      originalIndex: cliImportIndex,
+      title: "Gemini CLI Session Import",
+      description: "Reuse your local `gemini` CLI login for the Gemini subscription lane.",
+      hint: "Imported from Gemini CLI",
     })
   }
 
-  if (customOauthIndex >= 0) {
+  const oauthSignInIndex =
+    hasAdvancedGoogleClient(env) && directSignInIndex >= 0
+      ? directSignInIndex
+      : customOauthIndex >= 0
+        ? customOauthIndex
+        : directSignInIndex
+
+  if (oauthSignInIndex >= 0) {
+    const usesConfiguredClient = oauthSignInIndex === directSignInIndex
     visible.push({
-      method: methods[customOauthIndex]!,
-      originalIndex: customOauthIndex,
-      title: "Custom Google OAuth Client",
-      description: "Sign in with your own Google OAuth app credentials.",
-      hint: "Advanced or enterprise setup",
+      method: methods[oauthSignInIndex]!,
+      originalIndex: oauthSignInIndex,
+      title: "Google OAuth Client Sign-In",
+      description: usesConfiguredClient
+        ? "Sign in in your browser using the Google OAuth client configured for DAX."
+        : "Sign in in your browser with your own Google OAuth client credentials.",
+      hint: usesConfiguredClient ? "Browser sign-in" : "Requires client ID and secret",
     })
   }
 

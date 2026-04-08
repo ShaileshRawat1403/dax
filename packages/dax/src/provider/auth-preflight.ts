@@ -29,7 +29,13 @@ export type AuthDiagnostics = {
     | "missing"
     | "anthropic-api"
     | "anthropic-oauth"
-  lane?: "gemini-api" | "gemini-subscription" | "vertex" | "anthropic-api" | "anthropic-subscription"
+  lane?:
+    | "gemini-api"
+    | "gemini-cli-import"
+    | "google-oauth-client"
+    | "vertex"
+    | "anthropic-api"
+    | "anthropic-subscription"
   source?: "api-key" | "stored-oauth" | "cli-import" | "adc" | "env"
   endpoint?: "generativelanguage" | "cloudcode-pa" | "vertex"
   ok: boolean
@@ -141,7 +147,7 @@ async function validateGoogleOAuthAccessToken(token: string) {
       ok: false as const,
       reason: "token_invalid",
       message:
-        "Google OAuth access token is invalid or expired for Gemini. Re-run `dax auth login` and choose `Gemini Subscription Sign-In` or `Custom Google OAuth Client`, or switch to `GEMINI_API_KEY`.",
+        "Google OAuth access token is invalid or expired for Gemini. Re-run `dax auth login` and choose `Gemini CLI Session Import` or `Google OAuth Client Sign-In`, or switch to `GEMINI_API_KEY`.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -185,7 +191,7 @@ async function validateGoogleOAuthAccessToken(token: string) {
       ok: false as const,
       reason: "token_expired",
       message:
-        "Google OAuth access token is expired. Re-authenticate with `Gemini Subscription Sign-In` or `Custom Google OAuth Client`, or use `GEMINI_API_KEY`.",
+        "Google OAuth access token is expired. Re-authenticate with `Gemini CLI Session Import` or `Google OAuth Client Sign-In`, or use `GEMINI_API_KEY`.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -258,11 +264,13 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       ? [
           ...token.details,
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
-          isSubscription
-            ? mode === "cli-import"
-              ? "Subscription lane: imported Gemini CLI session."
-              : "Subscription lane: direct Gemini subscription sign-in."
-            : "Lane: custom Google OAuth client.",
+          mode === "cli-import"
+            ? "Lane: Gemini CLI Session Import."
+            : mode === "codeassist"
+              ? "Lane: Google OAuth Client Sign-In (configured browser sign-in)."
+              : mode === "custom-oauth"
+                ? "Lane: Google OAuth Client Sign-In (user-managed OAuth client)."
+                : "Lane: Gemini API OAuth.",
           auth.accountId
             ? `Authenticated as: ${auth.accountId}`
             : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
@@ -273,14 +281,19 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
             ? "Access token expired/invalid, but refresh token is present and will be used during execution."
             : "Access token expired/invalid and no refresh token found.",
           isSubscription && mode === "cli-import"
-            ? "If this came from Gemini CLI import and the session has expired, run `gemini` and reconnect with `Gemini Subscription Sign-In`."
+            ? "If this came from Gemini CLI import and the session has expired, run `gemini` and reconnect with `Gemini CLI Session Import`."
             : "Re-run `dax auth login` if the lane stays blocked.",
         ]
 
     return {
       providerID,
       mode,
-      lane: isSubscription ? "gemini-subscription" : "gemini-api",
+      lane:
+        mode === "cli-import"
+          ? "gemini-cli-import"
+          : mode === "codeassist" || mode === "custom-oauth"
+            ? "google-oauth-client"
+            : "gemini-api",
       source,
       endpoint: isSubscription ? "cloudcode-pa" : "generativelanguage",
       ok: token.ok || hasRefresh,

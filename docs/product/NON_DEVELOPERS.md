@@ -34,7 +34,7 @@ Choose this when you want:
 - predictable API-key based access
 - a good default for most technical users
 
-### 2. Gemini Subscription Sign-In
+### 2. Gemini CLI Session Import
 
 Use this if you already use Gemini through a subscription, especially through the `gemini` CLI.
 
@@ -48,9 +48,9 @@ If this lane expires later, DAX should tell you to run `gemini` again.
 
 Important: DAX uses the account that is authenticated on your own machine. It does not ship somebody else's subscription to you. If you install DAX on your laptop, it will use your Gemini login, your API key, or your OAuth setup.
 
-### 3. Custom Google OAuth Client
+### 3. Google OAuth Client Sign-In
 
-Use this only if you or your team intentionally manage your own Google OAuth app.
+Use this if you want browser-based sign-in with a configured or user-managed Google OAuth client.
 
 Choose this when you want:
 

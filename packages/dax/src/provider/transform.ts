@@ -826,7 +826,7 @@ export namespace ProviderTransform {
     if (providerID === "google" && lower.includes("insufficient authentication scopes")) {
       return (
         "Google token is missing the scopes required for this Gemini lane. " +
-        "Use `GEMINI_API_KEY` (recommended) or reconnect with `Gemini Subscription Sign-In` and include Gemini scopes " +
+        "Use `GEMINI_API_KEY` (recommended) or reconnect with `Gemini CLI Session Import` / `Google OAuth Client Sign-In` and include Gemini scopes " +
         "`https://www.googleapis.com/auth/generative-language.peruserquota` and `https://www.googleapis.com/auth/generative-language.retriever.readonly`."
       )
     }
@@ -839,7 +839,7 @@ export namespace ProviderTransform {
       return (
         "Google credentials are invalid for this auth lane. " +
         "If you are using gcloud/ADC, switch to `google-vertex/*`. For Gemini API (`google/*`), use " +
-        "`GEMINI_API_KEY`, reconnect with `Gemini Subscription Sign-In`, or use `Custom Google OAuth Client`."
+        "`GEMINI_API_KEY`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`."
       )
     }
 

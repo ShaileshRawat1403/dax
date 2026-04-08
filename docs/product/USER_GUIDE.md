@@ -71,14 +71,14 @@ Most users should start with one provider only.
 For Google / Gemini, the three visible options are:
 
 - `Gemini API Key`
-- `Gemini Subscription Sign-In`
-- `Custom Google OAuth Client`
+- `Gemini CLI Session Import`
+- `Google OAuth Client Sign-In`
 
 For most people:
 
 - use `Gemini API Key` if you have a Google AI Studio API key
-- use `Gemini Subscription Sign-In` if you already use Gemini through the `gemini` CLI or a supported subscription lane
-- use `Custom Google OAuth Client` only if you intentionally manage your own Google OAuth app
+- use `Gemini CLI Session Import` if you already use Gemini through the `gemini` CLI
+- use `Google OAuth Client Sign-In` if you want browser-based OAuth with a configured or user-managed Google client
 
 Important:
 

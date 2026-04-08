@@ -17,7 +17,7 @@ By default, provider authentication is local to the current machine and OS user.
 
 | Model Prefix | Auth Path                                                     |
 | ------------ | ------------------------------------------------------------- |
-| `google/*`   | Gemini API key, Gemini subscription sign-in, Custom OAuth     |
+| `google/*`   | Gemini API key, Gemini CLI session import, Google OAuth client sign-in |
 
 Use diagnostics:
 
@@ -33,10 +33,12 @@ DAX supports three clear authentication lanes for the `google/*` provider.
 In the current CLI and TUI UX, most operators will see three visible options by default:
 
 - `Gemini API Key`
-- `Gemini Subscription Sign-In`
-- `Custom Google OAuth Client`
+- `Gemini CLI Session Import`
+- `Google OAuth Client Sign-In`
 
-`Gemini Subscription Sign-In` uses your local `gemini` CLI session when available. If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can also use direct browser sign-in for the same subscription lane.
+`Gemini CLI Session Import` uses your local `gemini` CLI session when available.
+
+`Google OAuth Client Sign-In` is the browser-based lane. If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can use them directly. Otherwise DAX will prompt for your own OAuth client credentials.
 
 ### Visible Lanes vs Underlying Implementation
 
@@ -45,16 +47,16 @@ The picker intentionally shows three operator-facing choices even though the Gem
 | Visible lane | What DAX may use underneath | Best mental model |
 | ------------ | --------------------------- | ----------------- |
 | `Gemini API Key` | Google AI Studio API key | simplest direct API access |
-| `Gemini Subscription Sign-In` | local `gemini` CLI import or direct browser-based subscription sign-in | managed subscription lane |
-| `Custom Google OAuth Client` | user-managed Google OAuth client credentials | advanced or enterprise-controlled setup |
+| `Gemini CLI Session Import` | local `gemini` CLI import | reuse your existing local Gemini login |
+| `Google OAuth Client Sign-In` | configured browser sign-in or user-managed Google OAuth client credentials | browser-based OAuth lane |
 
 ```mermaid
 flowchart TD
     A[Visible Google Picker] --> B[Gemini API Key]
-    A --> C[Gemini Subscription Sign-In]
-    A --> D[Custom Google OAuth Client]
-    C --> E[Import from Gemini CLI]
-    C --> F[Google Code Assist / Pro-Plus Sign-In]
+    A --> C[Gemini CLI Session Import]
+    A --> D[Google OAuth Client Sign-In]
+    D --> E[Configured Google OAuth client]
+    D --> F[Prompted custom Google OAuth client]
 ```
 
 The internal method names are implementation details. They help DAX choose the right subscription path for the current machine, but they are not meant to be treated as separate public lanes.
@@ -63,23 +65,21 @@ The internal method names are implementation details. They help DAX choose the r
 
 Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.
 
-### 2. Gemini Subscription Sign-In
+### 2. Gemini CLI Session Import
 
-This lane is for Gemini Pro, Pro Plus, and Code Assist style subscription access. DAX routes requests through the `cloudcode-pa` quota lane and manages the integration details for you.
+This lane reuses your existing local `gemini` CLI login for the Gemini subscription path.
 
 By default, DAX will use your existing local `gemini` CLI login when it finds one.
 
 This is a local-user credential flow. DAX is not hard-coded to a particular builder account or bundled subscription.
 
-If your imported Gemini CLI session expires, DAX will tell you to run `gemini` again instead of sending you to custom OAuth setup.
-
-If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can also use direct browser-based subscription sign-in for the same lane.
+If your imported Gemini CLI session expires, DAX will tell you to run `gemini` again or switch to `Google OAuth Client Sign-In`.
 
 If Google temporarily rate-limits this lane, DAX will wait and retry automatically. The TUI should say that the Gemini subscription lane is busy and show the retry countdown.
 
-### 3. Custom Google OAuth Client
+### 3. Google OAuth Client Sign-In
 
-If you prefer to maintain isolation or run in an enterprise setting, you can use your own Google OAuth client:
+If you prefer browser-based sign-in or need stronger control, use the Google OAuth client lane:
 
 1. Create an OAuth 2.0 Client ID at [Google Cloud Console](https://console.cloud.google.com/apis/credentials/oauthclient)
    - Application type: "Desktop app" or "Web application"
@@ -90,7 +90,7 @@ If you prefer to maintain isolation or run in an enterprise setting, you can use
    ```
    dax
    → Connect a model provider → Google
-   → Custom Google OAuth Client
+   → Google OAuth Client Sign-In
    → Enter your Client ID and Client Secret
    → Complete Google sign-in in browser
    ```
@@ -100,15 +100,15 @@ If you prefer to maintain isolation or run in an enterprise setting, you can use
    # Set environment variables before running dax
    export DAX_GOOGLE_CLI_CLIENT_ID="your-client-id"
    export DAX_GOOGLE_CLI_CLIENT_SECRET="your-client-secret"
-   # Then run dax auth login and select "Custom Google OAuth Client"
+   # Then run dax auth login and select "Google OAuth Client Sign-In"
    ```
 
 ### Troubleshooting
 
 **Token refresh fails**
 
-- If you used `Gemini Subscription Sign-In` through the Gemini CLI import path, run `gemini` again and reconnect.
-- If you used `Custom Google OAuth Client`, re-run `dax auth login` and complete OAuth again.
+- If you used `Gemini CLI Session Import`, run `gemini` again and reconnect.
+- If you used `Google OAuth Client Sign-In`, re-run `dax auth login` and complete OAuth again.
 
 **Scope errors**
 
