@@ -1,18 +1,17 @@
 import { useTheme } from "@tui/context/theme"
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
-import { createEffect, Show, For, createMemo, onCleanup } from "solid-js"
+import { createEffect, createSignal, Show, For, createMemo, onCleanup } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { setSkipRefocus } from "../../app"
 import { isRefineSubmitKey } from "./refine-key"
 
+const AUTOSAVE_DEBOUNCE_MS = 2000
+
 function sectionCount(input: string, heading: string) {
   const match = input.match(new RegExp(`^##\\s+${heading}[\\s\\S]*?(?=^##\\s+|$)`, "m"))
   if (!match) return 0
-  return match[0]
-    .split("\n")
-    .filter((line) => /^\s*(?:-|\d+\.)\s+/.test(line))
-    .length
+  return match[0].split("\n").filter((line) => /^\s*(?:-|\d+\.)\s+/.test(line)).length
 }
 
 function extractSection(input: string, heading: string) {
@@ -50,6 +49,62 @@ function extractSubsection(input: string, heading: string, subheading: string) {
     .filter(Boolean)
 }
 
+function computeReadinessScore(input: string): {
+  score: number
+  level: "ready" | "draft" | "incomplete"
+  missing: string[]
+} {
+  const missing: string[] = []
+  let score = 0
+  const total = 12
+
+  const hasGoal = /##\s+Goal/.test(input)
+  const hasPlan = sectionCount(input, "Execution Plan") > 0
+  const hasTargets = sectionCount(input, "Likely Targets") > 0
+  const hasWrites = sectionCount(input, "Likely Writes") > 0
+  const hasValidation = sectionCount(input, "Validation Commands") > 0 || sectionCount(input, "Validation Plan") > 0
+  const hasSuccess = sectionCount(input, "Success Criteria") > 0
+  const hasApproval = sectionCount(input, "Approval Forecast") > 0
+  const hasRollback = sectionCount(input, "Rollback & Recovery") > 0
+  const hasContext = sectionCount(input, "Session Context") > 0
+  const hasGovernance = sectionCount(input, "Governance Hints") > 0
+  const hasUnknowns = sectionCount(input, "Unknowns & Assumptions") > 0
+  const hasImpact = sectionCount(input, "Repo Impact") > 0
+
+  if (hasGoal) score++
+  else missing.push("goal")
+
+  if (hasPlan) score++
+  else missing.push("execution plan")
+
+  if (hasTargets) score++
+  else missing.push("targets")
+
+  if (hasWrites) score++
+  else missing.push("writes")
+
+  if (hasValidation) score++
+  else missing.push("validation")
+
+  if (hasSuccess) score++
+  else missing.push("success criteria")
+
+  if (hasApproval) score++
+  else missing.push("approval forecast")
+
+  if (hasRollback) score++
+  else missing.push("rollback")
+
+  if (hasContext) score++
+  if (hasGovernance) score++
+  if (hasUnknowns) score++
+  if (hasImpact) score++
+
+  const level = score >= 8 ? "ready" : score >= 4 ? "draft" : "incomplete"
+
+  return { score, level, missing }
+}
+
 export function RefinePane(props: {
   initialPrompt: string
   onUpdate: (prompt: string) => void
@@ -58,23 +113,34 @@ export function RefinePane(props: {
   const { theme } = useTheme()
   let textareaRef: TextareaRenderable | undefined
   let focusTimer: ReturnType<typeof setTimeout> | undefined
+  let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+  let hasUnsavedChanges = false
+
   const textareaKeybindings = useTextareaKeybindings()
-  const contextCount = () => sectionCount(props.initialPrompt || "", "Session Context")
-  const planCount = () => sectionCount(props.initialPrompt || "", "Execution Plan")
-  const successCount = () => sectionCount(props.initialPrompt || "", "Success Criteria")
-  const watchoutCount = () => sectionCount(props.initialPrompt || "", "Operator Watchouts")
-  const targetCount = () => sectionCount(props.initialPrompt || "", "Likely Targets")
-  const writesCount = () => sectionCount(props.initialPrompt || "", "Likely Writes")
-  const validationCount = () => sectionCount(props.initialPrompt || "", "Validation Commands")
-  const validationPlanCount = () => sectionCount(props.initialPrompt || "", "Validation Plan")
-  const approvalCount = () => sectionCount(props.initialPrompt || "", "Approval Forecast")
-  const governanceCount = () => sectionCount(props.initialPrompt || "", "Governance Hints")
-  const deltaCount = () => sectionCount(props.initialPrompt || "", "Contract Delta")
-  const impactCount = () => sectionCount(props.initialPrompt || "", "Repo Impact")
-  const unknownCount = () => sectionCount(props.initialPrompt || "", "Unknowns & Assumptions")
-  const rollbackCount = () => sectionCount(props.initialPrompt || "", "Rollback & Recovery")
+
+  const [localDraft, setLocalDraft] = createSignal(props.initialPrompt)
+  const [isDirty, setIsDirty] = createSignal(false)
+
+  const currentDraft = localDraft()
+  const contextCount = () => sectionCount(currentDraft, "Session Context")
+  const planCount = () => sectionCount(currentDraft, "Execution Plan")
+  const successCount = () => sectionCount(currentDraft, "Success Criteria")
+  const watchoutCount = () => sectionCount(currentDraft, "Operator Watchouts")
+  const targetCount = () => sectionCount(currentDraft, "Likely Targets")
+  const writesCount = () => sectionCount(currentDraft, "Likely Writes")
+  const validationCount = () => sectionCount(currentDraft, "Validation Commands")
+  const validationPlanCount = () => sectionCount(currentDraft, "Validation Plan")
+  const approvalCount = () => sectionCount(currentDraft, "Approval Forecast")
+  const governanceCount = () => sectionCount(currentDraft, "Governance Hints")
+  const deltaCount = () => sectionCount(currentDraft, "Contract Delta")
+  const impactCount = () => sectionCount(currentDraft, "Repo Impact")
+  const unknownCount = () => sectionCount(currentDraft, "Unknowns & Assumptions")
+  const rollbackCount = () => sectionCount(currentDraft, "Rollback & Recovery")
+
+  const readiness = createMemo(() => computeReadinessScore(currentDraft))
+
   const executionProfile = createMemo(() => {
-    const match = (props.initialPrompt || "").match(/^##\s+Execution Profile\s+([\s\S]*?)(?=^##\s+|$)/m)
+    const match = currentDraft.match(/^##\s+Execution Profile\s+([\s\S]*?)(?=^##\s+|$)/m)
     return (
       match?.[1]
         ?.split("\n")
@@ -83,29 +149,32 @@ export function RefinePane(props: {
     )
   })
   const goalText = createMemo(() => {
-    const match = (props.initialPrompt || "").match(/^##\s+Goal\s+([\s\S]*?)(?=^##\s+|$)/m)
+    const match = currentDraft.match(/^##\s+Goal\s+([\s\S]*?)(?=^##\s+|$)/m)
     return match?.[1]?.trim() || ""
   })
-  const contextItems = createMemo(() => extractSection(props.initialPrompt || "", "Session Context"))
-  const targetItems = createMemo(() => extractSection(props.initialPrompt || "", "Likely Targets"))
-  const writeItems = createMemo(() => extractSection(props.initialPrompt || "", "Likely Writes"))
-  const planItems = createMemo(() => extractSection(props.initialPrompt || "", "Execution Plan"))
-  const successItems = createMemo(() => extractSection(props.initialPrompt || "", "Success Criteria"))
-  const validationItems = createMemo(() => extractSection(props.initialPrompt || "", "Validation Commands"))
-  const validationPreflight = createMemo(() => extractSubsection(props.initialPrompt || "", "Validation Plan", "Preflight"))
-  const validationPostChange = createMemo(() => extractSubsection(props.initialPrompt || "", "Validation Plan", "Post-change"))
-  const validationShipReadiness = createMemo(() => extractSubsection(props.initialPrompt || "", "Validation Plan", "Ship readiness"))
-  const approvalItems = createMemo(() => extractSection(props.initialPrompt || "", "Approval Forecast"))
-  const governanceItems = createMemo(() => extractSection(props.initialPrompt || "", "Governance Hints"))
-  const deltaItems = createMemo(() => extractSection(props.initialPrompt || "", "Contract Delta"))
-  const impactItems = createMemo(() => extractKeyedItems(props.initialPrompt || "", "Repo Impact"))
-  const unknownItems = createMemo(() => extractSection(props.initialPrompt || "", "Unknowns & Assumptions"))
-  const watchoutItems = createMemo(() => extractSection(props.initialPrompt || "", "Operator Watchouts"))
-  const rollbackItems = createMemo(() => extractSection(props.initialPrompt || "", "Rollback & Recovery"))
+  const contextItems = createMemo(() => extractSection(currentDraft, "Session Context"))
+  const targetItems = createMemo(() => extractSection(currentDraft, "Likely Targets"))
+  const writeItems = createMemo(() => extractSection(currentDraft, "Likely Writes"))
+  const planItems = createMemo(() => extractSection(currentDraft, "Execution Plan"))
+  const successItems = createMemo(() => extractSection(currentDraft, "Success Criteria"))
+  const validationItems = createMemo(() => extractSection(currentDraft, "Validation Commands"))
+  const validationPreflight = createMemo(() => extractSubsection(currentDraft, "Validation Plan", "Preflight"))
+  const validationPostChange = createMemo(() => extractSubsection(currentDraft, "Validation Plan", "Post-change"))
+  const validationShipReadiness = createMemo(() => extractSubsection(currentDraft, "Validation Plan", "Ship readiness"))
+  const approvalItems = createMemo(() => extractSection(currentDraft, "Approval Forecast"))
+  const governanceItems = createMemo(() => extractSection(currentDraft, "Governance Hints"))
+  const deltaItems = createMemo(() => extractSection(currentDraft, "Contract Delta"))
+  const impactItems = createMemo(() => extractKeyedItems(currentDraft, "Repo Impact"))
+  const unknownItems = createMemo(() => extractSection(currentDraft, "Unknowns & Assumptions"))
+  const watchoutItems = createMemo(() => extractSection(currentDraft, "Operator Watchouts"))
+  const rollbackItems = createMemo(() => extractSection(currentDraft, "Rollback & Recovery"))
 
   const submitRefinedPrompt = () => {
+    if (autosaveTimer) clearTimeout(autosaveTimer)
     const next = textareaRef?.plainText || ""
-    props.onUpdate(next)
+    if (next !== props.initialPrompt) {
+      props.onUpdate(next)
+    }
     props.onSubmit?.()
   }
 
@@ -131,13 +200,29 @@ export function RefinePane(props: {
 
   createEffect(() => {
     const newValue = props.initialPrompt || ""
-    if (textareaRef && newValue && textareaRef.plainText !== newValue) {
+    if (textareaRef && newValue && textareaRef.plainText !== newValue && !isDirty()) {
       syncTextareaValue(newValue)
+      setLocalDraft(newValue)
       scheduleFocusToEnd()
     }
   })
 
-  const hasContent = () => props.initialPrompt && props.initialPrompt.length > 10
+  const hasContent = () => currentDraft.length > 10
+
+  const handleContentChange = (newText: string) => {
+    setLocalDraft(newText)
+    setIsDirty(newText !== props.initialPrompt)
+    hasUnsavedChanges = true
+
+    if (autosaveTimer) clearTimeout(autosaveTimer)
+    autosaveTimer = setTimeout(() => {
+      if (hasUnsavedChanges && newText !== props.initialPrompt) {
+        props.onUpdate(newText)
+        hasUnsavedChanges = false
+        setIsDirty(false)
+      }
+    }, AUTOSAVE_DEBOUNCE_MS)
+  }
 
   const focusTextarea = () => {
     setSkipRefocus(true)
@@ -154,7 +239,9 @@ export function RefinePane(props: {
 
   onCleanup(() => {
     if (focusTimer) clearTimeout(focusTimer)
+    if (autosaveTimer) clearTimeout(autosaveTimer)
     focusTimer = undefined
+    autosaveTimer = undefined
     textareaRef = undefined
   })
 
@@ -168,9 +255,36 @@ export function RefinePane(props: {
   return (
     <box flexDirection="column" width="100%" height="100%" gap={1} onMouseDown={focusTextarea}>
       <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.border}>
-        <text fg={theme.accent} bold>
-          Refine
-        </text>
+        <box flexDirection="row" gap={1} alignItems="center">
+          <text fg={theme.accent} bold>
+            Refine
+          </text>
+          <Show when={hasContent()}>
+            <box
+              backgroundColor={
+                readiness().level === "ready"
+                  ? theme.success
+                  : readiness().level === "draft"
+                    ? theme.warning
+                    : theme.error
+              }
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={theme.background}>
+                {readiness().level.toUpperCase()} ({readiness().score}/12)
+              </text>
+            </box>
+            <Show when={isDirty()}>
+              <text fg={theme.textMuted} dim>
+                (unsaved)
+              </text>
+            </Show>
+          </Show>
+        </box>
+        <Show when={hasContent() && readiness().missing.length > 0 && readiness().missing.length <= 3}>
+          <text fg={theme.textMuted}>Missing: {readiness().missing.slice(0, 3).join(", ")}</text>
+        </Show>
         <text fg={theme.textMuted}>Preflight the execution contract before you send it</text>
         <Show when={hasContent()}>
           <text fg={theme.text}>Review the plan, targets, and checks, then press Enter to run it.</text>
@@ -301,22 +415,19 @@ export function RefinePane(props: {
           <Show when={contextItems().length > 0}>
             <box flexDirection="column" gap={0}>
               <text fg={theme.textMuted}>Context signals</text>
-              <For each={contextItems().slice(0, 3)}>
-                {(item) => <text fg={theme.text}>• {item}</text>}
-              </For>
+              <For each={contextItems().slice(0, 3)}>{(item) => <text fg={theme.text}>• {item}</text>}</For>
             </box>
           </Show>
 
           <Show when={targetItems().length > 0 || impactItems().length > 0}>
             <box flexDirection="column" gap={0}>
               <text fg={theme.textMuted}>Repo impact</text>
-              <For each={targetItems().slice(0, 3)}>
-                {(item) => <text fg={theme.accent}>→ {item}</text>}
-              </For>
+              <For each={targetItems().slice(0, 3)}>{(item) => <text fg={theme.accent}>→ {item}</text>}</For>
               <For each={impactItems().slice(0, 3)}>
                 {(item) => (
                   <text fg={theme.text}>
-                    {item.label ? `${item.label}: ` : ""}{item.value}
+                    {item.label ? `${item.label}: ` : ""}
+                    {item.value}
                   </text>
                 )}
               </For>
@@ -326,12 +437,8 @@ export function RefinePane(props: {
           <Show when={writeItems().length > 0 || deltaItems().length > 0}>
             <box flexDirection="column" gap={0}>
               <text fg={theme.textMuted}>Write scope and delta</text>
-              <For each={writeItems().slice(0, 3)}>
-                {(item) => <text fg={theme.primary}>✎ {item}</text>}
-              </For>
-              <For each={deltaItems().slice(0, 3)}>
-                {(item) => <text fg={theme.text}>• {item}</text>}
-              </For>
+              <For each={writeItems().slice(0, 3)}>{(item) => <text fg={theme.primary}>✎ {item}</text>}</For>
+              <For each={deltaItems().slice(0, 3)}>{(item) => <text fg={theme.text}>• {item}</text>}</For>
             </box>
           </Show>
 
@@ -339,7 +446,11 @@ export function RefinePane(props: {
             <box flexDirection="column" gap={0}>
               <text fg={theme.textMuted}>Execution ladder</text>
               <For each={planItems().slice(0, 4)}>
-                {(item, i) => <text fg={i() === 0 ? theme.primary : theme.text}>{i() === 0 ? "●" : "◌"} {item}</text>}
+                {(item, i) => (
+                  <text fg={i() === 0 ? theme.primary : theme.text}>
+                    {i() === 0 ? "●" : "◌"} {item}
+                  </text>
+                )}
               </For>
             </box>
           </Show>
@@ -362,17 +473,13 @@ export function RefinePane(props: {
               <Show when={successItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.textMuted}>Checks</text>
-                  <For each={successItems().slice(0, 3)}>
-                    {(item) => <text fg={theme.success}>✓ {item}</text>}
-                  </For>
+                  <For each={successItems().slice(0, 3)}>{(item) => <text fg={theme.success}>✓ {item}</text>}</For>
                 </box>
               </Show>
               <Show when={validationItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.textMuted}>Validation</text>
-                  <For each={validationItems().slice(0, 3)}>
-                    {(item) => <text fg={theme.accent}>▸ {item}</text>}
-                  </For>
+                  <For each={validationItems().slice(0, 3)}>{(item) => <text fg={theme.accent}>▸ {item}</text>}</For>
                 </box>
               </Show>
               <Show
@@ -398,41 +505,31 @@ export function RefinePane(props: {
               <Show when={approvalItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.warning}>Approval forecast</text>
-                  <For each={approvalItems().slice(0, 3)}>
-                    {(item) => <text fg={theme.text}>⏸ {item}</text>}
-                  </For>
+                  <For each={approvalItems().slice(0, 3)}>{(item) => <text fg={theme.text}>⏸ {item}</text>}</For>
                 </box>
               </Show>
               <Show when={governanceItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.warning}>Governance hints</text>
-                  <For each={governanceItems().slice(0, 3)}>
-                    {(item) => <text fg={theme.text}>⚑ {item}</text>}
-                  </For>
+                  <For each={governanceItems().slice(0, 3)}>{(item) => <text fg={theme.text}>⚑ {item}</text>}</For>
                 </box>
               </Show>
               <Show when={unknownItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.warning}>Unknowns</text>
-                  <For each={unknownItems().slice(0, 3)}>
-                    {(item) => <text fg={theme.text}>? {item}</text>}
-                  </For>
+                  <For each={unknownItems().slice(0, 3)}>{(item) => <text fg={theme.text}>? {item}</text>}</For>
                 </box>
               </Show>
               <Show when={watchoutItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.warning}>Watchouts</text>
-                  <For each={watchoutItems().slice(0, 3)}>
-                    {(item) => <text fg={theme.text}>⚠ {item}</text>}
-                  </For>
+                  <For each={watchoutItems().slice(0, 3)}>{(item) => <text fg={theme.text}>⚠ {item}</text>}</For>
                 </box>
               </Show>
               <Show when={rollbackItems().length > 0}>
                 <box flexDirection="column" gap={0}>
                   <text fg={theme.textMuted}>Recovery</text>
-                  <For each={rollbackItems().slice(0, 2)}>
-                    {(item) => <text fg={theme.text}>↺ {item}</text>}
-                  </For>
+                  <For each={rollbackItems().slice(0, 2)}>{(item) => <text fg={theme.text}>↺ {item}</text>}</For>
                 </box>
               </Show>
             </box>
@@ -457,10 +554,9 @@ export function RefinePane(props: {
             }
             scheduleFocusToEnd()
           }}
-          initialValue={props.initialPrompt}
+          initialValue={currentDraft}
           onContentChange={(e: any) => {
-            // Pass changes back to parent
-            props.onUpdate(e.plainText || "")
+            handleContentChange(e.plainText || "")
           }}
           onMouseDown={focusTextarea}
           onSubmit={submitRefinedPrompt}
