@@ -65,6 +65,8 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 - `bun run release:check` should fail when `CHANGELOG.md` has no `Unreleased` section
 - `bun run release:check` should fail when package version and latest tagged changelog entry drift
 - `bun run release:check` should write both `artifacts/audit-result.json` and `artifacts/doctor-auth.json`
+- `bun run release:check` should write `artifacts/release-provenance.json`
+- in release mode, `bun run release:check` should fail when `HEAD` is untagged, mismatched, or dirty
 
 ### Doctor
 
@@ -178,6 +180,12 @@ Release-facing docs must describe only shipped behavior and should use the same 
 - evidence-based completion
 - operator workstation
 - deterministic runtime contract around stochastic model execution
+
+Release provenance means the machine-readable receipt for a cut proves:
+
+- git commit, git tag, package version, and latest tagged changelog version all agree
+- release artifacts can be attributed to that same version
+- release mode was not run from a dirty working tree
 
 ## Next Actions
 
