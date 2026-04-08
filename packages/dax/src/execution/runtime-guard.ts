@@ -65,14 +65,6 @@ const DEFAULT_BUDGET = {
   approvalsRequested: 0,
 } as const
 
-const VERIFY_COMMAND =
-  /\b(pytest|vitest|jest|cargo test|go test|bun test|npm test|pnpm test|tsc --noEmit|typecheck|ruff check|eslint)\b/i
-const COMMIT_COMMAND = /\bgit\s+(commit|merge|rebase|cherry-pick)\b/i
-const PUBLISH_COMMAND =
-  /\b(git\s+push|gh\s+pr\s+create|gh\s+release\s+create|npm\s+publish|pnpm\s+publish|cargo\s+publish)\b/i
-const MUTATING_COMMAND =
-  /\b(rm|mv|cp|mkdir|touch|git\s+add|git\s+restore|git\s+reset|sed\s+-i|perl\s+-pi|tee)\b|[>]{1,2}|\bapply_patch\b/i
-
 function defaultRuntimeGuardState(): RuntimeGuardState {
   return {
     budget: { ...DEFAULT_BUDGET },
