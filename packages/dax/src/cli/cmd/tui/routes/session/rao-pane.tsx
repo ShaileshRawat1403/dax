@@ -136,6 +136,15 @@ export function RAOPane(props: {
   })
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+
+  createEffect(() => {
+    const len = items().length
+    if (len === 0) return
+    const idx = selectedIndex()
+    if (idx < 0 || idx >= len) {
+      setSelectedIndex(Math.max(0, len - 1))
+    }
+  })
   const currentItem = createMemo(() => items()[selectedIndex()] ?? null)
 
   const itemLabel = (item: RAOItem) => {
@@ -358,7 +367,13 @@ export function RAOPane(props: {
                       : theme.backgroundElement
                   }
                   border={["left"]}
-                  borderColor={idx() === selectedIndex() ? (item.type === "permission" ? theme.warning : theme.accent) : theme.borderSubtle}
+                  borderColor={
+                    idx() === selectedIndex()
+                      ? item.type === "permission"
+                        ? theme.warning
+                        : theme.accent
+                      : theme.borderSubtle
+                  }
                   paddingLeft={1}
                   paddingRight={1}
                 >
@@ -486,7 +501,8 @@ export function RAOPane(props: {
                           </Show>
 
                           <text fg={theme.textMuted}>
-                            What happens next: allow once to continue this step, allow always to trust this action pattern, or deny to keep the run paused.
+                            What happens next: allow once to continue this step, allow always to trust this action
+                            pattern, or deny to keep the run paused.
                           </text>
 
                           <box flexDirection="row" gap={1} paddingTop={1} flexWrap="wrap">
@@ -517,7 +533,9 @@ export function RAOPane(props: {
                               <text fg={selectedForeground(theme, theme.error)}>[N] Deny</text>
                             </box>
                           </box>
-                          <text fg={theme.textMuted}>Use mouse, left/right to change request, and Y / A / N to decide.</text>
+                          <text fg={theme.textMuted}>
+                            Use mouse, left/right to change request, and Y / A / N to decide.
+                          </text>
                         </box>
                       )
                     })()}
@@ -625,7 +643,9 @@ export function RAOPane(props: {
                               <text fg={selectedForeground(theme, theme.error)}>[Esc] Skip</text>
                             </box>
                           </box>
-                          <text fg={theme.textMuted}>Use up/down to pick an option, Enter to confirm, or click directly.</text>
+                          <text fg={theme.textMuted}>
+                            Use up/down to pick an option, Enter to confirm, or click directly.
+                          </text>
                         </box>
                       )
                     })()}
