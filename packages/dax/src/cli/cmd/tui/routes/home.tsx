@@ -386,6 +386,10 @@ export function Home() {
     if (connectedMcpCount() > 0) return "MCP is connected and ready for richer repository context."
     return "No MCP servers are connected yet. DAX still works without MCP."
   })
+  const welcomeSummary = createMemo(() => {
+    if (mcpBlocked()) return "Check MCP server config and credentials."
+    return "Type a prompt or click Explore to begin."
+  })
   const branchNudge = createMemo(() =>
     deriveFeatureBranchNudge({
       branch: sync.data.vcs?.branch,
@@ -463,17 +467,26 @@ export function Home() {
             <Show when={showFirstRunGuide()}>
               <box width="100%" flexDirection="column" gap={1}>
                 <box width="100%" flexDirection="row" gap={1} flexWrap="wrap">
+                  <HomeInfoCard title="Quick Start" body={welcomeSummary()} theme={theme} tone="accent" />
                   <HomeInfoCard
-                    title="Start safe"
-                    body="Run Explore or Plan first — DAX needs context before taking risky action."
+                    title="DAX Modes"
+                    body="Plan: Safe steps · Build: Implement changes · Explore: Learn codebase · Audit: Find risks"
                     theme={theme}
-                    tone="accent"
+                    tone="default"
+                  />
+                </box>
+                <box width="100%" flexDirection="row" gap={1} flexWrap="wrap">
+                  <HomeInfoCard
+                    title="Safety First"
+                    body="DAX pauses for review before risky actions. Approve, deny, or allow patterns."
+                    theme={theme}
+                    tone="default"
                   />
                   <HomeInfoCard
-                    title="Review pauses"
+                    title="Setup Status"
                     body={doctorSummary()}
                     theme={theme}
-                    tone={mcpAttention() ? "warning" : "default"}
+                    tone={mcpAttention() || mcpBlocked() ? "warning" : "default"}
                   />
                 </box>
                 <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
@@ -482,7 +495,12 @@ export function Home() {
                     theme={theme}
                     onPress={() => setPromptDraft(firstRunIntent(), false, "explore")}
                   />
-                  <Show when={mcpAttention()}>
+                  <PromptStarter
+                    label="Plan next steps"
+                    theme={theme}
+                    onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
+                  />
+                  <Show when={mcpAttention() || mcpBlocked()}>
                     <PromptStarter
                       label="dax doctor"
                       theme={theme}
