@@ -91,4 +91,21 @@ describe("getVisibleProviderAuthMethods", () => {
     expect(visible[0]?.title).toBe("API key")
     expect(visible[0]?.originalIndex).toBe(0)
   })
+
+  test("collapses anthropic auth into api key and subscription sign-in lanes", async () => {
+    const visible = await getVisibleProviderAuthMethods("anthropic", [
+      {
+        type: "oauth" as const,
+        label: "Claude Pro/Plus Sign-In",
+        description: "Use Claude with your Anthropic Pro or Plus subscription",
+      },
+      {
+        type: "api" as const,
+        label: "Anthropic API Key",
+        description: "Use your API key from console.anthropic.com",
+      },
+    ])
+
+    expect(visible.map((item) => item.title)).toEqual(["Claude API Key", "Claude Pro/Max Sign-In"])
+  })
 })

@@ -65,6 +65,17 @@ function env(key: string) {
   return Env.get(key) ?? process.env[key] ?? Bun.env[key]
 }
 
+function formatRelativeMs(ms: number) {
+  const abs = Math.abs(ms)
+  const minutes = Math.floor(abs / 60_000)
+  const hours = Math.floor(abs / 3_600_000)
+  const days = Math.floor(abs / 86_400_000)
+  if (days >= 1) return `${days}d`
+  if (hours >= 1) return `${hours}h`
+  if (minutes >= 1) return `${minutes}m`
+  return `${Math.max(0, Math.floor(abs / 1000))}s`
+}
+
 function effectiveGoogleOAuthClientID() {
   const custom = Auth.get("google")
   return custom.then((auth) => {
@@ -498,7 +509,12 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
       ok: true,
       requiredEnv: [],
       missingEnv: [],
-      details: [`${providerID} authenticated via OAuth (Pro/Max subscription)`],
+      details: [
+        `${providerID} authenticated via OAuth (Pro/Max subscription)`,
+        `OAuth token expires ${auth.expires <= Date.now() ? "in the past" : `in ${formatRelativeMs(auth.expires - Date.now())}`}`,
+        `OAuth expiry timestamp: ${new Date(auth.expires).toISOString()}`,
+        "This lane can be rate-limited by Anthropic independently of claude.ai web usage.",
+      ],
     }
   }
 
