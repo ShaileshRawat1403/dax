@@ -121,26 +121,26 @@ export function RefinePane(props: {
   const [localDraft, setLocalDraft] = createSignal(props.initialPrompt)
   const [isDirty, setIsDirty] = createSignal(false)
 
-  const currentDraft = localDraft()
-  const contextCount = () => sectionCount(currentDraft, "Session Context")
-  const planCount = () => sectionCount(currentDraft, "Execution Plan")
-  const successCount = () => sectionCount(currentDraft, "Success Criteria")
-  const watchoutCount = () => sectionCount(currentDraft, "Operator Watchouts")
-  const targetCount = () => sectionCount(currentDraft, "Likely Targets")
-  const writesCount = () => sectionCount(currentDraft, "Likely Writes")
-  const validationCount = () => sectionCount(currentDraft, "Validation Commands")
-  const validationPlanCount = () => sectionCount(currentDraft, "Validation Plan")
-  const approvalCount = () => sectionCount(currentDraft, "Approval Forecast")
-  const governanceCount = () => sectionCount(currentDraft, "Governance Hints")
-  const deltaCount = () => sectionCount(currentDraft, "Contract Delta")
-  const impactCount = () => sectionCount(currentDraft, "Repo Impact")
-  const unknownCount = () => sectionCount(currentDraft, "Unknowns & Assumptions")
-  const rollbackCount = () => sectionCount(currentDraft, "Rollback & Recovery")
+  const currentDraft = createMemo(() => localDraft())
+  const contextCount = createMemo(() => sectionCount(currentDraft(), "Session Context"))
+  const planCount = createMemo(() => sectionCount(currentDraft(), "Execution Plan"))
+  const successCount = createMemo(() => sectionCount(currentDraft(), "Success Criteria"))
+  const watchoutCount = createMemo(() => sectionCount(currentDraft(), "Operator Watchouts"))
+  const targetCount = createMemo(() => sectionCount(currentDraft(), "Likely Targets"))
+  const writesCount = createMemo(() => sectionCount(currentDraft(), "Likely Writes"))
+  const validationCount = createMemo(() => sectionCount(currentDraft(), "Validation Commands"))
+  const validationPlanCount = createMemo(() => sectionCount(currentDraft(), "Validation Plan"))
+  const approvalCount = createMemo(() => sectionCount(currentDraft(), "Approval Forecast"))
+  const governanceCount = createMemo(() => sectionCount(currentDraft(), "Governance Hints"))
+  const deltaCount = createMemo(() => sectionCount(currentDraft(), "Contract Delta"))
+  const impactCount = createMemo(() => sectionCount(currentDraft(), "Repo Impact"))
+  const unknownCount = createMemo(() => sectionCount(currentDraft(), "Unknowns & Assumptions"))
+  const rollbackCount = createMemo(() => sectionCount(currentDraft(), "Rollback & Recovery"))
 
-  const readiness = createMemo(() => computeReadinessScore(currentDraft))
+  const readiness = createMemo(() => computeReadinessScore(currentDraft()))
 
   const executionProfile = createMemo(() => {
-    const match = currentDraft.match(/^##\s+Execution Profile\s+([\s\S]*?)(?=^##\s+|$)/m)
+    const match = currentDraft().match(/^##\s+Execution Profile\s+([\s\S]*?)(?=^##\s+|$)/m)
     return (
       match?.[1]
         ?.split("\n")
@@ -149,25 +149,27 @@ export function RefinePane(props: {
     )
   })
   const goalText = createMemo(() => {
-    const match = currentDraft.match(/^##\s+Goal\s+([\s\S]*?)(?=^##\s+|$)/m)
+    const match = currentDraft().match(/^##\s+Goal\s+([\s\S]*?)(?=^##\s+|$)/m)
     return match?.[1]?.trim() || ""
   })
-  const contextItems = createMemo(() => extractSection(currentDraft, "Session Context"))
-  const targetItems = createMemo(() => extractSection(currentDraft, "Likely Targets"))
-  const writeItems = createMemo(() => extractSection(currentDraft, "Likely Writes"))
-  const planItems = createMemo(() => extractSection(currentDraft, "Execution Plan"))
-  const successItems = createMemo(() => extractSection(currentDraft, "Success Criteria"))
-  const validationItems = createMemo(() => extractSection(currentDraft, "Validation Commands"))
-  const validationPreflight = createMemo(() => extractSubsection(currentDraft, "Validation Plan", "Preflight"))
-  const validationPostChange = createMemo(() => extractSubsection(currentDraft, "Validation Plan", "Post-change"))
-  const validationShipReadiness = createMemo(() => extractSubsection(currentDraft, "Validation Plan", "Ship readiness"))
-  const approvalItems = createMemo(() => extractSection(currentDraft, "Approval Forecast"))
-  const governanceItems = createMemo(() => extractSection(currentDraft, "Governance Hints"))
-  const deltaItems = createMemo(() => extractSection(currentDraft, "Contract Delta"))
-  const impactItems = createMemo(() => extractKeyedItems(currentDraft, "Repo Impact"))
-  const unknownItems = createMemo(() => extractSection(currentDraft, "Unknowns & Assumptions"))
-  const watchoutItems = createMemo(() => extractSection(currentDraft, "Operator Watchouts"))
-  const rollbackItems = createMemo(() => extractSection(currentDraft, "Rollback & Recovery"))
+  const contextItems = createMemo(() => extractSection(currentDraft(), "Session Context"))
+  const targetItems = createMemo(() => extractSection(currentDraft(), "Likely Targets"))
+  const writeItems = createMemo(() => extractSection(currentDraft(), "Likely Writes"))
+  const planItems = createMemo(() => extractSection(currentDraft(), "Execution Plan"))
+  const successItems = createMemo(() => extractSection(currentDraft(), "Success Criteria"))
+  const validationItems = createMemo(() => extractSection(currentDraft(), "Validation Commands"))
+  const validationPreflight = createMemo(() => extractSubsection(currentDraft(), "Validation Plan", "Preflight"))
+  const validationPostChange = createMemo(() => extractSubsection(currentDraft(), "Validation Plan", "Post-change"))
+  const validationShipReadiness = createMemo(() =>
+    extractSubsection(currentDraft(), "Validation Plan", "Ship readiness"),
+  )
+  const approvalItems = createMemo(() => extractSection(currentDraft(), "Approval Forecast"))
+  const governanceItems = createMemo(() => extractSection(currentDraft(), "Governance Hints"))
+  const deltaItems = createMemo(() => extractSection(currentDraft(), "Contract Delta"))
+  const impactItems = createMemo(() => extractKeyedItems(currentDraft(), "Repo Impact"))
+  const unknownItems = createMemo(() => extractSection(currentDraft(), "Unknowns & Assumptions"))
+  const watchoutItems = createMemo(() => extractSection(currentDraft(), "Operator Watchouts"))
+  const rollbackItems = createMemo(() => extractSection(currentDraft(), "Rollback & Recovery"))
 
   const submitRefinedPrompt = () => {
     if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -207,7 +209,7 @@ export function RefinePane(props: {
     }
   })
 
-  const hasContent = () => currentDraft.length > 10
+  const hasContent = () => currentDraft().length > 10
 
   const handleContentChange = (newText: string) => {
     setLocalDraft(newText)
@@ -554,7 +556,7 @@ export function RefinePane(props: {
             }
             scheduleFocusToEnd()
           }}
-          initialValue={currentDraft}
+          initialValue={currentDraft()}
           onContentChange={(e: any) => {
             handleContentChange(e.plainText || "")
           }}
