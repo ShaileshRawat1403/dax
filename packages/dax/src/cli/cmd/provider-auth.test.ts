@@ -39,8 +39,8 @@ describe("getVisibleProviderAuthMethods", () => {
 
     expect(visible.map((item) => item.title)).toEqual([
       "Gemini API Key",
-      "Gemini Subscription Sign-In",
-      "Custom Google OAuth Client",
+      "Gemini CLI Session Import",
+      "Google OAuth Client Sign-In",
     ])
     expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
     await rm(dir, { recursive: true, force: true })
@@ -56,10 +56,10 @@ describe("getVisibleProviderAuthMethods", () => {
 
     expect(visible.map((item) => item.title)).toEqual([
       "Gemini API Key",
-      "Gemini Subscription Sign-In",
-      "Custom Google OAuth Client",
+      "Gemini CLI Session Import",
+      "Google OAuth Client Sign-In",
     ])
-    expect(visible.map((item) => item.originalIndex)).toEqual([0, 2, 3])
+    expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 2])
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -71,8 +71,8 @@ describe("getVisibleProviderAuthMethods", () => {
 
     expect(visible.map((item) => item.title)).toEqual([
       "Gemini API Key",
-      "Gemini Subscription Sign-In",
-      "Custom Google OAuth Client",
+      "Gemini CLI Session Import",
+      "Google OAuth Client Sign-In",
     ])
     expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
     await rm(dir, { recursive: true, force: true })

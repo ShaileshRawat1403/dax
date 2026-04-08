@@ -160,6 +160,8 @@ type OAuthCreds = {
   mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
 }
 
+type CliImportCredentialSnapshot = Pick<OAuthCreds, "access" | "refresh" | "expires" | "clientID" | "clientSecret">
+
 type OAuthState = {
   access?: string
   refresh: string
@@ -177,7 +179,7 @@ function isSubscriptionMode(mode: OAuthState["mode"]) {
 
 function importedGeminiCliExpiredError() {
   return new Error(
-    "Your imported Gemini CLI session expired. Reconnect with 'Gemini Subscription Sign-In' for a more permanent browser-based login, or run `gemini` again to refresh your local terminal login.",
+    "Your imported Gemini CLI session expired. Reconnect with 'Gemini CLI Session Import', switch to 'Google OAuth Client Sign-In', or run `gemini` again to refresh your local terminal login.",
   )
 }
 
@@ -248,12 +250,40 @@ const readCreds = async (): Promise<OAuthCreds | undefined> => {
   return undefined
 }
 
-const waitForCreds = async () => {
-  const end = Date.now() + WAIT_MS
-  while (Date.now() < end) {
-    const creds = await readCreds()
-    if (creds?.refresh) return creds
-    await Bun.sleep(WAIT_STEP_MS)
+export function cliImportCredSignature(creds?: CliImportCredentialSnapshot) {
+  if (!creds?.refresh) return ""
+  return [creds.refresh, creds.access ?? "", creds.expires ?? 0, creds.clientID ?? "", creds.clientSecret ?? ""].join("::")
+}
+
+export function isCliImportReady(creds?: CliImportCredentialSnapshot, now = Date.now()) {
+  return Boolean(creds?.refresh && creds.access && typeof creds.expires === "number" && creds.expires > now + 30_000)
+}
+
+export async function waitForCliImportCreds(options?: {
+  baseline?: CliImportCredentialSnapshot
+  read?: () => Promise<OAuthCreds | undefined>
+  timeoutMs?: number
+  stepMs?: number
+  now?: () => number
+}) {
+  const read = options?.read ?? readCliCreds
+  const timeoutMs = options?.timeoutMs ?? WAIT_MS
+  const stepMs = options?.stepMs ?? WAIT_STEP_MS
+  const now = options?.now ?? Date.now
+  const baseline = options?.baseline
+  if (isCliImportReady(baseline, now())) return baseline
+
+  const baselineSignature = cliImportCredSignature(baseline)
+  const end = now() + timeoutMs
+  while (now() < end) {
+    const creds = await read()
+    if (creds?.refresh) {
+      const changed = cliImportCredSignature(creds) !== baselineSignature
+      if ((baselineSignature === "" && creds.refresh) || changed || isCliImportReady(creds, now())) {
+        return creds
+      }
+    }
+    await Bun.sleep(stepMs)
   }
   return undefined
 }
@@ -934,13 +964,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google token is missing the scopes required for this Gemini lane. Use `Gemini API Key`, or reconnect with `Gemini Subscription Sign-In`. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google token is missing the scopes required for this Gemini lane. Use `Gemini API Key`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google credentials are invalid for this lane. Use `Gemini API Key`, reconnect with `Gemini Subscription Sign-In`, or use `Custom Google OAuth Client`. For gcloud ADC credentials, switch to Vertex provider.",
+                "Google credentials are invalid for this lane. Use `Gemini API Key`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`. For gcloud ADC credentials, switch to Vertex provider.",
               )
             }
             return first
@@ -972,13 +1002,14 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           label: "Import from Gemini CLI",
           description: "Use your existing `gemini` CLI login for Gemini Pro or Plus subscription access.",
           async authorize() {
+            const baseline = await readCliCreds()
             return {
               method: "auto" as const,
               url: GEMINI_OAUTH_DOC,
               instructions:
                 "Run `gemini` and finish Google login, then wait here while DAX connects your Gemini subscription session.",
               async callback() {
-                const creds = await waitForCreds()
+                const creds = await waitForCliImportCreds({ baseline })
                 if (!creds?.refresh) return { type: "failed" as const }
                 let access = creds.access
                 let expires = creds.expires ?? 0
@@ -1006,7 +1037,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing") {
                     throw new Error(
-                      "Your imported Gemini CLI session is missing the scopes DAX needs. Use `Gemini API Key`, or reconnect with `Gemini Subscription Sign-In`. For gcloud credentials, use the Vertex provider.",
+                      "Your imported Gemini CLI session is missing the scopes DAX needs. Use `Gemini API Key`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`. For gcloud credentials, use the Vertex provider.",
                     )
                   }
                   if (health.reason === "token_expired") throw importedGeminiCliExpiredError()

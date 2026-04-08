@@ -211,22 +211,30 @@ function AutoMethod(props: AutoMethodProps) {
     })
     if (result.error) {
       const name = errorName(result.error)
+      const message = errorMessage(result.error)
+      const isCliImportLane = props.title.includes("CLI Session Import")
       if (name === "ProviderAuthOauthMissing") {
-        setError("Authorization not ready. Complete sign-in in browser, then press r to retry.")
+        setError(
+          isCliImportLane
+            ? "Gemini CLI session not ready. Run `gemini`, finish login in the terminal, then press r to retry."
+            : "Authorization not ready. Complete sign-in in browser, then press r to retry.",
+        )
         running = false
         return
       }
       if (name === "ProviderAuthOauthCallbackFailed") {
         setError(
-          errorMessage(result.error) ??
-            "Browser callback was received, but token verification failed. Press esc and start sign-in again.",
+          message ??
+            (isCliImportLane
+              ? "Gemini CLI import failed. Refresh your `gemini` login and press esc to start again."
+              : "Browser callback was received, but token verification failed. Press esc and start sign-in again."),
         )
         setFatal(true)
         if (timer) clearInterval(timer)
         running = false
         return
       }
-      setError(`Authorization error: ${name ?? "unknown"}. Press esc and retry.`)
+      setError(message ?? `Authorization error: ${name ?? "unknown"}. Press esc and retry.`)
       running = false
       return
     }

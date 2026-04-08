@@ -66,13 +66,13 @@ dax --version
    ```
 
 2. Configure a provider key/token:
-   - OpenAI: `OPENAI_API_KEY`
-   - Anthropic: `ANTHROPIC_API_KEY`
-   - Google/Gemini: use one of the three visible public lanes
-     - `Gemini API Key`: set `GEMINI_API_KEY`
-     - `Gemini Subscription Sign-In`: run `dax auth login` and use your local `gemini` CLI session or supported direct subscription sign-in
-     - `Custom Google OAuth Client`: run `dax auth login` and provide your own Google OAuth Client ID and Secret
-     - Create custom OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient
+     - OpenAI: `OPENAI_API_KEY`
+     - Anthropic: `ANTHROPIC_API_KEY`
+     - Google/Gemini: use one of the three visible public lanes
+       - `Gemini API Key`: set `GEMINI_API_KEY`
+       - `Gemini CLI Session Import`: run `dax auth login` and reuse your local `gemini` CLI session
+       - `Google OAuth Client Sign-In`: run `dax auth login` and sign in with a configured or user-managed Google OAuth client
+       - Create custom OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient
    - Ollama: local daemon running (default `http://localhost:11434`)
 
 3. Validate by running a prompt and confirming streaming output + tool approvals.
