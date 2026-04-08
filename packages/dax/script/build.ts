@@ -180,9 +180,37 @@ const releaseTargets: ReleaseTarget[] = [
     binary: "dax",
   },
   {
+    os: "darwin",
+    arch: "x64",
+    sourceName: `${pkg.name}-darwin-x64-baseline`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
     os: "linux",
     arch: "x64",
     sourceName: `${pkg.name}-linux-x64`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "linux",
+    arch: "x64",
+    sourceName: `${pkg.name}-linux-x64-baseline`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "linux",
+    arch: "x64",
+    sourceName: `${pkg.name}-linux-x64-musl`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
+    os: "linux",
+    arch: "x64",
+    sourceName: `${pkg.name}-linux-x64-baseline-musl`,
     archive: "tar.gz",
     binary: "dax",
   },
@@ -194,9 +222,23 @@ const releaseTargets: ReleaseTarget[] = [
     binary: "dax",
   },
   {
+    os: "linux",
+    arch: "arm64",
+    sourceName: `${pkg.name}-linux-arm64-musl`,
+    archive: "tar.gz",
+    binary: "dax",
+  },
+  {
     os: "windows",
     arch: "x64",
     sourceName: `${pkg.name}-windows-x64`,
+    archive: "zip",
+    binary: "dax.exe",
+  },
+  {
+    os: "windows",
+    arch: "x64",
+    sourceName: `${pkg.name}-windows-x64-baseline`,
     archive: "zip",
     binary: "dax.exe",
   },
@@ -237,7 +279,7 @@ if (shouldPackageReleaseAssets) {
       throw new Error(`Missing build output for release asset: ${sourceBinary}`)
     }
 
-    const filename = `${pkg.name}-${target.os}-${target.arch}.${target.archive}`
+    const filename = `${target.sourceName}.${target.archive}`
     const destination = path.join(releaseDir, filename)
     const stagingBinary = path.join(stagingDir, target.binary)
 
