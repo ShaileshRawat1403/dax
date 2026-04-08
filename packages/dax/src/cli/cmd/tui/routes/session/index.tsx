@@ -1467,25 +1467,34 @@ export function Session() {
                         </text>
                         <text fg={theme.textMuted}>{paneContextLabel(activePaneMode())}</text>
                       </box>
-                      <Show when={sessionTelemetry().tokens > 0}>
+                      <Show
+                        when={
+                          sessionTelemetry().model ||
+                          sessionTelemetry().tokens > 0 ||
+                          sessionTelemetry().contextPercent !== null ||
+                          sessionTelemetry().cost > 0
+                        }
+                      >
                         <box
                           flexDirection="row"
-                          gap={2}
+                          gap={1}
                           padding={1}
                           border={["round"]}
                           borderColor={theme.borderSubtle}
                           backgroundColor={theme.backgroundElement}
                         >
                           <Show when={sessionTelemetry().model}>
-                            <box flexDirection="column" gap={0}>
+                            <box width={24} flexDirection="column" gap={0}>
                               <text fg={theme.textMuted} bold>
                                 MODEL
                               </text>
-                              <text fg={theme.text}>{sessionTelemetry().model}</text>
+                              <text fg={theme.text} wrapMode="truncate">
+                                {sessionTelemetry().model}
+                              </text>
                             </box>
                           </Show>
                           <Show when={sessionTelemetry().tokens > 0}>
-                            <box flexDirection="column" gap={0}>
+                            <box width={12} flexDirection="column" gap={0}>
                               <text fg={theme.textMuted} bold>
                                 TOKENS
                               </text>
@@ -1493,15 +1502,15 @@ export function Session() {
                             </box>
                           </Show>
                           <Show when={sessionTelemetry().contextPercent !== null}>
-                            <box flexDirection="column" gap={0}>
+                            <box width={10} flexDirection="column" gap={0}>
                               <text fg={theme.textMuted} bold>
                                 CONTEXT
                               </text>
                               <text fg={theme.text}>{sessionTelemetry().contextPercent}%</text>
                             </box>
                           </Show>
-                          <Show when={sessionTelemetry().cost > 0}>
-                            <box flexDirection="column" gap={0}>
+                          <Show when={sessionTelemetry().cost >= 0}>
+                            <box width={10} flexDirection="column" gap={0}>
                               <text fg={theme.textMuted} bold>
                                 COST
                               </text>
