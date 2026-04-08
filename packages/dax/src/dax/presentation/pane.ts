@@ -102,21 +102,12 @@ export function deriveActivePaneMode(input: {
   smartFollowActive: boolean
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
-  if (input.paneVisibility === "pinned" && !input.smartFollowActive) return input.paneMode
-  if (input.paneFollowMode === "live") {
-    return deriveAutoPaneMode({
-      hasApprovals: input.hasApprovals,
-      hasRefineDraft: input.hasRefineDraft,
-      hasAuditAttention: input.hasAuditAttention,
-      hasDiffContext: input.hasDiffContext,
-      hasLiveContext: input.hasLiveContext,
-      hasMemoryContext: input.hasMemoryContext,
-      hasPlanContext: input.hasPlanContext,
-      liveStage: input.liveStage,
-      fallback: input.fallback,
-    })
+
+  if (input.paneVisibility === "pinned") {
+    if (!input.smartFollowActive) return input.paneMode
   }
-  return deriveAutoPaneMode({
+
+  const autoMode = deriveAutoPaneMode({
     hasApprovals: input.hasApprovals,
     hasRefineDraft: input.hasRefineDraft,
     hasAuditAttention: input.hasAuditAttention,
@@ -127,6 +118,71 @@ export function deriveActivePaneMode(input: {
     liveStage: input.liveStage,
     fallback: input.fallback,
   })
+
+  if (input.paneFollowMode === "live") {
+    return autoMode
+  }
+
+  if (input.paneFollowMode === "smart") {
+    if (input.paneVisibility === "pinned" && input.smartFollowActive) {
+      const currentMode = input.paneMode
+      if (isModeStale(currentMode, autoMode, input.liveStage)) {
+        return autoMode
+      }
+      return currentMode
+    }
+    return autoMode
+  }
+
+  return input.paneMode
+}
+
+function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage?: string): boolean {
+  if (currentMode === recommendedMode) return false
+
+  if (currentMode === "approvals" && recommendedMode !== "approvals") {
+    return true
+  }
+
+  if (currentMode === "refine" && recommendedMode === "plan") {
+    return false
+  }
+
+  if (recommendedMode === "plan" && (currentMode === "memory" || currentMode === "diff")) {
+    return true
+  }
+
+  if (recommendedMode === "audit" && currentMode !== "audit" && (liveStage === "verifying" || liveStage === "done")) {
+    return true
+  }
+
+  if (recommendedMode === "diff" && currentMode === "audit" && (liveStage === "verifying" || liveStage === "done")) {
+    return true
+  }
+
+  return false
+}
+
+export function getFollowModeLabel(mode: PaneFollowMode): string {
+  switch (mode) {
+    case "live":
+      return "Live follow"
+    case "smart":
+      return "Smart follow"
+    default:
+      return "Manual"
+  }
+}
+
+export function getFollowModeDescription(mode: PaneFollowMode): string {
+  switch (mode) {
+    case "live":
+      return "Pane follows run stage automatically"
+    case "smart":
+      return "Pane switches only when context changes"
+    default:
+      return "Manual mode"
+  }
 }
 
 export function shouldAutoShowPane(input: {
