@@ -3,7 +3,7 @@ import { cmd } from "./cmd"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { ModelsDev } from "../../provider/models"
-import { map, pipe, sortBy } from "remeda"
+import { filter, map, pipe, sortBy } from "remeda"
 import path from "path"
 import os from "os"
 import { Config } from "../../config/config"
@@ -335,6 +335,7 @@ export const AuthLoginCommand = cmd({
         options: [
           ...pipe(
             Object.entries(providers),
+            filter(([id]) => id !== "claude-code"),
             sortBy(
               ([id, x]) => priority[id] ?? 99,
               ([id, x]) => x.name ?? id,

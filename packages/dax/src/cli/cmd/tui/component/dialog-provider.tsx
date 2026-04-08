@@ -19,8 +19,7 @@ const CORE_PROVIDER_PRIORITY: Record<string, number> = {
   openai: 0,
   google: 1,
   anthropic: 2,
-  "claude-code": 3,
-  ollama: 4,
+  ollama: 3,
 }
 
 export function createDialogProviderOptions() {

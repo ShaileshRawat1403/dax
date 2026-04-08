@@ -245,6 +245,27 @@ async function refreshAnthropicToken(
   }
 }
 
+const CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
+
+type SystemBlock = { type: "text"; text: string; cache_control?: unknown }
+
+function injectClaudeCodeIdentity(system: unknown): SystemBlock[] {
+  const identity: SystemBlock = { type: "text", text: CLAUDE_CODE_IDENTITY }
+  if (system == null) return [identity]
+  if (typeof system === "string") {
+    if (system.startsWith(CLAUDE_CODE_IDENTITY)) return [{ type: "text", text: system }]
+    return [identity, { type: "text", text: system }]
+  }
+  if (Array.isArray(system)) {
+    const blocks = system as SystemBlock[]
+    if (blocks[0]?.type === "text" && typeof blocks[0].text === "string" && blocks[0].text.startsWith(CLAUDE_CODE_IDENTITY)) {
+      return blocks
+    }
+    return [identity, ...blocks]
+  }
+  return [identity]
+}
+
 export async function AnthropicAuthPlugin(input: PluginInput): Promise<Hooks> {
   return {
     auth: {
@@ -293,13 +314,11 @@ export async function AnthropicAuthPlugin(input: PluginInput): Promise<Hooks> {
               if (access && access !== FAKE_ACCESS_TOKEN) {
                 headers.set("Authorization", `Bearer ${access}`)
               }
-              const existingBeta = headers.get("anthropic-beta")
-              const betaFlags = new Set(existingBeta ? existingBeta.split(",").map((s) => s.trim()) : [])
-              betaFlags.add("oauth-2025-04-20")
-              betaFlags.add("claude-code-20250219")
-              betaFlags.add("interleaved-thinking-2025-05-14")
-              betaFlags.add("fine-grained-tool-streaming-2025-05-14")
-              headers.set("anthropic-beta", [...betaFlags].join(","))
+              // Pro/Max OAuth tokens only accept the `oauth-2025-04-20` beta.
+              // Any other beta (claude-code-20250219, interleaved-thinking, fine-grained-tool-streaming)
+              // routes the request into a degraded bucket and triggers premature rate-limiting on
+              // Sonnet/Opus even when quota is fine. REPLACE — never merge.
+              headers.set("anthropic-beta", "oauth-2025-04-20")
 
               const urlStr = iife(() => {
                 if (request instanceof URL) return request.href
@@ -307,7 +326,31 @@ export async function AnthropicAuthPlugin(input: PluginInput): Promise<Hooks> {
                 return String(request)
               })
               const fullUrl = urlStr.startsWith("http") ? urlStr : `https://api.anthropic.com${urlStr}`
-              return fetch(fullUrl, { ...init, headers })
+
+              // CRITICAL: Pro/Max OAuth bearer requires the `system` field of /v1/messages
+              // to begin with the Claude Code identity block. Without it, Anthropic silently
+              // throttles the request into a degraded subscription bucket — the user sees
+              // "rate limited" on Sonnet/Opus while Haiku (much higher per-minute caps) feels fine.
+              // We rewrite the JSON body in-flight to prepend the identity block as the first
+              // system entry. We only touch /v1/messages POSTs with a JSON body.
+              let nextInit: RequestInit | undefined = init
+              if (init?.body && fullUrl.includes("/v1/messages")) {
+                try {
+                  const raw = typeof init.body === "string" ? init.body : await new Response(init.body as any).text()
+                  const parsed = JSON.parse(raw)
+                  parsed.system = injectClaudeCodeIdentity(parsed.system)
+                  nextInit = { ...init, body: JSON.stringify(parsed) }
+                  const nextHeaders = new Headers(headers)
+                  nextHeaders.set("Content-Type", "application/json")
+                  nextHeaders.delete("Content-Length")
+                  return fetch(fullUrl, { ...nextInit, headers: nextHeaders })
+                } catch (err) {
+                  log.warn("anthropic oauth: failed to inject identity into request body", {
+                    error: err instanceof Error ? err.message : String(err),
+                  })
+                }
+              }
+              return fetch(fullUrl, { ...nextInit, headers })
             },
           }
         }

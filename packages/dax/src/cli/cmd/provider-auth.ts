@@ -122,6 +122,7 @@ function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
   const oauthIndex = methods.findIndex(
     (m) =>
       m.label.toLowerCase().includes("pro") ||
+      m.label.toLowerCase().includes("max") ||
       m.label.toLowerCase().includes("plus") ||
       m.label.toLowerCase().includes("sign-in"),
   )
@@ -129,8 +130,8 @@ function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
     visible.push({
       method: methods[oauthIndex]!,
       originalIndex: oauthIndex,
-      title: "Claude Pro/Plus Sign-In",
-      description: "Use Claude with your Anthropic Pro or Plus subscription",
+      title: "Claude Pro/Max Sign-In",
+      description: "Use Claude with your Anthropic Pro or Max subscription",
       hint: "Subscription access",
     })
   }
