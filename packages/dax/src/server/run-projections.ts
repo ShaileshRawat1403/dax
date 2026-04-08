@@ -28,13 +28,16 @@ function interventionKindTitle(kind: InterventionKind): string {
 }
 
 export function buildHeaderProjection(snapshot: RunSnapshot, interventions: RunIntervention[]): RunHeaderProjection {
-  const activeInterventions = interventions.filter(i => i.status === "requested" || i.status === "pending")
-  
-  const interventionSummary = activeInterventions.length > 0 ? {
-    activeCount: activeInterventions.length,
-    primaryKind: activeInterventions[0].kind,
-    message: activeInterventions[0].reason,
-  } : undefined
+  const activeInterventions = interventions.filter((i) => i.status === "requested" || i.status === "pending")
+
+  const interventionSummary =
+    activeInterventions.length > 0
+      ? {
+          activeCount: activeInterventions.length,
+          primaryKind: activeInterventions[0].kind,
+          message: activeInterventions[0].reason,
+        }
+      : undefined
 
   return {
     runId: snapshot.runId,
@@ -45,7 +48,6 @@ export function buildHeaderProjection(snapshot: RunSnapshot, interventions: RunI
     updatedAt: snapshot.updatedAt,
     startedAt: snapshot.startedAt,
     completedAt: snapshot.completedAt,
-    targeting: snapshot.targeting,
     interventionSummary,
   }
 }
@@ -77,9 +79,7 @@ export function buildInterventionProjection(events: RunEvent[]): RunIntervention
     }
   }
 
-  return Array.from(interventions.values()).sort(
-    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)
-  )
+  return Array.from(interventions.values()).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
 }
 
 export function buildProposedChangesProjection(approvals: ApprovalRecord[]): ProposedChange[] {
@@ -87,13 +87,16 @@ export function buildProposedChangesProjection(approvals: ApprovalRecord[]): Pro
 
   for (const approval of approvals) {
     if (approval.context?.diffPreview) {
-      const type: ProposedChange["type"] = 
-        approval.type === "patch_apply" ? "patch" : "file_edit"
-      
-      const status: ProposedChange["status"] = 
-        approval.status === "pending" ? "pending" :
-        approval.status === "approved" ? "approved_not_applied" :
-        approval.status === "denied" ? "rejected" : "stale"
+      const type: ProposedChange["type"] = approval.type === "patch_apply" ? "patch" : "file_edit"
+
+      const status: ProposedChange["status"] =
+        approval.status === "pending"
+          ? "pending"
+          : approval.status === "approved"
+            ? "approved_not_applied"
+            : approval.status === "denied"
+              ? "rejected"
+              : "stale"
 
       changes.push({
         changeId: `chg_${approval.approvalId}`,

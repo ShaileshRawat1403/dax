@@ -76,7 +76,7 @@ export const ImportCommand = cmd({
     await bootstrap(process.cwd(), async () => {
       let exportData:
         | {
-            info: Session.Info
+            info: Session.Info | SDKSession
             messages: Array<{
               info: Message
               parts: Part[]
