@@ -181,7 +181,7 @@ export function RefinePane(props: {
   }
 
   const syncTextareaValue = (next: string) => {
-    if (!textareaRef || !next) return
+    if (!textareaRef) return
     if (textareaRef.plainText === next) return
     textareaRef.setText(next)
   }
@@ -201,8 +201,8 @@ export function RefinePane(props: {
   }
 
   createEffect(() => {
-    const newValue = props.initialPrompt || ""
-    if (textareaRef && newValue && textareaRef.plainText !== newValue && !isDirty()) {
+    const newValue = props.initialPrompt ?? ""
+    if (textareaRef && textareaRef.plainText !== newValue && !isDirty()) {
       syncTextareaValue(newValue)
       setLocalDraft(newValue)
       scheduleFocusToEnd()
