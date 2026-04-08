@@ -52,6 +52,57 @@ describe("runtime action semantics", () => {
     expect(result.commandSummary).toBe("mkdir")
   })
 
+  test("uses derived typed semantics for simple inspect shell commands", () => {
+    const result = deriveRuntimeActionSemantics({
+      toolID: "shell",
+      req: {
+        permission: "shell",
+        patterns: ["git status --short"],
+        metadata: {},
+      },
+    })
+
+    expect(result.actionFamily).toBe("shell")
+    expect(result.governanceIntent).toBe("inspect")
+    expect(result.actionClass).toBe("analyze")
+    expect(result.typedSource).toBe("derived")
+    expect(result.commandSummary).toBe("git status")
+  })
+
+  test("uses derived typed semantics for simple commit shell commands", () => {
+    const result = deriveRuntimeActionSemantics({
+      toolID: "shell",
+      req: {
+        permission: "shell",
+        patterns: ['git commit -m "release"'],
+        metadata: {},
+      },
+    })
+
+    expect(result.actionFamily).toBe("shell")
+    expect(result.governanceIntent).toBe("commit")
+    expect(result.actionClass).toBe("commit")
+    expect(result.typedSource).toBe("derived")
+    expect(result.commandSummary).toBe("git commit")
+  })
+
+  test("uses derived typed semantics for simple publish shell commands", () => {
+    const result = deriveRuntimeActionSemantics({
+      toolID: "shell",
+      req: {
+        permission: "shell",
+        patterns: ["git push origin main"],
+        metadata: {},
+      },
+    })
+
+    expect(result.actionFamily).toBe("shell")
+    expect(result.governanceIntent).toBe("publish")
+    expect(result.actionClass).toBe("publish")
+    expect(result.typedSource).toBe("derived")
+    expect(result.commandSummary).toBe("git push")
+  })
+
   test("falls back honestly for compound shell commands", () => {
     const result = deriveRuntimeActionSemantics({
       toolID: "shell",
@@ -67,18 +118,18 @@ describe("runtime action semantics", () => {
     expect(result.typedSource).toBe("heuristic_fallback")
   })
 
-  test("falls back honestly for commit-style shell commands outside the first typed slice", () => {
+  test("falls back honestly for compound commit-style shell commands", () => {
     const result = deriveRuntimeActionSemantics({
       toolID: "shell",
       req: {
         permission: "shell",
-        patterns: ['git commit -m "release"'],
+        patterns: ['git commit -m "release" && git push'],
         metadata: {},
       },
     })
 
-    expect(result.actionClass).toBe("commit")
-    expect(result.governanceIntent).toBe("commit")
+    expect(result.actionClass).toBe("publish")
+    expect(result.governanceIntent).toBe("publish")
     expect(result.typedSource).toBe("heuristic_fallback")
   })
 })
