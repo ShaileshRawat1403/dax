@@ -14,6 +14,7 @@ process.chdir(dir)
 
 import pkg from "../package.json"
 import { Script } from "@dax-ai/script"
+import { releaseTargets, type ReleaseTarget } from "./release-metadata"
 
 const modelsUrl = process.env.DAX_MODELS_URL || "https://models.dev"
 const modelsData = process.env.MODELS_DEV_API_JSON
@@ -28,14 +29,6 @@ console.log("Generated models-snapshot.ts")
 const singleFlag = process.argv.includes("--single")
 const baselineFlag = process.argv.includes("--baseline")
 const skipInstall = process.argv.includes("--skip-install")
-
-type ReleaseTarget = {
-  os: "darwin" | "linux" | "windows"
-  arch: "arm64" | "x64"
-  sourceName: string
-  archive: "tar.gz" | "zip"
-  binary: "dax" | "dax.exe"
-}
 
 const allTargets: {
   os: string
@@ -163,86 +156,6 @@ async function buildTarget(item: (typeof allTargets)[number]) {
 for (const item of targets) {
   await buildTarget(item)
 }
-
-const releaseTargets: ReleaseTarget[] = [
-  {
-    os: "darwin",
-    arch: "arm64",
-    sourceName: `${pkg.name}-darwin-arm64`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "darwin",
-    arch: "x64",
-    sourceName: `${pkg.name}-darwin-x64`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "darwin",
-    arch: "x64",
-    sourceName: `${pkg.name}-darwin-x64-baseline`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    sourceName: `${pkg.name}-linux-x64`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    sourceName: `${pkg.name}-linux-x64-baseline`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    sourceName: `${pkg.name}-linux-x64-musl`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "linux",
-    arch: "x64",
-    sourceName: `${pkg.name}-linux-x64-baseline-musl`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "linux",
-    arch: "arm64",
-    sourceName: `${pkg.name}-linux-arm64`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "linux",
-    arch: "arm64",
-    sourceName: `${pkg.name}-linux-arm64-musl`,
-    archive: "tar.gz",
-    binary: "dax",
-  },
-  {
-    os: "windows",
-    arch: "x64",
-    sourceName: `${pkg.name}-windows-x64`,
-    archive: "zip",
-    binary: "dax.exe",
-  },
-  {
-    os: "windows",
-    arch: "x64",
-    sourceName: `${pkg.name}-windows-x64-baseline`,
-    archive: "zip",
-    binary: "dax.exe",
-  },
-]
 
 const releaseDir = path.join(dir, "dist", "release")
 const shouldPackageReleaseAssets = !singleFlag || process.env.DAX_BUILD_RELEASE_ASSETS === "1"

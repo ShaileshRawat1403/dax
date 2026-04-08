@@ -90,6 +90,7 @@ Release artifacts produced by `bun run release:check`:
 
 - `artifacts/audit-result.json`
 - `artifacts/doctor-auth.json`
+- `artifacts/release-provenance.json`
 
 Google auth checks:
 
@@ -139,6 +140,14 @@ Required sign-off evidence for every release:
 - package version aligned with the latest tagged changelog entry
 - `artifacts/audit-result.json`
 - `artifacts/doctor-auth.json`
+- `artifacts/release-provenance.json`
+
+Release provenance must prove the cut is coherent:
+
+- `HEAD` tag matches `packages/dax/package.json` version in release mode
+- latest tagged `CHANGELOG` entry matches that same version
+- release manifest, when present, matches the same version and expected asset inventory
+- release mode runs from a clean git working tree
 
 ```bash
 bun run release:verify

@@ -4,8 +4,10 @@ import path from "path"
 import { existsSync } from "fs"
 import fs from "fs/promises"
 import { $ } from "bun"
+import { expectedReleaseAssetFilenames, matchesReleaseTagName, toReleaseTag } from "../packages/dax/script/release-metadata"
 
 const root = process.cwd()
+const releaseMode = process.env.DAX_RELEASE === "1"
 
 const requiredFiles = [
   "CHANGELOG.md",
@@ -39,6 +41,10 @@ function expectIncludes(text: string, needle: string, label: string) {
   if (!text.includes(needle)) {
     throw new Error(`${label} is missing required text: ${needle}`)
   }
+}
+
+async function commandText(command: string) {
+  return (await $`/bin/zsh -lc ${command}`.text()).trim()
 }
 
 const packageJson = JSON.parse(await readRequiredFile("packages/dax/package.json")) as { version?: string }
@@ -103,11 +109,13 @@ expectIncludes(transparency, "provider/auth variability", "docs/product/TRANSPAR
 expectIncludes(transparency, "probabilistic model outputs", "docs/product/TRANSPARENCY_AND_LIMITATIONS.md")
 expectIncludes(transparency, "governance-valid", "docs/product/TRANSPARENCY_AND_LIMITATIONS.md")
 expectIncludes(prerelease, "doctor-auth.json", "docs/product/prerelease.md")
+expectIncludes(prerelease, "release-provenance.json", "docs/product/prerelease.md")
 expectIncludes(prerelease, "main = next development line", "docs/product/prerelease.md")
 expectIncludes(prerelease, "release tag = shipped truth", "docs/product/prerelease.md")
 expectIncludes(releaseReadiness, "doctor auth --json", "docs/product/release-readiness.md")
 expectIncludes(releaseReadiness, "docs updated later", "docs/product/release-readiness.md")
 expectIncludes(releaseReadiness, "tag first, sort truth later", "docs/product/release-readiness.md")
+expectIncludes(releaseReadiness, "release-provenance.json", "docs/product/release-readiness.md")
 
 const ghFound = await $`command -v gh`.nothrow()
 if (ghFound.exitCode !== 0) {
@@ -116,10 +124,31 @@ if (ghFound.exitCode !== 0) {
 
 await $`bun run script/check-repo-integrity.ts`
 
+const gitHeadSha = await commandText("git rev-parse HEAD")
+const gitBranch = await commandText("git branch --show-current")
+const headTags = (await commandText("git tag --points-at HEAD")).split("\n").map((x) => x.trim()).filter(Boolean)
+const expectedTag = toReleaseTag(packageVersion)
+
+if (releaseMode) {
+  const porcelain = await commandText("git status --short")
+  if (porcelain.length > 0) {
+    throw new Error("release provenance check failed: release mode requires a clean git working tree")
+  }
+  if (headTags.length === 0) {
+    throw new Error(`release provenance check failed: HEAD is not tagged; expected ${expectedTag}`)
+  }
+  if (!headTags.some((tag) => matchesReleaseTagName(tag, packageVersion))) {
+    throw new Error(
+      `release provenance check failed: HEAD tags [${headTags.join(", ")}] do not include expected release tag ${expectedTag}`,
+    )
+  }
+}
+
 const artifactsDir = path.join(root, "artifacts")
 await fs.mkdir(artifactsDir, { recursive: true })
 const auditArtifact = path.join(artifactsDir, "audit-result.json")
 const authArtifact = path.join(artifactsDir, "doctor-auth.json")
+const provenanceArtifact = path.join(artifactsDir, "release-provenance.json")
 
 const auditOutput = await $`bun run --cwd packages/dax src/index.ts audit run --profile strict --json`.text().catch((error) => {
   throw new Error(`failed to generate audit artifact: ${error instanceof Error ? error.message : String(error)}`)
@@ -162,5 +191,60 @@ try {
 }
 
 console.log(`release-check: wrote ${path.relative(root, authArtifact)}`)
+
+type ReleaseManifest = {
+  version?: string
+  generated_at?: string
+  assets?: Array<{ filename?: string; platform?: string; arch?: string; sha256?: string }>
+}
+
+const expectedArtifactFilenames = expectedReleaseAssetFilenames()
+const releaseManifestPath = path.join(root, "packages/dax/dist/release/manifest.json")
+let manifest: ReleaseManifest | undefined
+if (existsSync(releaseManifestPath)) {
+  manifest = JSON.parse(await fs.readFile(releaseManifestPath, "utf8")) as ReleaseManifest
+  if (manifest.version && manifest.version !== packageVersion) {
+    throw new Error(
+      `release provenance check failed: dist/release manifest version=${manifest.version} does not match package version=${packageVersion}`,
+    )
+  }
+  const manifestAssets = (manifest.assets ?? []).map((asset) => asset.filename).filter(Boolean) as string[]
+  const missingManifestAssets = expectedArtifactFilenames.filter((filename) => !manifestAssets.includes(filename))
+  if (missingManifestAssets.length > 0) {
+    throw new Error(
+      `release provenance check failed: dist/release manifest is missing expected assets: ${missingManifestAssets.join(", ")}`,
+    )
+  }
+}
+
+const provenance = {
+  generated_at: new Date().toISOString(),
+  release_mode: releaseMode,
+  git: {
+    commit: gitHeadSha,
+    branch: gitBranch,
+    head_tags: headTags,
+    expected_tag: expectedTag,
+  },
+  version: {
+    package: packageVersion,
+    changelog: latestReleaseVersion,
+  },
+  artifacts: {
+    expected: expectedArtifactFilenames,
+    manifest_path: existsSync(releaseManifestPath) ? path.relative(root, releaseManifestPath) : null,
+    manifest_version: manifest?.version ?? null,
+    manifest_generated_at: manifest?.generated_at ?? null,
+    manifest_assets: (manifest?.assets ?? []).map((asset) => ({
+      filename: asset.filename ?? null,
+      platform: asset.platform ?? null,
+      arch: asset.arch ?? null,
+      sha256: asset.sha256 ?? null,
+    })),
+  },
+}
+
+await fs.writeFile(provenanceArtifact, JSON.stringify(provenance, null, 2) + "\n", "utf8")
+console.log(`release-check: wrote ${path.relative(root, provenanceArtifact)}`)
 
 console.log("release-check: ok")
