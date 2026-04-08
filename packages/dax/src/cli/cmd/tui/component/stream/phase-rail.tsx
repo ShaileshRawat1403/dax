@@ -51,6 +51,7 @@ export function PhaseRail(props: {
       marginTop={1}
       border={["top"]}
       borderColor="$borderSubtle"
+      onMouseUp={props.onToggle}
     >
       <text fg={statusColor()}>{expandIcon()}</text>
       <text fg={statusColor()} attributes={props.status === "active" ? "bold" : undefined}>

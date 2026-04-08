@@ -8,6 +8,7 @@ import { AlertInline } from "./alert-inline"
 export function StreamItem(props: {
   item: RenderableStreamItem
   expanded: boolean
+  isLast: boolean
   onTogglePhase: () => void
   MessageComponent: typeof MessagePlaceholder
 }) {
@@ -34,11 +35,11 @@ export function StreamItem(props: {
       </Match>
 
       <Match when={props.item.kind === "message.user"}>
-        <props.MessageComponent message={props.item.data as UserMessage} last={false} />
+        <props.MessageComponent message={props.item.data as UserMessage} last={props.isLast} />
       </Match>
 
       <Match when={props.item.kind === "message.assistant"}>
-        <props.MessageComponent message={props.item.data as AssistantMessage} last={false} />
+        <props.MessageComponent message={props.item.data as AssistantMessage} last={props.isLast} />
       </Match>
     </Switch>
   )
