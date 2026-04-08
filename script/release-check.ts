@@ -43,8 +43,22 @@ function expectIncludes(text: string, needle: string, label: string) {
   }
 }
 
-async function commandText(command: string) {
-  return (await $`/bin/zsh -lc ${command}`.text()).trim()
+async function gitText(args: string[]) {
+  const proc = Bun.spawn(["git", ...args], {
+    cwd: root,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  if (exitCode !== 0) {
+    const detail = stderr.trim() || stdout.trim() || `git ${args.join(" ")} exited with code ${exitCode}`
+    throw new Error(`git command failed: ${detail}`)
+  }
+  return stdout.trim()
 }
 
 const packageJson = JSON.parse(await readRequiredFile("packages/dax/package.json")) as { version?: string }
@@ -124,13 +138,13 @@ if (ghFound.exitCode !== 0) {
 
 await $`bun run script/check-repo-integrity.ts`
 
-const gitHeadSha = await commandText("git rev-parse HEAD")
-const gitBranch = await commandText("git branch --show-current")
-const headTags = (await commandText("git tag --points-at HEAD")).split("\n").map((x) => x.trim()).filter(Boolean)
+const gitHeadSha = await gitText(["rev-parse", "HEAD"])
+const gitBranch = await gitText(["branch", "--show-current"])
+const headTags = (await gitText(["tag", "--points-at", "HEAD"])).split("\n").map((x) => x.trim()).filter(Boolean)
 const expectedTag = toReleaseTag(packageVersion)
 
 if (releaseMode) {
-  const porcelain = await commandText("git status --short")
+  const porcelain = await gitText(["status", "--short"])
   if (porcelain.length > 0) {
     throw new Error("release provenance check failed: release mode requires a clean git working tree")
   }
