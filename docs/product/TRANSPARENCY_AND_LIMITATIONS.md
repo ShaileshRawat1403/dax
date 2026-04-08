@@ -2,18 +2,26 @@
 
 DAX is designed for trust. This document explains what DAX can do, what it cannot guarantee, and why human oversight matters.
 
+The short version: DAX provides a **deterministic runtime contract around stochastic model execution**. It governs how work proceeds, records what happened, and blocks risky transitions. It does not make the underlying model itself deterministic.
+
 ## What DAX Can Do
 
-| Capability                                         | How                                                                  |
-| -------------------------------------------------- | -------------------------------------------------------------------- |
-| Execute multi-step workflows from natural language | Contract system builds a deterministic execution plan                |
-| Record every step                                  | Event log captures all proposals, approvals, decisions, and outcomes |
-| Replay any run from its event log                  | Deterministic replay reconstructs the full execution path            |
-| Recover from crashes                               | Event log recovery resumes from last known state                     |
-| Govern risky actions                               | Approval gates pause execution for human review                      |
-| Audit execution history                            | Trust scores, terminal reasons, and contract violations are tracked  |
+| Capability                                         | How                                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Execute multi-step workflows from natural language | Contract system compiles a bounded execution plan and enforces runtime guardrails   |
+| Record every step                                  | Event log captures all proposals, approvals, decisions, and outcomes                |
+| Replay any run from its event log                  | Replay reconstructs the execution path and runtime state transitions                |
+| Recover from crashes                               | Event log recovery resumes from last known state                                    |
+| Govern risky actions                               | Approval gates pause execution for human review                                     |
+| Audit execution history                            | Trust scores, terminal reasons, and contract violations are tracked                 |
 
 ## What DAX Cannot Guarantee
+
+## First-Class Limitations
+
+- provider/auth variability can still affect runtime reliability even when DAX's own state machine is healthy
+- probabilistic model outputs can still be wrong, incomplete, or inconsistent across runs
+- completion proof is governance-valid, not a full semantic proof that the technical outcome is correct
 
 ### 1. Correctness of AI output
 
@@ -24,7 +32,7 @@ DAX governs _how_ AI executes, not _what_ the AI produces. The underlying model 
 - miss edge cases
 - generate correct-looking but subtly wrong output
 
-DAX catches these through **contract mutation detection** and **approval gates**, but it cannot prevent the model from being wrong.
+DAX catches some of this through **contract mutation detection** and **approval gates**, but it cannot prevent the model from being wrong.
 
 ```mermaid
 graph TB
@@ -53,7 +61,7 @@ DAX is intentionally **not fully autonomous**. The approval gates exist because:
 
 ### 3. Provider dependency
 
-DAX depends on external model providers (OpenAI, Google, Anthropic). If a provider:
+DAX depends on external model providers (OpenAI, Google, Anthropic). Provider/auth variability remains a real limitation. If a provider:
 
 - goes down — DAX cannot execute model-dependent steps
 - changes its API — DAX may need updates
@@ -106,7 +114,7 @@ If the AI tries to do something outside the contract, DAX detects a **contract m
 2. records the violation
 3. requires a new contract (or a new run) to proceed
 
-This prevents scope creep and keeps execution predictable.
+This prevents scope creep and keeps execution predictable, but it is still a governance-valid guarantee rather than a full semantic guarantee that the resulting work is correct.
 
 ## Graceful Degradation
 

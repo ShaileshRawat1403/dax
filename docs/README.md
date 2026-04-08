@@ -1,6 +1,6 @@
 # DAX Documentation Portal
 
-Welcome to the canonical documentation for **DAX (Deterministic AI eXecution)**. This portal is designed to provide clear guidance for users, contributors, and architects.
+Welcome to the canonical documentation for **DAX**, the governed execution workstation built around a deterministic runtime contract for stochastic model execution. This portal is designed to provide clear guidance for users, contributors, and architects.
 
 This index is release-facing. Internal planning and maintainer-only notes are intentionally excluded from the links below.
 
@@ -97,7 +97,7 @@ graph LR
 
 ## Architecture & Governance
 
-The internal models and decision records that power the deterministic runtime.
+The internal models and decision records that power DAX's governed runtime contract.
 
 ### Core Models
 

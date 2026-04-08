@@ -2,6 +2,13 @@
 
 This guide explains how to validate DAX end to end before a release.
 
+Release truth comes first:
+
+- `main` is the next development line
+- a release tag is the shipped truth
+- the top tagged `CHANGELOG` entry is the exact shipped delta
+- post-release commits must land under `## [Unreleased]`
+
 ## Purpose
 
 Use this checklist when you want confidence that the shipped DAX product still works as a complete experience:
@@ -32,6 +39,7 @@ Run these from the repository root.
 ```bash
 bun run --cwd packages/dax src/index.ts --help
 bun run release:check
+bun run --cwd packages/dax src/index.ts doctor auth --json
 bun run --cwd packages/dax src/index.ts doctor --json
 bun run --cwd packages/dax src/index.ts doctor lsp --json
 bun run --cwd packages/dax src/index.ts debug lsp status
@@ -54,6 +62,9 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 - `bun run release:check` should fail when legal docs are placeholders
 - `bun run release:check` should fail when markdown links or referenced assets are missing
 - `bun run release:check` should fail when new edits land under root legacy paths in CI
+- `bun run release:check` should fail when `CHANGELOG.md` has no `Unreleased` section
+- `bun run release:check` should fail when package version and latest tagged changelog entry drift
+- `bun run release:check` should write both `artifacts/audit-result.json` and `artifacts/doctor-auth.json`
 
 ### Doctor
 
@@ -95,6 +106,7 @@ Observed on March 30, 2026:
 
 - CLI help rendered correctly
 - `bun run release:check` passed and wrote `artifacts/audit-result.json`
+- `bun run --cwd packages/dax src/index.ts doctor auth --json` returned structured provider readiness details
 - `dax doctor --json` returned overall `ready`
 - auth, env, and project reported ready
 - `dax doctor lsp --json` returned an idle-but-ready LSP section with enabled server visibility
@@ -152,6 +164,20 @@ You are in a reasonable pre-release state when:
 8. docs strict QA works
 9. interactive TUI review flows feel coherent
 10. any remaining degraded or blocked doctor result is understood and intentional
+
+Maintainer anti-drift blockers:
+
+- "docs updated later"
+- "we'll fix provider wording after release"
+- "tag first, sort truth later"
+
+Release-facing docs must describe only shipped behavior and should use the same core framing:
+
+- governed execution
+- runtime contract
+- evidence-based completion
+- operator workstation
+- deterministic runtime contract around stochastic model execution
 
 ## Next Actions
 
