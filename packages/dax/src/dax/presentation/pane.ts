@@ -44,6 +44,25 @@ export function memoryLabel(eli12: boolean) {
   return "plan"
 }
 
+export function paneContextLabel(mode: PaneMode): string {
+  switch (mode) {
+    case "plan":
+      return "Governed execution"
+    case "approvals":
+      return "Awaiting operator decision"
+    case "diff":
+      return "Proposed changes"
+    case "audit":
+      return "Verification and trust"
+    case "memory":
+      return "Context memory"
+    case "refine":
+      return "Refine plan"
+    default:
+      return "Workstation"
+  }
+}
+
 export function deriveAutoPaneMode(input: {
   hasApprovals: boolean
   hasRefineDraft: boolean

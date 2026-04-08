@@ -139,6 +139,22 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       }
     }
 
+    const projectionRefreshDebounce = new Map<string, ReturnType<typeof setTimeout>>()
+    const PROJECTION_DEBOUNCE_MS = 50
+
+    function debouncedProjectionRefresh(sessionID: string) {
+      const existing = projectionRefreshDebounce.get(sessionID)
+      if (existing) clearTimeout(existing)
+
+      projectionRefreshDebounce.set(
+        sessionID,
+        setTimeout(() => {
+          updateProjection(sessionID)
+          projectionRefreshDebounce.delete(sessionID)
+        }, PROJECTION_DEBOUNCE_MS),
+      )
+    }
+
     const updateOverview = async () => {
       try {
         const response = await sdk.client.run.overview({ limit: 25 })
@@ -315,6 +331,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               )
             })
           }
+          debouncedProjectionRefresh(event.properties.info.sessionID)
           break
         }
         case "message.removed": {
@@ -402,32 +419,44 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
           // Specialized collection updates
           if (event.type === "approval.requested") {
-            setStore("approvals", runId, produce((draft) => {
-              if (!draft) draft = []
-              draft.push(event.payload.approval)
-            }))
+            setStore(
+              "approvals",
+              runId,
+              produce((draft) => {
+                if (!draft) draft = []
+                draft.push(event.payload.approval)
+              }),
+            )
           } else if (event.type === "approval.resolved") {
-            setStore("approvals", runId, produce((draft) => {
-              if (!draft) return
-              const match = draft.find(a => a.approvalId === event.payload.approvalId)
-              if (match) {
-                match.status = event.payload.status
-                match.resolution = {
-                  decision: event.payload.decision,
-                  actorId: event.payload.actorId,
-                  source: event.payload.source,
-                  comment: event.payload.comment,
+            setStore(
+              "approvals",
+              runId,
+              produce((draft) => {
+                if (!draft) return
+                const match = draft.find((a) => a.approvalId === event.payload.approvalId)
+                if (match) {
+                  match.status = event.payload.status
+                  match.resolution = {
+                    decision: event.payload.decision,
+                    actorId: event.payload.actorId,
+                    source: event.payload.source,
+                    comment: event.payload.comment,
+                  }
+                  match.resolvedAt = event.payload.resolvedAt
                 }
-                match.resolvedAt = event.payload.resolvedAt
-              }
-            }))
+              }),
+            )
           } else if (event.type === "artifact.created") {
-            setStore("artifacts", runId, produce((draft) => {
-              if (!draft) draft = []
-              draft.push(event.payload.artifact)
-            }))
+            setStore(
+              "artifacts",
+              runId,
+              produce((draft) => {
+                if (!draft) draft = []
+                draft.push(event.payload.artifact)
+              }),
+            )
           }
-          
+
           updateProjection(runId)
           updateOverview()
           break
