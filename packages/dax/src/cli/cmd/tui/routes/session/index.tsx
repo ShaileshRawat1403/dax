@@ -316,6 +316,25 @@ export function Session() {
     return -1
   })
 
+  const sessionTelemetry = createMemo(() => {
+    const totalTokens = sessionTokenTotal(messages())
+    const totalCost = sessionCostTotal(messages())
+    const context = latestContextUsage(messages(), sync.data.provider)
+    const lastAssistant = [...messages()]
+      .reverse()
+      .find(
+        (m): m is Extract<typeof m, { role: "assistant" } & { providerID?: string }> =>
+          m.role === "assistant" && "providerID" in m && !!m.providerID,
+      )
+    const modelName = lastAssistant?.providerID ? `${lastAssistant.providerID}/${lastAssistant.modelID}` : null
+    return {
+      tokens: totalTokens,
+      cost: totalCost,
+      contextPercent: context?.percentage ?? null,
+      model: modelName,
+    }
+  })
+
   const currentRun = createMemo(() => {
     return projectedRun()?.header
   })
@@ -1435,6 +1454,49 @@ export function Session() {
                         </text>
                         <text fg={theme.textMuted}>{paneContextLabel(activePaneMode())}</text>
                       </box>
+                      <Show when={sessionTelemetry().tokens > 0}>
+                        <box
+                          flexDirection="row"
+                          gap={2}
+                          padding={1}
+                          border={["round"]}
+                          borderColor={theme.borderSubtle}
+                          backgroundColor={theme.backgroundElement}
+                        >
+                          <Show when={sessionTelemetry().model}>
+                            <box flexDirection="column" gap={0}>
+                              <text fg={theme.textMuted} bold>
+                                MODEL
+                              </text>
+                              <text fg={theme.text}>{sessionTelemetry().model}</text>
+                            </box>
+                          </Show>
+                          <Show when={sessionTelemetry().tokens > 0}>
+                            <box flexDirection="column" gap={0}>
+                              <text fg={theme.textMuted} bold>
+                                TOKENS
+                              </text>
+                              <text fg={theme.text}>{sessionTelemetry().tokens.toLocaleString()}</text>
+                            </box>
+                          </Show>
+                          <Show when={sessionTelemetry().contextPercent !== null}>
+                            <box flexDirection="column" gap={0}>
+                              <text fg={theme.textMuted} bold>
+                                CONTEXT
+                              </text>
+                              <text fg={theme.text}>{sessionTelemetry().contextPercent}%</text>
+                            </box>
+                          </Show>
+                          <Show when={sessionTelemetry().cost > 0}>
+                            <box flexDirection="column" gap={0}>
+                              <text fg={theme.textMuted} bold>
+                                COST
+                              </text>
+                              <text fg={theme.text}>{formatUsd(sessionTelemetry().cost)}</text>
+                            </box>
+                          </Show>
+                        </box>
+                      </Show>
                       <Show
                         when={
                           !!workstationState().goal ||
