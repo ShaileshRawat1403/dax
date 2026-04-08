@@ -1893,6 +1893,7 @@ export function Session() {
             setWorkflowMode(() => modes[(idx + 1) % modes.length])
           }}
         />
+        <Toast />
       </box>
     </context.Provider>
   )
