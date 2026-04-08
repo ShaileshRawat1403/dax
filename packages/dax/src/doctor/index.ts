@@ -6,6 +6,7 @@ import { aggregateProductState, labelProductState, type ProductState } from "@/d
 import { LSP } from "@/lsp"
 import { MCP } from "@/mcp"
 import { diagnoseProviderAuth, expectedGoogleOauthClientIds, type AuthDiagnostics } from "@/provider/auth-preflight"
+import { providerFailureNextStep, providerLaneLabel } from "@/provider/diagnostics"
 import { Project } from "@/project/project"
 import { Vcs } from "@/project/vcs"
 import { detectPythonEnvironment } from "@/cli/cmd/tui/util/environment"
@@ -171,9 +172,10 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
   const detail = reports.flatMap((report) => {
     const base = `${report.providerID}: ${report.ok ? "connected" : "blocked"} (${report.mode})`
     const details = [
-      ...(report.lane ? [`lane: ${report.lane}`] : []),
+      ...(report.lane ? [`lane: ${report.laneLabel ?? providerLaneLabel(report.lane) ?? report.lane} (${report.lane})`] : []),
       ...(report.source ? [`credential source: ${report.source}`] : []),
       ...(report.endpoint ? [`endpoint: ${report.endpoint}`] : []),
+      ...(report.failureCategory ? [`failure category: ${report.failureCategory}`] : []),
     ]
     const missing = report.missingEnv.length > 0 ? `missing ${report.missingEnv.join(", ")}` : undefined
     return [
@@ -186,13 +188,30 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
 
   const next =
     failing.length > 0
-      ? [
-          "Run `dax auth login` for the provider you want to use first.",
-          "Run `dax doctor auth --json` for machine-readable diagnostics.",
-        ]
+      ? Array.from(
+          new Set([
+            "Run `dax auth login` for the provider you want to use first.",
+            "Run `dax doctor auth --json` for machine-readable diagnostics.",
+            ...failing.flatMap((report) =>
+              report.next && report.next.length > 0
+                ? report.next
+                : report.failureCategory
+                  ? [
+                      providerFailureNextStep({
+                        category: report.failureCategory,
+                        providerID: report.providerID,
+                        lane: report.lane,
+                      }),
+                    ]
+                  : [],
+            ),
+          ]),
+        )
       : ["Authentication is ready for the checked providers."]
 
-  const audiences = expectedGoogleOauthClientIds()
+  const audiences = reports.some((report) => report.providerID.startsWith("google"))
+    ? Array.from(new Set(expectedGoogleOauthClientIds()))
+    : []
   if (audiences.length > 0) {
     detail.push(`Google OAuth client ids in play: ${audiences.join(", ")}`)
   }

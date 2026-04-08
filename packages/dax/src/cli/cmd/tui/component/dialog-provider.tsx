@@ -14,6 +14,7 @@ import { useKeyboard } from "@opentui/solid"
 import { Clipboard } from "@tui/util/clipboard"
 import { useToast } from "../ui/toast"
 import { getVisibleProviderAuthMethods } from "../../provider-auth"
+import { describeProviderFailure, type ProviderLane } from "@/provider/diagnostics"
 
 const CORE_PROVIDER_PRIORITY: Record<string, number> = {
   openai: 0,
@@ -124,6 +125,7 @@ export function createDialogProviderOptions() {
                     providerID={provider.id}
                     title={selectedTitle}
                     index={index}
+                    lane={selectedVisibleMethod?.lane}
                     authorization={result.data}
                   />
                 ))
@@ -134,6 +136,7 @@ export function createDialogProviderOptions() {
                     providerID={provider.id}
                     title={selectedTitle}
                     index={index}
+                    lane={selectedVisibleMethod?.lane}
                     authorization={result.data}
                   />
                 ))
@@ -159,6 +162,7 @@ interface AutoMethodProps {
   index: number
   providerID: string
   title: string
+  lane?: ProviderLane
   authorization: ProviderAuthAuthorization
 }
 function AutoMethod(props: AutoMethodProps) {
@@ -212,29 +216,33 @@ function AutoMethod(props: AutoMethodProps) {
     if (result.error) {
       const name = errorName(result.error)
       const message = errorMessage(result.error)
-      const isCliImportLane = props.title.includes("CLI Session Import")
+      const normalized = describeProviderFailure({
+        providerID: props.providerID,
+        lane: props.lane,
+        errorName: name,
+        message,
+      })
       if (name === "ProviderAuthOauthMissing") {
-        setError(
-          isCliImportLane
-            ? "Gemini CLI session not ready. Run `gemini`, finish login in the terminal, then press r to retry."
-            : "Authorization not ready. Complete sign-in in browser, then press r to retry.",
-        )
+        setError(`${normalized.laneLabel} is not ready (${normalized.category}). ${normalized.nextStep}`)
         running = false
         return
       }
       if (name === "ProviderAuthOauthCallbackFailed") {
         setError(
-          message ??
-            (isCliImportLane
-              ? "Gemini CLI import failed. Refresh your `gemini` login and press esc to start again."
-              : "Browser callback was received, but token verification failed. Press esc and start sign-in again."),
+          message
+            ? `${normalized.laneLabel} failed (${normalized.category}). ${message}`
+            : `${normalized.laneLabel} failed (${normalized.category}). ${normalized.nextStep}`,
         )
         setFatal(true)
         if (timer) clearInterval(timer)
         running = false
         return
       }
-      setError(message ?? `Authorization error: ${name ?? "unknown"}. Press esc and retry.`)
+      setError(
+        message
+          ? `${normalized.laneLabel} failed (${normalized.category}). ${message}`
+          : `${normalized.laneLabel} failed (${normalized.category}). ${normalized.nextStep}`,
+      )
       running = false
       return
     }
@@ -320,6 +328,7 @@ interface CodeMethodProps {
   index: number
   title: string
   providerID: string
+  lane?: ProviderLane
   authorization: ProviderAuthAuthorization
 }
 function CodeMethod(props: CodeMethodProps) {
