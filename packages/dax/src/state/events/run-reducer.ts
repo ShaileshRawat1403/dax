@@ -50,6 +50,9 @@ export type RunState = {
       verificationExecuted: boolean
       receiptIds: string[]
       artifactChecks: boolean
+      expectedOutputChecks: boolean
+      expectedOutputTypesSatisfied: string[]
+      expectedOutputTypesMissing: string[]
       scopeChecks: boolean
       sensitivePathApprovalChecks: boolean
       checkedAt: string
