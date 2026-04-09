@@ -2466,7 +2466,6 @@ const PART_MAPPING = {
 
 function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPart[] } }) {
   const { theme } = useTheme()
-  const ctx = use()
   const tools = props.part.tools
   const allCompleted = createMemo(() => tools.every((t) => t.state.status === "completed"))
   const hasActive = createMemo(() => tools.some((t) => t.state.status === "pending" || t.state.status === "running"))
@@ -2497,6 +2496,20 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
       .join(", ")
   })
 
+  const evidenceSummary = createMemo(() => {
+    const labels = tools
+      .map((tool) => {
+        const trace = deriveOperatorTraceLine(tool)
+        return trimPunctuation(trace?.target ?? tool.tool)
+      })
+      .filter((label): label is string => !!label)
+
+    if (labels.length === 0) return undefined
+    const head = labels.slice(0, 3).map((label) => formatInlineCode(label))
+    const suffix = labels.length > 3 ? ` + ${labels.length - 3} more` : ""
+    return `${head.join(", ")}${suffix}`
+  })
+
   return (
     <box
       flexDirection="column"
@@ -2523,18 +2536,14 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
           </text>
         </Show>
       </box>
-      <Show when={allCompleted() && ctx.showAssistantMetadata()}>
-        <box flexDirection="column" gap={0} paddingTop={0}>
-          <For each={tools}>
-            {(tool) => {
-              const trace = deriveOperatorTraceLine(tool)
-              return (
-                <text fg={theme.textMuted} dim>
-                  • {trace?.summary ?? tool.tool}
-                </text>
-              )
-            }}
-          </For>
+      <Show when={allCompleted() && evidenceSummary()}>
+        <box flexDirection="row" gap={1} paddingTop={0} alignItems="flex-start">
+          <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+            Evidence
+          </text>
+          <text fg={theme.textMuted} wrapMode="word">
+            {evidenceSummary()}
+          </text>
         </box>
       </Show>
     </box>

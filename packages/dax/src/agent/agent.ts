@@ -101,6 +101,7 @@ export namespace Agent {
         description: "Plan mode. Disallows all edit tools.",
         options: {},
         prompt: PROMPT_PLAN_AGENT,
+        steps: Math.max(10, Number(process.env.DAX_MAX_PLAN_STEPS ?? 24)),
         permission: Permission.merge(
           defaults,
           Permission.fromConfig({
