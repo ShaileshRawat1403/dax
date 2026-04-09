@@ -166,6 +166,9 @@ const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs", "aud
 const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
 const MUTATION_INTENT_RE =
   /\b(create|add|edit|update|change|fix|delete|remove|rename|move|install|run|execute|patch|write|commit|push|release|publish)\b/i
+const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
+const NARRATIVE_FOLLOW_SLACK = 2
+const FOLLOW_RESUME_THRESHOLD = 1
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -619,6 +622,13 @@ export function Session() {
   const modeLabel = createMemo(() => local.agent.current().name.toUpperCase())
 
   const [smartFollowActive, setSmartFollowActive] = createSignal(true)
+  const [motionTick, setMotionTick] = createSignal(0)
+
+  createEffect(() => {
+    if (!animationsEnabled()) return
+    const timer = setInterval(() => setMotionTick((tick) => tick + 1), 220)
+    onCleanup(() => clearInterval(timer))
+  })
 
   const wide = createMemo(() => dimensions().width > 120)
   const narrow = createMemo(() => dimensions().width < 80)
@@ -649,6 +659,22 @@ export function Session() {
     return availableWidth > 80 ? "side-by-side" : "unified"
   })
   const followEnabled = createMemo(() => paneFollowMode() === "live" || smartFollowActive())
+  const followGlyph = createMemo(() => {
+    if (!animationsEnabled()) return "●"
+    return LIVE_FOLLOW_FRAMES[motionTick() % LIVE_FOLLOW_FRAMES.length] ?? "●"
+  })
+  const followActionLabel = createMemo(() => {
+    if (followEnabled()) {
+      return sessionStatusType() === "busy" || pending()
+        ? `${followGlyph()} FOLLOW LIVE`
+        : "FOLLOW ON"
+    }
+    return "FOLLOW OFF"
+  })
+  const liveBorderColor = createMemo(() => {
+    if (!animationsEnabled() || !(sessionStatusType() === "busy" || pending())) return theme.borderSubtle
+    return motionTick() % 4 < 2 ? theme.borderActive : tint(theme.borderSubtle, theme.primary, 0.45)
+  })
 
   const recentTooling = createMemo(() => {
     const items: Array<{ label: string; status?: string }> = []
@@ -790,6 +816,24 @@ export function Session() {
       pmRuleCount: memoryRules().rows.length,
     }),
   )
+  const memoryState = createMemo(() => {
+    const error = memoryLoadError()
+    if (error && /no context found for instance/i.test(error)) {
+      return {
+        tone: "empty" as const,
+        title: "Memory snapshot not available yet",
+        detail: "Use /pm rules to add durable context, or let the current run build more working memory.",
+      }
+    }
+    if (error) {
+      return {
+        tone: "error" as const,
+        title: "Memory load error",
+        detail: error,
+      }
+    }
+    return undefined
+  })
 
   const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
   const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0)
@@ -1018,13 +1062,37 @@ export function Session() {
 
   const scrollAcceleration = () => (process.platform === "darwin" ? new MacOSScrollAccel() : new CustomSpeedScroll(1))
 
-  const scrollNarrative = () => {
+  const narrativeBottomOffset = () => {
+    if (!narrativeScroll) return 0
+    return narrativeScroll.scrollHeight - (narrativeScroll.scrollTop + narrativeScroll.height)
+  }
+
+  const isNarrativeNearBottom = () => narrativeBottomOffset() <= NARRATIVE_FOLLOW_SLACK
+  const wasNarrativeNearBottom = (scrollTop: number, scrollHeight: number, viewportHeight: number) =>
+    scrollHeight - (scrollTop + viewportHeight) <= FOLLOW_RESUME_THRESHOLD
+
+  const scrollNarrative = (options?: { force?: boolean }) => {
     if (!narrativeScroll) return
+    if (!options?.force && !followEnabled()) return
     try {
+      setLastProgrammaticScrollAt(Date.now())
       narrativeScroll.scrollTo(narrativeScroll.scrollHeight)
     } catch {
       // Keep rendering resilient if scrollbox metrics are transiently unavailable.
     }
+  }
+
+  const toggleNarrativeFollow = () => {
+    if (paneFollowMode() === "live") {
+      setPaneFollowMode(() => "smart")
+      setSmartFollowActive(false)
+      return
+    }
+    setSmartFollowActive((active) => {
+      const next = !active
+      if (next) setTimeout(() => scrollNarrative({ force: true }), 0)
+      return next
+    })
   }
 
   const [lastMessageCount, setLastMessageCount] = createSignal(0)
@@ -1055,6 +1123,40 @@ export function Session() {
       setLastPartCount(total)
       scrollNarrative()
     }
+  })
+
+  const [lastNarrativeHeight, setLastNarrativeHeight] = createSignal(0)
+  const [lastNarrativeScrollTop, setLastNarrativeScrollTop] = createSignal(0)
+  const [lastProgrammaticScrollAt, setLastProgrammaticScrollAt] = createSignal(0)
+  createEffect(() => {
+    const timer = setInterval(() => {
+      const scroll = narrativeScroll
+      if (!scroll) return
+      const previousTop = lastNarrativeScrollTop()
+      const previousHeight = lastNarrativeHeight()
+      const currentTop = scroll.scrollTop
+      const nextHeight = scroll.scrollHeight
+      const viewportHeight = scroll.height
+      const topChanged = currentTop !== previousTop
+      const heightChanged = nextHeight !== lastNarrativeHeight()
+      const nearBottomBefore = wasNarrativeNearBottom(previousTop, previousHeight, viewportHeight)
+      const userMovedAway =
+        topChanged &&
+        Date.now() - lastProgrammaticScrollAt() > 250 &&
+        !isNarrativeNearBottom() &&
+        currentTop < previousTop
+
+      if (userMovedAway && paneFollowMode() !== "live") {
+        setSmartFollowActive(false)
+      }
+
+      if (heightChanged && followEnabled() && nearBottomBefore) {
+        scrollNarrative({ force: true })
+      }
+      setLastNarrativeScrollTop(scroll.scrollTop)
+      setLastNarrativeHeight(scroll.scrollHeight)
+    }, animationsEnabled() ? 120 : 180)
+    onCleanup(() => clearInterval(timer))
   })
 
   const renderer = useRenderer()
@@ -1198,6 +1300,16 @@ export function Session() {
     }
   })
 
+  const todoSummary = createMemo(() => {
+    const steps = workstationState().planSummary.steps
+    return {
+      total: steps.length,
+      completed: steps.filter((step) => step.status === "done").length,
+      active: steps.filter((step) => step.status === "active").length,
+      pending: steps.filter((step) => step.status === "pending").length,
+    }
+  })
+
   const trustSurface = createMemo(() => ({
     label: workstationState().trustLabel.toLowerCase(),
     color:
@@ -1241,6 +1353,11 @@ export function Session() {
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
           actions={[
             {
+              label: followActionLabel(),
+              onPress: toggleNarrativeFollow,
+              primary: followEnabled(),
+            },
+            {
               label: paneVisibility() === "hidden" ? "Show Workstation" : `Workstation: ${paneVisibility()}`,
               onPress: cyclePaneVisibility,
             },
@@ -1259,6 +1376,28 @@ export function Session() {
             paddingBottom={1}
           >
             <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} gap={1}>
+              <Show when={!followEnabled() && streamItems().length > 0}>
+                <box
+                  paddingLeft={1}
+                  paddingRight={1}
+                  paddingTop={0}
+                  paddingBottom={0}
+                  borderStyle="round"
+                  borderColor={theme.warning}
+                  backgroundColor={tint(theme.backgroundElement, theme.warning, 0.08)}
+                  flexDirection="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  gap={1}
+                >
+                  <text fg={theme.warning} attributes={TextAttributes.BOLD}>
+                    Follow paused
+                  </text>
+                  <text fg={theme.textMuted} wrapMode="truncate-end">
+                    Turn follow back on to snap to the live edge.
+                  </text>
+                </box>
+              </Show>
               <Show when={streamItems().length === 0}>
                 <box
                   paddingLeft={2}
@@ -1266,7 +1405,7 @@ export function Session() {
                   paddingTop={1}
                   paddingBottom={1}
                   borderStyle="round"
-                  borderColor={theme.borderSubtle}
+                  borderColor={liveBorderColor()}
                   backgroundColor={tint(theme.background, theme.backgroundElement, 0.22)}
                   flexDirection="column"
                   gap={0}
@@ -1305,12 +1444,12 @@ export function Session() {
                     <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                       <Spinner color={theme.primary} />
                       <box
-                        backgroundColor={tint(theme.background, theme.primary, 0.24)}
+                        backgroundColor={tint(theme.background, theme.primary, motionTick() % 4 < 2 ? 0.24 : 0.14)}
                         paddingLeft={1}
                         paddingRight={1}
                       >
                         <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                          {modeLabel()}
+                          {followGlyph()} {modeLabel()}
                         </text>
                       </box>
                       <text fg={theme.text}>{doing()}</text>
@@ -1601,9 +1740,9 @@ export function Session() {
                             gap={1}
                             flexWrap="wrap"
                             padding={1}
-                            backgroundColor={theme.backgroundElement}
+                            backgroundColor={tint(theme.backgroundElement, theme.primary, motionTick() % 4 < 2 ? 0.06 : 0.02)}
                             border={["round"]}
-                            borderColor={theme.borderSubtle}
+                            borderColor={liveBorderColor()}
                           >
                             <Show when={sessionStatusType() === "busy"}>
                               <box backgroundColor={theme.accent} paddingLeft={1} paddingRight={1} marginRight={1}>
@@ -1714,6 +1853,39 @@ export function Session() {
                               <text fg={theme.textMuted} wrapMode="word">
                                 Top: {workstationState().approvalSummary.topReason}
                               </text>
+                            </box>
+                          </Show>
+
+                          <Show when={workstationState().planSummary.totalSteps > 0}>
+                            <box
+                              flexDirection="column"
+                              gap={0}
+                              padding={1}
+                              backgroundColor={tint(theme.backgroundElement, theme.secondary, 0.06)}
+                              border={["round"]}
+                              borderColor={theme.secondary}
+                            >
+                              <box flexDirection="row" justifyContent="space-between" alignItems="center">
+                                <text fg={theme.secondary} bold>
+                                  STEP TRACKER
+                                </text>
+                                <text fg={theme.textMuted}>
+                                  {todoSummary().completed}/{todoSummary().total} done
+                                </text>
+                              </box>
+                              <Show when={todoSummary().active > 0 || todoSummary().pending > 0}>
+                                <text fg={theme.textMuted} wrapMode="word">
+                                  {todoSummary().active > 0
+                                    ? `${todoSummary().active} active`
+                                    : "No active step"}{" "}
+                                  · {todoSummary().pending} waiting
+                                </text>
+                              </Show>
+                              <box flexDirection="column" gap={0} paddingTop={1}>
+                                <For each={workstationState().planSummary.steps.slice(0, 4)}>
+                                  {(step) => <TodoItem status={step.status} content={step.label} />}
+                                </For>
+                              </box>
                             </box>
                           </Show>
 
@@ -1858,14 +2030,18 @@ export function Session() {
                           gap={0}
                           padding={1}
                           border={["round"]}
-                          borderColor={theme.error}
-                          backgroundColor={tint(theme.backgroundElement, theme.error, 0.08)}
+                          borderColor={memoryState()?.tone === "error" ? theme.error : theme.borderSubtle}
+                          backgroundColor={
+                            memoryState()?.tone === "error"
+                              ? tint(theme.backgroundElement, theme.error, 0.08)
+                              : tint(theme.backgroundElement, theme.primary, 0.04)
+                          }
                         >
-                          <text fg={theme.error} bold>
-                            Memory load error
+                          <text fg={memoryState()?.tone === "error" ? theme.error : theme.text} bold>
+                            {memoryState()?.title}
                           </text>
                           <text fg={theme.textMuted} wrapMode="word">
-                            {memoryLoadError()}
+                            {memoryState()?.detail}
                           </text>
                         </box>
                       </Show>
@@ -2385,31 +2561,75 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
   const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
   const first = createMemo(() => traces()[0])
   const last = createMemo(() => traces()[traces().length - 1])
-  const traceNarrative = createMemo(() => {
+  const traceSummary = createMemo(() => {
     const firstTrace = first()?.trace
     const lastTrace = last()?.trace
     if (!firstTrace && !lastTrace) return undefined
     if (traces().length === 1 && firstTrace) {
       if (explainMode()) {
-        return `What I did: ${firstTrace.action.toLowerCase()} on ${firstTrace.target}. Result: ${firstTrace.result}. Next safe step: ${firstTrace.next}.`
+        return {
+          lead: "What happened",
+          body: `${firstTrace.action} on ${firstTrace.target}`,
+          result: firstTrace.result,
+        }
       }
-      return `I ran ${firstTrace.action.toLowerCase()} on ${firstTrace.target} and ${firstTrace.result}. Next: ${firstTrace.next}.`
+      return {
+        lead: "What happened",
+        body: `${firstTrace.action} on ${firstTrace.target}`,
+        result: firstTrace.result,
+      }
     }
     if (firstTrace && lastTrace) {
       if (explainMode()) {
-        return `I completed ${completed()} of ${traces().length} actions. Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}. Next safe step: ${lastTrace.next}.`
+        return {
+          lead: "Progress",
+          body: `${completed()} of ${traces().length} actions completed`,
+          result: `Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}.`,
+        }
       }
-      return `I processed ${traces().length} steps (${completed()} complete). Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}. Next: ${lastTrace.next}.`
+      return {
+        lead: "Progress",
+        body: `${traces().length} steps processed (${completed()} complete)`,
+        result: `Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}.`,
+      }
     }
     return undefined
   })
+  const traceNextStep = createMemo(() => last()?.trace?.next)
 
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
-      <Show when={traceNarrative()}>
-        <text fg={theme.text} wrapMode="word">
-          {traceNarrative()}
-        </text>
+      <Show when={traceSummary()}>
+        <box flexDirection="column" gap={0}>
+          <box flexDirection="row" gap={1} alignItems="flex-start">
+            <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+              {traceSummary()!.lead}
+            </text>
+            <text fg={theme.text} wrapMode="word">
+              {traceSummary()!.body}
+            </text>
+          </box>
+          <Show when={traceSummary()!.result}>
+            <box flexDirection="row" gap={1} alignItems="flex-start">
+              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                Result
+              </text>
+              <text fg={theme.textMuted} wrapMode="word">
+                {traceSummary()!.result}
+              </text>
+            </box>
+          </Show>
+        </box>
+      </Show>
+      <Show when={traceNextStep()}>
+        <box flexDirection="row" gap={1} paddingTop={1} alignItems="flex-start">
+          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+            Next
+          </text>
+          <text fg={theme.textMuted} wrapMode="word">
+            {traceNextStep()}
+          </text>
+        </box>
       </Show>
       <Show when={ctx.showAssistantMetadata()}>
         <box flexDirection="column" gap={0} paddingTop={1}>
@@ -2674,7 +2894,16 @@ function BlockTool(props: {
 function Bash(props: ToolProps<typeof ShellTool>) {
   const { theme } = useTheme()
   const isRunning = createMemo(() => props.part.state.status === "running")
-  const output = createMemo(() => stripAnsi(props.metadata.output?.trim() ?? ""))
+  const output = createMemo(() => {
+    const raw = typeof props.output === "string" ? props.output : typeof props.metadata.output === "string" ? props.metadata.output : ""
+    return stripAnsi(raw.trim())
+  })
+  const outputLabel = createMemo(() => {
+    if (!output()) return undefined
+    const lineCount = output().split("\n").length
+    if (isRunning()) return `${lineCount} lines streaming`
+    return `${lineCount} lines output`
+  })
 
   return (
     <InlineTool
@@ -2683,11 +2912,14 @@ function Bash(props: ToolProps<typeof ShellTool>) {
       complete={props.part.state.status === "completed"}
       part={props.part}
     >
+      <span style={{ fg: theme.accent }}>
+        <text attributes={TextAttributes.BOLD}>shell</text>
+      </span>{" "}
       $ {(props.input as any).command}
-      <Show when={output()}>
+      <Show when={outputLabel()}>
         <text fg={theme.textMuted} dim>
           {" "}
-          [{output().split("\n").length} lines output]
+          [{outputLabel()}]
         </text>
       </Show>
     </InlineTool>

@@ -203,14 +203,20 @@ dax --version
 For most users, DAX will show three Google auth options:
 
 - `Gemini API Key`
-- `Gemini Subscription Sign-In`
-- `Custom Google OAuth Client`
+- `Gemini CLI Session Import`
+- `Google OAuth Client Sign-In`
 
-`Gemini Subscription Sign-In` uses your local `gemini` CLI session when available, and falls back to direct browser sign-in when `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured.
+`Gemini CLI Session Import` reuses your local `gemini` CLI session when available.
 
-If you inspect the source, you may also see more specific internal Gemini method names. Those are implementation details under the same public subscription lane, not extra user-facing choices.
+`Google OAuth Client Sign-In` is the browser-based lane. If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can use them directly. Otherwise it will prompt for your own OAuth client credentials.
+
+If you inspect the source, you may also see more specific internal Gemini method names. Those are implementation details, not extra user-facing choices.
 
 Authentication is local to your machine and OS user account. DAX does not ship someone else's subscriptions to other users. If a new user installs DAX on their own machine, they authenticate with their own account, keys, or local `gemini` login.
+
+### Anthropic / Claude Pro-Max note
+
+Anthropic recently moved third-party app usage onto its extra-usage policy for some Pro/Max flows. If DAX says your Anthropic lane is connected but Claude still behaves differently than it did yesterday, check your Anthropic usage page before blaming local auth. Or, in slightly more builder-native language: apparently the open ecosystem now comes with a velvet rope and a cover charge.
 
 ### If You’re Not a Developer
 
