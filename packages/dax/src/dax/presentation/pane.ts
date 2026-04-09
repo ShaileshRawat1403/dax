@@ -1,4 +1,4 @@
-export const PANE_MODE = ["diff", "audit", "approvals", "plan", "memory", "refine"] as const
+export const PANE_MODE = ["audit", "approvals", "plan", "memory", "refine"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
 
@@ -12,7 +12,6 @@ export type PaneFollowMode = (typeof PANE_FOLLOW_MODE)[number]
 
 export function paneLabel(mode: PaneMode, eli12: boolean) {
   return {
-    diff: "changes",
     audit: "audit",
     approvals: "approvals",
     plan: "workstation",
@@ -23,10 +22,9 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
 
 export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
   return {
-    diff: "change",
     audit: "audit",
     approvals: "approve",
-    plan: "state",
+    plan: "work",
     memory: "memory",
     refine: "refine",
   }[mode]
@@ -47,17 +45,15 @@ export function memoryLabel(eli12: boolean) {
 export function paneContextLabel(mode: PaneMode): string {
   switch (mode) {
     case "plan":
-      return "Governed execution"
+      return "Governance, observability, and next actions"
     case "approvals":
       return "Awaiting operator decision"
-    case "diff":
-      return "Proposed changes"
     case "audit":
-      return "Verification and trust"
+      return "Trust, verification, and guard posture"
     case "memory":
-      return "Context memory"
+      return "Durable operator context"
     case "refine":
-      return "Refine plan"
+      return "Refine prompt and execution profile"
     default:
       return "Workstation"
   }
@@ -75,9 +71,7 @@ export function deriveAutoPaneMode(input: {
   fallback: PaneMode
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
-  if (input.hasRefineDraft) return "refine"
   if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasAuditAttention) return "audit"
-  if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasDiffContext) return "diff"
   if (
     input.liveStage &&
     input.liveStage !== "done" &&
@@ -87,9 +81,9 @@ export function deriveAutoPaneMode(input: {
     return "plan"
   }
   if (input.hasLiveContext) return "plan"
-  if (input.hasMemoryContext) return "memory"
   if (input.hasAuditAttention) return "audit"
-  if (input.hasDiffContext) return "diff"
+  if (input.hasRefineDraft) return "refine"
+  if (input.hasMemoryContext) return "memory"
   if (input.hasPlanContext) return "plan"
   return input.fallback
 }
@@ -160,7 +154,7 @@ function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage
     return false
   }
 
-  if (recommendedMode === "plan" && (currentMode === "memory" || currentMode === "diff")) {
+  if (recommendedMode === "plan" && currentMode === "memory") {
     return true
   }
 
@@ -176,10 +170,6 @@ function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage
   }
 
   if (recommendedMode === "audit" && currentMode !== "audit" && (liveStage === "verifying" || liveStage === "done")) {
-    return true
-  }
-
-  if (recommendedMode === "diff" && currentMode === "audit" && (liveStage === "verifying" || liveStage === "done")) {
     return true
   }
 

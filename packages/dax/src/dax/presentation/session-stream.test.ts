@@ -75,6 +75,14 @@ function createTextPart(id: string, text: string) {
   }
 }
 
+function createReasoningPart(id: string, text: string) {
+  return {
+    id,
+    type: "reasoning" as const,
+    text,
+  }
+}
+
 describe("session-stream presentation model", () => {
   describe("buildStreamItems", () => {
     it("returns empty array when no projectedRun and no messages", () => {
@@ -113,6 +121,32 @@ describe("session-stream presentation model", () => {
       expect(items).toHaveLength(2)
       expect(items[0]?.kind).toBe("message.assistant")
       expect(items[1]?.kind).toBe("message.assistant")
+    })
+
+    it("merges adjacent planner helper packets into one assistant block", () => {
+      const messages = createMockMessages(["assistant", "assistant", "assistant"])
+      const items = buildStreamItems(undefined, messages, {
+        "msg-0": [createContextToolPart("tool-0", "read", "CHANGELOG.md") as any],
+        "msg-1": [createReasoningPart("reasoning-1", "Planning release readiness checks.") as any],
+        "msg-2": [createContextToolPart("tool-2", "glob", "**/RELEASE*.md") as any],
+      })
+
+      expect(items).toHaveLength(1)
+      expect(items[0]?.kind).toBe("message.assistant")
+      expect(items[0]?.parts?.map((part) => part.type)).toEqual(["tool", "reasoning", "tool"])
+    })
+
+    it("does not merge a helper block with a substantive assistant answer", () => {
+      const messages = createMockMessages(["assistant", "assistant", "assistant"])
+      const items = buildStreamItems(undefined, messages, {
+        "msg-0": [createContextToolPart("tool-0", "read", "CHANGELOG.md") as any],
+        "msg-1": [createReasoningPart("reasoning-1", "Planning release readiness checks.") as any],
+        "msg-2": [createTextPart("text-2", "Release readiness is blocked pending verification receipts.") as any],
+      })
+
+      expect(items).toHaveLength(2)
+      expect(items[0]?.parts?.map((part) => part.type)).toEqual(["tool", "reasoning"])
+      expect(items[1]?.parts?.map((part) => part.type)).toEqual(["text"])
     })
 
     it("renders projected narrative items when projectedRun exists", () => {

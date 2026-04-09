@@ -54,7 +54,7 @@ import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
 import { isEli12Mode } from "@/dax/intent"
-import { DAX_SETTING } from "@/dax/settings"
+import { DAX_SETTING, sessionWorkflowModeKey } from "@/dax/settings"
 import { refineIntent } from "@/intent/interpret"
 import { createColors } from "../../ui/spinner.ts"
 
@@ -160,6 +160,8 @@ Primary success criteria:
 - The user understands what is happening.
 - The user can execute one step at a time without confusion.`
 const ELI12_TEMPLATE_RE = /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i
+const CASUAL_DIRECT_RE =
+  /^(hi|hello|hey|yo|hola|sup|what'?s up|howdy|good (morning|afternoon|evening)|thanks|thank you|what can you do)\b[!?., ]*$/i
 
 const REFINE_PREFIX = `SYSTEM: DAX - Auto-Refine Mode (Structured Execution)
 
@@ -188,7 +190,9 @@ export function Prompt(props: PromptProps) {
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const kv = useKV()
-  const [workflowMode, setWorkflowMode] = kv.signal<string>(DAX_SETTING.session_workflow_mode, "plan")
+  const workflowModeKey = createMemo(() => sessionWorkflowModeKey(props.sessionID))
+  const workflowMode = createMemo(() => kv.get(workflowModeKey(), "plan"))
+  const setWorkflowMode = (next: string) => kv.set(workflowModeKey(), next)
   const log = Log.create({ service: "tui.prompt" })
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const isPanePinned = createMemo(() => props.panePinned ?? kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
@@ -495,7 +499,7 @@ export function Prompt(props: PromptProps) {
       if (msg.agent && isPrimaryAgent) {
         local.agent.set(msg.agent)
         if (WORKFLOW_AGENT_MODES.has(msg.agent)) {
-          kv.set(DAX_SETTING.session_workflow_mode, msg.agent)
+          kv.set(workflowModeKey(), msg.agent)
         }
         if (msg.model) local.model.set(msg.model)
         if (msg.variant) local.model.variant.set(msg.variant)
@@ -966,11 +970,12 @@ export function Prompt(props: PromptProps) {
     // Capture mode before it gets reset
     const currentMode = store.mode
     const variant = local.model.variant.current()
+    const submitAgent = resolveSubmitAgent(inputText)
 
     if (store.mode === "shell") {
       sdk.client.session.shell({
         sessionID,
-        agent: local.agent.current().name,
+        agent: submitAgent,
         model: {
           providerID: selectedModel.providerID,
           modelID: selectedModel.modelID,
@@ -990,7 +995,7 @@ export function Prompt(props: PromptProps) {
         sessionID,
         command: command.slice(1),
         arguments: args,
-        agent: local.agent.current().name,
+        agent: submitAgent,
         model: `${selectedModel.providerID}/${selectedModel.modelID}`,
         messageID,
         variant,
@@ -1007,7 +1012,7 @@ export function Prompt(props: PromptProps) {
           sessionID,
           ...selectedModel,
           messageID,
-          agent: local.agent.current().name,
+          agent: submitAgent,
           model: selectedModel,
           variant,
           system: inputSystem,
@@ -1143,6 +1148,12 @@ export function Prompt(props: PromptProps) {
     if (current && WORKFLOW_AGENT_MODES.has(current)) return Locale.titlecase(current)
     return Locale.titlecase(workflowMode())
   })
+
+  const resolveSubmitAgent = (text: string) => {
+    const trimmed = text.trim()
+    if (CASUAL_DIRECT_RE.test(trimmed)) return "build"
+    return local.agent.current().name
+  }
 
   const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
   const homeCueFrames = createMemo(() => {
@@ -1329,7 +1340,7 @@ export function Prompt(props: PromptProps) {
                       }
                       const next = WORKFLOW_MODES[(idx + direction + WORKFLOW_MODES.length) % WORKFLOW_MODES.length]
                       batch(() => {
-                        setWorkflowMode(() => next)
+                        setWorkflowMode(next)
                         local.agent.set(next)
                       })
                       e.preventDefault()

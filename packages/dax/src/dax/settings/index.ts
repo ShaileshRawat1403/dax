@@ -17,3 +17,7 @@ export const DAX_SETTING = {
   display_mode: "display_mode",
   intervention_queue_visible: "intervention_queue_visible",
 } as const
+
+export function sessionWorkflowModeKey(sessionID?: string) {
+  return sessionID ? `${DAX_SETTING.session_workflow_mode}:${sessionID}` : DAX_SETTING.session_workflow_mode
+}
