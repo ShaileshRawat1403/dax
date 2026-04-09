@@ -108,11 +108,15 @@ export function deriveActivePaneMode(input: {
   paneVisibility: PaneVisibility
   paneFollowMode: PaneFollowMode
   smartFollowActive: boolean
+  /** @deprecated Use smartFollowActive — alias kept for call-site compatibility */
+  following?: boolean
 }): PaneMode {
+  const isFollowing = input.following ?? input.smartFollowActive
+
   if (input.hasApprovals) return "approvals"
 
   if (input.paneVisibility === "pinned") {
-    if (!input.smartFollowActive) return input.paneMode
+    if (!isFollowing) return input.paneMode
   }
 
   const autoMode = deriveAutoPaneMode({
@@ -132,7 +136,7 @@ export function deriveActivePaneMode(input: {
   }
 
   if (input.paneFollowMode === "smart") {
-    if (input.paneVisibility === "pinned" && input.smartFollowActive) {
+    if (input.paneVisibility === "pinned" && isFollowing) {
       const currentMode = input.paneMode
       if (isModeStale(currentMode, autoMode, input.liveStage)) {
         return autoMode

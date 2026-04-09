@@ -17,7 +17,13 @@ export interface RenderableStreamItem {
   parts?: Part[]
   expanded?: boolean
   status?: "pending" | "active" | "completed" | "failed"
+  /** Number of narrative steps within this phase (only set on phase.marker items) */
+  phaseStepCount?: number
+  /** Duration in milliseconds (set on phase.marker and run.event items when computable) */
+  durationMs?: number
 }
+
+const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
 
 const PHASE_MAP: Record<string, RunPhase> = {
   "run.created": "understanding",
@@ -97,6 +103,17 @@ function isPhaseMarkerCandidate(item: RunNarrativeItem): boolean {
     "step.started",
     "step.completed",
   ].includes(item.type)
+}
+
+/** Events that count as meaningful "steps" within a phase for the step counter */
+const STEP_COUNT_TYPES = new Set([
+  "step.started", "step.completed", "step.failed",
+  "approval.requested", "approval.resolved",
+  "artifact.created",
+])
+
+function isCountableStep(item: RunNarrativeItem): boolean {
+  return STEP_COUNT_TYPES.has(item.type)
 }
 
 function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
@@ -222,7 +239,9 @@ export function buildStreamItems(
 
   streamItems.sort((a, b) => a.timestamp - b.timestamp)
 
-  return streamItems
+  const merged = mergeAdjacentAssistantEvidenceItems(streamItems)
+  annotatePhaseStats(merged, narrative)
+  return merged
 }
 
 function buildLegacyStreamItems(
@@ -253,7 +272,63 @@ function buildLegacyStreamItems(
     }
   }
 
-  return streamItems
+  return mergeAdjacentAssistantEvidenceItems(streamItems)
+}
+
+function isContextEvidenceAssistantItem(item: RenderableStreamItem): item is RenderableStreamItem & {
+  kind: "message.assistant"
+  data: AssistantMessage | MessageV2.Info
+  parts: Part[]
+} {
+  if (item.kind !== "message.assistant") return false
+  if (!item.parts || item.parts.length === 0) return false
+  return item.parts.every((part) => part.type === "tool" && CONTEXT_GROUP_TOOLS.has(part.tool))
+}
+
+function canMergeAssistantEvidence(
+  left: RenderableStreamItem | undefined,
+  right: RenderableStreamItem,
+): left is RenderableStreamItem & { data: AssistantMessage | MessageV2.Info; parts: Part[] } {
+  if (!left) return false
+  if (!isContextEvidenceAssistantItem(left) || !isContextEvidenceAssistantItem(right)) return false
+  const leftAgent = (left.data as AssistantMessage | MessageV2.Info | undefined)?.agent
+  const rightAgent = (right.data as AssistantMessage | MessageV2.Info | undefined)?.agent
+  return leftAgent === rightAgent
+}
+
+function mergeAdjacentAssistantEvidenceItems(items: RenderableStreamItem[]): RenderableStreamItem[] {
+  const merged: RenderableStreamItem[] = []
+
+  for (const item of items) {
+    const previous = merged[merged.length - 1]
+    if (canMergeAssistantEvidence(previous, item)) {
+      const previousData = previous.data as AssistantMessage
+      const itemData = item.data as AssistantMessage
+      merged[merged.length - 1] = {
+        ...previous,
+        id: `${previous.id}__${item.id}`,
+        parts: [...(previous.parts ?? []), ...(item.parts ?? [])],
+        timestamp: previous.timestamp,
+        status: previous.status === "active" || item.status === "active" ? "active" : item.status ?? previous.status,
+        data: {
+          ...previousData,
+          id: `${previousData.id}__${itemData.id}`,
+          time: {
+            ...previousData.time,
+            created: Math.min(previousData.time.created, itemData.time.created),
+            completed: previousData.time.completed && itemData.time.completed
+              ? Math.max(previousData.time.completed, itemData.time.completed)
+              : undefined,
+          },
+        } satisfies AssistantMessage,
+      }
+      continue
+    }
+
+    merged.push(item)
+  }
+
+  return merged
 }
 
 export function getCurrentPhase(items: RenderableStreamItem[]): RunPhase {
@@ -301,6 +376,86 @@ export function getActivePhases(items: RenderableStreamItem[]): Set<RunPhase> {
     phases.add("executing")
   }
   return phases
+}
+
+function annotatePhaseStats(
+  items: RenderableStreamItem[],
+  narrative: RunNarrativeItem[],
+): void {
+  // Count steps and compute duration per phase from the raw narrative
+  const phaseStats = new Map<RunPhase, { count: number; firstTs: number; lastTs: number }>()
+
+  for (const ni of narrative) {
+    const phase = getPhaseFromNarrativeItem(ni)
+    const ts = ni.timestamp ? new Date(ni.timestamp).getTime() : 0
+    const existing = phaseStats.get(phase)
+    if (!existing) {
+      phaseStats.set(phase, {
+        count: isCountableStep(ni) ? 1 : 0,
+        firstTs: ts,
+        lastTs: ts,
+      })
+    } else {
+      if (isCountableStep(ni)) existing.count++
+      if (ts > 0 && ts < existing.firstTs) existing.firstTs = ts
+      if (ts > existing.lastTs) existing.lastTs = ts
+    }
+  }
+
+  // Annotate phase.marker items with computed stats
+  for (const item of items) {
+    if (item.kind === "phase.marker" && item.phase) {
+      const stats = phaseStats.get(item.phase)
+      if (stats) {
+        item.phaseStepCount = stats.count
+        const dur = stats.lastTs - stats.firstTs
+        if (dur >= 1000) item.durationMs = dur
+      }
+    }
+  }
+
+  // Compute duration for run.event items from adjacent narrative timestamps
+  for (const item of items) {
+    if (item.kind !== "run.event") continue
+    const ni = item.data as RunNarrativeItem | undefined
+    if (!ni?.timestamp) continue
+    const itemTs = new Date(ni.timestamp).getTime()
+
+    // For step.completed/step.failed, find the matching step.started
+    if (ni.type === "step.completed" || ni.type === "step.failed") {
+      for (let j = narrative.length - 1; j >= 0; j--) {
+        if (narrative[j].type === "step.started" && narrative[j].timestamp) {
+          const startTs = new Date(narrative[j].timestamp).getTime()
+          if (startTs <= itemTs) {
+            const dur = itemTs - startTs
+            if (dur >= 1000) item.durationMs = dur
+            break
+          }
+        }
+      }
+    }
+
+    // For run.completed/run.failed, duration from run.started
+    if (ni.type === "run.completed" || ni.type === "run.failed") {
+      for (const n of narrative) {
+        if ((n.type === "run.started" || n.type === "run.created") && n.timestamp) {
+          const startTs = new Date(n.timestamp).getTime()
+          const dur = itemTs - startTs
+          if (dur >= 1000) item.durationMs = dur
+          break
+        }
+      }
+    }
+  }
+}
+
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return ""
+  const totalSeconds = Math.round(ms / 1000)
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return seconds > 0 ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${minutes}m`
 }
 
 export { PHASE_ORDER, getPhaseLabel }
