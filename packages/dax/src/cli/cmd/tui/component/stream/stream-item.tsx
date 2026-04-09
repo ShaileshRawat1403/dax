@@ -21,6 +21,8 @@ export function StreamItem(props: {
           status={props.item.status ?? "pending"}
           expanded={props.expanded}
           onToggle={props.onTogglePhase}
+          stepCount={props.item.phaseStepCount}
+          durationMs={props.item.durationMs}
         />
       </Match>
 
@@ -35,17 +37,21 @@ export function StreamItem(props: {
       </Match>
 
       <Match when={props.item.kind === "message.user"}>
-        <props.MessageComponent message={props.item.data as UserMessage} last={props.isLast} />
+        <props.MessageComponent message={props.item.data as UserMessage} last={props.isLast} partsOverride={props.item.parts} />
       </Match>
 
       <Match when={props.item.kind === "message.assistant"}>
-        <props.MessageComponent message={props.item.data as AssistantMessage} last={props.isLast} />
+        <props.MessageComponent
+          message={props.item.data as AssistantMessage}
+          last={props.isLast}
+          partsOverride={props.item.parts}
+        />
       </Match>
     </Switch>
   )
 }
 
-function MessagePlaceholder(props: { message: AssistantMessage | UserMessage; last: boolean }) {
+function MessagePlaceholder(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: any[] }) {
   return (
     <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
       <text fg="$text">[{props.message.role} message - use existing Message component]</text>

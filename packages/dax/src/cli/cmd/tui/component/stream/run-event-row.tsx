@@ -1,4 +1,5 @@
-import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
+import { Show } from "solid-js"
+import { type RenderableStreamItem, formatDuration } from "@/dax/presentation/session-stream"
 
 function getEventIcon(type: string, status: "pending" | "active" | "completed" | "failed"): string {
   if (status === "active") return "●"
@@ -47,6 +48,8 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
   const icon = () => getEventIcon(props.item.type ?? "", props.item.status ?? "pending")
   const color = () => getEventColor(props.item.status ?? "pending")
   const typeLabel = () => getEventTypeLabel(props.item.type ?? "")
+  const isFailed = () => props.item.status === "failed"
+  const duration = () => props.item.durationMs ? formatDuration(props.item.durationMs) : ""
 
   return (
     <box
@@ -62,9 +65,14 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
       <text fg="$textMuted" attributes="dim">
         {typeLabel()}:
       </text>
-      <text fg="$text" wrapMode="word">
+      <text fg={isFailed() ? "$error" : "$text"} wrapMode="word">
         {props.item.message}
       </text>
+      <Show when={duration()}>
+        <text fg="$textMuted" attributes="dim">
+          ({duration()})
+        </text>
+      </Show>
     </box>
   )
 }

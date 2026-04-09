@@ -1,4 +1,5 @@
-import type { RunPhase } from "@/dax/presentation/session-stream"
+import { Show } from "solid-js"
+import { type RunPhase, formatDuration } from "@/dax/presentation/session-stream"
 
 export function PhaseRail(props: {
   phase: RunPhase
@@ -6,6 +7,8 @@ export function PhaseRail(props: {
   status: "pending" | "active" | "completed" | "failed"
   expanded: boolean
   onToggle: () => void
+  stepCount?: number
+  durationMs?: number
 }) {
   const statusColor = () => {
     switch (props.status) {
@@ -22,6 +25,16 @@ export function PhaseRail(props: {
   }
 
   const expandIcon = () => (props.expanded ? "▼" : "▶")
+
+  const summary = () => {
+    const parts: string[] = []
+    if (props.stepCount && props.stepCount > 0) {
+      parts.push(`${props.stepCount} step${props.stepCount === 1 ? "" : "s"}`)
+    }
+    const dur = props.durationMs ? formatDuration(props.durationMs) : ""
+    if (dur) parts.push(dur)
+    return parts.length > 0 ? parts.join(" · ") : ""
+  }
 
   return (
     <box
@@ -41,6 +54,11 @@ export function PhaseRail(props: {
       <text fg={statusColor()} attributes={props.status === "active" ? "bold" : undefined}>
         {props.label.toUpperCase()}
       </text>
+      <Show when={summary()}>
+        <text fg="$textMuted" attributes="dim">
+          · {summary()}
+        </text>
+      </Show>
     </box>
   )
 }

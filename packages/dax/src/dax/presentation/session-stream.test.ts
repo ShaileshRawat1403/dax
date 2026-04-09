@@ -47,6 +47,34 @@ function createMockMessages(roles: Array<"user" | "assistant">): any[] {
   }))
 }
 
+function createContextToolPart(id: string, tool: string, target: string) {
+  return {
+    id,
+    type: "tool" as const,
+    callID: `call-${id}`,
+    tool,
+    state: {
+      status: "completed" as const,
+      input: {},
+      output: "",
+      title: "",
+      metadata: { target },
+      time: {
+        start: Date.now(),
+        end: Date.now() + 10,
+      },
+    },
+  }
+}
+
+function createTextPart(id: string, text: string) {
+  return {
+    id,
+    type: "text" as const,
+    text,
+  }
+}
+
 describe("session-stream presentation model", () => {
   describe("buildStreamItems", () => {
     it("returns empty array when no projectedRun and no messages", () => {
@@ -61,6 +89,30 @@ describe("session-stream presentation model", () => {
       expect(items.length).toBe(2)
       expect(items[0].kind).toBe("message.user")
       expect(items[1].kind).toBe("message.assistant")
+    })
+
+    it("merges consecutive assistant context-evidence messages into one stream block", () => {
+      const messages = createMockMessages(["assistant", "assistant"])
+      const items = buildStreamItems(undefined, messages, {
+        "msg-0": [createContextToolPart("tool-0", "read", "CHANGELOG.md") as any],
+        "msg-1": [createContextToolPart("tool-1", "glob", "**/package.json") as any],
+      })
+
+      expect(items).toHaveLength(1)
+      expect(items[0]?.kind).toBe("message.assistant")
+      expect(items[0]?.parts).toHaveLength(2)
+    })
+
+    it("does not merge assistant evidence across a substantive text response", () => {
+      const messages = createMockMessages(["assistant", "assistant"])
+      const items = buildStreamItems(undefined, messages, {
+        "msg-0": [createContextToolPart("tool-0", "read", "CHANGELOG.md") as any],
+        "msg-1": [createTextPart("text-1", "Here is the release-readiness verdict.") as any],
+      })
+
+      expect(items).toHaveLength(2)
+      expect(items[0]?.kind).toBe("message.assistant")
+      expect(items[1]?.kind).toBe("message.assistant")
     })
 
     it("renders projected narrative items when projectedRun exists", () => {

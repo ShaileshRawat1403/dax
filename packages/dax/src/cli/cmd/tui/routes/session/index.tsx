@@ -393,7 +393,7 @@ export function Session() {
   const dimensions = useTerminalDimensions()
   const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
-  const [conceal, setConceal] = createSignal(true)
+  const [conceal, setConceal] = createSignal(false)
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", false)
@@ -550,7 +550,7 @@ export function Session() {
       partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
     }),
   )
-  const STAGE_MIN_DWELL_MS = 1200
+  const STAGE_MIN_DWELL_MS = 600
   const STREAM_RENDER_CADENCE_MS = 30
   const [displayStageState, setDisplayStageState] = createSignal(stageState())
   const [stageLastChangedAt, setStageLastChangedAt] = createSignal(Date.now())
@@ -562,6 +562,12 @@ export function Session() {
       if (next.reason !== current.reason) {
         setDisplayStageState({ stage: current.stage, reason: next.reason })
       }
+      return
+    }
+
+    if (next.stage === "done" || next.stage === "waiting") {
+      setDisplayStageState(next)
+      setStageLastChangedAt(Date.now())
       return
     }
 
@@ -621,7 +627,7 @@ export function Session() {
   const showLiveStatusNote = createMemo(() => !chatActive() && displayStageState().stage !== "done")
   const modeLabel = createMemo(() => local.agent.current().name.toUpperCase())
 
-  const [smartFollowActive, setSmartFollowActive] = createSignal(true)
+  const [following, setFollowing] = createSignal(true)
   const [motionTick, setMotionTick] = createSignal(0)
 
   createEffect(() => {
@@ -658,18 +664,21 @@ export function Session() {
     const availableWidth = liveStacked() ? contentWidth() : livePaneWidth()
     return availableWidth > 80 ? "side-by-side" : "unified"
   })
-  const followEnabled = createMemo(() => paneFollowMode() === "live" || smartFollowActive())
+  const followEnabled = () => following()
   const followGlyph = createMemo(() => {
+    if (!following()) return "○"
     if (!animationsEnabled()) return "●"
+    const busy = sessionStatusType() === "busy" || !!pending()
+    if (!busy) return "●"
     return LIVE_FOLLOW_FRAMES[motionTick() % LIVE_FOLLOW_FRAMES.length] ?? "●"
   })
   const followActionLabel = createMemo(() => {
-    if (followEnabled()) {
+    if (following()) {
       return sessionStatusType() === "busy" || pending()
-        ? `${followGlyph()} FOLLOW LIVE`
-        : "FOLLOW ON"
+        ? `${followGlyph()} FOLLOWING`
+        : "FOLLOWING"
     }
-    return "FOLLOW OFF"
+    return "○ FOLLOW"
   })
   const liveBorderColor = createMemo(() => {
     if (!animationsEnabled() || !(sessionStatusType() === "busy" || pending())) return theme.borderSubtle
@@ -1083,13 +1092,8 @@ export function Session() {
   }
 
   const toggleNarrativeFollow = () => {
-    if (paneFollowMode() === "live") {
-      setPaneFollowMode(() => "smart")
-      setSmartFollowActive(false)
-      return
-    }
-    setSmartFollowActive((active) => {
-      const next = !active
+    setFollowing((f) => {
+      const next = !f
       if (next) setTimeout(() => scrollNarrative({ force: true }), 0)
       return next
     })
@@ -1133,12 +1137,16 @@ export function Session() {
       const nearBottomBefore = wasNarrativeNearBottom(previousTop, previousHeight, viewportHeight)
       const userMovedAway =
         topChanged &&
-        Date.now() - lastProgrammaticScrollAt() > 250 &&
+        Date.now() - lastProgrammaticScrollAt() > 120 &&
         !isNarrativeNearBottom() &&
         currentTop < previousTop
 
-      if (userMovedAway && paneFollowMode() !== "live") {
-        setSmartFollowActive(false)
+      if (userMovedAway && following()) {
+        setFollowing(false)
+      }
+
+      if (!following() && isNarrativeNearBottom()) {
+        setFollowing(true)
       }
 
       if (heightChanged && followEnabled() && nearBottomBefore) {
@@ -1166,7 +1174,7 @@ export function Session() {
   const selectPaneMode = (mode: PaneMode) => {
     setPaneMode(() => mode)
     setPaneVisibility(() => "pinned")
-    setSmartFollowActive(false)
+    setFollowing(false)
   }
 
   const showPane = createMemo(() => {
@@ -1209,7 +1217,7 @@ export function Session() {
       paneMode: paneMode(),
       paneVisibility: paneVisibility(),
       paneFollowMode: paneFollowMode(),
-      smartFollowActive: smartFollowActive(),
+      smartFollowActive: following(),
     }),
   )
 
@@ -1380,12 +1388,16 @@ export function Session() {
                   justifyContent="space-between"
                   alignItems="center"
                   gap={1}
+                  onMouseUp={() => {
+                    setFollowing(true)
+                    scrollNarrative({ force: true })
+                  }}
                 >
                   <text fg={theme.warning} attributes={TextAttributes.BOLD}>
                     Follow paused
                   </text>
                   <text fg={theme.textMuted} wrapMode="truncate-end">
-                    Turn follow back on to snap to the live edge.
+                    Click to resume · scroll to bottom resumes automatically
                   </text>
                 </box>
               </Show>
@@ -1836,7 +1848,7 @@ export function Session() {
                               onMouseUp={() => {
                                 setPaneMode(() => "approvals")
                                 setPaneVisibility(() => "pinned")
-                                setSmartFollowActive(false)
+                                setFollowing(false)
                               }}
                             >
                               <text fg={theme.warning} bold>
@@ -1977,7 +1989,7 @@ export function Session() {
                         kv.set(DAX_SETTING.session_refined_prompt, "")
                         setPaneMode(() => "plan")
                         setPaneVisibility(() => "auto")
-                        setSmartFollowActive(true)
+                        setFollowing(true)
                       }}
                     />
                   </Match>
@@ -2180,7 +2192,7 @@ export function Session() {
             ref={promptRef.set}
             disabled={promptDisabled()}
             onSubmit={() => {
-              setSmartFollowActive(true)
+              setFollowing(true)
             }}
             sessionID={route.sessionID}
           />
@@ -2200,7 +2212,7 @@ export function Session() {
   )
 }
 
-function Message(props: { message: AssistantMessage | UserMessage; last: boolean }) {
+function Message(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: Part[] }) {
   const ctx = use()
   const sync = useSync()
   const { theme } = useTheme()
@@ -2253,7 +2265,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
         </box>
         <box paddingLeft={2} marginTop={0}>
           <text fg={fadeFg() ?? theme.text} wrapMode="word">
-            {(sync.data.part[props.message.id] ?? [])
+            {(props.partsOverride ?? sync.data.part[props.message.id] ?? [])
               .filter((p): p is TextPart => p.type === "text" && !p.synthetic)
               .map((p) => p.text)
               .join("")}
@@ -2263,7 +2275,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     )
   }
 
-  const parts = createMemo(() => sync.data.part[props.message.id] ?? [])
+  const parts = createMemo(() => props.partsOverride ?? sync.data.part[props.message.id] ?? [])
   const showMetadata = createMemo(() => ctx.showAssistantMetadata())
 
   const daxSpeaking = createMemo(() => props.message.agent === "dax")
