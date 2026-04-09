@@ -1842,17 +1842,22 @@ export function Session() {
                               backgroundColor={tint(theme.backgroundElement, theme.warning, 0.08)}
                               border={["round"]}
                               borderColor={theme.warning}
+                              onMouseUp={() => {
+                                setPaneMode(() => "approvals")
+                                setPaneVisibility(() => "pinned")
+                                setSmartFollowActive(false)
+                              }}
                             >
                               <text fg={theme.warning} bold>
                                 PENDING APPROVALS
                               </text>
                               <text fg={theme.text}>
-                                {workstationState().approvalSummary.pendingCount} item
-                                {workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} waiting
+                                {`${workstationState().approvalSummary.pendingCount} item${workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} waiting`}
                               </text>
                               <text fg={theme.textMuted} wrapMode="word">
                                 Top: {workstationState().approvalSummary.topReason}
                               </text>
+                              <text fg={theme.textMuted}>Click to review approvals</text>
                             </box>
                           </Show>
 
@@ -1870,15 +1875,12 @@ export function Session() {
                                   STEP TRACKER
                                 </text>
                                 <text fg={theme.textMuted}>
-                                  {todoSummary().completed}/{todoSummary().total} done
+                                  {`${todoSummary().completed}/${todoSummary().total} done`}
                                 </text>
                               </box>
                               <Show when={todoSummary().active > 0 || todoSummary().pending > 0}>
                                 <text fg={theme.textMuted} wrapMode="word">
-                                  {todoSummary().active > 0
-                                    ? `${todoSummary().active} active`
-                                    : "No active step"}{" "}
-                                  · {todoSummary().pending} waiting
+                                  {`${todoSummary().active > 0 ? `${todoSummary().active} active` : "No active step"} · ${todoSummary().pending} waiting`}
                                 </text>
                               </Show>
                               <box flexDirection="column" gap={0} paddingTop={1}>
