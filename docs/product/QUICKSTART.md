@@ -81,6 +81,8 @@ The Google/Gemini auth picker shows three truthful lanes:
 
 If DAX later says the Gemini subscription lane is busy, it will wait and retry automatically. If that keeps happening, wait a bit or switch to `Gemini API Key`.
 
+For Anthropic / Claude Pro or Max users, note that Anthropic now meters some third-party app usage through extra usage credit instead of the normal plan bucket. If a Claude lane suddenly behaves differently, check `claude.ai/settings/usage` before assuming DAX lost your auth state.
+
 ## First Run
 
 ```bash

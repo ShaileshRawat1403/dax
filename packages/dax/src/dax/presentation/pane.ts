@@ -78,6 +78,14 @@ export function deriveAutoPaneMode(input: {
   if (input.hasRefineDraft) return "refine"
   if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasAuditAttention) return "audit"
   if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasDiffContext) return "diff"
+  if (
+    input.liveStage &&
+    input.liveStage !== "done" &&
+    input.liveStage !== "waiting" &&
+    input.liveStage !== "retrying"
+  ) {
+    return "plan"
+  }
   if (input.hasLiveContext) return "plan"
   if (input.hasMemoryContext) return "memory"
   if (input.hasAuditAttention) return "audit"
@@ -149,6 +157,17 @@ function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage
   }
 
   if (recommendedMode === "plan" && (currentMode === "memory" || currentMode === "diff")) {
+    return true
+  }
+
+  if (
+    recommendedMode === "plan" &&
+    currentMode === "memory" &&
+    liveStage &&
+    liveStage !== "done" &&
+    liveStage !== "waiting" &&
+    liveStage !== "retrying"
+  ) {
     return true
   }
 

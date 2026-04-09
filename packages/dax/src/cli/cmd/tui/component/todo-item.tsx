@@ -7,22 +7,24 @@ export interface TodoItemProps {
 
 export function TodoItem(props: TodoItemProps) {
   const { theme } = useTheme()
+  const isCompleted = props.status === "completed" || props.status === "done"
+  const isActive = props.status === "in_progress" || props.status === "active"
 
   return (
     <box flexDirection="row" gap={0}>
       <text
         flexShrink={0}
         style={{
-          fg: props.status === "in_progress" ? theme.warning : theme.textMuted,
+          fg: isActive ? theme.warning : isCompleted ? theme.success : theme.textMuted,
         }}
       >
-        [{props.status === "completed" ? "✓" : props.status === "in_progress" ? "•" : " "}]{" "}
+        [{isCompleted ? "✓" : isActive ? "•" : " "}]{" "}
       </text>
       <text
         flexGrow={1}
         wrapMode="word"
         style={{
-          fg: props.status === "in_progress" ? theme.warning : theme.textMuted,
+          fg: isActive ? theme.warning : isCompleted ? theme.text : theme.textMuted,
         }}
       >
         {props.content}
