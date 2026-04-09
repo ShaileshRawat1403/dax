@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+### Added
+
+- **Workstation Step Tracker**: The session workstation now shows a compact step tracker so operators can quickly see what was asked, what is in flight, and what is already done.
+
+### Changed
+
+- **Live Follow UX**: Narrative live-follow now tracks content growth more reliably, backs off when the operator intentionally scrolls away, and keeps the active stream easier to follow during long decisions.
+- **Right Pane Priorities**: Smart pane-follow now favors the live workstation during active runs instead of lingering on low-signal memory surfaces.
+- **Stream Summaries**: Activity clusters now emphasize `What happened`, `Result`, and `Next` so streamed work reads more like an operator log and less like a raw event dump.
+- **Documentation**: Updated setup and provider docs to reflect the current Google auth lanes, workstation behavior, and Anthropic Pro/Max third-party usage changes.
+
+### Fixed
+
+- **Memory Empty State**: The session memory pane no longer presents missing context as a hard error when no memory snapshot exists yet.
+- **Todo Status Rendering**: Step-tracker items now correctly normalize old and new todo status names so active and completed work render consistently.
+
 ## [1.0.27] - 2026-04-09
 
 ### Added

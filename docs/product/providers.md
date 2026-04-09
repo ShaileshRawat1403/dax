@@ -61,6 +61,28 @@ flowchart TD
 
 The internal method names are implementation details. They help DAX choose the right subscription path for the current machine, but they are not meant to be treated as separate public lanes.
 
+## Anthropic Pro/Max Note
+
+Anthropic recently changed how third-party apps consume Claude Pro/Max access.
+
+For DAX operators, the practical implication is simple:
+
+- DAX can still use the `Claude Pro/Max Sign-In` lane when your Anthropic session is healthy
+- third-party usage may now draw from Anthropic "extra usage" credit instead of your normal plan bucket
+- if the lane suddenly feels different from yesterday, the change may be billing or policy-side rather than a DAX auth bug
+
+Builder note:
+
+> Apparently the open ecosystem now comes with a velvet rope and a cover charge. A bleakly efficient business model, if not a particularly romantic one for open tooling.
+
+Use diagnostics:
+
+```bash
+dax doctor auth anthropic
+```
+
+If DAX reports `auth_expired`, reconnect. If it reports `ready` but your run still fails, the next likely suspects are rate limits, model availability, or Anthropic-side policy pressure rather than local token expiry.
+
 ### 1. Gemini API Key (Default)
 
 Fastest setup. Uses a free or pay-as-you-go API key from Google AI Studio.
