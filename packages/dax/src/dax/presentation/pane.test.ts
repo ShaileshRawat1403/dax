@@ -5,17 +5,18 @@ describe("pane presentation model", () => {
   it("includes audit and memory as first-class pane modes", () => {
     expect(PANE_MODE).toContain("audit")
     expect(PANE_MODE).toContain("memory")
+    expect(PANE_MODE).not.toContain("diff")
   })
 
   it("uses concrete operator labels for the pane surfaces", () => {
-    expect(paneLabel("diff", false)).toBe("changes")
     expect(paneLabel("audit", false)).toBe("audit")
     expect(paneLabel("plan", false)).toBe("workstation")
     expect(paneLabel("memory", false)).toBe("memory")
     expect(paneCompactLabel("approvals", false)).toBe("approve")
+    expect(paneCompactLabel("plan", false)).toBe("work")
   })
 
-  it("prioritizes approvals, then refine, then live workstation context, then memory, then audit", () => {
+  it("prioritizes approvals, then audit attention, then live workstation context, then refine, then memory", () => {
     expect(
       deriveAutoPaneMode({
         hasApprovals: true,
@@ -26,9 +27,23 @@ describe("pane presentation model", () => {
         hasMemoryContext: true,
         hasPlanContext: true,
         liveStage: "planning",
-        fallback: "diff",
+        fallback: "plan",
       }),
     ).toBe("approvals")
+
+    expect(
+      deriveAutoPaneMode({
+        hasApprovals: false,
+        hasAuditAttention: true,
+        hasRefineDraft: true,
+        hasDiffContext: true,
+        hasLiveContext: false,
+        hasMemoryContext: true,
+        hasPlanContext: true,
+        liveStage: "done",
+        fallback: "plan",
+      }),
+    ).toBe("audit")
 
     expect(
       deriveAutoPaneMode({
@@ -39,24 +54,24 @@ describe("pane presentation model", () => {
         hasLiveContext: true,
         hasMemoryContext: true,
         hasPlanContext: true,
-        liveStage: "planning",
-        fallback: "diff",
+        liveStage: "executing",
+        fallback: "plan",
       }),
-    ).toBe("refine")
+    ).toBe("plan")
 
     expect(
       deriveAutoPaneMode({
         hasApprovals: false,
-        hasRefineDraft: false,
-        hasAuditAttention: true,
-        hasDiffContext: true,
-        hasLiveContext: true,
-        hasMemoryContext: true,
+        hasRefineDraft: true,
+        hasAuditAttention: false,
+        hasDiffContext: false,
+        hasLiveContext: false,
+        hasMemoryContext: false,
         hasPlanContext: true,
-        liveStage: "executing",
-        fallback: "diff",
+        liveStage: "done",
+        fallback: "plan",
       }),
-    ).toBe("plan")
+    ).toBe("refine")
 
     expect(
       deriveAutoPaneMode({
@@ -68,23 +83,9 @@ describe("pane presentation model", () => {
         hasMemoryContext: true,
         hasPlanContext: true,
         liveStage: "done",
-        fallback: "diff",
+        fallback: "plan",
       }),
     ).toBe("memory")
-
-    expect(
-      deriveAutoPaneMode({
-        hasApprovals: false,
-        hasRefineDraft: false,
-        hasAuditAttention: true,
-        hasDiffContext: true,
-        hasLiveContext: false,
-        hasMemoryContext: false,
-        hasPlanContext: true,
-        liveStage: "done",
-        fallback: "diff",
-      }),
-    ).toBe("audit")
   })
 
   it("shows the auto pane only on wide layouts when a core dax surface matters", () => {
@@ -155,7 +156,7 @@ describe("pane presentation model", () => {
     ).toBe("approvals")
   })
 
-  it("switches to diff once live execution settles and a diff is available", () => {
+  it("keeps the rail on workstation once live execution settles and concrete changes are available", () => {
     expect(
       deriveAutoPaneMode({
         hasApprovals: false,
@@ -168,10 +169,10 @@ describe("pane presentation model", () => {
         liveStage: "done",
         fallback: "plan",
       }),
-    ).toBe("diff")
+    ).toBe("plan")
   })
 
-  it("switches the rail to audit or changes once the live run moves into verification", () => {
+  it("switches the rail to audit during verification when trust needs attention, otherwise stays on workstation", () => {
     expect(
       deriveAutoPaneMode({
         hasApprovals: false,
@@ -198,6 +199,6 @@ describe("pane presentation model", () => {
         liveStage: "verifying",
         fallback: "plan",
       }),
-    ).toBe("diff")
+    ).toBe("plan")
   })
 })

@@ -112,6 +112,7 @@ import {
   paneLabel as daxPaneLabel,
   paneTitle as daxPaneTitle,
 } from "@/dax/presentation/pane"
+import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import {
   deriveAssistantInsightCard,
@@ -405,7 +406,8 @@ export function Session() {
   const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(DAX_SETTING.session_pane_visibility, "auto")
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "plan")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
-  const [workflowMode, setWorkflowMode] = kv.signal<WorkflowMode>(DAX_SETTING.session_workflow_mode, "plan")
+  const workflowMode = createMemo<WorkflowMode>(() => kv.get(sessionWorkflowModeKey(route.sessionID), "plan"))
+  const setWorkflowMode = (next: WorkflowMode) => kv.set(sessionWorkflowModeKey(route.sessionID), next)
 
   const [displayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
   const [pmTab, setPmTab] = kv.signal<PMTab>(DAX_SETTING.session_pm_tab, "note")
@@ -1199,7 +1201,7 @@ export function Session() {
 
   const priorityPaneMode = createMemo<PaneMode>(() => {
     if (hasApprovalsNeed()) return "approvals"
-    if (proposedChanges().length > 0) return "diff"
+    if (hasAuditNeed()) return "audit"
     return "plan"
   })
 
@@ -1248,7 +1250,11 @@ export function Session() {
   createEffect(
     on(
       () => route.sessionID,
-      () => void refreshMemorySnapshot(),
+      (sessionID) => {
+        if (!sessionID) return
+        void sync.session.sync(sessionID)
+        void refreshMemorySnapshot()
+      },
       { defer: false },
     ),
   )
@@ -1260,8 +1266,6 @@ export function Session() {
     switch (mode) {
       case "approvals":
         return workstationState().approvalSummary.pendingCount || undefined
-      case "diff":
-        return proposedChanges().length || undefined
       case "audit":
         return workstationState().auditSummary.findingsCount || undefined
       default:
@@ -1525,76 +1529,6 @@ export function Session() {
                 </box>
 
                 <Switch>
-                  <Match when={activePaneMode() === "diff"}>
-                    <Show
-                      when={hasDiffNeed()}
-                      fallback={<text fg={theme.textMuted}>No active diff or proposed changes for this turn.</text>}
-                    >
-                      <box flexDirection="column" gap={1} flexGrow={1} width="100%">
-                        <Show when={proposedChanges().length > 0}>
-                          <box flexDirection="column" gap={0} marginBottom={1}>
-                            <text fg={theme.primary} bold>
-                              PROPOSED CHANGES
-                            </text>
-                            <For each={proposedChanges()}>
-                              {(change) => (
-                                <box
-                                  flexDirection="row"
-                                  gap={1}
-                                  justifyContent="space-between"
-                                  onMouseUp={() => setSelectedProposedChangeId(change.changeId)}
-                                  paddingLeft={1}
-                                  paddingRight={1}
-                                  backgroundColor={
-                                    selectedProposedChangeId() === change.changeId
-                                      ? tint(theme.backgroundElement, theme.primary, 0.14)
-                                      : theme.backgroundPanel
-                                  }
-                                  border={["round"]}
-                                  borderColor={
-                                    selectedProposedChangeId() === change.changeId ? theme.primary : theme.borderSubtle
-                                  }
-                                >
-                                  <text
-                                    fg={selectedProposedChangeId() === change.changeId ? theme.primary : theme.text}
-                                  >
-                                    {selectedProposedChangeId() === change.changeId ? ">" : " "} {change.filePath}
-                                  </text>
-                                  <text fg={proposedChangeStatusColor(change.status)}>
-                                    {proposedChangeStatusLabel(change.status)}
-                                  </text>
-                                </box>
-                              )}
-                            </For>
-                          </box>
-                        </Show>
-                        <box flexGrow={1} border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} width="100%">
-                          <scrollbox flexGrow={1} scrollAcceleration={scrollAcceleration()}>
-                            <diff
-                              diff={selectedProposedChange()?.diff ?? ""}
-                              view={paneDiffView()}
-                              filetype={filetype(selectedProposedChange()?.filePath)}
-                              syntaxStyle={syntax()}
-                              showLineNumbers={true}
-                              width="100%"
-                              wrapMode={diffWrapMode()}
-                              fg={theme.text}
-                              addedBg={theme.diffAddedBg}
-                              removedBg={theme.diffRemovedBg}
-                              contextBg={theme.diffContextBg}
-                              addedSignColor={theme.diffHighlightAdded}
-                              removedSignColor={theme.diffHighlightRemoved}
-                              lineNumberFg={theme.diffLineNumber}
-                              lineNumberBg={theme.diffContextBg}
-                              addedLineNumberBg={theme.diffAddedLineNumberBg}
-                              removedLineNumberBg={theme.diffRemovedLineNumberBg}
-                            />
-                          </scrollbox>
-                        </box>
-                      </box>
-                    </Show>
-                  </Match>
-
                   <Match when={activePaneMode() === "plan"}>
                     <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
                       <box
@@ -1724,8 +1658,19 @@ export function Session() {
                             borderColor={theme.borderSubtle}
                             backgroundColor={theme.backgroundElement}
                           >
-                            <text fg={theme.text}>Standby.</text>
-                            <text fg={theme.textMuted}>State will populate when a run starts.</text>
+                            <text fg={theme.text} bold>
+                              Ready for governed execution
+                            </text>
+                            <text fg={theme.textMuted}>
+                              {workflowMode() === "build"
+                                ? "Build mode — describe what you want to create."
+                                : workflowMode() === "plan"
+                                  ? "Plan mode — describe the outcome you want reviewed."
+                                  : workflowMode() === "audit"
+                                    ? "Audit mode — ask for a trust and verification review."
+                                    : "Describe the next governed task to begin."}
+                            </text>
+                            <text fg={theme.textMuted}>Type a prompt below to begin.</text>
                           </box>
                         }
                       >
@@ -1952,14 +1897,69 @@ export function Session() {
                             </Show>
                           </box>
 
-                          <Show when={workstationState().goal}>
-                            <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1}>
-                              <text fg={theme.textMuted} bold>
-                                GOAL:
+                          <Show when={workstationState().goal || workstationState().currentStep}>
+                            <box
+                              flexDirection="column"
+                              gap={0}
+                              padding={1}
+                              backgroundColor={theme.backgroundElement}
+                              border={["round"]}
+                              borderColor={theme.borderSubtle}
+                            >
+                              <Show when={workstationState().goal}>
+                                <box flexDirection="row" gap={1}>
+                                  <text fg={theme.textMuted} bold>
+                                    OBJECTIVE
+                                  </text>
+                                  <text fg={theme.text} wrapMode="word">
+                                    {summarize(workstationState().goal, 68)}
+                                  </text>
+                                </box>
+                              </Show>
+                              <Show when={workstationState().currentStep}>
+                                <box flexDirection="row" gap={1}>
+                                  <text fg={theme.textMuted} bold>
+                                    CURRENT STEP
+                                  </text>
+                                  <text fg={theme.text} wrapMode="word">
+                                    {summarize(workstationState().currentStep, 68)}
+                                  </text>
+                                </box>
+                              </Show>
+                            </box>
+                          </Show>
+
+                          <Show
+                            when={
+                              proposedChanges().length > 0 ||
+                              workstationState().artifactSummary.count > 0 ||
+                              workstationState().activitySummary.items.length > 0
+                            }
+                          >
+                            <box
+                              flexDirection="column"
+                              gap={0}
+                              padding={1}
+                              backgroundColor={theme.backgroundElement}
+                              border={["round"]}
+                              borderColor={theme.borderSubtle}
+                            >
+                              <text fg={theme.primary} bold>
+                                RECENT EVIDENCE
                               </text>
-                              <text fg={theme.textMuted} wrapMode="word">
-                                {summarize(workstationState().goal, 60)}
-                              </text>
+                              <For each={workstationState().activitySummary.items.slice(0, 3)}>
+                                {(item) => <text fg={theme.textMuted} wrapMode="word">- {item}</text>}
+                              </For>
+                              <Show when={proposedChanges().length > 0}>
+                                <text fg={theme.text}>
+                                  {`${proposedChanges().length} proposed change${proposedChanges().length === 1 ? "" : "s"} ready for review`}
+                                </text>
+                              </Show>
+                              <Show when={workstationState().artifactSummary.count > 0}>
+                                <text fg={theme.textMuted}>
+                                  {`${workstationState().artifactSummary.count} artifact${workstationState().artifactSummary.count === 1 ? "" : "s"} captured`}
+                                </text>
+                              </Show>
                             </box>
                           </Show>
                         </box>
@@ -2203,7 +2203,7 @@ export function Session() {
           onCycleWorkflowMode={() => {
             const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
             const idx = modes.indexOf(workflowMode())
-            setWorkflowMode(() => modes[(idx + 1) % modes.length])
+            setWorkflowMode(modes[(idx + 1) % modes.length]!)
           }}
         />
         <Toast />
@@ -2588,7 +2588,7 @@ function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOpera
     case "SKILL":
       return `Loaded ${formatInlineCode(trace.target)}.`
     case "REFLECTION":
-      return `Captured a planning checkpoint for ${formatInlineCode(trace.target)}.`
+      return `Captured a checkpoint for ${formatInlineCode(trace.target)}.`
     case "SHELL":
       return `Checked ${formatInlineCode(trace.target)}.`
     case "WRITE":

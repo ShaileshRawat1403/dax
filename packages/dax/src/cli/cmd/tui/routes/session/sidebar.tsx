@@ -8,7 +8,7 @@ import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { useLocal } from "../../context/local"
 import { TodoItem } from "../../component/todo-item"
-import { DAX_SETTING } from "@/dax/settings"
+import { DAX_SETTING, sessionWorkflowModeKey } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
 import { shouldShowSidebarSection, type DisplayMode } from "@/dax/presentation/session-display"
@@ -214,7 +214,7 @@ export function Sidebar(props: {
   const directory = useDirectory()
   const kv = useKV()
   const local = useLocal()
-  const workflowMode = createMemo(() => kv.get(DAX_SETTING.session_workflow_mode, local.agent.current().name))
+  const workflowMode = createMemo(() => kv.get(sessionWorkflowModeKey(props.sessionID), local.agent.current().name))
   const showSection = (section: Parameters<typeof shouldShowSidebarSection>[0]["section"]) =>
     shouldShowSidebarSection({
       displayMode: props.displayMode,

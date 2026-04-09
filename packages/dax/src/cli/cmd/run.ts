@@ -362,6 +362,8 @@ function isTerminalStepReason(reason: string) {
   return !["tool-calls", "unknown"].includes(reason)
 }
 
+const DEFAULT_CHECKPOINT_AGENTS = new Set(["plan", "explore", "docs", "audit", "agile"])
+
 export async function executeRun(args: RunArgs, options?: { defaultCommand?: string }) {
   process.env.DAX_FORCE_EXIT = "1"
   const rawMessage = [...args.message, ...(args["--"] || [])].join(" ").trim()
@@ -569,7 +571,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
               UI.empty()
             }
 
-            const shouldShowThinking = args.thinking || args.agent === "plan"
+            const shouldShowThinking = args.thinking || DEFAULT_CHECKPOINT_AGENTS.has(args.agent ?? "")
             if (part.type === "reasoning" && part.time?.end && shouldShowThinking) {
               if (emit("reasoning", { part })) continue
               const text = part.text.trim()

@@ -23,8 +23,6 @@ export interface RenderableStreamItem {
   durationMs?: number
 }
 
-const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
-
 const PHASE_MAP: Record<string, RunPhase> = {
   "run.created": "understanding",
   "run.started": "understanding",
@@ -275,22 +273,29 @@ function buildLegacyStreamItems(
   return mergeAdjacentAssistantEvidenceItems(streamItems)
 }
 
-function isContextEvidenceAssistantItem(item: RenderableStreamItem): item is RenderableStreamItem & {
+function isHelperAssistantItem(item: RenderableStreamItem): item is RenderableStreamItem & {
   kind: "message.assistant"
   data: AssistantMessage | MessageV2.Info
   parts: Part[]
 } {
   if (item.kind !== "message.assistant") return false
   if (!item.parts || item.parts.length === 0) return false
-  return item.parts.every((part) => part.type === "tool" && CONTEXT_GROUP_TOOLS.has(part.tool))
+  return item.parts.every((part) => {
+    if (part.type === "text") return false
+    if (part.type === "tool") return true
+    if (part.type === "reasoning") return true
+    if ((part as { type?: string }).type === "activity-cluster") return true
+    if ((part as { type?: string }).type === "context-group") return true
+    return false
+  })
 }
 
-function canMergeAssistantEvidence(
+function canMergeAssistantItems(
   left: RenderableStreamItem | undefined,
   right: RenderableStreamItem,
 ): left is RenderableStreamItem & { data: AssistantMessage | MessageV2.Info; parts: Part[] } {
   if (!left) return false
-  if (!isContextEvidenceAssistantItem(left) || !isContextEvidenceAssistantItem(right)) return false
+  if (!isHelperAssistantItem(left) || !isHelperAssistantItem(right)) return false
   const leftAgent = (left.data as AssistantMessage | MessageV2.Info | undefined)?.agent
   const rightAgent = (right.data as AssistantMessage | MessageV2.Info | undefined)?.agent
   return leftAgent === rightAgent
@@ -301,7 +306,7 @@ function mergeAdjacentAssistantEvidenceItems(items: RenderableStreamItem[]): Ren
 
   for (const item of items) {
     const previous = merged[merged.length - 1]
-    if (canMergeAssistantEvidence(previous, item)) {
+    if (canMergeAssistantItems(previous, item)) {
       const previousData = previous.data as AssistantMessage
       const itemData = item.data as AssistantMessage
       merged[merged.length - 1] = {

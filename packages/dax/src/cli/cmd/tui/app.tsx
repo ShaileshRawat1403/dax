@@ -51,7 +51,7 @@ import open from "open"
 import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { detectPythonEnvironment, formatEnvironmentDoctorReport } from "./util/environment"
-import { DAX_SETTING } from "@/dax/settings"
+import { DAX_SETTING, sessionWorkflowModeKey } from "@/dax/settings"
 import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
 import { UIActivityProvider } from "./context/activity"
 import { bootstrap } from "../../bootstrap"
@@ -210,7 +210,8 @@ function App() {
   createEffect(() => {
     const current = local.agent.current()?.name
     if (current && WORKFLOW_AGENT_MODES.has(current)) {
-      kv.set(DAX_SETTING.session_workflow_mode, current)
+      const key = route.data.type === "session" ? sessionWorkflowModeKey(route.data.sessionID) : DAX_SETTING.session_workflow_mode
+      kv.set(key, current)
     }
   })
 
@@ -252,7 +253,8 @@ function App() {
     batch(() => {
       if (args.agent) {
         local.agent.set(args.agent)
-        kv.set(DAX_SETTING.session_workflow_mode, args.agent)
+        const key = args.sessionID ? sessionWorkflowModeKey(args.sessionID) : DAX_SETTING.session_workflow_mode
+        kv.set(key, args.agent)
       } else {
         local.agent.set("plan")
         kv.set(DAX_SETTING.session_workflow_mode, "plan")
