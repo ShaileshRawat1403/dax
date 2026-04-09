@@ -25,6 +25,7 @@ import { TaskTool } from "../../tool/task"
 import { SkillTool } from "../../tool/skill"
 import { ShellTool } from "../../tool/shell"
 import { TodoWriteTool } from "../../tool/todo"
+import { ReflectionTool } from "../../tool/reflection"
 import { Locale } from "../../util/locale"
 
 type RunArgs = {
@@ -324,18 +325,18 @@ export function buildExecutionPreview(input: {
     const detail = trimmedIntent ? `${input.command} ${trimmedIntent}`.trim() : input.command
     return {
       mode: "workflow_command",
-      title: `Workflow command: ${input.command}`,
+      title: `Run ${input.command}`,
       detail,
-      validation: `Execution request validated${attachmentCount > 0 ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} ready` : ""}`,
+      validation: `Governed run ready${attachmentCount > 0 ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} attached` : ""}`,
       attachmentCount,
     }
   }
 
   return {
     mode: "intent",
-    title: "Execution intent",
+    title: "Goal",
     detail: trimmedIntent || "No explicit intent provided",
-    validation: `Intent packaged for governed execution${attachmentCount > 0 ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} ready` : ""}`,
+    validation: `Governed run ready${attachmentCount > 0 ? ` · ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} attached` : ""}`,
     attachmentCount,
   }
 }
@@ -346,6 +347,15 @@ function renderExecutionPreview(preview: ExecutionPreview) {
   UI.println(UI.Style.TEXT_DIM + preview.detail + UI.Style.TEXT_NORMAL)
   UI.println(UI.Style.TEXT_DIM + preview.validation + UI.Style.TEXT_NORMAL)
   UI.empty()
+}
+
+function reflection(info: ToolProps<typeof ReflectionTool>) {
+  const goal = typeof info.input.goal === "string" ? info.input.goal.trim() : ""
+  inline({
+    icon: "≈",
+    title: goal ? `Checkpoint ${goal}` : "Checkpoint recorded",
+    description: "reflection",
+  })
 }
 
 function isTerminalStepReason(reason: string) {
@@ -476,6 +486,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
       if (part.tool === "task") return task(props<typeof TaskTool>(part))
       if (part.tool === "todowrite") return todo(props<typeof TodoWriteTool>(part))
       if (part.tool === "skill") return skill(props<typeof SkillTool>(part))
+      if (part.tool === "reflection") return reflection(props<typeof ReflectionTool>(part))
       return fallback(part)
     }
 
@@ -508,7 +519,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
             toggles.get("start") !== true
           ) {
             UI.empty()
-            UI.println(`> ${event.properties.info.agent} · ${event.properties.info.modelID}`)
+            UI.println(`${Locale.titlecase(event.properties.info.agent)} · ${event.properties.info.modelID}`)
             UI.empty()
             toggles.set("start", true)
           }
@@ -558,11 +569,12 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
               UI.empty()
             }
 
-            if (part.type === "reasoning" && part.time?.end && args.thinking) {
+            const shouldShowThinking = args.thinking || args.agent === "plan"
+            if (part.type === "reasoning" && part.time?.end && shouldShowThinking) {
               if (emit("reasoning", { part })) continue
               const text = part.text.trim()
               if (!text) continue
-              const line = `Thinking: ${text}`
+              const line = `Current pass: ${text}`
               if (process.stdout.isTTY) {
                 UI.empty()
                 UI.println(`${UI.Style.TEXT_DIM}\u001b[3m${line}\u001b[0m${UI.Style.TEXT_NORMAL}`)

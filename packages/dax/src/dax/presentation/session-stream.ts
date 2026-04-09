@@ -99,6 +99,17 @@ function isPhaseMarkerCandidate(item: RunNarrativeItem): boolean {
   ].includes(item.type)
 }
 
+function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
+  switch (item.type) {
+    case "run.completed":
+    case "run.failed":
+    case "step.failed":
+      return true
+    default:
+      return false
+  }
+}
+
 export function buildStreamItems(
   projectedRun: ProjectedRun | undefined,
   messages: any[],
@@ -142,17 +153,19 @@ export function buildStreamItems(
       })
     }
 
-    streamItems.push({
-      id: item.id,
-      kind: "run.event",
-      timestamp: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
-      phase,
-      type: item.type,
-      message: item.message,
-      data: item,
-      status: deriveStatusFromNarrativeItem(item),
-      expanded: true,
-    })
+    if (shouldRenderRunEvent(item)) {
+      streamItems.push({
+        id: item.id,
+        kind: "run.event",
+        timestamp: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+        phase,
+        type: item.type,
+        message: item.message,
+        data: item,
+        status: deriveStatusFromNarrativeItem(item),
+        expanded: true,
+      })
+    }
   }
 
   for (const item of alertItems) {
