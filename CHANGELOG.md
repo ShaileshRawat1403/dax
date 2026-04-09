@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+## [1.0.28] - 2026-04-09
+
 ### Added
 
 - **Workstation Step Tracker**: The session workstation now shows a compact step tracker so operators can quickly see what was asked, what is in flight, and what is already done.
