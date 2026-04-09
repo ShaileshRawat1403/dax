@@ -72,16 +72,17 @@ describe("session-stream presentation model", () => {
 
       const items = buildStreamItems(projectedRun, [], {})
 
-      expect(items.length).toBeGreaterThanOrEqual(3)
+      expect(items.length).toBe(2)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
-      expect(runEvents.length).toBeGreaterThanOrEqual(3)
+      expect(runEvents.length).toBe(0)
 
       const runCreated = runEvents.find((item) => item.type === "run.created")
-      expect(runCreated?.message).toBe("Session initialized")
-
+      expect(runCreated).toBeUndefined()
+      const intentCreated = runEvents.find((item) => item.type === "intent.created")
+      expect(intentCreated).toBeUndefined()
       const planCompiled = runEvents.find((item) => item.type === "plan.compiled")
-      expect(planCompiled?.message).toBe("Strategy locked: 3 tasks mapped")
+      expect(planCompiled).toBeUndefined()
     })
 
     it("renders phase markers for structural narrative items", () => {
@@ -138,7 +139,7 @@ describe("session-stream presentation model", () => {
       const runEvents = items.filter((item) => item.kind === "run.event")
       const messageItems = items.filter((item) => item.kind === "message.user" || item.kind === "message.assistant")
 
-      expect(runEvents.length).toBeGreaterThanOrEqual(2)
+      expect(runEvents.length).toBe(0)
       expect(messageItems.length).toBe(2)
 
       const sortedByTimestamp = items.toSorted((a, b) => a.timestamp - b.timestamp)
@@ -318,6 +319,8 @@ describe("session-stream presentation model", () => {
         (item) => item.kind === "run.event" || item.kind === "phase.marker" || item.kind === "alert.inline",
       )
       expect(visibleItems.length).toBeGreaterThan(0)
+      expect(visibleItems.some((item) => item.kind === "phase.marker")).toBe(true)
+      expect(visibleItems.some((item) => item.kind === "run.event")).toBe(false)
     })
 
     it("mixed narrative types all render correctly", () => {
@@ -333,15 +336,19 @@ describe("session-stream presentation model", () => {
 
       const items = buildStreamItems(projectedRun, [], {})
 
-      expect(items.length).toBeGreaterThanOrEqual(7)
+      expect(items.length).toBe(6)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
       const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
       const alertItems = items.filter((item) => item.kind === "alert.inline")
 
-      expect(runEvents.length).toBeGreaterThanOrEqual(5)
+      expect(runEvents.length).toBe(1)
       expect(phaseMarkers.length).toBeGreaterThanOrEqual(3)
       expect(alertItems.length).toBeGreaterThanOrEqual(1)
+      expect(runEvents.some((item) => item.type === "step.started")).toBe(false)
+      expect(runEvents.some((item) => item.type === "step.completed")).toBe(false)
+      expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
+      expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
     })
   })
 })

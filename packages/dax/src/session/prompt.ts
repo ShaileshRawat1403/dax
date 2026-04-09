@@ -1504,7 +1504,12 @@ Plan file requirements:
 - Recommended approach
 - Ordered implementation steps
 - Verification
-- Risks or follow-up`
+- Risks or follow-up
+
+Visible assistant output requirements:
+- Prefer a short operator briefing over repeating the full plan-file template.
+- Lead with the current finding or pass, then compact evidence, then what should happen next.
+- Only mirror the full plan-file headings in assistant output when the user explicitly asks for a formal checklist or template.`
       const part = await Session.updatePart({
         id: Identifier.ascending("part"),
         messageID: userMessage.info.id,

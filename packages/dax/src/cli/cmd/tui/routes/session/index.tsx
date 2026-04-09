@@ -394,7 +394,7 @@ export function Session() {
   const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
-  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", false)
+  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", false)
   const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
@@ -626,7 +626,7 @@ export function Session() {
 
   createEffect(() => {
     if (!animationsEnabled()) return
-    const timer = setInterval(() => setMotionTick((tick) => tick + 1), 220)
+    const timer = setInterval(() => setMotionTick((tick) => tick + 1), 480)
     onCleanup(() => clearInterval(timer))
   })
 
@@ -1104,15 +1104,6 @@ export function Session() {
     }
   })
 
-  const [lastActivityAt, setLastActivityAt] = createSignal(Date.now())
-  createEffect(() => {
-    const reason = stageReasonText()
-    if (reason) {
-      setLastActivityAt(Date.now())
-      scrollNarrative()
-    }
-  })
-
   const [lastPartCount, setLastPartCount] = createSignal(0)
   createEffect(() => {
     let total = 0
@@ -1155,7 +1146,7 @@ export function Session() {
       }
       setLastNarrativeScrollTop(scroll.scrollTop)
       setLastNarrativeHeight(scroll.scrollHeight)
-    }, animationsEnabled() ? 120 : 180)
+    }, animationsEnabled() ? 220 : 280)
     onCleanup(() => clearInterval(timer))
   })
 
@@ -2554,77 +2545,119 @@ function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: T
   return <ActivityCluster tools={props.part.tools} />
 }
 
+function formatInlineCode(value: string) {
+  return `\`${value}\``
+}
+
+function trimPunctuation(value: string | undefined) {
+  if (!value) return undefined
+  return value.replace(/[.:]+$/g, "").trim()
+}
+
+function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOperatorTraceLine>>) {
+  switch (trace.action) {
+    case "READ":
+      return `Checked ${formatInlineCode(trace.target)}.`
+    case "GLOB":
+      return `Scanned the workspace for ${formatInlineCode(trace.target)}.`
+    case "GREP":
+      return `Searched for ${formatInlineCode(trace.target)}.`
+    case "LIST":
+      return `Listed ${formatInlineCode(trace.target)}.`
+    case "SKILL":
+      return `Loaded ${formatInlineCode(trace.target)}.`
+    case "REFLECTION":
+      return `Captured a planning checkpoint for ${formatInlineCode(trace.target)}.`
+    case "SHELL":
+      return `Checked ${formatInlineCode(trace.target)}.`
+    case "WRITE":
+      return `Wrote ${formatInlineCode(trace.target)}.`
+    case "EDIT":
+      return `Updated ${formatInlineCode(trace.target)}.`
+    case "PATCH":
+      return `Patched ${formatInlineCode(trace.target)}.`
+    case "TASK":
+      return `Structured the next step around ${formatInlineCode(trace.target)}.`
+    case "TODO":
+      return `Updated the checklist around ${formatInlineCode(trace.target)}.`
+    case "QUESTION":
+      return `Flagged a question about ${formatInlineCode(trace.target)}.`
+    default:
+      return `${trace.action} ${formatInlineCode(trace.target)}.`
+  }
+}
+
+function describeNarrativeNext(next: string | undefined) {
+  const normalized = trimPunctuation(next)?.toLowerCase()
+  if (!normalized) return undefined
+  switch (normalized) {
+    case "continue plan execution":
+      return "Continue the pass."
+    case "capture evidence and verify":
+      return "Use the result as evidence and verify the next checkpoint."
+    case "decide next operation":
+      return "Use the result to choose the next check."
+    case "wait for tool completion":
+    case "wait for command completion":
+      return "Wait for the current step to finish."
+    case "wait for planning step":
+      return "Wait for the planning step to finish."
+    case "run verification":
+      return "Verify the change before moving on."
+    case "continue governed run":
+      return "Continue the governed run."
+    default:
+      return trimPunctuation(next)
+    }
+}
+
+function describeTraceRollup(traces: Array<NonNullable<ReturnType<typeof deriveOperatorTraceLine>>>, completed: number) {
+  if (traces.length === 0) return undefined
+  if (traces.length === 1) return describeNarrativeTrace(traces[0]!)
+
+  const actions = new Map<string, number>()
+  for (const trace of traces) {
+    const key = trace.action.toLowerCase()
+    actions.set(key, (actions.get(key) ?? 0) + 1)
+  }
+
+  const summary = Array.from(actions.entries())
+    .map(([action, count]) => `${count} ${action}${count === 1 ? "" : "s"}`)
+    .slice(0, 3)
+    .join(", ")
+
+  return `Checked ${traces.length} steps in this pass (${completed} complete): ${summary}.`
+}
+
 function ActivityCluster(props: { tools: ToolPart[] }) {
   const { theme } = useTheme()
   const ctx = use()
-  const kv = useKV()
-  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const traces = createMemo(() => props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })))
   const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
-  const first = createMemo(() => traces()[0])
+  const narrativeTraces = createMemo(() =>
+    traces()
+      .map((item) => item.trace)
+      .filter((trace): trace is NonNullable<typeof trace> => !!trace),
+  )
   const last = createMemo(() => traces()[traces().length - 1])
   const traceSummary = createMemo(() => {
-    const firstTrace = first()?.trace
-    const lastTrace = last()?.trace
-    if (!firstTrace && !lastTrace) return undefined
-    if (traces().length === 1 && firstTrace) {
-      if (explainMode()) {
-        return {
-          lead: "What happened",
-          body: `${firstTrace.action} on ${firstTrace.target}`,
-          result: firstTrace.result,
-        }
-      }
-      return {
-        lead: "What happened",
-        body: `${firstTrace.action} on ${firstTrace.target}`,
-        result: firstTrace.result,
-      }
-    }
-    if (firstTrace && lastTrace) {
-      if (explainMode()) {
-        return {
-          lead: "Progress",
-          body: `${completed()} of ${traces().length} actions completed`,
-          result: `Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}.`,
-        }
-      }
-      return {
-        lead: "Progress",
-        body: `${traces().length} steps processed (${completed()} complete)`,
-        result: `Started with ${firstTrace.action.toLowerCase()} on ${firstTrace.target}, then moved to ${lastTrace.action.toLowerCase()} on ${lastTrace.target}.`,
-      }
-    }
-    return undefined
+    const all = narrativeTraces()
+    if (all.length === 0) return undefined
+    return describeTraceRollup(all, completed())
   })
-  const traceNextStep = createMemo(() => last()?.trace?.next)
+  const traceNextStep = createMemo(() => describeNarrativeNext(last()?.trace?.next))
 
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
       <Show when={traceSummary()}>
-        <box flexDirection="column" gap={0}>
-          <box flexDirection="row" gap={1} alignItems="flex-start">
-            <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-              {traceSummary()!.lead}
-            </text>
-            <text fg={theme.text} wrapMode="word">
-              {traceSummary()!.body}
-            </text>
-          </box>
-          <Show when={traceSummary()!.result}>
-            <box flexDirection="row" gap={1} alignItems="flex-start">
-              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                Result
-              </text>
-              <text fg={theme.textMuted} wrapMode="word">
-                {traceSummary()!.result}
-              </text>
-            </box>
-          </Show>
+        <box flexDirection="column" gap={0} paddingBottom={traceNextStep() ? 0 : 1}>
+          <text fg={theme.text} wrapMode="word">
+            {traceSummary()!}
+          </text>
         </box>
       </Show>
       <Show when={traceNextStep()}>
-        <box flexDirection="row" gap={1} paddingTop={1} alignItems="flex-start">
+        <box flexDirection="row" gap={1} paddingTop={traceSummary() ? 0 : 1} paddingBottom={1} alignItems="flex-start">
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
             Next
           </text>
@@ -2680,11 +2713,11 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
       >
         <box paddingBottom={1}>
           <code
-            filetype="text"
+            filetype="markdown"
             drawUnstyledText={false}
             streaming={true}
             syntaxStyle={syntax()}
-            content={content()}
+            content={`_Current pass:_ ${content()}`}
             conceal={ctx.conceal()}
             fg={reasoningFg()}
           />
