@@ -118,6 +118,12 @@ This is DAX's first framing layer. It tells you what kind of work it thinks you 
 
 DAX shows work as it happens rather than hiding everything behind a final answer.
 
+The stream is designed to stay readable during longer runs:
+
+- live follow keeps the newest decision in view while the run is active
+- if you intentionally scroll up, DAX should stop fighting you and let you inspect older context
+- activity summaries emphasize `What happened`, `Result`, and `Next`
+
 ### 3. Tool use
 
 DAX can search, read, inspect, fetch, edit, or execute depending on the situation and the active governance rules.
@@ -135,8 +141,9 @@ The right pane is your operational control surface:
 - status and next operator action
 - approvals and trust posture
 - memory context (reflection + PM notes/rules)
+- step tracker for active work and completed checkpoints
 
-Use `memory` when you want grounded continuity instead of only current-turn activity.
+During live execution, smart pane-follow should usually keep the workstation surface in front of you. Use `memory` when you want grounded continuity instead of only current-turn activity.
 
 ## Display Mode + ELI12 + Persona (what each one does)
 
