@@ -388,11 +388,13 @@ export function RAOPane(props: {
                   paddingLeft={1}
                   paddingRight={1}
                 >
-                  <text
-                    fg={idx() === selectedIndex() ? theme.text : theme.textMuted}
-                    attributes={idx() === selectedIndex() ? TextAttributes.BOLD : undefined}
-                  >
-                    {item.type === "permission" ? "●" : "◌"} {itemLabel(item)}
+                  <box flexDirection="row" gap={1} alignItems="center">
+                    <text
+                      fg={idx() === selectedIndex() ? theme.text : theme.textMuted}
+                      attributes={idx() === selectedIndex() ? TextAttributes.BOLD : undefined}
+                    >
+                      {`${item.type === "permission" ? "●" : "◌"} ${itemLabel(item)}`}
+                    </text>
                     <Show when={item.type === "permission"}>
                       {(() => {
                         const permData = item.data as PermissionRequest
@@ -401,13 +403,12 @@ export function RAOPane(props: {
                         const isStale = ageMs > 7 * 24 * 60 * 60 * 1000
                         return (
                           <text fg={isStale ? theme.warning : theme.textMuted} dim>
-                            {" "}
-                            ({ageLabel})
+                            {`(${ageLabel})`}
                           </text>
                         )
                       })()}
                     </Show>
-                  </text>
+                  </box>
                 </box>
               )}
             </For>

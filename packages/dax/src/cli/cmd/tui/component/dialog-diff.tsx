@@ -55,8 +55,8 @@ export function DialogDiff(props: { diffs: DialogDiffItem[]; onOpenPane?: () => 
   const title = createMemo(() => (props.explainMode ? "Evidence review" : "Evidence detail"))
   const footer = createMemo(() =>
     props.explainMode
-      ? "Open the diff pane to inspect the live file-by-file change summary."
-      : "Open the diff pane for the live change summary while the session continues.",
+      ? "Open the diff review to inspect the live file-by-file change summary."
+      : "Open the diff review for the live change summary while the session continues.",
   )
   const emptyState = createMemo(() =>
     props.explainMode ? "No tracked file changes yet for this work." : "No tracked file changes yet.",
@@ -68,7 +68,7 @@ export function DialogDiff(props: { diffs: DialogDiffItem[]; onOpenPane?: () => 
         <text fg={theme.text} attributes={TextAttributes.BOLD}>
           {title()}
         </text>
-        <text fg={theme.textMuted}>up/down move • enter open diff pane • esc close</text>
+        <text fg={theme.textMuted}>up/down move • enter open diff review • esc close</text>
       </box>
 
       <box flexDirection="row" gap={1} flexWrap="wrap">

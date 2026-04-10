@@ -131,7 +131,7 @@ describe("pane presentation model", () => {
         paneMode: "refine",
         paneVisibility: "pinned",
         paneFollowMode: "live",
-        smartFollowActive: false,
+        following: false,
       }),
     ).toBe("refine")
   })
@@ -151,7 +151,7 @@ describe("pane presentation model", () => {
         paneMode: "refine",
         paneVisibility: "pinned",
         paneFollowMode: "live",
-        smartFollowActive: false,
+        following: false,
       }),
     ).toBe("approvals")
   })

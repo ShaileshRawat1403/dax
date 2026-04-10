@@ -75,17 +75,17 @@ function TelemetryPanel(props: { state: WorkstationState }) {
       <Show when={props.state.auditSummary.findingsCount > 0}>
         <box flexDirection="row" gap={1} flexWrap="wrap">
           <Show when={props.state.auditSummary.blockerCount > 0}>
-            <text fg={theme.error}>! {props.state.auditSummary.blockerCount} Blocker</text>
+            <text fg={theme.error}>{`! ${props.state.auditSummary.blockerCount} Blocker`}</text>
           </Show>
           <Show when={props.state.auditSummary.warningCount > 0}>
-            <text fg={theme.warning}>? {props.state.auditSummary.warningCount} Warning</text>
+            <text fg={theme.warning}>{`? ${props.state.auditSummary.warningCount} Warning`}</text>
           </Show>
         </box>
       </Show>
 
       <box marginTop={1} paddingTop={1} borderStyle="single" borderTop borderColor={theme.backgroundElement}>
         <text fg={theme.textMuted} dim>
-          ID: {props.state.sessionID.slice(0, 8)}...
+          {`ID: ${props.state.sessionID.slice(0, 8)}...`}
         </text>
       </box>
     </box>
@@ -106,7 +106,7 @@ function SidebarAction(props: { label: string; onPress?: () => void; muted?: boo
         flexDirection="row"
         gap={1}
       >
-        <text fg={props.muted ? theme.textMuted : theme.primary}>› {props.label}</text>
+        <text fg={props.muted ? theme.textMuted : theme.primary}>{`› ${props.label}`}</text>
         <Show when={props.hint}>
           <text fg={theme.textMuted}>{props.hint}</text>
         </Show>

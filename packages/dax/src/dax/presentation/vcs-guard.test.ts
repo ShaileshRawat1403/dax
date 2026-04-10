@@ -39,13 +39,23 @@ describe("vcs-guard", () => {
     expect(nudge?.detail).toContain("GitHub CI")
   })
 
-  test("keeps planning on main informational", () => {
+  test("does not nudge for read-only planning on main", () => {
+    expect(
+      deriveFeatureBranchNudge({
+        branch: "main",
+        workflowMode: "plan",
+      }),
+    ).toBeUndefined()
+  })
+
+  test("nudges planning only when changes already exist on main", () => {
     const nudge = deriveFeatureBranchNudge({
       branch: "main",
       workflowMode: "plan",
+      hasConcreteChanges: true,
     })
 
     expect(nudge?.tone).toBe("muted")
-    expect(nudge?.title).toContain("Plan")
+    expect(nudge?.detail).toContain("trustworthy")
   })
 })

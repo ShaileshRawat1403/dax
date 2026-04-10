@@ -160,8 +160,6 @@ Primary success criteria:
 - The user understands what is happening.
 - The user can execute one step at a time without confusion.`
 const ELI12_TEMPLATE_RE = /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i
-const CASUAL_DIRECT_RE =
-  /^(hi|hello|hey|yo|hola|sup|what'?s up|howdy|good (morning|afternoon|evening)|thanks|thank you|what can you do)\b[!?., ]*$/i
 
 const REFINE_PREFIX = `SYSTEM: DAX - Auto-Refine Mode (Structured Execution)
 
@@ -1150,8 +1148,6 @@ export function Prompt(props: PromptProps) {
   })
 
   const resolveSubmitAgent = (text: string) => {
-    const trimmed = text.trim()
-    if (CASUAL_DIRECT_RE.test(trimmed)) return "build"
     return local.agent.current().name
   }
 
