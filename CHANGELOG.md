@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+## [1.0.29] - 2026-04-10
+
+### Changed
+
+- **Narrative Stream Polish**: Session narration now reads more like a guided investigation, with clearer acknowledgment, richer mid-run reasoning, and grouped behind-the-hood tool bursts instead of flat receipt ladders.
+- **Approval Handoff**: Pending approval and intervention cards now route into the review queue more directly, with clearer workstation visibility for operator decisions.
+- **Workstation Evidence**: The right pane now favors an evidence ledger and review-focused cues over low-signal generic status blocks.
+
+### Fixed
+
+- **Workflow Mode Stability**: Simple prompts no longer silently rewrite a plan session into build mode through hidden agent switching.
+- **Branch Nudges**: Read-only planning and inspection flows on `main` no longer surface premature branching nudges unless concrete changes already exist.
+- **Transcript Framing**: Removed lingering `Current pass` UI phrasing and other stale transcript leftovers from the pre-rework stream model.
+
 ## [1.0.28] - 2026-04-09
 
 ### Added

@@ -576,7 +576,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
               if (emit("reasoning", { part })) continue
               const text = part.text.trim()
               if (!text) continue
-              const line = `Current pass: ${text}`
+              const line = `Checking: ${text}`
               if (process.stdout.isTTY) {
                 UI.empty()
                 UI.println(`${UI.Style.TEXT_DIM}\u001b[3m${line}\u001b[0m${UI.Style.TEXT_NORMAL}`)

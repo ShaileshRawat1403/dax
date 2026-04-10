@@ -10,6 +10,7 @@ export function StreamItem(props: {
   expanded: boolean
   isLast: boolean
   onTogglePhase: () => void
+  onNavigateToApprovals?: () => void
   MessageComponent: typeof MessagePlaceholder
 }) {
   return (
@@ -33,7 +34,7 @@ export function StreamItem(props: {
       </Match>
 
       <Match when={props.item.kind === "alert.inline"}>
-        <AlertInline item={props.item} />
+        <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} />
       </Match>
 
       <Match when={props.item.kind === "message.user"}>
@@ -54,7 +55,7 @@ export function StreamItem(props: {
 function MessagePlaceholder(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: any[] }) {
   return (
     <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
-      <text fg="$text">[{props.message.role} message - use existing Message component]</text>
+      <text fg="$text">{`[${props.message.role} message - use existing Message component]`}</text>
     </box>
   )
 }

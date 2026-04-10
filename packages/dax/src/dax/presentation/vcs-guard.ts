@@ -16,23 +16,16 @@ export function deriveFeatureBranchNudge(input: {
 
   const mode = input.workflowMode ?? "plan"
 
-  if (mode === "explore" || mode === "docs" || mode === "audit") {
+  if (mode === "plan" && input.hasConcreteChanges) {
     return {
-      title: "Protect main",
+      title: "Planning on a dirty release line",
       detail:
-        "Reading from main is fine. Before you move into write-heavy work, create a feature branch so main and CI stay stable.",
+        "You are still on main and there are already concrete changes in play. Branch now so the release line stays trustworthy before this turns into implementation work.",
       tone: "muted" as BranchGuardTone,
     }
   }
 
-  if (mode === "plan") {
-    return {
-      title: "Plan on main, branch for changes",
-      detail:
-        "Planning from main is safe. Create a feature branch before you turn this plan into edits or release-sensitive work.",
-      tone: "muted" as BranchGuardTone,
-    }
-  }
+  if (mode === "plan" || mode === "explore" || mode === "docs" || mode === "audit") return
 
   if (input.hasConcreteChanges) {
     return {

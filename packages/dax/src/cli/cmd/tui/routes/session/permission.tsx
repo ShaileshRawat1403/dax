@@ -139,7 +139,7 @@ function EditBody(props: { request: PermissionRequest }) {
     <box flexDirection="column" gap={1}>
       <box flexDirection="row" gap={1} paddingLeft={1}>
         <text fg={theme.textMuted}>{"→"}</text>
-        <text fg={theme.textMuted}>Edit {normalizePath(filepath())}</text>
+        <text fg={theme.textMuted}>{`Edit ${normalizePath(filepath())}`}</text>
       </box>
       <Show when={diff()}>
         <scrollbox height="100%">
@@ -206,9 +206,9 @@ function RiskCallout(props: {
         </text>
         <text fg={theme.textMuted}>{props.reason}</text>
         <Show when={props.suggestion}>
-          <text fg={theme.text}>Suggested: {props.suggestion}</text>
+          <text fg={theme.text}>{`Suggested: ${props.suggestion}`}</text>
         </Show>
-        <text fg={theme.textMuted}>Policy profile: {props.profile}</text>
+        <text fg={theme.textMuted}>{`Policy profile: ${props.profile}`}</text>
       </box>
     </Show>
   )

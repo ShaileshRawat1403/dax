@@ -9,10 +9,10 @@ describe("run command framing", () => {
     })
 
     expect(preview.mode).toBe("intent")
-    expect(preview.title).toBe("Execution intent")
+    expect(preview.title).toBe("Goal")
     expect(preview.detail).toContain("review the release checklist")
-    expect(preview.validation).toContain("governed execution")
-    expect(preview.validation).toContain("1 attachment ready")
+    expect(preview.validation).toContain("Governed run ready")
+    expect(preview.validation).toContain("1 attachment")
   })
 
   test("builds a workflow-command preview when command mode is used", () => {
@@ -23,8 +23,8 @@ describe("run command framing", () => {
     })
 
     expect(preview.mode).toBe("workflow_command")
-    expect(preview.title).toBe("Workflow command: docs")
+    expect(preview.title).toBe("Run docs")
     expect(preview.detail).toBe("docs release-readiness")
-    expect(preview.validation).toBe("Execution request validated")
+    expect(preview.validation).toBe("Governed run ready")
   })
 })

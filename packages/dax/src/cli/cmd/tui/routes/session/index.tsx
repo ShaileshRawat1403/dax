@@ -497,6 +497,13 @@ export function Session() {
   const activeInterventions = createMemo(() =>
     interventions().filter((item) => item.status === "requested" || item.status === "pending"),
   )
+  const approvalQueueCount = createMemo(() => permissions().length + questions().length)
+  const openApprovalsPane = () => {
+    setPaneMode(() => "approvals")
+    setPaneVisibility(() => "pinned")
+    setPaneFollowMode(() => "smart")
+    setFollowing(false)
+  }
   const interventionKindLabel = (kind: string) => {
     switch (kind) {
       case "approval":
@@ -703,6 +710,27 @@ export function Session() {
     return items.slice(-limit).reverse()
   })
 
+  /** Recent tool traces for the right panel evidence ledger — last 5 completed tools */
+  const recentEvidenceTraces = createMemo(() => {
+    const traces: Array<{ label: string; meta?: string; failed: boolean }> = []
+    for (const msg of messages().slice(-3)) {
+      if (msg.role !== "assistant") continue
+      const parts = sync.data.part[msg.id] ?? []
+      for (const p of parts) {
+        if (p.type !== "tool" || p.state.status !== "completed") continue
+        const trace = deriveOperatorTraceLine(p)
+        if (!trace) continue
+        const meta = extractResultMeta(trace.result)
+        traces.push({
+          label: describeNarrativeTrace(trace),
+          meta,
+          failed: trace.result.includes("failed"),
+        })
+      }
+    }
+    return traces.slice(-5)
+  })
+
   const auditHistory = createMemo(() =>
     deriveAuditHistory({
       messages: messages(),
@@ -847,7 +875,7 @@ export function Session() {
   })
 
   const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
-  const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0)
+  const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0 || approvalQueueCount() > 0)
   const hasAuditNeed = createMemo(() => workstationState().auditSummary.posture !== "clear")
   const hasRefineNeed = createMemo(() => !!refinedPrompt() || workstationState().planQuality?.decision === "pause")
 
@@ -1219,7 +1247,7 @@ export function Session() {
       paneMode: paneMode(),
       paneVisibility: paneVisibility(),
       paneFollowMode: paneFollowMode(),
-      smartFollowActive: following(),
+      following: following(),
     }),
   )
 
@@ -1430,6 +1458,7 @@ export function Session() {
                     expanded={isPhaseExpanded(item.phase)}
                     isLast={index() === lastMessageIndex()}
                     onTogglePhase={() => item.phase && togglePhase(item.phase)}
+                    onNavigateToApprovals={openApprovalsPane}
                     MessageComponent={Message}
                   />
                 )}
@@ -1790,11 +1819,7 @@ export function Session() {
                               backgroundColor={tint(theme.backgroundElement, theme.warning, 0.08)}
                               border={["round"]}
                               borderColor={theme.warning}
-                              onMouseUp={() => {
-                                setPaneMode(() => "approvals")
-                                setPaneVisibility(() => "pinned")
-                                setFollowing(false)
-                              }}
+                              onMouseUp={openApprovalsPane}
                             >
                               <text fg={theme.warning} bold>
                                 PENDING APPROVALS
@@ -1933,7 +1958,7 @@ export function Session() {
                             when={
                               proposedChanges().length > 0 ||
                               workstationState().artifactSummary.count > 0 ||
-                              workstationState().activitySummary.items.length > 0
+                              recentEvidenceTraces().length > 0
                             }
                           >
                             <box
@@ -1945,10 +1970,19 @@ export function Session() {
                               borderColor={theme.borderSubtle}
                             >
                               <text fg={theme.primary} bold>
-                                RECENT EVIDENCE
+                                EVIDENCE LEDGER
                               </text>
-                              <For each={workstationState().activitySummary.items.slice(0, 3)}>
-                                {(item) => <text fg={theme.textMuted} wrapMode="word">- {item}</text>}
+                              <For each={recentEvidenceTraces()}>
+                                {(item) => (
+                                  <box flexDirection="row" gap={1} alignItems="center">
+                                    <text fg={item.failed ? theme.error : theme.success}>
+                                      {item.failed ? "✗" : "✓"}
+                                    </text>
+                                    <text fg={theme.textMuted} wrapMode="word">
+                                      {item.meta ? `${item.label} (${item.meta})` : item.label}
+                                    </text>
+                                  </box>
+                                )}
                               </For>
                               <Show when={proposedChanges().length > 0}>
                                 <text fg={theme.text}>
@@ -2608,6 +2642,23 @@ function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOpera
   }
 }
 
+function describeTraceIntent(traces: Array<NonNullable<ReturnType<typeof deriveOperatorTraceLine>>>) {
+  const actions = new Set(traces.map((trace) => trace.action))
+  if (actions.has("READ") || actions.has("GLOB") || actions.has("GREP") || actions.has("LIST")) {
+    return "Gathering context across the repo."
+  }
+  if (actions.has("SHELL")) {
+    return "Running evidence and verification checks."
+  }
+  if (actions.has("SKILL") || actions.has("REFLECTION") || actions.has("TASK") || actions.has("TODO")) {
+    return "Shaping the next pass before acting."
+  }
+  if (actions.has("WRITE") || actions.has("EDIT") || actions.has("PATCH")) {
+    return "Applying a scoped change."
+  }
+  return "Advancing the current pass."
+}
+
 function describeNarrativeNext(next: string | undefined) {
   const normalized = trimPunctuation(next)?.toLowerCase()
   if (!normalized) return undefined
@@ -2629,7 +2680,14 @@ function describeNarrativeNext(next: string | undefined) {
       return "Continue the governed run."
     default:
       return trimPunctuation(next)
-    }
+  }
+}
+
+function extractResultMeta(result: string | undefined): string | undefined {
+  if (!result) return undefined
+  if (result === "completed" || result === "in progress") return undefined
+  const m = result.match(/\((.+)\)/)
+  return m?.[1]
 }
 
 function describeTraceRollup(traces: Array<NonNullable<ReturnType<typeof deriveOperatorTraceLine>>>, completed: number) {
@@ -2647,44 +2705,68 @@ function describeTraceRollup(traces: Array<NonNullable<ReturnType<typeof deriveO
     .slice(0, 3)
     .join(", ")
 
-  return `Checked ${traces.length} steps in this pass (${completed} complete): ${summary}.`
+  return `${describeTraceIntent(traces)} ${completed}/${traces.length} checks complete (${summary}).`
 }
 
-function ActivityCluster(props: { tools: ToolPart[] }) {
+function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
   const { theme } = useTheme()
   const ctx = use()
-  const traces = createMemo(() => props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })))
+  const traces = createMemo(() =>
+    props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })),
+  )
   const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
   const narrativeTraces = createMemo(() =>
     traces()
       .map((item) => item.trace)
       .filter((trace): trace is NonNullable<typeof trace> => !!trace),
   )
-  const last = createMemo(() => traces()[traces().length - 1])
+  const lastTrace = createMemo(() => traces()[traces().length - 1])
   const traceSummary = createMemo(() => {
     const all = narrativeTraces()
     if (all.length === 0) return undefined
     return describeTraceRollup(all, completed())
   })
-  const traceNextStep = createMemo(() => describeNarrativeNext(last()?.trace?.next))
+  const visibleTraces = createMemo(() =>
+    traces()
+      .filter((item) => !!item.trace)
+      .slice(Math.max(0, traces().length - 3)),
+  )
+  const nextHint = createMemo(() => (props.showNext ? describeNarrativeNext(lastTrace()?.trace?.next) : undefined))
 
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
       <Show when={traceSummary()}>
-        <box flexDirection="column" gap={0} paddingBottom={traceNextStep() ? 0 : 1}>
+        <box flexDirection="column" gap={0} paddingBottom={nextHint() ? 0 : 1}>
           <text fg={theme.text} wrapMode="word">
             {traceSummary()!}
           </text>
         </box>
       </Show>
-      <Show when={traceNextStep()}>
-        <box flexDirection="row" gap={1} paddingTop={traceSummary() ? 0 : 1} paddingBottom={1} alignItems="flex-start">
+      <Show when={nextHint()}>
+        <box flexDirection="row" gap={1} paddingTop={0} paddingBottom={1} alignItems="flex-start">
           <text fg={theme.accent} attributes={TextAttributes.BOLD}>
             Next
           </text>
           <text fg={theme.textMuted} wrapMode="word">
-            {traceNextStep()}
+            {nextHint()}
           </text>
+        </box>
+      </Show>
+      <Show when={visibleTraces().length > 0}>
+        <box flexDirection="column" gap={0} paddingTop={traceSummary() ? 0 : 1}>
+          <For each={visibleTraces()}>
+            {(item) => (
+              <box flexDirection="row" gap={1} alignItems="flex-start">
+                <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>·</text>
+                <text
+                  fg={item.tool.state.status === "completed" ? theme.textMuted : theme.text}
+                  wrapMode="word"
+                >
+                  {item.trace ? describeNarrativeTrace(item.trace) : item.tool.tool}
+                </text>
+              </box>
+            )}
+          </For>
         </box>
       </Show>
       <Show when={ctx.showAssistantMetadata()}>
@@ -2705,6 +2787,10 @@ function ActivityCluster(props: { tools: ToolPart[] }) {
       </Show>
     </box>
   )
+}
+
+function ActivityCluster(props: { tools: ToolPart[] }) {
+  return <NarrativeToolList tools={props.tools} showNext />
 }
 
 function cleanReasoningText(text: string) {
@@ -2732,13 +2818,16 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         borderColor={theme.primary}
         backgroundColor={tint(theme.background, theme.primary, 0.02)}
       >
-        <box paddingBottom={1}>
+        <box paddingBottom={1} flexDirection="column" gap={0}>
+          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+            Checking
+          </text>
           <code
             filetype="markdown"
             drawUnstyledText={false}
             streaming={true}
             syntaxStyle={syntax()}
-            content={`_Current pass:_ ${content()}`}
+            content={content()!}
             conceal={ctx.conceal()}
             fg={reasoningFg()}
           />

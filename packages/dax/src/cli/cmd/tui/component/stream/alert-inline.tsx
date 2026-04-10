@@ -1,3 +1,4 @@
+import { Show } from "solid-js"
 import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
 import type { RunNarrativeItem } from "@/server/run-contract"
 
@@ -16,11 +17,16 @@ function getRiskLabel(metadata?: Record<string, any>): string {
   return ""
 }
 
-export function AlertInline(props: { item: RenderableStreamItem }) {
+export function AlertInline(props: {
+  item: RenderableStreamItem
+  onNavigateToApprovals?: () => void
+}) {
   const narrativeItem = props.item.data as RunNarrativeItem
   const typeLabel = () => getAlertTypeLabel(props.item.type ?? "")
   const riskLabel = () => getRiskLabel(narrativeItem?.metadata)
   const isPending = () => props.item.status === "pending"
+  const isActionable = () =>
+    props.item.type === "approval.requested" || props.item.type === "intervention.required"
 
   return (
     <box
@@ -32,8 +38,13 @@ export function AlertInline(props: { item: RenderableStreamItem }) {
       paddingRight={2}
       marginTop={1}
       border={["left"]}
-      borderColor={isPending() ? "$warning" : "$success"}
-      backgroundColor={isPending() ? "$backgroundElement" : "transparent"}
+      borderColor={isActionable() ? "$warning" : isPending() ? "$warning" : "$success"}
+      backgroundColor={isActionable() ? "$backgroundElement" : isPending() ? "$backgroundElement" : "transparent"}
+      onMouseUp={() => {
+        if (isActionable() && props.onNavigateToApprovals) {
+          props.onNavigateToApprovals()
+        }
+      }}
     >
       <box flexDirection="row" gap={1} alignItems="center">
         <text fg={isPending() ? "$warning" : "$success"} attributes="bold">
@@ -51,8 +62,11 @@ export function AlertInline(props: { item: RenderableStreamItem }) {
           {props.item.message}
         </text>
       </box>
+      <Show when={isActionable()}>
+        <box paddingLeft={2} paddingTop={1}>
+          <text fg="$warning" attributes="bold">Click to open the review queue</text>
+        </box>
+      </Show>
     </box>
   )
 }
-
-import { Show } from "solid-js"
