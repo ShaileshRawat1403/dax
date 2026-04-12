@@ -119,6 +119,7 @@ describe("session-display", () => {
         displayMode: "quiet",
         paneVisibility: "auto",
         hasCriticalIntervention: false,
+        hasAuditNeed: false,
         hasRefineNeed: false,
       }),
     ).toBe(false)
@@ -128,6 +129,7 @@ describe("session-display", () => {
         displayMode: "quiet",
         paneVisibility: "auto",
         hasCriticalIntervention: true,
+        hasAuditNeed: false,
         hasRefineNeed: false,
       }),
     ).toBe(true)
@@ -139,6 +141,7 @@ describe("session-display", () => {
         displayMode: "operator",
         paneVisibility: "auto",
         hasCriticalIntervention: false,
+        hasAuditNeed: false,
         hasRefineNeed: true,
       }),
     ).toBe(true)
@@ -148,9 +151,10 @@ describe("session-display", () => {
         displayMode: "quiet",
         paneVisibility: "hidden",
         hasCriticalIntervention: false,
+        hasAuditNeed: false,
         hasRefineNeed: true,
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   test("a pinned workstation pane remains visible even without active interventions", () => {
@@ -159,9 +163,32 @@ describe("session-display", () => {
         displayMode: "operator",
         paneVisibility: "pinned",
         hasCriticalIntervention: false,
+        hasAuditNeed: false,
         hasRefineNeed: false,
       }),
     ).toBe(true)
+  })
+
+  test("auto mode opens the rail for audit need but hidden mode still respects the user choice", () => {
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "auto",
+        hasCriticalIntervention: false,
+        hasAuditNeed: true,
+        hasRefineNeed: false,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "hidden",
+        hasCriticalIntervention: true,
+        hasAuditNeed: true,
+        hasRefineNeed: true,
+      }),
+    ).toBe(false)
   })
 
   test("memory context derives from reflection or PM snapshots", () => {

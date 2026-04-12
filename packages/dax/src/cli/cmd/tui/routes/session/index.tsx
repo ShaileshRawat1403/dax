@@ -406,6 +406,15 @@ export function Session() {
   const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(DAX_SETTING.session_pane_visibility, "auto")
   const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "refine")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
+  const normalizedPaneMode = createMemo<PaneMode>(() => {
+    const mode = paneMode() as string
+    return PANE_MODE.includes(mode as PaneMode) ? (mode as PaneMode) : "refine"
+  })
+  createEffect(() => {
+    if (paneMode() !== normalizedPaneMode()) {
+      setPaneMode(() => normalizedPaneMode())
+    }
+  })
   const workflowMode = createMemo<WorkflowMode>(() => kv.get(sessionWorkflowModeKey(route.sessionID), "plan"))
   const setWorkflowMode = (next: WorkflowMode) => kv.set(sessionWorkflowModeKey(route.sessionID), next)
 
@@ -1211,22 +1220,9 @@ export function Session() {
       displayMode: displayMode(),
       paneVisibility: paneVisibility(),
       hasCriticalIntervention: hasApprovalsNeed(),
+      hasAuditNeed: hasAuditNeed(),
       hasRefineNeed: hasRefineNeed(),
     })
-  })
-
-  createEffect(() => {
-    if (paneVisibility() !== "hidden") return
-    const stage = displayStageState().stage
-    const shouldRecover =
-      hasApprovalsNeed() ||
-      hasRefineNeed() ||
-      sessionStatusType() === "busy" ||
-      stage === "executing" ||
-      stage === "verifying"
-    if (shouldRecover) {
-      setPaneVisibility(() => "pinned")
-    }
   })
 
   const priorityPaneMode = createMemo<PaneMode>(() => {
@@ -3127,12 +3123,3 @@ function isLowSignalStageReason(value: string | undefined) {
     value.trim(),
   )
 }
-  const normalizedPaneMode = createMemo<PaneMode>(() => {
-    const mode = paneMode() as string
-    return PANE_MODE.includes(mode as PaneMode) ? (mode as PaneMode) : "refine"
-  })
-  createEffect(() => {
-    if (paneMode() !== normalizedPaneMode()) {
-      setPaneMode(() => normalizedPaneMode())
-    }
-  })
