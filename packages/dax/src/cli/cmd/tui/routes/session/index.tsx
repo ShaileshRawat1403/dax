@@ -404,7 +404,7 @@ export function Session() {
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [paneVisibility, setPaneVisibility] = kv.signal<PaneVisibility>(DAX_SETTING.session_pane_visibility, "auto")
-  const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "plan")
+  const [paneMode, setPaneMode] = kv.signal<PaneMode>(DAX_SETTING.session_pane_mode, "refine")
   const [paneFollowMode, setPaneFollowMode] = kv.signal<PaneFollowMode>(DAX_SETTING.session_pane_follow_mode, "smart")
   const workflowMode = createMemo<WorkflowMode>(() => kv.get(sessionWorkflowModeKey(route.sessionID), "plan"))
   const setWorkflowMode = (next: WorkflowMode) => kv.set(sessionWorkflowModeKey(route.sessionID), next)
@@ -419,12 +419,11 @@ export function Session() {
   const [memoryListText, setMemoryListText] = createSignal("")
   const [memoryRulesText, setMemoryRulesText] = createSignal("")
   const [memoryLoadError, setMemoryLoadError] = createSignal<string | undefined>(undefined)
-  // Track refined prompt - always read fresh from KV when render
+  // Keep the refine draft reactive across pane visibility changes.
   const refinedPrompt = createMemo(() => {
-    // Force re-read whenever these change
-    const mode = kv.store[DAX_SETTING.session_pane_mode]
-    const vis = kv.store[DAX_SETTING.session_pane_visibility]
-    const ref = kv.store[DAX_SETTING.session_refined_prompt]
+    kv.store[DAX_SETTING.session_pane_mode]
+    kv.store[DAX_SETTING.session_pane_visibility]
+    kv.store[DAX_SETTING.session_refined_prompt]
     return (kv.get(DAX_SETTING.session_refined_prompt) as string) || ""
   })
   const refineSection = (heading: string) => {
@@ -1191,13 +1190,13 @@ export function Session() {
   const renderer = useRenderer()
   const keyboard = useKeyboard(() => {})
 
-  const openTimeline = () => {
-    setPaneMode(() => "plan")
+  const openPmPane = () => {
+    setPaneMode(() => "memory")
     setPaneVisibility(() => "pinned")
   }
 
-  const openPmPane = () => {
-    setPaneMode(() => "memory")
+  const openRefinePane = () => {
+    setPaneMode(() => "refine")
     setPaneVisibility(() => "pinned")
   }
 
@@ -1208,12 +1207,11 @@ export function Session() {
   }
 
   const showPane = createMemo(() => {
-    const stage = displayStageState().stage
     return shouldShowWorkstationPane({
       displayMode: displayMode(),
       paneVisibility: paneVisibility(),
       hasCriticalIntervention: hasApprovalsNeed(),
-      isRuntimeCritical: sessionStatusType() === "busy" || stage === "executing" || stage === "verifying",
+      hasRefineNeed: hasRefineNeed(),
     })
   })
 
@@ -1221,16 +1219,20 @@ export function Session() {
     if (paneVisibility() !== "hidden") return
     const stage = displayStageState().stage
     const shouldRecover =
-      hasApprovalsNeed() || sessionStatusType() === "busy" || stage === "executing" || stage === "verifying"
+      hasApprovalsNeed() ||
+      hasRefineNeed() ||
+      sessionStatusType() === "busy" ||
+      stage === "executing" ||
+      stage === "verifying"
     if (shouldRecover) {
-      setPaneVisibility(() => "auto")
+      setPaneVisibility(() => "pinned")
     }
   })
 
   const priorityPaneMode = createMemo<PaneMode>(() => {
     if (hasApprovalsNeed()) return "approvals"
     if (hasAuditNeed()) return "audit"
-    return "plan"
+    return "refine"
   })
 
   const activePaneMode = createMemo<PaneMode>(() =>
@@ -1244,7 +1246,7 @@ export function Session() {
       hasPlanContext: workstationState().planSummary.totalSteps > 0,
       liveStage: displayStageState().stage,
       fallback: priorityPaneMode(),
-      paneMode: paneMode(),
+      paneMode: normalizedPaneMode(),
       paneVisibility: paneVisibility(),
       paneFollowMode: paneFollowMode(),
       following: following(),
@@ -2020,9 +2022,8 @@ export function Session() {
                       }}
                       onSubmit={() => {
                         promptRef.current?.submit()
-                        kv.set(DAX_SETTING.session_refined_prompt, "")
-                        setPaneMode(() => "plan")
-                        setPaneVisibility(() => "auto")
+                        setPaneMode(() => "refine")
+                        setPaneVisibility(() => "pinned")
                         setFollowing(true)
                       }}
                     />
@@ -2225,6 +2226,9 @@ export function Session() {
           <Prompt
             ref={promptRef.set}
             disabled={promptDisabled()}
+            onRefineReady={() => {
+              openRefinePane()
+            }}
             onSubmit={() => {
               setFollowing(true)
             }}
@@ -3123,3 +3127,12 @@ function isLowSignalStageReason(value: string | undefined) {
     value.trim(),
   )
 }
+  const normalizedPaneMode = createMemo<PaneMode>(() => {
+    const mode = paneMode() as string
+    return PANE_MODE.includes(mode as PaneMode) ? (mode as PaneMode) : "refine"
+  })
+  createEffect(() => {
+    if (paneMode() !== normalizedPaneMode()) {
+      setPaneMode(() => normalizedPaneMode())
+    }
+  })

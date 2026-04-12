@@ -65,7 +65,7 @@ export type PromptProps = {
   visible?: boolean
   disabled?: boolean
   panePinned?: boolean
-  activePaneMode?: "diff" | "audit" | "approvals" | "plan" | "memory" | "refine"
+  activePaneMode?: "diff" | "audit" | "approvals" | "memory" | "refine"
   approvalAttentionCount?: number
   questionAttentionCount?: number
   onRefineReady?: (prompt: string) => void
@@ -1265,7 +1265,7 @@ export function Prompt(props: PromptProps) {
                     }
                     if (e.name === "escape") {
                       e.preventDefault()
-                      kv.set(DAX_SETTING.session_pane_mode, "plan")
+                      kv.set(DAX_SETTING.session_pane_visibility, "auto")
                       return
                     }
                   }
