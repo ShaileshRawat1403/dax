@@ -779,7 +779,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   const encoder = new TextEncoder()
                   let buffer = ""
                   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
-                  const CHUNK_TIMEOUT_MS = 10_000
+                  const CHUNK_TIMEOUT_MS = 5_000
 
                   const stream = new ReadableStream<Uint8Array>({
                     start(controller) {

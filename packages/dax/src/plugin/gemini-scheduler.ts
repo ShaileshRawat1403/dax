@@ -13,7 +13,7 @@ let consecutiveThrottles = 0
 let currentCooldownPromise: Promise<void> | null = null
 const MAX_RETRIES = 8
 const RETRY_DELAY_MS = 1000
-const MAX_CONCURRENCY = 5
+const MAX_CONCURRENCY = 2
 
 const requestQueue: Array<{
   fn: () => Promise<Response>
@@ -59,10 +59,25 @@ async function processNext() {
   if (requestQueue.length === 0) return
   if (inFlight >= MAX_CONCURRENCY) return
 
-  // If we are currently waiting for a global cooldown, don't start new requests
+  // 1. If we are currently waiting for a global cooldown, don't start new requests
   if (currentCooldownPromise) {
     await currentCooldownPromise
-    // After cooldown, try again
+    processNext()
+    return
+  }
+
+  // 2. Check persisted cooldown before taking a slot
+  const persistedCooldownUntil = await readPersistedGeminiSubscriptionCooldown()
+  const waitMs = shouldWaitForGeminiSubscriptionCooldown(Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil))
+
+  if (waitMs > 0) {
+    if (!currentCooldownPromise) {
+      log.info("gemini subscription waiting for cooldown", { waitMs })
+      currentCooldownPromise = Bun.sleep(waitMs).then(() => {
+        currentCooldownPromise = null
+      })
+    }
+    await currentCooldownPromise
     processNext()
     return
   }
@@ -74,20 +89,6 @@ async function processNext() {
   processNext() // Try to start next one immediately if we have capacity
 
   try {
-    const persistedCooldownUntil = await readPersistedGeminiSubscriptionCooldown()
-    const effectiveCooldownUntil = Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil)
-    const waitMs = shouldWaitForGeminiSubscriptionCooldown(effectiveCooldownUntil)
-    
-    if (waitMs > 0) {
-      if (!currentCooldownPromise) {
-        log.info("gemini subscription waiting for cooldown", { waitMs })
-        currentCooldownPromise = Bun.sleep(waitMs).then(() => {
-          currentCooldownPromise = null
-        })
-      }
-      await currentCooldownPromise
-    }
-
     const result = await next.fn()
     consecutiveThrottles = 0
     next.resolve(result)
@@ -101,9 +102,12 @@ async function processNext() {
         next.reject(err)
         consecutiveThrottles = 0
       } else {
-        // Apply backoff delay before re-queuing
-        await Bun.sleep(RETRY_DELAY_MS * Math.pow(1.5, next.retries - 1))
-        requestQueue.unshift(next)
+        // Apply backoff delay by re-queuing after a delay, releasing the current slot
+        const backoffMs = RETRY_DELAY_MS * Math.pow(1.5, next.retries - 1) + Math.random() * 500
+        void Bun.sleep(backoffMs).then(() => {
+          requestQueue.unshift(next)
+          processNext()
+        })
       }
     } else {
       next.reject(err)
