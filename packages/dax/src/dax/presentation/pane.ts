@@ -1,4 +1,4 @@
-export const PANE_MODE = ["audit", "approvals", "plan", "memory", "refine"] as const
+export const PANE_MODE = ["audit", "approvals", "memory", "refine"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
 
@@ -14,7 +14,6 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
   return {
     audit: "audit",
     approvals: "approvals",
-    plan: "workstation",
     memory: "memory",
     refine: "refine",
   }[mode]
@@ -24,7 +23,6 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
   return {
     audit: "audit",
     approvals: "approve",
-    plan: "work",
     memory: "memory",
     refine: "refine",
   }[mode]
@@ -44,8 +42,6 @@ export function memoryLabel(eli12: boolean) {
 
 export function paneContextLabel(mode: PaneMode): string {
   switch (mode) {
-    case "plan":
-      return "Governance, observability, and next actions"
     case "approvals":
       return "Awaiting operator decision"
     case "audit":
@@ -55,7 +51,7 @@ export function paneContextLabel(mode: PaneMode): string {
     case "refine":
       return "Refine prompt and execution profile"
     default:
-      return "Workstation"
+      return ""
   }
 }
 
@@ -72,19 +68,9 @@ export function deriveAutoPaneMode(input: {
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
   if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasAuditAttention) return "audit"
-  if (
-    input.liveStage &&
-    input.liveStage !== "done" &&
-    input.liveStage !== "waiting" &&
-    input.liveStage !== "retrying"
-  ) {
-    return "plan"
-  }
-  if (input.hasLiveContext) return "plan"
-  if (input.hasAuditAttention) return "audit"
   if (input.hasRefineDraft) return "refine"
+  if (input.hasAuditAttention) return "audit"
   if (input.hasMemoryContext) return "memory"
-  if (input.hasPlanContext) return "plan"
   return input.fallback
 }
 
@@ -103,11 +89,9 @@ export function deriveActivePaneMode(input: {
   paneFollowMode: PaneFollowMode
   following: boolean
 }): PaneMode {
+  if (input.hasRefineDraft) return "refine"
   if (input.hasApprovals) return "approvals"
-
-  if (input.paneVisibility === "pinned") {
-    if (!input.following) return input.paneMode
-  }
+  if (input.paneVisibility === "pinned" && !input.following) return input.paneMode
 
   const autoMode = deriveAutoPaneMode({
     hasApprovals: input.hasApprovals,
@@ -143,25 +127,6 @@ function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage
   if (currentMode === recommendedMode) return false
 
   if (currentMode === "approvals" && recommendedMode !== "approvals") {
-    return true
-  }
-
-  if (currentMode === "refine" && recommendedMode === "plan") {
-    return false
-  }
-
-  if (recommendedMode === "plan" && currentMode === "memory") {
-    return true
-  }
-
-  if (
-    recommendedMode === "plan" &&
-    currentMode === "memory" &&
-    liveStage &&
-    liveStage !== "done" &&
-    liveStage !== "waiting" &&
-    liveStage !== "retrying"
-  ) {
     return true
   }
 

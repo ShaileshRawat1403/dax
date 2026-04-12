@@ -119,7 +119,7 @@ describe("session-display", () => {
         displayMode: "quiet",
         paneVisibility: "auto",
         hasCriticalIntervention: false,
-        isRuntimeCritical: true,
+        hasRefineNeed: false,
       }),
     ).toBe(false)
 
@@ -128,7 +128,38 @@ describe("session-display", () => {
         displayMode: "quiet",
         paneVisibility: "auto",
         hasCriticalIntervention: true,
-        isRuntimeCritical: false,
+        hasRefineNeed: false,
+      }),
+    ).toBe(true)
+  })
+
+  test("refine drafts keep the workstation pane visible across display modes", () => {
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "auto",
+        hasCriticalIntervention: false,
+        hasRefineNeed: true,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "quiet",
+        paneVisibility: "hidden",
+        hasCriticalIntervention: false,
+        hasRefineNeed: true,
+      }),
+    ).toBe(true)
+  })
+
+  test("a pinned workstation pane remains visible even without active interventions", () => {
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "pinned",
+        hasCriticalIntervention: false,
+        hasRefineNeed: false,
       }),
     ).toBe(true)
   })

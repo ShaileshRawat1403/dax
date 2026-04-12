@@ -81,17 +81,15 @@ export function shouldShowWorkstationPane(input: {
   displayMode: DisplayMode
   paneVisibility: "auto" | "pinned" | "hidden"
   hasCriticalIntervention: boolean
-  isRuntimeCritical: boolean
+  hasRefineNeed: boolean
 }) {
+  if (input.hasRefineNeed) return true
   if (input.displayMode === "quiet") {
-    // Quiet mode stays minimal and only surfaces hard intervention checkpoints.
     return input.hasCriticalIntervention
   }
-  if (input.paneVisibility === "hidden") {
-    return input.hasCriticalIntervention || input.isRuntimeCritical
-  }
   if (input.paneVisibility === "pinned") return true
-  return true
+  if (input.paneVisibility === "hidden") return input.hasCriticalIntervention
+  return input.hasCriticalIntervention
 }
 
 export function hasMemoryContext(input: {

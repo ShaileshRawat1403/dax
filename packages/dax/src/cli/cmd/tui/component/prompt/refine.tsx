@@ -115,6 +115,7 @@ export function RefinePane(props: {
   let focusTimer: ReturnType<typeof setTimeout> | undefined
   let autosaveTimer: ReturnType<typeof setTimeout> | undefined
   let hasUnsavedChanges = false
+  let suppressContentSync = false
 
   const textareaKeybindings = useTextareaKeybindings()
 
@@ -183,7 +184,11 @@ export function RefinePane(props: {
   const syncTextareaValue = (next: string) => {
     if (!textareaRef) return
     if (textareaRef.plainText === next) return
+    suppressContentSync = true
     textareaRef.setText(next)
+    queueMicrotask(() => {
+      suppressContentSync = false
+    })
   }
 
   const scheduleFocusToEnd = () => {
@@ -212,6 +217,11 @@ export function RefinePane(props: {
   const hasContent = () => currentDraft().length > 10
 
   const handleContentChange = (newText: string) => {
+    if (suppressContentSync) {
+      setLocalDraft(newText)
+      setIsDirty(false)
+      return
+    }
     setLocalDraft(newText)
     setIsDirty(newText !== props.initialPrompt)
     hasUnsavedChanges = true
