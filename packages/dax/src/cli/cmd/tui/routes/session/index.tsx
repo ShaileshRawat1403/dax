@@ -1556,7 +1556,7 @@ export function Session() {
                 </box>
 
                 <Switch>
-                  <Match when={activePaneMode() === "plan"}>
+                  <Match when={false}>
                     <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
                       <box
                         flexDirection="column"
