@@ -5,9 +5,14 @@ All notable changes to DAX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.30] - 2026-04-12
 
-Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
+### Fixed
+
+- **Gemini Throttling UX**: Optimized the Gemini subscription (CLI import) lane to handle provider pressure more gracefully.
+- **Scheduler Slot Management**: The scheduler now correctly releases concurrency slots while waiting for global cooldowns or performing exponential backoff, preventing queue stalls.
+- **Reduced Concurrency**: Lowered default subscription lane concurrency to improve stability against burst-limit throttles.
+- **Stream Responsiveness**: Shortened stream chunk timeouts to 5 seconds for faster recovery from hung provider connections.
 
 ## [1.0.29] - 2026-04-10
 
