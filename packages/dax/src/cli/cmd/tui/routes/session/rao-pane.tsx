@@ -1,7 +1,7 @@
-import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useKeyboard } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
+import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
+import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useTheme, selectedForeground, tint } from "../../context/theme"
 import type { PermissionRequest, QuestionRequest, QuestionAnswer } from "@dax-ai/sdk/v2"
 import { useSDK } from "../../context/sdk"
@@ -14,83 +14,21 @@ import path from "path"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import { Global } from "@/global"
 import { analyzePackageInstallCommand, analyzePythonInstallCommand } from "../../util/environment"
+import { useTextareaKeybindings } from "../../component/textarea-keybindings"
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────────────────────
 
 function formatAge(ms: number): string {
   const minutes = Math.floor(ms / 60000)
   const hours = Math.floor(ms / 3600000)
   const days = Math.floor(ms / 86400000)
-  if (minutes < 1) return "now"
-  if (minutes < 60) return `${minutes}m`
-  if (hours < 24) return `${hours}h`
-  if (days < 7) return `${days}d`
-  return `${Math.floor(days / 7)}w`
-}
-
-type PermissionRiskLevel = "normal" | "privacy" | "critical"
-
-type RAOItem =
-  | { type: "permission"; data: PermissionRequest; index: number }
-  | { type: "question"; data: QuestionRequest; index: number }
-
-function classifyPermissionRisk(request: PermissionRequest, input: Record<string, unknown>, profile: PolicyProfile) {
-  const permission = request.permission
-  const sensitivePathPattern =
-    /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|credentials|token|secret|\.npmrc|\.aws/i
-
-  const risk = (level: PermissionRiskLevel, reason: string, suggestion?: string) => ({ level, reason, suggestion })
-  const elevatePrivacy = (reason: string, suggestion?: string) =>
-    risk(profile === "strict" ? "critical" : "privacy", reason, suggestion)
-  const normal = () => risk("normal", "")
-
-  if (permission === "external_directory") {
-    return elevatePrivacy("Outside-project directory access may expose local private files.")
-  }
-  if (permission === "webfetch" || permission === "websearch" || permission === "codesearch") {
-    return elevatePrivacy("This may send project context or queries to external services.")
-  }
-  if (permission === "doom_loop") {
-    return risk("critical", "Continuing after repeated failures can cause unintended repeated actions.")
-  }
-  if (permission === "read") {
-    const filePath = String(input.filePath ?? "")
-    if (sensitivePathPattern.test(filePath)) {
-      return risk("privacy", "Reading this file may expose secrets or credentials.")
-    }
-    return normal()
-  }
-  if (permission === "edit") {
-    const filepath = String(request.metadata?.filepath ?? "")
-    if (sensitivePathPattern.test(filepath)) {
-      return risk("critical", "Editing a sensitive file can impact credentials or security settings.")
-    }
-    return normal()
-  }
-  if (permission === "shell") {
-    const command = String(input.command ?? "").toLowerCase()
-    const pythonInstall = analyzePythonInstallCommand(command)
-    if (pythonInstall?.kind === "missing-venv") {
-      return risk("critical", pythonInstall.reason, pythonInstall.recommendation)
-    }
-    if (pythonInstall?.kind === "explicit-global") {
-      return elevatePrivacy(pythonInstall.reason)
-    }
-    const packageInstall = analyzePackageInstallCommand(command)
-    if (packageInstall?.kind === "global-install") {
-      return elevatePrivacy(packageInstall.reason, packageInstall.suggestion)
-    }
-    if (
-      /rm\s+-rf|sudo\s+|chmod\s+|chown\s+|dd\s+if=|mkfs|shutdown|reboot|halt|killall|pkill|git\s+push|git\s+reset\s+--hard|curl.+\|\s*(bash|sh)/.test(
-        command,
-      )
-    ) {
-      return risk("critical", "This command can change system state or perform destructive operations.")
-    }
-    if (/printenv|cat\s+.*\.env|gh\s+auth|aws\s+|gcloud\s+|scp\s+|rsync\s+/.test(command)) {
-      return elevatePrivacy("This command may access or transmit credentials or private data.")
-    }
-    return normal()
-  }
-  return normal()
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days < 7) return `${days}d ago`
+  return `${Math.floor(days / 7)}w ago`
 }
 
 function normalizePath(input?: string) {
@@ -107,19 +45,132 @@ function normalizePath(input?: string) {
   return absolute
 }
 
+function filetype(input?: string) {
+  if (!input) return "none"
+  const ext = path.extname(input)
+  const language = LANGUAGE_EXTENSIONS[ext]
+  if (["typescriptreact", "javascriptreact", "javascript"].includes(language)) return "typescript"
+  return language
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
-// Approval card — rendered only for the currently selected permission request
+// Risk classification
+// ──────────────────────────────────────────────────────────────────────────────
+
+type PermissionRiskLevel = "normal" | "privacy" | "critical"
+
+type RAOItem =
+  | { type: "permission"; data: PermissionRequest; index: number }
+  | { type: "question"; data: QuestionRequest; index: number }
+
+// Card lifecycle: deciding → confirming-always or denying → sent
+export type CardPhase = "deciding" | "confirming-always" | "denying" | "sent"
+
+function classifyPermissionRisk(request: PermissionRequest, input: Record<string, unknown>, profile: PolicyProfile) {
+  const permission = request.permission
+  const sensitivePathPattern =
+    /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|credentials|token|secret|\.npmrc|\.aws/i
+
+  const risk = (level: PermissionRiskLevel, reason: string, suggestion?: string) => ({ level, reason, suggestion })
+  const elevatePrivacy = (reason: string, suggestion?: string) =>
+    risk(profile === "strict" ? "critical" : "privacy", reason, suggestion)
+  const normal = () => risk("normal", "")
+
+  if (permission === "external_directory") return elevatePrivacy("Outside-project directory access may expose local private files.")
+  if (permission === "webfetch" || permission === "websearch" || permission === "codesearch")
+    return elevatePrivacy("This may send project context or queries to external services.")
+  if (permission === "doom_loop")
+    return risk("critical", "Continuing after repeated failures can cause unintended repeated actions.")
+
+  if (permission === "read") {
+    const filePath = String(input.filePath ?? "")
+    if (sensitivePathPattern.test(filePath)) return risk("privacy", "Reading this file may expose secrets or credentials.")
+    return normal()
+  }
+  if (permission === "edit") {
+    const filepath = String(request.metadata?.filepath ?? "")
+    if (sensitivePathPattern.test(filepath)) return risk("critical", "Editing a sensitive file can impact credentials or security settings.")
+    return normal()
+  }
+  if (permission === "shell") {
+    const command = String(input.command ?? "").toLowerCase()
+    const pythonInstall = analyzePythonInstallCommand(command)
+    if (pythonInstall?.kind === "missing-venv") return risk("critical", pythonInstall.reason, pythonInstall.recommendation)
+    if (pythonInstall?.kind === "explicit-global") return elevatePrivacy(pythonInstall.reason)
+    const packageInstall = analyzePackageInstallCommand(command)
+    if (packageInstall?.kind === "global-install") return elevatePrivacy(packageInstall.reason, packageInstall.suggestion)
+    if (/rm\s+-rf|sudo\s+|chmod\s+|chown\s+|dd\s+if=|mkfs|shutdown|reboot|halt|killall|pkill|git\s+push|git\s+reset\s+--hard|curl.+\|\s*(bash|sh)/.test(command))
+      return risk("critical", "This command can change system state or perform destructive operations.")
+    if (/printenv|cat\s+.*\.env|gh\s+auth|aws\s+|gcloud\s+|scp\s+|rsync\s+/.test(command))
+      return elevatePrivacy("This command may access or transmit credentials or private data.")
+    return normal()
+  }
+  return normal()
+}
+
+function permissionIcon(perm: string) {
+  if (perm === "shell") return "#"
+  if (perm === "edit" || perm === "apply_patch") return "✎"
+  if (perm === "read") return "→"
+  if (perm === "glob" || perm === "grep") return "✱"
+  if (perm === "webfetch") return "%"
+  if (perm === "websearch") return "◈"
+  if (perm === "codesearch") return "◇"
+  if (perm === "task") return "◉"
+  if (perm === "external_directory") return "←"
+  if (perm === "doom_loop") return "⟳"
+  return "⚙"
+}
+
+function permissionTitle(request: PermissionRequest, input: Record<string, unknown>) {
+  const perm = request.permission
+  const i = input
+  if (perm === "shell") return (i.description as string) ?? "Run command"
+  if (perm === "edit" || perm === "apply_patch") return `Edit ${normalizePath(request.metadata?.filepath as string)}`
+  if (perm === "read") return `Read ${normalizePath(i.filePath as string)}`
+  if (perm === "glob") return `Glob "${i.pattern ?? ""}"`
+  if (perm === "grep") return `Grep "${i.pattern ?? ""}"`
+  if (perm === "list") return `List ${normalizePath(i.path as string)}`
+  if (perm === "webfetch") return `Fetch ${i.url ?? ""}`
+  if (perm === "websearch" || perm === "codesearch") return `Search "${i.query ?? ""}"`
+  if (perm === "task") return `${i.subagent_type ?? "Task"}: ${i.description ?? ""}`
+  if (perm === "external_directory") {
+    const meta = request.metadata ?? {}
+    const parent = typeof meta["parentDir"] === "string" ? meta["parentDir"] : undefined
+    const filepath = typeof meta["filepath"] === "string" ? meta["filepath"] : undefined
+    const pattern = request.patterns?.[0]
+    const derived = typeof pattern === "string" ? (pattern.includes("*") ? path.dirname(pattern) : pattern) : undefined
+    return `Access external dir: ${normalizePath(parent ?? filepath ?? derived)}`
+  }
+  if (perm === "doom_loop") return "Continue after repeated failures"
+  return perm
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PermissionCard — fully controlled by RAOPane
 // ──────────────────────────────────────────────────────────────────────────────
 function PermissionCard(props: {
   request: PermissionRequest
   input: Record<string, unknown>
   risk: { level: PermissionRiskLevel; reason: string; suggestion?: string }
+  cardPhase: CardPhase
+  selectedButtonIdx: number
+  buttons: Array<"once" | "always" | "deny">
+  diffExpanded: boolean
+  onSetPhase: (p: CardPhase) => void
+  onToggleDiff: () => void
   onApproveOnce: () => void
   onApproveAlways: () => void
-  onDeny: () => void
+  onDeny: (reason?: string) => void
+  onSetSelectedBtn: (i: number) => void
+  denyTextareaRef: (el: TextareaRenderable) => void
+  textareaKeybindings: ReturnType<typeof useTextareaKeybindings>
+  ageMs: number
 }) {
-  const { theme } = useTheme()
-  const [hovered, setHovered] = createSignal<"once" | "always" | "deny" | null>(null)
+  const themeState = useTheme()
+  const theme = themeState.theme
+  const syntax = themeState.syntax
+  const dimensions = useTerminalDimensions()
 
   const riskColor = () => {
     if (props.risk.level === "critical") return theme.error
@@ -133,47 +184,40 @@ function PermissionCard(props: {
     return theme.backgroundElement
   }
 
-  const icon = () => {
-    const perm = props.request.permission
-    if (perm === "shell") return "#"
-    if (perm === "edit") return "✎"
-    if (perm === "read") return "→"
-    if (perm === "glob" || perm === "grep") return "✱"
-    if (perm === "webfetch") return "%"
-    if (perm === "websearch") return "◈"
-    if (perm === "codesearch") return "◇"
-    if (perm === "task") return "◉"
-    if (perm === "external_directory") return "←"
-    if (perm === "doom_loop") return "⟳"
-    return "⚙"
-  }
-
-  const title = () => {
-    const perm = props.request.permission
-    const i = props.input
-    if (perm === "shell") return (i.description as string) ?? "Run command"
-    if (perm === "edit") return `Edit ${normalizePath(props.request.metadata?.filepath as string)}`
-    if (perm === "read") return `Read ${normalizePath(i.filePath as string)}`
-    if (perm === "glob") return `Glob "${i.pattern ?? ""}"`
-    if (perm === "grep") return `Grep "${i.pattern ?? ""}"`
-    if (perm === "list") return `List ${normalizePath(i.path as string)}`
-    if (perm === "webfetch") return `Fetch ${i.url ?? ""}`
-    if (perm === "websearch" || perm === "codesearch") return `Search "${i.query ?? ""}"`
-    if (perm === "task") return `${i.subagent_type ?? "Task"}: ${i.description ?? ""}`
-    if (perm === "external_directory") {
-      const meta = props.request.metadata ?? {}
-      const parent = typeof meta["parentDir"] === "string" ? meta["parentDir"] : undefined
-      const filepath = typeof meta["filepath"] === "string" ? meta["filepath"] : undefined
-      const pattern = props.request.patterns?.[0]
-      const derived =
-        typeof pattern === "string" ? (pattern.includes("*") ? path.dirname(pattern) : pattern) : undefined
-      return `Access external dir: ${normalizePath(parent ?? filepath ?? derived)}`
-    }
-    if (perm === "doom_loop") return "Continue after repeated failures"
-    return perm
-  }
-
+  const icon = () => permissionIcon(props.request.permission)
+  const title = () => permissionTitle(props.request, props.input)
   const hasAlways = () => props.request.always && props.request.always.length > 0
+
+  const diff = () => (props.request.metadata?.diff as string) ?? ""
+  const hasDiff = () => (props.request.permission === "edit" || props.request.permission === "apply_patch") && !!diff()
+  const ft = () => filetype(props.request.metadata?.filepath as string)
+
+  const isStale = () => props.ageMs > 5 * 60 * 1000 // > 5 min
+
+  // button label + style per key
+  const buttonStyle = (key: "once" | "always" | "deny", idx: number) => {
+    const isSelected = idx === props.selectedButtonIdx
+    if (key === "once") return {
+      bg: isSelected ? tint(theme.primary, theme.text, 0.12) : theme.primary,
+      border: theme.primary,
+      fg: selectedForeground(theme, theme.primary),
+      label: "Y  Allow once",
+    }
+    if (key === "always") return {
+      bg: isSelected ? tint(theme.accent, theme.text, 0.12) : theme.accent,
+      border: theme.accent,
+      fg: selectedForeground(theme, theme.accent),
+      label: "A  Allow always",
+    }
+    return {
+      bg: isSelected
+        ? tint(theme.backgroundElement, theme.error, 0.22)
+        : tint(theme.backgroundElement, theme.error, 0.1),
+      border: theme.error,
+      fg: theme.error,
+      label: "N  Deny",
+    }
+  }
 
   return (
     <box
@@ -181,13 +225,13 @@ function PermissionCard(props: {
       gap={1}
       backgroundColor={riskBg()}
       border={["top", "right", "bottom", "left"]}
-      borderColor={riskColor()}
+      borderColor={props.cardPhase === "sent" ? theme.success : riskColor()}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
       paddingBottom={1}
     >
-      {/* Header: icon + title */}
+      {/* ── Header ── */}
       <box flexDirection="row" gap={1} alignItems="center">
         <text
           fg={props.risk.level === "critical" ? theme.error : props.risk.level === "privacy" ? theme.warning : theme.accent}
@@ -195,21 +239,84 @@ function PermissionCard(props: {
         >
           {icon()}
         </text>
-        <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="word">
+        <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="word" flexGrow={1}>
           {title()}
+        </text>
+        {/* Age badge */}
+        <text
+          fg={isStale() ? theme.warning : theme.textMuted}
+          attributes={TextAttributes.DIM}
+        >
+          {isStale() ? "⏱ " : ""}{formatAge(props.ageMs)}
         </text>
       </box>
 
-      {/* Shell command detail */}
+      {/* ── Shell command detail ── */}
       <Show when={props.request.permission === "shell" && props.input.command}>
-        <box paddingLeft={2} paddingRight={1}>
+        <box
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={0}
+          paddingBottom={0}
+          backgroundColor={tint(theme.background, theme.textMuted, 0.06)}
+          border={["left"]}
+          borderColor={theme.borderSubtle}
+        >
           <text fg={theme.textMuted} wrapMode="word">
             $ {String(props.input.command)}
           </text>
         </box>
       </Show>
 
-      {/* Risk callout */}
+      {/* ── Diff preview for edits ── */}
+      <Show when={hasDiff()}>
+        <box flexDirection="column" gap={0}>
+          <box
+            flexDirection="row"
+            gap={1}
+            onMouseUp={() => props.onToggleDiff()}
+            paddingLeft={1}
+          >
+            <text fg={theme.textMuted}>{props.diffExpanded ? "▾" : "▸"}</text>
+            <text fg={props.diffExpanded ? theme.text : theme.textMuted}>
+              {props.diffExpanded ? "Hide diff" : "Show diff"}
+            </text>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>Ctrl+D</text>
+          </box>
+          <Show when={props.diffExpanded}>
+            <box
+              maxHeight={14}
+              border={["top", "right", "bottom", "left"]}
+              borderColor={theme.borderSubtle}
+              backgroundColor={theme.background}
+            >
+              <scrollbox height="100%" width="100%">
+                <diff
+                  diff={diff()}
+                  view="unified"
+                  filetype={ft()}
+                  syntaxStyle={syntax()}
+                  showLineNumbers={true}
+                  width={Math.max(40, dimensions().width - 8)}
+                  wrapMode="word"
+                  fg={theme.text}
+                  addedBg={theme.diffAddedBg}
+                  removedBg={theme.diffRemovedBg}
+                  contextBg={theme.diffContextBg}
+                  addedSignColor={theme.diffHighlightAdded}
+                  removedSignColor={theme.diffHighlightRemoved}
+                  lineNumberFg={theme.diffLineNumber}
+                  lineNumberBg={theme.diffContextBg}
+                  addedLineNumberBg={theme.diffAddedLineNumberBg}
+                  removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                />
+              </scrollbox>
+            </box>
+          </Show>
+        </box>
+      </Show>
+
+      {/* ── Risk callout ── */}
       <Show when={props.risk.level !== "normal"}>
         <box
           flexDirection="column"
@@ -220,107 +327,214 @@ function PermissionCard(props: {
           paddingBottom={1}
           backgroundColor={
             props.risk.level === "critical"
-              ? tint(theme.background, theme.error, 0.15)
-              : tint(theme.background, theme.warning, 0.12)
+              ? tint(theme.background, theme.error, 0.14)
+              : tint(theme.background, theme.warning, 0.1)
           }
           border={["left"]}
           borderColor={props.risk.level === "critical" ? theme.error : theme.warning}
         >
-          <text
-            fg={props.risk.level === "critical" ? theme.error : theme.warning}
-            attributes={TextAttributes.BOLD}
-          >
-            {props.risk.level === "critical" ? "⚠ Critical action" : "⚠ Privacy-sensitive"}
+          <text fg={props.risk.level === "critical" ? theme.error : theme.warning} attributes={TextAttributes.BOLD}>
+            {props.risk.level === "critical" ? "⚠  Critical action" : "⚠  Privacy-sensitive"}
           </text>
-          <text fg={theme.textMuted} wrapMode="word">
-            {props.risk.reason}
-          </text>
+          <text fg={theme.textMuted} wrapMode="word">{props.risk.reason}</text>
           <Show when={props.risk.suggestion}>
-            <text fg={theme.text} wrapMode="word">
-              Suggestion: {props.risk.suggestion}
-            </text>
+            <text fg={theme.text} wrapMode="word">Suggestion: {props.risk.suggestion}</text>
           </Show>
         </box>
       </Show>
 
-      {/* Context note */}
-      <text fg={theme.textMuted} wrapMode="word">
-        Allow once to continue this step, allow always to trust this pattern, or deny to pause the run.
-      </text>
-
-      {/* Action buttons */}
-      <box flexDirection="row" gap={1} paddingTop={0} flexWrap="wrap">
+      {/* ════════════════════════════════════════════════════
+          PHASE: sent — item will disappear from queue shortly
+          ════════════════════════════════════════════════════ */}
+      <Show when={props.cardPhase === "sent"}>
         <box
-          backgroundColor={hovered() === "once" ? tint(theme.primary, theme.text, 0.15) : theme.primary}
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={0}
-          paddingBottom={0}
-          borderStyle="rounded"
-          borderColor={theme.primary}
-          onMouseOver={() => setHovered("once")}
-          onMouseOut={() => setHovered(null)}
-          onMouseUp={() => props.onApproveOnce()}
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          paddingLeft={1}
+          paddingTop={1}
+          paddingBottom={1}
+          backgroundColor={tint(theme.background, theme.success, 0.08)}
+          border={["left"]}
+          borderColor={theme.success}
         >
-          <text fg={selectedForeground(theme, theme.primary)} attributes={TextAttributes.BOLD}>
-            Y  Allow once
-          </text>
+          <text fg={theme.success} attributes={TextAttributes.BOLD}>✓</text>
+          <text fg={theme.success}>Decision sent — DAX will continue.</text>
+        </box>
+      </Show>
+
+      {/* ════════════════════════════════════════════════════
+          PHASE: deciding — main action buttons
+          ════════════════════════════════════════════════════ */}
+      <Show when={props.cardPhase === "deciding"}>
+        <text fg={theme.textMuted} wrapMode="word">
+          Allow once to continue this step · allow always to trust this pattern · deny to pause.
+        </text>
+
+        {/* Buttons row */}
+        <box flexDirection="row" gap={1} flexWrap="wrap">
+          <For each={props.buttons}>
+            {(key, i) => {
+              const s = () => buttonStyle(key, i())
+              return (
+                <box
+                  backgroundColor={s().bg}
+                  paddingLeft={2}
+                  paddingRight={2}
+                  borderStyle="rounded"
+                  borderColor={s().border}
+                  onMouseOver={() => props.onSetSelectedBtn(i())}
+                  onMouseUp={() => {
+                    props.onSetSelectedBtn(i())
+                    if (key === "once") props.onApproveOnce()
+                    else if (key === "always") props.onSetPhase("confirming-always")
+                    else props.onSetPhase("denying")
+                  }}
+                >
+                  <text fg={s().fg} attributes={TextAttributes.BOLD}>{s().label}</text>
+                </box>
+              )
+            }}
+          </For>
         </box>
 
-        <Show when={hasAlways()}>
+        {/* Keyboard hint */}
+        <box flexDirection="row" gap={2}>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>← →</text>
+            <text fg={theme.textMuted}>select</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text}>Enter</text>
+            <text fg={theme.textMuted}>confirm</text>
+          </box>
+          <Show when={hasDiff()}>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.text}>Ctrl+D</text>
+              <text fg={theme.textMuted}>diff</text>
+            </box>
+          </Show>
+        </box>
+      </Show>
+
+      {/* ════════════════════════════════════════════════════
+          PHASE: confirming-always — show patterns + confirm
+          ════════════════════════════════════════════════════ */}
+      <Show when={props.cardPhase === "confirming-always"}>
+        <box
+          flexDirection="column"
+          gap={1}
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={1}
+          paddingBottom={1}
+          backgroundColor={tint(theme.background, theme.accent, 0.08)}
+          border={["left"]}
+          borderColor={theme.accent}
+        >
+          <text fg={theme.accent} attributes={TextAttributes.BOLD}>Confirm — Allow always</text>
+          <Show
+            when={props.request.always.length === 1 && props.request.always[0] === "*"}
+            fallback={
+              <box flexDirection="column" gap={0}>
+                <text fg={theme.textMuted}>These patterns will be trusted for this session:</text>
+                <For each={props.request.always}>
+                  {(pattern) => (
+                    <text fg={theme.text}>  · {pattern}</text>
+                  )}
+                </For>
+              </box>
+            }
+          >
+            <text fg={theme.textMuted}>
+              All <text fg={theme.text}>{props.request.permission}</text> actions will be allowed until DAX restarts.
+            </text>
+          </Show>
+        </box>
+
+        <box flexDirection="row" gap={1} flexWrap="wrap">
           <box
-            backgroundColor={hovered() === "always" ? tint(theme.accent, theme.text, 0.15) : theme.accent}
+            backgroundColor={theme.accent}
             paddingLeft={2}
             paddingRight={2}
-            paddingTop={0}
-            paddingBottom={0}
             borderStyle="rounded"
             borderColor={theme.accent}
-            onMouseOver={() => setHovered("always")}
-            onMouseOut={() => setHovered(null)}
             onMouseUp={() => props.onApproveAlways()}
           >
             <text fg={selectedForeground(theme, theme.accent)} attributes={TextAttributes.BOLD}>
-              A  Allow always
+              Enter  Confirm
             </text>
           </box>
-        </Show>
-
-        <box
-          backgroundColor={hovered() === "deny" ? tint(theme.error, theme.text, 0.12) : tint(theme.backgroundElement, theme.error, 0.1)}
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={0}
-          paddingBottom={0}
-          borderStyle="rounded"
-          borderColor={theme.error}
-          onMouseOver={() => setHovered("deny")}
-          onMouseOut={() => setHovered(null)}
-          onMouseUp={() => props.onDeny()}
-        >
-          <text fg={theme.error} attributes={TextAttributes.BOLD}>
-            N  Deny
-          </text>
-        </box>
-      </box>
-
-      {/* Keyboard hint */}
-      <box flexDirection="row" gap={2} paddingTop={0}>
-        <box flexDirection="row" gap={1}>
-          <text fg={theme.text}>Y</text>
-          <text fg={theme.textMuted}>allow once</text>
-        </box>
-        <Show when={hasAlways()}>
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.text}>A</text>
-            <text fg={theme.textMuted}>allow always</text>
+          <box
+            backgroundColor={theme.backgroundElement}
+            paddingLeft={2}
+            paddingRight={2}
+            borderStyle="rounded"
+            borderColor={theme.borderSubtle}
+            onMouseUp={() => props.onSetPhase("deciding")}
+          >
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+              Esc  Cancel
+            </text>
           </box>
-        </Show>
-        <box flexDirection="row" gap={1}>
-          <text fg={theme.text}>N / Esc</text>
-          <text fg={theme.textMuted}>deny</text>
         </box>
-      </box>
+        <text fg={theme.textMuted}>Enter confirm · Esc cancel</text>
+      </Show>
+
+      {/* ════════════════════════════════════════════════════
+          PHASE: denying — inline reason textarea
+          ════════════════════════════════════════════════════ */}
+      <Show when={props.cardPhase === "denying"}>
+        <box
+          flexDirection="column"
+          gap={1}
+          paddingLeft={1}
+          paddingRight={1}
+          paddingTop={1}
+          paddingBottom={1}
+          backgroundColor={tint(theme.background, theme.error, 0.07)}
+          border={["left"]}
+          borderColor={theme.error}
+        >
+          <text fg={theme.error} attributes={TextAttributes.BOLD}>△  Deny — tell DAX what to do differently</text>
+          <text fg={theme.textMuted}>Optional. Press Enter to confirm, Esc to go back.</text>
+          <textarea
+            ref={props.denyTextareaRef}
+            focused
+            textColor={theme.text}
+            focusedTextColor={theme.text}
+            cursorColor={theme.primary}
+            keyBindings={props.textareaKeybindings()}
+          />
+        </box>
+
+        <box flexDirection="row" gap={1} flexWrap="wrap">
+          <box
+            backgroundColor={tint(theme.backgroundElement, theme.error, 0.15)}
+            paddingLeft={2}
+            paddingRight={2}
+            borderStyle="rounded"
+            borderColor={theme.error}
+            onMouseUp={() => {
+              // Mouse confirm: fire deny (textarea value read by keyboard handler in RAOPane)
+              // We signal by calling onDeny with empty string — RAOPane reads the ref
+              props.onDeny()
+            }}
+          >
+            <text fg={theme.error} attributes={TextAttributes.BOLD}>Enter  Confirm deny</text>
+          </box>
+          <box
+            backgroundColor={theme.backgroundElement}
+            paddingLeft={2}
+            paddingRight={2}
+            borderStyle="rounded"
+            borderColor={theme.borderSubtle}
+            onMouseUp={() => props.onSetPhase("deciding")}
+          >
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>Esc  Cancel</text>
+          </box>
+        </box>
+      </Show>
     </box>
   )
 }
@@ -331,6 +545,7 @@ function PermissionCard(props: {
 function QuestionCard(props: {
   request: QuestionRequest
   store: { tab: number; selected: number; answers: Array<QuestionAnswer> }
+  sent: boolean
   onSelectTab: (i: number) => void
   onSelectOption: (i: number) => void
   onSubmit: () => void
@@ -349,15 +564,13 @@ function QuestionCard(props: {
       gap={1}
       backgroundColor={theme.backgroundElement}
       border={["top", "right", "bottom", "left"]}
-      borderColor={theme.accent}
+      borderColor={props.sent ? theme.success : theme.accent}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
       paddingBottom={1}
     >
-      <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-        ◌  Question
-      </text>
+      <text fg={theme.accent} attributes={TextAttributes.BOLD}>◌  Question</text>
 
       {/* Multi-question tabs */}
       <Show when={questions().length > 1}>
@@ -385,22 +598,16 @@ function QuestionCard(props: {
       </Show>
 
       {/* Question text */}
-      <text fg={theme.text} wrapMode="word">
-        {question()?.question}
-      </text>
+      <text fg={theme.text} wrapMode="word">{question()?.question}</text>
 
-      {/* Option list */}
+      {/* Options list */}
       <box flexDirection="column" gap={0} paddingLeft={1}>
         <For each={options()}>
           {(opt, i) => (
             <box
               flexDirection="row"
               gap={1}
-              backgroundColor={
-                props.store.selected === i()
-                  ? tint(theme.backgroundPanel, theme.accent, 0.12)
-                  : undefined
-              }
+              backgroundColor={props.store.selected === i() ? tint(theme.backgroundPanel, theme.accent, 0.12) : undefined}
               paddingLeft={1}
               paddingRight={1}
               onMouseUp={() => {
@@ -421,41 +628,57 @@ function QuestionCard(props: {
         </For>
       </box>
 
-      {/* Action buttons */}
-      <box flexDirection="row" gap={1} paddingTop={1} flexWrap="wrap">
+      {/* Sent confirmation */}
+      <Show when={props.sent}>
         <box
-          backgroundColor={theme.primary}
-          paddingLeft={2}
-          paddingRight={2}
-          borderStyle="rounded"
-          borderColor={theme.primary}
-          onMouseUp={() => props.onSubmit()}
+          flexDirection="row"
+          gap={1}
+          paddingLeft={1}
+          paddingTop={1}
+          paddingBottom={1}
+          backgroundColor={tint(theme.background, theme.success, 0.08)}
+          border={["left"]}
+          borderColor={theme.success}
         >
-          <text fg={selectedForeground(theme, theme.primary)} attributes={TextAttributes.BOLD}>
-            Enter  Submit
-          </text>
+          <text fg={theme.success} attributes={TextAttributes.BOLD}>✓</text>
+          <text fg={theme.success}>Answer sent.</text>
         </box>
-        <box
-          backgroundColor={tint(theme.backgroundElement, theme.error, 0.1)}
-          paddingLeft={2}
-          paddingRight={2}
-          borderStyle="rounded"
-          borderColor={theme.error}
-          onMouseUp={() => props.onSkip()}
-        >
-          <text fg={theme.error} attributes={TextAttributes.BOLD}>
-            Esc  Skip
-          </text>
-        </box>
-      </box>
+      </Show>
 
-      <text fg={theme.textMuted}>↑↓ pick · Enter confirm · click directly</text>
+      {/* Action buttons (hide when sent) */}
+      <Show when={!props.sent}>
+        <box flexDirection="row" gap={1} flexWrap="wrap">
+          <box
+            backgroundColor={theme.primary}
+            paddingLeft={2}
+            paddingRight={2}
+            borderStyle="rounded"
+            borderColor={theme.primary}
+            onMouseUp={() => props.onSubmit()}
+          >
+            <text fg={selectedForeground(theme, theme.primary)} attributes={TextAttributes.BOLD}>
+              Enter  Submit
+            </text>
+          </box>
+          <box
+            backgroundColor={tint(theme.backgroundElement, theme.error, 0.1)}
+            paddingLeft={2}
+            paddingRight={2}
+            borderStyle="rounded"
+            borderColor={theme.error}
+            onMouseUp={() => props.onSkip()}
+          >
+            <text fg={theme.error} attributes={TextAttributes.BOLD}>Esc  Skip</text>
+          </box>
+        </box>
+        <text fg={theme.textMuted}>↑↓ pick · Enter confirm · click directly</text>
+      </Show>
     </box>
   )
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Queue breadcrumb (rendered below the active card when there are multiple items)
+// Queue breadcrumb
 // ──────────────────────────────────────────────────────────────────────────────
 function QueueBreadcrumb(props: {
   items: RAOItem[]
@@ -463,7 +686,6 @@ function QueueBreadcrumb(props: {
   onSelect: (i: number) => void
 }) {
   const { theme } = useTheme()
-
   return (
     <box
       flexDirection="column"
@@ -473,9 +695,7 @@ function QueueBreadcrumb(props: {
       paddingTop={1}
       marginTop={1}
     >
-      <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-        Queue ({props.items.length})
-      </text>
+      <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>Queue ({props.items.length})</text>
       <For each={props.items}>
         {(item, idx) => {
           const isSelected = () => idx() === props.selectedIndex
@@ -489,7 +709,10 @@ function QueueBreadcrumb(props: {
               onMouseUp={() => props.onSelect(idx())}
             >
               <text fg={isSelected() ? theme.accent : theme.textMuted}>{isSelected() ? "▸" : " "}</text>
-              <text fg={isSelected() ? theme.text : theme.textMuted} attributes={isSelected() ? TextAttributes.BOLD : undefined}>
+              <text
+                fg={isSelected() ? theme.text : theme.textMuted}
+                attributes={isSelected() ? TextAttributes.BOLD : undefined}
+              >
                 {item.type === "permission" ? item.data.permission.replace(/_/g, " ") : "question"}
               </text>
               <Show when={item.type === "permission"}>
@@ -519,7 +742,9 @@ export function RAOPane(props: {
   const { theme } = useTheme()
   const sync = useSync()
   const dialog = useDialog()
+  const textareaKeybindings = useTextareaKeybindings()
 
+  // All items in the review queue
   const items = createMemo<RAOItem[]>(() => {
     const result: RAOItem[] = []
     props.permissions.forEach((p, i) => result.push({ type: "permission", data: p, index: i }))
@@ -534,25 +759,35 @@ export function RAOPane(props: {
     const len = items().length
     if (len === 0) return
     const idx = selectedIndex()
-    if (idx < 0 || idx >= len) {
-      setSelectedIndex(Math.max(0, len - 1))
-    }
+    if (idx < 0 || idx >= len) setSelectedIndex(Math.max(0, len - 1))
   })
 
-  // Jump to a specific request when navigated from outside
+  // Jump to specific request from external navigation
   createEffect(() => {
     const requestID = props.initialRequestID
     if (!requestID) return
     const index = items().findIndex((item) => item.data.id === requestID)
-    if (index >= 0 && index !== selectedIndex()) {
-      setSelectedIndex(index)
-    }
+    if (index >= 0 && index !== selectedIndex()) setSelectedIndex(index)
   })
 
-  // Render only the currently selected item — avoids overlapping hit-areas in the
-  // terminal renderer that would cause onMouseUp to be intercepted by invisible siblings.
+  // Render only the currently selected item — avoids overlapping hit-areas
   const currentItem = createMemo(() => items()[selectedIndex()] ?? null)
 
+  // ── Card phase state (per-item, reset when item changes) ──
+  const [cardPhase, setCardPhase] = createSignal<CardPhase>("deciding")
+  const [selectedButtonIdx, setSelectedButtonIdx] = createSignal(0)
+  const [diffExpanded, setDiffExpanded] = createSignal(false)
+  const [questionSent, setQuestionSent] = createSignal(false)
+  let denyTextarea: TextareaRenderable | undefined
+
+  createEffect(on(currentItem, () => {
+    setCardPhase("deciding")
+    setSelectedButtonIdx(0)
+    setDiffExpanded(false)
+    setQuestionSent(false)
+  }))
+
+  // ── Question store ──
   const [questionStore, setQuestionStore] = createStore({
     tab: 0,
     answers: [] as Array<QuestionAnswer>,
@@ -561,7 +796,7 @@ export function RAOPane(props: {
 
   const profile = createMemo<PolicyProfile>(() => parsePolicyProfile(kv.get(DAX_SETTING.policy_profile, "balanced")))
 
-  // Resolve tool input for the current permission request
+  // Tool input for the current permission request
   const currentPermissionInput = createMemo<Record<string, unknown>>(() => {
     const item = currentItem()
     if (!item || item.type !== "permission") return {}
@@ -582,71 +817,146 @@ export function RAOPane(props: {
     return classifyPermissionRisk(item.data, currentPermissionInput(), profile())
   })
 
+  // Build the visible button list based on whether "always" is available
+  const permissionButtons = createMemo<Array<"once" | "always" | "deny">>(() => {
+    const item = currentItem()
+    if (!item || item.type !== "permission") return ["once", "deny"]
+    const hasAlways = item.data.always && item.data.always.length > 0
+    return hasAlways ? ["once", "always", "deny"] : ["once", "deny"]
+  })
+
   function advanceAfterReply() {
     const len = items().length
-    if (selectedIndex() >= len - 1) {
-      setSelectedIndex(Math.max(0, len - 2))
-    }
+    if (selectedIndex() >= len - 1) setSelectedIndex(Math.max(0, len - 2))
   }
 
   function handlePermissionReply(requestID: string, reply: "once" | "always" | "reject", message?: string) {
+    setCardPhase("sent")
     sdk.client.permission.reply({ reply, requestID, message })
-    advanceAfterReply()
+    // Advance to next item after a brief moment so the "sent" state is visible
+    setTimeout(() => advanceAfterReply(), 400)
   }
 
   function handleQuestionReply(requestID: string, answers: Array<QuestionAnswer>) {
+    setQuestionSent(true)
     sdk.client.question.reply({ requestID, answers })
-    advanceAfterReply()
+    setTimeout(() => advanceAfterReply(), 400)
   }
 
   function handleQuestionReject(requestID: string) {
+    setQuestionSent(true)
     sdk.client.question.reject({ requestID })
-    advanceAfterReply()
+    setTimeout(() => advanceAfterReply(), 400)
   }
 
-  // Keyboard shortcuts — active as long as RAOPane is mounted and dialog is closed
+  // ── Keyboard handler — fully state-aware ──
   useKeyboard((evt) => {
     if (dialog.stack.length > 0) return
     const allItems = items()
     if (allItems.length === 0) return
-
     const item = currentItem()
     if (!item) return
 
-    // Navigate between queued items
-    if (evt.name === "left" || evt.name === "up") {
-      if (item.type !== "question" || (item.data.questions ?? []).length === 0) {
+    const phase = cardPhase()
+
+    // In "sent" phase: only allow navigating away to the next item
+    if (phase === "sent") return
+
+    // ── Denying phase: only intercept Enter / Esc ──
+    if (phase === "denying") {
+      if (evt.name === "return") {
+        evt.preventDefault()
+        const reason = denyTextarea?.plainText?.trim() || undefined
+        if (item.type === "permission") handlePermissionReply(item.data.id, "reject", reason)
+        return
+      }
+      if (evt.name === "escape") {
+        evt.preventDefault()
+        setCardPhase("deciding")
+        return
+      }
+      return // let textarea handle all other keys
+    }
+
+    // ── Confirming-always phase ──
+    if (phase === "confirming-always") {
+      if (evt.name === "return" || evt.name === "y") {
+        evt.preventDefault()
+        if (item.type === "permission") handlePermissionReply(item.data.id, "always")
+        return
+      }
+      if (evt.name === "escape" || evt.name === "n") {
+        evt.preventDefault()
+        setCardPhase("deciding")
+        return
+      }
+      return
+    }
+
+    // ── Deciding phase (permission) ──
+    if (item.type === "permission") {
+      const btns = permissionButtons()
+
+      // Navigate between queue items (when not cycling buttons)
+      if (evt.name === "up" || (evt.ctrl && evt.name === "p")) {
         evt.preventDefault()
         setSelectedIndex((prev) => Math.max(0, prev - 1))
         return
       }
-    }
-    if (evt.name === "right" || evt.name === "down") {
-      if (item.type !== "question" || (item.data.questions ?? []).length === 0) {
+      if (evt.name === "down" || (evt.ctrl && evt.name === "n")) {
         evt.preventDefault()
         setSelectedIndex((prev) => Math.min(allItems.length - 1, prev + 1))
         return
       }
-    }
 
-    if (item.type === "permission") {
-      if (evt.name === "y" || evt.name === "return") {
+      // Cycle button selection with left/right / Tab
+      if (evt.name === "left") {
+        evt.preventDefault()
+        setSelectedButtonIdx((prev) => (prev - 1 + btns.length) % btns.length)
+        return
+      }
+      if (evt.name === "right" || evt.name === "tab") {
+        evt.preventDefault()
+        setSelectedButtonIdx((prev) => (prev + 1) % btns.length)
+        return
+      }
+
+      // Enter fires currently selected button
+      if (evt.name === "return") {
+        evt.preventDefault()
+        const selected = btns[selectedButtonIdx()]
+        if (selected === "once") handlePermissionReply(item.data.id, "once")
+        else if (selected === "always") setCardPhase("confirming-always")
+        else setCardPhase("denying")
+        return
+      }
+
+      // Direct shortcut keys
+      if (evt.name === "y") {
         evt.preventDefault()
         handlePermissionReply(item.data.id, "once")
         return
       }
-      if (evt.name === "a") {
+      if (evt.name === "a" && btns.includes("always")) {
         evt.preventDefault()
-        handlePermissionReply(item.data.id, "always")
+        setCardPhase("confirming-always")
         return
       }
       if (evt.name === "n" || evt.name === "escape") {
         evt.preventDefault()
-        handlePermissionReply(item.data.id, "reject")
+        setCardPhase("denying")
+        return
+      }
+
+      // Ctrl+D toggles diff
+      if (evt.ctrl && evt.name === "d") {
+        evt.preventDefault()
+        setDiffExpanded((v) => !v)
         return
       }
     }
 
+    // ── Deciding phase (question) ──
     if (item.type === "question") {
       const request = item.data
       const qs = request.questions ?? []
@@ -689,13 +999,12 @@ export function RAOPane(props: {
     }
   })
 
+  // ── Render ──
   return (
     <box flexDirection="column" gap={1} flexGrow={1}>
       {/* Section header */}
       <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.borderSubtle}>
-        <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-          Review queue
-        </text>
+        <text fg={theme.primary} attributes={TextAttributes.BOLD}>Review queue</text>
         <text fg={theme.textMuted}>Resolve approvals and questions so DAX can continue safely.</text>
       </box>
 
@@ -709,23 +1018,16 @@ export function RAOPane(props: {
           borderColor={theme.borderSubtle}
           backgroundColor={tint(theme.background, theme.success, 0.04)}
         >
-          <text fg={theme.success} attributes={TextAttributes.BOLD}>
-            ✓  All clear
-          </text>
+          <text fg={theme.success} attributes={TextAttributes.BOLD}>✓  All clear</text>
           <text fg={theme.textMuted}>No approvals or open questions right now.</text>
         </box>
       </Show>
 
-      {/* Queue */}
       <Show when={items().length > 0}>
         {/* Navigation bar */}
         <box flexDirection="row" gap={1} alignItems="center">
-          <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-            {items().length} pending
-          </text>
-          <text fg={theme.textMuted}>
-            ({selectedIndex() + 1}/{items().length})
-          </text>
+          <text fg={theme.warning} attributes={TextAttributes.BOLD}>{items().length} pending</text>
+          <text fg={theme.textMuted}>({selectedIndex() + 1}/{items().length})</text>
           <box flexGrow={1} />
           <Show when={items().length > 1}>
             <box flexDirection="row" gap={0}>
@@ -751,7 +1053,7 @@ export function RAOPane(props: {
           </Show>
         </box>
 
-        {/* Multi-item tab strip */}
+        {/* Tab strip for multi-item queue */}
         <Show when={items().length > 1}>
           <box flexDirection="row" gap={1} flexWrap="wrap">
             <For each={items()}>
@@ -800,20 +1102,34 @@ export function RAOPane(props: {
           </box>
         </Show>
 
-        {/* Active item — rendered directly (not inside For+Show) to prevent ghost hit-areas */}
+        {/* Active item — direct render, no For+Show to prevent ghost hit-areas */}
         <Switch>
           <Match when={currentItem()?.type === "permission"}>
             {(() => {
               const item = currentItem() as RAOItem & { type: "permission" }
               if (!item) return null
+              const ageMs = Date.now() - item.data.createdAt
               return (
                 <PermissionCard
                   request={item.data}
                   input={currentPermissionInput()}
                   risk={currentRisk()}
+                  cardPhase={cardPhase()}
+                  selectedButtonIdx={selectedButtonIdx()}
+                  buttons={permissionButtons()}
+                  diffExpanded={diffExpanded()}
+                  ageMs={ageMs}
+                  onSetPhase={setCardPhase}
+                  onToggleDiff={() => setDiffExpanded((v) => !v)}
                   onApproveOnce={() => handlePermissionReply(item.data.id, "once")}
                   onApproveAlways={() => handlePermissionReply(item.data.id, "always")}
-                  onDeny={() => handlePermissionReply(item.data.id, "reject")}
+                  onDeny={() => {
+                    const reason = denyTextarea?.plainText?.trim() || undefined
+                    handlePermissionReply(item.data.id, "reject", reason)
+                  }}
+                  onSetSelectedBtn={setSelectedButtonIdx}
+                  denyTextareaRef={(el) => { denyTextarea = el }}
+                  textareaKeybindings={textareaKeybindings}
                 />
               )
             })()}
@@ -827,10 +1143,8 @@ export function RAOPane(props: {
                 <QuestionCard
                   request={item.data}
                   store={questionStore}
-                  onSelectTab={(i) => {
-                    setQuestionStore("tab", i)
-                    setQuestionStore("selected", 0)
-                  }}
+                  sent={questionSent()}
+                  onSelectTab={(i) => { setQuestionStore("tab", i); setQuestionStore("selected", 0) }}
                   onSelectOption={(i) => setQuestionStore("selected", i)}
                   onSubmit={() => {
                     const qs = item.data.questions ?? []
@@ -844,7 +1158,7 @@ export function RAOPane(props: {
           </Match>
         </Switch>
 
-        {/* Queue breadcrumb for multi-item queue */}
+        {/* Queue breadcrumb */}
         <Show when={items().length > 1}>
           <QueueBreadcrumb
             items={items()}
