@@ -1,5 +1,22 @@
 import { Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { type RunPhase, formatDuration } from "@/dax/presentation/session-stream"
+
+const PHASE_ICONS: Record<string, string> = {
+  thinking: "◎",
+  exploring: "◈",
+  planning: "◇",
+  executing: "◉",
+  verifying: "✦",
+  done: "✓",
+}
+
+function phaseIcon(phase: RunPhase | string, status: string): string {
+  if (status === "completed") return "✓"
+  if (status === "failed") return "✗"
+  if (status === "active") return PHASE_ICONS[phase] ?? "●"
+  return "○"
+}
 
 export function PhaseRail(props: {
   phase: RunPhase
@@ -24,7 +41,7 @@ export function PhaseRail(props: {
     }
   }
 
-  const expandIcon = () => (props.expanded ? "▼" : "▶")
+  const icon = () => phaseIcon(props.phase, props.status)
 
   const summary = () => {
     const parts: string[] = []
@@ -33,8 +50,10 @@ export function PhaseRail(props: {
     }
     const dur = props.durationMs ? formatDuration(props.durationMs) : ""
     if (dur) parts.push(dur)
-    return parts.length > 0 ? parts.join(" · ") : ""
+    return parts.length > 0 ? parts.join("  ·  ") : ""
   }
+
+  const expandIcon = () => (props.expanded ? "▾" : "▸")
 
   return (
     <box
@@ -50,13 +69,29 @@ export function PhaseRail(props: {
       borderColor="$borderSubtle"
       onMouseUp={props.onToggle}
     >
-      <text fg={statusColor()}>{expandIcon()}</text>
-      <text fg={statusColor()} attributes={props.status === "active" ? "bold" : undefined}>
+      {/* Status indicator */}
+      <text fg={statusColor()} attributes={props.status === "active" ? TextAttributes.BOLD : undefined}>
+        {icon()}
+      </text>
+
+      {/* Toggle arrow */}
+      <text fg="$textMuted" attributes={TextAttributes.DIM}>
+        {expandIcon()}
+      </text>
+
+      {/* Phase label */}
+      <text
+        fg={statusColor()}
+        attributes={props.status === "active" ? TextAttributes.BOLD : undefined}
+        wrapMode="none"
+      >
         {props.label.toUpperCase()}
       </text>
+
+      {/* Summary metadata */}
       <Show when={summary()}>
-        <text fg="$textMuted" attributes="dim">
-          · {summary()}
+        <text fg="$textMuted" attributes={TextAttributes.DIM}>
+          ·  {summary()}
         </text>
       </Show>
     </box>
