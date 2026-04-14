@@ -15,81 +15,14 @@ import { Keybind } from "@/util/keybind"
 import { Locale } from "@/util/locale"
 import { Global } from "@/global"
 import { useDialog } from "../../ui/dialog"
-import { analyzePackageInstallCommand, analyzePythonInstallCommand } from "../../util/environment"
 import { useKV } from "../../context/kv"
 import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
 import { DAX_SETTING } from "@/dax/settings"
+import { classifyPermissionRisk, type PermissionRiskLevel } from "../../util/permission-risk"
 
 const PortalBox = Portal as unknown as Component<{ children: JSX.Element }>
 
 type PermissionStage = "permission" | "always" | "reject"
-type PermissionRiskLevel = "normal" | "privacy" | "critical"
-function classifyPermissionRisk(request: PermissionRequest, input: Record<string, unknown>, profile: PolicyProfile) {
-  const permission = request.permission
-  const sensitivePathPattern =
-    /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|credentials|token|secret|\.npmrc|\.aws/i
-
-  const risk = (level: PermissionRiskLevel, reason: string, suggestion?: string) => ({ level, reason, suggestion })
-  const elevatePrivacy = (reason: string, suggestion?: string) =>
-    risk(profile === "strict" ? "critical" : "privacy", reason, suggestion)
-  const normal = () => risk("normal", "")
-
-  if (permission === "external_directory") {
-    return elevatePrivacy("Outside-project directory access may expose local private files.")
-  }
-
-  if (permission === "webfetch" || permission === "websearch" || permission === "codesearch") {
-    return elevatePrivacy("This may send project context or queries to external services.")
-  }
-
-  if (permission === "doom_loop") {
-    return risk("critical", "Continuing after repeated failures can cause unintended repeated actions.")
-  }
-
-  if (permission === "read") {
-    const filePath = String(input.filePath ?? "")
-    if (sensitivePathPattern.test(filePath)) {
-      return risk("privacy", "Reading this file may expose secrets or credentials.")
-    }
-    return normal()
-  }
-
-  if (permission === "edit") {
-    const filepath = String(request.metadata?.filepath ?? "")
-    if (sensitivePathPattern.test(filepath)) {
-      return risk("critical", "Editing a sensitive file can impact credentials or security settings.")
-    }
-    return normal()
-  }
-
-  if (permission === "shell") {
-    const command = String(input.command ?? "").toLowerCase()
-    const pythonInstall = analyzePythonInstallCommand(command)
-    if (pythonInstall?.kind === "missing-venv") {
-      return risk("critical", pythonInstall.reason, pythonInstall.recommendation)
-    }
-    if (pythonInstall?.kind === "explicit-global") {
-      return elevatePrivacy(pythonInstall.reason)
-    }
-    const packageInstall = analyzePackageInstallCommand(command)
-    if (packageInstall?.kind === "global-install") {
-      return elevatePrivacy(packageInstall.reason, packageInstall.suggestion)
-    }
-    if (
-      /rm\s+-rf|sudo\s+|chmod\s+|chown\s+|dd\s+if=|mkfs|shutdown|reboot|halt|killall|pkill|git\s+push|git\s+reset\s+--hard|curl.+\|\s*(bash|sh)/.test(
-        command,
-      )
-    ) {
-      return risk("critical", "This command can change system state or perform destructive operations.")
-    }
-    if (/printenv|cat\s+.*\.env|gh\s+auth|aws\s+|gcloud\s+|scp\s+|rsync\s+/.test(command)) {
-      return elevatePrivacy("This command may access or transmit credentials or private data.")
-    }
-    return normal()
-  }
-
-  return normal()
-}
 
 function normalizePath(input?: string) {
   if (!input) return ""
