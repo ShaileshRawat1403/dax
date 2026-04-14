@@ -37,7 +37,7 @@ export function insightsLabel(eli12: boolean) {
 }
 
 export function memoryLabel(eli12: boolean) {
-  return "plan"
+  return "memory"
 }
 
 export function paneContextLabel(mode: PaneMode): string {

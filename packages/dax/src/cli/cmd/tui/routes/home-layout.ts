@@ -23,12 +23,14 @@ export function deriveHomeLayout(input: {
   return {
     size,
     showInput: height >= 14,
-    showMascot: width >= 50 && height >= 22 && size !== "tiny",
-    showActions: width >= 52 && height >= 16,
+    // Mascot sits beside the greeting — only needs enough width for both
+    showMascot: width >= 56 && height >= 20 && size !== "tiny",
+    showActions: width >= 52 && height >= 18,
     showFirstRunGuide: width >= 60 && height >= 26 && sessionCount === 0,
     showSessions: width >= 60 && height >= 24 && sessionCount > 0,
     showTips: width >= 64 && height >= 30 && tipsVisible && sessionCount > 0,
     outerJustify: height >= 34 ? "center" : "flex-start",
-    maxWidth: width < 70 ? undefined : 76,
+    // Wider max so workspace card and chips have room
+    maxWidth: width < 70 ? undefined : 88,
   }
 }

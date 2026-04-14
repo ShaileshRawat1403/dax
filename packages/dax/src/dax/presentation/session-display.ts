@@ -84,13 +84,11 @@ export function shouldShowWorkstationPane(input: {
   hasAuditNeed: boolean
   hasRefineNeed: boolean
 }) {
+  // Critical interventions (pending approvals) override visibility — always show
+  if (input.hasCriticalIntervention) return true
   if (input.paneVisibility === "hidden") return false
   if (input.paneVisibility === "pinned") return true
-
-  if (input.displayMode === "quiet") {
-    return input.hasCriticalIntervention || input.hasAuditNeed || input.hasRefineNeed
-  }
-  return input.hasCriticalIntervention || input.hasAuditNeed || input.hasRefineNeed
+  return input.hasAuditNeed || input.hasRefineNeed
 }
 
 export function hasMemoryContext(input: {
