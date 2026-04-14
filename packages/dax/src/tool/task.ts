@@ -24,22 +24,36 @@ const parameters = z.object({
   command: z.string().describe("The command that triggered this task").optional(),
 })
 
-export const TaskTool = Tool.define("task", async (ctx) => {
+export const TaskTool = Tool.define("task", async (initCtx) => {
   const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary"))
 
   // Filter agents by permissions if agent provided
   return {
     description: DESCRIPTION,
     parameters,
-    execute: async (params: z.infer<typeof parameters>) => {
+    execute: async (params: z.infer<typeof parameters>, ctx: Tool.Context) => {
       const config = await Config.get()
       const agent = agents.find((a) => a.name === params.subagent_type) || (await Agent.get("general"))
       const model = (agent && typeof agent !== 'string' && agent.model) || (await Agent.get("general").then(a => a!.model))
 
       const messageID = Identifier.ascending("message")
-      const session = params.task_id ? await Session.get(params.task_id) : await Session.fork((ctx as any).sessionId)
+      const session = params.task_id ? await Session.get(params.task_id) : await Session.fork({ sessionID: ctx.sessionID })
 
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
+
+      // Gate subagent spawning behind an explicit permission request so the
+      // operator can review the task description and prompt before a new
+      // execution context is created.
+      await ctx.ask({
+        permission: "task",
+        patterns: [params.subagent_type],
+        always: [params.subagent_type],
+        metadata: {
+          description: params.description,
+          subagent_type: params.subagent_type,
+          prompt: params.prompt,
+        },
+      })
 
       const approved = await Permission.getApproved()
       const hasTaskPermission = approved.some((p) => p.permission === "task" && p.action === "allow")

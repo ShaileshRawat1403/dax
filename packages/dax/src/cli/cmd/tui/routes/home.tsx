@@ -24,6 +24,8 @@ import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
 import { deriveHomeLayout } from "./home-layout"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
 import { DAX_GUIDE_SESSION_FOOTER, DAX_GUIDE_SESSION_PROMPT, DAX_GUIDE_SESSION_TITLE } from "../util/guide-session"
+import os from "os"
+import path from "path"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
@@ -39,18 +41,22 @@ function formatAge(ms: number): string {
   return `${Math.floor(days / 7)}w`
 }
 
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return "Good morning"
+  if (h < 17) return "Good afternoon"
+  return "Good evening"
+}
+
 let once = false
 
-function BrandHeader(props: { theme: any }) {
+// ── Brand letters with animated cycling colors ────────────────────────────────
+function BrandLetters(props: { theme: any; small?: boolean }) {
   const [tick, setTick] = createSignal(0)
-
   onMount(() => {
-    const timer = setInterval(() => {
-      setTick((value) => value + 1)
-    }, 80)
-    onCleanup(() => clearInterval(timer))
+    const t = setInterval(() => setTick((v) => v + 1), 80)
+    onCleanup(() => clearInterval(t))
   })
-
   const letters = DAX_BRAND.name.toUpperCase().slice(0, 3).split("")
   const letterColor = (index: number) => {
     const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
@@ -62,27 +68,105 @@ function BrandHeader(props: { theme: any }) {
     const phase = (tick() + index * 4) % 8
     return phase < 2
   }
-
   return (
-    <box flexDirection="column" alignItems="center" gap={0}>
-      <box flexDirection="row" height={1} alignItems="center" justifyContent="center">
-        <For each={letters}>
-          {(letter, index) => (
-            <text fg={letterColor(index())} attributes={letterBlink(index()) ? TextAttributes.BOLD : undefined}>
-              {letter}
-            </text>
-          )}
-        </For>
-      </box>
-      <box flexDirection="row" height={1} alignItems="center" justifyContent="center">
-        <text fg={props.theme.textMuted}>Run · Audit · Override</text>
-      </box>
+    <box flexDirection="row" gap={0} height={1}>
+      <For each={letters}>
+        {(letter, index) => (
+          <text fg={letterColor(index())} attributes={letterBlink(index()) ? TextAttributes.BOLD : undefined}>
+            {letter}
+          </text>
+        )}
+      </For>
     </box>
   )
 }
 
-function PromptStarter(props: { label: string; onPress: () => void; theme: any }) {
+// ── Mascot — unchanged animation, repositioned to top-right ──────────────────
+function DaxMascot(props: { theme: any }) {
+  const [tick, setTick] = createSignal(0)
+  onMount(() => {
+    const t = setInterval(() => setTick((v) => v + 1), 480)
+    onCleanup(() => clearInterval(t))
+  })
+  const EYE_FRAMES = ["◎", "◉", "◎", "◉", "●", "◉", "◎"]
+  const eyeL = createMemo(() => EYE_FRAMES[tick() % EYE_FRAMES.length])
+  const eyeR = createMemo(() => EYE_FRAMES[(tick() + 3) % EYE_FRAMES.length])
+  const scan = createMemo(() => {
+    const s = ["─", "═", "─", "·"]
+    return s[Math.floor(tick() / 2) % s.length]
+  })
+  const eyeColor = createMemo(() => {
+    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
+    return colors[Math.floor(tick() / 3) % colors.length]
+  })
+  return (
+    <box flexDirection="column" alignItems="center" gap={0} flexShrink={0}>
+      <text fg={props.theme.borderSubtle}>┌───┐</text>
+      <box flexDirection="row" alignItems="center">
+        <text fg={props.theme.borderSubtle}>│</text>
+        <text fg={eyeColor()}>{eyeL()}</text>
+        <text fg={scan() === "═" ? props.theme.primary : props.theme.textMuted}>{scan()}</text>
+        <text fg={eyeColor()}>{eyeR()}</text>
+        <text fg={props.theme.borderSubtle}>│</text>
+      </box>
+      <text fg={props.theme.borderSubtle}>└───┘</text>
+      <text fg={props.theme.textMuted} dim>
+        online
+      </text>
+    </box>
+  )
+}
+
+// ── Workspace context card ────────────────────────────────────────────────────
+function WorkspaceCard(props: { dirName: string; branch: string | undefined; modelName: string; theme: any }) {
+  return (
+    <box
+      width="100%"
+      flexDirection="row"
+      gap={1}
+      paddingLeft={1}
+      paddingRight={1}
+      borderStyle="rounded"
+      borderColor={props.theme.borderSubtle}
+    >
+      <text fg={props.theme.textMuted}>◈</text>
+      <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
+        {props.dirName}
+      </text>
+      <Show when={props.branch}>
+        <text fg={props.theme.textMuted}>·</text>
+        <text fg={props.theme.primary}>{props.branch}</text>
+      </Show>
+      <text fg={props.theme.textMuted}>·</text>
+      <text fg={props.theme.textMuted} dim>
+        {props.modelName}
+      </text>
+    </box>
+  )
+}
+
+// ── Smart chip — repo/context-aware prompt starter ───────────────────────────
+function SmartChip(props: {
+  label: string
+  tone?: "normal" | "warning"
+  onPress: () => void
+  theme: any
+}) {
   const [hover, setHover] = createSignal(false)
+  const borderColor = () => {
+    if (props.tone === "warning") return hover() ? props.theme.warning : tint(props.theme.borderSubtle, props.theme.warning, 0.4)
+    return hover() ? props.theme.borderActive : props.theme.borderSubtle
+  }
+  const bg = () =>
+    hover()
+      ? props.tone === "warning"
+        ? tint(props.theme.backgroundElement, props.theme.warning, 0.14)
+        : tint(props.theme.backgroundElement, props.theme.primary, 0.14)
+      : props.theme.backgroundElement
+  const fg = () => {
+    if (props.tone === "warning") return hover() ? props.theme.warning : props.theme.textMuted
+    return hover() ? props.theme.primary : props.theme.text
+  }
   return (
     <box
       onMouseUp={props.onPress}
@@ -90,20 +174,18 @@ function PromptStarter(props: { label: string; onPress: () => void; theme: any }
       onMouseOut={() => setHover(false)}
       paddingLeft={1}
       paddingRight={1}
-      backgroundColor={hover() ? tint(props.theme.backgroundElement, props.theme.primary, 0.18) : props.theme.backgroundElement}
-      border={["round"]}
-      borderColor={hover() ? props.theme.borderActive : props.theme.borderSubtle}
+      backgroundColor={bg()}
+      borderStyle="rounded"
+      borderColor={borderColor()}
     >
-      <text
-        fg={hover() ? props.theme.primary : props.theme.text}
-        attributes={hover() ? TextAttributes.BOLD : undefined}
-      >
+      <text fg={fg()} attributes={hover() ? TextAttributes.BOLD : undefined}>
         {hover() ? `▸ ${props.label}` : `  ${props.label}`}
       </text>
     </box>
   )
 }
 
+// ── Recent run row ────────────────────────────────────────────────────────────
 function RecentRunRow(props: {
   title: string
   status: string
@@ -127,7 +209,7 @@ function RecentRunRow(props: {
       paddingRight={2}
       flexDirection="row"
       justifyContent="space-between"
-      backgroundColor={hover() ? tint(props.theme.backgroundElement, props.theme.primary, 0.12) : undefined}
+      backgroundColor={hover() ? tint(props.theme.backgroundElement, props.theme.primary, 0.1) : undefined}
     >
       <box flexDirection="row" gap={1}>
         <text fg={dot()}>●</text>
@@ -135,108 +217,126 @@ function RecentRunRow(props: {
           {props.title.length > 48 ? props.title.slice(0, 45) + "..." : props.title}
         </text>
       </box>
-      <text fg={props.theme.textMuted} attributes={TextAttributes.DIM}>
-        {formatAge(props.ageMs)} ago
+      <text fg={props.theme.textMuted} dim>
+        {formatAge(props.ageMs)}
       </text>
     </box>
   )
 }
 
+// ── Animated pulse arrow for first-run guide ──────────────────────────────────
 function PulseArrow(props: { theme: any }) {
   const [tick, setTick] = createSignal(0)
   onMount(() => {
-    const timer = setInterval(() => setTick((v) => v + 1), 280)
-    onCleanup(() => clearInterval(timer))
+    const t = setInterval(() => setTick((v) => v + 1), 280)
+    onCleanup(() => clearInterval(t))
   })
   const FRAMES = ["▸", "▹", "▸", "►"]
   const glyph = createMemo(() => FRAMES[tick() % FRAMES.length])
   const bright = createMemo(() => tick() % 4 < 2)
   return (
-    <text
-      fg={bright() ? props.theme.primary : props.theme.accent}
-      attributes={bright() ? TextAttributes.BOLD : undefined}
-    >
+    <text fg={bright() ? props.theme.primary : props.theme.accent} attributes={bright() ? TextAttributes.BOLD : undefined}>
       {glyph()}
     </text>
   )
 }
 
-function HomeInfoCard(props: { title: string; body: string; theme: any; tone?: "default" | "accent" | "warning" }) {
-  const borderColor =
-    props.tone === "accent"
-      ? props.theme.borderActive
-      : props.tone === "warning"
-        ? props.theme.warning
-        : props.theme.border
-  const backgroundColor =
-    props.tone === "accent"
-      ? tint(props.theme.backgroundElement, props.theme.primary, 0.06)
-      : props.tone === "warning"
-        ? tint(props.theme.backgroundElement, props.theme.warning, 0.07)
-        : props.theme.backgroundElement
-
+// ── Divider label ─────────────────────────────────────────────────────────────
+function SectionDivider(props: { label: string; theme: any }) {
   return (
-    <box
-      flexDirection="column"
-      gap={0}
-      paddingLeft={1}
-      paddingRight={1}
-      paddingTop={0}
-      paddingBottom={1}
-      backgroundColor={backgroundColor}
-      border={["round"]}
-      borderColor={borderColor}
-      flexGrow={1}
-      minWidth={20}
-    >
-      <text fg={props.tone === "warning" ? props.theme.warning : props.theme.text} attributes={TextAttributes.BOLD}>
-        {props.title}
+    <box flexDirection="row" gap={1} alignItems="center" paddingLeft={0} paddingRight={0}>
+      <text fg={props.theme.borderSubtle}>──</text>
+      <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD} dim>
+        {props.label}
       </text>
-      <text fg={props.theme.textMuted} wrapMode="word">
-        {props.body}
-      </text>
+      <text fg={props.theme.borderSubtle}>──────────────────────────────────────────</text>
     </box>
   )
 }
 
-function DaxMascot(props: { theme: any }) {
-  const [tick, setTick] = createSignal(0)
-
-  onMount(() => {
-    const timer = setInterval(() => setTick((v) => v + 1), 480)
-    onCleanup(() => clearInterval(timer))
-  })
-
-  const EYE_FRAMES = ["◎", "◉", "◎", "◉", "●", "◉", "◎"]
-  const eyeL = createMemo(() => EYE_FRAMES[tick() % EYE_FRAMES.length])
-  const eyeR = createMemo(() => EYE_FRAMES[(tick() + 3) % EYE_FRAMES.length])
-  const scan = createMemo(() => {
-    const s = ["─", "═", "─", "·"]
-    return s[Math.floor(tick() / 2) % s.length]
-  })
-  const eyeColor = createMemo(() => {
-    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
-    return colors[Math.floor(tick() / 3) % colors.length]
-  })
-
-  return (
-    <box flexDirection="column" alignItems="center" gap={0}>
-      <text fg={props.theme.borderSubtle}>┌───┐</text>
-      <box flexDirection="row" alignItems="center">
-        <text fg={props.theme.borderSubtle}>│</text>
-        <text fg={eyeColor()}>{eyeL()}</text>
-        <text fg={scan() === "═" ? props.theme.primary : props.theme.textMuted}>{scan()}</text>
-        <text fg={eyeColor()}>{eyeR()}</text>
-        <text fg={props.theme.borderSubtle}>│</text>
-      </box>
-      <text fg={props.theme.borderSubtle}>└───┘</text>
-      <text fg={props.theme.textMuted} attributes={TextAttributes.DIM}>
-        operative · online
-      </text>
-    </box>
-  )
+// ── Repo feature detection ────────────────────────────────────────────────────
+type RepoFeatures = {
+  hasPackageJson: boolean
+  hasGithubWorkflows: boolean
+  hasPyproject: boolean
+  hasRequirements: boolean
+  hasCargoToml: boolean
+  hasGoMod: boolean
 }
 
+const EMPTY_FEATURES: RepoFeatures = {
+  hasPackageJson: false,
+  hasGithubWorkflows: false,
+  hasPyproject: false,
+  hasRequirements: false,
+  hasCargoToml: false,
+  hasGoMod: false,
+}
+
+async function detectRepoFeatures(dir: string): Promise<RepoFeatures> {
+  const check = (name: string) => Bun.file(path.join(dir, name)).exists()
+  const [hasPackageJson, hasGithubWorkflows, hasPyproject, hasRequirements, hasCargoToml, hasGoMod] =
+    await Promise.all([
+      check("package.json"),
+      check(".github/workflows"),
+      check("pyproject.toml"),
+      check("requirements.txt"),
+      check("Cargo.toml"),
+      check("go.mod"),
+    ])
+  return { hasPackageJson, hasGithubWorkflows, hasPyproject, hasRequirements, hasCargoToml, hasGoMod }
+}
+
+type SmartChipDef = { label: string; prompt: string; mode: HomeWorkflowMode; tone?: "normal" | "warning" }
+
+function deriveSmartChips(features: RepoFeatures, pendingCount: number): SmartChipDef[] {
+  const chips: SmartChipDef[] = []
+
+  // Pending approvals always surfaced first, in warning tone
+  if (pendingCount > 0) {
+    chips.push({
+      label: `⚠  Review ${pendingCount} pending approval${pendingCount > 1 ? "s" : ""}`,
+      prompt: "",
+      mode: "audit",
+      tone: "warning",
+    })
+  }
+
+  // Universal chips
+  chips.push({ label: "Explore this repo", prompt: "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.", mode: "explore" })
+  chips.push({ label: "What changed?", prompt: "Summarize the last 5 commits and any uncommitted changes in this repository.", mode: "explore" })
+  chips.push({ label: "Audit security", prompt: "Audit this repository for the most important release, policy, test, security, and documentation risks.", mode: "audit" })
+
+  // Node/JS
+  if (features.hasPackageJson) {
+    chips.push({ label: "Run tests", prompt: "Run the test suite and summarize any failures with root-cause analysis.", mode: "build" })
+    chips.push({ label: "Check dep. vulnerabilities", prompt: "Check all npm dependencies for known security vulnerabilities and packages with outdated major versions.", mode: "audit" })
+  }
+
+  // GitHub Actions
+  if (features.hasGithubWorkflows) {
+    chips.push({ label: "Review CI pipeline", prompt: "Review the GitHub Actions workflows and identify any issues, inefficiencies, or security concerns.", mode: "explore" })
+  }
+
+  // Python
+  if (features.hasPyproject || features.hasRequirements) {
+    chips.push({ label: "Check Python deps", prompt: "Check Python dependencies for known security vulnerabilities and outdated packages.", mode: "audit" })
+  }
+
+  // Rust
+  if (features.hasCargoToml) {
+    chips.push({ label: "Run cargo tests", prompt: "Run cargo test and summarize any failures with root-cause analysis.", mode: "build" })
+  }
+
+  // Go
+  if (features.hasGoMod) {
+    chips.push({ label: "Run go tests", prompt: "Run go test ./... and summarize any failures with root-cause analysis.", mode: "build" })
+  }
+
+  return chips.slice(0, 6)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export function Home() {
   const sync = useSync()
   const kv = useKV()
@@ -260,10 +360,7 @@ export function Home() {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
 
-  // Establish a "first launch" baseline the first time the user opens DAX so we can
-  // hide pre-existing dev/test sessions on a fresh install. Stored as ms-since-epoch.
-  // We pass `0` as the default so we can detect "never set" without confusing it with
-  // a legitimate timestamp. On first read we lock in `Date.now()`.
+  // First-launch baseline: hide pre-existing sessions on fresh install
   const installBaseline = createMemo<number>(() => {
     const stored = kv.get("install_baseline_at", 0)
     if (stored && typeof stored === "number") return stored
@@ -300,9 +397,8 @@ export function Home() {
     return !tipsHidden()
   })
 
-  onCleanup(() => {
-    promptRef.set(undefined)
-  })
+  onCleanup(() => { promptRef.set(undefined) })
+
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
 
   const workflowModes = createMemo(() =>
@@ -314,6 +410,33 @@ export function Home() {
     return "plan"
   })
 
+  // ── Greeting ──────────────────────────────────────────────────────────────
+  const greeting = getGreeting()
+  const systemUsername = os.userInfo().username
+  // Capitalize first letter for display
+  const displayName = systemUsername.charAt(0).toUpperCase() + systemUsername.slice(1)
+
+  // ── Repo feature detection for smart chips ────────────────────────────────
+  const [repoFeatures, setRepoFeatures] = createSignal<RepoFeatures>(EMPTY_FEATURES)
+  onMount(async () => {
+    const dir = sync.data.path.directory || process.cwd()
+    const features = await detectRepoFeatures(dir).catch(() => EMPTY_FEATURES)
+    setRepoFeatures(features)
+  })
+
+  const pendingApprovalCount = createMemo(() => sync.data.overview?.pendingApprovals.length ?? 0)
+
+  const smartChips = createMemo(() => deriveSmartChips(repoFeatures(), pendingApprovalCount()))
+
+  // ── Workspace card ────────────────────────────────────────────────────────
+  const dirName = createMemo(() => {
+    const dir = sync.data.path.directory || process.cwd()
+    return path.basename(dir) || dir
+  })
+  const branch = createMemo(() => sync.data.vcs?.branch)
+  const modelName = createMemo(() => local.model.parsed().model)
+
+  // ── Prompt text per workflow mode ─────────────────────────────────────────
   function promptText(kind: HomeWorkflowMode) {
     if (explainMode()) {
       return {
@@ -324,11 +447,9 @@ export function Home() {
         docs: "Read the docs and explain what this project does in simple language.",
       }[kind]
     }
-
     return {
       build: "Build the next safe improvement for this project and explain the implementation clearly.",
-      explore:
-        "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
+      explore: "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
       plan: "Plan the next safe implementation steps for this project.",
       audit: "Audit this repository for the most important release, policy, test, and documentation risks.",
       docs: "Read the documentation and summarize the product surface, architecture, and operator flow.",
@@ -340,6 +461,7 @@ export function Home() {
       local.agent.set(mode)
       kv.set(DAX_SETTING.session_workflow_mode, mode)
     }
+    if (!text) return
     prompt.set({ input: text, parts: [] })
     prompt.focus()
     if (submit) prompt.submit()
@@ -430,17 +552,15 @@ export function Home() {
   const Hint = (
     <Show when={connectedMcpCount() > 0}>
       <box flexShrink={0} flexDirection="row" gap={1}>
-        <box flexDirection="row" gap={1}>
-          <Switch>
-            <Match when={mcpAttention()}>
-              <text fg={mcpBlocked() ? theme.warning : theme.error}>!</text>
-            </Match>
-            <Match when={true}>
-              <text fg={theme.success}>●</text>
-            </Match>
-          </Switch>
-          <text fg={theme.textMuted}>{Locale.pluralize(connectedMcpCount(), "{} mcp", "{} mcp")}</text>
-        </box>
+        <Switch>
+          <Match when={mcpAttention()}>
+            <text fg={mcpBlocked() ? theme.warning : theme.error}>!</text>
+          </Match>
+          <Match when={true}>
+            <text fg={theme.success}>●</text>
+          </Match>
+        </Switch>
+        <text fg={theme.textMuted}>{Locale.pluralize(connectedMcpCount(), "{} mcp", "{} mcp")}</text>
       </box>
     </Show>
   )
@@ -451,7 +571,6 @@ export function Home() {
   onMount(() => {
     if (once) return
     once = true
-
     if (route.initialPrompt) {
       prompt.set(route.initialPrompt)
     } else if (args.prompt) {
@@ -480,17 +599,11 @@ export function Home() {
   const showActions = createMemo(() => layout().showActions)
   const showSessions = createMemo(() => !tiny() && layout().showSessions)
   const showHomeTips = createMemo(() => !tiny() && layout().showTips)
+
   const firstRunIntent = createMemo(() =>
     explainMode()
       ? "Explore this repository and explain the main parts in simple language."
       : "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
-  )
-  const branchNudge = createMemo(() =>
-    deriveFeatureBranchNudge({
-      branch: sync.data.vcs?.branch,
-      workflowMode: activeWorkflowMode(),
-      hasConcreteChanges: false,
-    }),
   )
 
   const bg = createMemo(() => theme.background)
@@ -503,10 +616,7 @@ export function Home() {
     navigate({
       type: "session",
       sessionID,
-      initialPrompt: {
-        input: DAX_GUIDE_SESSION_PROMPT,
-        parts: [],
-      },
+      initialPrompt: { input: DAX_GUIDE_SESSION_PROMPT, parts: [] },
     })
   }
 
@@ -531,16 +641,46 @@ export function Home() {
           }
         >
           <box width="100%" maxWidth={layout().maxWidth} alignItems="center" gap={tiny() ? 0 : 1}>
-            <BrandHeader theme={theme} />
 
-            <Show when={showMascot()}>
-              <DaxMascot theme={theme} />
+            {/* ── Greeting row: text left, mascot right ── */}
+            <box width="100%" flexDirection="row" justifyContent="space-between" alignItems="flex-start">
+              <box flexDirection="column" gap={0} flexGrow={1}>
+                {/* Time-aware greeting with username */}
+                <Show when={!tiny()}>
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                    {greeting}, {displayName}.
+                  </text>
+                </Show>
+                {/* Animated D A X letters + tagline */}
+                <box flexDirection="row" gap={1} alignItems="center">
+                  <BrandLetters theme={theme} />
+                  <Show when={!tiny()}>
+                    <text fg={theme.textMuted} dim>
+                      ·  operative · online
+                    </text>
+                  </Show>
+                </box>
+              </box>
+              <Show when={showMascot()}>
+                <DaxMascot theme={theme} />
+              </Show>
+            </box>
+
+            {/* ── Workspace context card ── */}
+            <Show when={!tiny() && !small()}>
+              <WorkspaceCard
+                dirName={dirName()}
+                branch={branch()}
+                modelName={modelName()}
+                theme={theme}
+              />
             </Show>
 
+            {/* ── Prompt input ── */}
             <box
               width="100%"
               backgroundColor={inputBg()}
-              border={["round"]}
+              borderStyle="rounded"
               borderColor={theme.borderActive}
               padding={tiny() ? 0 : 1}
             >
@@ -553,40 +693,35 @@ export function Home() {
               />
             </box>
 
+            {/* ── Smart chips ── */}
             <Show when={showActions() && !tiny()}>
-              <box width="100%" flexDirection="row" justifyContent="center" gap={1} flexWrap="wrap" alignItems="center">
-                <PromptStarter
-                  label="Explore"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("explore"), false, "explore")}
-                />
-                <PromptStarter
-                  label="Plan"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("plan"), false, "plan")}
-                />
-                <PromptStarter
-                  label="Audit"
-                  theme={theme}
-                  onPress={() => setPromptDraft(promptText("audit"), false, "audit")}
-                />
+              <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-start">
+                <For each={smartChips()}>
+                  {(chip) => (
+                    <SmartChip
+                      label={chip.label}
+                      tone={chip.tone}
+                      theme={theme}
+                      onPress={() => setPromptDraft(chip.prompt, false, chip.mode)}
+                    />
+                  )}
+                </For>
               </box>
             </Show>
 
+            {/* ── Sessions list ── */}
             <Show when={showSessions()}>
-              <box width="100%" marginTop={1} flexDirection="column" gap={0}>
+              <box width="100%" flexDirection="column" gap={0}>
+
+                {/* First-time guide */}
                 <Show when={isFirstTimeUser()}>
-                  <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                    {"  "}START HERE
-                  </text>
+                  <SectionDivider label="START HERE" theme={theme} />
                   <box
                     flexDirection="row"
                     justifyContent="space-between"
                     paddingLeft={2}
                     paddingRight={2}
-                    onMouseUp={() => {
-                      openGuideSession().catch(() => {})
-                    }}
+                    onMouseUp={() => { openGuideSession().catch(() => {}) }}
                   >
                     <box flexDirection="row" gap={1}>
                       <PulseArrow theme={theme} />
@@ -597,59 +732,17 @@ export function Home() {
                     <text fg={theme.textMuted}>{DAX_GUIDE_SESSION_FOOTER}</text>
                   </box>
                 </Show>
-                <Show when={(sync.data.overview?.pendingApprovals.length ?? 0) > 0}>
-                  <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-                    {"  "}PENDING APPROVALS
-                  </text>
-                  <box flexDirection="column" gap={0} marginBottom={1}>
-                    <For each={sync.data.overview?.pendingApprovals.slice(0, 2)}>
-                      {(approval) => {
-                        const ageMs = Date.now() - new Date(approval.createdAt).getTime()
-                        const ageLabel = formatAge(ageMs)
-                        const isStale = ageMs > 7 * 24 * 60 * 60 * 1000
-                        return (
-                          <box
-                            onMouseUp={() => {
-                              navigate({ type: "session", sessionID: approval.runId })
-                            }}
-                            paddingLeft={2}
-                            paddingRight={2}
-                            paddingTop={0}
-                            paddingBottom={0}
-                            flexDirection="row"
-                            justifyContent="space-between"
-                          >
-                            <text fg={theme.warning}>
-                              ⚠ {approval.title.length > 35 ? approval.title.slice(0, 32) + "..." : approval.title}
-                            </text>
-                            <box flexDirection="row" gap={1}>
-                              <text fg={isStale ? theme.warning : theme.textMuted} dim={!isStale}>
-                                {ageLabel}
-                              </text>
-                              <text fg={theme.textMuted}>{approval.risk}</text>
-                            </box>
-                          </box>
-                        )
-                      }}
-                    </For>
-                  </box>
-                </Show>
 
+                {/* Active runs */}
                 <Show when={visibleActiveRuns().length > 0}>
-                  <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                    {"  "}ACTIVE RUNS
-                  </text>
-                  <box flexDirection="column" gap={0} marginBottom={1}>
+                  <SectionDivider label="ACTIVE" theme={theme} />
+                  <box flexDirection="column" gap={0}>
                     <For each={visibleActiveRuns().slice(0, 3)}>
                       {(r) => (
                         <box
-                          onMouseUp={() => {
-                            navigate({ type: "session", sessionID: r.runId })
-                          }}
+                          onMouseUp={() => { navigate({ type: "session", sessionID: r.runId }) }}
                           paddingLeft={2}
                           paddingRight={2}
-                          paddingTop={0}
-                          paddingBottom={0}
                           flexDirection="row"
                           justifyContent="space-between"
                         >
@@ -657,23 +750,19 @@ export function Home() {
                             <text fg={theme.primary}>
                               ▸{" "}
                               {r.title
-                                ? r.title.length > 45
-                                  ? r.title.slice(0, 42) + "..."
-                                  : r.title
+                                ? r.title.length > 45 ? r.title.slice(0, 42) + "..." : r.title
                                 : r.runId.slice(0, 8)}
                             </text>
                             <Show when={r.currentStep}>
                               <text fg={theme.textMuted} dim>
-                                {r.currentStep?.title?.slice(0, 35) ?? "in progress"}
+                                {"  "}{r.currentStep?.title?.slice(0, 40) ?? "in progress"}
                               </text>
                             </Show>
                           </box>
                           <box flexDirection="column" gap={0} alignItems="flex-end">
                             <text fg={theme.textMuted}>{r.status}</text>
                             <Show when={r.status === "waiting_approval" && r.pendingApprovalCount > 0}>
-                              <text fg={theme.warning} dim>
-                                ⚠ {r.pendingApprovalCount}
-                              </text>
+                              <text fg={theme.warning} dim>⚠ {r.pendingApprovalCount}</text>
                             </Show>
                           </box>
                         </box>
@@ -682,37 +771,40 @@ export function Home() {
                   </box>
                 </Show>
 
+                {/* Recent runs */}
                 <Show when={visibleRecentRuns().length > 0}>
-                  <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-                    {"  "}RECENT RUNS
-                  </text>
+                  <SectionDivider label="RECENT" theme={theme} />
+                  <box flexDirection="column" gap={0}>
+                    <For each={visibleRecentRuns().slice(0, 5)}>
+                      {(r) => (
+                        <RecentRunRow
+                          title={r.title ?? r.runId.slice(0, 8)}
+                          status={r.status}
+                          ageMs={Date.now() - new Date(r.updatedAt).getTime()}
+                          theme={theme}
+                          onOpen={() => navigate({ type: "session", sessionID: r.runId })}
+                        />
+                      )}
+                    </For>
+                  </box>
                 </Show>
-                <box flexDirection="column" gap={0}>
-                  <For each={visibleRecentRuns().slice(0, 5)}>
-                    {(r) => (
-                      <RecentRunRow
-                        title={r.title ?? r.runId.slice(0, 8)}
-                        status={r.status}
-                        ageMs={Date.now() - new Date(r.updatedAt).getTime()}
-                        theme={theme}
-                        onOpen={() => navigate({ type: "session", sessionID: r.runId })}
-                      />
-                    )}
-                  </For>
-                </box>
+
               </box>
             </Show>
 
+            {/* Tips */}
             <Show when={showHomeTips()}>
               <box width="100%" maxWidth={56} alignItems="center">
                 <Tips />
               </box>
             </Show>
+
           </box>
         </Show>
         <Toast />
       </box>
 
+      {/* ── Footer status bar ── */}
       <box
         paddingTop={tiny() ? 0 : 1}
         paddingBottom={1}
@@ -741,6 +833,11 @@ export function Home() {
           </Show>
         </box>
         <box flexGrow={1} />
+        <Show when={!tiny()}>
+          <text fg={theme.textMuted} dim>
+            {modelName()}
+          </text>
+        </Show>
         <text fg={theme.textMuted}>v{Installation.VERSION}</text>
       </box>
     </>

@@ -89,6 +89,19 @@ export function classifyPermissionRisk(
     return risk("critical", "Continuing after repeated failures can cause unintended repeated actions.")
   }
 
+  // ── Subagent / task spawning ────────────────────────────────────────────────
+  //
+  // Spawning a subagent creates a new execution context that can make further
+  // tool calls — including reads, writes, and network requests — with its own
+  // independent approval scope.  Treat it as privacy-sensitive by default so
+  // the operator knows a child agent is being launched.
+  if (permission === "task") {
+    return elevatePrivacy(
+      "A subagent will be spawned and may execute further tool calls on your behalf.",
+      "Review the task description and prompt before approving.",
+    )
+  }
+
   if (permission === "read") {
     const filePath = String(input.filePath ?? "")
     if (SENSITIVE_PATH_RE.test(filePath)) {
@@ -105,6 +118,45 @@ export function classifyPermissionRisk(
     if (SENSITIVE_PATH_RE.test(filepath)) {
       return risk("critical", "Editing a sensitive file can impact credentials or security settings.")
     }
+    return normal()
+  }
+
+  // ── File discovery tools ────────────────────────────────────────────────────
+  //
+  // glob / grep / list are read-only discovery tools that are normally low-risk.
+  // However, if the search pattern or path touches known sensitive locations
+  // (credential files, SSH keys, env files) the result leaks file existence or
+  // content to the model.
+  if (permission === "glob") {
+    const pattern = String(input.pattern ?? "")
+    if (SENSITIVE_PATH_RE.test(pattern)) {
+      return elevatePrivacy("This glob pattern may match credential or secret files.")
+    }
+    return normal()
+  }
+
+  if (permission === "grep") {
+    // grep path/glob argument
+    const path = String(input.path ?? input.glob ?? "")
+    if (SENSITIVE_PATH_RE.test(path)) {
+      return elevatePrivacy("Grep is targeting a path that may contain secrets or credentials.")
+    }
+    return normal()
+  }
+
+  if (permission === "list") {
+    const searchPath = String(input.path ?? "")
+    if (SENSITIVE_PATH_RE.test(searchPath)) {
+      return elevatePrivacy("Listing this directory may reveal the presence of credential files.")
+    }
+    return normal()
+  }
+
+  // ── LSP / language server ────────────────────────────────────────────────────
+  //
+  // LSP reads indexed symbol data from source files.  Normally low-risk, but
+  // flag it as normal so it appears in the review queue without elevation.
+  if (permission === "lsp") {
     return normal()
   }
 

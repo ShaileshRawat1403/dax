@@ -700,11 +700,20 @@ export function RAOPane(props: {
   const dialog = useDialog()
   const textareaKeybindings = useTextareaKeybindings()
 
-  // All items in the review queue
+  // Track items that have been replied to locally — removes them from the queue
+  // immediately after the "sent" flash instead of waiting for the server to update.
+  const [repliedIDs, setRepliedIDs] = createSignal(new Set<string>())
+
+  // All items in the review queue (minus locally-replied ones)
   const items = createMemo<RAOItem[]>(() => {
+    const replied = repliedIDs()
     const result: RAOItem[] = []
-    props.permissions.forEach((p, i) => result.push({ type: "permission", data: p, index: i }))
-    props.questions.forEach((q, i) => result.push({ type: "question", data: q, index: i }))
+    props.permissions
+      .filter((p) => !replied.has(p.id))
+      .forEach((p, i) => result.push({ type: "permission", data: p, index: i }))
+    props.questions
+      .filter((q) => !replied.has(q.id))
+      .forEach((q, i) => result.push({ type: "question", data: q, index: i }))
     return result
   })
 
@@ -781,28 +790,33 @@ export function RAOPane(props: {
     return hasAlways ? ["once", "always", "deny"] : ["once", "deny"]
   })
 
-  function advanceAfterReply() {
-    const len = items().length
-    if (selectedIndex() >= len - 1) setSelectedIndex(Math.max(0, len - 2))
+  // Remove an item from the local queue after the "sent" flash
+  function markReplied(requestID: string) {
+    setTimeout(() => {
+      setRepliedIDs((prev) => {
+        const next = new Set(prev)
+        next.add(requestID)
+        return next
+      })
+    }, 400)
   }
 
   function handlePermissionReply(requestID: string, reply: "once" | "always" | "reject", message?: string) {
     setCardPhase("sent")
     sdk.client.permission.reply({ reply, requestID, message })
-    // Advance to next item after a brief moment so the "sent" state is visible
-    setTimeout(() => advanceAfterReply(), 400)
+    markReplied(requestID)
   }
 
   function handleQuestionReply(requestID: string, answers: Array<QuestionAnswer>) {
     setQuestionSent(true)
     sdk.client.question.reply({ requestID, answers })
-    setTimeout(() => advanceAfterReply(), 400)
+    markReplied(requestID)
   }
 
   function handleQuestionReject(requestID: string) {
     setQuestionSent(true)
     sdk.client.question.reject({ requestID })
-    setTimeout(() => advanceAfterReply(), 400)
+    markReplied(requestID)
   }
 
   // ── Keyboard handler — fully state-aware ──

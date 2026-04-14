@@ -180,15 +180,28 @@ describe("session-display", () => {
       }),
     ).toBe(true)
 
+    // hidden mode respects user choice for non-critical context
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "hidden",
+        hasCriticalIntervention: false,
+        hasAuditNeed: true,
+        hasRefineNeed: true,
+      }),
+    ).toBe(false)
+  })
+
+  test("critical interventions override hidden visibility so pending approvals are never silently buried", () => {
     expect(
       shouldShowWorkstationPane({
         displayMode: "operator",
         paneVisibility: "hidden",
         hasCriticalIntervention: true,
-        hasAuditNeed: true,
-        hasRefineNeed: true,
+        hasAuditNeed: false,
+        hasRefineNeed: false,
       }),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   test("memory context derives from reflection or PM snapshots", () => {

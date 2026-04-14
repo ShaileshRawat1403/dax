@@ -1153,6 +1153,26 @@ export namespace SessionPrompt {
                 }
                 const args = { filePath: filepath, offset, limit }
 
+                // Guard: refuse to silently read files that likely contain secrets.
+                // This code path uses a no-op ask (the user explicitly attached the
+                // file, so no interactive approval is shown), but we still block
+                // plaintext credential files to prevent accidental secret exposure.
+                // The user can still share these files by pasting the content directly.
+                const SENSITIVE_ATTACH_RE =
+                  /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|\.npmrc|\.aws/i
+                if (SENSITIVE_ATTACH_RE.test(filepath)) {
+                  return [
+                    {
+                      id: Identifier.ascending("part"),
+                      messageID: info.id,
+                      sessionID: input.sessionID,
+                      type: "text",
+                      synthetic: true,
+                      text: `[Blocked: ${filepath} likely contains secrets or credentials and cannot be attached directly. Paste the relevant content instead.]`,
+                    },
+                  ]
+                }
+
                 const pieces: MessageV2.Part[] = [
                   {
                     id: Identifier.ascending("part"),
@@ -1167,6 +1187,10 @@ export namespace SessionPrompt {
                 await ReadTool.init()
                   .then(async (t) => {
                     const model = await Provider.getModel(info.model.providerID, info.model.modelID)
+                    // INTENTIONAL: ask is a no-op because this read is initiated by
+                    // the user attaching a file — operator approval is implicit.
+                    // bypassCwdCheck is true so users can attach files outside the
+                    // project directory without an external_directory prompt.
                     const readCtx: Tool.Context = {
                       sessionID: input.sessionID,
                       abort: new AbortController().signal,
@@ -1229,6 +1253,8 @@ export namespace SessionPrompt {
 
               if (part.mime === "application/x-directory") {
                 const args = { path: filepath }
+                // INTENTIONAL: ask is a no-op for the same reason as the file read
+                // above — the user explicitly attached this directory.
                 const listCtx: Tool.Context = {
                   sessionID: input.sessionID,
                   abort: new AbortController().signal,

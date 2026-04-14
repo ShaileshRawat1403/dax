@@ -62,7 +62,6 @@ import { useKeybind } from "@tui/context/keybind"
 import { Header } from "./header"
 import { parsePatch } from "diff"
 import { useDialog } from "../../ui/dialog"
-import { TodoItem } from "../../component/todo-item"
 import { DialogMessage } from "./dialog-message"
 import type { PromptInfo } from "../../component/prompt/history"
 import { DialogConfirm } from "@tui/ui/dialog-confirm"
@@ -105,7 +104,6 @@ import {
   deriveActivePaneMode,
   deriveAutoPaneMode,
   paneCompactLabel,
-  paneContextLabel,
   type PaneFollowMode,
   type PaneMode,
   type PaneVisibility,
@@ -121,6 +119,7 @@ import {
   deriveLiveStreamStatus,
   deriveOperatorTraceLine,
 } from "@/dax/presentation/session-surface"
+import { buildAssistantNarrative } from "@/dax/assistant-narrative"
 import {
   hasMemoryContext,
   resolveSessionSidebarVisibility,
@@ -148,7 +147,7 @@ const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch",
 const HIDDEN_TOOLS = new Set(["todowrite"])
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
-import { formatUsd, latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
+import { latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
@@ -157,7 +156,7 @@ import { deriveGitHubCINudge } from "@/dax/presentation/ci-guard"
 addDefaultParsers(parsers.parsers)
 
 const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
-const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
+const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill", "reflection"])
 const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "shell"])
 const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
 const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
@@ -1502,7 +1501,7 @@ export function Session() {
             </box>
           </scrollbox>
 
-          {/* Right Side Workstation Pane */}
+          {/* Right Side Context Pane */}
           <Show when={showPane()}>
             <box
               width={liveStacked() ? "100%" : 1}
@@ -1556,449 +1555,6 @@ export function Session() {
                 </box>
 
                 <Switch>
-                  <Match when={false}>
-                    <box flexGrow={1} minHeight={0} flexDirection="column" gap={1}>
-                      <box
-                        flexDirection="column"
-                        gap={0}
-                        paddingBottom={1}
-                        border={["bottom"]}
-                        borderColor={theme.borderSubtle}
-                      >
-                        <text fg={theme.primary} bold>
-                          Workstation
-                        </text>
-                        <text fg={theme.textMuted}>{paneContextLabel(activePaneMode())}</text>
-                      </box>
-                      <Show
-                        when={
-                          sessionTelemetry().model ||
-                          sessionTelemetry().tokens > 0 ||
-                          sessionTelemetry().contextPercent !== null ||
-                          sessionTelemetry().cost > 0
-                        }
-                      >
-                        <box
-                          flexDirection="row"
-                          gap={1}
-                          padding={1}
-                          border={["round"]}
-                          borderColor={theme.borderSubtle}
-                          backgroundColor={theme.backgroundElement}
-                        >
-                          <Show when={sessionTelemetry().model}>
-                            <box width={24} flexDirection="column" gap={0}>
-                              <text fg={theme.textMuted} bold>
-                                MODEL
-                              </text>
-                              <text fg={theme.text} wrapMode="truncate">
-                                {sessionTelemetry().model}
-                              </text>
-                            </box>
-                          </Show>
-                          <Show when={sessionTelemetry().tokens > 0}>
-                            <box width={12} flexDirection="column" gap={0}>
-                              <text fg={theme.textMuted} bold>
-                                TOKENS
-                              </text>
-                              <text fg={theme.text}>{sessionTelemetry().tokens.toLocaleString()}</text>
-                            </box>
-                          </Show>
-                          <Show when={sessionTelemetry().contextPercent !== null}>
-                            <box width={10} flexDirection="column" gap={0}>
-                              <text fg={theme.textMuted} bold>
-                                CONTEXT
-                              </text>
-                              <text fg={theme.text}>{sessionTelemetry().contextPercent}%</text>
-                            </box>
-                          </Show>
-                          <Show when={sessionTelemetry().cost >= 0}>
-                            <box width={10} flexDirection="column" gap={0}>
-                              <text fg={theme.textMuted} bold>
-                                COST
-                              </text>
-                              <text fg={theme.text}>{formatUsd(sessionTelemetry().cost)}</text>
-                            </box>
-                          </Show>
-                        </box>
-                      </Show>
-                      <Show when={sessionSafeguards().ciNudge || sessionSafeguards().branchNudge}>
-                        <box
-                          flexDirection="column"
-                          gap={0}
-                          padding={1}
-                          border={["round"]}
-                          borderColor={
-                            sessionSafeguards().ciNudge?.status === "failed"
-                              ? theme.error
-                              : sessionSafeguards().ciNudge?.tone === "warning" ||
-                                  sessionSafeguards().branchNudge?.tone === "warning"
-                                ? theme.warning
-                                : theme.primary
-                          }
-                          backgroundColor={theme.backgroundElement}
-                        >
-                          <Show when={sessionSafeguards().ciNudge}>
-                            <text
-                              fg={
-                                sessionSafeguards().ciNudge?.status === "failed"
-                                  ? theme.error
-                                  : sessionSafeguards().ciNudge?.tone === "warning"
-                                    ? theme.warning
-                                    : sessionSafeguards().ciNudge?.tone === "primary"
-                                      ? theme.primary
-                                      : theme.textMuted
-                              }
-                              bold
-                            >
-                              {sessionSafeguards().ciNudge?.title}
-                            </text>
-                            <text fg={theme.textMuted} wrapMode="word">
-                              {sessionSafeguards().ciNudge?.detail}
-                            </text>
-                          </Show>
-                          <Show when={sessionSafeguards().branchNudge && (workflowMode() === "build" || hasDiffNeed())}>
-                            <text
-                              fg={sessionSafeguards().branchNudge?.tone === "warning" ? theme.warning : theme.textMuted}
-                              bold
-                            >
-                              {sessionSafeguards().branchNudge?.title}
-                            </text>
-                            <text fg={theme.textMuted} wrapMode="word">
-                              {sessionSafeguards().branchNudge?.detail}
-                            </text>
-                          </Show>
-                        </box>
-                      </Show>
-                      <Show
-                        when={
-                          !!workstationState().goal ||
-                          !!workstationState().currentStep ||
-                          workstationState().lifecycle !== "ready"
-                        }
-                        fallback={
-                          <box
-                            flexDirection="column"
-                            gap={0}
-                            padding={1}
-                            border={["round"]}
-                            borderColor={theme.borderSubtle}
-                            backgroundColor={theme.backgroundElement}
-                          >
-                            <text fg={theme.text} bold>
-                              Ready for governed execution
-                            </text>
-                            <text fg={theme.textMuted}>
-                              {workflowMode() === "build"
-                                ? "Build mode — describe what you want to create."
-                                : workflowMode() === "plan"
-                                  ? "Plan mode — describe the outcome you want reviewed."
-                                  : workflowMode() === "audit"
-                                    ? "Audit mode — ask for a trust and verification review."
-                                    : "Describe the next governed task to begin."}
-                            </text>
-                            <text fg={theme.textMuted}>Type a prompt below to begin.</text>
-                          </box>
-                        }
-                      >
-                        <box
-                          flexDirection="column"
-                          gap={1}
-                          border={["round"]}
-                          borderColor={tint(theme.borderSubtle, theme.primary, 0.35)}
-                          backgroundColor={tint(theme.backgroundPanel, theme.primary, 0.05)}
-                          padding={1}
-                        >
-                          {/* 1. Status Section */}
-                          <box
-                            flexDirection="row"
-                            gap={1}
-                            flexWrap="wrap"
-                            padding={1}
-                            backgroundColor={tint(theme.backgroundElement, theme.primary, motionTick() % 4 < 2 ? 0.06 : 0.02)}
-                            border={["round"]}
-                            borderColor={liveBorderColor()}
-                          >
-                            <Show when={sessionStatusType() === "busy"}>
-                              <box backgroundColor={theme.accent} paddingLeft={1} paddingRight={1} marginRight={1}>
-                                <text fg={theme.background} bold>
-                                  LIVE
-                                </text>
-                              </box>
-                            </Show>
-                            <box
-                              backgroundColor={
-                                workstationState().lifecycle === "blocked" || workstationState().lifecycle === "failed"
-                                  ? tint(theme.background, theme.error, 0.18)
-                                  : workstationState().lifecycle === "awaiting_approval"
-                                    ? tint(theme.background, theme.warning, 0.18)
-                                    : workstationState().lifecycle === "completed"
-                                      ? tint(theme.background, theme.success, 0.18)
-                                      : tint(theme.background, theme.primary, 0.18)
-                              }
-                              border={["round"]}
-                              borderColor={
-                                workstationState().lifecycle === "blocked" || workstationState().lifecycle === "failed"
-                                  ? theme.error
-                                  : workstationState().lifecycle === "awaiting_approval"
-                                    ? theme.warning
-                                    : workstationState().lifecycle === "completed"
-                                      ? theme.success
-                                      : theme.primary
-                              }
-                              paddingLeft={1}
-                              paddingRight={1}
-                            >
-                              <text
-                                fg={
-                                  workstationState().lifecycle === "blocked" ||
-                                  workstationState().lifecycle === "failed"
-                                    ? theme.error
-                                    : workstationState().lifecycle === "awaiting_approval"
-                                      ? theme.warning
-                                      : workstationState().lifecycle === "completed"
-                                        ? theme.success
-                                        : theme.primary
-                                }
-                                bold
-                              >
-                                STATUS: {workstationState().lifecycleLabel.toUpperCase()}
-                              </text>
-                            </box>
-                            <Show when={workstationState().trustPosture !== "clear"}>
-                              <box
-                                backgroundColor={theme.backgroundElement}
-                                border={["round"]}
-                                borderColor={
-                                  workstationState().trustPosture === "blocked" ? theme.error : theme.warning
-                                }
-                                paddingLeft={1}
-                                paddingRight={1}
-                              >
-                                <text fg={workstationState().trustPosture === "blocked" ? theme.error : theme.warning}>
-                                  TRUST: {workstationState().trustLabel.toUpperCase()}
-                                </text>
-                              </box>
-                            </Show>
-                          </box>
-
-                          {/* 2. Blocked / Review Details */}
-                          <Show when={activeInterventions().length > 0}>
-                            <box
-                              flexDirection="column"
-                              gap={0}
-                              padding={1}
-                              backgroundColor={tint(theme.backgroundElement, theme.error, 0.07)}
-                              border={["round"]}
-                              borderColor={theme.error}
-                            >
-                              <text fg={theme.error} bold>
-                                WHY BLOCKED
-                              </text>
-                              <For each={activeInterventions().slice(0, 3)}>
-                                {(item) => (
-                                  <box flexDirection="column" gap={0} paddingTop={1}>
-                                    <text fg={theme.text}>! {interventionKindLabel(item.kind)}</text>
-                                    <text fg={theme.textMuted} wrapMode="word">
-                                      {item.reason}
-                                    </text>
-                                  </box>
-                                )}
-                              </For>
-                            </box>
-                          </Show>
-
-                          {/* 3. Approvals Summary */}
-                          <Show when={workstationState().approvalSummary.pendingCount > 0}>
-                            <box
-                              flexDirection="column"
-                              gap={0}
-                              padding={1}
-                              backgroundColor={tint(theme.backgroundElement, theme.warning, 0.08)}
-                              border={["round"]}
-                              borderColor={theme.warning}
-                              onMouseUp={openApprovalsPane}
-                            >
-                              <text fg={theme.warning} bold>
-                                PENDING APPROVALS
-                              </text>
-                              <text fg={theme.text}>
-                                {`${workstationState().approvalSummary.pendingCount} item${workstationState().approvalSummary.pendingCount === 1 ? "" : "s"} waiting`}
-                              </text>
-                              <text fg={theme.textMuted} wrapMode="word">
-                                Top: {workstationState().approvalSummary.topReason}
-                              </text>
-                              <text fg={theme.textMuted}>Click to review approvals</text>
-                            </box>
-                          </Show>
-
-                          <Show when={workstationState().planSummary.totalSteps > 0}>
-                            <box
-                              flexDirection="column"
-                              gap={0}
-                              padding={1}
-                              backgroundColor={tint(theme.backgroundElement, theme.secondary, 0.06)}
-                              border={["round"]}
-                              borderColor={theme.secondary}
-                            >
-                              <box flexDirection="row" justifyContent="space-between" alignItems="center">
-                                <text fg={theme.secondary} bold>
-                                  STEP TRACKER
-                                </text>
-                                <text fg={theme.textMuted}>
-                                  {`${todoSummary().completed}/${todoSummary().total} done`}
-                                </text>
-                              </box>
-                              <Show when={todoSummary().active > 0 || todoSummary().pending > 0}>
-                                <text fg={theme.textMuted} wrapMode="word">
-                                  {`${todoSummary().active > 0 ? `${todoSummary().active} active` : "No active step"} · ${todoSummary().pending} waiting`}
-                                </text>
-                              </Show>
-                              <box flexDirection="column" gap={0} paddingTop={1}>
-                                <For each={workstationState().planSummary.steps.slice(0, 4)}>
-                                  {(step) => <TodoItem status={step.status} content={step.label} />}
-                                </For>
-                              </box>
-                            </box>
-                          </Show>
-
-                          {/* 4. Completion Proof */}
-                          <Show when={workstationState().completionProof}>
-                            <box
-                              flexDirection="column"
-                              gap={0}
-                              padding={1}
-                              backgroundColor={
-                                workstationState().completionProof!.ready
-                                  ? tint(theme.backgroundElement, theme.success, 0.08)
-                                  : tint(theme.backgroundElement, theme.warning, 0.08)
-                              }
-                              border={["round"]}
-                              borderColor={workstationState().completionProof!.ready ? theme.success : theme.warning}
-                            >
-                              <box flexDirection="row" justifyContent="space-between">
-                                <text
-                                  fg={workstationState().completionProof!.ready ? theme.success : theme.warning}
-                                  bold
-                                >
-                                  COMPLETION PROOF
-                                </text>
-                                <text fg={workstationState().completionProof!.ready ? theme.success : theme.warning}>
-                                  {workstationState().completionProof!.ready ? "PASS" : "FAIL"}
-                                </text>
-                              </box>
-                              <Show when={!workstationState().completionProof!.ready}>
-                                <box flexDirection="column" gap={0} paddingTop={1}>
-                                  <text fg={theme.textMuted}>Missing evidence:</text>
-                                  <For each={workstationState().completionProof!.missing}>
-                                    {(item) => <text fg={theme.text}>- {item.replace(/_/g, " ")}</text>}
-                                  </For>
-                                </box>
-                              </Show>
-                            </box>
-                          </Show>
-
-                          {/* 5. Next Step */}
-                          <box
-                            flexDirection="column"
-                            gap={0}
-                            padding={1}
-                            backgroundColor={tint(theme.backgroundElement, theme.accent, 0.08)}
-                            border={["round"]}
-                            borderColor={theme.accent}
-                          >
-                            <text fg={theme.accent} bold>
-                              NEXT STEP
-                            </text>
-                            <text fg={theme.text} wrapMode="word">
-                              {operatorNextMoveSafe().title}
-                            </text>
-                            <Show when={operatorNextMoveSafe().detail}>
-                              <text fg={theme.textMuted} wrapMode="word">
-                                {operatorNextMoveSafe().detail}
-                              </text>
-                            </Show>
-                          </box>
-
-                          <Show when={workstationState().goal || workstationState().currentStep}>
-                            <box
-                              flexDirection="column"
-                              gap={0}
-                              padding={1}
-                              backgroundColor={theme.backgroundElement}
-                              border={["round"]}
-                              borderColor={theme.borderSubtle}
-                            >
-                              <Show when={workstationState().goal}>
-                                <box flexDirection="row" gap={1}>
-                                  <text fg={theme.textMuted} bold>
-                                    OBJECTIVE
-                                  </text>
-                                  <text fg={theme.text} wrapMode="word">
-                                    {summarize(workstationState().goal, 68)}
-                                  </text>
-                                </box>
-                              </Show>
-                              <Show when={workstationState().currentStep}>
-                                <box flexDirection="row" gap={1}>
-                                  <text fg={theme.textMuted} bold>
-                                    CURRENT STEP
-                                  </text>
-                                  <text fg={theme.text} wrapMode="word">
-                                    {summarize(workstationState().currentStep, 68)}
-                                  </text>
-                                </box>
-                              </Show>
-                            </box>
-                          </Show>
-
-                          <Show
-                            when={
-                              proposedChanges().length > 0 ||
-                              workstationState().artifactSummary.count > 0 ||
-                              recentEvidenceTraces().length > 0
-                            }
-                          >
-                            <box
-                              flexDirection="column"
-                              gap={0}
-                              padding={1}
-                              backgroundColor={theme.backgroundElement}
-                              border={["round"]}
-                              borderColor={theme.borderSubtle}
-                            >
-                              <text fg={theme.primary} bold>
-                                EVIDENCE LEDGER
-                              </text>
-                              <For each={recentEvidenceTraces()}>
-                                {(item) => (
-                                  <box flexDirection="row" gap={1} alignItems="center">
-                                    <text fg={item.failed ? theme.error : theme.success}>
-                                      {item.failed ? "✗" : "✓"}
-                                    </text>
-                                    <text fg={theme.textMuted} wrapMode="word">
-                                      {item.meta ? `${item.label} (${item.meta})` : item.label}
-                                    </text>
-                                  </box>
-                                )}
-                              </For>
-                              <Show when={proposedChanges().length > 0}>
-                                <text fg={theme.text}>
-                                  {`${proposedChanges().length} proposed change${proposedChanges().length === 1 ? "" : "s"} ready for review`}
-                                </text>
-                              </Show>
-                              <Show when={workstationState().artifactSummary.count > 0}>
-                                <text fg={theme.textMuted}>
-                                  {`${workstationState().artifactSummary.count} artifact${workstationState().artifactSummary.count === 1 ? "" : "s"} captured`}
-                                </text>
-                              </Show>
-                            </box>
-                          </Show>
-                        </box>
-                      </Show>
-                    </box>
-                  </Match>
-
                   <Match when={activePaneMode() === "approvals"}>
                     <box flexGrow={1} minHeight={0}>
                       <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
@@ -2314,6 +1870,41 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
 
   const daxSpeaking = createMemo(() => props.message.agent === "dax")
 
+  const narrative = createMemo(() => {
+    if (props.message.role === "user") return undefined
+    const syncParts = props.partsOverride ?? sync.data.part[props.message.id] ?? []
+    const hasPendingTool = syncParts.some((p) => p.type === "tool" && (p.state.status === "pending" || p.state.status === "running"))
+    const toolParts = syncParts.filter((p): p is ToolPart => p.type === "tool")
+    const hasExecuteTool = toolParts.some((p) => EXECUTE_TOOLS.has(p.tool.toLowerCase()))
+    const hasVerifyTool = toolParts.some((p) => VERIFY_TOOLS.has(p.tool.toLowerCase()))
+    const hasReasoning = syncParts.some((p) => p.type === "reasoning" && p.text.trim().length > 0)
+    
+    // Find the original user request this message is responding to
+    const sessionMessages = sync.data.message[ctx.sessionID] ?? []
+    const lastUser = sessionMessages.findLast((m) => m.role === "user")
+    const asked = lastUser
+      ? (sync.data.part[lastUser.id] ?? [])
+          .filter((p) => p.type === "text")
+          .map((p) => (p as any).text)
+          .join("")
+      : ""
+
+    return buildAssistantNarrative({
+      asked,
+      mode: (props.message as AssistantMessage).mode,
+      hasPendingTool,
+      hasToolActivity: toolParts.length > 0,
+      toolCount: toolParts.length,
+      hasExecuteTool,
+      hasVerifyTool,
+      hasReasoning,
+      hasError: !!props.message.error,
+      completed: (props.message as AssistantMessage).time.completed !== undefined,
+      doing: "", // derived inside buildAssistantNarrative if liveStep is missing
+      next: "",
+    })
+  })
+
   const roleLabel = createMemo(() => {
     if (props.message.role === "user") return "USER"
     const agent = (props.message as AssistantMessage).agent.toLowerCase()
@@ -2467,6 +2058,13 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             </Show>
           </box>
           <box paddingLeft={1} paddingRight={1} paddingBottom={0} flexDirection="column" gap={0}>
+            <Show when={narrative()?.preamble}>
+              <box paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1} marginBottom={1} backgroundColor={tint(theme.background, roleColor(), 0.05)} border={["left"]} borderColor={roleColor()}>
+                <text fg={theme.text} wrapMode="word">
+                  {narrative()!.preamble}
+                </text>
+              </box>
+            </Show>
             <For each={renderableParts()}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -2562,11 +2160,19 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
       gap={0}
       marginTop={1}
       marginBottom={0}
-      border={["left"]}
-      borderColor={theme.borderSubtle}
+      marginLeft={1}
+      marginRight={1}
       paddingLeft={1}
+      paddingRight={1}
+      borderStyle="rounded"
+      borderColor={theme.borderSubtle}
     >
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={allCompleted() ? 0 : 1}>
+        <box flexDirection="row" gap={0.5} marginRight={1}>
+          <text fg={theme.error}>●</text>
+          <text fg={theme.warning}>●</text>
+          <text fg={theme.success}>●</text>
+        </box>
         <Show when={hasActive()} fallback={<text fg={theme.success}>✓</text>}>
           <Spinner color={theme.warning} />
         </Show>
@@ -2583,7 +2189,7 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
         </Show>
       </box>
       <Show when={allCompleted() && evidenceSummary()}>
-        <box flexDirection="row" gap={1} paddingTop={0} alignItems="flex-start">
+        <box flexDirection="row" gap={1} paddingTop={0} alignItems="flex-start" paddingLeft={1}>
           <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
             Evidence
           </text>
@@ -2612,29 +2218,29 @@ function trimPunctuation(value: string | undefined) {
 function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOperatorTraceLine>>) {
   switch (trace.action) {
     case "READ":
-      return `Checked ${formatInlineCode(trace.target)}.`
+      return `Read through ${formatInlineCode(trace.target)}.`
     case "GLOB":
-      return `Scanned the workspace for ${formatInlineCode(trace.target)}.`
+      return `Swept the workspace for ${formatInlineCode(trace.target)}.`
     case "GREP":
-      return `Searched for ${formatInlineCode(trace.target)}.`
+      return `Dug into ${formatInlineCode(trace.target)} across the repo.`
     case "LIST":
-      return `Listed ${formatInlineCode(trace.target)}.`
+      return `Mapped out ${formatInlineCode(trace.target)}.`
     case "SKILL":
-      return `Loaded ${formatInlineCode(trace.target)}.`
+      return `Pulled in ${formatInlineCode(trace.target)}.`
     case "REFLECTION":
-      return `Captured a checkpoint for ${formatInlineCode(trace.target)}.`
+      return `Locked in a checkpoint for ${formatInlineCode(trace.target)}.`
     case "SHELL":
-      return `Checked ${formatInlineCode(trace.target)}.`
+      return `Ran ${formatInlineCode(trace.target)} and checked the result.`
     case "WRITE":
       return `Wrote ${formatInlineCode(trace.target)}.`
     case "EDIT":
-      return `Updated ${formatInlineCode(trace.target)}.`
+      return `Made the edit to ${formatInlineCode(trace.target)}.`
     case "PATCH":
       return `Patched ${formatInlineCode(trace.target)}.`
     case "TASK":
-      return `Structured the next step around ${formatInlineCode(trace.target)}.`
+      return `Handed off ${formatInlineCode(trace.target)} to the next step.`
     case "TODO":
-      return `Updated the checklist around ${formatInlineCode(trace.target)}.`
+      return `Ticked off ${formatInlineCode(trace.target)} on the checklist.`
     case "QUESTION":
       return `Flagged a question about ${formatInlineCode(trace.target)}.`
     default:
@@ -2645,18 +2251,18 @@ function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOpera
 function describeTraceIntent(traces: Array<NonNullable<ReturnType<typeof deriveOperatorTraceLine>>>) {
   const actions = new Set(traces.map((trace) => trace.action))
   if (actions.has("READ") || actions.has("GLOB") || actions.has("GREP") || actions.has("LIST")) {
-    return "Gathering context across the repo."
+    return "Mapping the territory — pulling context before the next move."
   }
   if (actions.has("SHELL")) {
-    return "Running evidence and verification checks."
+    return "Running checks — building confidence before committing."
   }
   if (actions.has("SKILL") || actions.has("REFLECTION") || actions.has("TASK") || actions.has("TODO")) {
-    return "Shaping the next pass before acting."
+    return "Thinking ahead — lining up what comes next."
   }
   if (actions.has("WRITE") || actions.has("EDIT") || actions.has("PATCH")) {
-    return "Applying a scoped change."
+    return "Making the move — applying changes where it counts."
   }
-  return "Advancing the current pass."
+  return "Pressing forward."
 }
 
 function describeNarrativeNext(next: string | undefined) {
@@ -2664,20 +2270,20 @@ function describeNarrativeNext(next: string | undefined) {
   if (!normalized) return undefined
   switch (normalized) {
     case "continue plan execution":
-      return "Continue the pass."
+      return "Pressing forward through the plan."
     case "capture evidence and verify":
-      return "Use the result as evidence and verify the next checkpoint."
+      return "Using this to lock in the next checkpoint."
     case "decide next operation":
-      return "Use the result to choose the next check."
+      return "Using the result to pick the next move."
     case "wait for tool completion":
     case "wait for command completion":
-      return "Wait for the current step to finish."
+      return "Waiting on the current step."
     case "wait for planning step":
-      return "Wait for the planning step to finish."
+      return "Holding for the planning step."
     case "run verification":
-      return "Verify the change before moving on."
+      return "Checking the result before moving on."
     case "continue governed run":
-      return "Continue the governed run."
+      return "Continuing under governance."
     default:
       return trimPunctuation(next)
   }
@@ -2736,16 +2342,16 @@ function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
   return (
     <box flexDirection="column" gap={0} paddingLeft={1}>
       <Show when={traceSummary()}>
-        <box flexDirection="column" gap={0} paddingBottom={nextHint() ? 0 : 1}>
-          <text fg={theme.text} wrapMode="word">
+        <box flexDirection="column" gap={0} paddingBottom={nextHint() ? 1 : 1}>
+          <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="word">
             {traceSummary()!}
           </text>
         </box>
       </Show>
       <Show when={nextHint()}>
-        <box flexDirection="row" gap={1} paddingTop={0} paddingBottom={1} alignItems="flex-start">
-          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            Next
+        <box flexDirection="row" gap={1} paddingBottom={1} alignItems="flex-start">
+          <text fg={theme.accent} dim>
+            →
           </text>
           <text fg={theme.textMuted} wrapMode="word">
             {nextHint()}
@@ -2755,33 +2361,31 @@ function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
       <Show when={visibleTraces().length > 0}>
         <box flexDirection="column" gap={0} paddingTop={traceSummary() ? 0 : 1}>
           <For each={visibleTraces()}>
-            {(item) => (
-              <box flexDirection="row" gap={1} alignItems="flex-start">
-                <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>·</text>
-                <text
-                  fg={item.tool.state.status === "completed" ? theme.textMuted : theme.text}
-                  wrapMode="word"
-                >
-                  {item.trace ? describeNarrativeTrace(item.trace) : item.tool.tool}
-                </text>
-              </box>
-            )}
-          </For>
-        </box>
-      </Show>
-      <Show when={ctx.showAssistantMetadata()}>
-        <box flexDirection="column" gap={0} paddingTop={1}>
-          <For each={traces()}>
-            {(item) => (
-              <box flexDirection="row" gap={1} alignItems="center">
-                <Show when={item.tool.state.status === "completed"} fallback={<Spinner color={theme.primary} />}>
-                  <text fg={theme.textMuted}>✓</text>
-                </Show>
-                <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>
-                  {item.trace?.summary ?? item.tool.tool}
-                </text>
-              </box>
-            )}
+            {(item) => {
+              const toolName = createMemo(() => item.tool.tool.toLowerCase())
+              const isSignificant = createMemo(() => toolName() === "shell" || EXECUTE_TOOLS.has(toolName()) || PLAN_TOOLS.has(toolName()))
+              
+              return (
+                <Switch>
+                  <Match when={isSignificant()}>
+                    <box marginTop={0} marginBottom={1} marginRight={1}>
+                       <ToolPart part={item.tool} last={false} message={null as any} />
+                    </box>
+                  </Match>
+                  <Match when={true}>
+                    <box flexDirection="row" gap={1} alignItems="flex-start">
+                      <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>·</text>
+                      <text
+                        fg={item.tool.state.status === "completed" ? theme.textMuted : theme.text}
+                        wrapMode="word"
+                      >
+                        {item.trace ? describeNarrativeTrace(item.trace) : item.tool.tool}
+                      </text>
+                    </box>
+                  </Match>
+                </Switch>
+              )
+            }}
           </For>
         </box>
       </Show>
@@ -2867,7 +2471,7 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   )
 }
 
-const BLOCK_TOOLS = new Set(["shell", "edit", "write", "apply_patch", "task", "question"])
+const BLOCK_TOOLS = new Set(["shell", "edit", "write", "apply_patch", "task", "question", "reflection"])
 
 function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
@@ -2900,21 +2504,22 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
     },
   }
 
-  const isBlock = BLOCK_TOOLS.has(props.part.tool)
+  const toolName = createMemo(() => props.part.tool.toLowerCase())
+  const isBlock = createMemo(() => BLOCK_TOOLS.has(toolName()))
   const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
 
   return (
     <Switch>
-      <Match when={props.part.tool === "shell"}>
+      <Match when={toolName() === "shell"}>
         <Bash {...toolprops} />
       </Match>
-      <Match when={props.part.tool === "write"}>
+      <Match when={toolName() === "write"}>
         <Write {...toolprops} />
       </Match>
-      <Match when={props.part.tool === "edit"}>
+      <Match when={toolName() === "edit"}>
         <Edit {...toolprops} />
       </Match>
-      <Match when={isBlock}>
+      <Match when={isBlock()}>
         <BlockTool
           title={props.part.tool}
           isRunning={isRunning()}
@@ -2923,15 +2528,15 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
           output={toolprops.output}
         >
           <Switch>
-            <Match when={props.part.tool === "task"}>
+            <Match when={toolName() === "task"}>
               <text fg={theme.text}>
                 {(toolprops.input as any).subagent_type ?? "Task"}: {(toolprops.input as any).description ?? ""}
               </text>
             </Match>
-            <Match when={props.part.tool === "question"}>
+            <Match when={toolName() === "question"}>
               <text fg={theme.text}>{(toolprops.input as any).question ?? ""}</text>
             </Match>
-            <Match when={props.part.tool === "apply_patch"}>
+            <Match when={toolName() === "apply_patch"}>
               <text fg={theme.text}>
                 {Object.keys((toolprops.input as any).changes ?? {}).length} file
                 {Object.keys((toolprops.input as any).changes ?? {}).length === 1 ? "" : "s"} patched
@@ -2974,19 +2579,30 @@ function InlineTool(props: {
   part: ToolPart
 }) {
   const { theme } = useTheme()
-  const accent = createMemo(() => (props.part.tool === "shell" ? theme.accent : theme.primary))
   const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
 
   return (
-    <box paddingLeft={1} border={["left"]} borderColor={accent()} flexDirection="row" alignItems="center" gap={1}>
-      <Show when={isRunning() && !props.complete}>
-        <Spinner color={theme.warning} />
+    <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1}>
+      <Show
+        when={isRunning() && !props.complete}
+        fallback={
+          <text fg={props.complete ? theme.textMuted : theme.textMuted}>
+            {props.complete ? "⎿" : props.icon}
+          </text>
+        }
+      >
+        <Spinner color={theme.primary} />
       </Show>
-      <text fg={props.complete ? theme.textMuted : theme.text}>
-        <Show fallback={<>~ {props.pending}</>} when={props.complete}>
-          <span style={{ fg: accent() }}>{props.icon}</span> {props.children}
-        </Show>
-      </text>
+      <Show
+        when={props.complete}
+        fallback={
+          <text fg={theme.textMuted} dim>
+            {props.pending}
+          </text>
+        }
+      >
+        <text fg={theme.textMuted}>{props.children}</text>
+      </Show>
     </box>
   )
 }
@@ -3002,6 +2618,9 @@ function BlockTool(props: {
   const { theme } = useTheme()
   const isCompleted = createMemo(() => props.part.state.status === "completed")
   const hasError = createMemo(() => props.part.state.status === "error")
+  const accentColor = createMemo(() =>
+    hasError() ? theme.error : isCompleted() ? theme.borderSubtle : theme.primary,
+  )
 
   return (
     <box
@@ -3009,28 +2628,38 @@ function BlockTool(props: {
       gap={0}
       marginTop={1}
       marginBottom={0}
-      border={["left"]}
-      borderColor={hasError() ? theme.error : isCompleted() ? theme.borderSubtle : theme.warning}
+      marginLeft={1}
+      marginRight={1}
       paddingLeft={1}
+      paddingRight={1}
+      borderStyle="rounded"
+      borderColor={accentColor()}
     >
-      <box flexDirection="row" gap={1} alignItems="center" paddingBottom={1}>
-        <Show
-          when={!hasError() && !isCompleted()}
-          fallback={<text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "✓"}</text>}
-        >
-          <Spinner color={theme.warning} />
-        </Show>
-        <text
-          fg={hasError() ? theme.error : isCompleted() ? theme.textMuted : theme.text}
-          attributes={props.isRunning ? TextAttributes.BOLD : undefined}
-        >
-          {props.title}
-        </text>
-        <Show when={props.children}>
-          <text fg={theme.textMuted} dim>
-            — {props.children}
+      <box flexDirection="row" gap={1} alignItems="center" justifyContent="space-between">
+        <box flexDirection="row" gap={1} alignItems="center">
+          <box flexDirection="row" gap={0.5} marginRight={1}>
+            <text fg={theme.error}>●</text>
+            <text fg={theme.warning}>●</text>
+            <text fg={theme.success}>●</text>
+          </box>
+          <Show
+            when={!hasError() && !isCompleted()}
+            fallback={<text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "✓"}</text>}
+          >
+            <Spinner color={theme.primary} />
+          </Show>
+          <text
+            fg={hasError() ? theme.error : isCompleted() ? theme.textMuted : theme.primary}
+            attributes={props.isRunning ? TextAttributes.BOLD : undefined}
+          >
+            {props.title}
           </text>
-        </Show>
+          <Show when={props.children}>
+            <text fg={theme.textMuted} dim>
+              — {props.children}
+            </text>
+          </Show>
+        </box>
       </box>
     </box>
   )
@@ -3038,36 +2667,123 @@ function BlockTool(props: {
 
 function Bash(props: ToolProps<typeof ShellTool>) {
   const { theme } = useTheme()
-  const isRunning = createMemo(() => props.part.state.status === "running")
-  const output = createMemo(() => {
-    const raw = typeof props.output === "string" ? props.output : typeof props.metadata.output === "string" ? props.metadata.output : ""
+  const status = createMemo(() => props.part.state.status)
+  const isRunning = createMemo(() => status() === "running" || status() === "pending")
+  const hasError = createMemo(() => status() === "error")
+
+  const rawOutput = createMemo(() => {
+    const raw =
+      typeof props.output === "string"
+        ? props.output
+        : typeof props.metadata.output === "string"
+          ? props.metadata.output
+          : ""
     return stripAnsi(raw.trim())
   })
-  const outputLabel = createMemo(() => {
-    if (!output()) return undefined
-    const lineCount = output().split("\n").length
-    if (isRunning()) return `${lineCount} lines streaming`
-    return `${lineCount} lines output`
+
+  const outputLines = createMemo(() => rawOutput().split("\n").filter((l) => l.trim() !== ""))
+  // Show the last 3 non-empty lines while streaming
+  const liveLines = createMemo(() => outputLines().slice(-3))
+
+  const command = createMemo(() => String((props.input as any).command ?? ""))
+  const description = createMemo(() => String((props.input as any).description ?? ""))
+  const displayCommand = createMemo(() => {
+    const cmd = command()
+    return cmd.length > 58 ? cmd.slice(0, 55) + "…" : cmd
   })
 
   return (
-    <InlineTool
-      icon="✓"
-      pending="Executing command..."
-      complete={props.part.state.status === "completed"}
-      part={props.part}
-    >
-      <span style={{ fg: theme.accent }}>
-        <text attributes={TextAttributes.BOLD}>shell</text>
-      </span>{" "}
-      $ {(props.input as any).command}
-      <Show when={outputLabel()}>
-        <text fg={theme.textMuted} dim>
-          {" "}
-          [{outputLabel()}]
-        </text>
-      </Show>
-    </InlineTool>
+    <Switch>
+      {/* ── Running or errored: rounded terminal block ── */}
+      <Match when={isRunning() || hasError()}>
+        <box
+          flexDirection="column"
+          gap={0}
+          marginTop={1}
+          marginLeft={1}
+          marginRight={1}
+          paddingLeft={1}
+          paddingRight={1}
+          paddingBottom={liveLines().length > 0 ? 0 : 1}
+          borderStyle="rounded"
+          borderColor={hasError() ? theme.error : theme.accent}
+        >
+          {/* Header: ❯ command + spinner/error */}
+          <box flexDirection="row" gap={1} justifyContent="space-between" alignItems="center">
+            <box flexDirection="row" gap={1} alignItems="center">
+              <box flexDirection="row" gap={0.5} marginRight={1}>
+                <text fg={theme.error}>●</text>
+                <text fg={theme.warning}>●</text>
+                <text fg={theme.success}>●</text>
+              </box>
+              <text fg={hasError() ? theme.error : theme.accent} attributes={TextAttributes.BOLD}>
+                ❯
+              </text>
+              <text
+                fg={hasError() ? theme.error : theme.text}
+                attributes={isRunning() ? TextAttributes.BOLD : undefined}
+                wrapMode="none"
+              >
+                {displayCommand()}
+              </text>
+              <Show when={description()}>
+                <text fg={theme.textMuted} dim>
+                  — {description()}
+                </text>
+              </Show>
+            </box>
+            <Show when={isRunning()}>
+              <Spinner color={theme.accent} />
+            </Show>
+            <Show when={hasError()}>
+              <text fg={theme.error} attributes={TextAttributes.BOLD}>
+                ✗
+              </text>
+            </Show>
+          </box>
+
+          {/* Separator + live output lines */}
+          <Show when={liveLines().length > 0}>
+            <box
+              flexDirection="column"
+              gap={0}
+              paddingTop={1}
+              paddingBottom={1}
+              paddingLeft={1}
+              border={["top"]}
+              borderColor={hasError() ? theme.error : tint(theme.borderSubtle, theme.background, 0.5)}
+            >
+              <For each={liveLines()}>
+                {(line) => (
+                  <text fg={hasError() ? theme.error : theme.textMuted} wrapMode="word">
+                    {line}
+                  </text>
+                )}
+              </For>
+            </box>
+          </Show>
+        </box>
+      </Match>
+
+      {/* ── Completed: compact single line ── */}
+      <Match when={true}>
+        <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1}>
+          <text fg={theme.textMuted}>⎿</text>
+          <text fg={theme.textMuted}>$</text>
+          <text fg={theme.textMuted}>{description() || displayCommand()}</text>
+          <Show when={description() && command()}>
+            <text fg={theme.textMuted} dim>
+              ({displayCommand()})
+            </text>
+          </Show>
+          <Show when={outputLines().length > 0}>
+            <text fg={theme.textMuted} dim>
+              · {outputLines().length} lines
+            </text>
+          </Show>
+        </box>
+      </Match>
+    </Switch>
   )
 }
 
