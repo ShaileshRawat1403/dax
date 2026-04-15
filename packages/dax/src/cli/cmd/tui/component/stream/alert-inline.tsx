@@ -3,6 +3,17 @@ import { TextAttributes } from "@opentui/core"
 import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
 import type { RunNarrativeItem } from "@/server/run-contract"
 
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/~~(.+?)~~/g, "$1")
+}
+
 function getAlertTypeLabel(type: string): string {
   if (type === "intervention.required") return "INTERVENTION REQUIRED"
   if (type === "approval.requested") return "APPROVAL REQUIRED"
@@ -84,7 +95,7 @@ export function AlertInline(props: {
       <Show when={props.item.message}>
         <box paddingLeft={2} paddingTop={0}>
           <text fg="$text" wrapMode="word">
-            {props.item.message}
+            {stripInlineMarkdown(props.item.message!)}
           </text>
         </box>
       </Show>
