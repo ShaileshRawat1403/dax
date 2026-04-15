@@ -167,12 +167,12 @@ const MUTATION_INTENT_RE =
 const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
 
 const STAGE_VERBS: Record<string, string[]> = {
-  thinking:  ["Thinking", "Reasoning", "Analyzing", "Considering", "Reflecting", "Evaluating", "Pondering", "Processing", "Synthesizing", "Deliberating", "Connecting", "Formulating", "Weighing", "Interpreting", "Deriving", "Clarifying", "Assessing", "Inferring", "Understanding", "Contemplating"],
-  exploring: ["Exploring", "Searching", "Scanning", "Reading", "Surveying", "Mapping", "Tracing", "Reviewing", "Navigating", "Examining", "Inspecting", "Probing", "Investigating", "Traversing", "Discovering", "Gathering", "Cataloging", "Parsing", "Indexing", "Browsing"],
-  planning:  ["Planning", "Organizing", "Structuring", "Designing", "Outlining", "Prioritizing", "Sequencing", "Strategizing", "Architecting", "Drafting", "Scoping", "Preparing", "Aligning", "Coordinating", "Framing", "Defining", "Decomposing", "Modeling", "Scheduling", "Mapping"],
-  executing: ["Executing", "Building", "Writing", "Implementing", "Running", "Applying", "Creating", "Constructing", "Coding", "Editing", "Patching", "Updating", "Generating", "Configuring", "Deploying", "Installing", "Processing", "Compiling", "Completing", "Resolving"],
-  verifying: ["Verifying", "Checking", "Testing", "Validating", "Confirming", "Reviewing", "Auditing", "Inspecting", "Comparing", "Diagnosing", "Debugging", "Scanning", "Ensuring", "Proofing", "Assessing", "Monitoring", "Evaluating", "Reconciling", "Linting", "Analyzing"],
-  done:      ["Done"],
+  thinking:  ["Hexing", "Séancing", "Auguring", "Prophesying", "Invoking", "Scrying", "Dreaming", "Descending", "Meditating", "Communing", "Channeling", "Summoning", "Fermenting", "Brooding", "Gestating", "Unraveling", "Obsessing"],
+  exploring: ["Descending", "Harrowing", "Rifling", "Unearthing", "Raiding", "Wandering", "Straying", "Delving", "Dredging", "Haunting", "Circling", "Orbiting", "Snaking"],
+  planning:  ["Prophesying", "Codifying", "Inscribing", "Engraving", "Binding", "Sealing", "Weaving", "Threading", "Casting", "Ordaining", "Manifesting", "Decreeing", "Etching", "Scribing", "Architecting", "Blueprinting", "Orchestrating"],
+  executing: ["Detonating", "Erupting", "Descending", "Unleashing", "Combusting", "Igniting", "Striking", "Splitting", "Shattering", "Riffing"],
+  verifying: ["Exorcising", "Purging", "Absolving", "Confessing", "Atoning", "Interrogating", "Dissecting", "Tempering", "Annealing", "Baptizing", "Purifying", "Cauterizing", "Excising", "Sanctifying"],
+  done:      ["Ascending"],
 }
 const NARRATIVE_FOLLOW_SLACK = 2
 const FOLLOW_RESUME_THRESHOLD = 1
