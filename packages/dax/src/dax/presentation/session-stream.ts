@@ -88,7 +88,12 @@ function deriveStatusFromNarrativeItem(item: RunNarrativeItem): "pending" | "act
 }
 
 function isAlertItem(item: RunNarrativeItem): boolean {
-  return item.type === "intervention.required" || item.type === "approval.requested"
+  return (
+    item.type === "intervention.required" ||
+    item.type === "approval.requested" ||
+    item.type === "approval.resolved" ||
+    item.type === "intervention.resolved"
+  )
 }
 
 function isPhaseMarkerCandidate(item: RunNarrativeItem): boolean {
