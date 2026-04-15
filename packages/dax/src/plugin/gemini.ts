@@ -704,6 +704,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             let req = stripKey(request)
             let reqBody = init?.body
+            let resolvedProject: string | undefined
+            let effectiveModel: string | undefined
 
             // Native DAX routing for Pro/Plus Subscriptions (Code Assist API)
             // If the auth mode is explicitly Code Assist or CLI import, route to cloudcode-pa
@@ -712,12 +714,12 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               const action = isStream ? "streamGenerateContent" : "generateContent"
               req = new URL(`https://cloudcode-pa.googleapis.com/v1internal:${action}${isStream ? "?alt=sse" : ""}`)
 
-              const resolvedProject = await resolveCloudCodeProject(access!, refresh)
+              resolvedProject = await resolveCloudCodeProject(access!, refresh)
 
               if (typeof reqBody === "string") {
                 try {
                   const parsed = JSON.parse(reqBody)
-                  const effectiveModel = parsed.model || "gemini-2.5-flash"
+                  effectiveModel = parsed.model || "gemini-2.5-flash"
                   delete parsed.model
 
                   if (parsed.generationConfig && parsed.generationConfig.thinkingConfig) {
@@ -741,33 +743,24 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               headers.set("x-activity-request-id", crypto.randomUUID().substring(0, 16))
             }
 
-            const executeFetch = async (fetchReq: URL, fetchHeaders: Headers, fetchBody: any) => {
+            const executeFetch = async (
+              fetchReq: URL,
+              fetchHeaders: Headers,
+              fetchBody: any,
+              resolvedProject?: string,
+              modelName?: string,
+            ) => {
               const doFetch = async () => {
                 const response = await fetch(fetchReq, { ...init, headers: fetchHeaders, body: fetchBody })
-
-                if (!response.ok && response.status === 429 && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
-                  const text = await response.text()
-                  const json = JSON.parse(text)
-                  const message = json.error?.message || ""
-                  const retryMs = parseGeminiSubscriptionRetryMs({
-                    retryAfter: response.headers.get("retry-after"),
-                    retryAfterMs: response.headers.get("retry-after-ms"),
-                    message,
-                  })
-                  const retrySec = Math.max(1, Math.ceil(retryMs / 1000))
-                  await persistGeminiSubscriptionCooldown(Date.now() + retryMs)
-
-                  const err: any = new Error("Throttled")
-                  err.status = 429
-                  err.retryAfterMs = retryMs
-                  throw err
-                }
                 return response
               }
 
-              let response: Response
+              let response: Response | null
               if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
-                response = await scheduleGeminiSubscriptionRequest(doFetch)
+                response = await scheduleGeminiSubscriptionRequest(doFetch, {
+                  projectId: resolvedProject,
+                  model: modelName,
+                })
                 if (!response) {
                   const err: any = new Error("Throttled")
                   err.status = 429
@@ -897,7 +890,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               return response
             }
 
-            const first = await executeFetch(req, headers, reqBody)
+            const first = await executeFetch(req, headers, reqBody, resolvedProject, effectiveModel)
 
             // Handle 401 (Token Expired/Invalid) - Reactive Refresh
             if (first.status === 401) {
