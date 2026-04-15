@@ -671,11 +671,6 @@ export function Session() {
     }),
   )
   const showLiveStatusNote = createMemo(() => !chatActive() && displayStageState().stage !== "done")
-  // Only show the SummaryCard after at least one assistant turn has completed —
-  // stage is "done" by default on idle/new sessions, so we must check for real work.
-  const hasCompletedRun = createMemo(() =>
-    messages().some((m) => m.role === "assistant" && !!(m as any).time?.completed),
-  )
   const modeLabel = createMemo(() => local.agent.current().name.toUpperCase())
 
   const wide = createMemo(() => dimensions().width > 120)
@@ -1468,60 +1463,22 @@ export function Session() {
                 )}
               </For>
 
-              <Show when={displayStageState().stage === "done" && hasCompletedRun()}>
-                <ErrorBoundary fallback={(err) => <box padding={2}><text fg={theme.error}>Summary unavailable: {String(err)}</text></box>}>
-                  <SummaryCard
-                    workstation={workstationState()}
-                    telemetry={sessionTelemetry().tokens}
-                    achievement={workstationState().completionProof?.decision === "pass" ? "Task finalized successfully." : undefined}
-                    filesChanged={(() => {
-                      try {
-                        const ws = workstationState();
-                        if (!ws || !ws.recentTooling) return [];
-                        return ws.recentTooling
-                          .filter(t => t && t.status === "completed" && (t.label.includes("Write") || t.label.includes("Edit") || t.label.includes("Patch")))
-                          .map(t => {
-                             const parts = t.label.split(" ");
-                             return parts.length > 0 ? parts.pop()! : "";
-                          })
-                          .filter(Boolean);
-                      } catch {
-                        return [];
-                      }
-                    })()}
-                  />
-                </ErrorBoundary>
-              </Show>
-
               <Show when={(chatActive() || showLiveStatusNote()) && !showPane()}>
-                <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
-                  <box
-                    flexDirection="row"
-                    gap={1}
-                    alignItems="center"
-                    paddingLeft={1}
-                    paddingRight={1}
-                    paddingTop={0.5}
-                    paddingBottom={0.5}
-                    backgroundColor={tint(theme.background, theme.primary, 0.03)}
-                    borderStyle="round"
-                    borderColor={tint(theme.borderSubtle, theme.primary, 0.1)}
-                  >
-                    <Spinner color={theme.primary} />
-                    <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
-                    <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
-                      <text fg={theme.textMuted} dim>
-                        {(() => {
-                          const t = sessionTelemetry().generatedTokens
-                          const elapsed = runElapsed()
-                          const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
-                          if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
-                          if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
-                          return `(${timePart})`
-                        })()}
-                      </text>
-                    </Show>
-                  </box>
+                <box paddingLeft={3} paddingRight={2} marginTop={1} marginBottom={1} flexDirection="row" gap={1} alignItems="center">
+                  <Spinner color={theme.primary} />
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
+                  <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
+                    <text fg={theme.textMuted} dim>
+                      {(() => {
+                        const t = sessionTelemetry().generatedTokens
+                        const elapsed = runElapsed()
+                        const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
+                        if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
+                        if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
+                        return `(${timePart})`
+                      })()}
+                    </text>
+                  </Show>
                 </box>
               </Show>
             </box>
@@ -1825,91 +1782,6 @@ export function Session() {
         <Toast />
       </box>
     </context.Provider>
-  )
-}
-
-function SummaryCard(props: {
-  workstation: WorkstationState
-  telemetry: ReturnType<typeof sessionTokenTotal>
-  achievement?: string
-  filesChanged?: string[]
-}) {
-  const { theme } = useTheme()
-
-  return (
-    <box
-      flexDirection="column"
-      gap={1}
-      padding={2}
-      marginTop={2}
-      marginBottom={2}
-      borderStyle="round"
-      borderColor={theme.success}
-      backgroundColor={tint(theme.background, theme.success, 0.04)}
-    >
-      <box flexDirection="row" gap={1} alignItems="center">
-        <text fg={theme.success} attributes={TextAttributes.BOLD}>
-          ✓ Session Complete
-        </text>
-        <box flexGrow={1} />
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-          {new Date().toLocaleTimeString()}
-        </text>
-      </box>
-
-      <box flexDirection="column" gap={0} marginTop={1}>
-        <text fg={theme.text} attributes={TextAttributes.BOLD}>
-          Achievement
-        </text>
-        <text fg={theme.textMuted} wrapMode="word">
-          {props.achievement || props.workstation.goal || "Task finalized successfully."}
-        </text>
-      </box>
-
-      <Show when={props.filesChanged && props.filesChanged.length > 0}>
-        <box flexDirection="column" gap={0} marginTop={1}>
-          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            Workspace Changes
-          </text>
-          <For each={props.filesChanged}>
-            {(file) => (
-              <box flexDirection="row" gap={1}>
-                <text fg={theme.success}>+</text>
-                <text fg={theme.text}>{file}</text>
-              </box>
-            )}
-          </For>
-        </box>
-      </Show>
-
-      <box
-        flexDirection="row"
-        gap={2}
-        marginTop={1}
-        paddingTop={1}
-        border={["top"]}
-        borderColor={theme.borderSubtle}
-      >
-        <box flexDirection="column">
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-            Turns
-          </text>
-          <text fg={theme.text}>{props.workstation.planSummary.totalSteps || "-"}</text>
-        </box>
-        <box flexDirection="column">
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-            Tokens
-          </text>
-          <text fg={theme.text}>{props.telemetry.toLocaleString()}</text>
-        </box>
-        <box flexDirection="column">
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-            Status
-          </text>
-          <text fg={theme.success}>Ascended</text>
-        </box>
-      </box>
-    </box>
   )
 }
 

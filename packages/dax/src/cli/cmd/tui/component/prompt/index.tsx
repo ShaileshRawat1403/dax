@@ -1202,16 +1202,16 @@ export function Prompt(props: PromptProps) {
         flexDirection="column"
       >
         <box
-          backgroundColor={theme.backgroundElement}
+          backgroundColor={theme.background}
           flexShrink={0}
           borderStyle="single"
           borderTop={true}
           borderLeft={false}
           borderRight={false}
           borderBottom={false}
-          borderColor={theme.border}
+          borderColor={theme.borderSubtle}
         >
-          <box paddingLeft={2} paddingRight={2} paddingTop={0.5} flexShrink={0} backgroundColor={theme.backgroundElement}>
+          <box paddingLeft={2} paddingRight={2} paddingTop={0.5} flexShrink={0} backgroundColor={theme.background}>
             <box flexDirection="row" gap={1} alignItems="flex-start">
               <Show when={showInputHint()}>
                 <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
