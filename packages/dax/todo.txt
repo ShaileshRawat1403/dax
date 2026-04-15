@@ -1,5 +1,0 @@
-- Buy groceries
-- Walk the dog
-- Finish report
-- Call mom
-- Schedule dentist appointment

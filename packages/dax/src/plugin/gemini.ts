@@ -25,7 +25,8 @@ const ACCESS_ONLY_PREFIX = "access-only:"
 // Google's official OAuth credentials for direct sign-in (Pro/Plus)
 // Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
 const GOOGLE_CLOUD_SDK_CLIENT_ID = "764086051750-76sqf96j9pjkndisqve66smditp53m6j.apps.googleusercontent.com"
-const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GOOGLE_CLOUD_SDK_CLIENT_ID
+const getGoogleCliClientId = () =>
+  Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GOOGLE_CLOUD_SDK_CLIENT_ID
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
 
 let cachedCloudCodeProjectId: string | undefined = undefined
@@ -252,7 +253,9 @@ const readCreds = async (): Promise<OAuthCreds | undefined> => {
 
 export function cliImportCredSignature(creds?: CliImportCredentialSnapshot) {
   if (!creds?.refresh) return ""
-  return [creds.refresh, creds.access ?? "", creds.expires ?? 0, creds.clientID ?? "", creds.clientSecret ?? ""].join("::")
+  return [creds.refresh, creds.access ?? "", creds.expires ?? 0, creds.clientID ?? "", creds.clientSecret ?? ""].join(
+    "::",
+  )
 }
 
 export function isCliImportReady(creds?: CliImportCredentialSnapshot, now = Date.now()) {
@@ -765,6 +768,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               let response: Response
               if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
                 response = await scheduleGeminiSubscriptionRequest(doFetch)
+                if (!response) {
+                  const err: any = new Error("Throttled")
+                  err.status = 429
+                  throw err
+                }
               } else {
                 response = await doFetch()
               }
@@ -1131,9 +1139,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             },
           ],
           async authorize(inputs: any) {
-            const customAuth = await Auth.get("google").then((x: any) =>
-              x?.type === "oauth-custom" ? x : undefined,
-            )
+            const customAuth = await Auth.get("google").then((x: any) => (x?.type === "oauth-custom" ? x : undefined))
 
             const clientID =
               inputs.clientID ||

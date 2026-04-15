@@ -73,6 +73,7 @@ export namespace SessionProcessor {
                 ? "Gemini is slow right now. The run is still alive and waiting on the provider."
                 : "Provider response is delayed. The run is still alive and waiting."
             let pressureNotified = false
+            let throttleNotificationShown = false
             const trackPressure = () => {
               if (input.model.providerID === "google") {
                 const pressure = getGeminiSubscriptionPressure()
@@ -83,15 +84,30 @@ export namespace SessionProcessor {
                   throttles: pressure.consecutiveThrottles,
                 }).catch((e) => log.error("failed to update provider pressure", { error: String(e) }))
 
-                if (pressure.consecutiveThrottles > 0 && !pressureNotified) {
+                if (pressure.consecutiveThrottles > 0) {
+                  if (!throttleNotificationShown) {
+                    throttleNotificationShown = true
+                    const throttleMsg =
+                      pressure.consecutiveThrottles === 1
+                        ? "Gemini subscription lane throttled. Retrying..."
+                        : `Gemini subscription lane throttled (${pressure.consecutiveThrottles}x). Retrying in background...`
+                    SessionStatus.set(input.sessionID, {
+                      type: "delayed",
+                      message: throttleMsg,
+                      since: lastProgressAt,
+                    })
+                    delayedRaised = true
+                  }
+                  return
+                } else {
+                  throttleNotificationShown = false
+                }
+
+                if (!pressureNotified) {
                   pressureNotified = true
-                  const throttleMsg =
-                    pressure.consecutiveThrottles === 1
-                      ? "Gemini subscription lane throttled. Retrying..."
-                      : `Gemini subscription lane throttled (${pressure.consecutiveThrottles}x). Retrying in background...`
                   SessionStatus.set(input.sessionID, {
                     type: "delayed",
-                    message: throttleMsg,
+                    message: delayedMessage,
                     since: lastProgressAt,
                   })
                   delayedRaised = true

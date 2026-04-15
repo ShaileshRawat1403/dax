@@ -11,15 +11,15 @@ let geminiSubscriptionCooldownUntil = 0
 let inFlight = 0
 let consecutiveThrottles = 0
 let currentCooldownPromise: Promise<void> | null = null
-const MAX_RETRIES = 8
-const RETRY_DELAY_MS = 800
 const MAX_CONCURRENCY = 4
+const MAX_THROTTLE_RETRIES = 3
+const THROTTLE_BACKOFF_MS = 500
 
 const requestQueue: Array<{
   fn: () => Promise<Response>
-  resolve: (value: Response) => void
+  resolve: (value: Response | null) => void
   reject: (reason?: any) => void
-  retries: number
+  throttleRetries: number
 }> = []
 
 export async function readPersistedGeminiSubscriptionCooldown() {
@@ -43,13 +43,13 @@ export function getGeminiSubscriptionPressure() {
   }
 }
 
-export async function scheduleGeminiSubscriptionRequest<T>(fn: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
+export async function scheduleGeminiSubscriptionRequest<T>(fn: () => Promise<T>): Promise<T | null> {
+  return new Promise<T | null>((resolve, reject) => {
     requestQueue.push({
       fn: fn as () => Promise<Response>,
-      resolve: resolve as (value: Response) => void,
+      resolve: resolve as (value: Response | null) => void,
       reject,
-      retries: 0,
+      throttleRetries: 0,
     })
     processNext()
   })
@@ -97,20 +97,24 @@ async function processNext() {
   } catch (err: any) {
     if (err?.status === 429) {
       consecutiveThrottles++
-      next.retries++
-      log.warn("gemini subscription throttled", { retries: next.retries, consecutiveThrottles })
+      const retryAfterMs = err.retryAfterMs || THROTTLE_BACKOFF_MS
+      log.warn("gemini subscription throttled", {
+        throttleRetries: next.throttleRetries,
+        consecutiveThrottles,
+        retryAfterMs,
+        inFlight,
+        queueLength: requestQueue.length,
+      })
 
-      if (next.retries >= MAX_RETRIES) {
-        next.reject(err)
-        consecutiveThrottles = 0
+      if (next.throttleRetries >= MAX_THROTTLE_RETRIES) {
+        log.error("gemini subscription max throttle retries exceeded", { throttleRetries: next.throttleRetries })
+        next.resolve(null)
       } else {
-        // Apply backoff delay by re-queuing after a delay, releasing the current slot
-        // Use smaller growth factor (1.3) for faster recovery, cap at 8 seconds
-        const backoffMs = Math.min(RETRY_DELAY_MS * Math.pow(1.3, next.retries - 1) + Math.random() * 300, 8000)
-        void Bun.sleep(backoffMs).then(() => {
-          requestQueue.unshift(next)
-          processNext()
-        })
+        // Retry immediately - the cooldown was already persisted by the caller
+        // This lets us quickly retry without waiting
+        next.throttleRetries++
+        requestQueue.unshift(next)
+        processNext()
       }
     } else {
       next.reject(err)
