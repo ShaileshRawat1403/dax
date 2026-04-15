@@ -29,6 +29,8 @@ export namespace Flag {
   export const DAX_DISABLE_EXTERNAL_SKILLS = DAX_DISABLE_CLAUDE_CODE_SKILLS || truthy("DAX_DISABLE_EXTERNAL_SKILLS")
   export declare const DAX_DISABLE_PROJECT_CONFIG: boolean
   export const DAX_FAKE_VCS = readEnv("DAX_FAKE_VCS")
+  export const DAX_SHELL_SANDBOX_ENABLED = truthy("DAX_SHELL_SANDBOX_ENABLED")
+  export const DAX_SHELL_SANDBOX_IMAGE = readEnv("DAX_SHELL_SANDBOX_IMAGE")
   export declare const DAX_CLIENT: string
   export const DAX_SERVER_PASSWORD = readEnv("DAX_SERVER_PASSWORD")
   export const DAX_SERVER_USERNAME = readEnv("DAX_SERVER_USERNAME")

@@ -74,6 +74,14 @@ export namespace Config {
     })
     .optional()
 
+  const Sandbox = z
+    .object({
+      enabled: z.boolean().optional().describe("Enable isolated shell execution (Docker)"),
+      image: z.string().optional().describe("Docker image to use for sandboxed execution"),
+      provider: z.enum(["docker"]).optional().describe("Sandbox provider (default: docker)"),
+    })
+    .optional()
+
   /**
    * Merges two config objects with custom array concatenation logic.
    * Unlike default deep merge which replaces arrays, this function:
@@ -1086,6 +1094,7 @@ export namespace Config {
     .object({
       $schema: z.string().optional().describe("JSON schema reference for configuration validation"),
       theme: z.string().optional().describe("Theme name to use for the interface"),
+      sandbox: Sandbox.describe("Sandbox configuration for isolated shell execution"),
       keybinds: Keybinds.optional().describe("Custom keybind configurations"),
       logLevel: Log.Level.optional().describe("Log level"),
       tui: TUI.optional().describe("TUI specific settings"),

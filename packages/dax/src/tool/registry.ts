@@ -29,6 +29,7 @@ import { PlanExitTool, PlanEnterTool } from "./plan"
 import { ApplyPatchTool } from "./apply_patch"
 import { PMNoteTool } from "./pm_note"
 import { ReflectionTool } from "./reflection"
+import { GitBranchTool } from "./git_branch"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -120,6 +121,7 @@ export namespace ToolRegistry {
       CodeSearchTool,
       SkillTool,
       ApplyPatchTool,
+      GitBranchTool,
       ...(Flag.DAX_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.DAX_EXPERIMENTAL_PLAN_MODE && Flag.DAX_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),

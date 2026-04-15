@@ -122,25 +122,32 @@ function WorkspaceCard(props: { dirName: string; branch: string | undefined; mod
   return (
     <box
       width="100%"
-      flexDirection="row"
-      gap={1}
+      flexDirection="column"
+      gap={0}
       paddingLeft={1}
       paddingRight={1}
       borderStyle="rounded"
       borderColor={props.theme.borderSubtle}
     >
-      <text fg={props.theme.textMuted}>◈</text>
-      <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
-        {props.dirName}
-      </text>
-      <Show when={props.branch}>
+      <box flexDirection="row" gap={1} alignItems="center" paddingBottom={0.5}>
+        <box flexDirection="row" gap={0.5} marginRight={1}>
+          <text fg={props.theme.error}>●</text>
+          <text fg={props.theme.warning}>●</text>
+          <text fg={props.theme.success}>●</text>
+        </box>
+        <text fg={props.theme.textMuted}>◈</text>
+        <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
+          {props.dirName}
+        </text>
+        <Show when={props.branch}>
+          <text fg={props.theme.textMuted}>·</text>
+          <text fg={props.theme.primary}>{props.branch}</text>
+        </Show>
         <text fg={props.theme.textMuted}>·</text>
-        <text fg={props.theme.primary}>{props.branch}</text>
-      </Show>
-      <text fg={props.theme.textMuted}>·</text>
-      <text fg={props.theme.textMuted} dim>
-        {props.modelName}
-      </text>
+        <text fg={props.theme.textMuted} dim>
+          {props.modelName}
+        </text>
+      </box>
     </box>
   )
 }

@@ -12,7 +12,7 @@ export const EXPLORE_TOOLS = [
 
 export const PLAN_TOOLS = ["task", "todowrite", "question", "skill", "plan_enter", "plan_exit"] as const
 
-export const EXECUTE_TOOLS = ["write", "edit", "apply_patch", "shell", "batch"] as const
+export const EXECUTE_TOOLS = ["write", "edit", "apply_patch", "shell", "batch", "git_branch"] as const
 
 export const VERIFY_TOOLS = ["read", "grep", "list", "glob", "lsp"] as const
 

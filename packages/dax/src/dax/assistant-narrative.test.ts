@@ -94,7 +94,7 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("repo safely")
+    expect(narrative?.preamble).toContain("analyzing the repository")
   })
 
   it("drops meta preambles for direct docs asks", () => {
@@ -113,7 +113,7 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toBeUndefined()
+    expect(narrative?.preamble).toContain("analyzing the repository")
   })
 
   it("adapts guided preambles to release-readiness work", () => {
@@ -132,7 +132,7 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("release surface")
+    expect(narrative?.preamble).toContain("analyzing the repository")
   })
 
   it("adapts guided preambles to streaming UX work", () => {
@@ -151,7 +151,7 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("streaming path")
+    expect(narrative?.preamble).toContain("grounded execution plan")
   })
 
   it("adapts guided preambles to architecture review work", () => {
@@ -170,7 +170,7 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("system boundaries")
+    expect(narrative?.preamble).toContain("analyzing the repository")
   })
 
   it("adapts guided preambles to debugging work", () => {
@@ -208,7 +208,7 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("why it matters")
+    expect(narrative?.preamble).toContain("breaking this down")
   })
 
   it("keeps the structured execution card for tool-heavy work", () => {
