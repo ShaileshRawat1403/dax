@@ -1,6 +1,8 @@
 import { Show, Switch, Match } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
 import type { AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
+import { useTheme } from "@tui/context/theme"
 import { PhaseRail } from "./phase-rail"
 import { RunEventRow } from "./run-event-row"
 import { AlertInline } from "./alert-inline"
@@ -37,6 +39,10 @@ export function StreamItem(props: {
         <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} />
       </Match>
 
+      <Match when={props.item.kind === "compaction.marker"}>
+        <CompactionMarker />
+      </Match>
+
       <Match when={props.item.kind === "message.user"}>
         <props.MessageComponent message={props.item.data as UserMessage} last={props.isLast} partsOverride={props.item.parts} />
       </Match>
@@ -49,6 +55,25 @@ export function StreamItem(props: {
         />
       </Match>
     </Switch>
+  )
+}
+
+function CompactionMarker() {
+  const { theme } = useTheme()
+  return (
+    <box
+      flexDirection="row"
+      gap={1}
+      alignItems="center"
+      paddingLeft={2}
+      paddingRight={2}
+      marginTop={1}
+      marginBottom={1}
+    >
+      <text fg={theme.borderSubtle}>────</text>
+      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>⟳ context compacted</text>
+      <text fg={theme.borderSubtle}>────</text>
+    </box>
   )
 }
 

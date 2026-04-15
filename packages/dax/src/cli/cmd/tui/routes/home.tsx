@@ -157,16 +157,8 @@ export function Home() {
   })
 
   const sessionCount = createMemo(() => sync.data.session.length)
-  const visibleActiveRuns = createMemo(() =>
-    sync.data.session
-      .filter((s) => s.status === "running" || s.status === "waiting_approval")
-      .toSorted((a, b) => b.time.updated - a.time.updated)
-  )
-  const visibleRecentRuns = createMemo(() =>
-    sync.data.session
-      .filter((s) => s.status !== "running" && s.status !== "waiting_approval")
-      .toSorted((a, b) => b.time.updated - a.time.updated)
-  )
+  const visibleActiveRuns = createMemo(() => sync.data.overview?.activeRuns ?? [])
+  const visibleRecentRuns = createMemo(() => sync.data.overview?.recentRuns ?? [])
 
   const connectedMcpCount = createMemo(
     () => Object.values(sync.data.mcp).filter((x) => x.status === "connected").length,
@@ -356,7 +348,7 @@ export function Home() {
         <box
           flexDirection="column"
           alignItems="center"
-          paddingTop={layout().paddingTop}
+          paddingTop={2}
           paddingBottom={4}
           gap={tiny() ? 1 : 2}
         >
@@ -409,23 +401,35 @@ export function Home() {
 
             {/* ── Smart chips ── */}
             <Show when={showActions() && !tiny()}>
-              <box width="100%" flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-start">
-                <For each={smartChips()}>
-                  {(chip) => (
-                    <SmartChip
-                      label={chip.label}
-                      tone={chip.tone}
-                      theme={theme}
-                      onPress={() => setPromptDraft(chip.prompt, false, chip.mode)}
-                    />
-                  )}
-                </For>
+              <box width="100%" flexDirection="column" gap={1}>
+                <text fg={theme.textMuted} attributes={TextAttributes.BOLD} dim>QUICK START</text>
+                <box flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-start">
+                  <For each={smartChips()}>
+                    {(chip) => (
+                      <SmartChip
+                        label={chip.label}
+                        tone={chip.tone}
+                        theme={theme}
+                        onPress={() => setPromptDraft(chip.prompt, false, chip.mode)}
+                      />
+                    )}
+                  </For>
+                </box>
               </box>
             </Show>
 
             {/* ── Sessions list ── */}
             <Show when={showSessions()}>
-              <box width="100%" flexDirection="column" gap={0}>
+              <box
+                width="100%"
+                flexDirection="column"
+                gap={0}
+                backgroundColor={theme.backgroundPanel}
+                borderStyle="round"
+                borderColor={theme.borderSubtle}
+                paddingTop={1}
+                paddingBottom={1}
+              >
 
                 {/* First-time guide */}
                 <Show when={isFirstTimeUser()}>
@@ -529,11 +533,11 @@ export function Home() {
 function SectionDivider(props: { label: string; theme: any }) {
   return (
     <box flexDirection="row" gap={1} alignItems="center" marginTop={1} marginBottom={1} paddingLeft={1}>
-      <text fg={props.theme.borderSubtle}>──</text>
+      <text fg={props.theme.border}>──</text>
       <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
         {props.label}
       </text>
-      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.borderSubtle} marginBottom={0.5} />
+      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.border} marginBottom={0.5} />
     </box>
   )
 }
