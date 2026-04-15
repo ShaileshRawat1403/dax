@@ -186,7 +186,6 @@ export const TuiThreadCommand = cmd({
               generatedTokenCount: summary.generatedTokenCount,
               costLabel: summary.costLabel,
               summary: {
-                achievement: summary.achievement,
                 files_changed: summary.files_changed,
               },
             }),
