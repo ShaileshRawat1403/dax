@@ -6,9 +6,10 @@ export function formatAsMarkdownTable(data: Record<string, unknown>[]): string {
 
   const colWidths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)))
 
-  const headerLine = headers.map((h, i) => h.padEnd(colWidths[i])).join(" | ")
-  const divider = colWidths.map((w) => "-".repeat(w)).join(" | ")
-  const bodyLines = rows.map((row) => row.map((cell, i) => cell.padEnd(colWidths[i])).join(" | "))
+  const pad = (s: string, w: number) => s.padEnd(w)
+  const headerLine = "| " + headers.map((h, i) => pad(h, colWidths[i])).join(" | ") + " |"
+  const divider = "| " + colWidths.map((w) => "-".repeat(w)).join(" | ") + " |"
+  const bodyLines = rows.map((row) => "| " + row.map((cell, i) => pad(cell, colWidths[i])).join(" | ") + " |")
 
   return [headerLine, divider, ...bodyLines].join("\n")
 }
