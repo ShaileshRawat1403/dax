@@ -22,6 +22,7 @@ export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
   const PROVIDER_DELAY_THRESHOLD_MS = 12_000
   const PROVIDER_STALL_TIMEOUT_MS = Math.max(30_000, Number(process.env.DAX_PROVIDER_STALL_TIMEOUT_MS ?? 180_000))
+  const SLOW_MESSAGE_COOLDOWN_MS = 30_000
   const log = Log.create({ service: "session.processor" })
 
   export type Info = Awaited<ReturnType<typeof create>>
@@ -74,6 +75,7 @@ export namespace SessionProcessor {
                 : "Provider response is delayed. The run is still alive and waiting."
             let pressureNotified = false
             let throttleNotificationShown = false
+            let lastSlowMessageTime = 0
             const trackPressure = () => {
               if (input.model.providerID === "google") {
                 const pressure = getGeminiSubscriptionPressure()
@@ -103,8 +105,10 @@ export namespace SessionProcessor {
                   throttleNotificationShown = false
                 }
 
-                if (!pressureNotified) {
+                const now = Date.now()
+                if (!pressureNotified && now - lastSlowMessageTime > SLOW_MESSAGE_COOLDOWN_MS) {
                   pressureNotified = true
+                  lastSlowMessageTime = now
                   SessionStatus.set(input.sessionID, {
                     type: "delayed",
                     message: delayedMessage,
@@ -117,6 +121,8 @@ export namespace SessionProcessor {
             const delayedMonitor =
               shouldTrackDelayedProvider &&
               setInterval(() => {
+                const now = Date.now()
+                if (now - lastSlowMessageTime < SLOW_MESSAGE_COOLDOWN_MS) return
                 trackPressure()
                 if (delayedRaised) return
                 // A tool is in-flight — it may be waiting for user approval or a
@@ -127,6 +133,7 @@ export namespace SessionProcessor {
                   return
                 }
                 if (Date.now() - lastProgressAt < PROVIDER_DELAY_THRESHOLD_MS) return
+                lastSlowMessageTime = now
                 delayedRaised = true
                 SessionStatus.set(input.sessionID, {
                   type: "delayed",
