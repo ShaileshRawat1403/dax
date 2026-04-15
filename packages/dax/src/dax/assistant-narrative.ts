@@ -31,65 +31,41 @@ function normalizeAsked(asked: string) {
 function buildGuidedPreamble(input: AssistantNarrativeInput) {
   const asked = normalizeAsked(input.asked)
 
-  if (/release|readiness|ship|launch|ga|beta/.test(asked)) {
-    return input.completed
-      ? "I checked the release surface first so the plan stays grounded in what DAX actually ships today and what could block release."
-      : "I’m checking the release surface first so the plan stays grounded in what DAX actually ships today and what could block release."
-  }
-
-  if (/fix|debug|error|failing|broken|test|bug|issue/.test(asked)) {
-    return input.completed
-      ? "I narrowed the problem first so I could focus on the likeliest cause, the real failure boundary, and the safest fix path."
-      : "I’m narrowing the problem first so I can focus on the likeliest cause, the real failure boundary, and the safest fix path."
-  }
-
-  if (/stream|streaming|delta|render|reasoning/.test(asked)) {
-    return input.completed
-      ? "I traced the visible streaming path first so we can separate real UX gaps from internal runtime detail."
-      : "I’m tracing the visible streaming path first so we can separate real UX gaps from internal runtime detail."
-  }
-
-  if (/docs qa|docs quality|documentation quality|audit docs/.test(asked)) {
-    return input.completed
-      ? "I checked the docs surface for clarity, accuracy, and release risk so the recommendations are actionable."
-      : "I’m checking the docs surface for clarity, accuracy, and release risk so the recommendations stay actionable."
-  }
-
-  if (/readme|docs|documentation|audit/.test(asked)) {
-    return undefined
-  }
-
-  if (/architecture|design|system|workflow|orchestration|boundary|boundaries|data flow|control flow/.test(asked)) {
-    return input.completed
-      ? "I mapped the main system boundaries first so the explanation reflects how DAX actually works, not just how it is named."
-      : "I’m mapping the main system boundaries first so the explanation reflects how DAX actually works, not just how it is named."
-  }
-
-  if (/learn|understand|explain|teach|walk me through/.test(asked)) {
-    return input.completed
-      ? "I framed this to help you understand what matters, why it matters, and what to look at next."
-      : "I’m framing this to help you understand what matters, why it matters, and what to look at next."
-  }
-
-  if (/what('?s| is) your name|tell me about yourself|who are you|what can you do|how can you help|help me/.test(asked)) {
-    return undefined
+  if (input.hasError) {
+    return "I encountered an issue while processing. Let me adjust and try again."
   }
 
   if (/review|summarize|analy[sz]e|read( me)?|repo|repository|architecture/.test(asked)) {
     return input.completed
-      ? "I read through the repo safely first, so this stays anchored to the actual code and docs."
-      : "I’m reading through the repo safely first so this stays anchored to the actual code and docs."
+      ? "I've completed my analysis of the repository based on the actual code and documentation."
+      : "I'm analyzing the repository structure and contents to provide a comprehensive overview."
+  }
+
+  if (/fix|debug|error|failing|broken|test|bug|issue/.test(asked)) {
+    return input.completed
+      ? "I've identified the root cause and mapped out a safe path for the fix."
+      : "I'm investigating the failure boundary to find the most direct path to a resolution."
+  }
+
+  if (/learn|understand|explain|teach|walk me through/.test(asked)) {
+    return input.completed
+      ? "I've framed this explanation to highlight the core concepts and next steps."
+      : "I'm breaking this down to help you understand the key architectural flows."
   }
 
   if (input.mode === "plan") {
     return input.completed
-      ? "I mapped the clearest next step first so the plan stays grounded before anything changes."
-      : "I’m mapping the clearest next step first so the plan stays grounded before anything changes."
+      ? "The strategy is now fully mapped and ready for implementation."
+      : "I'm drafting a grounded execution plan to ensure we move safely."
+  }
+
+  if (input.hasExecuteTool) {
+    return "Executing the planned changes now. I'll verify the system state at each step."
   }
 
   return input.completed
-    ? "I shaped this around the clearest next step so you can move quickly."
-    : "I’m shaping this around the clearest next step before I go deeper."
+    ? "I've processed the request and refined the current state."
+    : "I'm moving forward with the most relevant steps for this task."
 }
 
 function isLightRequest(asked: string) {

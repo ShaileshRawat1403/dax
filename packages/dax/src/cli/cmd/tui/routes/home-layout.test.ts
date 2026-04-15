@@ -45,6 +45,6 @@ describe("home layout model", () => {
     expect(layout.showSessions).toBe(true)
     expect(layout.showTips).toBe(true)
     expect(layout.outerJustify).toBe("center")
-    expect(layout.maxWidth).toBe(76)
+    expect(layout.maxWidth).toBe(88)
   })
 })
