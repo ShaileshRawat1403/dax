@@ -1445,24 +1445,6 @@ export function Session() {
                 )}
               </For>
 
-              <Show when={(chatActive() || showLiveStatusNote()) && !showPane()}>
-                <box paddingLeft={3} paddingRight={2} marginTop={1} marginBottom={1} flexDirection="row" gap={1} alignItems="center">
-                  <Spinner color={theme.primary} />
-                  <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
-                  <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
-                    <text fg={theme.textMuted} dim>
-                      {(() => {
-                        const t = sessionTelemetry().generatedTokens
-                        const elapsed = runElapsed()
-                        const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
-                        if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
-                        if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
-                        return `(${timePart})`
-                      })()}
-                    </text>
-                  </Show>
-                </box>
-              </Show>
             </box>
           </scrollbox>
 
@@ -1737,6 +1719,35 @@ export function Session() {
             </scrollbox>
           </Show>
         </box>
+
+        {/* Live Status Line — fixed between stream and prompt, always visible during active runs */}
+        <Show when={(chatActive() || showLiveStatusNote()) && !showPane()}>
+          <box
+            flexShrink={0}
+            paddingLeft={3}
+            paddingRight={2}
+            paddingTop={1}
+            paddingBottom={0}
+            flexDirection="row"
+            gap={1}
+            alignItems="center"
+          >
+            <Spinner color={theme.primary} />
+            <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
+            <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
+              <text fg={theme.textMuted} dim>
+                {(() => {
+                  const t = sessionTelemetry().generatedTokens
+                  const elapsed = runElapsed()
+                  const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
+                  if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
+                  if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
+                  return `(${timePart})`
+                })()}
+              </text>
+            </Show>
+          </box>
+        </Show>
 
         {/* Footer Area */}
         <box flexShrink={0} paddingLeft={1} paddingRight={1} paddingBottom={0}>
