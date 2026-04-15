@@ -72,19 +72,19 @@ export function tui(input: {
   events?: EventSource
   onExit?: () => Promise<void>
 }) {
-  return new Promise<void>(async (resolve) => {
+  return new Promise<string | undefined>(async (resolve) => {
     const mode = await getTerminalBackgroundColor()
+    let finalSessionID: string | undefined = input.args.sessionID
+
     const onExit = async () => {
       await input.onExit?.()
-      resolve()
+      resolve(finalSessionID)
     }
 
     await render(
       () => {
         return (
-          <ErrorBoundary
-            fallback={(error, reset) => <ErrorComponent error={error} reset={reset} onExit={onExit} mode={mode} />}
-          >
+          <ErrorBoundary fallback={(error, reset) => <ErrorComponent error={error} reset={reset} onExit={onExit} mode={mode} />}>
             <ArgsProvider {...input.args}>
               <ExitProvider onExit={onExit}>
                 <UIActivityProvider>
@@ -93,7 +93,6 @@ export function tui(input: {
                       <RouteProvider>
                         <SDKProvider
                           url={input.url}
-                          directory={input.directory}
                           fetch={input.fetch}
                           headers={input.headers}
                           events={input.events}
@@ -108,7 +107,7 @@ export function tui(input: {
                                         <CommandProvider>
                                           <FrecencyProvider>
                                             <PromptHistoryProvider>
-                                              <App />
+                                              <App onSessionChange={(id) => { finalSessionID = id }} />
                                             </PromptHistoryProvider>
                                           </FrecencyProvider>
                                         </CommandProvider>
@@ -149,8 +148,11 @@ export function tui(input: {
   })
 }
 
-function App() {
+function App(props: { onSessionChange?: (sessionID: string) => void }) {
   const route = useRoute()
+  createEffect(() => {
+    if (route.data.type === "session") props.onSessionChange?.(route.data.sessionID)
+  })
   const dimensions = useTerminalDimensions()
   const renderer = useRenderer()
   // renderer.disableStdoutInterception()
@@ -944,7 +946,7 @@ function App() {
             bottom={1}
             right={2}
             padding={1}
-            backgroundColor={theme.backgroundPanel}
+            backgroundColor={theme.background}
             border={{ type: "line", fg: theme.primary }}
           >
             <text fg={theme.primary} attributes={TextAttributes.BOLD}>

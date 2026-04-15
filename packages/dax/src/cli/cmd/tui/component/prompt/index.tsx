@@ -1211,7 +1211,7 @@ export function Prompt(props: PromptProps) {
           borderBottom={false}
           borderColor={theme.border}
         >
-          <box paddingLeft={2} paddingRight={2} paddingTop={1} flexShrink={0} backgroundColor={theme.backgroundElement}>
+          <box paddingLeft={2} paddingRight={2} paddingTop={0.5} flexShrink={0} backgroundColor={theme.backgroundElement}>
             <box flexDirection="row" gap={1} alignItems="flex-start">
               <Show when={showInputHint()}>
                 <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
@@ -1458,7 +1458,7 @@ export function Prompt(props: PromptProps) {
                 syntaxStyle={syntax()}
               />
             </box>
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1}>
+            <box flexDirection="row" flexShrink={0} paddingTop={0.5} gap={1}>
               <text fg={highlight()}>{store.mode === "shell" ? "Shell" : activeWorkflowLabel()} </text>
               <Show when={store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>
@@ -1477,30 +1477,13 @@ export function Prompt(props: PromptProps) {
             </box>
           </box>
         </box>
-        <box height={1} backgroundColor={theme.backgroundElement}>
-          <box
-            height={1}
-            border={["bottom"]}
-            borderColor={theme.backgroundElement}
-            customBorderChars={
-              theme.backgroundElement.a !== 0
-                ? {
-                    ...EmptyBorder,
-                    horizontal: "▀",
-                  }
-                : {
-                    ...EmptyBorder,
-                    horizontal: " ",
-                  }
-            }
-          />
-        </box>
         <box
           flexDirection="row"
           justifyContent="space-between"
           width="100%"
           paddingLeft={1}
           paddingRight={1}
+          paddingBottom={0.5}
           alignItems="center"
         >
           <box flexGrow={1} flexDirection="row" alignItems="center">

@@ -34,11 +34,14 @@ export const GitBranchTool = Tool.define("git_branch", async () => {
             metadata: { branch: name },
           }
         }
-        // Branch already exists — switch to it
+        const createErr = created.stderr.toString().trim()
+        // Branch already exists — switch to it. Any other creation failure
+        // (dirty tree, invalid ref, etc.) will also fail here, surfacing both errors.
         const switched = await $`git checkout ${name}`.cwd(cwd).quiet().nothrow()
         if (switched.exitCode !== 0) {
           throw new Error(
-            `Failed to create or switch to branch "${name}": ${switched.stderr.toString().trim()}`,
+            `Failed to create branch "${name}": ${createErr}\n` +
+            `Failed to switch to existing branch "${name}": ${switched.stderr.toString().trim()}`,
           )
         }
         return {

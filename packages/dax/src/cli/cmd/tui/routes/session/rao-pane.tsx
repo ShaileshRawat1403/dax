@@ -137,7 +137,7 @@ function PermissionCard(props: {
   const riskBg = () => {
     if (props.risk.level === "critical") return tint(theme.background, theme.error, 0.08)
     if (props.risk.level === "privacy") return tint(theme.background, theme.warning, 0.08)
-    return theme.backgroundElement
+    return tint(theme.background, theme.backgroundElement, 0.15)
   }
 
   const icon = () => permissionIcon(props.request.permission)
@@ -154,22 +154,22 @@ function PermissionCard(props: {
   const buttonStyle = (key: "once" | "always" | "deny", idx: number) => {
     const isSelected = idx === props.selectedButtonIdx
     if (key === "once") return {
-      bg: isSelected ? tint(theme.primary, theme.text, 0.12) : theme.primary,
-      border: theme.primary,
-      fg: selectedForeground(theme, theme.primary),
+      bg: isSelected ? theme.primary : tint(theme.primary, theme.background, 0.4),
+      border: isSelected ? theme.borderActive : theme.primary,
+      fg: isSelected ? selectedForeground(theme, theme.primary) : theme.primary,
       label: "Y  Allow once",
     }
     if (key === "always") return {
-      bg: isSelected ? tint(theme.accent, theme.text, 0.12) : theme.accent,
-      border: theme.accent,
-      fg: selectedForeground(theme, theme.accent),
+      bg: isSelected ? theme.accent : tint(theme.accent, theme.background, 0.4),
+      border: isSelected ? theme.borderActive : theme.accent,
+      fg: isSelected ? selectedForeground(theme, theme.accent) : theme.accent,
       label: "A  Allow always",
     }
     return {
       bg: isSelected
         ? tint(theme.backgroundElement, theme.error, 0.22)
         : tint(theme.backgroundElement, theme.error, 0.1),
-      border: theme.error,
+      border: isSelected ? theme.borderActive : theme.error,
       fg: theme.error,
       label: "N  Deny",
     }
@@ -180,21 +180,29 @@ function PermissionCard(props: {
       flexDirection="column"
       gap={1}
       backgroundColor={riskBg()}
-      border={["top", "right", "bottom", "left"]}
-      borderColor={props.cardPhase === "sent" ? theme.success : riskColor()}
-      paddingLeft={1}
-      paddingRight={1}
+      borderStyle="round"
+      borderColor={props.cardPhase === "sent" ? theme.success : tint(riskColor(), theme.background, 0.3)}
+      paddingLeft={2}
+      paddingRight={2}
       paddingTop={1}
       paddingBottom={1}
     >
       {/* ── Header ── */}
-      <box flexDirection="row" gap={1} alignItems="center">
-        <text
-          fg={props.risk.level === "critical" ? theme.error : props.risk.level === "privacy" ? theme.warning : theme.accent}
-          attributes={TextAttributes.BOLD}
+      <box flexDirection="row" gap={1} alignItems="center" marginBottom={0.5}>
+        <box
+          backgroundColor={tint(riskColor(), theme.background, 0.1)}
+          paddingLeft={1}
+          paddingRight={1}
+          borderStyle="round"
+          borderColor={riskColor()}
         >
-          {icon()}
-        </text>
+          <text
+            fg={props.risk.level === "critical" ? theme.error : props.risk.level === "privacy" ? theme.warning : theme.accent}
+            attributes={TextAttributes.BOLD}
+          >
+            {icon()}
+          </text>
+        </box>
         <text fg={theme.text} attributes={TextAttributes.BOLD} wrapMode="word" flexGrow={1}>
           {title()}
         </text>
@@ -212,13 +220,13 @@ function PermissionCard(props: {
         <box
           paddingLeft={1}
           paddingRight={1}
-          paddingTop={0}
-          paddingBottom={0}
-          backgroundColor={tint(theme.background, theme.textMuted, 0.06)}
-          border={["left"]}
+          paddingTop={0.5}
+          paddingBottom={0.5}
+          backgroundColor={tint(theme.background, theme.textMuted, 0.04)}
+          borderStyle="round"
           borderColor={theme.borderSubtle}
         >
-          <text fg={theme.textMuted} wrapMode="word">
+          <text fg={theme.textMuted} wrapMode="word" attributes={TextAttributes.DIM}>
             $ {String(props.input.command)}
           </text>
         </box>

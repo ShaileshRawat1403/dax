@@ -145,7 +145,7 @@ const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch",
 const HIDDEN_TOOLS = new Set(["todowrite"])
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
-import { latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
+import { latestContextUsage, sessionCostTotal, sessionTokenTotal, sessionAssistantMessages } from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
@@ -167,10 +167,10 @@ const MUTATION_INTENT_RE =
 const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
 
 const STAGE_VERBS: Record<string, string[]> = {
-  thinking:  ["Hexing", "Séancing", "Auguring", "Prophesying", "Invoking", "Scrying", "Dreaming", "Descending", "Meditating", "Communing", "Channeling", "Summoning", "Fermenting", "Brooding", "Gestating", "Unraveling", "Obsessing"],
-  exploring: ["Descending", "Harrowing", "Rifling", "Unearthing", "Raiding", "Wandering", "Straying", "Delving", "Dredging", "Haunting", "Circling", "Orbiting", "Snaking"],
-  planning:  ["Prophesying", "Codifying", "Inscribing", "Engraving", "Binding", "Sealing", "Weaving", "Threading", "Casting", "Ordaining", "Manifesting", "Decreeing", "Etching", "Scribing", "Architecting", "Blueprinting", "Orchestrating"],
-  executing: ["Detonating", "Erupting", "Descending", "Unleashing", "Combusting", "Igniting", "Striking", "Splitting", "Shattering", "Riffing"],
+  thinking:  ["Hexing", "Séancing", "Auguring", "Invoking", "Scrying", "Dreaming", "Meditating", "Communing", "Channeling", "Summoning", "Fermenting", "Brooding", "Gestating", "Unraveling", "Obsessing"],
+  exploring: ["Harrowing", "Rifling", "Unearthing", "Raiding", "Wandering", "Straying", "Delving", "Dredging", "Haunting", "Circling", "Orbiting", "Snaking", "Descending"],
+  planning:  ["Codifying", "Inscribing", "Engraving", "Binding", "Sealing", "Weaving", "Threading", "Casting", "Ordaining", "Manifesting", "Decreeing", "Etching", "Scribing", "Architecting", "Blueprinting", "Orchestrating", "Prophesying"],
+  executing: ["Detonating", "Erupting", "Unleashing", "Combusting", "Igniting", "Striking", "Splitting", "Shattering", "Riffing", "Forging", "Hammering", "Cleaving"],
   verifying: ["Exorcising", "Purging", "Absolving", "Confessing", "Atoning", "Interrogating", "Dissecting", "Tempering", "Annealing", "Baptizing", "Purifying", "Cauterizing", "Excising", "Sanctifying"],
   done:      ["Ascending"],
 }
@@ -318,8 +318,10 @@ export function Session() {
 
   const lastMessageIndex = createMemo(() => {
     const items = streamItems()
+    if (!items || items.length === 0) return -1
     for (let i = items.length - 1; i >= 0; i--) {
-      if (items[i].kind === "message.user" || items[i].kind === "message.assistant") {
+      const item = items[i]
+      if (item && (item.kind === "message.user" || item.kind === "message.assistant")) {
         return i
       }
     }
@@ -337,8 +339,11 @@ export function Session() {
           m.role === "assistant" && "providerID" in m && !!m.providerID,
       )
     const modelName = lastAssistant?.providerID ? `${lastAssistant.providerID}/${lastAssistant.modelID}` : null
+    const generatedTokens = sessionAssistantMessages(messages())
+      .reduce((sum, m) => sum + (m.tokens?.output ?? 0), 0)
     return {
       tokens: totalTokens,
+      generatedTokens,
       cost: totalCost,
       contextPercent: context?.percentage ?? null,
       model: modelName,
@@ -1458,25 +1463,53 @@ export function Session() {
                 )}
               </For>
 
+              <Show when={displayStageState().stage === "done"}>
+                <ErrorBoundary fallback={(err) => <box padding={2}><text fg={theme.error}>Summary unavailable: {String(err)}</text></box>}>
+                  <SummaryCard
+                    workstation={workstationState()}
+                    telemetry={sessionTelemetry().tokens}
+                    achievement={workstationState().completionProof?.decision === "pass" ? "Task finalized successfully." : undefined}
+                    filesChanged={(() => {
+                      try {
+                        const ws = workstationState();
+                        if (!ws || !ws.recentTooling) return [];
+                        return ws.recentTooling
+                          .filter(t => t && t.status === "completed" && (t.label.includes("Write") || t.label.includes("Edit") || t.label.includes("Patch")))
+                          .map(t => {
+                             const parts = t.label.split(" ");
+                             return parts.length > 0 ? parts.pop()! : "";
+                          })
+                          .filter(Boolean);
+                      } catch {
+                        return [];
+                      }
+                    })()}
+                  />
+                </ErrorBoundary>
+              </Show>
+
               <Show when={(chatActive() || showLiveStatusNote()) && !showPane()}>
-                <box paddingLeft={2} paddingRight={2} marginTop={1}>
+                <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
                   <box
                     flexDirection="row"
                     gap={1}
                     alignItems="center"
                     paddingLeft={1}
                     paddingRight={1}
-                    paddingTop={0}
-                    paddingBottom={0}
+                    paddingTop={0.5}
+                    paddingBottom={0.5}
+                    backgroundColor={tint(theme.background, theme.primary, 0.03)}
+                    borderStyle="round"
+                    borderColor={tint(theme.borderSubtle, theme.primary, 0.1)}
                   >
                     <Spinner color={theme.primary} />
-                    <text fg={theme.text}>{doing()}</text>
+                    <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
                     <Show when={runElapsed() > 1000}>
                       <text fg={theme.textMuted} dim>
                         {(() => {
-                          const t = sessionTelemetry().tokens
+                          const t = sessionTelemetry().generatedTokens
                           const base = formatElapsed(runElapsed())
-                          return t > 0 ? `(${base} · ↓ ${formatTokenCount(t)})` : `(${base})`
+                          return t > 0 ? `(${base} · ↓ ${formatTokenCount(t)} tokens)` : `(${base})`
                         })()}
                       </text>
                     </Show>
@@ -1497,11 +1530,11 @@ export function Session() {
               flexGrow={sidePaneGrow()}
               width={liveStacked() ? "100%" : livePaneWidth()}
               minHeight={0}
-              backgroundColor={theme.backgroundPanel}
+              backgroundColor="transparent"
               scrollAcceleration={scrollAcceleration()}
             >
-              <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
-                <box flexDirection="column" gap={1} border={["bottom"]} borderColor={theme.border} paddingBottom={1}>
+              <box padding={1} gap={1} backgroundColor={theme.background} flexDirection="column">
+                <box flexDirection="column" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={1}>
                   <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <For each={PANE_MODES}>
                       {(mode) => (
@@ -1515,7 +1548,7 @@ export function Session() {
                           backgroundColor={
                             activePaneMode() === mode
                               ? tint(theme.backgroundElement, theme.primary, 0.18)
-                              : tint(theme.backgroundPanel, theme.textMuted, 0.04)
+                              : tint(theme.background, theme.textMuted, 0.04)
                           }
                           border={["round"]}
                           borderColor={activePaneMode() === mode ? theme.borderActive : theme.borderSubtle}
@@ -1759,7 +1792,7 @@ export function Session() {
         </box>
 
         {/* Footer Area */}
-        <box flexShrink={0} paddingLeft={2} paddingRight={2} paddingBottom={1}>
+        <box flexShrink={0} paddingLeft={1} paddingRight={1} paddingBottom={0}>
           <Prompt
             ref={promptRef.set}
             disabled={promptDisabled()}
@@ -1784,6 +1817,91 @@ export function Session() {
         <Toast />
       </box>
     </context.Provider>
+  )
+}
+
+function SummaryCard(props: {
+  workstation: WorkstationState
+  telemetry: ReturnType<typeof sessionTokenTotal>
+  achievement?: string
+  filesChanged?: string[]
+}) {
+  const { theme } = useTheme()
+
+  return (
+    <box
+      flexDirection="column"
+      gap={1}
+      padding={2}
+      marginTop={2}
+      marginBottom={2}
+      borderStyle="round"
+      borderColor={theme.success}
+      backgroundColor={tint(theme.background, theme.success, 0.04)}
+    >
+      <box flexDirection="row" gap={1} alignItems="center">
+        <text fg={theme.success} attributes={TextAttributes.BOLD}>
+          ✓ Session Complete
+        </text>
+        <box flexGrow={1} />
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+          {new Date().toLocaleTimeString()}
+        </text>
+      </box>
+
+      <box flexDirection="column" gap={0} marginTop={1}>
+        <text fg={theme.text} attributes={TextAttributes.BOLD}>
+          Achievement
+        </text>
+        <text fg={theme.textMuted} wrapMode="word">
+          {props.achievement || props.workstation.goal || "Task finalized successfully."}
+        </text>
+      </box>
+
+      <Show when={props.filesChanged && props.filesChanged.length > 0}>
+        <box flexDirection="column" gap={0} marginTop={1}>
+          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+            Workspace Changes
+          </text>
+          <For each={props.filesChanged}>
+            {(file) => (
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.success}>+</text>
+                <text fg={theme.text}>{file}</text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
+
+      <box
+        flexDirection="row"
+        gap={2}
+        marginTop={1}
+        paddingTop={1}
+        border={["top"]}
+        borderColor={theme.borderSubtle}
+      >
+        <box flexDirection="column">
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            Turns
+          </text>
+          <text fg={theme.text}>{props.workstation.planSummary.totalSteps || "-"}</text>
+        </box>
+        <box flexDirection="column">
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            Tokens
+          </text>
+          <text fg={theme.text}>{props.telemetry.toLocaleString()}</text>
+        </box>
+        <box flexDirection="column">
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            Status
+          </text>
+          <text fg={theme.success}>Ascended</text>
+        </box>
+      </box>
+    </box>
   )
 }
 
@@ -2089,7 +2207,7 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
       paddingRight={1}
       borderStyle="rounded"
       borderColor={hasActive() ? theme.warning : theme.borderSubtle}
-      backgroundColor={theme.backgroundPanel}
+      backgroundColor={theme.background}
     >
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={allCompleted() ? 0 : 1}>
         <box flexDirection="row" gap={0.5} marginRight={1}>
@@ -2607,7 +2725,7 @@ function BlockTool(props: {
       paddingRight={1}
       borderStyle="rounded"
       borderColor={accentColor()}
-      backgroundColor={theme.backgroundPanel}
+      backgroundColor={theme.background}
     >
       <box flexDirection="row" gap={1} alignItems="center" justifyContent="space-between">
         <box flexDirection="row" gap={1} alignItems="center">
@@ -2682,7 +2800,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
           paddingBottom={liveLines().length > 0 ? 0 : 1}
           borderStyle="rounded"
           borderColor={hasError() ? theme.error : theme.accent}
-          backgroundColor={theme.backgroundPanel}
+          backgroundColor={theme.background}
         >
           {/* Header: ❯ command + spinner/error */}
           <box flexDirection="row" gap={1} justifyContent="space-between" alignItems="center">
