@@ -238,29 +238,20 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
   const apiKey = env("GEMINI_API_KEY") ?? env("GOOGLE_API_KEY")
   const project = env("GOOGLE_CLOUD_PROJECT") ?? env("GCP_PROJECT") ?? env("GCLOUD_PROJECT")
 
-  if (apiKey) {
-    return {
-      providerID,
-      mode: "gemini-api-key",
-      lane: "gemini-api",
-      laneLabel: providerLaneLabel("gemini-api"),
-      source: "api-key",
-      endpoint: "generativelanguage",
-      ok: true,
-      requiredEnv: ["GEMINI_API_KEY (or GOOGLE_API_KEY)"],
-      missingEnv: [],
-      details: [
-        "Using Gemini API key mode.",
-        `Lane: ${providerLaneLabel("gemini-api")}.`,
-        `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
-        project
-          ? "GOOGLE_CLOUD_PROJECT is also set. Keep Google models on `google/*`; use `google-vertex/*` only when using ADC."
-          : "No Vertex project env detected.",
-      ],
+  const hasValidOAuth = async () => {
+    if (auth?.type === "oauth") {
+      const mode = (auth.mode as any) ?? (cliCreds?.refresh ? "cli-import" : "gemini-oauth")
+      const accessToken = mode === "cli-import" ? (cliCreds?.access ?? auth.access) : auth.access
+      const token = await validateGoogleOAuthAccessToken(accessToken)
+      const hasRefresh = mode === "cli-import" ? Boolean(cliCreds?.refresh) : Boolean(auth.refresh)
+      return token.ok || hasRefresh
     }
+    return false
   }
 
-  if (auth?.type === "oauth") {
+  const oauthValid = await hasValidOAuth()
+
+  if (auth?.type === "oauth" && oauthValid) {
     const mode = (auth.mode as any) ?? (cliCreds?.refresh ? "cli-import" : "gemini-oauth")
     const accessToken = mode === "cli-import" ? (cliCreds?.access ?? auth.access) : auth.access
     const refreshToken = mode === "cli-import" ? (cliCreds?.refresh ?? auth.refresh) : auth.refresh
@@ -324,6 +315,28 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       error: token.ok || hasRefresh ? undefined : token.message,
       failureCategory,
       next: failureCategory ? [providerFailureNextStep({ category: failureCategory, providerID, lane })] : undefined,
+    }
+  }
+
+  if (apiKey) {
+    return {
+      providerID,
+      mode: "gemini-api-key",
+      lane: "gemini-api",
+      laneLabel: providerLaneLabel("gemini-api"),
+      source: "api-key",
+      endpoint: "generativelanguage",
+      ok: true,
+      requiredEnv: ["GEMINI_API_KEY (or GOOGLE_API_KEY)"],
+      missingEnv: [],
+      details: [
+        "Using Gemini API key mode.",
+        `Lane: ${providerLaneLabel("gemini-api")}.`,
+        `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
+        project
+          ? "GOOGLE_CLOUD_PROJECT is also set. Keep Google models on `google/*`; use `google-vertex/*` with ADC."
+          : "No Vertex project env detected.",
+      ],
     }
   }
 
@@ -406,9 +419,7 @@ async function diagnoseCopilotProvider(providerID: string): Promise<AuthDiagnost
       requiredEnv: [],
       missingEnv: [],
       details: [
-        isEnterprise
-          ? "GitHub Copilot Enterprise OAuth session found."
-          : "GitHub Copilot OAuth session found.",
+        isEnterprise ? "GitHub Copilot Enterprise OAuth session found." : "GitHub Copilot OAuth session found.",
         "Cost is $0 — uses your Copilot subscription.",
       ],
     }
