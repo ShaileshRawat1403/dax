@@ -22,6 +22,7 @@ import { isWhitelistedVerificationCommand, isGenericShellEscape } from "./shell-
 const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT = Flag.DAX_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 * 1000
 import { shellPathCandidates, stripOuterQuotes } from "./shell-approval"
+import { Sandbox } from "@/shell/sandbox"
 
 export const log = Log.create({ service: "shell-tool" })
 
@@ -183,8 +184,10 @@ export const ShellTool = Tool.define("shell", async () => {
         })
       }
 
+      const commandToRun = await Sandbox.wrap(params.command, cwd)
+
       const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
-      const proc = spawn(params.command, {
+      const proc = spawn(commandToRun, {
         shell,
         cwd,
         env: {

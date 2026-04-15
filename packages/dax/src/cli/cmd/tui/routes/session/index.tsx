@@ -113,13 +113,11 @@ import {
 import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import {
-  deriveAssistantInsightCard,
   deriveAuditHistory,
   deriveLiveSessionStageState,
   deriveLiveStreamStatus,
   deriveOperatorTraceLine,
 } from "@/dax/presentation/session-surface"
-import { buildAssistantNarrative } from "@/dax/assistant-narrative"
 import {
   hasMemoryContext,
   resolveSessionSidebarVisibility,
@@ -147,7 +145,7 @@ const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch",
 const HIDDEN_TOOLS = new Set(["todowrite"])
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
-import { latestContextUsage, sessionCostTotal, sessionTokenTotal } from "@/dax/session-metrics"
+import { latestContextUsage, sessionCostTotal, sessionTokenTotal, sessionAssistantMessages } from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
@@ -167,6 +165,15 @@ const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", 
 const MUTATION_INTENT_RE =
   /\b(create|add|edit|update|change|fix|delete|remove|rename|move|install|run|execute|patch|write|commit|push|release|publish)\b/i
 const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
+
+const STAGE_VERBS: Record<string, string[]> = {
+  thinking:  ["Hexing", "Séancing", "Auguring", "Invoking", "Scrying", "Dreaming", "Meditating", "Communing", "Channeling", "Summoning", "Fermenting", "Brooding", "Gestating", "Unraveling", "Obsessing"],
+  exploring: ["Harrowing", "Rifling", "Unearthing", "Raiding", "Wandering", "Straying", "Delving", "Dredging", "Haunting", "Circling", "Orbiting", "Snaking", "Descending"],
+  planning:  ["Codifying", "Inscribing", "Engraving", "Binding", "Sealing", "Weaving", "Threading", "Casting", "Ordaining", "Manifesting", "Decreeing", "Etching", "Scribing", "Architecting", "Blueprinting", "Orchestrating", "Prophesying"],
+  executing: ["Detonating", "Erupting", "Unleashing", "Combusting", "Igniting", "Striking", "Splitting", "Shattering", "Riffing", "Forging", "Hammering", "Cleaving"],
+  verifying: ["Exorcising", "Purging", "Absolving", "Confessing", "Atoning", "Interrogating", "Dissecting", "Tempering", "Annealing", "Baptizing", "Purifying", "Cauterizing", "Excising", "Sanctifying"],
+  done:      ["Ascending"],
+}
 const NARRATIVE_FOLLOW_SLACK = 2
 const FOLLOW_RESUME_THRESHOLD = 1
 
@@ -311,8 +318,10 @@ export function Session() {
 
   const lastMessageIndex = createMemo(() => {
     const items = streamItems()
+    if (!items || items.length === 0) return -1
     for (let i = items.length - 1; i >= 0; i--) {
-      if (items[i].kind === "message.user" || items[i].kind === "message.assistant") {
+      const item = items[i]
+      if (item && (item.kind === "message.user" || item.kind === "message.assistant")) {
         return i
       }
     }
@@ -330,8 +339,11 @@ export function Session() {
           m.role === "assistant" && "providerID" in m && !!m.providerID,
       )
     const modelName = lastAssistant?.providerID ? `${lastAssistant.providerID}/${lastAssistant.modelID}` : null
+    const generatedTokens = (sessionAssistantMessages(messages()) as AssistantMessage[])
+      .reduce((sum, m) => sum + (m.tokens?.output ?? 0), 0)
     return {
       tokens: totalTokens,
+      generatedTokens,
       cost: totalCost,
       contextPercent: context?.percentage ?? null,
       model: modelName,
@@ -567,7 +579,6 @@ export function Session() {
     }),
   )
   const STAGE_MIN_DWELL_MS = 600
-  const STREAM_RENDER_CADENCE_MS = 30
   const [displayStageState, setDisplayStageState] = createSignal(stageState())
   const [stageLastChangedAt, setStageLastChangedAt] = createSignal(Date.now())
   createEffect(() => {
@@ -608,29 +619,48 @@ export function Session() {
       partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
     }),
   )
-  const stageReasonText = createMemo(() => displayStageState().reason)
+  const [following, setFollowing] = createSignal(true)
+  const [motionTick, setMotionTick] = createSignal(0)
+  const [verbTick, setVerbTick] = createSignal(0)
+
+  const pendingStartedAt = createMemo(
+    () => messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.time.created ?? 0,
+  )
+  const runElapsed = createMemo(() => {
+    if (!chatActive()) return 0
+    motionTick() // reactive dependency — updates every 480ms
+    return Date.now() - pendingStartedAt()
+  })
+
+  createEffect(() => {
+    if (!animationsEnabled()) return
+    const timer = setInterval(() => setMotionTick((tick) => tick + 1), 480)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  createEffect(() => {
+    if (!animationsEnabled()) return
+    const timer = setInterval(() => setVerbTick((tick) => tick + 1), 1400)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  // whimsicalVerb must be declared before doing() so the closure resolves correctly
+  const whimsicalVerb = createMemo(() => {
+    const stage = displayStageState().stage
+    const verbs = STAGE_VERBS[stage] ?? STAGE_VERBS.thinking!
+    return verbs[verbTick() % verbs.length]!
+  })
 
   const doing = createMemo(() => {
     const stage = displayStageState().stage
     const reason = displayStageState().reason
-    if (stage === "done") return "Finished"
+    if (stage === "done") return "Ascending"
     if (stage === "waiting") return "Awaiting input"
     if (stage === "retrying") return "Retrying"
-    if (!reason || isLowSignalStageReason(reason)) return stageLabel()
+    if (!reason || isLowSignalStageReason(reason)) return whimsicalVerb()
     return reason
   })
 
-  const next = createMemo(() => {
-    const stage = displayStageState().stage
-    if (stage === "done") return "Ready for next request"
-    if (stage === "waiting") return "Please review the approval or question"
-    const nextIdx = PRIMARY_STAGE_FLOW.indexOf(stage) + 1
-    const nextStage = PRIMARY_STAGE_FLOW[nextIdx]
-    if (!nextStage) return ""
-    return `Next: ${labelStage(nextStage, explainMode()).toLowerCase()}`
-  })
-
-  const showActiveNarrative = createMemo(() => chatActive() || !session()?.parentID)
   const detailToggles = createMemo(() =>
     resolveDisplayDetailToggles({
       displayMode: displayMode(),
@@ -642,15 +672,6 @@ export function Session() {
   )
   const showLiveStatusNote = createMemo(() => !chatActive() && displayStageState().stage !== "done")
   const modeLabel = createMemo(() => local.agent.current().name.toUpperCase())
-
-  const [following, setFollowing] = createSignal(true)
-  const [motionTick, setMotionTick] = createSignal(0)
-
-  createEffect(() => {
-    if (!animationsEnabled()) return
-    const timer = setInterval(() => setMotionTick((tick) => tick + 1), 480)
-    onCleanup(() => clearInterval(timer))
-  })
 
   const wide = createMemo(() => dimensions().width > 120)
   const narrow = createMemo(() => dimensions().width < 80)
@@ -819,20 +840,6 @@ export function Session() {
       alert: undefined,
     })
   })
-
-  const liveRailHint = createMemo(() =>
-    deriveAssistantInsightCard({
-      asked: workstationState().goal || "Working...",
-      doing: doing(),
-      next: next(),
-      stage: workstationState().lifecycleLabel,
-      streamStatus: streamStatus(),
-      durationMs: 0,
-      totalTokens: 0,
-      tokensPerSecond: 0,
-      progress: undefined,
-    }),
-  )
 
   const hasLivePaneContext = createMemo(() => {
     if (activeInterventions().length > 0) return true
@@ -1298,11 +1305,6 @@ export function Session() {
     }
   }
 
-  const liveWorkingNote = createMemo(() => {
-    const reason = stageReasonText()
-    if (!reason || isLowSignalStageReason(reason)) return undefined
-    return reason
-  })
 
   const paneDiffFiletype = createMemo(() => {
     const change = selectedProposedChange()
@@ -1430,24 +1432,6 @@ export function Session() {
                   </text>
                 </box>
               </Show>
-              <Show when={streamItems().length === 0}>
-                <box
-                  paddingLeft={2}
-                  paddingRight={2}
-                  paddingTop={1}
-                  paddingBottom={1}
-                  borderStyle="round"
-                  borderColor={liveBorderColor()}
-                  backgroundColor={tint(theme.background, theme.backgroundElement, 0.22)}
-                  flexDirection="column"
-                  gap={0}
-                >
-                  <text fg={theme.text}>No activity in this session yet.</text>
-                  <text fg={theme.textMuted}>
-                    Send a prompt to start a governed run and stream live execution context.
-                  </text>
-                </box>
-              </Show>
               <For each={streamItems()}>
                 {(item, index) => (
                   <StreamItem
@@ -1461,41 +1445,22 @@ export function Session() {
                 )}
               </For>
 
-              <Show when={showLiveStatusNote() && !showActiveNarrative() && !showPane()}>
-                <box paddingLeft={2} paddingRight={2} marginTop={1}>
-                  <box
-                    flexDirection="column"
-                    gap={1}
-                    borderStyle="round"
-                    borderColor={theme.borderSubtle}
-                    backgroundColor={tint(theme.background, theme.backgroundElement, 0.2)}
-                    paddingLeft={1}
-                    paddingRight={1}
-                    paddingTop={1}
-                    paddingBottom={1}
-                  >
-                    <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                      <Spinner color={theme.primary} />
-                      <box
-                        backgroundColor={tint(theme.background, theme.primary, motionTick() % 4 < 2 ? 0.24 : 0.14)}
-                        paddingLeft={1}
-                        paddingRight={1}
-                      >
-                        <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-                          {followGlyph()} {modeLabel()}
-                        </text>
-                      </box>
-                      <text fg={theme.text}>{doing()}</text>
-                    </box>
-                    <Show when={liveWorkingNote()}>
-                      <text fg={theme.text} wrapMode="word">
-                        {liveWorkingNote()}
-                      </text>
-                    </Show>
-                    <text fg={theme.textMuted} wrapMode="word">
-                      {next()}
+              <Show when={(chatActive() || showLiveStatusNote()) && !showPane()}>
+                <box paddingLeft={3} paddingRight={2} marginTop={1} marginBottom={1} flexDirection="row" gap={1} alignItems="center">
+                  <Spinner color={theme.primary} />
+                  <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
+                  <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
+                    <text fg={theme.textMuted} dim>
+                      {(() => {
+                        const t = sessionTelemetry().generatedTokens
+                        const elapsed = runElapsed()
+                        const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
+                        if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
+                        if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
+                        return `(${timePart})`
+                      })()}
                     </text>
-                  </box>
+                  </Show>
                 </box>
               </Show>
             </box>
@@ -1512,11 +1477,11 @@ export function Session() {
               flexGrow={sidePaneGrow()}
               width={liveStacked() ? "100%" : livePaneWidth()}
               minHeight={0}
-              backgroundColor={theme.backgroundPanel}
+              backgroundColor="transparent"
               scrollAcceleration={scrollAcceleration()}
             >
-              <box padding={1} gap={1} backgroundColor={theme.backgroundPanel} flexDirection="column">
-                <box flexDirection="column" gap={1} border={["bottom"]} borderColor={theme.border} paddingBottom={1}>
+              <box padding={1} gap={1} backgroundColor={theme.background} flexDirection="column">
+                <box flexDirection="column" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={1}>
                   <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <For each={PANE_MODES}>
                       {(mode) => (
@@ -1530,7 +1495,7 @@ export function Session() {
                           backgroundColor={
                             activePaneMode() === mode
                               ? tint(theme.backgroundElement, theme.primary, 0.18)
-                              : tint(theme.backgroundPanel, theme.textMuted, 0.04)
+                              : tint(theme.background, theme.textMuted, 0.04)
                           }
                           border={["round"]}
                           borderColor={activePaneMode() === mode ? theme.borderActive : theme.borderSubtle}
@@ -1774,7 +1739,7 @@ export function Session() {
         </box>
 
         {/* Footer Area */}
-        <box flexShrink={0} paddingLeft={2} paddingRight={2} paddingBottom={1}>
+        <box flexShrink={0} paddingLeft={1} paddingRight={1} paddingBottom={0}>
           <Prompt
             ref={promptRef.set}
             disabled={promptDisabled()}
@@ -1844,8 +1809,8 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     return (
       <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
         <box flexDirection="row" gap={1} alignItems="center">
-          <text fg={fadeFg() ?? theme.primary} attributes={TextAttributes.BOLD}>
-            ● USER
+          <text fg={fadeFg() ?? tint(theme.textMuted, theme.primary, 0.5)} dim>
+            ● user
           </text>
           <Show when={ctx.showTimestamps()}>
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -1869,41 +1834,6 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
   const showMetadata = createMemo(() => ctx.showAssistantMetadata())
 
   const daxSpeaking = createMemo(() => props.message.agent === "dax")
-
-  const narrative = createMemo(() => {
-    if (props.message.role === "user") return undefined
-    const syncParts = props.partsOverride ?? sync.data.part[props.message.id] ?? []
-    const hasPendingTool = syncParts.some((p) => p.type === "tool" && (p.state.status === "pending" || p.state.status === "running"))
-    const toolParts = syncParts.filter((p): p is ToolPart => p.type === "tool")
-    const hasExecuteTool = toolParts.some((p) => EXECUTE_TOOLS.has(p.tool.toLowerCase()))
-    const hasVerifyTool = toolParts.some((p) => VERIFY_TOOLS.has(p.tool.toLowerCase()))
-    const hasReasoning = syncParts.some((p) => p.type === "reasoning" && p.text.trim().length > 0)
-    
-    // Find the original user request this message is responding to
-    const sessionMessages = sync.data.message[ctx.sessionID] ?? []
-    const lastUser = sessionMessages.findLast((m) => m.role === "user")
-    const asked = lastUser
-      ? (sync.data.part[lastUser.id] ?? [])
-          .filter((p) => p.type === "text")
-          .map((p) => (p as any).text)
-          .join("")
-      : ""
-
-    return buildAssistantNarrative({
-      asked,
-      mode: (props.message as AssistantMessage).mode,
-      hasPendingTool,
-      hasToolActivity: toolParts.length > 0,
-      toolCount: toolParts.length,
-      hasExecuteTool,
-      hasVerifyTool,
-      hasReasoning,
-      hasError: !!props.message.error,
-      completed: (props.message as AssistantMessage).time.completed !== undefined,
-      doing: "", // derived inside buildAssistantNarrative if liveStep is missing
-      next: "",
-    })
-  })
 
   const roleLabel = createMemo(() => {
     if (props.message.role === "user") return "USER"
@@ -1996,26 +1926,6 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     return result
   })
 
-  const evidenceItems = createMemo(() => {
-    return toolParts().map((p) => ({
-      label: p.tool,
-      status: p.state.status === "completed" ? "done" : "active",
-    }))
-  })
-
-  const derivedReasoning = createMemo(() => {
-    const text = reasoningParts()
-      .map((p) => p.text)
-      .join("")
-    return cleanReasoningText(text)
-  })
-
-  const visibleNativeReasoningText = createMemo(() => {
-    return "" // Handled by ReasoningPart component
-  })
-
-  const reasoningTone = createMemo(() => tint(theme.textMuted, theme.text, 0.2))
-
   return (
     <Show when={renderableParts().length > 0 || !!props.message.error}>
       <Show when={renderableParts().length > 0}>
@@ -2035,22 +1945,13 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             alignItems="center"
             paddingTop={0}
             paddingBottom={0}
-            border={["bottom"]}
-            borderColor={tint(theme.border, theme.background, 0.5)}
             marginBottom={1}
             paddingLeft={1}
             paddingRight={1}
           >
-            <box
-              backgroundColor={tint(theme.background, roleColor(), 0.15)}
-              paddingLeft={1}
-              paddingRight={1}
-              marginRight={1}
-            >
-              <text fg={roleColor()} attributes={TextAttributes.BOLD}>
-                {roleLabel()}
-              </text>
-            </box>
+            <text fg={tint(theme.textMuted, roleColor(), 0.5)} dim>
+              ● {roleLabel().toLowerCase()}
+            </text>
             <Show when={ctx.showTimestamps()}>
               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
                 {Locale.todayTimeOrDateTime(props.message.time.created)}
@@ -2058,13 +1959,6 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             </Show>
           </box>
           <box paddingLeft={1} paddingRight={1} paddingBottom={0} flexDirection="column" gap={0}>
-            <Show when={narrative()?.preamble}>
-              <box paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1} marginBottom={1} backgroundColor={tint(theme.background, roleColor(), 0.05)} border={["left"]} borderColor={roleColor()}>
-                <text fg={theme.text} wrapMode="word">
-                  {narrative()!.preamble}
-                </text>
-              </box>
-            </Show>
             <For each={renderableParts()}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -2154,6 +2048,15 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
     return `${head.join(", ")}${suffix}`
   })
 
+  const evidencePaths = createMemo(() => {
+    return props.part.tools
+      .map((p) => {
+        const input = (p.state.status !== "pending" ? p.state.input : {}) as any
+        return input?.filePath || input?.path || input?.pattern || input?.query || ""
+      })
+      .filter(Boolean)
+  })
+
   return (
     <box
       flexDirection="column"
@@ -2165,7 +2068,8 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
       paddingLeft={1}
       paddingRight={1}
       borderStyle="rounded"
-      borderColor={theme.borderSubtle}
+      borderColor={hasActive() ? theme.warning : theme.borderSubtle}
+      backgroundColor={theme.background}
     >
       <box flexDirection="row" gap={1} alignItems="center" paddingBottom={allCompleted() ? 0 : 1}>
         <box flexDirection="row" gap={0.5} marginRight={1}>
@@ -2182,20 +2086,16 @@ function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPar
         >
           {hasActive() ? "Gathering context" : "Gathered context"}
         </text>
-        <Show when={allCompleted()}>
-          <text fg={theme.textMuted} dim>
-            ({counts()})
-          </text>
-        </Show>
       </box>
-      <Show when={allCompleted() && evidenceSummary()}>
-        <box flexDirection="row" gap={1} paddingTop={0} alignItems="flex-start" paddingLeft={1}>
-          <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-            Evidence
-          </text>
-          <text fg={theme.textMuted} wrapMode="word">
-            {evidenceSummary()}
-          </text>
+      <Show when={allCompleted() && evidencePaths().length > 0}>
+        <box flexDirection="column" gap={0} paddingTop={0} paddingLeft={1} paddingBottom={1}>
+          <For each={evidencePaths()}>
+            {(path) => (
+              <text fg={theme.textMuted} dim wrapMode="word">
+                · {path}
+              </text>
+            )}
+          </For>
         </box>
       </Show>
     </box>
@@ -2365,6 +2265,12 @@ function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
               const toolName = createMemo(() => item.tool.tool.toLowerCase())
               const isSignificant = createMemo(() => toolName() === "shell" || EXECUTE_TOOLS.has(toolName()) || PLAN_TOOLS.has(toolName()))
               
+              // Extract target (filePath, pattern, etc) for visibility
+              const target = createMemo(() => {
+                const input = (item.tool.state.status !== "pending" ? item.tool.state.input : {}) as any
+                return input?.filePath || input?.pattern || input?.path || input?.url || input?.query || ""
+              })
+
               return (
                 <Switch>
                   <Match when={isSignificant()}>
@@ -2373,14 +2279,21 @@ function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
                     </box>
                   </Match>
                   <Match when={true}>
-                    <box flexDirection="row" gap={1} alignItems="flex-start">
+                    <box flexDirection="row" gap={1} alignItems="flex-start" marginBottom={0.5}>
                       <text fg={item.tool.state.status === "completed" ? theme.textMuted : theme.primary}>·</text>
-                      <text
-                        fg={item.tool.state.status === "completed" ? theme.textMuted : theme.text}
-                        wrapMode="word"
-                      >
-                        {item.trace ? describeNarrativeTrace(item.trace) : item.tool.tool}
-                      </text>
+                      <box flexDirection="column" gap={0}>
+                        <text
+                          fg={item.tool.state.status === "completed" ? theme.textMuted : theme.text}
+                          wrapMode="word"
+                        >
+                          {item.trace ? describeNarrativeTrace(item.trace) : item.tool.tool}
+                        </text>
+                        <Show when={target()}>
+                          <text fg={theme.textMuted} dim paddingLeft={1}>
+                            └ {target()}
+                          </text>
+                        </Show>
+                      </box>
                     </box>
                   </Match>
                 </Switch>
@@ -2441,32 +2354,70 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   )
 }
 
+const INTERNAL_AGENTS = new Set(["planner", "plan", "explore", "explorer", "review", "reviewer", "verify", "verifier", "audit", "auditor"])
+
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
   const { syntax, theme } = useTheme()
   const isStreaming = createMemo(() => props.last && !props.message.time.completed)
+  const isInternalAgent = createMemo(() => INTERNAL_AGENTS.has((props.message as AssistantMessage).agent?.toLowerCase() ?? ""))
   const [cursorOn, setCursorOn] = createSignal(true)
   onMount(() => {
     const timer = setInterval(() => setCursorOn((v) => !v), 530)
     onCleanup(() => clearInterval(timer))
   })
+
   return (
     <Show when={props.part.text.trim()}>
-      <box
-        id={"text-" + props.part.id}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingBottom={1}
-        marginTop={props.marginTop ?? 1}
-        flexShrink={0}
+      {/* Internal agent monologue (planner, explorer, etc.) — visible but clearly secondary */}
+      <Show
+        when={isInternalAgent()}
+        fallback={
+          /* Main executor response — full weight */
+          <box
+            id={"text-" + props.part.id}
+            paddingLeft={2}
+            paddingRight={2}
+            paddingBottom={1}
+            marginTop={props.marginTop ?? 1}
+            flexShrink={0}
+          >
+            <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
+            <Show when={isStreaming()}>
+              <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+                {cursorOn() ? "▋" : " "}
+              </text>
+            </Show>
+          </box>
+        }
       >
-        <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
-        <Show when={isStreaming()}>
-          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-            {cursorOn() ? "▋" : " "}
-          </text>
-        </Show>
-      </box>
+        <box
+          id={"text-" + props.part.id}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingBottom={1}
+          paddingTop={1}
+          marginTop={props.marginTop ?? 1}
+          marginLeft={1}
+          marginRight={1}
+          flexShrink={0}
+          border={["left"]}
+          borderColor={tint(theme.borderSubtle, theme.background, 0.4)}
+        >
+          <markdown
+            syntaxStyle={syntax()}
+            streaming={true}
+            content={props.part.text.trim()}
+            conceal={ctx.conceal()}
+            fg={tint(theme.textMuted, theme.text, 0.3)}
+          />
+          <Show when={isStreaming()}>
+            <text fg={tint(theme.textMuted, theme.primary, 0.4)} attributes={TextAttributes.BOLD}>
+              {cursorOn() ? "▋" : " "}
+            </text>
+          </Show>
+        </box>
+      </Show>
     </Show>
   )
 }
@@ -2538,9 +2489,11 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
             </Match>
             <Match when={toolName() === "apply_patch"}>
               <text fg={theme.text}>
-                {Object.keys((toolprops.input as any).changes ?? {}).length} file
-                {Object.keys((toolprops.input as any).changes ?? {}).length === 1 ? "" : "s"} patched
+                {(() => { const n = Object.keys((toolprops.input as any).changes ?? {}).length; return `${n} file${n === 1 ? "" : "s"} patched` })()}
               </text>
+            </Match>
+            <Match when={toolName() === "reflection"}>
+              <text fg={theme.text}>{(toolprops.input as any).goal ?? (toolprops.input as any).summary ?? "Locking in checkpoint"}</text>
             </Match>
           </Switch>
         </BlockTool>
@@ -2552,7 +2505,7 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
           pending={`Running ${props.part.tool}...`}
           part={props.part}
         >
-          {props.part.tool}
+          <text fg={theme.textMuted}>{props.part.tool}</text>
           <Show when={props.part.state.status === "completed" && (toolprops.input as any).filePath}>
             <text fg={theme.textMuted}> {(toolprops.input as any).filePath}</text>
           </Show>
@@ -2601,7 +2554,7 @@ function InlineTool(props: {
           </text>
         }
       >
-        <text fg={theme.textMuted}>{props.children}</text>
+        {props.children}
       </Show>
     </box>
   )
@@ -2634,6 +2587,7 @@ function BlockTool(props: {
       paddingRight={1}
       borderStyle="rounded"
       borderColor={accentColor()}
+      backgroundColor={theme.background}
     >
       <box flexDirection="row" gap={1} alignItems="center" justifyContent="space-between">
         <box flexDirection="row" gap={1} alignItems="center">
@@ -2655,9 +2609,10 @@ function BlockTool(props: {
             {props.title}
           </text>
           <Show when={props.children}>
-            <text fg={theme.textMuted} dim>
-              — {props.children}
-            </text>
+            <box flexDirection="row" gap={1} alignItems="center">
+              <text fg={theme.textMuted} dim>—</text>
+              {props.children}
+            </box>
           </Show>
         </box>
       </box>
@@ -2707,6 +2662,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
           paddingBottom={liveLines().length > 0 ? 0 : 1}
           borderStyle="rounded"
           borderColor={hasError() ? theme.error : theme.accent}
+          backgroundColor={theme.background}
         >
           {/* Header: ❯ command + spinner/error */}
           <box flexDirection="row" gap={1} justifyContent="space-between" alignItems="center">
@@ -2778,7 +2734,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
           </Show>
           <Show when={outputLines().length > 0}>
             <text fg={theme.textMuted} dim>
-              · {outputLines().length} lines
+              · {String(outputLines().length)} lines
             </text>
           </Show>
         </box>
@@ -2791,7 +2747,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
   const { theme } = useTheme()
   return (
     <InlineTool icon="✓" pending="Writing file..." complete={props.part.state.status === "completed"} part={props.part}>
-      Wrote {normalizePath((props.input as any).filePath!)}
+      <text fg={theme.textMuted}>Wrote {normalizePath((props.input as any).filePath!)}</text>
     </InlineTool>
   )
 }
@@ -2800,7 +2756,7 @@ function Edit(props: ToolProps<typeof EditTool>) {
   const { theme } = useTheme()
   return (
     <InlineTool icon="✓" pending="Editing file..." complete={props.part.state.status === "completed"} part={props.part}>
-      Edited {normalizePath((props.input as any).filePath!)}
+      <text fg={theme.textMuted}>Edited {normalizePath((props.input as any).filePath!)}</text>
     </InlineTool>
   )
 }
@@ -2833,9 +2789,25 @@ type ToolProps<T extends Tool.Info> = {
   marginTop?: number
 }
 
-function isLowSignalStageReason(value: string | undefined) {
-  if (!value) return true
-  return /^(idle|session processing|response stream active|reasoning stream active|waiting for stream content)$/i.test(
-    value.trim(),
-  )
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const rem = s % 60
+  if (m < 60) return rem > 0 ? `${m}m ${rem}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  const remM = m % 60
+  return remM > 0 ? `${h}h ${remM}m` : `${h}h`
+}
+
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
+function isLowSignalStageReason(_value: string | undefined) {
+  // All stage reasons are low-signal — whimsical verbs always show for active stages.
+  // Special states (waiting, retrying, done) are handled explicitly in doing() before this is called.
+  return true
 }

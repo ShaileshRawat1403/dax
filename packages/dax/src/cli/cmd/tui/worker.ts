@@ -134,6 +134,38 @@ export const rpc = {
     Config.global.reset()
     await Instance.disposeAll()
   },
+  async summary(input: { sessionID: string }) {
+    return await Instance.provide({
+      directory: process.cwd(),
+      init: InstanceBootstrap,
+      fn: async () => {
+        const { Session } = await import("@/session")
+        const session = await Session.get(input.sessionID)
+        if (!session) return undefined
+
+        const messages = await Session.messages({ sessionID: input.sessionID })
+        const messageInfos = messages.map((m) => m.info)
+        const { sessionTokenTotal, sessionCostTotal, formatUsd } = await import("@/dax/session-metrics")
+
+        const tokens = sessionTokenTotal(messageInfos)
+        const generatedTokens = messageInfos
+          .filter((m) => m.role === "assistant")
+          .reduce((sum, m) => sum + (m.tokens?.output ?? 0), 0)
+        const cost = sessionCostTotal(messageInfos)
+        const turnCount = messageInfos.filter((m) => m.role === "user").length
+
+        return {
+          title: session.title,
+          turnCount,
+          tokenCount: tokens,
+          generatedTokenCount: generatedTokens,
+          costLabel: cost > 0 ? formatUsd(cost) : undefined,
+          achievement: session.title,
+          files_changed: [] as string[],
+        }
+      },
+    })
+  },
   async shutdown() {
     Log.Default.info("worker shutting down")
     if (eventStream.abort) eventStream.abort.abort()

@@ -1,6 +1,20 @@
-import { Show } from "solid-js"
+import { Show, createMemo } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { type RenderableStreamItem, formatDuration } from "@/dax/presentation/session-stream"
+import { useTheme } from "@tui/context/theme"
+
+// Strip inline markdown markers so **bold**, *italic*, `code`, etc. don't
+// render as raw asterisks/backticks in a plain <text> node.
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1") // bold+italic
+    .replace(/\*\*(.+?)\*\*/g, "$1")      // bold
+    .replace(/\*(.+?)\*/g, "$1")          // italic
+    .replace(/__(.+?)__/g, "$1")          // bold (underscore)
+    .replace(/_(.+?)_/g, "$1")            // italic (underscore)
+    .replace(/`(.+?)`/g, "$1")            // inline code
+    .replace(/~~(.+?)~~/g, "$1")          // strikethrough
+}
 
 function getEventIcon(status: "pending" | "active" | "completed" | "failed"): string {
   switch (status) {
@@ -13,20 +27,6 @@ function getEventIcon(status: "pending" | "active" | "completed" | "failed"): st
     case "pending":
     default:
       return "○"
-  }
-}
-
-function getEventColor(status: "pending" | "active" | "completed" | "failed"): string {
-  switch (status) {
-    case "active":
-      return "$primary"
-    case "completed":
-      return "$success"
-    case "failed":
-      return "$error"
-    case "pending":
-    default:
-      return "$textMuted"
   }
 }
 
@@ -54,9 +54,24 @@ function getEventTypeLabel(type: string): string {
 }
 
 export function RunEventRow(props: { item: RenderableStreamItem }) {
+  const { theme } = useTheme()
   const status = () => props.item.status ?? "pending"
   const icon = () => getEventIcon(status())
-  const color = () => getEventColor(status())
+  
+  const color = createMemo(() => {
+    switch (status()) {
+      case "active":
+        return theme.primary
+      case "completed":
+        return theme.success
+      case "failed":
+        return theme.error
+      case "pending":
+      default:
+        return theme.textMuted
+    }
+  })
+
   const typeLabel = () => getEventTypeLabel(props.item.type ?? "")
   const isFailed = () => status() === "failed"
   const isActive = () => status() === "active"
@@ -69,9 +84,14 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
       alignItems="flex-start"
       paddingTop={0}
       paddingBottom={0}
-      paddingLeft={2}
+      paddingLeft={1}
       paddingRight={2}
     >
+      {/* Timeline connector */}
+      <box width={2} alignItems="center">
+        <text fg={theme.borderSubtle} dim>│</text>
+      </box>
+
       {/* Status dot */}
       <text
         fg={color()}
@@ -81,25 +101,26 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
       </text>
 
       {/* Type label */}
-      <text fg="$textMuted" attributes={TextAttributes.DIM}>
+      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
         {typeLabel()}:
       </text>
 
       {/* Message */}
       <text
-        fg={isFailed() ? "$error" : "$text"}
+        fg={isFailed() ? theme.error : theme.text}
         attributes={isActive() ? TextAttributes.BOLD : undefined}
         wrapMode="word"
       >
-        {props.item.message}
+        {stripInlineMarkdown(props.item.message ?? "")}
       </text>
 
       {/* Duration */}
       <Show when={duration()}>
-        <text fg="$textMuted" attributes={TextAttributes.DIM}>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
           ({duration()})
         </text>
       </Show>
     </box>
   )
 }
+

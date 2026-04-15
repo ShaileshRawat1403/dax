@@ -111,7 +111,11 @@ export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string;
       flexShrink={0}
       paddingLeft={1}
       paddingRight={1}
-      backgroundColor={theme.backgroundPanel}
+      paddingTop={0.5}
+      paddingBottom={0.5}
+      backgroundColor={theme.background}
+      border={["top"]}
+      borderColor={theme.borderSubtle}
     >
       {/* Left: mode + workflow + directory */}
       <box flexDirection="row" gap={1} alignItems="center">

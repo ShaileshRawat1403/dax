@@ -5,7 +5,7 @@ import { Provider } from "../provider/provider"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
 
-const INTENT_REFINEMENT_TIMEOUT_MS = 2500
+const INTENT_REFINEMENT_TIMEOUT_MS = 8000
 
 export interface IntentContext {
   cwd: string

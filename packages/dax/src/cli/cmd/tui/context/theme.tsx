@@ -26,6 +26,7 @@ import nord from "./theme/nord.json" with { type: "json" }
 import osakaJade from "./theme/osaka-jade.json" with { type: "json" }
 import onedark from "./theme/one-dark.json" with { type: "json" }
 import dax from "./theme/dax.json" with { type: "json" }
+import daxPro from "./theme/dax-pro.json" with { type: "json" }
 import orng from "./theme/orng.json" with { type: "json" }
 import lucentOrng from "./theme/lucent-orng.json" with { type: "json" }
 import palenight from "./theme/palenight.json" with { type: "json" }
@@ -140,6 +141,7 @@ type ThemeJson = {
 }
 
 export const DEFAULT_THEMES: Record<string, ThemeJson> = {
+  ["dax-pro"]: daxPro,
   aura,
   ayu,
   catppuccin,
@@ -292,7 +294,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     const [store, setStore] = createStore({
       themes: DEFAULT_THEMES,
       mode: props.mode,
-      active: (sync.data.config.theme ?? "dax") as string,
+      active: (sync.data.config.theme ?? "dax-pro") as string,
       ready: false,
     })
 
@@ -306,7 +308,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
           if (!colors.palette[0]) {
             setStore(
               produce((draft) => {
-                if (draft.active === "system") draft.active = "dax"
+                if (draft.active === "system") draft.active = "dax-pro"
               }),
             )
             return
@@ -333,7 +335,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
           )
         })
         .catch(() => {
-          setStore("active", "dax")
+          setStore("active", "dax-pro")
         })
         .finally(() => {
           setCustomThemesLoaded(true)
