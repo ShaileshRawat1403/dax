@@ -2,6 +2,19 @@ import { Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { type RenderableStreamItem, formatDuration } from "@/dax/presentation/session-stream"
 
+// Strip inline markdown markers so **bold**, *italic*, `code`, etc. don't
+// render as raw asterisks/backticks in a plain <text> node.
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1") // bold+italic
+    .replace(/\*\*(.+?)\*\*/g, "$1")      // bold
+    .replace(/\*(.+?)\*/g, "$1")          // italic
+    .replace(/__(.+?)__/g, "$1")          // bold (underscore)
+    .replace(/_(.+?)_/g, "$1")            // italic (underscore)
+    .replace(/`(.+?)`/g, "$1")            // inline code
+    .replace(/~~(.+?)~~/g, "$1")          // strikethrough
+}
+
 function getEventIcon(status: "pending" | "active" | "completed" | "failed"): string {
   switch (status) {
     case "active":
@@ -91,7 +104,7 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
         attributes={isActive() ? TextAttributes.BOLD : undefined}
         wrapMode="word"
       >
-        {props.item.message}
+        {stripInlineMarkdown(props.item.message ?? "")}
       </text>
 
       {/* Duration */}
