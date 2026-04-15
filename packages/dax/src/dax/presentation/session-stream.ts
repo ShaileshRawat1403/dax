@@ -2,7 +2,7 @@ import type { Part, AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import type { ProjectedRun, RunNarrativeItem } from "@/server/run-contract"
 import type { MessageV2 } from "@/session/message-v2"
 
-export type StreamItemKind = "phase.marker" | "run.event" | "alert.inline" | "message.user" | "message.assistant"
+export type StreamItemKind = "phase.marker" | "run.event" | "alert.inline" | "message.user" | "message.assistant" | "compaction.marker"
 
 export type RunPhase = "understanding" | "planning" | "executing" | "verifying" | "complete"
 
@@ -88,7 +88,12 @@ function deriveStatusFromNarrativeItem(item: RunNarrativeItem): "pending" | "act
 }
 
 function isAlertItem(item: RunNarrativeItem): boolean {
-  return item.type === "intervention.required" || item.type === "approval.requested"
+  return (
+    item.type === "intervention.required" ||
+    item.type === "approval.requested" ||
+    item.type === "approval.resolved" ||
+    item.type === "intervention.resolved"
+  )
 }
 
 function isPhaseMarkerCandidate(item: RunNarrativeItem): boolean {
@@ -215,15 +220,32 @@ export function buildStreamItems(
 
   for (const message of messages) {
     if (message.role === "user") {
+      const parts = partsByMessageId[message.id] ?? []
+      const hasCompactionPart = parts.some((p: any) => p.type === "compaction")
+      const hasTextPart = parts.some((p: any) => p.type === "text" && !p.synthetic)
+      if (hasCompactionPart && !hasTextPart) {
+        // Internal compaction trigger — surface as a context checkpoint divider
+        streamItems.push({
+          id: `compaction-${message.id}`,
+          kind: "compaction.marker",
+          timestamp: message.time.created,
+          status: "completed",
+        })
+        continue
+      }
       streamItems.push({
         id: message.id,
         kind: "message.user",
         timestamp: message.time.created,
         data: message,
-        parts: partsByMessageId[message.id] ?? [],
+        parts,
         status: "completed",
       })
     } else if (message.role === "assistant") {
+      // Compaction summary assistant messages are internal — skip from main stream
+      if ((message as any).agent === "compaction" || (message as any).mode === "compaction" || (message as any).summary === true) {
+        continue
+      }
       streamItems.push({
         id: message.id,
         kind: "message.assistant",
@@ -250,15 +272,30 @@ function buildLegacyStreamItems(
 
   for (const message of messages) {
     if (message.role === "user") {
+      const parts = partsByMessageId[message.id] ?? []
+      const hasCompactionPart = parts.some((p: any) => p.type === "compaction")
+      const hasTextPart = parts.some((p: any) => p.type === "text" && !p.synthetic)
+      if (hasCompactionPart && !hasTextPart) {
+        streamItems.push({
+          id: `compaction-${message.id}`,
+          kind: "compaction.marker",
+          timestamp: message.time.created,
+          status: "completed",
+        })
+        continue
+      }
       streamItems.push({
         id: message.id,
         kind: "message.user",
         timestamp: message.time.created,
         data: message,
-        parts: partsByMessageId[message.id] ?? [],
+        parts,
         status: "completed",
       })
     } else if (message.role === "assistant") {
+      if ((message as any).agent === "compaction" || (message as any).mode === "compaction" || (message as any).summary === true) {
+        continue
+      }
       streamItems.push({
         id: message.id,
         kind: "message.assistant",

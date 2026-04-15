@@ -3,11 +3,22 @@ import { TextAttributes } from "@opentui/core"
 import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
 import type { RunNarrativeItem } from "@/server/run-contract"
 
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/~~(.+?)~~/g, "$1")
+}
+
 function getAlertTypeLabel(type: string): string {
   if (type === "intervention.required") return "INTERVENTION REQUIRED"
   if (type === "approval.requested") return "APPROVAL REQUIRED"
-  if (type === "intervention.resolved") return "RESOLVED"
-  if (type === "approval.resolved") return "APPROVED"
+  if (type === "intervention.resolved") return "Resolved"
+  if (type === "approval.resolved") return "Approved"
   return "ALERT"
 }
 
@@ -18,6 +29,11 @@ function getRiskLabel(metadata?: Record<string, any>): string {
   return ""
 }
 
+function getResolutionReason(metadata?: Record<string, any>): string {
+  if (!metadata) return ""
+  return metadata.reason || metadata.message || metadata.comment || ""
+}
+
 export function AlertInline(props: {
   item: RenderableStreamItem
   onNavigateToApprovals?: () => void
@@ -25,6 +41,7 @@ export function AlertInline(props: {
   const narrativeItem = props.item.data as RunNarrativeItem
   const typeLabel = () => getAlertTypeLabel(props.item.type ?? "")
   const riskLabel = () => getRiskLabel(narrativeItem?.metadata)
+  const resolutionReason = () => getResolutionReason(narrativeItem?.metadata)
   const isPending = () => props.item.status === "pending"
   const isResolved = () => props.item.type === "approval.resolved" || props.item.type === "intervention.resolved"
   const isActionable = () =>
@@ -36,16 +53,28 @@ export function AlertInline(props: {
     return "$borderSubtle"
   }
 
-  const iconGlyph = () => {
-    if (isResolved()) return "✓"
-    if (isPending()) return "⚠"
-    return "·"
-  }
-
-  const iconColor = () => {
-    if (isResolved()) return "$success"
-    if (isPending()) return "$warning"
-    return "$textMuted"
+  // Resolved state: compact single-line acknowledgement, no extra chrome
+  if (isResolved()) {
+    return (
+      <box
+        flexDirection="row"
+        gap={1}
+        alignItems="center"
+        paddingLeft={2}
+        paddingTop={0}
+        paddingBottom={0}
+        marginTop={0}
+      >
+        <text fg="$success">✓</text>
+        <text fg="$success">{typeLabel()}</text>
+        <Show when={resolutionReason()}>
+          <text fg="$textMuted" dim>— {resolutionReason()}</text>
+        </Show>
+        <Show when={!resolutionReason() && props.item.message}>
+          <text fg="$textMuted" dim>— {stripInlineMarkdown(props.item.message!)}</text>
+        </Show>
+      </box>
+    )
   }
 
   return (
@@ -67,14 +96,12 @@ export function AlertInline(props: {
     >
       {/* Header row */}
       <box flexDirection="row" gap={1} alignItems="center">
-        <text fg={iconColor()} attributes={TextAttributes.BOLD}>
-          {iconGlyph()}
-        </text>
-        <text fg={iconColor()} attributes={TextAttributes.BOLD}>
+        <text fg="$warning" attributes={TextAttributes.BOLD}>⚠</text>
+        <text fg="$warning" attributes={TextAttributes.BOLD}>
           {typeLabel()}
         </text>
         <Show when={riskLabel()}>
-          <text fg={isPending() ? "$warning" : "$textMuted"} attributes={TextAttributes.DIM}>
+          <text fg="$warning" attributes={TextAttributes.DIM}>
             ({riskLabel()})
           </text>
         </Show>
@@ -84,7 +111,7 @@ export function AlertInline(props: {
       <Show when={props.item.message}>
         <box paddingLeft={2} paddingTop={0}>
           <text fg="$text" wrapMode="word">
-            {props.item.message}
+            {stripInlineMarkdown(props.item.message!)}
           </text>
         </box>
       </Show>
@@ -92,18 +119,9 @@ export function AlertInline(props: {
       {/* CTA for actionable alerts */}
       <Show when={isActionable()}>
         <box paddingLeft={2} paddingTop={1}>
-          <box
-            flexDirection="row"
-            gap={1}
-            paddingLeft={1}
-            paddingRight={1}
-            borderStyle="rounded"
-            borderColor="$warning"
-          >
-            <text fg="$warning" attributes={TextAttributes.BOLD}>
-              →
-            </text>
-            <text fg="$warning">Open review queue</text>
+          <box flexDirection="row" gap={1}>
+            <text fg="$warning">→</text>
+            <text fg="$textMuted">Open review queue to respond</text>
           </box>
         </box>
       </Show>

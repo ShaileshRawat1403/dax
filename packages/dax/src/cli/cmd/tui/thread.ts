@@ -9,6 +9,7 @@ import { Log } from "@/util/log"
 import { withNetworkOptions, resolveNetworkOptions } from "@/cli/network"
 import type { Event } from "@dax-ai/sdk/v2"
 import type { EventSource } from "./context/sdk"
+import { formatSessionExitMessage } from "./routes/session/exit-message"
 
 declare global {
   const DAX_WORKER_PATH: string
@@ -170,6 +171,30 @@ export const TuiThreadCommand = cmd({
       client.call("checkUpgrade", { directory: cwd }).catch(() => {})
     }, 1000)
 
-    await tuiPromise
+    const sessionID = await tuiPromise
+
+    if (sessionID) {
+      try {
+        const summary = await client.call("summary", { sessionID })
+        if (summary) {
+          console.log(
+            formatSessionExitMessage({
+              sessionID,
+              title: summary.title,
+              turnCount: summary.turnCount,
+              tokenCount: summary.tokenCount,
+              generatedTokenCount: summary.generatedTokenCount,
+              costLabel: summary.costLabel,
+              summary: {
+                achievement: summary.achievement,
+                files_changed: summary.files_changed,
+              },
+            }),
+          )
+        }
+      } catch (e) {
+        // Silently fail if summary cannot be fetched
+      }
+    }
   },
 })

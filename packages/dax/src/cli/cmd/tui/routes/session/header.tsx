@@ -90,10 +90,10 @@ export function Header(props: {
   })
 
   return (
-    <box flexShrink={0} backgroundColor={theme.backgroundPanel}>
+    <box flexShrink={0} backgroundColor={theme.background} border={["bottom"]} borderColor={theme.borderSubtle}>
       <box
-        paddingTop={0}
-        paddingBottom={0}
+        paddingTop={0.5}
+        paddingBottom={0.5}
         paddingLeft={1}
         paddingRight={1}
         flexShrink={0}
