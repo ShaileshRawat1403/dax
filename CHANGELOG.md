@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+## [1.0.31] - 2026-04-15
+
+### Added
+
+- **Sandbox isolation**: Shell tool commands are now wrapped in a Docker container when `sandbox.enabled` is set in config or via `DAX_SHELL_SANDBOX_ENABLED`. The `Sandbox.buildDockerCommand` helper is extracted as a pure, fully-tested function so behaviour is verifiable without I/O.
+- **Session exit summary**: On `q`/Ctrl-C, DAX now prints a branded exit block showing the session title, real workspace changes (files edited or written during the session, relative paths), token snapshot, cost, and a `resume: dax -s <id>` hint.
+- **Compaction markers**: Long sessions that cross context limits now render a `⟳ context compacted` divider in the stream rather than polluting the narrative with internal compaction messages.
+
+### Changed
+
+- **Live status line pinned**: The active-run verb + token line (`Reasoning… (42s · ↓ 8k tokens)`) is now fixed above the prompt at all times — it no longer scrolls with stream content and is always visible regardless of scroll position.
+- **Whimsical verbs always active**: Stage verbs are now shown for every active stage; raw tool-description strings (`reading files`, `editing a file`) no longer override them.
+- **Home screen visual zones**: Active and recent session sections are now visually separated with panel backgrounds and border containers so the home screen reads as structured regions rather than a flat text page.
+- **No blank-canvas placeholder**: The "no activity yet" card is removed from the session stream. A blank stream is the correct ready state — the same as a terminal prompt.
+
+### Fixed
+
+- **Exit summary deduplication**: Session title no longer appears twice in the exit block (was shown as both subtitle and Achievement). The Achievement section is only rendered when explicitly set to a distinct value.
+- **`files_changed` populated**: Exit summary previously always showed an empty file list. It now scans Edit/Write/NotebookEdit tool calls from the session and lists the actual changed paths.
+- **QuestionAnswer shape**: Multi-question prompt answers now correctly send `Array<string>` per question as required by the SDK contract.
+- **TextareaRenderable API**: `input.set()` calls corrected to `input.setText()` across the question prompt component.
+
 ## [1.0.30] - 2026-04-12
 
 ### Fixed

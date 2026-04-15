@@ -437,4 +437,110 @@ describe("session-stream presentation model", () => {
       expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
     })
   })
+
+  describe("compaction handling", () => {
+    function createCompactionUserMessage(id: string) {
+      return {
+        id,
+        role: "user" as const,
+        sessionID: "session-123",
+        time: { created: Date.now(), completed: undefined },
+        agent: undefined,
+        model: undefined,
+      }
+    }
+
+    function createCompactionAssistantMessage(id: string, mode: "compaction" | undefined = "compaction") {
+      return {
+        id,
+        role: "assistant" as const,
+        sessionID: "session-123",
+        time: { created: Date.now() + 100, completed: Date.now() + 200 },
+        agent: "compaction",
+        mode,
+        summary: true,
+        model: undefined,
+      }
+    }
+
+    it("emits a compaction.marker for a user message containing only a compaction part", () => {
+      const msg = createCompactionUserMessage("msg-compact")
+      const parts: Record<string, any[]> = {
+        "msg-compact": [{ type: "compaction" }],
+      }
+      const items = buildStreamItems(undefined, [msg], parts)
+
+      expect(items).toHaveLength(1)
+      expect(items[0]?.kind).toBe("compaction.marker")
+      expect(items[0]?.id).toBe("compaction-msg-compact")
+      expect(items[0]?.status).toBe("completed")
+    })
+
+    it("does not emit compaction.marker when the user message also has a real text part", () => {
+      const msg = createCompactionUserMessage("msg-mixed")
+      const parts: Record<string, any[]> = {
+        "msg-mixed": [
+          { type: "compaction" },
+          { type: "text", text: "Summarize what we've done so far", synthetic: false },
+        ],
+      }
+      const items = buildStreamItems(undefined, [msg], parts)
+
+      expect(items).toHaveLength(1)
+      expect(items[0]?.kind).toBe("message.user")
+    })
+
+    it("does not emit compaction.marker for synthetic text parts alongside compaction", () => {
+      const msg = createCompactionUserMessage("msg-synthetic")
+      const parts: Record<string, any[]> = {
+        "msg-synthetic": [
+          { type: "compaction" },
+          { type: "text", text: "[internal trigger]", synthetic: true },
+        ],
+      }
+      const items = buildStreamItems(undefined, [msg], parts)
+
+      // synthetic text doesn't count as a real text part — should still be a marker
+      expect(items).toHaveLength(1)
+      expect(items[0]?.kind).toBe("compaction.marker")
+    })
+
+    it("filters out compaction summary assistant messages from the stream", () => {
+      const userMsg = {
+        id: "msg-user",
+        role: "user" as const,
+        sessionID: "session-123",
+        time: { created: Date.now() },
+      }
+      const compactionAssistant = createCompactionAssistantMessage("msg-compact-assistant")
+      const realAssistant = {
+        id: "msg-real",
+        role: "assistant" as const,
+        sessionID: "session-123",
+        time: { created: Date.now() + 300, completed: Date.now() + 400 },
+        agent: "dax",
+        model: { providerID: "anthropic", modelID: "claude-3-5" },
+      }
+
+      const items = buildStreamItems(undefined, [userMsg, compactionAssistant, realAssistant], {})
+
+      // Should have exactly 2 items: user + real assistant (compaction assistant filtered out)
+      expect(items).toHaveLength(2)
+      expect(items[0]?.kind).toBe("message.user")
+      expect(items[1]?.kind).toBe("message.assistant")
+      // The real assistant (not the compaction one) must be the one rendered
+      expect((items[1]?.data as any)?.agent).toBe("dax")
+    })
+
+    it("compaction.marker has status completed and no phase", () => {
+      const msg = createCompactionUserMessage("msg-chk")
+      const parts: Record<string, any[]> = {
+        "msg-chk": [{ type: "compaction" }],
+      }
+      const items = buildStreamItems(undefined, [msg], parts)
+
+      expect(items[0]?.status).toBe("completed")
+      expect(items[0]?.phase).toBeUndefined()
+    })
+  })
 })
