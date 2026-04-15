@@ -339,7 +339,7 @@ export function Session() {
           m.role === "assistant" && "providerID" in m && !!m.providerID,
       )
     const modelName = lastAssistant?.providerID ? `${lastAssistant.providerID}/${lastAssistant.modelID}` : null
-    const generatedTokens = sessionAssistantMessages(messages())
+    const generatedTokens = (sessionAssistantMessages(messages()) as AssistantMessage[])
       .reduce((sum, m) => sum + (m.tokens?.output ?? 0), 0)
     return {
       tokens: totalTokens,
@@ -1429,24 +1429,6 @@ export function Session() {
                   </text>
                   <text fg={theme.textMuted} wrapMode="truncate-end">
                     Click to resume · scroll to bottom resumes automatically
-                  </text>
-                </box>
-              </Show>
-              <Show when={streamItems().length === 0}>
-                <box
-                  paddingLeft={2}
-                  paddingRight={2}
-                  paddingTop={1}
-                  paddingBottom={1}
-                  borderStyle="round"
-                  borderColor={liveBorderColor()}
-                  backgroundColor={tint(theme.background, theme.backgroundElement, 0.22)}
-                  flexDirection="column"
-                  gap={0}
-                >
-                  <text fg={theme.text}>No activity in this session yet.</text>
-                  <text fg={theme.textMuted}>
-                    Send a prompt to start a governed run and stream live execution context.
                   </text>
                 </box>
               </Show>
@@ -2824,9 +2806,8 @@ function formatTokenCount(n: number): string {
   return String(n)
 }
 
-function isLowSignalStageReason(value: string | undefined) {
-  if (!value) return true
-  return /^(idle|session processing|response stream active|reasoning stream active|waiting for stream content)$/i.test(
-    value.trim(),
-  )
+function isLowSignalStageReason(_value: string | undefined) {
+  // All stage reasons are low-signal — whimsical verbs always show for active stages.
+  // Special states (waiting, retrying, done) are handled explicitly in doing() before this is called.
+  return true
 }

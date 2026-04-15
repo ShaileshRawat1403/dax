@@ -33,7 +33,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
 
   const selectTab = (index: number) => {
     setStore("tab", index)
-    input.set(store.answers[index]!)
+    input.setText(store.answers[index]!)
     input.focus()
   }
 
@@ -54,10 +54,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
     setStore("submitting", true)
     sdk.client.question.reply({
       requestID: props.request.id,
-      answers: questions().map((q, i) => ({
-        question: q.question,
-        answer: store.answers[i]!,
-      })),
+      answers: questions().map((_, i) => [store.answers[i]!] as QuestionAnswer),
     })
   }
 
@@ -159,14 +156,14 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
         <textarea
           ref={(val: TextareaRenderable) => {
             input = val
-            if (val) val.set(store.answers[store.tab]!)
+            if (val) val.setText(store.answers[store.tab]!)
           }}
           focused
           textColor={theme.text}
           focusedTextColor={theme.text}
           cursorColor={theme.primary}
           keyBindings={textareaKeybindings()}
-          onChange={(val) => setStore("answers", store.tab, val)}
+          onChange={(val: string) => setStore("answers", store.tab, val)}
         />
         <box flexDirection="row" gap={2} flexShrink={0}>
           <box flexDirection="row" gap={1} onMouseUp={submit}>
