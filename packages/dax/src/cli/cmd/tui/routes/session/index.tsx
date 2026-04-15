@@ -671,6 +671,11 @@ export function Session() {
     }),
   )
   const showLiveStatusNote = createMemo(() => !chatActive() && displayStageState().stage !== "done")
+  // Only show the SummaryCard after at least one assistant turn has completed —
+  // stage is "done" by default on idle/new sessions, so we must check for real work.
+  const hasCompletedRun = createMemo(() =>
+    messages().some((m) => m.role === "assistant" && !!(m as any).time?.completed),
+  )
   const modeLabel = createMemo(() => local.agent.current().name.toUpperCase())
 
   const wide = createMemo(() => dimensions().width > 120)
@@ -1463,7 +1468,7 @@ export function Session() {
                 )}
               </For>
 
-              <Show when={displayStageState().stage === "done"}>
+              <Show when={displayStageState().stage === "done" && hasCompletedRun()}>
                 <ErrorBoundary fallback={(err) => <box padding={2}><text fg={theme.error}>Summary unavailable: {String(err)}</text></box>}>
                   <SummaryCard
                     workstation={workstationState()}
@@ -1504,12 +1509,15 @@ export function Session() {
                   >
                     <Spinner color={theme.primary} />
                     <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
-                    <Show when={runElapsed() > 1000}>
+                    <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
                       <text fg={theme.textMuted} dim>
                         {(() => {
                           const t = sessionTelemetry().generatedTokens
-                          const base = formatElapsed(runElapsed())
-                          return t > 0 ? `(${base} · ↓ ${formatTokenCount(t)} tokens)` : `(${base})`
+                          const elapsed = runElapsed()
+                          const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
+                          if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
+                          if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
+                          return `(${timePart})`
                         })()}
                       </text>
                     </Show>
