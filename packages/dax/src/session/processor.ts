@@ -85,9 +85,13 @@ export namespace SessionProcessor {
 
                 if (pressure.consecutiveThrottles > 0 && !pressureNotified) {
                   pressureNotified = true
+                  const throttleMsg =
+                    pressure.consecutiveThrottles === 1
+                      ? "Gemini subscription lane throttled. Retrying..."
+                      : `Gemini subscription lane throttled (${pressure.consecutiveThrottles}x). Retrying in background...`
                   SessionStatus.set(input.sessionID, {
                     type: "delayed",
-                    message: `Gemini subscription lane throttled. (Throttles: ${pressure.consecutiveThrottles}). Switch to Gemini API Key lane for steadier throughput.`,
+                    message: throttleMsg,
                     since: lastProgressAt,
                   })
                   delayedRaised = true

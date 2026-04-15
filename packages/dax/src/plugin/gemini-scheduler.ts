@@ -12,8 +12,8 @@ let inFlight = 0
 let consecutiveThrottles = 0
 let currentCooldownPromise: Promise<void> | null = null
 const MAX_RETRIES = 8
-const RETRY_DELAY_MS = 1000
-const MAX_CONCURRENCY = 2
+const RETRY_DELAY_MS = 800
+const MAX_CONCURRENCY = 4
 
 const requestQueue: Array<{
   fn: () => Promise<Response>
@@ -68,7 +68,9 @@ async function processNext() {
 
   // 2. Check persisted cooldown before taking a slot
   const persistedCooldownUntil = await readPersistedGeminiSubscriptionCooldown()
-  const waitMs = shouldWaitForGeminiSubscriptionCooldown(Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil))
+  const waitMs = shouldWaitForGeminiSubscriptionCooldown(
+    Math.max(geminiSubscriptionCooldownUntil, persistedCooldownUntil),
+  )
 
   if (waitMs > 0) {
     if (!currentCooldownPromise) {
@@ -103,7 +105,8 @@ async function processNext() {
         consecutiveThrottles = 0
       } else {
         // Apply backoff delay by re-queuing after a delay, releasing the current slot
-        const backoffMs = RETRY_DELAY_MS * Math.pow(1.5, next.retries - 1) + Math.random() * 500
+        // Use smaller growth factor (1.3) for faster recovery, cap at 8 seconds
+        const backoffMs = Math.min(RETRY_DELAY_MS * Math.pow(1.3, next.retries - 1) + Math.random() * 300, 8000)
         void Bun.sleep(backoffMs).then(() => {
           requestQueue.unshift(next)
           processNext()
