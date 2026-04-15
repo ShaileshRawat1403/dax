@@ -17,10 +17,15 @@ export namespace Sandbox {
     const quotedCwd = `'${cwd.replace(/'/g, "'\\''")}'`
     const quotedCmd = `'${command.replace(/'/g, "'\\''")}'`
 
+    // Quote the host-side bind-mount path separately from the sh -c argument.
+    // The Docker -v flag is parsed by the Docker CLI (not a shell), so we
+    // use double-quote escaping for the host path, which handles spaces.
+    const mountPath = cwd.replace(/"/g, '\\"')
+
     return [
       "docker", "run",
       "--rm",
-      "-v", `${quotedCwd}:/workspace`,
+      "-v", `"${mountPath}":/workspace:rw`,
       "-w", "/workspace",
       image,
       "sh", "-c",

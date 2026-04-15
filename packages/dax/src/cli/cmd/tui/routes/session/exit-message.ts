@@ -8,6 +8,11 @@ type ExitMessageInput = {
   generatedTokenCount: number
   elapsedLabel?: string
   costLabel?: string
+  summary?: {
+    achievement?: string
+    files_changed?: string[]
+    next_steps?: string[]
+  }
 }
 
 function daxGlyph() {
@@ -31,6 +36,20 @@ export function formatSessionExitMessage(input: ExitMessageInput) {
     lines.push(`  ${UI.Style.TEXT_DIM}${input.title.trim()}${UI.Style.TEXT_NORMAL}`)
   }
 
+  if (input.summary?.achievement) {
+    lines.push("")
+    lines.push(`  ${UI.Style.TEXT_SUCCESS_BOLD}Achievement${UI.Style.TEXT_NORMAL}`)
+    lines.push(`  ${input.summary.achievement}`)
+  }
+
+  if (input.summary?.files_changed && input.summary.files_changed.length > 0) {
+    lines.push("")
+    lines.push(`  ${UI.Style.TEXT_HIGHLIGHT_BOLD}Workspace Changes${UI.Style.TEXT_NORMAL}`)
+    for (const file of input.summary.files_changed) {
+      lines.push(`  ${UI.Style.TEXT_DIM}•${UI.Style.TEXT_NORMAL} ${file}`)
+    }
+  }
+
   const snapshot: string[] = []
   if (input.turnCount > 0) snapshot.push(`${input.turnCount} turn${input.turnCount === 1 ? "" : "s"}`)
   if (input.tokenCount > 0) snapshot.push(`${input.tokenCount.toLocaleString()} tokens`)
@@ -41,6 +60,7 @@ export function formatSessionExitMessage(input: ExitMessageInput) {
   }
 
   if (snapshot.length > 0) {
+    lines.push("")
     lines.push(`  ${UI.Style.TEXT_DIM}snapshot: ${snapshot.join(" · ")}${UI.Style.TEXT_NORMAL}`)
   }
 

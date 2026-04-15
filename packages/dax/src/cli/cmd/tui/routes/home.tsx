@@ -26,6 +26,9 @@ import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
 import { DAX_GUIDE_SESSION_FOOTER, DAX_GUIDE_SESSION_PROMPT, DAX_GUIDE_SESSION_TITLE } from "../util/guide-session"
 import os from "os"
 import path from "path"
+import { Header } from "./session/header"
+import { Footer } from "./session/footer"
+import { MacOSScrollAccel } from "@opentui/core"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
@@ -99,351 +102,99 @@ function DaxMascot(props: { theme: any }) {
     const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
     return colors[Math.floor(tick() / 3) % colors.length]
   })
+
   return (
-    <box flexDirection="column" alignItems="center" gap={0} flexShrink={0}>
-      <text fg={props.theme.borderSubtle}>┌───┐</text>
-      <box flexDirection="row" alignItems="center">
-        <text fg={props.theme.borderSubtle}>│</text>
+    <box flexDirection="column" gap={0} paddingRight={1}>
+      <box flexDirection="row" gap={0}>
         <text fg={eyeColor()}>{eyeL()}</text>
-        <text fg={scan() === "═" ? props.theme.primary : props.theme.textMuted}>{scan()}</text>
+        <text fg={props.theme.textMuted}>{scan()}</text>
         <text fg={eyeColor()}>{eyeR()}</text>
-        <text fg={props.theme.borderSubtle}>│</text>
       </box>
-      <text fg={props.theme.borderSubtle}>└───┘</text>
-      <text fg={props.theme.textMuted} dim>
-        online
-      </text>
+      <text fg={props.theme.borderSubtle}> ┴ </text>
     </box>
   )
 }
 
-// ── Workspace context card ────────────────────────────────────────────────────
-function WorkspaceCard(props: { dirName: string; branch: string | undefined; modelName: string; theme: any }) {
-  return (
-    <box
-      width="100%"
-      flexDirection="column"
-      gap={0}
-      paddingLeft={1}
-      paddingRight={1}
-      borderStyle="rounded"
-      borderColor={props.theme.borderSubtle}
-    >
-      <box flexDirection="row" gap={1} alignItems="center" paddingBottom={0.5}>
-        <box flexDirection="row" gap={0.5} marginRight={1}>
-          <text fg={props.theme.error}>●</text>
-          <text fg={props.theme.warning}>●</text>
-          <text fg={props.theme.success}>●</text>
-        </box>
-        <text fg={props.theme.textMuted}>◈</text>
-        <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
-          {props.dirName}
-        </text>
-        <Show when={props.branch}>
-          <text fg={props.theme.textMuted}>·</text>
-          <text fg={props.theme.primary}>{props.branch}</text>
-        </Show>
-        <text fg={props.theme.textMuted}>·</text>
-        <text fg={props.theme.textMuted} dim>
-          {props.modelName}
-        </text>
-      </box>
-    </box>
-  )
-}
-
-// ── Smart chip — repo/context-aware prompt starter ───────────────────────────
-function SmartChip(props: {
-  label: string
-  tone?: "normal" | "warning"
-  onPress: () => void
-  theme: any
-}) {
-  const [hover, setHover] = createSignal(false)
-  const borderColor = () => {
-    if (props.tone === "warning") return hover() ? props.theme.warning : tint(props.theme.borderSubtle, props.theme.warning, 0.4)
-    return hover() ? props.theme.borderActive : props.theme.borderSubtle
-  }
-  const bg = () =>
-    hover()
-      ? props.tone === "warning"
-        ? tint(props.theme.backgroundElement, props.theme.warning, 0.14)
-        : tint(props.theme.backgroundElement, props.theme.primary, 0.14)
-      : props.theme.backgroundElement
-  const fg = () => {
-    if (props.tone === "warning") return hover() ? props.theme.warning : props.theme.textMuted
-    return hover() ? props.theme.primary : props.theme.text
-  }
-  return (
-    <box
-      onMouseUp={props.onPress}
-      onMouseOver={() => setHover(true)}
-      onMouseOut={() => setHover(false)}
-      paddingLeft={1}
-      paddingRight={1}
-      backgroundColor={bg()}
-      borderStyle="rounded"
-      borderColor={borderColor()}
-    >
-      <text fg={fg()} attributes={hover() ? TextAttributes.BOLD : undefined}>
-        {hover() ? `▸ ${props.label}` : `  ${props.label}`}
-      </text>
-    </box>
-  )
-}
-
-// ── Recent run row ────────────────────────────────────────────────────────────
-function RecentRunRow(props: {
-  title: string
-  status: string
-  ageMs: number
-  theme: any
-  onOpen: () => void
-}) {
-  const [hover, setHover] = createSignal(false)
-  const dot = () => {
-    if (props.status === "completed") return props.theme.success
-    if (props.status === "failed" || props.status === "errored") return props.theme.error
-    if (props.status === "waiting_approval") return props.theme.warning
-    return props.theme.textMuted
-  }
-  return (
-    <box
-      onMouseUp={props.onOpen}
-      onMouseOver={() => setHover(true)}
-      onMouseOut={() => setHover(false)}
-      paddingLeft={2}
-      paddingRight={2}
-      flexDirection="row"
-      justifyContent="space-between"
-      backgroundColor={hover() ? tint(props.theme.backgroundElement, props.theme.primary, 0.1) : undefined}
-    >
-      <box flexDirection="row" gap={1}>
-        <text fg={dot()}>●</text>
-        <text fg={hover() ? props.theme.primary : props.theme.text} attributes={hover() ? TextAttributes.BOLD : undefined}>
-          {props.title.length > 48 ? props.title.slice(0, 45) + "..." : props.title}
-        </text>
-      </box>
-      <text fg={props.theme.textMuted} dim>
-        {formatAge(props.ageMs)}
-      </text>
-    </box>
-  )
-}
-
-// ── Animated pulse arrow for first-run guide ──────────────────────────────────
-function PulseArrow(props: { theme: any }) {
-  const [tick, setTick] = createSignal(0)
-  onMount(() => {
-    const t = setInterval(() => setTick((v) => v + 1), 280)
-    onCleanup(() => clearInterval(t))
-  })
-  const FRAMES = ["▸", "▹", "▸", "►"]
-  const glyph = createMemo(() => FRAMES[tick() % FRAMES.length])
-  const bright = createMemo(() => tick() % 4 < 2)
-  return (
-    <text fg={bright() ? props.theme.primary : props.theme.accent} attributes={bright() ? TextAttributes.BOLD : undefined}>
-      {glyph()}
-    </text>
-  )
-}
-
-// ── Divider label ─────────────────────────────────────────────────────────────
-function SectionDivider(props: { label: string; theme: any }) {
-  return (
-    <box flexDirection="row" gap={1} alignItems="center" paddingLeft={0} paddingRight={0}>
-      <text fg={props.theme.borderSubtle}>──</text>
-      <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD} dim>
-        {props.label}
-      </text>
-      <text fg={props.theme.borderSubtle}>──────────────────────────────────────────</text>
-    </box>
-  )
-}
-
-// ── Repo feature detection ────────────────────────────────────────────────────
-type RepoFeatures = {
-  hasPackageJson: boolean
-  hasGithubWorkflows: boolean
-  hasPyproject: boolean
-  hasRequirements: boolean
-  hasCargoToml: boolean
-  hasGoMod: boolean
-}
-
-const EMPTY_FEATURES: RepoFeatures = {
-  hasPackageJson: false,
-  hasGithubWorkflows: false,
-  hasPyproject: false,
-  hasRequirements: false,
-  hasCargoToml: false,
-  hasGoMod: false,
-}
-
-async function detectRepoFeatures(dir: string): Promise<RepoFeatures> {
-  const check = (name: string) => Bun.file(path.join(dir, name)).exists()
-  const [hasPackageJson, hasGithubWorkflows, hasPyproject, hasRequirements, hasCargoToml, hasGoMod] =
-    await Promise.all([
-      check("package.json"),
-      check(".github/workflows"),
-      check("pyproject.toml"),
-      check("requirements.txt"),
-      check("Cargo.toml"),
-      check("go.mod"),
-    ])
-  return { hasPackageJson, hasGithubWorkflows, hasPyproject, hasRequirements, hasCargoToml, hasGoMod }
-}
-
-type SmartChipDef = { label: string; prompt: string; mode: HomeWorkflowMode; tone?: "normal" | "warning" }
-
-function deriveSmartChips(features: RepoFeatures, pendingCount: number): SmartChipDef[] {
-  const chips: SmartChipDef[] = []
-
-  // Pending approvals always surfaced first, in warning tone
-  if (pendingCount > 0) {
-    chips.push({
-      label: `⚠  Review ${pendingCount} pending approval${pendingCount > 1 ? "s" : ""}`,
-      prompt: "",
-      mode: "audit",
-      tone: "warning",
-    })
-  }
-
-  // Universal chips
-  chips.push({ label: "Explore this repo", prompt: "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.", mode: "explore" })
-  chips.push({ label: "What changed?", prompt: "Summarize the last 5 commits and any uncommitted changes in this repository.", mode: "explore" })
-  chips.push({ label: "Audit security", prompt: "Audit this repository for the most important release, policy, test, security, and documentation risks.", mode: "audit" })
-
-  // Node/JS
-  if (features.hasPackageJson) {
-    chips.push({ label: "Run tests", prompt: "Run the test suite and summarize any failures with root-cause analysis.", mode: "build" })
-    chips.push({ label: "Check dep. vulnerabilities", prompt: "Check all npm dependencies for known security vulnerabilities and packages with outdated major versions.", mode: "audit" })
-  }
-
-  // GitHub Actions
-  if (features.hasGithubWorkflows) {
-    chips.push({ label: "Review CI pipeline", prompt: "Review the GitHub Actions workflows and identify any issues, inefficiencies, or security concerns.", mode: "explore" })
-  }
-
-  // Python
-  if (features.hasPyproject || features.hasRequirements) {
-    chips.push({ label: "Check Python deps", prompt: "Check Python dependencies for known security vulnerabilities and outdated packages.", mode: "audit" })
-  }
-
-  // Rust
-  if (features.hasCargoToml) {
-    chips.push({ label: "Run cargo tests", prompt: "Run cargo test and summarize any failures with root-cause analysis.", mode: "build" })
-  }
-
-  // Go
-  if (features.hasGoMod) {
-    chips.push({ label: "Run go tests", prompt: "Run go test ./... and summarize any failures with root-cause analysis.", mode: "build" })
-  }
-
-  return chips.slice(0, 6)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// Main Home view
+// ──────────────────────────────────────────────────────────────────────────────
 export function Home() {
-  const sync = useSync()
-  const kv = useKV()
   const themeState = useTheme()
   const theme = new Proxy({} as any, {
     get: (_target, prop: string) => (themeState.theme as any)[prop],
   })
+  const dimensions = useTerminalDimensions()
+  const sync = useSync()
   const { navigate } = useRoute()
   const route = useRouteData("home")
-  const promptRef = usePromptRef()
-  const command = useCommandDialog()
-  const toast = useToast()
+  const kv = useKV()
   const local = useLocal()
+  const command = useCommandDialog()
+  const promptRef = usePromptRef()
   const sdk = useSDK()
-  const dimensions = useTerminalDimensions()
-  const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
+  const toast = useToast()
+  const directory = useDirectory()
+  const args = useArgs()
+  const width = createMemo(() => dimensions().width)
+  const height = createMemo(() => dimensions().height)
+  let prompt: PromptRef
+
+  const [tipsHidden] = kv.signal("tips_hidden", false)
+  const [showTips] = kv.signal("tips_visibility", true)
+  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const showHomeTips = createMemo(() => showTips() && !tipsHidden() && height() > 30)
+
+  const activeWorkflowMode = createMemo<HomeWorkflowMode>(() =>
+    kv.get(DAX_SETTING.session_workflow_mode, "plan") as HomeWorkflowMode
+  )
+
+  const dirName = createMemo(() => path.basename(directory()))
+  const branch = createMemo(() => sync.data.vcs?.branch)
+  const modelName = createMemo(() => {
+    const m = local.model.current()
+    if (!m) return "no model"
+    return `${m.providerID}/${m.modelID}`
+  })
+
+  const sessionCount = createMemo(() => sync.data.session.length)
+  const visibleActiveRuns = createMemo(() =>
+    sync.data.session
+      .filter((s) => s.status === "running" || s.status === "waiting_approval")
+      .toSorted((a, b) => b.time.updated - a.time.updated)
+  )
+  const visibleRecentRuns = createMemo(() =>
+    sync.data.session
+      .filter((s) => s.status !== "running" && s.status !== "waiting_approval")
+      .toSorted((a, b) => b.time.updated - a.time.updated)
+  )
+
+  const connectedMcpCount = createMemo(
+    () => Object.values(sync.data.mcp).filter((x) => x.status === "connected").length,
+  )
   const mcpAttention = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusAttention(x as any)))
   const mcpBlocked = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusBlocked(x as any)))
 
-  const connectedMcpCount = createMemo(() => {
-    return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
-  })
+  const isFirstTimeUser = createMemo(() => sessionCount() === 0)
 
-  // First-launch baseline: hide pre-existing sessions on fresh install
-  const installBaseline = createMemo<number>(() => {
-    const stored = kv.get("install_baseline_at", 0)
-    if (stored && typeof stored === "number") return stored
-    const now = Date.now()
-    kv.set("install_baseline_at", now)
-    return now
-  })
-
-  function isAfterBaseline(iso: string | undefined): boolean {
-    if (!iso) return false
-    const t = new Date(iso).getTime()
-    if (Number.isNaN(t)) return false
-    return t >= installBaseline()
+  async function openGuideSession() {
+    const result = await sdk.client.session.create({
+      title: DAX_GUIDE_SESSION_TITLE,
+      directory: directory(),
+    })
+    if (result.data?.id) {
+      await sdk.client.session.prompt({
+        sessionID: result.data.id,
+        parts: [{ type: "text", text: DAX_GUIDE_SESSION_PROMPT }],
+      })
+      navigate({ type: "session", sessionID: result.data.id })
+    }
   }
 
-  const visibleRecentRuns = createMemo(() =>
-    (sync.data.overview?.recentRuns ?? []).filter((r) => isAfterBaseline(r.updatedAt)),
-  )
-  const visibleActiveRuns = createMemo(() =>
-    (sync.data.overview?.activeRuns ?? []).filter((r) => isAfterBaseline(r.updatedAt)),
-  )
-
-  const isFirstTimeUser = createMemo(
-    () =>
-      sync.status === "complete" &&
-      sync.data.overview !== undefined &&
-      visibleRecentRuns().length === 0 &&
-      visibleActiveRuns().length === 0,
-  )
-  const sessionCount = createMemo(() => visibleRecentRuns().length + visibleActiveRuns().length)
-  const tipsHidden = createMemo(() => kv.get("tips_hidden", true))
-  const showTips = createMemo(() => {
-    if (isFirstTimeUser()) return false
-    return !tipsHidden()
-  })
-
-  onCleanup(() => { promptRef.set(undefined) })
-
-  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-
-  const workflowModes = createMemo(() =>
-    local.agent.list().filter((agent) => HOME_WORKFLOW_MODES.includes(agent.name as HomeWorkflowMode)),
-  )
-  const activeWorkflowMode = createMemo<HomeWorkflowMode>(() => {
-    const current = local.agent.current()?.name as HomeWorkflowMode | undefined
-    if (current && HOME_WORKFLOW_MODES.includes(current)) return current
-    return "plan"
-  })
-
-  // ── Greeting ──────────────────────────────────────────────────────────────
   const greeting = getGreeting()
-  const systemUsername = os.userInfo().username
-  // Capitalize first letter for display
-  const displayName = systemUsername.charAt(0).toUpperCase() + systemUsername.slice(1)
+  const displayName = os.userInfo().username || "operator"
 
-  // ── Repo feature detection for smart chips ────────────────────────────────
-  const [repoFeatures, setRepoFeatures] = createSignal<RepoFeatures>(EMPTY_FEATURES)
-  onMount(async () => {
-    const dir = sync.data.path.directory || process.cwd()
-    const features = await detectRepoFeatures(dir).catch(() => EMPTY_FEATURES)
-    setRepoFeatures(features)
-  })
+  const inputBg = () => tint(theme.background, theme.primary, 0.03)
 
-  const pendingApprovalCount = createMemo(() => sync.data.overview?.pendingApprovals.length ?? 0)
-
-  const smartChips = createMemo(() => deriveSmartChips(repoFeatures(), pendingApprovalCount()))
-
-  // ── Workspace card ────────────────────────────────────────────────────────
-  const dirName = createMemo(() => {
-    const dir = sync.data.path.directory || process.cwd()
-    return path.basename(dir) || dir
-  })
-  const branch = createMemo(() => sync.data.vcs?.branch)
-  const modelName = createMemo(() => local.model.parsed().model)
-
-  // ── Prompt text per workflow mode ─────────────────────────────────────────
   function promptText(kind: HomeWorkflowMode) {
     if (explainMode()) {
       return {
@@ -572,24 +323,6 @@ export function Home() {
     </Show>
   )
 
-  let prompt: PromptRef
-  const args = useArgs()
-
-  onMount(() => {
-    if (once) return
-    once = true
-    if (route.initialPrompt) {
-      prompt.set(route.initialPrompt)
-    } else if (args.prompt) {
-      prompt.set({ input: args.prompt, parts: [] })
-      prompt.submit()
-    }
-  })
-  const directory = useDirectory()
-
-  const width = createMemo(() => dimensions().width)
-  const height = createMemo(() => dimensions().height)
-
   const layout = createMemo(() =>
     deriveHomeLayout({
       width: width(),
@@ -599,53 +332,34 @@ export function Home() {
     }),
   )
 
-  const tiny = createMemo(() => layout().size === "tiny")
-  const small = createMemo(() => layout().size === "small")
-  const showInput = createMemo(() => layout().showInput)
-  const showMascot = createMemo(() => layout().showMascot)
-  const showActions = createMemo(() => layout().showActions)
-  const showSessions = createMemo(() => !tiny() && layout().showSessions)
-  const showHomeTips = createMemo(() => !tiny() && layout().showTips)
+  const tiny = createMemo(() => width() < 60)
+  const small = createMemo(() => width() < 90)
+  const showMascot = createMemo(() => width() > 70 && height() > 24)
+  const showActions = createMemo(() => height() > 20)
+  const showSessions = createMemo(() => height() > 28)
 
-  const firstRunIntent = createMemo(() =>
-    explainMode()
-      ? "Explore this repository and explain the main parts in simple language."
-      : "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
-  )
-
-  const bg = createMemo(() => theme.background)
-  const inputBg = createMemo(() => theme.backgroundPanel)
-
-  async function openGuideSession() {
-    const result = await sdk.client.session.create({ title: DAX_GUIDE_SESSION_TITLE })
-    const sessionID = result.data?.id
-    if (!sessionID) return
-    navigate({
-      type: "session",
-      sessionID,
-      initialPrompt: { input: DAX_GUIDE_SESSION_PROMPT, parts: [] },
-    })
-  }
+  const smartChips = createMemo(() => [
+    { label: "Plan fix", tone: "accent" as const, prompt: promptText("plan"), mode: "plan" as const },
+    { label: "Explore repo", tone: "primary" as const, prompt: promptText("explore"), mode: "explore" as const },
+    { label: "Audit risks", tone: "warning" as const, prompt: promptText("audit"), mode: "audit" as const },
+    { label: "Read docs", tone: "muted" as const, prompt: promptText("docs"), mode: "docs" as const },
+  ])
 
   return (
-    <>
-      <box
-        flexGrow={1}
-        justifyContent={layout().outerJustify}
-        alignItems="center"
-        paddingLeft={tiny() ? 0 : 1}
-        paddingRight={tiny() ? 0 : 1}
-        paddingTop={tiny() ? 0 : 1}
-        gap={tiny() ? 0 : 1}
-        backgroundColor={bg()}
-      >
-        <Show
-          when={showInput()}
-          fallback={
-            <box padding={1}>
-              <text fg={theme.textMuted}>Terminal too small</text>
-            </box>
-          }
+    <box height="100%" flexDirection="column" backgroundColor={theme.background}>
+      <Header
+        busy={sync.status === "loading"}
+        emphasis="normal"
+        onCyclePersona={() => {}}
+      />
+
+      <scrollbox flexGrow={1} width="100%" scrollAcceleration={process.platform === "darwin" ? new MacOSScrollAccel() : undefined}>
+        <box
+          flexDirection="column"
+          alignItems="center"
+          paddingTop={layout().paddingTop}
+          paddingBottom={4}
+          gap={tiny() ? 1 : 2}
         >
           <box width="100%" maxWidth={layout().maxWidth} alignItems="center" gap={tiny() ? 0 : 1}>
 
@@ -689,7 +403,7 @@ export function Home() {
               backgroundColor={inputBg()}
               borderStyle="rounded"
               borderColor={theme.borderActive}
-              padding={tiny() ? 0 : 1}
+              padding={0}
             >
               <Prompt
                 ref={(r) => {
@@ -807,46 +521,123 @@ export function Home() {
             </Show>
 
           </box>
-        </Show>
-        <Toast />
-      </box>
-
-      {/* ── Footer status bar ── */}
-      <box
-        paddingTop={tiny() ? 0 : 1}
-        paddingBottom={1}
-        paddingLeft={2}
-        paddingRight={2}
-        flexDirection="row"
-        flexShrink={0}
-        gap={2}
-      >
-        <text fg={theme.textMuted}>{directory()}</text>
-        <box gap={1} flexDirection="row" flexShrink={0}>
-          <Show when={mcp()}>
-            <box flexDirection="row" gap={1}>
-              <Switch>
-                <Match when={mcpAttention()}>
-                  <text fg={mcpBlocked() ? theme.warning : theme.error}>!</text>
-                </Match>
-                <Match when={true}>
-                  <text fg={connectedMcpCount() > 0 ? theme.success : theme.textMuted}>●</text>
-                </Match>
-              </Switch>
-              <Show when={!tiny()}>
-                <text fg={theme.textMuted}>{`${connectedMcpCount()} mcp`}</text>
-              </Show>
-            </box>
-          </Show>
         </box>
-        <box flexGrow={1} />
-        <Show when={!tiny()}>
-          <text fg={theme.textMuted} dim>
-            {modelName()}
-          </text>
-        </Show>
-        <text fg={theme.textMuted}>v{Installation.VERSION}</text>
-      </box>
-    </>
+      </scrollbox>
+
+      <Footer
+        workflowMode={activeWorkflowMode()}
+        onCycleWorkflowMode={() => cycleWorkflowMode(1)}
+      />
+      <Toast />
+    </box>
   )
+}
+
+function SectionDivider(props: { label: string; theme: any }) {
+  return (
+    <box flexDirection="row" gap={1} alignItems="center" marginTop={1} marginBottom={1} paddingLeft={1}>
+      <text fg={props.theme.borderSubtle}>──</text>
+      <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
+        {props.label}
+      </text>
+      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.borderSubtle} marginBottom={0.5} />
+    </box>
+  )
+}
+
+function WorkspaceCard(props: { dirName: string; branch?: string; modelName: string; theme: any }) {
+  return (
+    <box
+      width="100%"
+      flexDirection="row"
+      gap={2}
+      paddingLeft={2}
+      paddingRight={2}
+      paddingTop={1}
+      paddingBottom={1}
+      backgroundColor={tint(props.theme.background, props.theme.textMuted, 0.02)}
+      borderStyle="round"
+      borderColor={props.theme.borderSubtle}
+    >
+      <box flexDirection="column" gap={0}>
+        <text fg={props.theme.textMuted} dim>
+          PROJECT
+        </text>
+        <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
+          {props.dirName}
+        </text>
+      </box>
+      <Show when={props.branch}>
+        <box flexDirection="column" gap={0}>
+          <text fg={props.theme.textMuted} dim>
+            BRANCH
+          </text>
+          <text fg={props.theme.accent}>{props.branch}</text>
+        </box>
+      </Show>
+      <box flexDirection="column" gap={0}>
+        <text fg={props.theme.textMuted} dim>
+          MODEL
+        </text>
+        <text fg={props.theme.secondary}>{props.modelName}</text>
+      </box>
+    </box>
+  )
+}
+
+function SmartChip(props: { label: string; tone: "primary" | "accent" | "warning" | "muted"; theme: any; onPress: () => void }) {
+  const color = () => {
+    if (props.tone === "primary") return props.theme.primary
+    if (props.tone === "accent") return props.theme.accent
+    if (props.tone === "warning") return props.theme.warning
+    return props.theme.textMuted
+  }
+  return (
+    <box
+      onMouseUp={props.onPress}
+      paddingLeft={1}
+      paddingRight={1}
+      backgroundColor={tint(props.theme.background, color(), 0.08)}
+      borderStyle="round"
+      borderColor={tint(color(), props.theme.background, 0.4)}
+    >
+      <text fg={color()}>{props.label}</text>
+    </box>
+  )
+}
+
+function RecentRunRow(props: { title: string; status: string; ageMs: number; theme: any; onOpen: () => void }) {
+  return (
+    <box
+      onMouseUp={props.onOpen}
+      paddingLeft={2}
+      paddingRight={2}
+      flexDirection="row"
+      justifyContent="space-between"
+    >
+      <box flexDirection="row" gap={1}>
+        <text fg={props.theme.textMuted} dim>
+          ·
+        </text>
+        <text fg={props.theme.text}>{props.title}</text>
+      </box>
+      <box flexDirection="row" gap={1}>
+        <text fg={props.theme.textMuted} dim>
+          {props.status}
+        </text>
+        <text fg={props.theme.textMuted} dim>
+          {formatAge(props.ageMs)}
+        </text>
+      </box>
+    </box>
+  )
+}
+
+function PulseArrow(props: { theme: any }) {
+  const [tick, setTick] = createSignal(0)
+  onMount(() => {
+    const t = setInterval(() => setTick((v) => v + 1), 600)
+    onCleanup(() => clearInterval(t))
+  })
+  return <text fg={tick() % 2 === 0 ? props.theme.primary : props.theme.textMuted}>▶</text>
 }

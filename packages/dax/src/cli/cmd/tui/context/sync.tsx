@@ -29,7 +29,7 @@ import { createSimpleContext } from "./helper"
 import type { Snapshot } from "@/snapshot"
 import { useExit } from "./exit"
 import { useArgs } from "./args"
-import { batch, createEffect, onMount } from "solid-js"
+import { batch, createEffect, onCleanup, onMount } from "solid-js"
 import { Log } from "@/util/log"
 import type { Path } from "@dax-ai/sdk"
 
@@ -200,7 +200,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       })
     }
 
-    setInterval(flushPartBuffer, PART_FLUSH_MS)
+    const partFlushTimer = setInterval(flushPartBuffer, PART_FLUSH_MS)
+    onCleanup(() => clearInterval(partFlushTimer))
 
     const updateOverview = async () => {
       try {

@@ -1,6 +1,7 @@
-import { Show } from "solid-js"
+import { Show, createMemo } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { type RunPhase, formatDuration } from "@/dax/presentation/session-stream"
+import { useTheme, tint } from "@tui/context/theme"
 
 const PHASE_ICONS: Record<string, string> = {
   thinking: "◎",
@@ -27,19 +28,21 @@ export function PhaseRail(props: {
   stepCount?: number
   durationMs?: number
 }) {
-  const statusColor = () => {
+  const { theme } = useTheme()
+
+  const statusColor = createMemo(() => {
     switch (props.status) {
       case "active":
-        return "$primary"
+        return theme.primary
       case "completed":
-        return "$success"
+        return theme.success
       case "failed":
-        return "$error"
+        return theme.error
       case "pending":
       default:
-        return "$textMuted"
+        return theme.textMuted
     }
-  }
+  })
 
   const icon = () => phaseIcon(props.phase, props.status)
 
@@ -50,7 +53,7 @@ export function PhaseRail(props: {
     }
     const dur = props.durationMs ? formatDuration(props.durationMs) : ""
     if (dur) parts.push(dur)
-    return parts.length > 0 ? parts.join("  ·  ") : ""
+    return parts.length > 0 ? parts.join(" · ") : ""
   }
 
   const expandIcon = () => (props.expanded ? "▾" : "▸")
@@ -60,28 +63,30 @@ export function PhaseRail(props: {
       flexDirection="row"
       gap={1}
       alignItems="center"
-      paddingTop={1}
-      paddingBottom={0}
+      paddingTop={0.5}
+      paddingBottom={0.5}
       paddingLeft={1}
       paddingRight={1}
       marginTop={1}
-      border={["top"]}
-      borderColor="$borderSubtle"
+      marginBottom={0.5}
+      backgroundColor={props.status === "active" ? tint(theme.background, theme.primary, 0.04) : "transparent"}
+      borderStyle={props.status === "active" ? "round" : "none"}
+      borderColor={props.status === "active" ? theme.borderActive : "transparent"}
       onMouseUp={props.onToggle}
     >
-      {/* Status indicator */}
-      <text fg={statusColor()} attributes={props.status === "active" ? TextAttributes.BOLD : undefined}>
-        {icon()}
-      </text>
+      {/* Connector segment above */}
+      <box width={1} />
 
-      {/* Toggle arrow */}
-      <text fg="$textMuted" attributes={TextAttributes.DIM}>
-        {expandIcon()}
-      </text>
+      {/* Status indicator */}
+      <box width={2} alignItems="center">
+        <text fg={statusColor()} attributes={props.status === "active" ? TextAttributes.BOLD : undefined}>
+          {icon()}
+        </text>
+      </box>
 
       {/* Phase label */}
       <text
-        fg={statusColor()}
+        fg={props.status === "active" ? theme.text : theme.textMuted}
         attributes={props.status === "active" ? TextAttributes.BOLD : undefined}
         wrapMode="none"
       >
@@ -90,10 +95,17 @@ export function PhaseRail(props: {
 
       {/* Summary metadata */}
       <Show when={summary()}>
-        <text fg="$textMuted" attributes={TextAttributes.DIM}>
-          ·  {summary()}
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+          · {summary()}
         </text>
       </Show>
+
+      <box flexGrow={1} />
+
+      {/* Toggle arrow */}
+      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+        {expandIcon()}
+      </text>
     </box>
   )
 }

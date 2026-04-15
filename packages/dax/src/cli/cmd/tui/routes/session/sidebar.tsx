@@ -283,7 +283,7 @@ export function Sidebar(props: {
   return (
     <Show when={session()}>
       <box
-        backgroundColor={theme.backgroundPanel}
+        backgroundColor={theme.background}
         width={42}
         height="100%"
         paddingTop={1}
