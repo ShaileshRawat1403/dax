@@ -1575,7 +1575,7 @@ export function Prompt(props: PromptProps) {
                               <text fg={theme.error}>{retryText()}</text>
                             </box>
                           </Match>
-                          <Match when={status().type === "delayed"}>
+                          <Match when={status().type === "delayed" && pendingPermissions() === 0 && pendingQuestions() === 0}>
                             <text fg={theme.error}>Waiting on provider response. The run is still alive.</text>
                           </Match>
                         </Switch>

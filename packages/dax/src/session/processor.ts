@@ -57,6 +57,10 @@ export namespace SessionProcessor {
             const shouldTrackDelayedProvider = true
             let lastProgressAt = Date.now()
             let delayedRaised = false
+            // Count tools currently between tool-call and tool-result. When > 0
+            // the stream is idle because the tool is running (possibly waiting for
+            // user approval/question). Do NOT flag as delayed or timeout during this.
+            let toolsInFlight = 0
             const touchProgress = () => {
               lastProgressAt = Date.now()
               if (delayedRaised) {
@@ -95,6 +99,13 @@ export namespace SessionProcessor {
               setInterval(() => {
                 trackPressure()
                 if (delayedRaised) return
+                // A tool is in-flight — it may be waiting for user approval or a
+                // question answer. Keep the progress timer fresh so we never
+                // incorrectly flag "delayed" or fire the stall timeout.
+                if (toolsInFlight > 0) {
+                  lastProgressAt = Date.now()
+                  return
+                }
                 if (Date.now() - lastProgressAt < PROVIDER_DELAY_THRESHOLD_MS) return
                 delayedRaised = true
                 SessionStatus.set(input.sessionID, {
@@ -211,6 +222,7 @@ export namespace SessionProcessor {
                     break
 
                   case "tool-call": {
+                    toolsInFlight++
                     const match = toolcalls[value.toolCallId]
                     if (match) {
                       const part = await Session.updatePart({
@@ -230,6 +242,7 @@ export namespace SessionProcessor {
                     break
                   }
                   case "tool-result": {
+                    toolsInFlight = Math.max(0, toolsInFlight - 1)
                     const match = toolcalls[value.toolCallId]
                     if (match && match.state.status === "running") {
                       await Session.updatePart({
@@ -254,6 +267,7 @@ export namespace SessionProcessor {
                   }
 
                   case "tool-error": {
+                    toolsInFlight = Math.max(0, toolsInFlight - 1)
                     const match = toolcalls[value.toolCallId]
                     if (match && match.state.status === "running") {
                       await Session.updatePart({
