@@ -155,6 +155,53 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       )
     }
 
+    // Throttle message.part.updated events so the terminal re-renders at a
+    // controlled cadence (~16fps) instead of on every individual token.
+    // Only the latest state per part is kept — intermediate tokens are skipped
+    // for rendering but never lost (the store reflects final state on flush).
+    const PART_FLUSH_MS = 60
+    const partBuffer = new Map<string, any>() // partID → latest Part
+
+    function applyPartUpdate(part: any) {
+      const messageID = part.messageID
+      const parts = store.part[messageID]
+      if (!parts) {
+        setStore("part", messageID, [part])
+      } else {
+        const result = Binary.search(parts, part.id, (p) => p.id)
+        if (result.found) {
+          setStore("part", messageID, result.index, reconcile(part))
+        } else {
+          setStore(
+            "part",
+            messageID,
+            produce((draft) => {
+              draft.splice(result.index, 0, part)
+            }),
+          )
+        }
+      }
+      for (const [sessionID, messages] of Object.entries(store.message)) {
+        const match = Binary.search(messages, messageID, (m) => m.id)
+        if (match.found) {
+          debouncedProjectionRefresh(sessionID)
+          break
+        }
+      }
+    }
+
+    function flushPartBuffer() {
+      if (partBuffer.size === 0) return
+      batch(() => {
+        for (const part of partBuffer.values()) {
+          applyPartUpdate(part)
+        }
+        partBuffer.clear()
+      })
+    }
+
+    setInterval(flushPartBuffer, PART_FLUSH_MS)
+
     const updateOverview = async () => {
       try {
         const response = await sdk.client.run.overview({ limit: 25 })
@@ -296,6 +343,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
         case "message.updated": {
           const sessionID = event.properties.info.sessionID
+          // Flush any buffered part updates before applying message completion
+          // so the final rendered state is consistent.
+          if (event.properties.info.time?.completed) flushPartBuffer()
           const messages = store.message[sessionID]
           if (!messages) {
             setStore("message", sessionID, [event.properties.info])
@@ -350,31 +400,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           break
         }
         case "message.part.updated": {
-          const messageID = event.properties.part.messageID
-          const parts = store.part[messageID]
-          if (!parts) {
-            setStore("part", messageID, [event.properties.part])
-          } else {
-            const result = Binary.search(parts, event.properties.part.id, (p) => p.id)
-            if (result.found) {
-              setStore("part", messageID, result.index, reconcile(event.properties.part))
-            } else {
-              setStore(
-                "part",
-                messageID,
-                produce((draft) => {
-                  draft.splice(result.index, 0, event.properties.part)
-                }),
-              )
-            }
-          }
-          for (const [sessionID, messages] of Object.entries(store.message)) {
-            const match = Binary.search(messages, messageID, (m) => m.id)
-            if (match.found) {
-              debouncedProjectionRefresh(sessionID)
-              break
-            }
-          }
+          // Buffer and flush at PART_FLUSH_MS cadence to avoid re-rendering
+          // the terminal on every individual token.
+          partBuffer.set(event.properties.part.id, event.properties.part)
           break
         }
 
