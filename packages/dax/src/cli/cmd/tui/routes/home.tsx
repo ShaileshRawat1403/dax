@@ -193,7 +193,6 @@ export function Home() {
   const greeting = getGreeting()
   const displayName = os.userInfo().username || "operator"
 
-  const inputBg = () => tint(theme.background, theme.primary, 0.03)
 
   function promptText(kind: HomeWorkflowMode) {
     if (explainMode()) {
@@ -398,13 +397,7 @@ export function Home() {
             </Show>
 
             {/* ── Prompt input ── */}
-            <box
-              width="100%"
-              backgroundColor={inputBg()}
-              borderStyle="rounded"
-              borderColor={theme.borderActive}
-              padding={0}
-            >
+            <box width="100%">
               <Prompt
                 ref={(r) => {
                   prompt = r
