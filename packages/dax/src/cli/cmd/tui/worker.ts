@@ -154,14 +154,32 @@ export const rpc = {
         const cost = sessionCostTotal(messageInfos)
         const turnCount = messageInfos.filter((m) => m.role === "user").length
 
+        // Collect files written/edited during the session from tool parts
+        const FILE_WRITE_TOOLS = new Set(["Edit", "Write", "NotebookEdit"])
+        const seenPaths = new Set<string>()
+        const files_changed: string[] = []
+        for (const msg of messages) {
+          if (msg.info.role !== "assistant") continue
+          for (const part of msg.parts) {
+            if (part.type !== "tool") continue
+            if (!FILE_WRITE_TOOLS.has(part.tool)) continue
+            const filePath = (part.state as any).input?.file_path as string | undefined
+            if (!filePath || seenPaths.has(filePath)) continue
+            seenPaths.add(filePath)
+            // Show relative path when possible
+            const cwd = Instance.directory
+            const rel = filePath.startsWith(cwd + "/") ? filePath.slice(cwd.length + 1) : filePath
+            files_changed.push(rel)
+          }
+        }
+
         return {
           title: session.title,
           turnCount,
           tokenCount: tokens,
           generatedTokenCount: generatedTokens,
           costLabel: cost > 0 ? formatUsd(cost) : undefined,
-          achievement: session.title,
-          files_changed: [] as string[],
+          files_changed,
         }
       },
     })
