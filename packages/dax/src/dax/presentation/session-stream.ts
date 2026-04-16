@@ -27,6 +27,8 @@ export interface RenderableStreamItem {
   phaseStepCount?: number
   /** Duration in milliseconds (set on phase.marker and run.event items when computable) */
   durationMs?: number
+  /** Whether there are expandable run.event items for this phase (only set on phase.marker) */
+  hasExpandableContent?: boolean
 }
 
 const PHASE_MAP: Record<string, RunPhase> = {
@@ -192,7 +194,14 @@ export function buildStreamItems(
         phase,
         message: getPhaseLabel(phase),
         type: item.type,
-        status: phase === "complete" ? "completed" : phase === "executing" ? "active" : "completed",
+        status:
+          phase === "complete"
+            ? item.type === "run.failed"
+              ? "failed"
+              : "completed"
+            : phase === "executing"
+              ? "active"
+              : "completed",
         expanded: true,
       })
     }
@@ -288,27 +297,25 @@ export function buildStreamItems(
   streamItems.sort((a, b) => a.timestamp - b.timestamp)
 
   // Reposition UNDERSTANDING to just after the last user message before planning begins.
-  // run.created fires before any user message, so it sorts to the top. We want it to
-  // appear in context with the query that actually triggered the non-trivial work —
-  // i.e. the last user message whose timestamp precedes plan.compiled/step.started.
-  // This also suppresses it entirely for trivial exchanges (hasNonTrivialWork = false).
+  // Uses index-based positioning (not timestamps) so it's robust against clock skew
+  // between client message timestamps and server narrative event timestamps.
+  // Suppressed entirely for trivial exchanges (hasNonTrivialWork = false).
   if (hasNonTrivialWork) {
     const understandingIdx = streamItems.findIndex(
       (item) => item.kind === "phase.marker" && item.phase === "understanding",
     )
     if (understandingIdx !== -1) {
-      const firstPlanTs = narrative
-        .filter((n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed")
-        .map((n) => (n.timestamp ? new Date(n.timestamp).getTime() : Infinity))
-        .reduce((min, ts) => Math.min(min, ts), Infinity)
+      // Find the first phase marker that is NOT understanding — UNDERSTANDING must precede it
+      const nextPhaseIdx = streamItems.findIndex(
+        (item) => item.kind === "phase.marker" && item.phase !== "understanding",
+      )
+      const boundary = nextPhaseIdx !== -1 ? nextPhaseIdx : streamItems.length
 
-      // Find the last user message that appears before planning started
+      // Last user message before the next phase is the one that triggered the work
       let insertAfterIdx = -1
-      if (isFinite(firstPlanTs)) {
-        for (let i = 0; i < streamItems.length; i++) {
-          if (streamItems[i].kind === "message.user" && streamItems[i].timestamp < firstPlanTs) {
-            insertAfterIdx = i
-          }
+      for (let i = 0; i < boundary; i++) {
+        if (i !== understandingIdx && streamItems[i].kind === "message.user") {
+          insertAfterIdx = i
         }
       }
 
@@ -508,9 +515,18 @@ function annotatePhaseStats(items: RenderableStreamItem[], narrative: RunNarrati
     }
   }
 
-  // Annotate phase.marker items with computed stats
+  // Build a set of phases that have at least one expandable run.event item
+  const phasesWithEvents = new Set<RunPhase>()
+  for (const item of items) {
+    if (item.kind === "run.event" && item.phase) {
+      phasesWithEvents.add(item.phase)
+    }
+  }
+
+  // Annotate phase.marker items with computed stats and expandability
   for (const item of items) {
     if (item.kind === "phase.marker" && item.phase) {
+      item.hasExpandableContent = phasesWithEvents.has(item.phase)
       const stats = phaseStats.get(item.phase)
       if (stats) {
         item.phaseStepCount = stats.count
