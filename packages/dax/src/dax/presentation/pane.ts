@@ -1,6 +1,8 @@
-export const PANE_MODE = ["audit", "approvals", "memory", "refine"] as const
+export const PANE_MODE = ["audit", "approvals", "memory", "refine", "operator"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
+
+export type OperatorTab = "instructions" | "controls" | "context" | "session" | "commands"
 
 export const PANE_VISIBILITY = ["auto", "pinned", "hidden"] as const
 
@@ -16,6 +18,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
     approvals: "approvals",
     memory: "memory",
     refine: "refine",
+    operator: "operator",
   }[mode]
 }
 
@@ -25,6 +28,7 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
     approvals: "approve",
     memory: "memory",
     refine: "refine",
+    operator: "operator",
   }[mode]
 }
 
@@ -50,6 +54,8 @@ export function paneContextLabel(mode: PaneMode): string {
       return "Durable operator context"
     case "refine":
       return "Refine prompt and execution profile"
+    case "operator":
+      return "Operator controls and session management"
     default:
       return ""
   }

@@ -162,7 +162,30 @@ export const TuiThreadCommand = cmd({
         prompt,
         fork: args.fork,
       },
-      onExit: async () => {
+      onExit: async (sessionID) => {
+        // Fetch summary before shutting down the worker — after shutdown the RPC is dead
+        if (sessionID) {
+          try {
+            const summary = await client.call("summary", { sessionID })
+            if (summary) {
+              process.stdout.write(
+                formatSessionExitMessage({
+                  sessionID,
+                  title: summary.title,
+                  turnCount: summary.turnCount,
+                  tokenCount: summary.tokenCount,
+                  generatedTokenCount: summary.generatedTokenCount,
+                  costLabel: summary.costLabel,
+                  summary: {
+                    files_changed: summary.files_changed,
+                  },
+                }) + "\n",
+              )
+            }
+          } catch {
+            // Silently fail if summary cannot be fetched
+          }
+        }
         await client.call("shutdown", undefined)
       },
     })
@@ -171,29 +194,6 @@ export const TuiThreadCommand = cmd({
       client.call("checkUpgrade", { directory: cwd }).catch(() => {})
     }, 1000)
 
-    const sessionID = await tuiPromise
-
-    if (sessionID) {
-      try {
-        const summary = await client.call("summary", { sessionID })
-        if (summary) {
-          console.log(
-            formatSessionExitMessage({
-              sessionID,
-              title: summary.title,
-              turnCount: summary.turnCount,
-              tokenCount: summary.tokenCount,
-              generatedTokenCount: summary.generatedTokenCount,
-              costLabel: summary.costLabel,
-              summary: {
-                files_changed: summary.files_changed,
-              },
-            }),
-          )
-        }
-      } catch (e) {
-        // Silently fail if summary cannot be fetched
-      }
-    }
+    await tuiPromise
   },
 })

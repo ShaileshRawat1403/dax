@@ -93,6 +93,7 @@ import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
 import { AuditLogPane } from "../../component/prompt/audit-log"
 import { RefinePane } from "../../component/prompt/refine"
+import { OperatorPane } from "../../component/prompt/operator-pane"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
@@ -138,6 +139,7 @@ import {
   type RunPhase,
 } from "@/dax/presentation/session-stream"
 import { StreamItem } from "../../component/stream"
+import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] } | { type: "context-group"; tools: ToolPart[] }
 
@@ -145,7 +147,12 @@ const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch",
 const HIDDEN_TOOLS = new Set(["todowrite"])
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
-import { latestContextUsage, sessionCostTotal, sessionTokenTotal, sessionAssistantMessages } from "@/dax/session-metrics"
+import {
+  latestContextUsage,
+  sessionCostTotal,
+  sessionTokenTotal,
+  sessionAssistantMessages,
+} from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
@@ -167,12 +174,88 @@ const MUTATION_INTENT_RE =
 const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
 
 const STAGE_VERBS: Record<string, string[]> = {
-  thinking:  ["Hexing", "Séancing", "Auguring", "Invoking", "Scrying", "Dreaming", "Meditating", "Communing", "Channeling", "Summoning", "Fermenting", "Brooding", "Gestating", "Unraveling", "Obsessing"],
-  exploring: ["Harrowing", "Rifling", "Unearthing", "Raiding", "Wandering", "Straying", "Delving", "Dredging", "Haunting", "Circling", "Orbiting", "Snaking", "Descending"],
-  planning:  ["Codifying", "Inscribing", "Engraving", "Binding", "Sealing", "Weaving", "Threading", "Casting", "Ordaining", "Manifesting", "Decreeing", "Etching", "Scribing", "Architecting", "Blueprinting", "Orchestrating", "Prophesying"],
-  executing: ["Detonating", "Erupting", "Unleashing", "Combusting", "Igniting", "Striking", "Splitting", "Shattering", "Riffing", "Forging", "Hammering", "Cleaving"],
-  verifying: ["Exorcising", "Purging", "Absolving", "Confessing", "Atoning", "Interrogating", "Dissecting", "Tempering", "Annealing", "Baptizing", "Purifying", "Cauterizing", "Excising", "Sanctifying"],
-  done:      ["Ascending"],
+  thinking: [
+    "Hexing",
+    "Séancing",
+    "Auguring",
+    "Invoking",
+    "Scrying",
+    "Dreaming",
+    "Meditating",
+    "Communing",
+    "Channeling",
+    "Summoning",
+    "Fermenting",
+    "Brooding",
+    "Gestating",
+    "Unraveling",
+    "Obsessing",
+  ],
+  exploring: [
+    "Harrowing",
+    "Rifling",
+    "Unearthing",
+    "Raiding",
+    "Wandering",
+    "Straying",
+    "Delving",
+    "Dredging",
+    "Haunting",
+    "Circling",
+    "Orbiting",
+    "Snaking",
+    "Descending",
+  ],
+  planning: [
+    "Codifying",
+    "Inscribing",
+    "Engraving",
+    "Binding",
+    "Sealing",
+    "Weaving",
+    "Threading",
+    "Casting",
+    "Ordaining",
+    "Manifesting",
+    "Decreeing",
+    "Etching",
+    "Scribing",
+    "Architecting",
+    "Blueprinting",
+    "Orchestrating",
+    "Prophesying",
+  ],
+  executing: [
+    "Detonating",
+    "Erupting",
+    "Unleashing",
+    "Combusting",
+    "Igniting",
+    "Striking",
+    "Splitting",
+    "Shattering",
+    "Riffing",
+    "Forging",
+    "Hammering",
+    "Cleaving",
+  ],
+  verifying: [
+    "Exorcising",
+    "Purging",
+    "Absolving",
+    "Confessing",
+    "Atoning",
+    "Interrogating",
+    "Dissecting",
+    "Tempering",
+    "Annealing",
+    "Baptizing",
+    "Purifying",
+    "Cauterizing",
+    "Excising",
+    "Sanctifying",
+  ],
+  done: ["Ascending"],
 }
 const NARRATIVE_FOLLOW_SLACK = 2
 const FOLLOW_RESUME_THRESHOLD = 1
@@ -307,8 +390,7 @@ export function Session() {
 
   const isPhaseExpanded = (phase: RunPhase | undefined): boolean => {
     if (!phase) return true
-    const activePhases = getActivePhases(streamItems())
-    if (activePhases.has(phase)) return true
+    // User's explicit collapse always wins — even for the active phase.
     return !collapsedPhases().has(phase)
   }
 
@@ -339,8 +421,23 @@ export function Session() {
           m.role === "assistant" && "providerID" in m && !!m.providerID,
       )
     const modelName = lastAssistant?.providerID ? `${lastAssistant.providerID}/${lastAssistant.modelID}` : null
-    const generatedTokens = (sessionAssistantMessages(messages()) as AssistantMessage[])
-      .reduce((sum, m) => sum + (m.tokens?.output ?? 0), 0)
+    const completedGeneratedTokens = (sessionAssistantMessages(messages()) as AssistantMessage[]).reduce(
+      (sum, m) => sum + (m.tokens?.output ?? 0),
+      0,
+    )
+
+    // For the currently streaming (incomplete) message, estimate live token count
+    // from text part lengths since tokens.output isn't populated until completion.
+    const streamingMsg = (sessionAssistantMessages(messages()) as AssistantMessage[]).find((m) => !m.time.completed)
+    const streamingTokens = streamingMsg
+      ? Math.round(
+          (sync.data.part[streamingMsg.id] ?? [])
+            .filter((p) => p.type === "text")
+            .reduce((sum, p) => sum + ((p as { text?: string }).text?.length ?? 0), 0) / 4,
+        )
+      : 0
+
+    const generatedTokens = completedGeneratedTokens + streamingTokens
     return {
       tokens: totalTokens,
       generatedTokens,
@@ -711,9 +808,7 @@ export function Session() {
   })
   const followActionLabel = createMemo(() => {
     if (following()) {
-      return sessionStatusType() === "busy" || pending()
-        ? `${followGlyph()} FOLLOWING`
-        : "FOLLOWING"
+      return sessionStatusType() === "busy" || pending() ? `${followGlyph()} FOLLOWING` : "FOLLOWING"
     }
     return "○ FOLLOW"
   })
@@ -1168,37 +1263,40 @@ export function Session() {
   const [lastNarrativeScrollTop, setLastNarrativeScrollTop] = createSignal(0)
   const [lastProgrammaticScrollAt, setLastProgrammaticScrollAt] = createSignal(0)
   createEffect(() => {
-    const timer = setInterval(() => {
-      const scroll = narrativeScroll
-      if (!scroll) return
-      const previousTop = lastNarrativeScrollTop()
-      const previousHeight = lastNarrativeHeight()
-      const currentTop = scroll.scrollTop
-      const nextHeight = scroll.scrollHeight
-      const viewportHeight = scroll.height
-      const topChanged = currentTop !== previousTop
-      const heightChanged = nextHeight !== lastNarrativeHeight()
-      const nearBottomBefore = wasNarrativeNearBottom(previousTop, previousHeight, viewportHeight)
-      const userMovedAway =
-        topChanged &&
-        Date.now() - lastProgrammaticScrollAt() > 120 &&
-        !isNarrativeNearBottom() &&
-        currentTop < previousTop
+    const timer = setInterval(
+      () => {
+        const scroll = narrativeScroll
+        if (!scroll) return
+        const previousTop = lastNarrativeScrollTop()
+        const previousHeight = lastNarrativeHeight()
+        const currentTop = scroll.scrollTop
+        const nextHeight = scroll.scrollHeight
+        const viewportHeight = scroll.height
+        const topChanged = currentTop !== previousTop
+        const heightChanged = nextHeight !== lastNarrativeHeight()
+        const nearBottomBefore = wasNarrativeNearBottom(previousTop, previousHeight, viewportHeight)
+        const userMovedAway =
+          topChanged &&
+          Date.now() - lastProgrammaticScrollAt() > 120 &&
+          !isNarrativeNearBottom() &&
+          currentTop < previousTop
 
-      if (userMovedAway && following()) {
-        setFollowing(false)
-      }
+        if (userMovedAway && following()) {
+          setFollowing(false)
+        }
 
-      if (!following() && isNarrativeNearBottom()) {
-        setFollowing(true)
-      }
+        if (!following() && isNarrativeNearBottom()) {
+          setFollowing(true)
+        }
 
-      if (heightChanged && followEnabled() && nearBottomBefore) {
-        scrollNarrative({ force: true })
-      }
-      setLastNarrativeScrollTop(scroll.scrollTop)
-      setLastNarrativeHeight(scroll.scrollHeight)
-    }, animationsEnabled() ? 220 : 280)
+        if (heightChanged && followEnabled() && nearBottomBefore) {
+          scrollNarrative({ force: true })
+        }
+        setLastNarrativeScrollTop(scroll.scrollTop)
+        setLastNarrativeHeight(scroll.scrollHeight)
+      },
+      animationsEnabled() ? 220 : 280,
+    )
     onCleanup(() => clearInterval(timer))
   })
 
@@ -1305,7 +1403,6 @@ export function Session() {
     }
   }
 
-
   const paneDiffFiletype = createMemo(() => {
     const change = selectedProposedChange()
     if (!change) return "text"
@@ -1381,6 +1478,7 @@ export function Session() {
           }
           emphasis={showPane() ? "muted" : "normal"}
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
+          contextPercent={sessionTelemetry().contextPercent ?? undefined}
           actions={[
             {
               label: followActionLabel(),
@@ -1434,17 +1532,21 @@ export function Session() {
               </Show>
               <For each={streamItems()}>
                 {(item, index) => (
-                  <StreamItem
-                    item={item}
-                    expanded={isPhaseExpanded(item.phase)}
-                    isLast={index() === lastMessageIndex()}
-                    onTogglePhase={() => item.phase && togglePhase(item.phase)}
-                    onNavigateToApprovals={openApprovalsPane}
-                    MessageComponent={Message}
-                  />
+                  <>
+                    <StreamItem
+                      item={item}
+                      expanded={isPhaseExpanded(item.phase)}
+                      isLast={index() === lastMessageIndex()}
+                      onTogglePhase={() => item.phase && togglePhase(item.phase)}
+                      onNavigateToApprovals={openApprovalsPane}
+                      MessageComponent={Message}
+                    />
+                    <Show when={item.kind === "phase.marker" && item.phase === "planning" && todo().length > 0}>
+                      <TodoStreamBlock todos={todo()} />
+                    </Show>
+                  </>
                 )}
               </For>
-
             </box>
           </scrollbox>
 
@@ -1463,7 +1565,13 @@ export function Session() {
               scrollAcceleration={scrollAcceleration()}
             >
               <box padding={1} gap={1} backgroundColor={theme.background} flexDirection="column">
-                <box flexDirection="column" gap={1} border={["bottom"]} borderColor={theme.borderSubtle} paddingBottom={1}>
+                <box
+                  flexDirection="column"
+                  gap={1}
+                  border={["bottom"]}
+                  borderColor={theme.borderSubtle}
+                  paddingBottom={1}
+                >
                   <box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
                     <For each={PANE_MODES}>
                       {(mode) => (
@@ -1714,6 +1822,20 @@ export function Session() {
                       </Switch>
                     </box>
                   </Match>
+
+                  <Match when={activePaneMode() === "operator"}>
+                    <OperatorPane
+                      instruction={kv.get(DAX_SETTING.operator_instruction, "")}
+                      onInstructionChange={(value) => kv.set(DAX_SETTING.operator_instruction, value)}
+                      onClear={() => kv.set(DAX_SETTING.operator_instruction, "")}
+                      contextUsage={sessionTelemetry().contextPercent ?? 0}
+                      stepsUsed={workstationState().planSummary.steps.filter((s) => s.status === "done").length}
+                      stepsTotal={workstationState().planSummary.totalSteps || undefined}
+                      pmRulesCount={memoryRules().rows.length}
+                      sessionTag={kv.get(DAX_SETTING.operator_session_tag, "")}
+                      onSessionTagChange={(value) => kv.set(DAX_SETTING.operator_session_tag, value)}
+                    />
+                  </Match>
                 </Switch>
               </box>
             </scrollbox>
@@ -1733,15 +1855,17 @@ export function Session() {
             alignItems="center"
           >
             <Spinner color={theme.primary} />
-            <text fg={theme.text} attributes={TextAttributes.BOLD}>{doing()}…</text>
+            <text fg={theme.text} attributes={TextAttributes.BOLD}>
+              {doing()}…
+            </text>
             <Show when={sessionTelemetry().generatedTokens > 0 || runElapsed() > 2000}>
               <text fg={theme.textMuted} dim>
                 {(() => {
                   const t = sessionTelemetry().generatedTokens
                   const elapsed = runElapsed()
                   const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
-                  if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
-                  if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
+                  if (t > 0 && timePart) return `(${timePart} · ↑ ${formatTokenCount(t)} tokens)`
+                  if (t > 0) return `(↑ ${formatTokenCount(t)} tokens)`
                   return `(${timePart})`
                 })()}
               </text>
@@ -2180,21 +2304,22 @@ function describeNarrativeNext(next: string | undefined) {
   const normalized = trimPunctuation(next)?.toLowerCase()
   if (!normalized) return undefined
   switch (normalized) {
-    case "continue plan execution":
-      return "Pressing forward through the plan."
-    case "capture evidence and verify":
-      return "Using this to lock in the next checkpoint."
-    case "decide next operation":
-      return "Using the result to pick the next move."
-    case "wait for tool completion":
-    case "wait for command completion":
-      return "Waiting on the current step."
-    case "wait for planning step":
-      return "Holding for the planning step."
+    // Meaningful forward signals — show these
     case "run verification":
       return "Checking the result before moving on."
+    case "capture evidence and verify":
+      return "Using this to lock in the next checkpoint."
+    case "continue plan execution":
+      return "Pressing forward through the plan."
+    // Generic / noisy — suppress
+    case "decide next operation":
+    case "wait for tool completion":
+    case "wait for command completion":
+    case "wait for planning step":
+    case "wait for context":
+    case "wait for mutation":
     case "continue governed run":
-      return "Continuing under governance."
+      return undefined
     default:
       return trimPunctuation(next)
   }
@@ -2207,7 +2332,10 @@ function extractResultMeta(result: string | undefined): string | undefined {
   return m?.[1]
 }
 
-function describeTraceRollup(traces: Array<NonNullable<ReturnType<typeof deriveOperatorTraceLine>>>, completed: number) {
+function describeTraceRollup(
+  traces: Array<NonNullable<ReturnType<typeof deriveOperatorTraceLine>>>,
+  completed: number,
+) {
   if (traces.length === 0) return undefined
   if (traces.length === 1) return describeNarrativeTrace(traces[0]!)
 
@@ -2228,9 +2356,7 @@ function describeTraceRollup(traces: Array<NonNullable<ReturnType<typeof deriveO
 function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
   const { theme } = useTheme()
   const ctx = use()
-  const traces = createMemo(() =>
-    props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })),
-  )
+  const traces = createMemo(() => props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })))
   const completed = createMemo(() => traces().filter((item) => item.tool.state.status === "completed").length)
   const narrativeTraces = createMemo(() =>
     traces()
@@ -2274,8 +2400,10 @@ function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
           <For each={visibleTraces()}>
             {(item) => {
               const toolName = createMemo(() => item.tool.tool.toLowerCase())
-              const isSignificant = createMemo(() => toolName() === "shell" || EXECUTE_TOOLS.has(toolName()) || PLAN_TOOLS.has(toolName()))
-              
+              const isSignificant = createMemo(
+                () => toolName() === "shell" || EXECUTE_TOOLS.has(toolName()) || PLAN_TOOLS.has(toolName()),
+              )
+
               // Extract target (filePath, pattern, etc) for visibility
               const target = createMemo(() => {
                 const input = (item.tool.state.status !== "pending" ? item.tool.state.input : {}) as any
@@ -2286,7 +2414,7 @@ function NarrativeToolList(props: { tools: ToolPart[]; showNext?: boolean }) {
                 <Switch>
                   <Match when={isSignificant()}>
                     <box marginTop={0} marginBottom={1} marginRight={1}>
-                       <ToolPart part={item.tool} last={false} message={null as any} />
+                      <ToolPart part={item.tool} last={false} message={null as any} />
                     </box>
                   </Match>
                   <Match when={true}>
@@ -2365,13 +2493,26 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   )
 }
 
-const INTERNAL_AGENTS = new Set(["planner", "plan", "explore", "explorer", "review", "reviewer", "verify", "verifier", "audit", "auditor"])
+const INTERNAL_AGENTS = new Set([
+  "planner",
+  "plan",
+  "explore",
+  "explorer",
+  "review",
+  "reviewer",
+  "verify",
+  "verifier",
+  "audit",
+  "auditor",
+])
 
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage; marginTop?: number }) {
   const ctx = use()
   const { syntax, theme } = useTheme()
   const isStreaming = createMemo(() => props.last && !props.message.time.completed)
-  const isInternalAgent = createMemo(() => INTERNAL_AGENTS.has((props.message as AssistantMessage).agent?.toLowerCase() ?? ""))
+  const isInternalAgent = createMemo(() =>
+    INTERNAL_AGENTS.has((props.message as AssistantMessage).agent?.toLowerCase() ?? ""),
+  )
   const [cursorOn, setCursorOn] = createSignal(true)
   onMount(() => {
     const timer = setInterval(() => setCursorOn((v) => !v), 530)
@@ -2393,7 +2534,12 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
             marginTop={props.marginTop ?? 1}
             flexShrink={0}
           >
-            <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
+            <markdown
+              syntaxStyle={syntax()}
+              streaming={true}
+              content={props.part.text.trim()}
+              conceal={ctx.conceal()}
+            />
             <Show when={isStreaming()}>
               <text fg={theme.primary} attributes={TextAttributes.BOLD}>
                 {cursorOn() ? "▋" : " "}
@@ -2500,11 +2646,16 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
             </Match>
             <Match when={toolName() === "apply_patch"}>
               <text fg={theme.text}>
-                {(() => { const n = Object.keys((toolprops.input as any).changes ?? {}).length; return `${n} file${n === 1 ? "" : "s"} patched` })()}
+                {(() => {
+                  const n = Object.keys((toolprops.input as any).changes ?? {}).length
+                  return `${n} file${n === 1 ? "" : "s"} patched`
+                })()}
               </text>
             </Match>
             <Match when={toolName() === "reflection"}>
-              <text fg={theme.text}>{(toolprops.input as any).goal ?? (toolprops.input as any).summary ?? "Locking in checkpoint"}</text>
+              <text fg={theme.text}>
+                {(toolprops.input as any).goal ?? (toolprops.input as any).summary ?? "Locking in checkpoint"}
+              </text>
             </Match>
           </Switch>
         </BlockTool>
@@ -2550,9 +2701,7 @@ function InlineTool(props: {
       <Show
         when={isRunning() && !props.complete}
         fallback={
-          <text fg={props.complete ? theme.textMuted : theme.textMuted}>
-            {props.complete ? "⎿" : props.icon}
-          </text>
+          <text fg={props.complete ? theme.textMuted : theme.textMuted}>{props.complete ? "⎿" : props.icon}</text>
         }
       >
         <Spinner color={theme.primary} />
@@ -2582,9 +2731,7 @@ function BlockTool(props: {
   const { theme } = useTheme()
   const isCompleted = createMemo(() => props.part.state.status === "completed")
   const hasError = createMemo(() => props.part.state.status === "error")
-  const accentColor = createMemo(() =>
-    hasError() ? theme.error : isCompleted() ? theme.borderSubtle : theme.primary,
-  )
+  const accentColor = createMemo(() => (hasError() ? theme.error : isCompleted() ? theme.borderSubtle : theme.primary))
 
   return (
     <box
@@ -2621,7 +2768,9 @@ function BlockTool(props: {
           </text>
           <Show when={props.children}>
             <box flexDirection="row" gap={1} alignItems="center">
-              <text fg={theme.textMuted} dim>—</text>
+              <text fg={theme.textMuted} dim>
+                —
+              </text>
               {props.children}
             </box>
           </Show>
@@ -2647,7 +2796,11 @@ function Bash(props: ToolProps<typeof ShellTool>) {
     return stripAnsi(raw.trim())
   })
 
-  const outputLines = createMemo(() => rawOutput().split("\n").filter((l) => l.trim() !== ""))
+  const outputLines = createMemo(() =>
+    rawOutput()
+      .split("\n")
+      .filter((l) => l.trim() !== ""),
+  )
   // Show the last 3 non-empty lines while streaming
   const liveLines = createMemo(() => outputLines().slice(-3))
 

@@ -158,15 +158,17 @@ describe("session-stream presentation model", () => {
 
       const items = buildStreamItems(projectedRun, [], {})
 
-      expect(items.length).toBe(2)
+      // 2 phase markers (understanding, planning) + 1 run event (intent.created)
+      expect(items.length).toBe(3)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
-      expect(runEvents.length).toBe(0)
+      expect(runEvents.length).toBe(1)
 
+      // intent.created surfaces under UNDERSTANDING; run.created is never a run event
       const runCreated = runEvents.find((item) => item.type === "run.created")
       expect(runCreated).toBeUndefined()
       const intentCreated = runEvents.find((item) => item.type === "intent.created")
-      expect(intentCreated).toBeUndefined()
+      expect(intentCreated).toBeDefined() // surfaces agent's interpretation under UNDERSTANDING
       const planCompiled = runEvents.find((item) => item.type === "plan.compiled")
       expect(planCompiled).toBeUndefined()
     })
@@ -234,8 +236,13 @@ describe("session-stream presentation model", () => {
       expect(firstItem.timestamp).toBeLessThanOrEqual(Date.now())
     })
 
-    it("never returns an empty stream when projectedRun has narrative", () => {
-      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+    it("never returns an empty stream when projectedRun has non-trivial work", () => {
+      // run.created-only is intentionally suppressed (trivial query, no plan/step events).
+      // Use a narrative with actual work to verify the regression guard.
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session initialized" },
+        { type: "plan.compiled", message: "Strategy locked" },
+      ])
 
       const items = buildStreamItems(projectedRun, [], {})
 
@@ -381,17 +388,17 @@ describe("session-stream presentation model", () => {
   })
 
   describe("regression: narrative rendering never blanks", () => {
-    it("only run.created narrative item still renders visible rows", () => {
+    it("run.created-only narrative is suppressed for trivial queries", () => {
+      // A narrative with only run.created has no plan/step events — it's a trivial
+      // interaction. All phase markers are intentionally suppressed to keep the stream clean.
       const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
 
       const items = buildStreamItems(projectedRun, [], {})
 
-      expect(items.length).toBeGreaterThan(0)
-
       const visibleItems = items.filter(
         (item) => item.kind === "run.event" || item.kind === "phase.marker" || item.kind === "alert.inline",
       )
-      expect(visibleItems.length).toBeGreaterThan(0)
+      expect(visibleItems.length).toBe(0)
     })
 
     it("only plan.compiled narrative item still renders visible rows", () => {
@@ -422,17 +429,23 @@ describe("session-stream presentation model", () => {
 
       const items = buildStreamItems(projectedRun, [], {})
 
-      expect(items.length).toBe(6)
+      // 4 phase markers (understanding, planning, executing, complete)
+      // + 4 run events (intent.created, step.started, step.completed, run.completed)
+      // + 1 alert.inline (approval.requested)
+      expect(items.length).toBe(9)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
       const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
       const alertItems = items.filter((item) => item.kind === "alert.inline")
 
-      expect(runEvents.length).toBe(1)
+      expect(runEvents.length).toBe(4)
       expect(phaseMarkers.length).toBeGreaterThanOrEqual(3)
       expect(alertItems.length).toBeGreaterThanOrEqual(1)
-      expect(runEvents.some((item) => item.type === "step.started")).toBe(false)
-      expect(runEvents.some((item) => item.type === "step.completed")).toBe(false)
+      // intent.created surfaces the agent's interpretation under UNDERSTANDING
+      expect(runEvents.some((item) => item.type === "intent.created")).toBe(true)
+      // step.started and step.completed are expandable under EXECUTING
+      expect(runEvents.some((item) => item.type === "step.started")).toBe(true)
+      expect(runEvents.some((item) => item.type === "step.completed")).toBe(true)
       expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
       expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
     })

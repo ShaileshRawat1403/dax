@@ -2,7 +2,13 @@ import type { Part, AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import type { ProjectedRun, RunNarrativeItem } from "@/server/run-contract"
 import type { MessageV2 } from "@/session/message-v2"
 
-export type StreamItemKind = "phase.marker" | "run.event" | "alert.inline" | "message.user" | "message.assistant" | "compaction.marker"
+export type StreamItemKind =
+  | "phase.marker"
+  | "run.event"
+  | "alert.inline"
+  | "message.user"
+  | "message.assistant"
+  | "compaction.marker"
 
 export type RunPhase = "understanding" | "planning" | "executing" | "verifying" | "complete"
 
@@ -110,8 +116,11 @@ function isPhaseMarkerCandidate(item: RunNarrativeItem): boolean {
 
 /** Events that count as meaningful "steps" within a phase for the step counter */
 const STEP_COUNT_TYPES = new Set([
-  "step.started", "step.completed", "step.failed",
-  "approval.requested", "approval.resolved",
+  "step.started",
+  "step.completed",
+  "step.failed",
+  "approval.requested",
+  "approval.resolved",
   "artifact.created",
 ])
 
@@ -121,9 +130,12 @@ function isCountableStep(item: RunNarrativeItem): boolean {
 
 function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
   switch (item.type) {
+    case "intent.created":   // shows what the agent understood — content for UNDERSTANDING
     case "run.completed":
     case "run.failed":
     case "step.failed":
+    case "step.started":
+    case "step.completed":
       return true
     default:
       return false
@@ -156,10 +168,22 @@ export function buildStreamItems(
     }
   }
 
+  // Suppress all phase markers for trivial interactions (greetings, simple Q&A)
+  // where no plan is ever compiled and no step is ever started. This prevents
+  // UNDERSTANDING, COMPLETE, etc. from cluttering the stream for "hi"-style queries.
+  const hasNonTrivialWork = narrative.some(
+    (n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed",
+  )
+
   for (const item of structuralItems) {
     const phase = getPhaseFromNarrativeItem(item)
 
     if (!phasesSeen.has(phase) && isPhaseMarkerCandidate(item)) {
+      // For trivial queries, suppress all phase markers — just show the messages
+      if (!hasNonTrivialWork) {
+        phasesSeen.add(phase)
+        continue
+      }
       phasesSeen.add(phase)
       streamItems.push({
         id: `phase-${phase}`,
@@ -243,7 +267,11 @@ export function buildStreamItems(
       })
     } else if (message.role === "assistant") {
       // Compaction summary assistant messages are internal — skip from main stream
-      if ((message as any).agent === "compaction" || (message as any).mode === "compaction" || (message as any).summary === true) {
+      if (
+        (message as any).agent === "compaction" ||
+        (message as any).mode === "compaction" ||
+        (message as any).summary === true
+      ) {
         continue
       }
       streamItems.push({
@@ -258,6 +286,40 @@ export function buildStreamItems(
   }
 
   streamItems.sort((a, b) => a.timestamp - b.timestamp)
+
+  // Reposition UNDERSTANDING to just after the last user message before planning begins.
+  // run.created fires before any user message, so it sorts to the top. We want it to
+  // appear in context with the query that actually triggered the non-trivial work —
+  // i.e. the last user message whose timestamp precedes plan.compiled/step.started.
+  // This also suppresses it entirely for trivial exchanges (hasNonTrivialWork = false).
+  if (hasNonTrivialWork) {
+    const understandingIdx = streamItems.findIndex(
+      (item) => item.kind === "phase.marker" && item.phase === "understanding",
+    )
+    if (understandingIdx !== -1) {
+      const firstPlanTs = narrative
+        .filter((n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed")
+        .map((n) => (n.timestamp ? new Date(n.timestamp).getTime() : Infinity))
+        .reduce((min, ts) => Math.min(min, ts), Infinity)
+
+      // Find the last user message that appears before planning started
+      let insertAfterIdx = -1
+      if (isFinite(firstPlanTs)) {
+        for (let i = 0; i < streamItems.length; i++) {
+          if (streamItems[i].kind === "message.user" && streamItems[i].timestamp < firstPlanTs) {
+            insertAfterIdx = i
+          }
+        }
+      }
+
+      if (insertAfterIdx !== -1) {
+        const [marker] = streamItems.splice(understandingIdx, 1)
+        // If understandingIdx was before insertAfterIdx, that slot shifted back by 1 after splice
+        const targetIdx = understandingIdx < insertAfterIdx ? insertAfterIdx : insertAfterIdx + 1
+        streamItems.splice(targetIdx, 0, marker!)
+      }
+    }
+  }
 
   const merged = mergeAdjacentAssistantEvidenceItems(streamItems)
   annotatePhaseStats(merged, narrative)
@@ -293,7 +355,11 @@ function buildLegacyStreamItems(
         status: "completed",
       })
     } else if (message.role === "assistant") {
-      if ((message as any).agent === "compaction" || (message as any).mode === "compaction" || (message as any).summary === true) {
+      if (
+        (message as any).agent === "compaction" ||
+        (message as any).mode === "compaction" ||
+        (message as any).summary === true
+      ) {
         continue
       }
       streamItems.push({
@@ -351,16 +417,17 @@ function mergeAdjacentAssistantEvidenceItems(items: RenderableStreamItem[]): Ren
         id: `${previous.id}__${item.id}`,
         parts: [...(previous.parts ?? []), ...(item.parts ?? [])],
         timestamp: previous.timestamp,
-        status: previous.status === "active" || item.status === "active" ? "active" : item.status ?? previous.status,
+        status: previous.status === "active" || item.status === "active" ? "active" : (item.status ?? previous.status),
         data: {
           ...previousData,
           id: `${previousData.id}__${itemData.id}`,
           time: {
             ...previousData.time,
             created: Math.min(previousData.time.created, itemData.time.created),
-            completed: previousData.time.completed && itemData.time.completed
-              ? Math.max(previousData.time.completed, itemData.time.completed)
-              : undefined,
+            completed:
+              previousData.time.completed && itemData.time.completed
+                ? Math.max(previousData.time.completed, itemData.time.completed)
+                : undefined,
           },
         } satisfies AssistantMessage,
       }
@@ -420,10 +487,7 @@ export function getActivePhases(items: RenderableStreamItem[]): Set<RunPhase> {
   return phases
 }
 
-function annotatePhaseStats(
-  items: RenderableStreamItem[],
-  narrative: RunNarrativeItem[],
-): void {
+function annotatePhaseStats(items: RenderableStreamItem[], narrative: RunNarrativeItem[]): void {
   // Count steps and compute duration per phase from the raw narrative
   const phaseStats = new Map<RunPhase, { count: number; firstTs: number; lastTs: number }>()
 
