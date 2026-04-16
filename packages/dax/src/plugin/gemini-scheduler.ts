@@ -118,6 +118,33 @@ async function processNext() {
   inFlight++
   processNext()
 
+  // Tracks whether the inFlight slot has already been released (e.g. on retry).
+  // The finally block uses this guard to avoid double-decrementing.
+  let slotReleased = false
+
+  // Releases the inFlight slot immediately and re-queues the request for retry
+  // after `delayMs`. Using setTimeout means the slot is free during the wait,
+  // so other queued requests (different keys) can proceed instead of stalling.
+  const scheduleRetry = (item: typeof next, delayMs: number) => {
+    item.attempt++
+    slotReleased = true
+    inFlight--
+    processNext()
+    debugLog(`released slot, retry queued in ${delayMs}ms (attempt ${item.attempt}/${DEFAULT_MAX_ATTEMPTS})`, {
+      delayMs,
+      throttleKey: item.throttleKey.slice(0, 80),
+    })
+    if (delayMs > 0) {
+      setTimeout(() => {
+        requestQueue.unshift(item)
+        processNext()
+      }, delayMs)
+    } else {
+      requestQueue.unshift(item)
+      processNext()
+    }
+  }
+
   try {
     const result = await next.fn()
     retryCooldownByKey.delete(next.throttleKey)
@@ -181,19 +208,7 @@ async function processNext() {
           setRetryCooldown(next.throttleKey, modelCapDelay)
         }
 
-        debugLog(`retrying attempt ${next.attempt + 1}/${DEFAULT_MAX_ATTEMPTS} after ${delayMs}ms`, {
-          delayMs,
-          throttleKey: next.throttleKey.slice(0, 80),
-        })
-
-        next.attempt++
-        requestQueue.unshift(next)
-
-        if (delayMs > 0) {
-          await Bun.sleep(delayMs)
-        }
-
-        processNext()
+        scheduleRetry(next, delayMs)
       }
     } else if (isRetryableNetworkError(err)) {
       if (next.attempt >= DEFAULT_MAX_ATTEMPTS) {
@@ -202,16 +217,15 @@ async function processNext() {
       } else {
         const delayMs = getExponentialDelayWithJitter(next.attempt)
         debugLog(`network error, retrying in ${delayMs}ms`, { attempt: next.attempt, delayMs })
-        next.attempt++
-        requestQueue.unshift(next)
-        await Bun.sleep(delayMs)
-        processNext()
+        scheduleRetry(next, delayMs)
       }
     } else {
       next.reject(err)
     }
   } finally {
-    inFlight--
-    processNext()
+    if (!slotReleased) {
+      inFlight--
+      processNext()
+    }
   }
 }
