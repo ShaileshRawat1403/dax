@@ -28,7 +28,7 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
     approvals: "approve",
     memory: "memory",
     refine: "refine",
-    operator: "operatr",
+    operator: "operator",
   }[mode]
 }
 
