@@ -2,7 +2,13 @@ import type { Part, AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import type { ProjectedRun, RunNarrativeItem } from "@/server/run-contract"
 import type { MessageV2 } from "@/session/message-v2"
 
-export type StreamItemKind = "phase.marker" | "run.event" | "alert.inline" | "message.user" | "message.assistant" | "compaction.marker"
+export type StreamItemKind =
+  | "phase.marker"
+  | "run.event"
+  | "alert.inline"
+  | "message.user"
+  | "message.assistant"
+  | "compaction.marker"
 
 export type RunPhase = "understanding" | "planning" | "executing" | "verifying" | "complete"
 
@@ -110,8 +116,11 @@ function isPhaseMarkerCandidate(item: RunNarrativeItem): boolean {
 
 /** Events that count as meaningful "steps" within a phase for the step counter */
 const STEP_COUNT_TYPES = new Set([
-  "step.started", "step.completed", "step.failed",
-  "approval.requested", "approval.resolved",
+  "step.started",
+  "step.completed",
+  "step.failed",
+  "approval.requested",
+  "approval.resolved",
   "artifact.created",
 ])
 
@@ -121,9 +130,22 @@ function isCountableStep(item: RunNarrativeItem): boolean {
 
 function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
   switch (item.type) {
+    case "run.created":
+    case "run.started":
     case "run.completed":
     case "run.failed":
+    case "intent.created":
+    case "plan.compiled":
+    case "step.proposed":
+    case "step.started":
+    case "step.completed":
     case "step.failed":
+    case "approval.requested":
+    case "approval.resolved":
+    case "artifact.created":
+    case "audit.posture_updated":
+    case "intervention.required":
+    case "intervention.resolved":
       return true
     default:
       return false
@@ -255,7 +277,11 @@ export function buildStreamItems(
       })
     } else if (message.role === "assistant") {
       // Compaction summary assistant messages are internal — skip from main stream
-      if ((message as any).agent === "compaction" || (message as any).mode === "compaction" || (message as any).summary === true) {
+      if (
+        (message as any).agent === "compaction" ||
+        (message as any).mode === "compaction" ||
+        (message as any).summary === true
+      ) {
         continue
       }
       streamItems.push({
@@ -305,7 +331,11 @@ function buildLegacyStreamItems(
         status: "completed",
       })
     } else if (message.role === "assistant") {
-      if ((message as any).agent === "compaction" || (message as any).mode === "compaction" || (message as any).summary === true) {
+      if (
+        (message as any).agent === "compaction" ||
+        (message as any).mode === "compaction" ||
+        (message as any).summary === true
+      ) {
         continue
       }
       streamItems.push({
@@ -363,16 +393,17 @@ function mergeAdjacentAssistantEvidenceItems(items: RenderableStreamItem[]): Ren
         id: `${previous.id}__${item.id}`,
         parts: [...(previous.parts ?? []), ...(item.parts ?? [])],
         timestamp: previous.timestamp,
-        status: previous.status === "active" || item.status === "active" ? "active" : item.status ?? previous.status,
+        status: previous.status === "active" || item.status === "active" ? "active" : (item.status ?? previous.status),
         data: {
           ...previousData,
           id: `${previousData.id}__${itemData.id}`,
           time: {
             ...previousData.time,
             created: Math.min(previousData.time.created, itemData.time.created),
-            completed: previousData.time.completed && itemData.time.completed
-              ? Math.max(previousData.time.completed, itemData.time.completed)
-              : undefined,
+            completed:
+              previousData.time.completed && itemData.time.completed
+                ? Math.max(previousData.time.completed, itemData.time.completed)
+                : undefined,
           },
         } satisfies AssistantMessage,
       }
@@ -432,10 +463,7 @@ export function getActivePhases(items: RenderableStreamItem[]): Set<RunPhase> {
   return phases
 }
 
-function annotatePhaseStats(
-  items: RenderableStreamItem[],
-  narrative: RunNarrativeItem[],
-): void {
+function annotatePhaseStats(items: RenderableStreamItem[], narrative: RunNarrativeItem[]): void {
   // Count steps and compute duration per phase from the raw narrative
   const phaseStats = new Map<RunPhase, { count: number; firstTs: number; lastTs: number }>()
 
