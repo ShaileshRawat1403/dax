@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+## [1.0.32] - 2026-04-16
+
+### Added
+
+- **IntentBlock**: UNDERSTANDING phase now expands to show a left-bordered `UNDERSTOOD` block with the agent's exact interpretation of the task goal — consistent with the `AlertInline` design pattern.
+- **Expandable EXECUTING steps**: Clicking `▸` on the EXECUTING phase rail now reveals each `step.started` and `step.completed` event as an inline timeline row.
+- **Operator sidebar panel**: Right-side pane with 5 tabs (Overview, Plan, Trust, Artifacts, Context) surfacing workstation state during active runs.
+- **Gemini subscription retry resilience**: `MODEL_CAPACITY_EXHAUSTED` now always retried with 15s cooldown (was incorrectly terminal when no `retryDelay` provided). `DEFAULT_MAX_ATTEMPTS` raised 3 → 5.
+
+### Changed
+
+- **UNDERSTANDING phase positioning**: Phase marker now appears after the last user message before planning begins — not at stream top. Suppressed entirely for trivial exchanges with no plan/step events.
+- **EXECUTING phase toggle**: User's explicit collapse always wins even when phase is still active (previous active-phase override made toggle non-functional).
+- **`intent.created` message**: Goal text emitted directly — "Target identified: " prefix removed for cleaner `IntentBlock` rendering.
+- **CHUNK_TIMEOUT_MS**: Raised 5s → 30s to prevent premature SSE stream closure during slow model generation.
+- **Retry UX**: Muted `↻ provider recovering…` hint from attempt 3+ replaces intrusive countdown dialog.
+
+### Fixed
+
+- **Session exit summary**: Now correctly prints after `q`/Ctrl-C — was unreachable due to `process.exit(0)` firing before async summary fetch.
+- **Live token counter**: `↑ N tokens` updates in real-time during streaming via `sync.data.part` estimation, not only on message completion.
+- **`plan 0/24` hardcoded chip**: Removed stale hardcode; step counts now derive from `workstationState().planSummary`.
+
 ## [1.0.31] - 2026-04-15
 
 ### Added
