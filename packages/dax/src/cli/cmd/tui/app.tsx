@@ -70,14 +70,14 @@ export function tui(input: {
   fetch?: typeof fetch
   headers?: RequestInit["headers"]
   events?: EventSource
-  onExit?: () => Promise<void>
+  onExit?: (sessionID: string | undefined) => Promise<void>
 }) {
   return new Promise<string | undefined>(async (resolve) => {
     const mode = await getTerminalBackgroundColor()
     let finalSessionID: string | undefined = input.args.sessionID
 
     const onExit = async () => {
-      await input.onExit?.()
+      await input.onExit?.(finalSessionID)
       resolve(finalSessionID)
     }
 
