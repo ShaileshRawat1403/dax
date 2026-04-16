@@ -130,22 +130,9 @@ function isCountableStep(item: RunNarrativeItem): boolean {
 
 function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
   switch (item.type) {
-    case "run.created":
-    case "run.started":
     case "run.completed":
     case "run.failed":
-    case "intent.created":
-    case "plan.compiled":
-    case "step.proposed":
-    case "step.started":
-    case "step.completed":
     case "step.failed":
-    case "approval.requested":
-    case "approval.resolved":
-    case "artifact.created":
-    case "audit.posture_updated":
-    case "intervention.required":
-    case "intervention.resolved":
       return true
     default:
       return false
