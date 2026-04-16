@@ -1479,6 +1479,10 @@ export function Session() {
           }
           emphasis={showPane() ? "muted" : "normal"}
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
+          sessionContext={kv.get(DAX_SETTING.operator_session_tag, "") || workflowMode()}
+          contextPercent={sessionTelemetry().contextPercent ?? undefined}
+          stepsUsed={todoSummary().active + todoSummary().completed}
+          stepsTotal={24}
           actions={[
             {
               label: followActionLabel(),

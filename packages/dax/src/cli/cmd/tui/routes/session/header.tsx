@@ -29,6 +29,10 @@ export function Header(props: {
   actions?: HeaderAction[]
   busy?: boolean
   onCyclePersona?: () => void
+  sessionContext?: string
+  contextPercent?: number
+  stepsUsed?: number
+  stepsTotal?: number
 }) {
   const kv = useKV()
   const { theme } = useTheme()
@@ -167,19 +171,48 @@ export function Header(props: {
             </Show>
           </box>
 
-          {/* Right: display mode + actions */}
+          {/* Right: session context */}
           <box flexDirection="row" gap={1} alignItems="center">
-            <box
-              onMouseUp={cycleDisplayMode}
-              flexDirection="row"
-              backgroundColor={theme.backgroundElement}
-              border={["round"]}
-              borderColor={theme.borderSubtle}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={theme.textMuted}>{displayMode().toUpperCase()}</text>
-            </box>
+            <Show when={props.sessionContext}>
+              <box
+                flexDirection="row"
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.primary}>{props.sessionContext}</text>
+              </box>
+            </Show>
+            <Show when={props.contextPercent !== undefined}>
+              <box
+                flexDirection="row"
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={props.contextPercent! > 80 ? theme.warning : theme.textMuted}>
+                  ctx:{props.contextPercent}%
+                </text>
+              </box>
+            </Show>
+            <Show when={props.stepsUsed !== undefined && props.stepsTotal}>
+              <box
+                flexDirection="row"
+                backgroundColor={theme.backgroundElement}
+                border={["round"]}
+                borderColor={theme.borderSubtle}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={theme.textMuted}>
+                  {props.stepsUsed}/{props.stepsTotal}
+                </text>
+              </box>
+            </Show>
             <Show when={props.actions?.length}>
               <box flexDirection="row" gap={1} alignItems="center">
                 <For each={props.actions}>
