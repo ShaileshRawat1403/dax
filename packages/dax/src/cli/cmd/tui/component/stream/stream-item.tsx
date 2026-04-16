@@ -6,6 +6,7 @@ import { useTheme } from "@tui/context/theme"
 import { PhaseRail } from "./phase-rail"
 import { RunEventRow } from "./run-event-row"
 import { AlertInline } from "./alert-inline"
+import { IntentBlock } from "./intent-block"
 
 export function StreamItem(props: {
   item: RenderableStreamItem
@@ -31,7 +32,11 @@ export function StreamItem(props: {
 
       <Match when={props.item.kind === "run.event"}>
         <Show when={props.expanded}>
-          <RunEventRow item={props.item} />
+          <Switch fallback={<RunEventRow item={props.item} />}>
+            <Match when={props.item.type === "intent.created"}>
+              <IntentBlock item={props.item} />
+            </Match>
+          </Switch>
         </Show>
       </Match>
 

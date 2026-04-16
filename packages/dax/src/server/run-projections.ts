@@ -167,7 +167,7 @@ export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | und
         id: eventId,
         timestamp,
         type: "intent.created",
-        message: `Target identified: ${payload.goal}`,
+        message: payload.goal,
         metadata: { intentType: payload.intentType, confidence: payload.confidence },
       }
     case "plan.compiled":
