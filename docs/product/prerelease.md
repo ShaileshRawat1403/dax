@@ -66,13 +66,13 @@ dax --version
    ```
 
 2. Configure a provider key/token:
-     - OpenAI: `OPENAI_API_KEY`
-     - Anthropic: `ANTHROPIC_API_KEY`
-     - Google/Gemini: use one of the three visible public lanes
-       - `Gemini API Key`: set `GEMINI_API_KEY`
-       - `Gemini CLI Session Import`: run `dax auth login` and reuse your local `gemini` CLI session
-       - `Google OAuth Client Sign-In`: run `dax auth login` and sign in with a configured or user-managed Google OAuth client
-       - Create custom OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient
+   - OpenAI: `OPENAI_API_KEY`
+   - Anthropic: `ANTHROPIC_API_KEY`
+   - Google/Gemini: use one of the three visible public lanes
+     - `Gemini API Key`: set `GEMINI_API_KEY`
+     - `Gemini CLI Session Import`: run `dax auth login` and reuse your local `gemini` CLI session
+     - `Google OAuth Client Sign-In`: run `dax auth login` and sign in with a configured or user-managed Google OAuth client
+     - Create custom OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient
    - Ollama: local daemon running (default `http://localhost:11434`)
 
 3. Validate by running a prompt and confirming streaming output + tool approvals.
@@ -148,6 +148,26 @@ Release provenance must prove the cut is coherent:
 - latest tagged `CHANGELOG` entry matches that same version
 - release manifest, when present, matches the same version and expected asset inventory
 - release mode runs from a clean git working tree
+
+### Prerelease Flag Behavior
+
+Stable X.Y.Z releases must NOT be marked as prerelease on GitHub. This ensures:
+
+- `curl | sh` installers resolve to the correct latest artifact
+- GitHub's `releases/latest` API returns the stable release
+- Users get the expected version when installing without specifying `DAX_VERSION`
+
+The release script (`packages/dax/script/build.ts`) handles this automatically:
+
+- Stable versions (X.Y.Z) → prerelease=false by default
+- Beta versions (X.Y.Z-beta.N) → prerelease=true by default
+- Override with `DAX_RELEASE_PRERELEASE=1` to force prerelease on stable
+
+If you publish a stable release and it was marked as prerelease, fix it immediately:
+
+```bash
+gh release edit v<version> --prerelease=false --latest
+```
 
 ```bash
 bun run release:verify

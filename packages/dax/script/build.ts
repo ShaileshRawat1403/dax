@@ -258,9 +258,14 @@ if (Script.release) {
 
   const tag = `v${Script.version}`
   const title = `DAX ${Script.version}`
-  const notes = process.env.DAX_RELEASE_NOTES || `Peer prerelease for ${Script.version}`
+  const notes = process.env.DAX_RELEASE_NOTES || `Release ${Script.version}`
   const markDraft = process.env.DAX_RELEASE_DRAFT !== "0"
-  const markPrerelease = process.env.DAX_RELEASE_PRERELEASE !== "0"
+  // Pre-release defaults to true only for beta versions (X.Y.Z-beta.N).
+  // Stable X.Y.Z releases are marked as latest by default so `curl | sh` installers
+  // and GitHub's "latest release" API always resolve to the correct artifact.
+  // Override with DAX_RELEASE_PRERELEASE=1 to force pre-release on a stable tag.
+  const isBeta = Script.version.includes("-beta.")
+  const markPrerelease = process.env.DAX_RELEASE_PRERELEASE === "1" || isBeta
   const publishNow = process.env.DAX_RELEASE_PUBLISH === "1"
 
   const viewResult = await $`gh release view ${tag}`.nothrow()

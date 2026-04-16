@@ -1,4 +1,5 @@
 export { PhaseRail } from "./phase-rail"
 export { RunEventRow } from "./run-event-row"
 export { AlertInline } from "./alert-inline"
+export { IntentBlock } from "./intent-block"
 export { StreamItem } from "./stream-item"

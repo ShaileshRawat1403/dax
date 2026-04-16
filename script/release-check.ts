@@ -4,7 +4,11 @@ import path from "path"
 import { existsSync } from "fs"
 import fs from "fs/promises"
 import { $ } from "bun"
-import { expectedReleaseAssetFilenames, matchesReleaseTagName, toReleaseTag } from "../packages/dax/script/release-metadata"
+import {
+  expectedReleaseAssetFilenames,
+  matchesReleaseTagName,
+  toReleaseTag,
+} from "../packages/dax/script/release-metadata"
 
 const root = process.cwd()
 const releaseMode = process.env.DAX_RELEASE === "1"
@@ -118,7 +122,11 @@ for (const [label, text] of [
 }
 
 expectIncludes(readme, "deterministic runtime contract around stochastic model execution", "README.md")
-expectIncludes(doctrine, "deterministic runtime contract around stochastic model execution", "docs/dax/product-doctrine.md")
+expectIncludes(
+  doctrine,
+  "deterministic runtime contract around stochastic model execution",
+  "docs/dax/product-doctrine.md",
+)
 expectIncludes(transparency, "provider/auth variability", "docs/product/TRANSPARENCY_AND_LIMITATIONS.md")
 expectIncludes(transparency, "probabilistic model outputs", "docs/product/TRANSPARENCY_AND_LIMITATIONS.md")
 expectIncludes(transparency, "governance-valid", "docs/product/TRANSPARENCY_AND_LIMITATIONS.md")
@@ -140,7 +148,10 @@ await $`bun run script/check-repo-integrity.ts`
 
 const gitHeadSha = await gitText(["rev-parse", "HEAD"])
 const gitBranch = await gitText(["branch", "--show-current"])
-const headTags = (await gitText(["tag", "--points-at", "HEAD"])).split("\n").map((x) => x.trim()).filter(Boolean)
+const headTags = (await gitText(["tag", "--points-at", "HEAD"]))
+  .split("\n")
+  .map((x) => x.trim())
+  .filter(Boolean)
 const expectedTag = toReleaseTag(packageVersion)
 
 if (releaseMode) {
@@ -156,6 +167,18 @@ if (releaseMode) {
       `release provenance check failed: HEAD tags [${headTags.join(", ")}] do not include expected release tag ${expectedTag}`,
     )
   }
+
+  const isStableRelease = !packageVersion.includes("-beta.")
+  if (isStableRelease) {
+    const prereleaseNote = await readRequiredFile("docs/product/prerelease.md")
+    if (prereleaseNote.includes("Stable X.Y.Z releases are marked as latest by default")) {
+      console.log("release-check: stable release validation passed - prerelease.md confirms stable releases are latest")
+    } else {
+      console.warn(
+        "WARNING: prerelease.md may not document stable release prerelease flag behavior - review docs/product/prerelease.md",
+      )
+    }
+  }
 }
 
 const artifactsDir = path.join(root, "artifacts")
@@ -164,9 +187,11 @@ const auditArtifact = path.join(artifactsDir, "audit-result.json")
 const authArtifact = path.join(artifactsDir, "doctor-auth.json")
 const provenanceArtifact = path.join(artifactsDir, "release-provenance.json")
 
-const auditOutput = await $`bun run --cwd packages/dax src/index.ts audit run --profile strict --json`.text().catch((error) => {
-  throw new Error(`failed to generate audit artifact: ${error instanceof Error ? error.message : String(error)}`)
-})
+const auditOutput = await $`bun run --cwd packages/dax src/index.ts audit run --profile strict --json`
+  .text()
+  .catch((error) => {
+    throw new Error(`failed to generate audit artifact: ${error instanceof Error ? error.message : String(error)}`)
+  })
 
 try {
   const start = auditOutput.indexOf("{")
@@ -177,18 +202,16 @@ try {
   const parsed = JSON.parse(auditOutput.slice(start, end + 1))
   await fs.writeFile(auditArtifact, JSON.stringify(parsed, null, 2) + "\n", "utf8")
 } catch (error) {
-  throw new Error(`invalid audit JSON output while writing artifact: ${error instanceof Error ? error.message : String(error)}`)
+  throw new Error(
+    `invalid audit JSON output while writing artifact: ${error instanceof Error ? error.message : String(error)}`,
+  )
 }
 
 console.log(`release-check: wrote ${path.relative(root, auditArtifact)}`)
 
-const doctorAuthOutput = await $`bun run --cwd packages/dax src/index.ts doctor auth --json`
-  .text()
-  .catch((error) => {
-    throw new Error(
-      `failed to generate doctor auth artifact: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  })
+const doctorAuthOutput = await $`bun run --cwd packages/dax src/index.ts doctor auth --json`.text().catch((error) => {
+  throw new Error(`failed to generate doctor auth artifact: ${error instanceof Error ? error.message : String(error)}`)
+})
 
 try {
   const start = doctorAuthOutput.indexOf("{")
