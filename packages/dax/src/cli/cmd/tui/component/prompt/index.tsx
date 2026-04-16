@@ -45,10 +45,8 @@ import type { FilePart } from "@dax-ai/sdk/v2"
 import { TuiEvent } from "../../event"
 import { iife } from "@/util/iife"
 import { Locale } from "@/util/locale"
-import { formatDuration } from "@/util/format"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
-import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
@@ -1507,59 +1505,23 @@ export function Prompt(props: PromptProps) {
                         if (s.type !== "retry") return
                         return s
                       })
-                      const message = createMemo(() => {
-                        const r = retry()
-                        if (!r) return
-                        if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
-                          return "gemini is way too hot right now"
-                        if (r.message.length > 80) return r.message.slice(0, 80) + "..."
-                        return r.message
-                      })
-                      const isTruncated = createMemo(() => {
-                        const r = retry()
-                        if (!r) return false
-                        return r.message.length > 120
-                      })
-                      const [seconds, setSeconds] = createSignal(0)
-                      onMount(() => {
-                        const timer = setInterval(() => {
-                          const next = retry()?.next
-                          if (next) setSeconds(Math.round((next - Date.now()) / 1000))
-                        }, 1000)
 
-                        onCleanup(() => {
-                          clearInterval(timer)
-                        })
+                      // Only surface a hint once the session has been retrying for a
+                      // while (attempt 3+). Early retries resolve quickly and showing
+                      // anything would just be noise. No countdown, no attempt number,
+                      // no error colour — the scheduler handles recovery in the background.
+                      const showRetryHint = createMemo(() => {
+                        const r = retry()
+                        return !!r && r.attempt >= 3
                       })
-                      const handleMessageClick = () => {
-                        const r = retry()
-                        if (!r) return
-                        if (isTruncated()) {
-                          DialogAlert.show(dialog, "Retry Error", r.message)
-                        }
-                      }
-
-                      const retryText = () => {
-                        const r = retry()
-                        if (!r) return ""
-                        const baseMessage = message()
-                        const truncatedHint = isTruncated() ? " (click to expand)" : ""
-                        const duration = formatDuration(seconds())
-                        const retryInfo = duration
-                          ? ` Retrying in ${duration} (attempt ${r.attempt}).`
-                          : ` Retrying now (attempt ${r.attempt}).`
-                        return baseMessage + truncatedHint + retryInfo
-                      }
 
                       return (
                         <Switch>
-                          <Match when={retry()}>
-                            <box onMouseUp={handleMessageClick}>
-                              <text fg={theme.error}>{retryText()}</text>
-                            </box>
+                          <Match when={showRetryHint()}>
+                            <text fg={theme.textMuted}>↻ provider recovering…</text>
                           </Match>
                           <Match when={status().type === "delayed" && pendingPermissions() === 0 && pendingQuestions() === 0}>
-                            <text fg={theme.error}>Waiting on provider response. The run is still alive.</text>
+                            <text fg={theme.textMuted}>provider is slow, still waiting…</text>
                           </Match>
                         </Switch>
                       )

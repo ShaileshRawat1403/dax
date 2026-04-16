@@ -156,10 +156,22 @@ export function buildStreamItems(
     }
   }
 
+  // Determine if the UNDERSTANDING phase marker should be shown.
+  // Suppress it for trivial interactions (greetings, simple Q&A) where no
+  // plan is ever compiled and no step is ever started.
+  const hasNonTrivialWork = narrative.some(
+    (n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed",
+  )
+
   for (const item of structuralItems) {
     const phase = getPhaseFromNarrativeItem(item)
 
     if (!phasesSeen.has(phase) && isPhaseMarkerCandidate(item)) {
+      // Suppress the UNDERSTANDING marker when no meaningful work follows
+      if (phase === "understanding" && !hasNonTrivialWork) {
+        phasesSeen.add(phase) // still mark as seen so we don't re-emit later
+        continue
+      }
       phasesSeen.add(phase)
       streamItems.push({
         id: `phase-${phase}`,
