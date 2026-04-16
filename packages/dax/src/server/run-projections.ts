@@ -159,7 +159,7 @@ export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | und
         id: eventId,
         timestamp,
         type: "run.failed",
-        message: `Execution halted: ${payload.error?.message ?? "unknown failure"}`,
+        message: payload.error?.message ?? "unknown failure",
         metadata: { error: payload.error },
       }
     case "intent.created":
@@ -191,7 +191,7 @@ export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | und
         id: eventId,
         timestamp,
         type: "step.started",
-        message: `Executing: ${payload.title}`,
+        message: payload.title,
         metadata: { stepId: payload.stepId },
       }
     case "step.completed":
@@ -199,7 +199,7 @@ export function mapEventToNarrativeItem(event: RunEvent): RunNarrativeItem | und
         id: eventId,
         timestamp,
         type: "step.completed",
-        message: `Step complete: ${payload.title}`,
+        message: payload.title,
         metadata: { stepId: payload.stepId, durationMs: payload.durationMs },
       }
     case "step.failed":
