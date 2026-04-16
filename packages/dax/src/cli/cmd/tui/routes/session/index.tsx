@@ -138,6 +138,7 @@ import {
   type RunPhase,
 } from "@/dax/presentation/session-stream"
 import { StreamItem } from "../../component/stream"
+import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
 
 type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] } | { type: "context-group"; tools: ToolPart[] }
 
@@ -339,8 +340,22 @@ export function Session() {
           m.role === "assistant" && "providerID" in m && !!m.providerID,
       )
     const modelName = lastAssistant?.providerID ? `${lastAssistant.providerID}/${lastAssistant.modelID}` : null
-    const generatedTokens = (sessionAssistantMessages(messages()) as AssistantMessage[])
+    const completedGeneratedTokens = (sessionAssistantMessages(messages()) as AssistantMessage[])
       .reduce((sum, m) => sum + (m.tokens?.output ?? 0), 0)
+
+    // For the currently streaming (incomplete) message, estimate live token count
+    // from text part lengths since tokens.output isn't populated until completion.
+    const streamingMsg = (sessionAssistantMessages(messages()) as AssistantMessage[])
+      .find((m) => !m.time.completed)
+    const streamingTokens = streamingMsg
+      ? Math.round(
+          (sync.data.part[streamingMsg.id] ?? [])
+            .filter((p) => p.type === "text")
+            .reduce((sum, p) => sum + ((p as { text?: string }).text?.length ?? 0), 0) / 4,
+        )
+      : 0
+
+    const generatedTokens = completedGeneratedTokens + streamingTokens
     return {
       tokens: totalTokens,
       generatedTokens,
@@ -1434,14 +1449,19 @@ export function Session() {
               </Show>
               <For each={streamItems()}>
                 {(item, index) => (
-                  <StreamItem
-                    item={item}
-                    expanded={isPhaseExpanded(item.phase)}
-                    isLast={index() === lastMessageIndex()}
-                    onTogglePhase={() => item.phase && togglePhase(item.phase)}
-                    onNavigateToApprovals={openApprovalsPane}
-                    MessageComponent={Message}
-                  />
+                  <>
+                    <StreamItem
+                      item={item}
+                      expanded={isPhaseExpanded(item.phase)}
+                      isLast={index() === lastMessageIndex()}
+                      onTogglePhase={() => item.phase && togglePhase(item.phase)}
+                      onNavigateToApprovals={openApprovalsPane}
+                      MessageComponent={Message}
+                    />
+                    <Show when={item.kind === "phase.marker" && item.phase === "planning" && todo().length > 0}>
+                      <TodoStreamBlock todos={todo()} />
+                    </Show>
+                  </>
                 )}
               </For>
 
@@ -1740,8 +1760,8 @@ export function Session() {
                   const t = sessionTelemetry().generatedTokens
                   const elapsed = runElapsed()
                   const timePart = elapsed > 1000 ? formatElapsed(elapsed) : ""
-                  if (t > 0 && timePart) return `(${timePart} · ↓ ${formatTokenCount(t)} tokens)`
-                  if (t > 0) return `(↓ ${formatTokenCount(t)} tokens)`
+                  if (t > 0 && timePart) return `(${timePart} · ↑ ${formatTokenCount(t)} tokens)`
+                  if (t > 0) return `(↑ ${formatTokenCount(t)} tokens)`
                   return `(${timePart})`
                 })()}
               </text>
@@ -2180,21 +2200,22 @@ function describeNarrativeNext(next: string | undefined) {
   const normalized = trimPunctuation(next)?.toLowerCase()
   if (!normalized) return undefined
   switch (normalized) {
-    case "continue plan execution":
-      return "Pressing forward through the plan."
-    case "capture evidence and verify":
-      return "Using this to lock in the next checkpoint."
-    case "decide next operation":
-      return "Using the result to pick the next move."
-    case "wait for tool completion":
-    case "wait for command completion":
-      return "Waiting on the current step."
-    case "wait for planning step":
-      return "Holding for the planning step."
+    // Meaningful forward signals — show these
     case "run verification":
       return "Checking the result before moving on."
+    case "capture evidence and verify":
+      return "Using this to lock in the next checkpoint."
+    case "continue plan execution":
+      return "Pressing forward through the plan."
+    // Generic / noisy — suppress
+    case "decide next operation":
+    case "wait for tool completion":
+    case "wait for command completion":
+    case "wait for planning step":
+    case "wait for context":
+    case "wait for mutation":
     case "continue governed run":
-      return "Continuing under governance."
+      return undefined
     default:
       return trimPunctuation(next)
   }

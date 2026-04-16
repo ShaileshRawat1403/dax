@@ -7,7 +7,6 @@ import { Installation } from "@/installation"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { useLocal } from "../../context/local"
-import { TodoItem } from "../../component/todo-item"
 import { DAX_SETTING, sessionWorkflowModeKey } from "@/dax/settings"
 import { nextActionForErrorMessage } from "@/dax/status"
 import { SESSION_COMMAND_LABELS } from "@/dax/session-shell"
@@ -191,7 +190,6 @@ export function Sidebar(props: {
   const [expanded, setExpanded] = createStore({
     mcp: true,
     diff: true,
-    todo: true,
     lsp: true,
   })
 
@@ -467,27 +465,6 @@ export function Sidebar(props: {
                   </Show>
                   <SidebarAction label={SESSION_COMMAND_LABELS.openPm} onPress={props.onOpenPm} muted />
                 </box>
-              </SidebarCard>
-            </Show>
-            <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
-            <Show when={showSection("todo") && todo().length > 0 && todo().some((t) => t.status !== "completed")}>
-              <SidebarCard>
-                <box
-                  flexDirection="row"
-                  gap={1}
-                  onMouseDown={() => todo().length > 2 && setExpanded("todo", !expanded.todo)}
-                >
-                  <Show when={todo().length > 2}>
-                    <text fg={theme.text}>{expanded.todo ? "▼" : "▶"}</text>
-                  </Show>
-                  <SectionHeading
-                    title="Todo"
-                    summary={incompleteTodoCount() > 0 ? `${incompleteTodoCount()} open` : undefined}
-                  />
-                </box>
-                <Show when={todo().length <= 2 || expanded.todo}>
-                  <For each={todo()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
-                </Show>
               </SidebarCard>
             </Show>
             <box flexShrink={0} border={["top"]} borderColor={theme.borderSubtle} marginTop={1} marginBottom={1} />
