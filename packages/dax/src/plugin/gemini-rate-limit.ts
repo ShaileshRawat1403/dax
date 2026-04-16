@@ -1,6 +1,6 @@
 const DEFAULT_INITIAL_DELAY_MS = 5000
 const DEFAULT_MAX_DELAY_MS = 30000
-const MODEL_CAPACITY_COOLDOWN_MS = 8000
+const MODEL_CAPACITY_COOLDOWN_MS = 15_000
 
 interface GoogleRpcRetryInfo {
   "@type"?: string
@@ -143,7 +143,7 @@ export async function classifyQuotaResponse(response: Response): Promise<QuotaCo
   }
   if (errorInfo?.reason === "MODEL_CAPACITY_EXHAUSTED") {
     return {
-      terminal: retryDelayMs === undefined,
+      terminal: false,
       retryDelayMs,
       reason: errorInfo.reason,
     }
