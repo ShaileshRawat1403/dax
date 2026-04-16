@@ -130,9 +130,12 @@ function isCountableStep(item: RunNarrativeItem): boolean {
 
 function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
   switch (item.type) {
+    case "intent.created":   // shows what the agent understood — content for UNDERSTANDING
     case "run.completed":
     case "run.failed":
     case "step.failed":
+    case "step.started":
+    case "step.completed":
       return true
     default:
       return false
@@ -165,9 +168,9 @@ export function buildStreamItems(
     }
   }
 
-  // Determine if the UNDERSTANDING phase marker should be shown.
-  // Suppress it for trivial interactions (greetings, simple Q&A) where no
-  // plan is ever compiled and no step is ever started.
+  // Suppress all phase markers for trivial interactions (greetings, simple Q&A)
+  // where no plan is ever compiled and no step is ever started. This prevents
+  // UNDERSTANDING, COMPLETE, etc. from cluttering the stream for "hi"-style queries.
   const hasNonTrivialWork = narrative.some(
     (n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed",
   )
@@ -176,9 +179,9 @@ export function buildStreamItems(
     const phase = getPhaseFromNarrativeItem(item)
 
     if (!phasesSeen.has(phase) && isPhaseMarkerCandidate(item)) {
-      // Suppress the UNDERSTANDING marker when no meaningful work follows
-      if (phase === "understanding" && !hasNonTrivialWork) {
-        phasesSeen.add(phase) // still mark as seen so we don't re-emit later
+      // For trivial queries, suppress all phase markers — just show the messages
+      if (!hasNonTrivialWork) {
+        phasesSeen.add(phase)
         continue
       }
       phasesSeen.add(phase)
@@ -283,6 +286,40 @@ export function buildStreamItems(
   }
 
   streamItems.sort((a, b) => a.timestamp - b.timestamp)
+
+  // Reposition UNDERSTANDING to just after the last user message before planning begins.
+  // run.created fires before any user message, so it sorts to the top. We want it to
+  // appear in context with the query that actually triggered the non-trivial work —
+  // i.e. the last user message whose timestamp precedes plan.compiled/step.started.
+  // This also suppresses it entirely for trivial exchanges (hasNonTrivialWork = false).
+  if (hasNonTrivialWork) {
+    const understandingIdx = streamItems.findIndex(
+      (item) => item.kind === "phase.marker" && item.phase === "understanding",
+    )
+    if (understandingIdx !== -1) {
+      const firstPlanTs = narrative
+        .filter((n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed")
+        .map((n) => (n.timestamp ? new Date(n.timestamp).getTime() : Infinity))
+        .reduce((min, ts) => Math.min(min, ts), Infinity)
+
+      // Find the last user message that appears before planning started
+      let insertAfterIdx = -1
+      if (isFinite(firstPlanTs)) {
+        for (let i = 0; i < streamItems.length; i++) {
+          if (streamItems[i].kind === "message.user" && streamItems[i].timestamp < firstPlanTs) {
+            insertAfterIdx = i
+          }
+        }
+      }
+
+      if (insertAfterIdx !== -1) {
+        const [marker] = streamItems.splice(understandingIdx, 1)
+        // If understandingIdx was before insertAfterIdx, that slot shifted back by 1 after splice
+        const targetIdx = understandingIdx < insertAfterIdx ? insertAfterIdx : insertAfterIdx + 1
+        streamItems.splice(targetIdx, 0, marker!)
+      }
+    }
+  }
 
   const merged = mergeAdjacentAssistantEvidenceItems(streamItems)
   annotatePhaseStats(merged, narrative)

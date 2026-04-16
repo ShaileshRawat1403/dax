@@ -390,8 +390,7 @@ export function Session() {
 
   const isPhaseExpanded = (phase: RunPhase | undefined): boolean => {
     if (!phase) return true
-    const activePhases = getActivePhases(streamItems())
-    if (activePhases.has(phase)) return true
+    // User's explicit collapse always wins — even for the active phase.
     return !collapsedPhases().has(phase)
   }
 
@@ -1479,10 +1478,7 @@ export function Session() {
           }
           emphasis={showPane() ? "muted" : "normal"}
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
-          sessionContext={kv.get(DAX_SETTING.operator_session_tag, "") || workflowMode()}
           contextPercent={sessionTelemetry().contextPercent ?? undefined}
-          stepsUsed={todoSummary().active + todoSummary().completed}
-          stepsTotal={24}
           actions={[
             {
               label: followActionLabel(),
@@ -1833,8 +1829,8 @@ export function Session() {
                       onInstructionChange={(value) => kv.set(DAX_SETTING.operator_instruction, value)}
                       onClear={() => kv.set(DAX_SETTING.operator_instruction, "")}
                       contextUsage={sessionTelemetry().contextPercent ?? 0}
-                      stepsUsed={todoSummary().active + todoSummary().completed}
-                      stepsTotal={24}
+                      stepsUsed={workstationState().planSummary.steps.filter((s) => s.status === "done").length}
+                      stepsTotal={workstationState().planSummary.totalSteps || undefined}
                       pmRulesCount={memoryRules().rows.length}
                       sessionTag={kv.get(DAX_SETTING.operator_session_tag, "")}
                       onSessionTagChange={(value) => kv.set(DAX_SETTING.operator_session_tag, value)}
