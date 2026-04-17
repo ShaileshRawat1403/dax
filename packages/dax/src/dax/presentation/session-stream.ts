@@ -2,6 +2,22 @@ import type { Part, AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import type { ProjectedRun, RunNarrativeItem } from "@/server/run-contract"
 import type { MessageV2 } from "@/session/message-v2"
 
+// Agents that only appear as sub-tasks spawned by the `task` tool.
+// Their messages are implementation details — the task BlockTool already surfaces
+// a summary. Emitting them as stream items causes internal template text to leak.
+const SUB_TASK_AGENTS = new Set([
+  "explore",
+  "explorer",
+  "review",
+  "reviewer",
+  "verify",
+  "verifier",
+  "audit",
+  "auditor",
+  "summarize",
+  "summarizer",
+])
+
 export type StreamItemKind =
   | "phase.marker"
   | "run.event"
@@ -11,6 +27,16 @@ export type StreamItemKind =
   | "compaction.marker"
 
 export type RunPhase = "understanding" | "planning" | "executing" | "verifying" | "complete"
+export type StreamNarrativeSourceKind = "run-event" | "tool-trace" | "alert"
+
+export interface StreamNarrativeDescriptor {
+  label: string
+  sentence: string
+  now?: string
+  next?: string
+  evidence?: string
+  sourceKind: StreamNarrativeSourceKind
+}
 
 export interface RenderableStreamItem {
   id: string
@@ -27,6 +53,7 @@ export interface RenderableStreamItem {
   phaseStepCount?: number
   /** Duration in milliseconds (set on phase.marker and run.event items when computable) */
   durationMs?: number
+  narrative?: StreamNarrativeDescriptor
 }
 
 const PHASE_MAP: Record<string, RunPhase> = {
@@ -56,12 +83,380 @@ function getPhaseFromNarrativeItem(item: RunNarrativeItem): RunPhase {
 
 function getPhaseLabel(phase: RunPhase): string {
   return {
-    understanding: "Understanding",
+    understanding: "Thinking",
     planning: "Planning",
     executing: "Executing",
     verifying: "Verifying",
     complete: "Complete",
   }[phase]
+}
+
+function summarizeValue(value: string | undefined, max = 72) {
+  if (!value) return undefined
+  const normalized = value.replace(/\s+/g, " ").trim()
+  if (!normalized) return undefined
+  if (normalized.length <= max) return normalized
+  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`
+}
+
+function normalizePathLike(value: string | undefined) {
+  if (!value) return undefined
+  return summarizeValue(value.replace(/\\/g, "/"), 64)
+}
+
+function stripQuotes(value: string | undefined) {
+  if (!value) return value
+  return value.replace(/^['"]|['"]$/g, "")
+}
+
+function trimPunctuation(value: string | undefined) {
+  if (!value) return undefined
+  return value.replace(/[.:]+$/g, "").trim()
+}
+
+function sentenceCase(value: string | undefined) {
+  const normalized = trimPunctuation(value)
+  if (!normalized) return undefined
+  return normalized[0]!.toUpperCase() + normalized.slice(1)
+}
+
+function joinSentences(...parts: Array<string | undefined>) {
+  return parts
+    .filter((part): part is string => !!part && part.trim().length > 0)
+    .join(" ")
+    .trim()
+}
+
+function formatInlineCode(value: string) {
+  return `\`${value}\``
+}
+
+export function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/~~(.+?)~~/g, "$1")
+}
+
+function describeToolProgress(tool: string) {
+  switch (tool) {
+    case "read":
+      return "reading files"
+    case "glob":
+      return "searching the workspace"
+    case "grep":
+      return "searching file contents"
+    case "list":
+      return "listing project files"
+    case "shell":
+      return "running a command"
+    case "write":
+      return "writing a file"
+    case "edit":
+      return "editing a file"
+    case "apply_patch":
+      return "patching files"
+    case "task":
+      return "structuring the task"
+    case "todowrite":
+      return "updating the checklist"
+    case "question":
+      return "waiting for clarification"
+    case "skill":
+      return "loading a skill"
+    case "reflection":
+      return "recording reflection"
+    default:
+      return `${tool} in progress`
+  }
+}
+
+function extractToolTarget(part: Part): string {
+  if (part.type !== "tool") return "runtime target"
+  const input = part.state.input ?? {}
+  const metadata = ("metadata" in part.state ? (part.state.metadata ?? {}) : {}) as Record<string, unknown>
+  const tool = String(part.tool ?? "").toLowerCase()
+  if (tool === "shell") return summarizeValue(String((input as any).command ?? ""), 56) ?? "shell command"
+  if (tool === "reflection") return summarizeValue(String((input as any).goal ?? ""), 56) ?? "execution reflection"
+  if (tool === "read" || tool === "write" || tool === "edit") {
+    return normalizePathLike(String((input as any).filePath ?? (input as any).path ?? "")) ?? "workspace file"
+  }
+  if (tool === "apply_patch") {
+    return normalizePathLike(String((metadata.filePath as string | undefined) ?? (input as any).filePath ?? "")) ?? "workspace patch"
+  }
+  if (tool === "grep" || tool === "codesearch" || tool === "websearch") {
+    return summarizeValue(stripQuotes(String((input as any).pattern ?? (input as any).query ?? "")), 56) ?? "search query"
+  }
+  if (tool === "glob" || tool === "list") {
+    return summarizeValue(String((input as any).pattern ?? (input as any).path ?? ""), 56) ?? "workspace listing"
+  }
+  if (tool === "webfetch") return summarizeValue(String((input as any).url ?? ""), 56) ?? "external URL"
+  if (tool === "task" || tool === "question" || tool === "skill") {
+    return summarizeValue(String((input as any).description ?? (input as any).prompt ?? (input as any).name ?? ""), 56) ?? "operator step"
+  }
+  return summarizeValue(
+    String((input as any).filePath ?? (input as any).path ?? (input as any).query ?? (input as any).pattern ?? (input as any).command ?? ""),
+    56,
+  ) ?? "runtime target"
+}
+
+function deriveToolEvidence(part: Part): string | undefined {
+  if (part.type !== "tool") return undefined
+  const status = String(part.state.status ?? "pending").toLowerCase()
+  const metadata = ("metadata" in part.state ? (part.state.metadata ?? {}) : {}) as Record<string, unknown>
+  if (status === "pending" || status === "running") return undefined
+  if (status === "error" || status === "failed") return "Tool failed."
+  if (typeof metadata.exitCode === "number") return metadata.exitCode === 0 ? "Completed cleanly." : `Completed with exit ${metadata.exitCode}.`
+  if (typeof metadata.matchCount === "number") {
+    return `Found ${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"}.`
+  }
+  if (Array.isArray(metadata.matches)) return `Found ${metadata.matches.length} match${metadata.matches.length === 1 ? "" : "es"}.`
+  if (Array.isArray(metadata.paths)) return `Resolved ${metadata.paths.length} path${metadata.paths.length === 1 ? "" : "s"}.`
+  if (metadata.written === true) return "Workspace updated."
+  if (metadata.read === true) return "Content loaded."
+  if (status === "completed") return "Completed."
+  return undefined
+}
+
+function deriveToolNext(tool: string, status: string) {
+  const done = status === "completed"
+  switch (tool) {
+    case "read":
+    case "glob":
+    case "grep":
+    case "list":
+    case "codesearch":
+    case "websearch":
+    case "webfetch":
+      return done ? "Compare the findings against the next relevant source." : "Use the result to choose the next concrete check."
+    case "task":
+    case "todowrite":
+    case "question":
+    case "skill":
+    case "reflection":
+      return done ? "Carry that structure into the next visible step." : "Let the planning step settle before acting."
+    case "write":
+    case "edit":
+    case "apply_patch":
+      return done ? "Verify the change before moving on." : "Finish the mutation, then verify it."
+    case "shell":
+      return done ? "Review the command result and decide the next move." : "Wait for the command result, then verify it."
+    default:
+      return done ? "Roll the result into the next operator step." : "Wait for the tool to finish, then continue."
+  }
+}
+
+export function deriveToolNarrativeDescriptor(part: Part): StreamNarrativeDescriptor | undefined {
+  if (part.type !== "tool") return undefined
+  const tool = String(part.tool ?? "").toLowerCase()
+  const target = extractToolTarget(part)
+  const status = String(part.state.status ?? "pending").toLowerCase()
+  const targetText = formatInlineCode(target)
+  const evidence = deriveToolEvidence(part)
+  const next = deriveToolNext(tool, status)
+
+  const sentence = (() => {
+    switch (tool) {
+      case "read":
+        return status === "completed"
+          ? `Read ${targetText} to lock in the relevant context.`
+          : `Reading ${targetText} to gather the relevant context.`
+      case "glob":
+      case "list":
+        return status === "completed"
+          ? `Mapped ${targetText} to see the workspace shape.`
+          : `Scanning ${targetText} to map the workspace shape.`
+      case "grep":
+      case "codesearch":
+      case "websearch":
+        return status === "completed"
+          ? `Searched ${targetText} to isolate the key signals.`
+          : `Searching ${targetText} to isolate the key signals.`
+      case "webfetch":
+        return status === "completed"
+          ? `Fetched ${targetText} to confirm the external detail.`
+          : `Fetching ${targetText} to confirm the external detail.`
+      case "shell":
+        return status === "completed"
+          ? `Ran ${targetText} to check the current state.`
+          : `Running ${targetText} to check the current state.`
+      case "write":
+        return status === "completed"
+          ? `Wrote ${targetText} to land the scoped change.`
+          : `Writing ${targetText} to land the scoped change.`
+      case "edit":
+        return status === "completed"
+          ? `Edited ${targetText} to refine the scoped change.`
+          : `Editing ${targetText} to refine the scoped change.`
+      case "apply_patch":
+        return status === "completed"
+          ? `Patched ${targetText} to update the workspace precisely.`
+          : `Patching ${targetText} to update the workspace precisely.`
+      case "task":
+        return status === "completed"
+          ? `Structured ${targetText} so execution stays on rails.`
+          : `Structuring ${targetText} so execution stays on rails.`
+      case "todowrite":
+        return status === "completed"
+          ? `Updated ${targetText} so progress stays visible.`
+          : `Updating ${targetText} so progress stays visible.`
+      case "question":
+        return status === "completed"
+          ? `Raised ${targetText} to unblock the next decision.`
+          : `Holding on ${targetText} until the next decision is clear.`
+      case "skill":
+        return status === "completed"
+          ? `Loaded ${targetText} to bring the right workflow into the run.`
+          : `Loading ${targetText} to bring the right workflow into the run.`
+      case "reflection":
+        return status === "completed"
+          ? `Captured ${targetText} to keep the run grounded.`
+          : `Capturing ${targetText} to keep the run grounded.`
+      default:
+        return status === "completed"
+          ? `${sentenceCase(describeToolProgress(tool))} around ${targetText}.`
+          : `${sentenceCase(describeToolProgress(tool))} around ${targetText}.`
+    }
+  })()
+
+  return {
+    label: sentenceCase(describeToolProgress(tool)) ?? "Working",
+    sentence: joinSentences(sentence, evidence),
+    now: stripInlineMarkdown(sentence),
+    next,
+    evidence,
+    sourceKind: "tool-trace",
+  }
+}
+
+export function deriveLiveNarrativeStatus(input: {
+  pendingID?: string
+  partsForMessage: (messageID: string) => Part[]
+}) {
+  if (!input.pendingID) {
+    return {
+      status: "idle",
+      now: "Standing by for the next task.",
+      next: "Ready for your next direction.",
+    }
+  }
+
+  const parts = input.partsForMessage(input.pendingID)
+  const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
+  if (pendingTool) {
+    const narrative = deriveToolNarrativeDescriptor(pendingTool)
+    if (narrative) {
+      return {
+        status: stripInlineMarkdown(narrative.label).toLowerCase(),
+        now: stripInlineMarkdown(narrative.sentence),
+        next: narrative.next ?? "Continue with the next governed step.",
+      }
+    }
+  }
+
+  const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
+  if (completedTool) {
+    const narrative = deriveToolNarrativeDescriptor(completedTool)
+    if (narrative) {
+      return {
+        status: `${stripInlineMarkdown(narrative.label).toLowerCase()} complete`,
+        now: stripInlineMarkdown(narrative.sentence),
+        next: narrative.next ?? "Carry the result into the next step.",
+      }
+    }
+  }
+
+  if (nonEmptyTextPart(parts, "reasoning")) {
+    return {
+      status: "thinking",
+      now: "Thinking.",
+      next: "Turn that into the next visible step.",
+    }
+  }
+  if (nonEmptyTextPart(parts, "text")) {
+    return {
+      status: "thinking",
+      now: "Thinking.",
+      next: "Wrap up with the final response.",
+    }
+  }
+  return {
+    status: "waiting for provider response",
+    now: "Waiting for the provider to return the next chunk.",
+    next: "Resume the run as soon as the stream advances.",
+  }
+}
+
+function nonEmptyTextPart(parts: Part[], type: "reasoning" | "text") {
+  return parts.some((part) => part.type === type && part.text.trim().length > 0)
+}
+
+function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescriptor | undefined {
+  const detail = sentenceCase(item.message) ?? "Progress updated"
+  switch (item.type) {
+    case "intent.created":
+      return {
+        label: "Target",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Turn that goal into a concrete plan.",
+        sourceKind: "run-event",
+      }
+    case "plan.compiled":
+      return {
+        label: "Plan",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Start the first concrete step.",
+        sourceKind: "run-event",
+      }
+    case "step.failed":
+      return {
+        label: "Step failed",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Inspect the failure and recover deliberately.",
+        sourceKind: "run-event",
+      }
+    case "artifact.created":
+      return {
+        label: "Evidence",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Use that evidence in the next checkpoint.",
+        sourceKind: "run-event",
+      }
+    case "audit.posture_updated":
+      return {
+        label: "Trust",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Use the updated posture to decide whether to continue or review.",
+        sourceKind: "run-event",
+      }
+    case "run.completed":
+      return {
+        label: "Complete",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Review the result or move to the next task.",
+        sourceKind: "run-event",
+      }
+    case "run.failed":
+      return {
+        label: "Run failed",
+        sentence: `${detail}.`,
+        now: `${detail}.`,
+        next: "Resolve the failure before continuing.",
+        sourceKind: "run-event",
+      }
+    default:
+      return undefined
+  }
 }
 
 function deriveStatusFromNarrativeItem(item: RunNarrativeItem): "pending" | "active" | "completed" | "failed" {
@@ -130,13 +525,26 @@ function isCountableStep(item: RunNarrativeItem): boolean {
 
 function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
   switch (item.type) {
-    // Intent prose — shown as soft text under the understanding divider
-    case "intent.created":
+    case "intent.created": {
+      // Only surface intent text when it's a meaningful goal description.
+      // Generic fallbacks like "Complete the request: hi" are just the user's message
+      // echoed back — they add noise, not clarity.
+      const msg = (item.message ?? "").toLowerCase().trim()
+      if (msg.startsWith("complete the request:")) return false
+      if (msg.startsWith("fulfill the request:")) return false
+      if (!msg) return false
       return true
-    // Errors always surface regardless of phase
+    }
+    case "run.completed":
+      return true
     case "step.failed":
-    case "run.failed":
       return true
+    case "run.failed": {
+      const msg = (item.message ?? "").toLowerCase().trim()
+      if (!msg) return false
+      if (msg === "run ended with status failed" || msg === "the run ended with status failed") return false
+      return true
+    }
     default:
       return false
   }
@@ -210,6 +618,7 @@ export function buildStreamItems(
     if (!hasNonTrivialWork) continue
 
     if (shouldRenderRunEvent(item)) {
+      const narrativeDescriptor = deriveRunEventNarrative(item)
       streamItems.push({
         id: item.id,
         kind: "run.event",
@@ -220,6 +629,7 @@ export function buildStreamItems(
         data: item,
         status: deriveStatusFromNarrativeItem(item),
         expanded: true,
+        narrative: narrativeDescriptor,
       })
     }
   }
@@ -251,6 +661,16 @@ export function buildStreamItems(
       data: item,
       status: item.type === "intervention.required" || item.type === "approval.requested" ? "pending" : "completed",
       expanded: true,
+      narrative: {
+        label: item.type === "approval.requested" ? "Approval required" : item.type === "intervention.required" ? "Intervention required" : "Alert",
+        sentence: sentenceCase(item.message) ? `${sentenceCase(item.message)}.` : "Attention required.",
+        now: sentenceCase(item.message) ? `${sentenceCase(item.message)}.` : "Attention required.",
+        next:
+          item.type === "approval.requested" || item.type === "intervention.required"
+            ? "Review the queue and respond before continuing."
+            : "Continue the run with the resolved decision in place.",
+        sourceKind: "alert",
+      },
     })
   }
 
@@ -284,6 +704,13 @@ export function buildStreamItems(
         (message as any).mode === "compaction" ||
         (message as any).summary === true
       ) {
+        continue
+      }
+      // Sub-task agents are spawned internally by the `task` tool — their messages are
+      // captured inside the task BlockTool already; emitting them separately creates noise
+      // and can leak internal prompt templates (e.g. "[file paths]" placeholders).
+      const agentName: string | undefined = (message as any).agent?.toLowerCase()
+      if (projectedRun && agentName && SUB_TASK_AGENTS.has(agentName)) {
         continue
       }
       streamItems.push({

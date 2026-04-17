@@ -3,10 +3,8 @@ import { TextAttributes } from "@opentui/core"
 import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
 import type { AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import { useTheme } from "@tui/context/theme"
-import { PhaseRail } from "./phase-rail"
 import { RunEventRow } from "./run-event-row"
 import { AlertInline } from "./alert-inline"
-import { IntentBlock } from "./intent-block"
 
 export function StreamItem(props: {
   item: RenderableStreamItem
@@ -17,21 +15,11 @@ export function StreamItem(props: {
   return (
     <Switch>
       <Match when={props.item.kind === "phase.marker"}>
-        <PhaseRail
-          phase={props.item.phase!}
-          label={props.item.message ?? ""}
-          status={props.item.status ?? "pending"}
-          stepCount={props.item.phaseStepCount}
-          durationMs={props.item.durationMs}
-        />
+        <></>
       </Match>
 
       <Match when={props.item.kind === "run.event"}>
-        <Switch fallback={<RunEventRow item={props.item} />}>
-          <Match when={props.item.type === "intent.created"}>
-            <IntentBlock item={props.item} />
-          </Match>
-        </Switch>
+        <RunEventRow item={props.item} />
       </Match>
 
       <Match when={props.item.kind === "alert.inline"}>

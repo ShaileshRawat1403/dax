@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test"
 import {
   buildStreamItems,
+  deriveLiveNarrativeStatus,
+  deriveToolNarrativeDescriptor,
   getCurrentPhase,
   getActivePhases,
   PHASE_ORDER,
@@ -80,6 +82,26 @@ function createReasoningPart(id: string, text: string) {
     id,
     type: "reasoning" as const,
     text,
+  }
+}
+
+function createToolPart(id: string, tool: string, status: "pending" | "completed", input: Record<string, unknown>, metadata: Record<string, unknown> = {}) {
+  return {
+    id,
+    type: "tool" as const,
+    callID: `call-${id}`,
+    tool,
+    state: {
+      status,
+      input,
+      output: "",
+      title: "",
+      metadata,
+      time: {
+        start: Date.now(),
+        end: Date.now() + 10,
+      },
+    },
   }
 }
 
@@ -172,6 +194,7 @@ describe("session-stream presentation model", () => {
       expect(runCreated).toBeUndefined()
       const intentCreated = runEvents.find((item) => item.type === "intent.created")
       expect(intentCreated).toBeDefined() // surfaces agent's interpretation under UNDERSTANDING
+      expect(intentCreated?.narrative?.label).toBe("Target")
       const planCompiled = runEvents.find((item) => item.type === "plan.compiled")
       expect(planCompiled).toBeUndefined()
     })
@@ -416,11 +439,36 @@ describe("session-stream presentation model", () => {
     })
 
     it("returns correct labels for each phase", () => {
-      expect(getPhaseLabel("understanding")).toBe("Understanding")
+      expect(getPhaseLabel("understanding")).toBe("Thinking")
       expect(getPhaseLabel("planning")).toBe("Planning")
       expect(getPhaseLabel("executing")).toBe("Executing")
       expect(getPhaseLabel("verifying")).toBe("Verifying")
       expect(getPhaseLabel("complete")).toBe("Complete")
+    })
+  })
+
+  describe("narrative helpers", () => {
+    it("derives concrete tool narrative for pending shell commands", () => {
+      const descriptor = deriveToolNarrativeDescriptor(
+        createToolPart("tool-shell", "shell", "pending", { command: "bun test src/foo.test.ts" }) as any,
+      )
+
+      expect(descriptor?.sentence).toContain("Running")
+      expect(descriptor?.sentence).toContain("bun test src/foo.test.ts")
+      expect(descriptor?.next).toBe("Wait for the command result, then verify it.")
+    })
+
+    it("derives live narrative status from the same canonical tool wording", () => {
+      const status = deriveLiveNarrativeStatus({
+        pendingID: "assistant-1",
+        partsForMessage: () => [
+          createToolPart("tool-read", "read", "completed", { filePath: "packages/dax/src/dax/presentation/session-stream.ts" }, { read: true }) as any,
+        ],
+      })
+
+      expect(status.status).toBe("reading files complete")
+      expect(status.now).toContain("Read packages/dax/src/dax/presentation/session-stream.ts")
+      expect(status.next).toBe("Compare the findings against the next relevant source.")
     })
   })
 
@@ -466,28 +514,21 @@ describe("session-stream presentation model", () => {
 
       const items = buildStreamItems(projectedRun, [], {})
 
-      // 4 phase markers (understanding, planning, executing, complete)
-      // + 1 run event (intent.created — only errors and intent prose surface)
-      // + 1 alert.inline (approval.requested)
-      // step.started, step.completed, run.completed are NOT rendered as rows —
-      // phase markers and the rail summary communicate completion
-      expect(items.length).toBe(6)
+      expect(items.length).toBe(7)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
       const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
       const alertItems = items.filter((item) => item.kind === "alert.inline")
 
-      expect(runEvents.length).toBe(1)
+      expect(runEvents.length).toBe(2)
       expect(phaseMarkers.length).toBe(4)
       expect(alertItems.length).toBe(1)
-      // intent.created surfaces the agent's interpretation under UNDERSTANDING
       expect(runEvents.some((item) => item.type === "intent.created")).toBe(true)
-      // step rows are suppressed — steps are counted in phase rail summary only
+      expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
+      expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
       expect(runEvents.some((item) => item.type === "step.started")).toBe(false)
       expect(runEvents.some((item) => item.type === "step.completed")).toBe(false)
-      expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
-      // run.completed is communicated by the COMPLETE phase marker, not a separate row
-      expect(runEvents.some((item) => item.type === "run.completed")).toBe(false)
+      expect(runEvents.every((item) => !!item.narrative?.sentence)).toBe(true)
     })
   })
 
