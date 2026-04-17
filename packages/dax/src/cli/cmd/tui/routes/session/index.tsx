@@ -136,7 +136,6 @@ import {
   getCurrentPhase,
   getActivePhases,
   type RenderableStreamItem,
-  type RunPhase,
 } from "@/dax/presentation/session-stream"
 import { StreamItem } from "../../component/stream"
 import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
@@ -377,22 +376,6 @@ export function Session() {
     if (projectedRun()) return projectedRun()?.proposedChanges ?? []
     return []
   })
-
-  const [collapsedPhases, setCollapsedPhases] = createSignal<Set<RunPhase>>(new Set())
-
-  const togglePhase = (phase: RunPhase) => {
-    setCollapsedPhases((prev) => {
-      const next = new Set(prev)
-      next.has(phase) ? next.delete(phase) : next.add(phase)
-      return next
-    })
-  }
-
-  const isPhaseExpanded = (phase: RunPhase | undefined): boolean => {
-    if (!phase) return true
-    // User's explicit collapse always wins — even for the active phase.
-    return !collapsedPhases().has(phase)
-  }
 
   const streamItems = createMemo((): RenderableStreamItem[] => {
     return buildStreamItems(projectedRun(), messages(), sync.data.part)
@@ -1535,9 +1518,7 @@ export function Session() {
                   <>
                     <StreamItem
                       item={item}
-                      expanded={isPhaseExpanded(item.phase)}
                       isLast={index() === lastMessageIndex()}
-                      onTogglePhase={() => item.phase && togglePhase(item.phase)}
                       onNavigateToApprovals={openApprovalsPane}
                       MessageComponent={Message}
                     />

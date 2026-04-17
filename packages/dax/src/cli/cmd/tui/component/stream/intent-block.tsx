@@ -17,22 +17,8 @@ export function IntentBlock(props: { item: RenderableStreamItem }) {
   const { theme } = useTheme()
 
   return (
-    <box
-      flexDirection="column"
-      gap={0}
-      paddingTop={0}
-      paddingBottom={0}
-      paddingLeft={4}
-      paddingRight={2}
-      marginTop={0}
-      marginBottom={0}
-      border={["left"]}
-      borderColor={theme.accent}
-    >
-      <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-        UNDERSTOOD
-      </text>
-      <text fg={theme.text} wrapMode="word">
+    <box paddingLeft={2} paddingRight={2} marginTop={0} marginBottom={0}>
+      <text fg={theme.textMuted} wrapMode="word" attributes={TextAttributes.DIM}>
         {stripInlineMarkdown(props.item.message ?? "")}
       </text>
     </box>

@@ -10,9 +10,7 @@ import { IntentBlock } from "./intent-block"
 
 export function StreamItem(props: {
   item: RenderableStreamItem
-  expanded: boolean
   isLast: boolean
-  onTogglePhase: () => void
   onNavigateToApprovals?: () => void
   MessageComponent: typeof MessagePlaceholder
 }) {
@@ -23,22 +21,17 @@ export function StreamItem(props: {
           phase={props.item.phase!}
           label={props.item.message ?? ""}
           status={props.item.status ?? "pending"}
-          expanded={props.expanded}
-          onToggle={props.onTogglePhase}
           stepCount={props.item.phaseStepCount}
           durationMs={props.item.durationMs}
-          hasExpandableContent={props.item.hasExpandableContent ?? false}
         />
       </Match>
 
       <Match when={props.item.kind === "run.event"}>
-        <Show when={props.expanded}>
-          <Switch fallback={<RunEventRow item={props.item} />}>
-            <Match when={props.item.type === "intent.created"}>
-              <IntentBlock item={props.item} />
-            </Match>
-          </Switch>
-        </Show>
+        <Switch fallback={<RunEventRow item={props.item} />}>
+          <Match when={props.item.type === "intent.created"}>
+            <IntentBlock item={props.item} />
+          </Match>
+        </Switch>
       </Match>
 
       <Match when={props.item.kind === "alert.inline"}>
