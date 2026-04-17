@@ -2120,101 +2120,56 @@ const PART_MAPPING = {
 
 function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPart[] } }) {
   const { theme } = useTheme()
-  const tools = props.part.tools
-  const allCompleted = createMemo(() => tools.every((t) => t.state.status === "completed"))
-  const hasActive = createMemo(() => tools.some((t) => t.state.status === "pending" || t.state.status === "running"))
 
-  const counts = createMemo(() => {
-    const c: Record<string, number> = {}
-    for (const t of tools) {
-      const label =
-        t.tool === "webfetch"
-          ? "fetches"
-          : t.tool === "websearch"
-            ? "searches"
-            : t.tool === "codesearch"
-              ? "code searches"
-              : t.tool === "list"
-                ? "listings"
-                : t.tool === "read"
-                  ? "files read"
-                  : t.tool === "glob"
-                    ? "globs"
-                    : t.tool === "grep"
-                      ? "greps"
-                      : t.tool + "s"
-      c[label] = (c[label] ?? 0) + 1
-    }
-    return Object.entries(c)
-      .map(([label, count]) => `${count} ${label}`)
-      .join(", ")
-  })
+  const hasActive = createMemo(() =>
+    props.part.tools.some((t) => t.state.status === "pending" || t.state.status === "running"),
+  )
 
-  const evidenceSummary = createMemo(() => {
-    const labels = tools
-      .map((tool) => {
-        const trace = deriveOperatorTraceLine(tool)
-        return trimPunctuation(trace?.target ?? tool.tool)
-      })
-      .filter((label): label is string => !!label)
-
-    if (labels.length === 0) return undefined
-    const head = labels.slice(0, 3).map((label) => formatInlineCode(label))
-    const suffix = labels.length > 3 ? ` + ${labels.length - 3} more` : ""
-    return `${head.join(", ")}${suffix}`
-  })
-
-  const evidencePaths = createMemo(() => {
-    return props.part.tools
+  // Each tool contributes one path to show; filter out empty entries
+  const rows = createMemo(() =>
+    props.part.tools
       .map((p) => {
         const input = (p.state.status !== "pending" ? p.state.input : {}) as any
-        return input?.filePath || input?.path || input?.pattern || input?.query || ""
+        const path: string = input?.filePath || input?.path || input?.pattern || input?.query || ""
+        const icon =
+          p.tool === "glob" || p.tool === "list"
+            ? "✦"
+            : p.tool === "grep" || p.tool === "codesearch"
+              ? "⌕"
+              : p.tool === "webfetch" || p.tool === "websearch"
+                ? "↗"
+                : "→"
+        return path ? { icon, path } : null
       })
-      .filter(Boolean)
-  })
+      .filter((r): r is { icon: string; path: string } => r !== null),
+  )
 
   return (
-    <box
-      flexDirection="column"
-      gap={0}
-      marginTop={1}
-      marginBottom={0}
-      marginLeft={1}
-      marginRight={1}
-      paddingLeft={1}
-      paddingRight={1}
-      borderStyle="rounded"
-      borderColor={hasActive() ? theme.warning : theme.borderSubtle}
-      backgroundColor={theme.background}
+    <Show
+      when={rows().length > 0 || hasActive()}
+      fallback={null}
     >
-      <box flexDirection="row" gap={1} alignItems="center" paddingBottom={allCompleted() ? 0 : 1}>
-        <box flexDirection="row" gap={0.5} marginRight={1}>
-          <text fg={theme.error}>●</text>
-          <text fg={theme.warning}>●</text>
-          <text fg={theme.success}>●</text>
-        </box>
-        <Show when={hasActive()} fallback={<text fg={theme.success}>✓</text>}>
-          <Spinner color={theme.warning} />
+      <box flexDirection="column" paddingLeft={2} paddingRight={2} marginTop={0} marginBottom={0}>
+        <Show when={hasActive() && rows().length === 0}>
+          <box flexDirection="row" gap={1} alignItems="center">
+            <Spinner color={theme.primary} />
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>reading…</text>
+          </box>
         </Show>
-        <text
-          fg={hasActive() ? theme.warning : theme.textMuted}
-          attributes={hasActive() ? TextAttributes.BOLD : undefined}
-        >
-          {hasActive() ? "Gathering context" : "Gathered context"}
-        </text>
-      </box>
-      <Show when={allCompleted() && evidencePaths().length > 0}>
-        <box flexDirection="column" gap={0} paddingTop={0} paddingLeft={1} paddingBottom={1}>
-          <For each={evidencePaths()}>
-            {(path) => (
-              <text fg={theme.textMuted} dim wrapMode="word">
-                · {path}
+        <For each={rows()}>
+          {(row) => (
+            <box flexDirection="row" gap={1} alignItems="flex-start">
+              <text fg={hasActive() ? theme.primary : theme.textMuted} attributes={TextAttributes.DIM}>
+                {row.icon}
               </text>
-            )}
-          </For>
-        </box>
-      </Show>
-    </box>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end">
+                {row.path}
+              </text>
+            </box>
+          )}
+        </For>
+      </box>
+    </Show>
   )
 }
 
@@ -2438,7 +2393,7 @@ function cleanReasoningText(text: string) {
 }
 
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage; marginTop?: number }) {
-  const { theme, syntax } = useTheme()
+  const { syntax, theme } = useTheme()
   const ctx = use()
   const content = createMemo(() => cleanReasoningText(props.part.text))
   const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
@@ -2446,29 +2401,19 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   return (
     <Show when={content() && ctx.showThinking()}>
       <box
-        id={"text-" + props.part.id}
-        paddingLeft={1}
-        paddingRight={0}
+        id={"reasoning-" + props.part.id}
+        paddingLeft={2}
+        paddingRight={2}
         marginTop={props.marginTop ?? 1}
-        flexDirection="column"
-        border={["left"]}
-        borderColor={theme.primary}
-        backgroundColor={tint(theme.background, theme.primary, 0.02)}
+        marginBottom={0}
       >
-        <box paddingBottom={1} flexDirection="column" gap={0}>
-          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-            Checking
-          </text>
-          <code
-            filetype="markdown"
-            drawUnstyledText={false}
-            streaming={true}
-            syntaxStyle={syntax()}
-            content={content()!}
-            conceal={ctx.conceal()}
-            fg={reasoningFg()}
-          />
-        </box>
+        <markdown
+          syntaxStyle={syntax()}
+          streaming={true}
+          content={content()!}
+          conceal={ctx.conceal()}
+          fg={reasoningFg()}
+        />
       </box>
     </Show>
   )

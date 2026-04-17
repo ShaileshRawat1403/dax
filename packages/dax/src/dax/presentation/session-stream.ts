@@ -409,32 +409,19 @@ function buildLegacyStreamItems(
   return mergeAdjacentAssistantEvidenceItems(streamItems)
 }
 
-function isHelperAssistantItem(item: RenderableStreamItem): item is RenderableStreamItem & {
-  kind: "message.assistant"
-  data: AssistantMessage | MessageV2.Info
-  parts: Part[]
-} {
-  if (item.kind !== "message.assistant") return false
-  if (!item.parts || item.parts.length === 0) return false
-  return item.parts.every((part) => {
-    if (part.type === "text") return false
-    if (part.type === "tool") return true
-    if (part.type === "reasoning") return true
-    if ((part as { type?: string }).type === "activity-cluster") return true
-    if ((part as { type?: string }).type === "context-group") return true
-    return false
-  })
-}
-
 function canMergeAssistantItems(
   left: RenderableStreamItem | undefined,
   right: RenderableStreamItem,
 ): left is RenderableStreamItem & { data: AssistantMessage | MessageV2.Info; parts: Part[] } {
-  if (!left) return false
-  if (!isHelperAssistantItem(left) || !isHelperAssistantItem(right)) return false
+  if (!left || left.kind !== "message.assistant") return false
+  if (right.kind !== "message.assistant") return false
   const leftAgent = (left.data as AssistantMessage | MessageV2.Info | undefined)?.agent
   const rightAgent = (right.data as AssistantMessage | MessageV2.Info | undefined)?.agent
-  return leftAgent === rightAgent
+  // Merge all consecutive turns from the same named agent into a single stream block.
+  // This produces a continuous reasoning → tool-calls → answer flow instead of N separate
+  // message bubbles — matching the way the model actually thinks across multiple turns.
+  // Anonymous messages (no agent field) are kept separate.
+  return !!leftAgent && leftAgent === rightAgent
 }
 
 function mergeAdjacentAssistantEvidenceItems(items: RenderableStreamItem[]): RenderableStreamItem[] {
