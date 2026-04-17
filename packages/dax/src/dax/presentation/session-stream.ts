@@ -130,15 +130,24 @@ function isCountableStep(item: RunNarrativeItem): boolean {
   return STEP_COUNT_TYPES.has(item.type)
 }
 
-function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
+function shouldRenderRunEvent(item: RunNarrativeItem, narrative: RunNarrativeItem[]): boolean {
   switch (item.type) {
-    case "intent.created":   // shows what the agent understood — content for UNDERSTANDING
+    case "intent.created":
+      return true
     case "run.completed":
     case "run.failed":
     case "step.failed":
-    case "step.started":
-    case "step.completed":
       return true
+    case "step.started": {
+      // Only render the step that is still active — i.e. no matching step.completed yet.
+      // Completed steps are already counted in the phase rail summary; showing each one
+      // as a row creates an unreadable stack for long runs (15 steps = 30 rows).
+      const stepId = (item.metadata as Record<string, unknown> | undefined)?.stepId as string | undefined
+      if (!stepId) return true
+      return !narrative.some(
+        (n) => n.type === "step.completed" && (n.metadata as Record<string, unknown> | undefined)?.stepId === stepId,
+      )
+    }
     default:
       return false
   }
@@ -206,7 +215,12 @@ export function buildStreamItems(
       })
     }
 
-    if (shouldRenderRunEvent(item)) {
+    // For trivial queries, suppress run.events too — intent.created is not caught by
+    // the isPhaseMarkerCandidate guard above so it would otherwise still emit an
+    // IntentBlock orphan above the user message even when the phase marker is suppressed.
+    if (!hasNonTrivialWork) continue
+
+    if (shouldRenderRunEvent(item, narrative)) {
       streamItems.push({
         id: item.id,
         kind: "run.event",

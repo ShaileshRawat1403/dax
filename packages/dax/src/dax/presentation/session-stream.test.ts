@@ -464,22 +464,23 @@ describe("session-stream presentation model", () => {
       const items = buildStreamItems(projectedRun, [], {})
 
       // 4 phase markers (understanding, planning, executing, complete)
-      // + 4 run events (intent.created, step.started, step.completed, run.completed)
+      // + 3 run events (intent.created, step.started [active — no stepId to match], run.completed)
       // + 1 alert.inline (approval.requested)
-      expect(items.length).toBe(9)
+      // step.completed is never rendered — completed steps are counted in the phase rail summary
+      expect(items.length).toBe(8)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
       const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
       const alertItems = items.filter((item) => item.kind === "alert.inline")
 
-      expect(runEvents.length).toBe(4)
+      expect(runEvents.length).toBe(3)
       expect(phaseMarkers.length).toBeGreaterThanOrEqual(3)
       expect(alertItems.length).toBeGreaterThanOrEqual(1)
       // intent.created surfaces the agent's interpretation under UNDERSTANDING
       expect(runEvents.some((item) => item.type === "intent.created")).toBe(true)
-      // step.started and step.completed are expandable under EXECUTING
+      // active step.started shown; step.completed never rendered (counted in phase rail)
       expect(runEvents.some((item) => item.type === "step.started")).toBe(true)
-      expect(runEvents.some((item) => item.type === "step.completed")).toBe(true)
+      expect(runEvents.some((item) => item.type === "step.completed")).toBe(false)
       expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
       expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
     })
