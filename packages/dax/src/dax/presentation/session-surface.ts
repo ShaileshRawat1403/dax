@@ -1,5 +1,6 @@
 import type { Part } from "@dax-ai/sdk/v2"
 import type { StreamStage } from "@/dax/workflow/stage"
+import { deriveLiveNarrativeStatus } from "./session-stream"
 
 const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
 const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
@@ -339,18 +340,7 @@ export function deriveLiveStreamStatus(input: {
   pendingID?: string
   partsForMessage: (messageID: string) => Part[]
 }) {
-  if (!input.pendingID) return "idle"
-
-  const parts = input.partsForMessage(input.pendingID)
-  const pendingTool = parts.findLast((part) => part.type === "tool" && part.state.status === "pending")
-  if (pendingTool && pendingTool.type === "tool") return describeToolProgress(pendingTool.tool)
-
-  const completedTool = parts.findLast((part) => part.type === "tool" && part.state.status === "completed")
-  if (completedTool && completedTool.type === "tool") return `${describeToolProgress(completedTool.tool)} complete`
-
-  if (nonEmptyTextPart(parts, "reasoning")) return "drafting the next step"
-  if (nonEmptyTextPart(parts, "text")) return "answer streaming"
-  return "waiting for provider response"
+  return deriveLiveNarrativeStatus(input).status
 }
 
 export function deriveStreamFidelitySnapshot(input: {

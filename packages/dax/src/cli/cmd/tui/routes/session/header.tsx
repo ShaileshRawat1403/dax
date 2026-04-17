@@ -64,6 +64,14 @@ export function Header(props: {
   const showLifecycleChip = createMemo(
     () => !!props.lifecycleLabel && props.lifecycleLabel.toLowerCase() !== "idle" && props.emphasis === "normal",
   )
+  const showDecisionChip = createMemo(() => {
+    if (!props.decisionState || props.emphasis === "muted") return false
+    const lifecycle = (props.lifecycleLabel ?? "").toLowerCase().trim()
+    const decision = props.decisionState.toLowerCase().trim()
+    if (!decision) return false
+    if (lifecycle && lifecycle === decision) return false
+    return true
+  })
 
   const baseDecisionColor = createMemo(() => {
     const state = props.decisionState?.toLowerCase() ?? ""
@@ -147,7 +155,7 @@ export function Header(props: {
               </box>
             </Show>
 
-            <Show when={props.decisionState && props.emphasis !== "muted"}>
+            <Show when={showDecisionChip()}>
               <box
                 flexDirection="row"
                 alignItems="center"

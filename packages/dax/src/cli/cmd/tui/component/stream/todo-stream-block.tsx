@@ -16,6 +16,9 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
   const { theme } = useTheme()
 
   const visibleTodos = () => props.todos.filter((t) => t.status !== "completed" || props.todos.length <= 5)
+  const completedCount = () => props.todos.filter((t) => t.status === "completed").length
+  const activeCount = () => props.todos.filter((t) => t.status !== "completed").length
+  const hiddenCompletedCount = () => completedCount() - visibleTodos().filter((t) => t.status === "completed").length
 
   return (
     <Show when={props.todos.length > 0}>
@@ -26,6 +29,13 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
             {(todo) => <TodoItem status={todo.status} content={todo.content} />}
           </For>
         </box>
+        <Show when={hiddenCompletedCount() > 0}>
+          <box paddingLeft={2} paddingTop={0} paddingBottom={0}>
+            <text fg={theme.textMuted} dim>
+              {hiddenCompletedCount()} completed hidden · {activeCount()} active
+            </text>
+          </box>
+        </Show>
         <text fg={theme.borderSubtle}>{"─".repeat(40)}</text>
       </box>
     </Show>

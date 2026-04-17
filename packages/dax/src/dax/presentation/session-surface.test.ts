@@ -121,14 +121,14 @@ describe("session surface helpers", () => {
         pendingID: "assistant-1",
         partsForMessage: () => [{ type: "reasoning", text: "planning next step" } as any],
       }),
-    ).toBe("drafting the next step")
+    ).toBe("thinking")
 
     expect(
       deriveLiveStreamStatus({
         pendingID: "assistant-1",
         partsForMessage: () => [{ type: "text", text: "Here is the response" } as any],
       }),
-    ).toBe("answer streaming")
+    ).toBe("thinking")
   })
 
   test("derives a high-fidelity assistant insight card model", () => {
@@ -201,7 +201,7 @@ describe("session surface helpers", () => {
         partsForMessage: () => [{ type: "text", text: "Final answer ready" } as any],
       }),
     ).toEqual({
-      streamStatus: "answer streaming",
+      streamStatus: "thinking",
       hasPendingTool: false,
       hasCompletedTool: false,
       hasVisibleReasoning: false,
