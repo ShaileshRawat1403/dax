@@ -111,16 +111,18 @@ describe("session-stream presentation model", () => {
       expect(items[0]?.parts).toHaveLength(2)
     })
 
-    it("does not merge assistant evidence across a substantive text response", () => {
+    it("merges same-agent tool turn with a subsequent text response into one block", () => {
+      // The model thinks across multiple turns: tool use followed by final answer.
+      // Both turns are from the same agent so they merge into a single continuous block.
       const messages = createMockMessages(["assistant", "assistant"])
       const items = buildStreamItems(undefined, messages, {
         "msg-0": [createContextToolPart("tool-0", "read", "CHANGELOG.md") as any],
         "msg-1": [createTextPart("text-1", "Here is the release-readiness verdict.") as any],
       })
 
-      expect(items).toHaveLength(2)
+      expect(items).toHaveLength(1)
       expect(items[0]?.kind).toBe("message.assistant")
-      expect(items[1]?.kind).toBe("message.assistant")
+      expect(items[0]?.parts?.map((p) => p.type)).toEqual(["tool", "text"])
     })
 
     it("merges adjacent planner helper packets into one assistant block", () => {
@@ -136,7 +138,9 @@ describe("session-stream presentation model", () => {
       expect(items[0]?.parts?.map((part) => part.type)).toEqual(["tool", "reasoning", "tool"])
     })
 
-    it("does not merge a helper block with a substantive assistant answer", () => {
+    it("merges tool, reasoning, and answer turns from the same agent into one continuous block", () => {
+      // All three turns are the same agent's work: gather context → think → respond.
+      // The merged block preserves part order so the stream reads as a single narrative.
       const messages = createMockMessages(["assistant", "assistant", "assistant"])
       const items = buildStreamItems(undefined, messages, {
         "msg-0": [createContextToolPart("tool-0", "read", "CHANGELOG.md") as any],
@@ -144,9 +148,8 @@ describe("session-stream presentation model", () => {
         "msg-2": [createTextPart("text-2", "Release readiness is blocked pending verification receipts.") as any],
       })
 
-      expect(items).toHaveLength(2)
-      expect(items[0]?.parts?.map((part) => part.type)).toEqual(["tool", "reasoning"])
-      expect(items[1]?.parts?.map((part) => part.type)).toEqual(["text"])
+      expect(items).toHaveLength(1)
+      expect(items[0]?.parts?.map((part) => part.type)).toEqual(["tool", "reasoning", "text"])
     })
 
     it("renders projected narrative items when projectedRun exists", () => {
