@@ -27,6 +27,7 @@ export function PhaseRail(props: {
   onToggle: () => void
   stepCount?: number
   durationMs?: number
+  hasExpandableContent?: boolean
 }) {
   const { theme } = useTheme()
 
@@ -102,10 +103,12 @@ export function PhaseRail(props: {
 
       <box flexGrow={1} />
 
-      {/* Toggle arrow */}
-      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-        {expandIcon()}
-      </text>
+      {/* Toggle arrow — only shown when there are events to expand */}
+      <Show when={props.hasExpandableContent}>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+          {expandIcon()}
+        </text>
+      </Show>
     </box>
   )
 }

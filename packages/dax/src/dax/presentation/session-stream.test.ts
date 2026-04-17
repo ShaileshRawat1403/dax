@@ -250,6 +250,40 @@ describe("session-stream presentation model", () => {
       expect(items.some((item) => item.kind === "run.event" || item.kind === "phase.marker")).toBe(true)
     })
 
+    it("UNDERSTANDING block never appears before the first user message", () => {
+      // Regression: intent.created has an earlier server timestamp than the user message,
+      // so after sort it floated to index 0 as a detached IntentBlock above everything.
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session", timestamp: "2026-04-17T06:00:00Z" },
+        { type: "intent.created", message: "hello DAX", timestamp: "2026-04-17T06:00:01Z" },
+        { type: "plan.compiled", message: "Plan", timestamp: "2026-04-17T06:00:05Z" },
+        { type: "step.started", message: "Execute", timestamp: "2026-04-17T06:00:06Z" },
+      ])
+      // User message has a later timestamp than run.created/intent.created
+      const messages = [
+        {
+          id: "msg-user",
+          role: "user",
+          sessionID: "s",
+          time: { created: new Date("2026-04-17T06:00:03Z").getTime() },
+        },
+      ]
+
+      const items = buildStreamItems(projectedRun, messages, {})
+
+      const firstUserIdx = items.findIndex((item) => item.kind === "message.user")
+      const understandingMarkerIdx = items.findIndex(
+        (item) => item.kind === "phase.marker" && item.phase === "understanding",
+      )
+      const intentEventIdx = items.findIndex((item) => item.kind === "run.event" && item.type === "intent.created")
+
+      // Both the phase marker and intent event must appear AFTER the user message
+      expect(understandingMarkerIdx).toBeGreaterThan(firstUserIdx)
+      expect(intentEventIdx).toBeGreaterThan(firstUserIdx)
+      // Phase marker must appear before its run.event children
+      expect(understandingMarkerIdx).toBeLessThan(intentEventIdx)
+    })
+
     it("sorts all items by timestamp", () => {
       const projectedRun = createMockProjectedRun([
         { type: "run.created", message: "First", timestamp: "2026-04-08T10:00:00Z" },
@@ -430,22 +464,23 @@ describe("session-stream presentation model", () => {
       const items = buildStreamItems(projectedRun, [], {})
 
       // 4 phase markers (understanding, planning, executing, complete)
-      // + 4 run events (intent.created, step.started, step.completed, run.completed)
+      // + 3 run events (intent.created, step.started [active — no stepId to match], run.completed)
       // + 1 alert.inline (approval.requested)
-      expect(items.length).toBe(9)
+      // step.completed is never rendered — completed steps are counted in the phase rail summary
+      expect(items.length).toBe(8)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
       const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
       const alertItems = items.filter((item) => item.kind === "alert.inline")
 
-      expect(runEvents.length).toBe(4)
+      expect(runEvents.length).toBe(3)
       expect(phaseMarkers.length).toBeGreaterThanOrEqual(3)
       expect(alertItems.length).toBeGreaterThanOrEqual(1)
       // intent.created surfaces the agent's interpretation under UNDERSTANDING
       expect(runEvents.some((item) => item.type === "intent.created")).toBe(true)
-      // step.started and step.completed are expandable under EXECUTING
+      // active step.started shown; step.completed never rendered (counted in phase rail)
       expect(runEvents.some((item) => item.type === "step.started")).toBe(true)
-      expect(runEvents.some((item) => item.type === "step.completed")).toBe(true)
+      expect(runEvents.some((item) => item.type === "step.completed")).toBe(false)
       expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
       expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
     })

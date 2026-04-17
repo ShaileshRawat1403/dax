@@ -27,6 +27,7 @@ export function StreamItem(props: {
           onToggle={props.onTogglePhase}
           stepCount={props.item.phaseStepCount}
           durationMs={props.item.durationMs}
+          hasExpandableContent={props.item.hasExpandableContent ?? false}
         />
       </Match>
 

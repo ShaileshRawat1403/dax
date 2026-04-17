@@ -27,6 +27,8 @@ export interface RenderableStreamItem {
   phaseStepCount?: number
   /** Duration in milliseconds (set on phase.marker and run.event items when computable) */
   durationMs?: number
+  /** Whether there are expandable run.event items for this phase (only set on phase.marker) */
+  hasExpandableContent?: boolean
 }
 
 const PHASE_MAP: Record<string, RunPhase> = {
@@ -128,15 +130,24 @@ function isCountableStep(item: RunNarrativeItem): boolean {
   return STEP_COUNT_TYPES.has(item.type)
 }
 
-function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
+function shouldRenderRunEvent(item: RunNarrativeItem, narrative: RunNarrativeItem[]): boolean {
   switch (item.type) {
-    case "intent.created":   // shows what the agent understood — content for UNDERSTANDING
+    case "intent.created":
+      return true
     case "run.completed":
     case "run.failed":
     case "step.failed":
-    case "step.started":
-    case "step.completed":
       return true
+    case "step.started": {
+      // Only render the step that is still active — i.e. no matching step.completed yet.
+      // Completed steps are already counted in the phase rail summary; showing each one
+      // as a row creates an unreadable stack for long runs (15 steps = 30 rows).
+      const stepId = (item.metadata as Record<string, unknown> | undefined)?.stepId as string | undefined
+      if (!stepId) return true
+      return !narrative.some(
+        (n) => n.type === "step.completed" && (n.metadata as Record<string, unknown> | undefined)?.stepId === stepId,
+      )
+    }
     default:
       return false
   }
@@ -192,12 +203,24 @@ export function buildStreamItems(
         phase,
         message: getPhaseLabel(phase),
         type: item.type,
-        status: phase === "complete" ? "completed" : phase === "executing" ? "active" : "completed",
+        status:
+          phase === "complete"
+            ? item.type === "run.failed"
+              ? "failed"
+              : "completed"
+            : phase === "executing"
+              ? "active"
+              : "completed",
         expanded: true,
       })
     }
 
-    if (shouldRenderRunEvent(item)) {
+    // For trivial queries, suppress run.events too — intent.created is not caught by
+    // the isPhaseMarkerCandidate guard above so it would otherwise still emit an
+    // IntentBlock orphan above the user message even when the phase marker is suppressed.
+    if (!hasNonTrivialWork) continue
+
+    if (shouldRenderRunEvent(item, narrative)) {
       streamItems.push({
         id: item.id,
         kind: "run.event",
@@ -287,36 +310,57 @@ export function buildStreamItems(
 
   streamItems.sort((a, b) => a.timestamp - b.timestamp)
 
-  // Reposition UNDERSTANDING to just after the last user message before planning begins.
-  // run.created fires before any user message, so it sorts to the top. We want it to
-  // appear in context with the query that actually triggered the non-trivial work —
-  // i.e. the last user message whose timestamp precedes plan.compiled/step.started.
-  // This also suppresses it entirely for trivial exchanges (hasNonTrivialWork = false).
+  // Reposition the entire UNDERSTANDING block (phase marker + its run.event children)
+  // to just after the last user message before planning begins.
+  //
+  // Why whole block: intent.created has an even earlier server timestamp than run.created,
+  // so it sorts to index 0. Moving only the phase marker leaves run.event items floating
+  // above the user message with no rail above them (visible as a detached IntentBlock).
+  //
+  // Order within the block: phase marker first, then run.event items — so the rail
+  // always appears above its expandable children in the For loop.
   if (hasNonTrivialWork) {
-    const understandingIdx = streamItems.findIndex(
-      (item) => item.kind === "phase.marker" && item.phase === "understanding",
-    )
-    if (understandingIdx !== -1) {
-      const firstPlanTs = narrative
-        .filter((n) => n.type === "plan.compiled" || n.type === "step.started" || n.type === "step.proposed")
-        .map((n) => (n.timestamp ? new Date(n.timestamp).getTime() : Infinity))
-        .reduce((min, ts) => Math.min(min, ts), Infinity)
+    // Collect all understanding-phase items and their current indices
+    const understandingIndices: number[] = []
+    for (let i = 0; i < streamItems.length; i++) {
+      const item = streamItems[i]
+      if (item.phase === "understanding" && (item.kind === "phase.marker" || item.kind === "run.event")) {
+        understandingIndices.push(i)
+      }
+    }
 
-      // Find the last user message that appears before planning started
+    if (understandingIndices.length > 0) {
+      // Find the first non-understanding phase marker as the boundary
+      const nextPhaseIdx = streamItems.findIndex(
+        (item) => item.kind === "phase.marker" && item.phase !== "understanding",
+      )
+      const boundary = nextPhaseIdx !== -1 ? nextPhaseIdx : streamItems.length
+
+      // Last user message before that boundary is the query that triggered the work
       let insertAfterIdx = -1
-      if (isFinite(firstPlanTs)) {
-        for (let i = 0; i < streamItems.length; i++) {
-          if (streamItems[i].kind === "message.user" && streamItems[i].timestamp < firstPlanTs) {
-            insertAfterIdx = i
-          }
+      for (let i = 0; i < boundary; i++) {
+        if (!understandingIndices.includes(i) && streamItems[i].kind === "message.user") {
+          insertAfterIdx = i
         }
       }
 
       if (insertAfterIdx !== -1) {
-        const [marker] = streamItems.splice(understandingIdx, 1)
-        // If understandingIdx was before insertAfterIdx, that slot shifted back by 1 after splice
-        const targetIdx = understandingIdx < insertAfterIdx ? insertAfterIdx : insertAfterIdx + 1
-        streamItems.splice(targetIdx, 0, marker!)
+        // Extract items in their natural order, but put the phase marker first
+        const extracted = understandingIndices.map((i) => streamItems[i])
+        const phaseMarker = extracted.find((item) => item.kind === "phase.marker")
+        const runEvents = extracted.filter((item) => item.kind === "run.event")
+        const block = phaseMarker ? [phaseMarker, ...runEvents] : runEvents
+
+        // Remove all understanding items (reverse order preserves indices during splice)
+        for (let i = understandingIndices.length - 1; i >= 0; i--) {
+          streamItems.splice(understandingIndices[i]!, 1)
+        }
+
+        // Recalculate insert position: how many understanding items were before insertAfterIdx
+        const removedBefore = understandingIndices.filter((i) => i <= insertAfterIdx).length
+        const targetIdx = insertAfterIdx - removedBefore + 1
+
+        streamItems.splice(targetIdx, 0, ...block)
       }
     }
   }
@@ -508,9 +552,18 @@ function annotatePhaseStats(items: RenderableStreamItem[], narrative: RunNarrati
     }
   }
 
-  // Annotate phase.marker items with computed stats
+  // Build a set of phases that have at least one expandable run.event item
+  const phasesWithEvents = new Set<RunPhase>()
+  for (const item of items) {
+    if (item.kind === "run.event" && item.phase) {
+      phasesWithEvents.add(item.phase)
+    }
+  }
+
+  // Annotate phase.marker items with computed stats and expandability
   for (const item of items) {
     if (item.kind === "phase.marker" && item.phase) {
+      item.hasExpandableContent = phasesWithEvents.has(item.phase)
       const stats = phaseStats.get(item.phase)
       if (stats) {
         item.phaseStepCount = stats.count
