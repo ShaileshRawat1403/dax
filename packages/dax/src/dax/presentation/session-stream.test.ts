@@ -250,6 +250,40 @@ describe("session-stream presentation model", () => {
       expect(items.some((item) => item.kind === "run.event" || item.kind === "phase.marker")).toBe(true)
     })
 
+    it("UNDERSTANDING block never appears before the first user message", () => {
+      // Regression: intent.created has an earlier server timestamp than the user message,
+      // so after sort it floated to index 0 as a detached IntentBlock above everything.
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session", timestamp: "2026-04-17T06:00:00Z" },
+        { type: "intent.created", message: "hello DAX", timestamp: "2026-04-17T06:00:01Z" },
+        { type: "plan.compiled", message: "Plan", timestamp: "2026-04-17T06:00:05Z" },
+        { type: "step.started", message: "Execute", timestamp: "2026-04-17T06:00:06Z" },
+      ])
+      // User message has a later timestamp than run.created/intent.created
+      const messages = [
+        {
+          id: "msg-user",
+          role: "user",
+          sessionID: "s",
+          time: { created: new Date("2026-04-17T06:00:03Z").getTime() },
+        },
+      ]
+
+      const items = buildStreamItems(projectedRun, messages, {})
+
+      const firstUserIdx = items.findIndex((item) => item.kind === "message.user")
+      const understandingMarkerIdx = items.findIndex(
+        (item) => item.kind === "phase.marker" && item.phase === "understanding",
+      )
+      const intentEventIdx = items.findIndex((item) => item.kind === "run.event" && item.type === "intent.created")
+
+      // Both the phase marker and intent event must appear AFTER the user message
+      expect(understandingMarkerIdx).toBeGreaterThan(firstUserIdx)
+      expect(intentEventIdx).toBeGreaterThan(firstUserIdx)
+      // Phase marker must appear before its run.event children
+      expect(understandingMarkerIdx).toBeLessThan(intentEventIdx)
+    })
+
     it("sorts all items by timestamp", () => {
       const projectedRun = createMockProjectedRun([
         { type: "run.created", message: "First", timestamp: "2026-04-08T10:00:00Z" },
