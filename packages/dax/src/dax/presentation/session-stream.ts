@@ -296,34 +296,57 @@ export function buildStreamItems(
 
   streamItems.sort((a, b) => a.timestamp - b.timestamp)
 
-  // Reposition UNDERSTANDING to just after the last user message before planning begins.
-  // Uses index-based positioning (not timestamps) so it's robust against clock skew
-  // between client message timestamps and server narrative event timestamps.
-  // Suppressed entirely for trivial exchanges (hasNonTrivialWork = false).
+  // Reposition the entire UNDERSTANDING block (phase marker + its run.event children)
+  // to just after the last user message before planning begins.
+  //
+  // Why whole block: intent.created has an even earlier server timestamp than run.created,
+  // so it sorts to index 0. Moving only the phase marker leaves run.event items floating
+  // above the user message with no rail above them (visible as a detached IntentBlock).
+  //
+  // Order within the block: phase marker first, then run.event items — so the rail
+  // always appears above its expandable children in the For loop.
   if (hasNonTrivialWork) {
-    const understandingIdx = streamItems.findIndex(
-      (item) => item.kind === "phase.marker" && item.phase === "understanding",
-    )
-    if (understandingIdx !== -1) {
-      // Find the first phase marker that is NOT understanding — UNDERSTANDING must precede it
+    // Collect all understanding-phase items and their current indices
+    const understandingIndices: number[] = []
+    for (let i = 0; i < streamItems.length; i++) {
+      const item = streamItems[i]
+      if (item.phase === "understanding" && (item.kind === "phase.marker" || item.kind === "run.event")) {
+        understandingIndices.push(i)
+      }
+    }
+
+    if (understandingIndices.length > 0) {
+      // Find the first non-understanding phase marker as the boundary
       const nextPhaseIdx = streamItems.findIndex(
         (item) => item.kind === "phase.marker" && item.phase !== "understanding",
       )
       const boundary = nextPhaseIdx !== -1 ? nextPhaseIdx : streamItems.length
 
-      // Last user message before the next phase is the one that triggered the work
+      // Last user message before that boundary is the query that triggered the work
       let insertAfterIdx = -1
       for (let i = 0; i < boundary; i++) {
-        if (i !== understandingIdx && streamItems[i].kind === "message.user") {
+        if (!understandingIndices.includes(i) && streamItems[i].kind === "message.user") {
           insertAfterIdx = i
         }
       }
 
       if (insertAfterIdx !== -1) {
-        const [marker] = streamItems.splice(understandingIdx, 1)
-        // If understandingIdx was before insertAfterIdx, that slot shifted back by 1 after splice
-        const targetIdx = understandingIdx < insertAfterIdx ? insertAfterIdx : insertAfterIdx + 1
-        streamItems.splice(targetIdx, 0, marker!)
+        // Extract items in their natural order, but put the phase marker first
+        const extracted = understandingIndices.map((i) => streamItems[i])
+        const phaseMarker = extracted.find((item) => item.kind === "phase.marker")
+        const runEvents = extracted.filter((item) => item.kind === "run.event")
+        const block = phaseMarker ? [phaseMarker, ...runEvents] : runEvents
+
+        // Remove all understanding items (reverse order preserves indices during splice)
+        for (let i = understandingIndices.length - 1; i >= 0; i--) {
+          streamItems.splice(understandingIndices[i]!, 1)
+        }
+
+        // Recalculate insert position: how many understanding items were before insertAfterIdx
+        const removedBefore = understandingIndices.filter((i) => i <= insertAfterIdx).length
+        const targetIdx = insertAfterIdx - removedBefore + 1
+
+        streamItems.splice(targetIdx, 0, ...block)
       }
     }
   }
