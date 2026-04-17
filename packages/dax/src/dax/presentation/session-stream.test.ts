@@ -464,25 +464,27 @@ describe("session-stream presentation model", () => {
       const items = buildStreamItems(projectedRun, [], {})
 
       // 4 phase markers (understanding, planning, executing, complete)
-      // + 3 run events (intent.created, step.started [active — no stepId to match], run.completed)
+      // + 1 run event (intent.created — only errors and intent prose surface)
       // + 1 alert.inline (approval.requested)
-      // step.completed is never rendered — completed steps are counted in the phase rail summary
-      expect(items.length).toBe(8)
+      // step.started, step.completed, run.completed are NOT rendered as rows —
+      // phase markers and the rail summary communicate completion
+      expect(items.length).toBe(6)
 
       const runEvents = items.filter((item) => item.kind === "run.event")
       const phaseMarkers = items.filter((item) => item.kind === "phase.marker")
       const alertItems = items.filter((item) => item.kind === "alert.inline")
 
-      expect(runEvents.length).toBe(3)
-      expect(phaseMarkers.length).toBeGreaterThanOrEqual(3)
-      expect(alertItems.length).toBeGreaterThanOrEqual(1)
+      expect(runEvents.length).toBe(1)
+      expect(phaseMarkers.length).toBe(4)
+      expect(alertItems.length).toBe(1)
       // intent.created surfaces the agent's interpretation under UNDERSTANDING
       expect(runEvents.some((item) => item.type === "intent.created")).toBe(true)
-      // active step.started shown; step.completed never rendered (counted in phase rail)
-      expect(runEvents.some((item) => item.type === "step.started")).toBe(true)
+      // step rows are suppressed — steps are counted in phase rail summary only
+      expect(runEvents.some((item) => item.type === "step.started")).toBe(false)
       expect(runEvents.some((item) => item.type === "step.completed")).toBe(false)
       expect(runEvents.some((item) => item.type === "plan.compiled")).toBe(false)
-      expect(runEvents.some((item) => item.type === "run.completed")).toBe(true)
+      // run.completed is communicated by the COMPLETE phase marker, not a separate row
+      expect(runEvents.some((item) => item.type === "run.completed")).toBe(false)
     })
   })
 

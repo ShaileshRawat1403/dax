@@ -27,8 +27,6 @@ export interface RenderableStreamItem {
   phaseStepCount?: number
   /** Duration in milliseconds (set on phase.marker and run.event items when computable) */
   durationMs?: number
-  /** Whether there are expandable run.event items for this phase (only set on phase.marker) */
-  hasExpandableContent?: boolean
 }
 
 const PHASE_MAP: Record<string, RunPhase> = {
@@ -130,24 +128,15 @@ function isCountableStep(item: RunNarrativeItem): boolean {
   return STEP_COUNT_TYPES.has(item.type)
 }
 
-function shouldRenderRunEvent(item: RunNarrativeItem, narrative: RunNarrativeItem[]): boolean {
+function shouldRenderRunEvent(item: RunNarrativeItem): boolean {
   switch (item.type) {
+    // Intent prose — shown as soft text under the understanding divider
     case "intent.created":
       return true
-    case "run.completed":
-    case "run.failed":
+    // Errors always surface regardless of phase
     case "step.failed":
+    case "run.failed":
       return true
-    case "step.started": {
-      // Only render the step that is still active — i.e. no matching step.completed yet.
-      // Completed steps are already counted in the phase rail summary; showing each one
-      // as a row creates an unreadable stack for long runs (15 steps = 30 rows).
-      const stepId = (item.metadata as Record<string, unknown> | undefined)?.stepId as string | undefined
-      if (!stepId) return true
-      return !narrative.some(
-        (n) => n.type === "step.completed" && (n.metadata as Record<string, unknown> | undefined)?.stepId === stepId,
-      )
-    }
     default:
       return false
   }
@@ -220,7 +209,7 @@ export function buildStreamItems(
     // IntentBlock orphan above the user message even when the phase marker is suppressed.
     if (!hasNonTrivialWork) continue
 
-    if (shouldRenderRunEvent(item, narrative)) {
+    if (shouldRenderRunEvent(item)) {
       streamItems.push({
         id: item.id,
         kind: "run.event",
@@ -552,18 +541,9 @@ function annotatePhaseStats(items: RenderableStreamItem[], narrative: RunNarrati
     }
   }
 
-  // Build a set of phases that have at least one expandable run.event item
-  const phasesWithEvents = new Set<RunPhase>()
-  for (const item of items) {
-    if (item.kind === "run.event" && item.phase) {
-      phasesWithEvents.add(item.phase)
-    }
-  }
-
-  // Annotate phase.marker items with computed stats and expandability
+  // Annotate phase.marker items with computed stats
   for (const item of items) {
     if (item.kind === "phase.marker" && item.phase) {
-      item.hasExpandableContent = phasesWithEvents.has(item.phase)
       const stats = phaseStats.get(item.phase)
       if (stats) {
         item.phaseStepCount = stats.count
