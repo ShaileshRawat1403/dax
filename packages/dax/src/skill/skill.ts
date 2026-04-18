@@ -123,13 +123,17 @@ export namespace Skill {
 
     // Scan .dax/skill/ directories
     for (const dir of await Config.directories()) {
-      for await (const match of DAX_SKILL_GLOB.scan({
-        cwd: dir,
-        absolute: true,
-        onlyFiles: true,
-        followSymlinks: true,
-      })) {
-        await addSkill(match)
+      try {
+        for await (const match of DAX_SKILL_GLOB.scan({
+          cwd: dir,
+          absolute: true,
+          onlyFiles: true,
+          followSymlinks: true,
+        })) {
+          await addSkill(match)
+        }
+      } catch (err: any) {
+        if (err?.code !== "ENOENT") throw err
       }
     }
 
