@@ -1,62 +1,20 @@
-import {
-  BoxRenderable,
-  TextareaRenderable,
-  MouseEvent,
-  PasteEvent,
-  KeyEvent,
-  t,
-  dim,
-  fg,
-  TextAttributes,
-} from "@opentui/core"
-import {
-  createEffect,
-  createMemo,
-  type JSX,
-  onMount,
-  createSignal,
-  onCleanup,
-  Show,
-  Switch,
-  Match,
-  For,
-  batch,
-} from "solid-js"
+import { BoxRenderable, TextareaRenderable } from "@opentui/core"
+import { createEffect, type JSX, onCleanup, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
-import { EmptyBorder } from "@tui/component/border"
 import { useSDK } from "@tui/context/sdk"
-import { useRoute } from "@tui/context/route"
-import { useSync } from "@tui/context/sync"
-import { Identifier } from "@/id/id"
-import { createStore, produce } from "solid-js/store"
 import { useKeybind } from "@tui/context/keybind"
-import { usePromptHistory, type PromptInfo } from "./history"
-import { usePromptStash } from "./stash"
-import { DialogStash } from "../dialog-stash"
+import { type PromptInfo } from "./history"
 import { type AutocompleteRef, Autocomplete } from "./autocomplete"
-import { useCommandDialog } from "../dialog-command"
 import { useRenderer } from "@opentui/solid"
-import { Editor } from "@tui/util/editor"
-import { useExit } from "../../context/exit"
-import { Clipboard } from "@tui/util/clipboard"
-import type { FilePart } from "@dax-ai/sdk/v2"
 import { TuiEvent } from "../../event"
-import { iife } from "@/util/iife"
-import { Locale } from "@/util/locale"
-import { useDialog } from "@tui/ui/dialog"
-import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
-import { useToast } from "../../ui/toast"
-import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
-import { DialogSkill } from "../dialog-skill"
-import { isEli12Mode } from "@/dax/intent"
-import { DAX_SETTING, sessionWorkflowModeKey } from "@/dax/settings"
-import { refineIntent } from "@/intent/interpret"
-import { createColors } from "../../ui/spinner.ts"
+import { produce } from "solid-js/store"
 
-import { Log } from "@/util/log"
+import { usePromptState, ELI12_PLACEHOLDER, PLACEHOLDERS, WORKFLOW_AGENT_MODES } from "./prompt-state"
+import { usePromptHandlers } from "./prompt-handlers"
+import { usePromptDialogs } from "./prompt-dialogs"
 
 export type PromptProps = {
   sessionID?: string
@@ -84,93 +42,6 @@ export type PromptRef = {
   submit(): void
 }
 
-const PLACEHOLDERS = [
-  "Ask for one concrete outcome",
-  "Describe the change you want in plain language",
-  "Tell DAX what to check, fix, or explain",
-]
-const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
-const WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"]
-const WORKFLOW_MODE_HINT = "Tab: cycle mode"
-const WORKFLOW_AGENT_MODES = new Set(WORKFLOW_MODES)
-const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
-
-You are DAX.
-Your job is to help a non-technical person complete real work safely using terminal commands and step-by-step guidance.
-
-Core principle:
-- Keep it simple, confident, and concrete.
-- No jargon unless you define it in one short line.
-- No long explanations. Prefer small steps with quick checks.
-
-Streaming behavior:
-- Output in short chunks that could be streamed live.
-- Each chunk should be useful on its own.
-- Do not dump a big plan all at once.
-- After 1-3 steps, pause and ask for the next required output.
-
-Tone and clarity rules:
-- Write like you are guiding a smart 12-year-old who is new to computers.
-- Use plain words. Avoid fancy language.
-- Avoid em dashes.
-- If you must use a technical word, explain it immediately in brackets.
-  Example: "cache [temporary files]"
-
-Safety rules:
-- Never suggest destructive commands without:
-  1) showing a safe "check" command first
-  2) explaining what will be deleted in plain words
-  3) offering a safer alternative when possible
-- For deletion, prefer moving to a quarantine folder before permanent removal.
-- Always tell the user how to verify results.
-
-Decision workflow (always follow):
-1) Understand the goal in one sentence.
-2) Show what to check first (read-only command).
-3) Explain what the output means in plain words.
-4) Suggest the smallest safe action.
-5) Ask the user to paste the next output before continuing.
-
-Output format:
-- Use small headings and bullets.
-- When there are multiple findings, choices, or next steps, prefer bullets over prose blocks.
-- Use a compact markdown table for comparisons, status snapshots, or tradeoffs.
-- Use short milestone or checklist formatting when tracking progress.
-- Keep paragraphs short. Split after 2-3 compact sentences.
-- Highlight key decisions, risks, and next actions with bold keywords.
-- Prefer plain text labels over decorative emojis in production output.
-- Prefer this layout:
-
-What we are trying to do:
-What we will check:
-Command to run:
-What you should see:
-Stop rule (if relevant):
-
-Stop rules:
-- If you are unsure, stop and ask for the exact output.
-- If the action can cause data loss, stop and require explicit approval.
-
-Do not:
-- Do not mention policies, system messages, or internal rules.
-- Do not reference "chain-of-thought".
-- Do not provide time estimates.
-- Do not ask unnecessary questions.
-
-Primary success criteria:
-- The user stays safe.
-- The user understands what is happening.
-- The user can execute one step at a time without confusion.`
-const ELI12_TEMPLATE_RE = /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i
-
-const REFINE_PREFIX = `SYSTEM: DAX - Auto-Refine Mode (Structured Execution)
-
-The user has provided a raw, brief, or unstructured prompt.
-Your task is to internally refine this into a comprehensive, step-by-step execution plan before taking action.
-- Do not output the refined prompt to the user; keep it in your thoughts.
-- Execute the task using best practices, filling in any missing gaps logically.
-- Ensure all edge cases are handled before completing the task.`
-
 export function Prompt(props: PromptProps) {
   let input: TextareaRenderable
   let anchor: BoxRenderable
@@ -179,259 +50,8 @@ export function Prompt(props: PromptProps) {
   const keybind = useKeybind()
   const local = useLocal()
   const sdk = useSDK()
-  const route = useRoute()
-  const sync = useSync()
-  const dialog = useDialog()
-  const toast = useToast()
-  const status = createMemo(() => sync.data.session_status?.[props.sessionID ?? ""] ?? { type: "idle" })
-  const history = usePromptHistory()
-  const stash = usePromptStash()
-  const command = useCommandDialog()
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
-  const kv = useKV()
-  const workflowModeKey = createMemo(() => sessionWorkflowModeKey(props.sessionID))
-  const workflowMode = createMemo(() => kv.get(workflowModeKey(), "plan"))
-  const setWorkflowMode = (next: string) => kv.set(workflowModeKey(), next)
-  const log = Log.create({ service: "tui.prompt" })
-  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const isPanePinned = createMemo(() => props.panePinned ?? kv.get(DAX_SETTING.session_pane_visibility) === "pinned")
-  const activePaneMode = createMemo(() => props.activePaneMode ?? kv.get(DAX_SETTING.session_pane_mode))
-
-  const sessionMessages = createMemo(() => (props.sessionID ? (sync.data.message[props.sessionID] ?? []) : []))
-  const sessionTodos = createMemo(() => (props.sessionID ? (sync.data.todo[props.sessionID] ?? []) : []))
-  const pendingPermissions = createMemo(
-    () => props.approvalAttentionCount ?? (props.sessionID ? (sync.data.permission[props.sessionID] ?? []) : []).length,
-  )
-  const pendingQuestions = createMemo(
-    () => props.questionAttentionCount ?? (props.sessionID ? (sync.data.question[props.sessionID] ?? []) : []).length,
-  )
-
-  const messageText = (messageID: string) => {
-    const parts = sync.data.part[messageID] ?? []
-    return parts
-      .filter((part: any) => part?.type === "text" && !part.synthetic && !part.ignored)
-      .map((part: any) => part.text ?? "")
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim()
-  }
-
-  const recentHistory = () =>
-    sessionMessages()
-      .filter((message) => message.role === "user")
-      .slice(-3)
-      .map((message) => messageText(message.id))
-      .filter(Boolean)
-
-  const recentActivity = () =>
-    sessionMessages()
-      .slice(-6)
-      .map((message) => {
-        const text = messageText(message.id)
-        if (text) return text
-        const tool = (sync.data.part[message.id] ?? []).findLast((part: any) => part?.type === "tool")
-        if (tool?.type === "tool") return `${tool.tool} ${tool.state.status}`
-        return ""
-      })
-      .filter(Boolean)
-      .slice(-4)
-
-  const recentTools = () =>
-    sessionMessages()
-      .flatMap((message) => sync.data.part[message.id] ?? [])
-      .filter((part: any) => part?.type === "tool")
-      .slice(-4)
-      .map((part: any) => `${part.tool} ${part.state.status}`)
-
-  const currentFocus = () => {
-    const inProgressTodo = sessionTodos().find((item: any) => item?.status === "in_progress")
-    if (inProgressTodo?.content) return inProgressTodo.content
-    const lastAssistant = [...sessionMessages()].reverse().find((message) => message.role === "assistant")
-    if (!lastAssistant) return undefined
-    const lastTool = [...(sync.data.part[lastAssistant.id] ?? [])].reverse().find((part: any) => part?.type === "tool")
-    if (lastTool?.type === "tool") return `${lastTool.tool} ${lastTool.state.status}`
-    const text = messageText(lastAssistant.id)
-    return text ? text.slice(0, 120) : undefined
-  }
-
-  async function handleRefine() {
-    if (props.disabled) {
-      log.info("handleRefine: disabled")
-      return
-    }
-    if (!store.prompt.input) {
-      log.info("handleRefine: no input")
-      toast.show({
-        variant: "error",
-        message: "Type a prompt first",
-        duration: 2000,
-      })
-      return
-    }
-
-    const rawInput = store.prompt.input.trim()
-    log.info("handleRefine: starting", { rawInput: rawInput.slice(0, 50) })
-
-    toast.show({
-      variant: "info",
-      message: "Refining prompt...",
-      duration: 1500,
-    })
-
-    try {
-      // Call refineIntent directly - no chat message will be created
-      const contract = await refineIntent(rawInput, {
-        cwd: process.cwd(),
-        session_id: props.sessionID,
-        session_title: props.sessionID ? sync.session.get(props.sessionID)?.title : undefined,
-        current_focus:
-          status().type === "retry"
-            ? "session is retrying"
-            : status().type === "delayed"
-              ? "waiting on provider response"
-              : currentFocus(),
-        todo: sessionTodos()
-          .map((item: any) => item?.content)
-          .filter(Boolean)
-          .slice(0, 5),
-        recent_history: recentHistory(),
-        recent_activity: recentActivity(),
-        recent_tools: recentTools(),
-        pending_approvals: pendingPermissions(),
-        pending_questions: pendingQuestions(),
-      })
-
-      log.info("handleRefine: got contract", { goal: contract?.goal })
-
-      // Get the formatted prompt from the contract
-      const refinedText =
-        contract?.formattedPrompt ||
-        [
-          `## Goal`,
-          contract?.goal || rawInput,
-          "",
-          "## Execution Plan",
-          ...(contract?.executionPlan || []).map((s, i) => `${i + 1}. ${s}`),
-          "",
-          "## Success Criteria",
-          ...(contract?.successCriteria || []).map((s) => `- ${s}`),
-          "",
-          "## Constraints & Requirements",
-          ...(contract?.explicitConstraints || []).map((s) => `- ${s}`),
-          "",
-          "---",
-          "Edit this contract above, then press Enter to execute.",
-        ].join("\n")
-
-      log.info("handleRefine: storing refined text", { length: refinedText.length })
-
-      // Store refined prompt for the RefinePane
-      kv.set(DAX_SETTING.session_refined_prompt, refinedText)
-
-      // Switch to refine pane through the owning session route when available.
-      props.onRefineReady?.(refinedText)
-      if (!props.onRefineReady) {
-        kv.set(DAX_SETTING.session_pane_mode, "refine")
-        kv.set(DAX_SETTING.session_pane_visibility, "pinned")
-      }
-
-      // Force a small delay to allow UI to update
-      await new Promise((r) => setTimeout(r, 100))
-
-      log.info("handleRefine: done, pane should show")
-
-      toast.show({
-        variant: "success",
-        message: "Prompt refined!",
-        duration: 2000,
-      })
-    } catch (e) {
-      log.error("failed to refine prompt", { error: String(e) })
-      toast.show({
-        variant: "error",
-        message: "Failed to refine prompt: " + String(e).slice(0, 50),
-        duration: 3000,
-      })
-    }
-  }
-
-  const setExplainMode = (enabled: boolean) => {
-    kv.set(DAX_SETTING.explain_mode, enabled ? "eli12" : "normal")
-    toast.show({
-      variant: "info",
-      message: enabled ? "ELI12 enabled: plain-language explanations on" : "ELI12 disabled: normal explanations on",
-      duration: 2500,
-    })
-  }
-
-  const clearPrompt = () => {
-    input.extmarks.clear()
-    input.clear()
-    setStore("prompt", {
-      input: "",
-      parts: [],
-    })
-    setStore("extmarkToPartIndex", new Map())
-  }
-
-  const applyELI12Command = (text: string) => {
-    if (!/^\/eli12(\s|$)/i.test(text)) return { handled: false as const }
-    const stripped = text.replace(/^\/eli12\s*/i, "")
-    const mode = stripped.split(/\s+/)[0]?.toLowerCase() || "toggle"
-    if (mode === "on") {
-      if (!explainMode()) setExplainMode(true)
-      clearPrompt()
-      return { handled: true as const }
-    }
-    if (mode === "off") {
-      setExplainMode(false)
-      clearPrompt()
-      return { handled: true as const }
-    }
-    if (mode === "status") {
-      toast.show({
-        variant: "info",
-        message: explainMode() ? "ELI12 is on" : "ELI12 is off",
-        duration: 2000,
-      })
-      clearPrompt()
-      return { handled: true as const }
-    }
-    if (mode === "toggle" || mode.length === 0) {
-      if (!explainMode()) setExplainMode(true)
-      const exact = /^\/eli12(\s+toggle)?$/i.test(text.trim())
-      if (exact)
-        return {
-          handled: true as const,
-          submitText: "Explain your previous response so a non-technical person can understand.",
-        }
-
-      const payload = stripped.trim()
-      return {
-        handled: true as const,
-        submitText: `Please explain this:\n${payload}`,
-      }
-    }
-    const payload = stripped.trim()
-    if (!explainMode()) setExplainMode(true)
-    return {
-      handled: true as const,
-      submitText: `Please explain this:\n${payload}`,
-    }
-  }
-
-  function promptModelWarning() {
-    toast.show({
-      variant: "warning",
-      message: "Connect OpenAI, Gemini, Anthropic, or Ollama to send prompts",
-      duration: 3000,
-    })
-    if (sync.data.provider.length === 0) {
-      dialog.replace(() => <DialogProviderConnect />)
-    }
-  }
-
   const textareaKeybindings = useTextareaKeybindings()
 
   const fileStyleId = syntax().getStyleId("extmark.file")!
@@ -439,11 +59,25 @@ export function Prompt(props: PromptProps) {
   const pasteStyleId = syntax().getStyleId("extmark.paste")!
   let promptPartTypeId = 0
 
+  const state = usePromptState(props)
+  const handlers = usePromptHandlers(props, state, {
+    input: () => input,
+    autocomplete: () => autocomplete,
+    promptPartTypeId: () => promptPartTypeId,
+    pasteStyleId: () => pasteStyleId,
+    fileStyleId: () => fileStyleId,
+    agentStyleId: () => agentStyleId,
+  })
+
+  usePromptDialogs(props, state, handlers, {
+    input: () => input,
+    autocomplete: () => autocomplete,
+  })
+
   const unsubPromptAppend = sdk.event.on(TuiEvent.PromptAppend.type, (evt) => {
     if (!input || input.isDestroyed) return
     input.insertText(evt.properties.text)
     setTimeout(() => {
-      // setTimeout is a workaround and needs to be addressed properly
       if (!input || input.isDestroyed) return
       input.getLayoutNode().markDirty()
       input.gotoBufferEnd()
@@ -461,34 +95,11 @@ export function Prompt(props: PromptProps) {
     else input.cursorColor = theme.text
   })
 
-  const lastUserMessage = createMemo(() => {
-    if (!props.sessionID) return undefined
-    const messages = sync.data.message[props.sessionID]
-    if (!messages) return undefined
-    return messages.findLast((m) => m.role === "user")
-  })
-
-  const [store, setStore] = createStore<{
-    prompt: PromptInfo
-    mode: "normal" | "shell"
-    extmarkToPartIndex: Map<number, number>
-    interrupt: number
-    placeholder: number
-  }>({
-    placeholder: Math.floor(Math.random() * PLACEHOLDERS.length),
-    prompt: {
-      input: "",
-      parts: [],
-    },
-    mode: "normal",
-    extmarkToPartIndex: new Map(),
-    interrupt: 0,
-  })
   const syncedSessionIDRef = { current: undefined as string | undefined }
 
   createEffect(() => {
     const sessionID = props.sessionID
-    const msg = lastUserMessage()
+    const msg = state.lastUserMessage()
 
     if (sessionID !== syncedSessionIDRef.current) {
       if (!sessionID || !msg) return
@@ -499,225 +110,12 @@ export function Prompt(props: PromptProps) {
       if (msg.agent && isPrimaryAgent) {
         local.agent.set(msg.agent)
         if (WORKFLOW_AGENT_MODES.has(msg.agent)) {
-          kv.set(workflowModeKey(), msg.agent)
+          state.setWorkflowMode(msg.agent)
         }
         if (msg.model) local.model.set(msg.model)
         if (msg.variant) local.model.variant.set(msg.variant)
       }
     }
-  })
-
-  command.register(() => {
-    return [
-      {
-        title: "Clear prompt",
-        value: "prompt.clear",
-        category: "Prompt",
-        hidden: true,
-        onSelect: (dialog) => {
-          input.extmarks.clear()
-          input.clear()
-          dialog.clear()
-        },
-      },
-      {
-        title: "Submit prompt",
-        value: "prompt.submit",
-        keybind: "input_submit",
-        category: "Prompt",
-        hidden: true,
-        onSelect: (dialog) => {
-          if (!input.focused) return
-          submit()
-          dialog.clear()
-        },
-      },
-      {
-        title: "Paste",
-        value: "prompt.paste",
-        keybind: "input_paste",
-        category: "Prompt",
-        hidden: true,
-        onSelect: async () => {
-          const content = await Clipboard.read()
-          if (content?.mime.startsWith("image/")) {
-            await pasteImage({
-              filename: "clipboard",
-              mime: content.mime,
-              content: content.data,
-            })
-          }
-        },
-      },
-      {
-        title: "Interrupt session",
-        value: "session.interrupt",
-        keybind: "session_interrupt",
-        category: "Session",
-        hidden: true,
-        enabled: status().type !== "idle",
-        onSelect: (dialog) => {
-          if (autocomplete.visible) return
-          // if (!input.focused) return // Allow interrupt even if not focused
-          // TODO: this should be its own command
-          if (store.mode === "shell") {
-            setStore("mode", "normal")
-            return
-          }
-          if (!props.sessionID) return
-
-          setStore("interrupt", store.interrupt + 1)
-
-          setTimeout(() => {
-            setStore("interrupt", 0)
-          }, 5000)
-
-          if (store.interrupt >= 2) {
-            sdk.client.session.abort({
-              sessionID: props.sessionID,
-            })
-            setStore("interrupt", 0)
-          }
-          dialog.clear()
-        },
-      },
-      {
-        title: "Open editor",
-        category: "Session",
-        keybind: "editor_open",
-        value: "prompt.editor",
-        slash: {
-          name: "editor",
-        },
-        onSelect: async (dialog) => {
-          dialog.clear()
-
-          // replace summarized text parts with the actual text
-          const text = store.prompt.parts
-            .filter((p) => p.type === "text")
-            .reduce((acc, p) => {
-              if (!p.source) return acc
-              return acc.replace(p.source.text.value, p.text)
-            }, store.prompt.input)
-
-          const nonTextParts = store.prompt.parts.filter((p) => p.type !== "text")
-
-          const value = text
-          const content = await Editor.open({ value, renderer })
-          if (!content) return
-
-          input.setText(content)
-
-          // Update positions for nonTextParts based on their location in new content
-          // Filter out parts whose virtual text was deleted
-          // this handles a case where the user edits the text in the editor
-          // such that the virtual text moves around or is deleted
-          const updatedNonTextParts = nonTextParts
-            .map((part) => {
-              let virtualText = ""
-              if (part.type === "file" && part.source?.text) {
-                virtualText = part.source.text.value
-              } else if (part.type === "agent" && part.source) {
-                virtualText = part.source.value
-              }
-
-              if (!virtualText) return part
-
-              const newStart = content.indexOf(virtualText)
-              // if the virtual text is deleted, remove the part
-              if (newStart === -1) return null
-
-              const newEnd = newStart + virtualText.length
-
-              if (part.type === "file" && part.source?.text) {
-                return {
-                  ...part,
-                  source: {
-                    ...part.source,
-                    text: {
-                      ...part.source.text,
-                      start: newStart,
-                      end: newEnd,
-                    },
-                  },
-                }
-              }
-
-              if (part.type === "agent" && part.source) {
-                return {
-                  ...part,
-                  source: {
-                    ...part.source,
-                    start: newStart,
-                    end: newEnd,
-                  },
-                }
-              }
-
-              return part
-            })
-            .filter((part) => part !== null)
-
-          setStore("prompt", {
-            input: content,
-            // keep only the non-text parts because the text parts were
-            // already expanded inline
-            parts: updatedNonTextParts,
-          })
-          restoreExtmarksFromParts(updatedNonTextParts)
-          input.cursorOffset = Bun.stringWidth(content)
-        },
-      },
-      {
-        title: "Skills",
-        value: "prompt.skills",
-        category: "Prompt",
-        slash: {
-          name: "skills",
-        },
-        onSelect: () => {
-          dialog.replace(() => (
-            <DialogSkill
-              onSelect={(skill) => {
-                input.setText(`/${skill} `)
-                setStore("prompt", {
-                  input: `/${skill} `,
-                  parts: [],
-                })
-                input.gotoBufferEnd()
-              }}
-            />
-          ))
-        },
-      },
-      {
-        title: "ELI12 explain last response",
-        value: "prompt.eli12.explain",
-        category: "Prompt",
-        slash: {
-          name: "eli12",
-        },
-        onSelect: (dialog) => {
-          if (!explainMode()) setExplainMode(true)
-          input.setText("/eli12")
-          setStore("prompt", {
-            input: "/eli12",
-            parts: [],
-          })
-          submit()
-          dialog.clear()
-        },
-      },
-      {
-        title: explainMode() ? "Disable ELI12 mode" : "Enable ELI12 mode",
-        value: "prompt.eli12.toggle",
-        category: "Prompt",
-        onSelect: (dialog) => {
-          setExplainMode(!explainMode())
-          dialog.clear()
-        },
-      },
-    ]
   })
 
   const ref: PromptRef = {
@@ -729,7 +127,7 @@ export function Prompt(props: PromptProps) {
     },
     get current() {
       if (!input || input.isDestroyed) return { input: "", parts: [] }
-      return store.prompt
+      return state.store.prompt
     },
     focus() {
       if (!input || input.isDestroyed) return
@@ -742,437 +140,23 @@ export function Prompt(props: PromptProps) {
     set(prompt) {
       if (!input || input.isDestroyed) return
       input.setText(prompt.input)
-      setStore("prompt", prompt)
-      restoreExtmarksFromParts(prompt.parts)
+      state.setStore("prompt", prompt)
+      handlers.restoreExtmarksFromParts(prompt.parts)
       input.gotoBufferEnd()
     },
     reset() {
       if (!input || input.isDestroyed) return
-      input.clear()
-      input.extmarks.clear()
-      setStore("prompt", {
-        input: "",
-        parts: [],
-      })
-      setStore("extmarkToPartIndex", new Map())
+      handlers.clearPrompt()
     },
     submit() {
       if (!input || input.isDestroyed) return
-      submit()
+      handlers.submit()
     },
   }
 
   createEffect(() => {
     if (props.visible !== false) input?.focus()
     if (props.visible === false) input?.blur()
-  })
-
-  function restoreExtmarksFromParts(parts: PromptInfo["parts"]) {
-    input.extmarks.clear()
-    setStore("extmarkToPartIndex", new Map())
-
-    parts.forEach((part, partIndex) => {
-      let start = 0
-      let end = 0
-      let virtualText = ""
-      let styleId: number | undefined
-
-      if (part.type === "file" && part.source?.text) {
-        start = part.source.text.start
-        end = part.source.text.end
-        virtualText = part.source.text.value
-        styleId = fileStyleId
-      } else if (part.type === "agent" && part.source) {
-        start = part.source.start
-        end = part.source.end
-        virtualText = part.source.value
-        styleId = agentStyleId
-      } else if (part.type === "text" && part.source?.text) {
-        start = part.source.text.start
-        end = part.source.text.end
-        virtualText = part.source.text.value
-        styleId = pasteStyleId
-      }
-
-      if (virtualText) {
-        const extmarkId = input.extmarks.create({
-          start,
-          end,
-          virtual: true,
-          styleId,
-          typeId: promptPartTypeId,
-        })
-        setStore("extmarkToPartIndex", (map: Map<number, number>) => {
-          const newMap = new Map(map)
-          newMap.set(extmarkId, partIndex)
-          return newMap
-        })
-      }
-    })
-  }
-
-  function syncExtmarksWithPromptParts() {
-    const allExtmarks = input.extmarks.getAllForTypeId(promptPartTypeId)
-    setStore(
-      produce((draft) => {
-        const newMap = new Map<number, number>()
-        const newParts: typeof draft.prompt.parts = []
-
-        for (const extmark of allExtmarks) {
-          const partIndex = draft.extmarkToPartIndex.get(extmark.id)
-          if (partIndex !== undefined) {
-            const part = draft.prompt.parts[partIndex]
-            if (part) {
-              if (part.type === "agent" && part.source) {
-                part.source.start = extmark.start
-                part.source.end = extmark.end
-              } else if (part.type === "file" && part.source?.text) {
-                part.source.text.start = extmark.start
-                part.source.text.end = extmark.end
-              } else if (part.type === "text" && part.source?.text) {
-                part.source.text.start = extmark.start
-                part.source.text.end = extmark.end
-              }
-              newMap.set(extmark.id, newParts.length)
-              newParts.push(part)
-            }
-          }
-        }
-
-        draft.extmarkToPartIndex = newMap
-        draft.prompt.parts = newParts
-      }),
-    )
-  }
-
-  command.register(() => [
-    {
-      title: "Stash prompt",
-      value: "prompt.stash",
-      category: "Prompt",
-      enabled: !!store.prompt.input,
-      onSelect: (dialog) => {
-        if (!store.prompt.input) return
-        stash.push({
-          input: store.prompt.input,
-          parts: store.prompt.parts,
-        })
-        input.extmarks.clear()
-        input.clear()
-        setStore("prompt", { input: "", parts: [] })
-        setStore("extmarkToPartIndex", new Map())
-        dialog.clear()
-      },
-    },
-    {
-      title: "Stash pop",
-      value: "prompt.stash.pop",
-      category: "Prompt",
-      enabled: stash.list().length > 0,
-      onSelect: (dialog) => {
-        const entry = stash.pop()
-        if (entry) {
-          input.setText(entry.input)
-          setStore("prompt", { input: entry.input, parts: entry.parts })
-          restoreExtmarksFromParts(entry.parts)
-          input.gotoBufferEnd()
-        }
-        dialog.clear()
-      },
-    },
-    {
-      title: "Stash list",
-      value: "prompt.stash.list",
-      category: "Prompt",
-      enabled: stash.list().length > 0,
-      onSelect: (dialog) => {
-        dialog.replace(() => (
-          <DialogStash
-            onSelect={(entry) => {
-              input.setText(entry.input)
-              setStore("prompt", { input: entry.input, parts: entry.parts })
-              restoreExtmarksFromParts(entry.parts)
-              input.gotoBufferEnd()
-            }}
-          />
-        ))
-      },
-    },
-  ])
-
-  async function submit() {
-    if (props.disabled) return
-    if (autocomplete?.visible) return
-    if (!store.prompt.input) return
-    const trimmed = store.prompt.input.trim()
-    if (trimmed === "exit" || trimmed === "quit" || trimmed === ":q") {
-      exit()
-      return
-    }
-    const eli12Command = applyELI12Command(trimmed)
-    if (eli12Command.handled && !eli12Command.submitText) return
-    const selectedModel = local.model.current()
-    if (!selectedModel) {
-      promptModelWarning()
-      return
-    }
-    const sessionID = props.sessionID
-      ? props.sessionID
-      : await (async () => {
-          const sessionID = await sdk.client.session.create({}).then((x) => x.data!.id)
-          return sessionID
-        })()
-    const messageID = Identifier.ascending("message")
-
-    let inputText = eli12Command.handled ? eli12Command.submitText! : store.prompt.input
-    let inputSystem: string | undefined
-
-    // Expand pasted text inline before submitting
-    const allExtmarks = input.extmarks.getAllForTypeId(promptPartTypeId)
-    const sortedExtmarks = allExtmarks.sort((a: { start: number }, b: { start: number }) => b.start - a.start)
-
-    for (const extmark of sortedExtmarks) {
-      const partIndex = store.extmarkToPartIndex.get(extmark.id)
-      if (partIndex !== undefined) {
-        const part = store.prompt.parts[partIndex]
-        if (part?.type === "text" && part.text) {
-          const before = inputText.slice(0, extmark.start)
-          const after = inputText.slice(extmark.end)
-          inputText = before + part.text + after
-        }
-      }
-    }
-
-    if (ELI12_TEMPLATE_RE.test(inputText)) {
-      if (!explainMode()) setExplainMode(true)
-      inputText = inputText.replace(ELI12_TEMPLATE_RE, "").trim()
-      if (!inputText) inputText = "Please help me with this in plain language."
-    }
-
-    const isSlashCommand =
-      !eli12Command.handled &&
-      inputText.startsWith("/") &&
-      iife(() => {
-        const firstLine = inputText.split("\n")[0]
-        const command = firstLine.split(" ")[0].slice(1)
-        return sync.data.command.some((x) => x.name === command)
-      })
-
-    if (!isSlashCommand) {
-      if (explainMode() || eli12Command.handled) {
-        inputSystem = ELI12_PREFIX
-      }
-    }
-
-    // Filter out text parts (pasted content) since they're now expanded inline
-    const nonTextParts = store.prompt.parts.filter((part) => part.type !== "text")
-
-    // Capture mode before it gets reset
-    const currentMode = store.mode
-    const variant = local.model.variant.current()
-    const submitAgent = resolveSubmitAgent(inputText)
-
-    if (store.mode === "shell") {
-      sdk.client.session.shell({
-        sessionID,
-        agent: submitAgent,
-        model: {
-          providerID: selectedModel.providerID,
-          modelID: selectedModel.modelID,
-        },
-        command: inputText,
-      })
-      setStore("mode", "normal")
-    } else if (isSlashCommand) {
-      // Parse command from first line, preserve multi-line content in arguments
-      const firstLineEnd = inputText.indexOf("\n")
-      const firstLine = firstLineEnd === -1 ? inputText : inputText.slice(0, firstLineEnd)
-      const [command, ...firstLineArgs] = firstLine.split(" ")
-      const restOfInput = firstLineEnd === -1 ? "" : inputText.slice(firstLineEnd + 1)
-      const args = firstLineArgs.join(" ") + (restOfInput ? "\n" + restOfInput : "")
-
-      sdk.client.session.command({
-        sessionID,
-        command: command.slice(1),
-        arguments: args,
-        agent: submitAgent,
-        model: `${selectedModel.providerID}/${selectedModel.modelID}`,
-        messageID,
-        variant,
-        parts: nonTextParts
-          .filter((x) => x.type === "file")
-          .map((x) => ({
-            id: Identifier.ascending("part"),
-            ...x,
-          })),
-      })
-    } else {
-      sdk.client.session
-        .prompt({
-          sessionID,
-          ...selectedModel,
-          messageID,
-          agent: submitAgent,
-          model: selectedModel,
-          variant,
-          system: inputSystem,
-          parts: [
-            {
-              id: Identifier.ascending("part"),
-              type: "text",
-              text: inputText,
-            },
-            ...nonTextParts.map((x) => ({
-              id: Identifier.ascending("part"),
-              ...x,
-            })),
-          ],
-        })
-        .catch(() => {})
-    }
-    history.append({
-      ...store.prompt,
-      mode: currentMode,
-    })
-    input.extmarks.clear()
-    setStore("prompt", {
-      input: "",
-      parts: [],
-    })
-    setStore("extmarkToPartIndex", new Map())
-    kv.set(DAX_SETTING.session_refined_prompt, "")
-    props.onSubmit?.()
-
-    // temporary hack to make sure the message is sent
-    if (!props.sessionID)
-      setTimeout(() => {
-        route.navigate({
-          type: "session",
-          sessionID,
-        })
-      }, 50)
-    input.clear()
-  }
-  const exit = useExit()
-
-  function pasteText(text: string, virtualText: string) {
-    const currentOffset = input.visualCursor.offset
-    const extmarkStart = currentOffset
-    const extmarkEnd = extmarkStart + virtualText.length
-
-    input.insertText(virtualText + " ")
-
-    const extmarkId = input.extmarks.create({
-      start: extmarkStart,
-      end: extmarkEnd,
-      virtual: true,
-      styleId: pasteStyleId,
-      typeId: promptPartTypeId,
-    })
-
-    setStore(
-      produce((draft) => {
-        const partIndex = draft.prompt.parts.length
-        draft.prompt.parts.push({
-          type: "text" as const,
-          text,
-          source: {
-            text: {
-              start: extmarkStart,
-              end: extmarkEnd,
-              value: virtualText,
-            },
-          },
-        })
-        draft.extmarkToPartIndex.set(extmarkId, partIndex)
-      }),
-    )
-  }
-
-  async function pasteImage(file: { filename?: string; content: string; mime: string }) {
-    const currentOffset = input.visualCursor.offset
-    const extmarkStart = currentOffset
-    const count = store.prompt.parts.filter((x) => x.type === "file").length
-    const virtualText = `[Image ${count + 1}]`
-    const extmarkEnd = extmarkStart + virtualText.length
-    const textToInsert = virtualText + " "
-
-    input.insertText(textToInsert)
-
-    const extmarkId = input.extmarks.create({
-      start: extmarkStart,
-      end: extmarkEnd,
-      virtual: true,
-      styleId: pasteStyleId,
-      typeId: promptPartTypeId,
-    })
-
-    const part: Omit<FilePart, "id" | "messageID" | "sessionID"> = {
-      type: "file" as const,
-      mime: file.mime,
-      filename: file.filename,
-      url: `data:${file.mime};base64,${file.content}`,
-      source: {
-        type: "file",
-        path: file.filename ?? "",
-        text: {
-          start: extmarkStart,
-          end: extmarkEnd,
-          value: virtualText,
-        },
-      },
-    }
-    setStore(
-      produce((draft) => {
-        const partIndex = draft.prompt.parts.length
-        draft.prompt.parts.push(part)
-        draft.extmarkToPartIndex.set(extmarkId, partIndex)
-      }),
-    )
-    return
-  }
-
-  const highlight = createMemo(() => {
-    if (keybind.leader) return theme.border
-    if (store.mode === "shell") return theme.primary
-    return local.agent.color(local.agent.current().name)
-  })
-
-  const showVariant = createMemo(() => {
-    const variants = local.model.variant.list()
-    if (variants.length === 0) return false
-    const current = local.model.variant.current()
-    return !!current
-  })
-  const activeWorkflowLabel = createMemo(() => {
-    const current = local.agent.current()?.name
-    if (current && WORKFLOW_AGENT_MODES.has(current)) return Locale.titlecase(current)
-    return Locale.titlecase(workflowMode())
-  })
-
-  const resolveSubmitAgent = (text: string) => {
-    return local.agent.current().name
-  }
-
-  const showInputHint = createMemo(() => !store.prompt.input && !props.sessionID)
-  const homeCueFrames = createMemo(() => {
-    const dots = "⠈⠐⠠⢀"
-    const heads = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    return heads.map((h, i) => {
-      const p = i % 4
-      return `${dots.slice(0, p)}${h}${dots.slice(p + 1)}`
-    })
-  })
-  const homeCueColor = createMemo(() => {
-    return createColors({
-      color: theme.primary,
-      trailSteps: 5,
-      inactiveFactor: 0.35,
-      holdStart: 0,
-      holdEnd: 0,
-      enableFading: true,
-      minAlpha: 0.25,
-    })
   })
 
   return (
@@ -1183,16 +167,16 @@ export function Prompt(props: PromptProps) {
         anchor={() => anchor}
         input={() => input}
         setPrompt={(cb) => {
-          setStore("prompt", produce(cb))
+          state.setStore("prompt", produce(cb))
         }}
         setExtmark={(partIndex, extmarkId) => {
-          setStore("extmarkToPartIndex", (map: Map<number, number>) => {
+          state.setStore("extmarkToPartIndex", (map: Map<number, number>) => {
             const newMap = new Map(map)
             newMap.set(extmarkId, partIndex)
             return newMap
           })
         }}
-        value={store.prompt.input}
+        value={state.store.prompt.input}
         fileStyleId={fileStyleId}
         agentStyleId={agentStyleId}
         promptPartTypeId={() => promptPartTypeId}
@@ -1216,16 +200,16 @@ export function Prompt(props: PromptProps) {
         >
           <box paddingLeft={2} paddingRight={2} paddingTop={0.5} flexShrink={0} backgroundColor={theme.background}>
             <box flexDirection="row" gap={1} alignItems="flex-start">
-              <Show when={showInputHint()}>
-                <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
+              <Show when={state.showInputHint()}>
+                <spinner frames={state.homeCueFrames()} interval={95} color={state.homeCueColor()} />
               </Show>
               <textarea
                 placeholder={
                   props.sessionID
                     ? ""
-                    : explainMode()
+                    : state.explainMode()
                       ? ELI12_PLACEHOLDER
-                      : `Ask DAX clearly: ${PLACEHOLDERS[store.placeholder]}`
+                      : `Ask DAX clearly: ${PLACEHOLDERS[state.store.placeholder]}`
                 }
                 textColor={keybind.leader ? theme.textMuted : theme.text}
                 focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
@@ -1234,214 +218,14 @@ export function Prompt(props: PromptProps) {
                 flexGrow={1}
                 onContentChange={() => {
                   const value = input.plainText
-                  setStore("prompt", "input", value)
+                  state.setStore("prompt", "input", value)
                   autocomplete.onInput(value)
-                  syncExtmarksWithPromptParts()
+                  handlers.syncExtmarksWithPromptParts()
                 }}
                 keyBindings={textareaKeybindings()}
-                onKeyDown={async (e: KeyEvent) => {
-                  if (props.disabled) {
-                    e.preventDefault()
-                    return
-                  }
-                  if (e.name === "r" && e.ctrl) {
-                    e.preventDefault()
-                    handleRefine()
-                    return
-                  }
-
-                  // Intercept Y/N/Esc when in Approvals/Refine mode
-                  if (
-                    isPanePinned() &&
-                    activePaneMode() === "approvals" &&
-                    pendingPermissions() + pendingQuestions() > 0
-                  ) {
-                    if ((e.name === "y" || e.name === "Y") && e.ctrl) {
-                      e.preventDefault()
-                      command.trigger("approvals.approve_current")
-                      return
-                    }
-                    if ((e.name === "n" || e.name === "N") && e.ctrl) {
-                      e.preventDefault()
-                      command.trigger("approvals.deny_current")
-                      return
-                    }
-                    if (e.name === "escape") {
-                      e.preventDefault()
-                      kv.set(DAX_SETTING.session_pane_visibility, "auto")
-                      return
-                    }
-                  }
-
-                  // Handle clipboard paste (Ctrl+V) - check for images first on Windows
-
-                  // This is needed because Windows terminal doesn't properly send image data
-                  // through bracketed paste, so we need to intercept the keypress and
-                  // directly read from clipboard before the terminal handles it
-                  if (keybind.match("input_paste", e)) {
-                    const content = await Clipboard.read()
-                    if (content?.mime.startsWith("image/")) {
-                      e.preventDefault()
-                      await pasteImage({
-                        filename: "clipboard",
-                        mime: content.mime,
-                        content: content.data,
-                      })
-                      return
-                    }
-                    // If no image, let the default paste behavior continue
-                  }
-                  if (keybind.match("input_clear", e) && store.prompt.input !== "") {
-                    input.clear()
-                    input.extmarks.clear()
-                    setStore("prompt", {
-                      input: "",
-                      parts: [],
-                    })
-                    setStore("extmarkToPartIndex", new Map())
-                    return
-                  }
-                  if (keybind.match("app_exit", e)) {
-                    if (store.prompt.input === "") {
-                      await exit()
-                      // Don't preventDefault - let textarea potentially handle the event
-                      e.preventDefault()
-                      return
-                    }
-                  }
-                  if (e.name === "!" && input.visualCursor.offset === 0) {
-                    setStore("mode", "shell")
-                    e.preventDefault()
-                    return
-                  }
-                  if (store.mode === "shell") {
-                    if ((e.name === "backspace" && input.visualCursor.offset === 0) || e.name === "escape") {
-                      setStore("mode", "normal")
-                      e.preventDefault()
-                      return
-                    }
-                  }
-                  if (!autocomplete.visible) {
-                    let direction = 0
-                    if (e.name === "tab") {
-                      direction = e.shift ? -1 : 1
-                    } else if (keybind.match("agent_cycle", e)) {
-                      direction = 1
-                    } else if (keybind.match("agent_cycle_reverse", e)) {
-                      direction = -1
-                    }
-
-                    if (direction !== 0) {
-                      const current = workflowMode()
-                      let idx = WORKFLOW_MODES.indexOf(current)
-                      if (idx === -1) {
-                        idx = WORKFLOW_MODES.indexOf(local.agent.current()?.name as any)
-                      }
-                      const next = WORKFLOW_MODES[(idx + direction + WORKFLOW_MODES.length) % WORKFLOW_MODES.length]
-                      batch(() => {
-                        setWorkflowMode(next)
-                        local.agent.set(next)
-                      })
-                      e.preventDefault()
-                      return
-                    }
-                  }
-                  if (store.mode === "normal") autocomplete.onKeyDown(e)
-                  if (!autocomplete.visible) {
-                    if (
-                      (keybind.match("history_previous", e) && input.cursorOffset === 0) ||
-                      (keybind.match("history_next", e) && input.cursorOffset === input.plainText.length)
-                    ) {
-                      const direction = keybind.match("history_previous", e) ? -1 : 1
-                      const item = history.move(direction, input.plainText)
-
-                      if (item) {
-                        input.setText(item.input)
-                        setStore("prompt", item)
-                        setStore("mode", item.mode ?? "normal")
-                        restoreExtmarksFromParts(item.parts)
-                        e.preventDefault()
-                        if (direction === -1) input.cursorOffset = 0
-                        if (direction === 1) input.cursorOffset = input.plainText.length
-                      }
-                      return
-                    }
-
-                    if (keybind.match("history_previous", e) && input.visualCursor.visualRow === 0)
-                      input.cursorOffset = 0
-                    if (keybind.match("history_next", e) && input.visualCursor.visualRow === input.height - 1)
-                      input.cursorOffset = input.plainText.length
-                  }
-                }}
-                onSubmit={submit}
-                onPaste={async (event: PasteEvent) => {
-                  if (props.disabled) {
-                    event.preventDefault()
-                    return
-                  }
-
-                  // Normalize line endings at the boundary
-                  // Windows ConPTY/Terminal often sends CR-only newlines in bracketed paste
-                  // Replace CRLF first, then any remaining CR
-                  const normalizedText = event.text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-                  const pastedContent = normalizedText.trim()
-                  if (!pastedContent) {
-                    command.trigger("prompt.paste")
-                    return
-                  }
-
-                  // trim ' from the beginning and end of the pasted content. just
-                  // ' and nothing else
-                  const filepath = pastedContent.replace(/^'+|'+$/g, "").replace(/\\ /g, " ")
-                  const isUrl = /^(https?):\/\//.test(filepath)
-                  if (!isUrl) {
-                    try {
-                      const file = Bun.file(filepath)
-                      // Handle SVG as raw text content, not as base64 image
-                      if (file.type === "image/svg+xml") {
-                        event.preventDefault()
-                        const content = await file.text().catch(() => {})
-                        if (content) {
-                          pasteText(content, `[SVG: ${file.name ?? "image"}]`)
-                          return
-                        }
-                      }
-                      if (file.type.startsWith("image/")) {
-                        event.preventDefault()
-                        const content = await file
-                          .arrayBuffer()
-                          .then((buffer) => Buffer.from(buffer).toString("base64"))
-                          .catch(() => {})
-                        if (content) {
-                          await pasteImage({
-                            filename: file.name,
-                            mime: file.type,
-                            content,
-                          })
-                          return
-                        }
-                      }
-                    } catch {}
-                  }
-
-                  const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
-                  if (
-                    (lineCount >= 3 || pastedContent.length > 150) &&
-                    !sync.data.config.experimental?.disable_paste_summary
-                  ) {
-                    event.preventDefault()
-                    pasteText(pastedContent, `[Pasted ~${lineCount} lines]`)
-                    return
-                  }
-
-                  // Force layout update and render for the pasted content
-                  setTimeout(() => {
-                    // setTimeout is a workaround and needs to be addressed properly
-                    if (!input || input.isDestroyed) return
-                    input.getLayoutNode().markDirty()
-                    renderer.requestRender()
-                  }, 0)
-                }}
+                onKeyDown={handlers.onKeyDown}
+                onSubmit={handlers.submit}
+                onPaste={handlers.onPaste}
                 ref={(r: TextareaRenderable) => {
                   input = r
                   if (promptPartTypeId === 0) {
@@ -1449,12 +233,11 @@ export function Prompt(props: PromptProps) {
                   }
                   props.ref?.(ref)
                   setTimeout(() => {
-                    // setTimeout is a workaround and needs to be addressed properly
                     if (!input || input.isDestroyed) return
                     input.cursorColor = theme.text
                   }, 0)
                 }}
-                onMouseDown={(r: MouseEvent) => r.target?.focus()}
+                onMouseDown={(r: any) => r.target?.focus()}
                 backgroundColor={theme.backgroundElement}
                 focusedBackgroundColor={theme.backgroundElement}
                 cursorColor={theme.text}
@@ -1462,14 +245,14 @@ export function Prompt(props: PromptProps) {
               />
             </box>
             <box flexDirection="row" flexShrink={0} paddingTop={0.5} gap={1}>
-              <text fg={highlight()}>{store.mode === "shell" ? "Shell" : activeWorkflowLabel()}</text>
-              <Show when={store.mode === "normal"}>
+              <text fg={state.highlight()}>{state.store.mode === "shell" ? "Shell" : state.activeWorkflowLabel()}</text>
+              <Show when={state.store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>
                   <text flexShrink={0} fg={keybind.leader ? theme.textMuted : theme.text}>
                     {local.model.parsed().model}
                   </text>
                   <text fg={theme.textMuted}>{local.model.parsed().provider}</text>
-                  <Show when={showVariant()}>
+                  <Show when={state.showVariant()}>
                     <text fg={theme.textMuted}>·</text>
                     <text>
                       <span style={{ fg: theme.warning, bold: true }}>{local.model.variant.current()}</span>
@@ -1490,35 +273,31 @@ export function Prompt(props: PromptProps) {
           alignItems="center"
         >
           <box flexGrow={1} flexDirection="row" alignItems="center">
-            <Show when={status().type !== "idle"}>
+            <Show when={state.status().type !== "idle"}>
               <box
                 flexDirection="row"
                 gap={1}
                 flexGrow={1}
                 justifyContent={
-                  status().type === "retry" || status().type === "delayed" ? "space-between" : "flex-start"
+                  state.status().type === "retry" || state.status().type === "delayed" ? "space-between" : "flex-start"
                 }
               >
                 <box flexShrink={0} flexDirection="row" gap={0}>
                   <box marginLeft={1}>
-                    <spinner frames={homeCueFrames()} interval={95} color={homeCueColor()} />
+                    <spinner frames={state.homeCueFrames()} interval={95} color={state.homeCueColor()} />
                   </box>
                   <box flexDirection="row" gap={1} flexShrink={0}>
                     {(() => {
-                      const retry = createMemo(() => {
-                        const s = status()
+                      const retry = () => {
+                        const s = state.status()
                         if (s.type !== "retry") return
                         return s
-                      })
+                      }
 
-                      // Only surface a hint once the session has been retrying for a
-                      // while (attempt 3+). Early retries resolve quickly and showing
-                      // anything would just be noise. No countdown, no attempt number,
-                      // no error colour — the scheduler handles recovery in the background.
-                      const showRetryHint = createMemo(() => {
+                      const showRetryHint = () => {
                         const r = retry()
                         return !!r && r.attempt >= 3
-                      })
+                      }
 
                       return (
                         <Switch>
@@ -1526,7 +305,11 @@ export function Prompt(props: PromptProps) {
                             <text fg={theme.textMuted}>↻ provider recovering…</text>
                           </Match>
                           <Match
-                            when={status().type === "delayed" && pendingPermissions() === 0 && pendingQuestions() === 0}
+                            when={
+                              state.status().type === "delayed" &&
+                              state.pendingPermissions() === 0 &&
+                              state.pendingQuestions() === 0
+                            }
                           >
                             <text fg={theme.textMuted}>provider is slow, still waiting…</text>
                           </Match>
@@ -1535,12 +318,10 @@ export function Prompt(props: PromptProps) {
                     })()}
                   </box>
                 </box>
-                <text fg={store.interrupt > 0 ? theme.warning : theme.textMuted}>
+                <text fg={state.store.interrupt > 0 ? theme.warning : theme.textMuted}>
                   esc{" "}
-                  <span style={{ fg: store.interrupt > 0 ? theme.warning : theme.textMuted }}>
-                    {store.interrupt > 0
-                      ? "again to stop"
-                      : "interrupt"}
+                  <span style={{ fg: state.store.interrupt > 0 ? theme.warning : theme.textMuted }}>
+                    {state.store.interrupt > 0 ? "again to stop" : "interrupt"}
                   </span>
                 </text>
               </box>
@@ -1548,11 +329,11 @@ export function Prompt(props: PromptProps) {
           </box>
 
           <box flexShrink={0} flexDirection="row" gap={1} alignItems="center" justifyContent="space-between">
-            <Show when={status().type !== "retry"}>
+            <Show when={state.status().type !== "retry"}>
               <box flexDirection="row" gap={1} alignItems="center">
-                <Show when={store.prompt.input.length > 0}>
+                <Show when={state.store.prompt.input.length > 0}>
                   <box
-                    onMouseUp={handleRefine}
+                    onMouseUp={handlers.handleRefine}
                     backgroundColor={theme.backgroundElement}
                     border={["round"]}
                     borderColor={theme.borderSubtle}
@@ -1562,9 +343,9 @@ export function Prompt(props: PromptProps) {
                     <text fg={theme.textMuted}>Refine</text>
                   </box>
                 </Show>
-                <Show when={explainMode()}>
+                <Show when={state.explainMode()}>
                   <box
-                    onMouseUp={() => setExplainMode(false)}
+                    onMouseUp={() => state.setExplainMode(false)}
                     backgroundColor={theme.success}
                     border={["round"]}
                     borderColor={theme.borderActive}
@@ -1576,14 +357,14 @@ export function Prompt(props: PromptProps) {
                 </Show>
               </box>
               <box
-                onMouseUp={submit}
-                backgroundColor={store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
+                onMouseUp={handlers.submit}
+                backgroundColor={state.store.prompt.input.length > 0 ? theme.primary : theme.backgroundElement}
                 border={["round"]}
-                borderColor={store.prompt.input.length > 0 ? theme.borderActive : theme.borderSubtle}
+                borderColor={state.store.prompt.input.length > 0 ? theme.borderActive : theme.borderSubtle}
                 paddingLeft={1}
                 paddingRight={1}
               >
-                <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>Send ↵</text>
+                <text fg={state.store.prompt.input.length > 0 ? theme.background : theme.textMuted}>Send ↵</text>
               </box>
             </Show>
           </box>
