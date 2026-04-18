@@ -449,26 +449,25 @@ describe("session-stream presentation model", () => {
   })
 
   describe("narrative helpers", () => {
-    it("derives concrete tool narrative for pending shell commands", () => {
+    it("derives semantic test-suite narration for pending bun-test shell commands", () => {
       const descriptor = deriveToolNarrativeDescriptor(
         createToolPart("tool-shell", "shell", "pending", { command: "bun test src/foo.test.ts" }) as any,
       )
 
-      expect(descriptor?.sentence).toContain("Running")
-      expect(descriptor?.sentence).toContain("bun test src/foo.test.ts")
+      expect(descriptor?.sentence).toContain("Running the test suite")
       expect(descriptor?.next).toBeUndefined()
     })
 
-    it("derives live narrative status from the same canonical tool wording", () => {
+    it("derives live narrative status from the last completed tool label", () => {
       const status = deriveLiveNarrativeStatus({
         pendingID: "assistant-1",
         partsForMessage: () => [
-          createToolPart("tool-read", "read", "completed", { filePath: "packages/dax/src/dax/presentation/session-stream.ts" }, { read: true }) as any,
+          createToolPart("tool-read", "read", "completed", { filePath: "packages/dax/src/dax/presentation/session-stream.ts" }, {}) as any,
         ],
       })
 
+      // read narration is suppressed — sentence is empty, but label still drives status
       expect(status.status).toBe("reading files complete")
-      expect(status.now).toContain("Read packages/dax/src/dax/presentation/session-stream.ts")
       expect(status.next).toBeUndefined()
     })
   })
@@ -700,16 +699,12 @@ describe("deriveToolNarrativeDescriptor — full tool coverage", () => {
     expect(deriveToolNarrativeDescriptor({ id: "t", type: "text", text: "hello" } as any)).toBeUndefined()
   })
 
-  it("read pending — uses present tense", () => {
+  it("read — returns descriptor with empty sentence (path shown in header, narration suppressed)", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("read", "pending", { filePath: "src/index.ts" }) as any)
-    expect(d?.sentence).toContain("Reading")
-    expect(d?.sentence).toContain("src/index.ts")
-  })
-
-  it("read completed — uses past tense and appends evidence", () => {
-    const d = deriveToolNarrativeDescriptor(makeToolPart("read", "completed", { filePath: "src/index.ts" }, { read: true }) as any)
-    expect(d?.sentence).toContain("Read")
-    expect(d?.sentence).toContain("Content loaded")
+    // read narration is suppressed — path already in arg preview header
+    expect(d).toBeDefined()
+    expect(d?.sentence).toBe("")
+    expect(d?.label).toBeTruthy()
   })
 
   it("glob pending — uses scanning language", () => {
@@ -718,43 +713,55 @@ describe("deriveToolNarrativeDescriptor — full tool coverage", () => {
     expect(d?.sentence).toContain("**/*.ts")
   })
 
-  it("glob completed — uses mapped language", () => {
+  it("glob completed — uses scanned language and path count evidence", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("glob", "completed", { pattern: "**/*.ts" }, { paths: ["a.ts", "b.ts"] }) as any)
-    expect(d?.sentence).toContain("Mapped")
-    expect(d?.evidence).toContain("2 paths")
+    expect(d?.sentence).toContain("Scanned")
+    expect(d?.sentence).toContain("2 paths")
   })
 
   it("grep completed — uses searched language", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("grep", "completed", { pattern: "createMemo" }, { matchCount: 5 }) as any)
     expect(d?.sentence).toContain("Searched")
-    expect(d?.evidence).toContain("5 match")
+    expect(d?.sentence).toContain("5 match")
   })
 
-  it("shell pending — uses running language", () => {
-    const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "pending", { command: "bun test" }) as any)
-    expect(d?.sentence).toContain("Running")
-    expect(d?.sentence).toContain("bun test")
+  it("shell pending with test command — uses semantic test suite narration", () => {
+    const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "pending", { command: "bun test src/foo.test.ts" }) as any)
+    expect(d?.sentence).toContain("Running the test suite")
   })
 
-  it("shell completed cleanly — appends clean exit evidence", () => {
+  it("shell pending with unrecognized command — returns no narration (command in header is enough)", () => {
+    const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "pending", { command: "custom-cli --flag" }) as any)
+    expect(d?.sentence).toBe("")
+  })
+
+  it("shell completed with zero exit — no evidence (success is implicit)", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "completed", { command: "bun test" }, { exitCode: 0 }) as any)
-    expect(d?.sentence).toContain("Ran")
-    expect(d?.evidence).toContain("Completed cleanly")
+    expect(d?.evidence).toBeUndefined()
   })
 
-  it("shell completed with error — appends exit code evidence", () => {
+  it("shell completed with non-zero exit — appends exit code evidence", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "completed", { command: "bun test" }, { exitCode: 1 }) as any)
-    expect(d?.evidence).toContain("exit 1")
+    expect(d?.evidence).toContain("Exit 1")
+  })
+
+  it("shell git status — uses working-tree-checked narration", () => {
+    const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "completed", { command: "git status --short" }, {}) as any)
+    expect(d?.sentence).toContain("Working tree checked")
+  })
+
+  it("shell typecheck — uses typecheck gate narration", () => {
+    const d = deriveToolNarrativeDescriptor(makeToolPart("shell", "pending", { command: "bun run typecheck" }) as any)
+    expect(d?.sentence).toContain("typecheck gate")
   })
 
   it("write completed — uses wrote language", () => {
-    const d = deriveToolNarrativeDescriptor(makeToolPart("write", "completed", { filePath: "src/new.ts" }, { written: true }) as any)
+    const d = deriveToolNarrativeDescriptor(makeToolPart("write", "completed", { filePath: "src/new.ts" }) as any)
     expect(d?.sentence).toContain("Wrote")
-    expect(d?.evidence).toContain("Workspace updated")
   })
 
   it("edit completed — uses edited language", () => {
-    const d = deriveToolNarrativeDescriptor(makeToolPart("edit", "completed", { filePath: "src/existing.ts" }, { written: true }) as any)
+    const d = deriveToolNarrativeDescriptor(makeToolPart("edit", "completed", { filePath: "src/existing.ts" }) as any)
     expect(d?.sentence).toContain("Edited")
   })
 
@@ -773,9 +780,9 @@ describe("deriveToolNarrativeDescriptor — full tool coverage", () => {
     expect(d?.sentence).toContain("Structuring")
   })
 
-  it("question pending — uses holding language", () => {
+  it("question pending — uses waiting language", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("question", "pending", { prompt: "What scope?" }) as any)
-    expect(d?.sentence).toContain("Holding on")
+    expect(d?.sentence).toContain("Waiting for a decision")
   })
 
   it("skill completed — uses loaded language", () => {
@@ -783,21 +790,25 @@ describe("deriveToolNarrativeDescriptor — full tool coverage", () => {
     expect(d?.sentence).toContain("Loaded")
   })
 
-  it("unknown tool falls back gracefully", () => {
+  it("reflection — returns undefined (suppressed, surfaces as intent.created)", () => {
+    const d = deriveToolNarrativeDescriptor(makeToolPart("reflection", "completed", { goal: "Assess readiness" }) as any)
+    expect(d).toBeUndefined()
+  })
+
+  it("unknown tool — returns descriptor with empty sentence (no arbitrary fallback)", () => {
     const d = deriveToolNarrativeDescriptor(makeToolPart("custom_tool", "completed", { query: "something" }) as any)
     expect(d).toBeDefined()
-    expect(d?.sentence).toBeTruthy()
     expect(d?.label).toBeTruthy()
+    expect(d?.sentence).toBe("")
   })
 
   it("sourceKind is always tool-trace", () => {
-    const d = deriveToolNarrativeDescriptor(makeToolPart("read", "pending", { filePath: "x.ts" }) as any)
+    const d = deriveToolNarrativeDescriptor(makeToolPart("glob", "pending", { pattern: "*.ts" }) as any)
     expect(d?.sourceKind).toBe("tool-trace")
   })
 
   it("now field is the markdown-stripped version of sentence", () => {
-    const d = deriveToolNarrativeDescriptor(makeToolPart("read", "pending", { filePath: "x.ts" }) as any)
-    // `now` should equal sentence with backticks stripped
+    const d = deriveToolNarrativeDescriptor(makeToolPart("glob", "pending", { pattern: "*.ts" }) as any)
     expect(d?.now).toBe(stripInlineMarkdown(d?.sentence ?? ""))
   })
 
@@ -825,20 +836,20 @@ describe("deriveLiveNarrativeStatus — additional cases", () => {
     expect(s.next).toBeUndefined()
   })
 
-  it("returns working status when message has a pending tool", () => {
+  it("returns working status when message has a pending build tool", () => {
     const s = deriveLiveNarrativeStatus({
       pendingID: "msg-1",
       partsForMessage: () => [makeToolPart("shell", "pending", { command: "bun run build" }) as any],
     })
     expect(s.status).toContain("running")
-    expect(s.now).toContain("Running")
+    expect(s.now).toContain("Building")
   })
 
   it("returns completed status for the last completed tool", () => {
     const s = deriveLiveNarrativeStatus({
       pendingID: "msg-1",
       partsForMessage: () => [
-        makeToolPart("read", "completed", { filePath: "a.ts" }, { read: true }) as any,
+        makeToolPart("read", "completed", { filePath: "a.ts" }, {}) as any,
         makeToolPart("glob", "completed", { pattern: "**/*.ts" }, { paths: [] }) as any,
       ],
     })
@@ -849,7 +860,7 @@ describe("deriveLiveNarrativeStatus — additional cases", () => {
     const s = deriveLiveNarrativeStatus({
       pendingID: "msg-1",
       partsForMessage: () => [
-        makeToolPart("read", "completed", { filePath: "a.ts" }, { read: true }) as any,
+        makeToolPart("read", "completed", { filePath: "a.ts" }, {}) as any,
         makeToolPart("shell", "pending", { command: "bun test" }) as any,
       ],
     })

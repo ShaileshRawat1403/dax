@@ -11,16 +11,26 @@ export function StreamItem(props: {
   isLast: boolean
   index: number
   previousItem?: RenderableStreamItem
+  allItems?: RenderableStreamItem[]
   onNavigateToApprovals?: () => void
   MessageComponent: typeof MessagePlaceholder
 }) {
   const suppressHeader = () => {
     if (props.item.kind !== "message.assistant") return false
-    const prev = props.previousItem
-    if (!prev || prev.kind !== "message.assistant") return false
     const currAgent = (props.item.data as AssistantMessage).agent
-    const prevAgent = (prev.data as AssistantMessage).agent
-    return currAgent === prevAgent
+    // Look backward past run.events to find the last assistant message.
+    // If it has the same agent, suppress the repeated label — it's the same mode continuing.
+    const all = props.allItems
+    if (!all) return false
+    for (let i = props.index - 1; i >= 0; i--) {
+      const prev = all[i]!
+      if (prev.kind === "message.assistant") {
+        return (prev.data as AssistantMessage).agent === currAgent
+      }
+      // Stop looking back if we cross a user turn or phase boundary
+      if (prev.kind === "message.user" || prev.kind === "phase.marker") break
+    }
+    return false
   }
 
   return (

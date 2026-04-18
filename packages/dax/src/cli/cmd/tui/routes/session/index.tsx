@@ -131,7 +131,7 @@ import {
 import { StreamItem } from "../../component/stream"
 import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
 
-const HIDDEN_TOOLS = new Set(["todowrite"])
+const HIDDEN_TOOLS = new Set(["todowrite", "reflection"])
 const COMPACT_TOOLS = new Set(["read", "glob", "grep", "list"])
 const COMPACT_MIN = 3
 type CompactGroup = {
@@ -1454,6 +1454,7 @@ export function Session() {
                       index={index()}
                       isLast={index() === lastMessageIndex()}
                       previousItem={index() > 0 ? streamItems()[index() - 1] : undefined}
+                      allItems={streamItems()}
                       onNavigateToApprovals={openApprovalsPane}
                       MessageComponent={Message}
                     />
@@ -2419,6 +2420,9 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
     const i = perms.findIndex((x) => x.tool?.callID === props.part.callID)
     return perms[i]
   })
+
+  // Reflection is internal model grounding — already surfaces as intent.created prose.
+  if (toolName() === "reflection") return null
 
   return (
     <Show
