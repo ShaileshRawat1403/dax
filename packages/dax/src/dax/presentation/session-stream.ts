@@ -227,8 +227,9 @@ function deriveToolEvidence(part: Part): string | undefined {
   const metadata = ("metadata" in part.state ? (part.state.metadata ?? {}) : {}) as Record<string, unknown>
   if (status === "pending" || status === "running") return undefined
   if (status === "error" || status === "failed") return "Tool failed."
-  if (typeof metadata.exitCode === "number")
-    return metadata.exitCode === 0 ? "Completed cleanly." : `Completed with exit ${metadata.exitCode}.`
+  // Non-zero exit is the only exit-code signal worth surfacing; zero exit and generic "Completed." are noise.
+  if (typeof metadata.exitCode === "number" && metadata.exitCode !== 0)
+    return `Exit ${metadata.exitCode}.`
   if (typeof metadata.matchCount === "number") {
     return `Found ${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"}.`
   }
@@ -236,9 +237,6 @@ function deriveToolEvidence(part: Part): string | undefined {
     return `Found ${metadata.matches.length} match${metadata.matches.length === 1 ? "" : "es"}.`
   if (Array.isArray(metadata.paths))
     return `Resolved ${metadata.paths.length} path${metadata.paths.length === 1 ? "" : "s"}.`
-  if (metadata.written === true) return "Workspace updated."
-  if (metadata.read === true) return "Content loaded."
-  if (status === "completed") return "Completed."
   return undefined
 }
 
@@ -259,71 +257,84 @@ export function deriveToolNarrativeDescriptor(part: Part): StreamNarrativeDescri
   const sentence = (() => {
     switch (tool) {
       case "read":
-        return status === "completed"
-          ? `Read ${targetText} to lock in the relevant context.`
-          : `Reading ${targetText} to gather the relevant context.`
+        // Path already shown in arg preview — narration would just repeat it.
+        return undefined
       case "glob":
       case "list":
         return status === "completed"
-          ? `Mapped ${targetText} to see the workspace shape.`
-          : `Scanning ${targetText} to map the workspace shape.`
+          ? `Scanned ${targetText}.`
+          : `Scanning ${targetText}.`
       case "grep":
       case "codesearch":
       case "websearch":
         return status === "completed"
-          ? `Searched ${targetText} to isolate the key signals.`
-          : `Searching ${targetText} to isolate the key signals.`
+          ? `Searched ${targetText}.`
+          : `Searching ${targetText}.`
       case "webfetch":
         return status === "completed"
-          ? `Fetched ${targetText} to confirm the external detail.`
-          : `Fetching ${targetText} to confirm the external detail.`
-      case "shell":
-        return status === "completed"
-          ? `Ran ${targetText} to check the current state.`
-          : `Running ${targetText} to check the current state.`
+          ? `Fetched ${targetText}.`
+          : `Fetching ${targetText}.`
+      case "shell": {
+        const rawCmd = String(((part.state as any).input as any)?.command ?? "").trim()
+        const c = rawCmd.toLowerCase()
+        if (/^git\s+status/.test(c)) return status === "completed" ? "Working tree checked." : "Checking working tree status."
+        if (/^git\s+log/.test(c)) return status === "completed" ? "Commit history read." : "Reading commit history."
+        if (/^git\s+diff/.test(c)) return status === "completed" ? "Diff captured." : "Diffing changes."
+        if (/^git\s+stash/.test(c)) return status === "completed" ? "Stash applied." : "Applying stash."
+        if (/^git\s+(add|commit|push|merge|rebase)/.test(c)) return status === "completed" ? "Git operation complete." : "Running git operation."
+        if (/(bun|npm|pnpm|yarn)\s+test|jest|vitest|pytest|go\s+test|cargo\s+test/.test(c))
+          return status === "completed" ? "Test suite complete." : "Running the test suite."
+        if (/tsc|typecheck/.test(c)) return status === "completed" ? "Typecheck complete." : "Running the typecheck gate."
+        if (/eslint|biome\s+check|ruff|oxlint/.test(c)) return status === "completed" ? "Lint complete." : "Running the linter."
+        if (/(bun|npm|pnpm|yarn)\s+(run\s+)?build/.test(c)) return status === "completed" ? "Build complete." : "Building the project."
+        if (/^cat\s|^head\s|^tail\s|^less\s/.test(c)) return undefined
+        // Unrecognized commands: command in header is sufficient.
+        return undefined
+      }
       case "write":
         return status === "completed"
-          ? `Wrote ${targetText} to land the scoped change.`
-          : `Writing ${targetText} to land the scoped change.`
+          ? `Wrote ${targetText}.`
+          : `Writing ${targetText}.`
       case "edit":
         return status === "completed"
-          ? `Edited ${targetText} to refine the scoped change.`
-          : `Editing ${targetText} to refine the scoped change.`
+          ? `Edited ${targetText}.`
+          : `Editing ${targetText}.`
       case "apply_patch":
         return status === "completed"
-          ? `Patched ${targetText} to update the workspace precisely.`
-          : `Patching ${targetText} to update the workspace precisely.`
+          ? `Patched ${targetText}.`
+          : `Patching ${targetText}.`
       case "task":
         return status === "completed"
-          ? `Structured ${targetText} so execution stays on rails.`
-          : `Structuring ${targetText} so execution stays on rails.`
+          ? `Task structured.`
+          : `Structuring the task.`
       case "todowrite":
         return status === "completed"
-          ? `Updated ${targetText} so progress stays visible.`
-          : `Updating ${targetText} so progress stays visible.`
+          ? `Checklist updated.`
+          : `Updating the checklist.`
       case "question":
         return status === "completed"
-          ? `Raised ${targetText} to unblock the next decision.`
-          : `Holding on ${targetText} until the next decision is clear.`
+          ? `Question raised.`
+          : `Waiting for a decision.`
       case "skill":
         return status === "completed"
-          ? `Loaded ${targetText} to bring the right workflow into the run.`
-          : `Loading ${targetText} to bring the right workflow into the run.`
+          ? `Loaded ${targetText}.`
+          : `Loading ${targetText}.`
       case "reflection":
-        return status === "completed"
-          ? `Captured ${targetText} to keep the run grounded.`
-          : `Capturing ${targetText} to keep the run grounded.`
+        // Internal model grounding — already surfaces as intent.created prose. Suppress.
+        return undefined
       default:
-        return status === "completed"
-          ? `${sentenceCase(describeToolProgress(tool))} around ${targetText}.`
-          : `${sentenceCase(describeToolProgress(tool))} around ${targetText}.`
+        return undefined
     }
   })()
 
+  // reflection is internal grounding — suppress entirely (intent.created already surfaces it).
+  if (tool === "reflection") return undefined
+
+  const fullSentence = joinSentences(sentence, evidence)
   return {
     label: sentenceCase(describeToolProgress(tool)) ?? "Working",
-    sentence: joinSentences(sentence, evidence),
-    now: stripInlineMarkdown(sentence),
+    sentence: fullSentence,
+    now: fullSentence ? stripInlineMarkdown(fullSentence) : "",
     next,
     evidence,
     sourceKind: "tool-trace",
