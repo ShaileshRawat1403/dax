@@ -553,6 +553,14 @@ export function usePromptHandlers(
     const autocomplete = refs.autocomplete()
     if (!input || !autocomplete) return
 
+    // Interrupt must bypass the disabled guard — ESC should always be able to stop
+    // a running session regardless of prompt lock state.
+    if (keybind.match("session_interrupt", e)) {
+      e.preventDefault()
+      command.trigger("session.interrupt")
+      return
+    }
+
     if (props.disabled) {
       e.preventDefault()
       return
@@ -596,12 +604,6 @@ export function usePromptHandlers(
         })
         return
       }
-    }
-
-    if (keybind.match("session_interrupt", e)) {
-      e.preventDefault()
-      command.trigger("session.interrupt")
-      return
     }
 
     if (keybind.match("input_clear", e) && store.prompt.input !== "") {

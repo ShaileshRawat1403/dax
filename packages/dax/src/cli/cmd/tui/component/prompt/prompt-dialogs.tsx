@@ -2,6 +2,7 @@ import { useCommandDialog } from "../dialog-command"
 import { usePromptStash } from "./stash"
 import { useSDK } from "@tui/context/sdk"
 import { useDialog } from "@tui/ui/dialog"
+import { useToast } from "@tui/ui/toast"
 import { Editor } from "@tui/util/editor"
 import { Clipboard } from "@tui/util/clipboard"
 import { DialogSkill } from "../dialog-skill"
@@ -24,6 +25,7 @@ export function usePromptDialogs(
   const stash = usePromptStash()
   const sdk = useSDK()
   const dialog = useDialog()
+  const toast = useToast()
   const renderer = useRenderer()
   const { store, setStore } = state
 
@@ -92,10 +94,11 @@ export function usePromptDialogs(
           }, 5000)
 
           if (store.interrupt >= 2) {
-            sdk.client.session.abort({
-              sessionID: props.sessionID,
-            })
+            sdk.client.session.abort({ sessionID: props.sessionID })
             setStore("interrupt", 0)
+            toast.show({ variant: "warning", message: "Session interrupted." })
+          } else {
+            toast.show({ variant: "warning", message: "Press ESC again to stop the session." })
           }
           dialog.clear()
         },
