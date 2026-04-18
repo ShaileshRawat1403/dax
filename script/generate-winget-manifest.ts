@@ -17,7 +17,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   const versionRaw = get("--version") ?? process.env.DAX_VERSION
   if (!versionRaw) {
-    throw new Error("Missing --version (or DAX_VERSION). Example: --version v1.0.3")
+    throw new Error("Missing --version (or DAX_VERSION). Example: --version vX.Y.Z")
   }
 
   const version = versionRaw.startsWith("v") ? versionRaw : `v${versionRaw}`
@@ -71,7 +71,7 @@ PackageName: DAX
 PackageUrl: https://github.com/${args.repo}
 License: MIT
 LicenseUrl: https://github.com/${args.repo}/blob/main/LICENSE
-ShortDescription: Deterministic AI eXecution CLI
+ShortDescription: Governed execution CLI with a deterministic runtime contract
 Moniker: dax
 ReleaseNotesUrl: https://github.com/${args.repo}/releases/tag/${args.version}
 ManifestType: defaultLocale

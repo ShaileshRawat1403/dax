@@ -1,4 +1,7 @@
-import { expect, test, describe } from "bun:test"
+import { expect, test, describe, beforeEach, afterEach } from "bun:test"
+import os from "os"
+import path from "path"
+import { mkdirSync, rmSync } from "fs"
 import { createTaskGraph, addTask } from "../planner/task-graph"
 import { runGraph } from "./run-graph"
 import { ExploreOperator } from "../operators/explore"
@@ -7,6 +10,20 @@ import type { Operator } from "../operators/base"
 import { Instance } from "../project/instance"
 
 describe("Agent Run Graph: Explore Pipeline", () => {
+  const testHome = path.join(os.tmpdir(), `dax-run-graph-${Date.now().toString(36)}`)
+  const previousHome = process.env.DAX_TEST_HOME
+
+  beforeEach(() => {
+    process.env.DAX_TEST_HOME = testHome
+    mkdirSync(testHome, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+    else process.env.DAX_TEST_HOME = previousHome
+    rmSync(testHome, { recursive: true, force: true })
+  })
+
   test("Executes a real explore pipeline in correct order", async () => {
     // 1. Setup Intent & Plan Graph
     const graph = createTaskGraph("test_explore")
@@ -61,7 +78,7 @@ describe("Agent Run Graph: Explore Pipeline", () => {
     router.register(new ExploreOperator())
 
     // 3. Execution
-    const cwd = process.cwd()
+    const cwd = path.resolve("../../test/fixtures/healthy-repo")
     const result = await Instance.provide({
       directory: cwd,
       fn: () => runGraph(graph, { cwd, sessionId: "test_session" }, router),

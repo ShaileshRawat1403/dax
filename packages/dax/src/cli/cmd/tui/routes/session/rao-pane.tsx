@@ -153,18 +153,20 @@ function PermissionCard(props: {
   // button label + style per key
   const buttonStyle = (key: "once" | "always" | "deny", idx: number) => {
     const isSelected = idx === props.selectedButtonIdx
-    if (key === "once") return {
-      bg: isSelected ? theme.primary : tint(theme.primary, theme.background, 0.4),
-      border: isSelected ? theme.borderActive : theme.primary,
-      fg: isSelected ? selectedForeground(theme, theme.primary) : theme.primary,
-      label: "Y  Allow once",
-    }
-    if (key === "always") return {
-      bg: isSelected ? theme.accent : tint(theme.accent, theme.background, 0.4),
-      border: isSelected ? theme.borderActive : theme.accent,
-      fg: isSelected ? selectedForeground(theme, theme.accent) : theme.accent,
-      label: "A  Allow always",
-    }
+    if (key === "once")
+      return {
+        bg: isSelected ? theme.primary : tint(theme.primary, theme.background, 0.4),
+        border: isSelected ? theme.borderActive : theme.primary,
+        fg: isSelected ? selectedForeground(theme, theme.primary) : theme.primary,
+        label: "Y  Allow once",
+      }
+    if (key === "always")
+      return {
+        bg: isSelected ? theme.accent : tint(theme.accent, theme.background, 0.4),
+        border: isSelected ? theme.borderActive : theme.accent,
+        fg: isSelected ? selectedForeground(theme, theme.accent) : theme.accent,
+        label: "A  Allow always",
+      }
     return {
       bg: isSelected
         ? tint(theme.backgroundElement, theme.error, 0.22)
@@ -197,7 +199,13 @@ function PermissionCard(props: {
           borderColor={riskColor()}
         >
           <text
-            fg={props.risk.level === "critical" ? theme.error : props.risk.level === "privacy" ? theme.warning : theme.accent}
+            fg={
+              props.risk.level === "critical"
+                ? theme.error
+                : props.risk.level === "privacy"
+                  ? theme.warning
+                  : theme.accent
+            }
             attributes={TextAttributes.BOLD}
           >
             {icon()}
@@ -207,11 +215,9 @@ function PermissionCard(props: {
           {title()}
         </text>
         {/* Age badge */}
-        <text
-          fg={isStale() ? theme.warning : theme.textMuted}
-          attributes={TextAttributes.DIM}
-        >
-          {isStale() ? "⏱ " : ""}{formatAge(props.ageMs)}
+        <text fg={isStale() ? theme.warning : theme.textMuted} attributes={TextAttributes.DIM}>
+          {isStale() ? "⏱ " : ""}
+          {formatAge(props.ageMs)}
         </text>
       </box>
 
@@ -235,17 +241,14 @@ function PermissionCard(props: {
       {/* ── Diff preview for edits ── */}
       <Show when={hasDiff()}>
         <box flexDirection="column" gap={0}>
-          <box
-            flexDirection="row"
-            gap={1}
-            onMouseUp={() => props.onToggleDiff()}
-            paddingLeft={1}
-          >
+          <box flexDirection="row" gap={1} onMouseUp={() => props.onToggleDiff()} paddingLeft={1}>
             <text fg={theme.textMuted}>{props.diffExpanded ? "▾" : "▸"}</text>
             <text fg={props.diffExpanded ? theme.text : theme.textMuted}>
               {props.diffExpanded ? "Hide diff" : "Show diff"}
             </text>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>Ctrl+D</text>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              Ctrl+D
+            </text>
           </box>
           <Show when={props.diffExpanded}>
             <box
@@ -300,9 +303,13 @@ function PermissionCard(props: {
           <text fg={props.risk.level === "critical" ? theme.error : theme.warning} attributes={TextAttributes.BOLD}>
             {props.risk.level === "critical" ? "⚠  Critical action" : "⚠  Privacy-sensitive"}
           </text>
-          <text fg={theme.textMuted} wrapMode="word">{props.risk.reason}</text>
+          <text fg={theme.textMuted} wrapMode="word">
+            {props.risk.reason}
+          </text>
           <Show when={props.risk.suggestion}>
-            <text fg={theme.text} wrapMode="word">Suggestion: {props.risk.suggestion}</text>
+            <text fg={theme.text} wrapMode="word">
+              Suggestion: {props.risk.suggestion}
+            </text>
           </Show>
         </box>
       </Show>
@@ -322,7 +329,9 @@ function PermissionCard(props: {
           border={["left"]}
           borderColor={theme.success}
         >
-          <text fg={theme.success} attributes={TextAttributes.BOLD}>✓</text>
+          <text fg={theme.success} attributes={TextAttributes.BOLD}>
+            ✓
+          </text>
           <text fg={theme.success}>Decision sent — DAX will continue.</text>
         </box>
       </Show>
@@ -355,7 +364,9 @@ function PermissionCard(props: {
                     else props.onSetPhase("denying")
                   }}
                 >
-                  <text fg={s().fg} attributes={TextAttributes.BOLD}>{s().label}</text>
+                  <text fg={s().fg} attributes={TextAttributes.BOLD}>
+                    {s().label}
+                  </text>
                 </box>
               )
             }}
@@ -396,17 +407,15 @@ function PermissionCard(props: {
           border={["left"]}
           borderColor={theme.accent}
         >
-          <text fg={theme.accent} attributes={TextAttributes.BOLD}>Confirm — Allow always</text>
+          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+            Confirm — Allow always
+          </text>
           <Show
             when={props.request.always.length === 1 && props.request.always[0] === "*"}
             fallback={
               <box flexDirection="column" gap={0}>
                 <text fg={theme.textMuted}>These patterns will be trusted for this session:</text>
-                <For each={props.request.always}>
-                  {(pattern) => (
-                    <text fg={theme.text}>  · {pattern}</text>
-                  )}
-                </For>
+                <For each={props.request.always}>{(pattern) => <text fg={theme.text}> · {pattern}</text>}</For>
               </box>
             }
           >
@@ -426,7 +435,7 @@ function PermissionCard(props: {
             onMouseUp={() => props.onApproveAlways()}
           >
             <text fg={selectedForeground(theme, theme.accent)} attributes={TextAttributes.BOLD}>
-              Enter  Confirm
+              Enter Confirm
             </text>
           </box>
           <box
@@ -438,7 +447,7 @@ function PermissionCard(props: {
             onMouseUp={() => props.onSetPhase("deciding")}
           >
             <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-              Esc  Cancel
+              Esc Cancel
             </text>
           </box>
         </box>
@@ -460,7 +469,9 @@ function PermissionCard(props: {
           border={["left"]}
           borderColor={theme.error}
         >
-          <text fg={theme.error} attributes={TextAttributes.BOLD}>△  Deny — tell DAX what to do differently</text>
+          <text fg={theme.error} attributes={TextAttributes.BOLD}>
+            △ Deny — tell DAX what to do differently
+          </text>
           <text fg={theme.textMuted}>Optional. Press Enter to confirm, Esc to go back.</text>
           <textarea
             ref={props.denyTextareaRef}
@@ -485,7 +496,9 @@ function PermissionCard(props: {
               props.onDeny()
             }}
           >
-            <text fg={theme.error} attributes={TextAttributes.BOLD}>Enter  Confirm deny</text>
+            <text fg={theme.error} attributes={TextAttributes.BOLD}>
+              Enter Confirm deny
+            </text>
           </box>
           <box
             backgroundColor={theme.backgroundElement}
@@ -495,7 +508,9 @@ function PermissionCard(props: {
             borderColor={theme.borderSubtle}
             onMouseUp={() => props.onSetPhase("deciding")}
           >
-            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>Esc  Cancel</text>
+            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+              Esc Cancel
+            </text>
           </box>
         </box>
       </Show>
@@ -534,7 +549,9 @@ function QuestionCard(props: {
       paddingTop={1}
       paddingBottom={1}
     >
-      <text fg={theme.accent} attributes={TextAttributes.BOLD}>◌  Question</text>
+      <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+        ◌ Question
+      </text>
 
       {/* Multi-question tabs */}
       <Show when={questions().length > 1}>
@@ -562,7 +579,9 @@ function QuestionCard(props: {
       </Show>
 
       {/* Question text */}
-      <text fg={theme.text} wrapMode="word">{question()?.question}</text>
+      <text fg={theme.text} wrapMode="word">
+        {question()?.question}
+      </text>
 
       {/* Options list */}
       <box flexDirection="column" gap={0} paddingLeft={1}>
@@ -571,7 +590,9 @@ function QuestionCard(props: {
             <box
               flexDirection="row"
               gap={1}
-              backgroundColor={props.store.selected === i() ? tint(theme.backgroundPanel, theme.accent, 0.12) : undefined}
+              backgroundColor={
+                props.store.selected === i() ? tint(theme.backgroundPanel, theme.accent, 0.12) : undefined
+              }
               paddingLeft={1}
               paddingRight={1}
               onMouseUp={() => {
@@ -604,7 +625,9 @@ function QuestionCard(props: {
           border={["left"]}
           borderColor={theme.success}
         >
-          <text fg={theme.success} attributes={TextAttributes.BOLD}>✓</text>
+          <text fg={theme.success} attributes={TextAttributes.BOLD}>
+            ✓
+          </text>
           <text fg={theme.success}>Answer sent.</text>
         </box>
       </Show>
@@ -621,7 +644,7 @@ function QuestionCard(props: {
             onMouseUp={() => props.onSubmit()}
           >
             <text fg={selectedForeground(theme, theme.primary)} attributes={TextAttributes.BOLD}>
-              Enter  Submit
+              Enter Submit
             </text>
           </box>
           <box
@@ -632,7 +655,9 @@ function QuestionCard(props: {
             borderColor={theme.error}
             onMouseUp={() => props.onSkip()}
           >
-            <text fg={theme.error} attributes={TextAttributes.BOLD}>Esc  Skip</text>
+            <text fg={theme.error} attributes={TextAttributes.BOLD}>
+              Esc Skip
+            </text>
           </box>
         </box>
         <text fg={theme.textMuted}>↑↓ pick · Enter confirm · click directly</text>
@@ -644,22 +669,11 @@ function QuestionCard(props: {
 // ──────────────────────────────────────────────────────────────────────────────
 // Queue breadcrumb
 // ──────────────────────────────────────────────────────────────────────────────
-function QueueBreadcrumb(props: {
-  items: RAOItem[]
-  selectedIndex: number
-  onSelect: (i: number) => void
-}) {
+function QueueBreadcrumb(props: { items: RAOItem[]; selectedIndex: number; onSelect: (i: number) => void }) {
   const { theme } = useTheme()
   return (
-    <box
-      flexDirection="column"
-      gap={0}
-      border={["top"]}
-      borderColor={theme.borderSubtle}
-      paddingTop={1}
-      marginTop={1}
-    >
-      <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>Queue ({props.items.length})</text>
+    <box flexDirection="column" gap={0} border={["top"]} borderColor={theme.borderSubtle} paddingTop={1} marginTop={1}>
+      <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>{`Queue (${props.items.length})`}</text>
       <For each={props.items}>
         {(item, idx) => {
           const isSelected = () => idx() === props.selectedIndex
@@ -753,12 +767,14 @@ export function RAOPane(props: {
   const [questionSent, setQuestionSent] = createSignal(false)
   let denyTextarea: TextareaRenderable | undefined
 
-  createEffect(on(currentItem, () => {
-    setCardPhase("deciding")
-    setSelectedButtonIdx(0)
-    setDiffExpanded(false)
-    setQuestionSent(false)
-  }))
+  createEffect(
+    on(currentItem, () => {
+      setCardPhase("deciding")
+      setSelectedButtonIdx(0)
+      setDiffExpanded(false)
+      setQuestionSent(false)
+    }),
+  )
 
   // ── Question store ──
   const [questionStore, setQuestionStore] = createStore({
@@ -982,7 +998,9 @@ export function RAOPane(props: {
     <box flexDirection="column" gap={1} flexGrow={1}>
       {/* Section header */}
       <box flexDirection="column" gap={0} paddingBottom={1} border={["bottom"]} borderColor={theme.borderSubtle}>
-        <text fg={theme.primary} attributes={TextAttributes.BOLD}>Review queue</text>
+        <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+          Review queue
+        </text>
         <text fg={theme.textMuted}>Resolve approvals and questions so DAX can continue safely.</text>
       </box>
 
@@ -996,7 +1014,9 @@ export function RAOPane(props: {
           borderColor={theme.borderSubtle}
           backgroundColor={tint(theme.background, theme.success, 0.04)}
         >
-          <text fg={theme.success} attributes={TextAttributes.BOLD}>✓  All clear</text>
+          <text fg={theme.success} attributes={TextAttributes.BOLD}>
+            ✓ All clear
+          </text>
           <text fg={theme.textMuted}>No approvals or open questions right now.</text>
         </box>
       </Show>
@@ -1004,8 +1024,8 @@ export function RAOPane(props: {
       <Show when={items().length > 0}>
         {/* Navigation bar */}
         <box flexDirection="row" gap={1} alignItems="center">
-          <text fg={theme.warning} attributes={TextAttributes.BOLD}>{items().length} pending</text>
-          <text fg={theme.textMuted}>({selectedIndex() + 1}/{items().length})</text>
+          <text fg={theme.warning} attributes={TextAttributes.BOLD}>{`${items().length} pending`}</text>
+          <text fg={theme.textMuted}>{`(${selectedIndex() + 1}/${items().length})`}</text>
           <box flexGrow={1} />
           <Show when={items().length > 1}>
             <box flexDirection="row" gap={0}>
@@ -1041,7 +1061,9 @@ export function RAOPane(props: {
                 return (
                   <box
                     onMouseUp={() => setSelectedIndex(idx())}
-                    backgroundColor={isSelected() ? tint(theme.background, accentColor(), 0.14) : theme.backgroundElement}
+                    backgroundColor={
+                      isSelected() ? tint(theme.background, accentColor(), 0.14) : theme.backgroundElement
+                    }
                     border={["left"]}
                     borderColor={isSelected() ? accentColor() : theme.borderSubtle}
                     paddingLeft={1}
@@ -1058,15 +1080,16 @@ export function RAOPane(props: {
                         fg={isSelected() ? theme.text : theme.textMuted}
                         attributes={isSelected() ? TextAttributes.BOLD : undefined}
                       >
-                        {item.type === "permission"
-                          ? item.data.permission.replace(/_/g, " ")
-                          : `Q${item.index + 1}`}
+                        {item.type === "permission" ? item.data.permission.replace(/_/g, " ") : `Q${item.index + 1}`}
                       </text>
                       <Show when={item.type === "permission"}>
                         {(() => {
                           const ageMs = Date.now() - (item.data as PermissionRequest).createdAt
                           return (
-                            <text fg={ageMs > 5 * 60 * 1000 ? theme.warning : theme.textMuted} attributes={TextAttributes.DIM}>
+                            <text
+                              fg={ageMs > 5 * 60 * 1000 ? theme.warning : theme.textMuted}
+                              attributes={TextAttributes.DIM}
+                            >
                               {formatAge(ageMs)}
                             </text>
                           )
@@ -1106,7 +1129,9 @@ export function RAOPane(props: {
                     handlePermissionReply(item.data.id, "reject", reason)
                   }}
                   onSetSelectedBtn={setSelectedButtonIdx}
-                  denyTextareaRef={(el) => { denyTextarea = el }}
+                  denyTextareaRef={(el) => {
+                    denyTextarea = el
+                  }}
                   textareaKeybindings={textareaKeybindings}
                 />
               )
@@ -1122,7 +1147,10 @@ export function RAOPane(props: {
                   request={item.data}
                   store={questionStore}
                   sent={questionSent()}
-                  onSelectTab={(i) => { setQuestionStore("tab", i); setQuestionStore("selected", 0) }}
+                  onSelectTab={(i) => {
+                    setQuestionStore("tab", i)
+                    setQuestionStore("selected", 0)
+                  }}
                   onSelectOption={(i) => setQuestionStore("selected", i)}
                   onSubmit={() => {
                     const qs = item.data.questions ?? []
@@ -1138,11 +1166,7 @@ export function RAOPane(props: {
 
         {/* Queue breadcrumb */}
         <Show when={items().length > 1}>
-          <QueueBreadcrumb
-            items={items()}
-            selectedIndex={selectedIndex()}
-            onSelect={(i) => setSelectedIndex(i)}
-          />
+          <QueueBreadcrumb items={items()} selectedIndex={selectedIndex()} onSelect={(i) => setSelectedIndex(i)} />
         </Show>
       </Show>
     </box>

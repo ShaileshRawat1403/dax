@@ -42,19 +42,8 @@ import type { AssistantMessage, Part, ToolPart, UserMessage, TextPart, Reasoning
 import { useLocal } from "@tui/context/local"
 import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
-import type { ReadTool } from "@/tool/read"
-import type { WriteTool } from "@/tool/write"
 import { ShellTool } from "@/tool/shell"
-import type { GlobTool } from "@/tool/glob"
 import { TodoWriteTool } from "@/tool/todo"
-import type { GrepTool } from "@/tool/grep"
-import type { ListTool } from "@/tool/ls"
-import type { EditTool } from "@/tool/edit"
-import type { ApplyPatchTool } from "@/tool/apply_patch"
-import type { WebFetchTool } from "@/tool/webfetch"
-import type { TaskTool } from "@/tool/task"
-import type { QuestionTool } from "@/tool/question"
-import type { SkillTool } from "@/tool/skill"
 import { useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useSDK } from "@tui/context/sdk"
 import { useCommandDialog } from "@tui/component/dialog-command"
@@ -141,9 +130,6 @@ import {
 import { StreamItem } from "../../component/stream"
 import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
 
-type GroupedPart = Part | { type: "activity-cluster"; tools: ToolPart[] } | { type: "context-group"; tools: ToolPart[] }
-
-const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
 const HIDDEN_TOOLS = new Set(["todowrite"])
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
@@ -160,11 +146,6 @@ import { deriveGitHubCINudge } from "@/dax/presentation/ci-guard"
 
 addDefaultParsers(parsers.parsers)
 
-const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
-const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill", "reflection"])
-const EXECUTE_TOOLS = new Set(["write", "edit", "apply_patch", "shell"])
-const VERIFY_TOOLS = new Set(["read", "grep", "list", "glob"])
-const PRIMARY_STAGE_FLOW: StreamStage[] = ["thinking", "exploring", "planning", "executing", "verifying", "done"]
 type PMTab = "note" | "list" | "rules"
 type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
 const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
@@ -183,7 +164,6 @@ const STAGE_VERBS: Record<string, string[]> = {
 
 const NARRATIVE_FOLLOW_SLACK = 2
 const FOLLOW_RESUME_THRESHOLD = 1
-const CLUSTERABLE_TOOLS = new Set(["task", "question", "skill", "reflection"])
 
 type ThemeShape = ReturnType<typeof useTheme>["theme"]
 
@@ -568,7 +548,7 @@ export function Session() {
       case "applied":
         return theme.success
       case "rejected":
-        return theme.danger
+        return theme.error
       case "stale":
         return theme.textMuted
     }
@@ -893,7 +873,7 @@ export function Session() {
   const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
   const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0 || approvalQueueCount() > 0)
   const hasAuditNeed = createMemo(() => workstationState().auditSummary.posture !== "clear")
-  const hasRefineNeed = createMemo(() => !!refinedPrompt() || workstationState().planQuality?.decision === "pause")
+  const hasRefineNeed = createMemo(() => workstationState().planQuality?.decision === "pause")
 
   const recentTools = createMemo(() => {
     const items: Array<{ tool: string; status: string; label: string; command?: string; output?: string }> = []
@@ -1066,8 +1046,13 @@ export function Session() {
 
       if (pending() && liveNext) {
         return {
-          tone: stage === "executing" ? "accent" as const : "primary" as const,
-          title: stage === "planning" ? "Planning next move" : stage === "verifying" ? "Carrying verification forward" : "Following live step",
+          tone: stage === "executing" ? ("accent" as const) : ("primary" as const),
+          title:
+            stage === "planning"
+              ? "Planning next move"
+              : stage === "verifying"
+                ? "Carrying verification forward"
+                : "Following live step",
           detail: voice(liveNext),
         }
       }
@@ -1308,12 +1293,16 @@ export function Session() {
     if (activePaneMode() === "memory") void refreshMemorySnapshot()
   })
 
-  const paneBadge = (mode: PaneMode) => {
+  const paneBadge = (mode: PaneMode): string | undefined => {
     switch (mode) {
       case "approvals":
-        return workstationState().approvalSummary.pendingCount || undefined
+        return workstationState().approvalSummary.pendingCount > 0
+          ? String(workstationState().approvalSummary.pendingCount)
+          : undefined
       case "audit":
-        return workstationState().auditSummary.findingsCount || undefined
+        return workstationState().auditSummary.findingsCount > 0
+          ? String(workstationState().auditSummary.findingsCount)
+          : undefined
       default:
         return undefined
     }
@@ -1419,7 +1408,7 @@ export function Session() {
             scrollAcceleration={scrollAcceleration()}
             paddingBottom={1}
           >
-            <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} gap={1}>
+            <box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={1} gap={0}>
               <Show when={!followEnabled() && streamItems().length > 0}>
                 <box
                   paddingLeft={1}
@@ -1451,7 +1440,9 @@ export function Session() {
                   <>
                     <StreamItem
                       item={item}
+                      index={index()}
                       isLast={index() === lastMessageIndex()}
+                      previousItem={index() > 0 ? streamItems()[index() - 1] : undefined}
                       onNavigateToApprovals={openApprovalsPane}
                       MessageComponent={Message}
                     />
@@ -1816,7 +1807,7 @@ export function Session() {
   )
 }
 
-function Message(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: Part[] }) {
+function Message(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: Part[]; suppressHeader?: boolean }) {
   const ctx = use()
   const sync = useSync()
   const { theme } = useTheme()
@@ -1856,10 +1847,19 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
 
   if (props.message.role === "user") {
     return (
-      <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
-        <box flexDirection="row" gap={1} alignItems="center">
-          <text fg={fadeFg() ?? tint(theme.textMuted, theme.primary, 0.5)} dim>
-            ● user
+      <box
+        paddingLeft={1}
+        paddingRight={1}
+        marginTop={1}
+        marginBottom={0}
+        paddingTop={0}
+        paddingBottom={1}
+        border={["left"]}
+        borderColor={fadeFg() ?? tint(theme.borderSubtle, theme.primary, 0.4)}
+      >
+        <box flexDirection="row" gap={1} alignItems="center" marginLeft={1}>
+          <text fg={fadeFg() ?? theme.primary} attributes={TextAttributes.BOLD}>
+            you
           </text>
           <Show when={ctx.showTimestamps()}>
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -1867,7 +1867,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             </text>
           </Show>
         </box>
-        <box paddingLeft={2} marginTop={0}>
+        <box marginLeft={1} marginTop={0}>
           <text fg={fadeFg() ?? theme.text} wrapMode="word">
             {(props.partsOverride ?? sync.data.part[props.message.id] ?? [])
               .filter((p): p is TextPart => p.type === "text" && !p.synthetic)
@@ -1881,11 +1881,6 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
 
   const parts = createMemo(() => props.partsOverride ?? sync.data.part[props.message.id] ?? [])
   const showMetadata = createMemo(() => ctx.showAssistantMetadata())
-
-  const agentName = createMemo(() => (props.message as AssistantMessage).agent?.toLowerCase() ?? "")
-  const conversationalAssistant = createMemo(
-    () => props.message.role === "assistant" && !SUB_TASK_AGENTS_UI.has(agentName()),
-  )
 
   const roleLabel = createMemo(() => {
     if (props.message.role === "user") return "USER"
@@ -1935,99 +1930,36 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     }
   })
 
-  const reasoningParts = createMemo(() => parts().filter((p): p is ReasoningPart => p.type === "reasoning"))
-  const toolParts = createMemo(() => parts().filter((p): p is ToolPart => p.type === "tool"))
-  const semanticNarrative = createMemo(() => deriveSemanticNarrativeSections(parts()))
-  const thinkingLead = createMemo(() => summarizeThinkingLead(parts(), semanticNarrative()))
-  const nextMove = createMemo(() => {
-    if (semanticNarrative().next) return semanticNarrative().next
-    const lastTool = toolParts()[toolParts().length - 1]
-    return lastTool ? deriveToolNarrativeDescriptor(lastTool)?.next : undefined
-  })
-
-  const renderableParts = createMemo(() => {
-    const result: GroupedPart[] = []
-    let contextGroup: ToolPart[] = []
-    let activityCluster: ToolPart[] = []
-
-    const flushContextGroup = () => {
-      if (contextGroup.length > 0) {
-        result.push({ type: "context-group", tools: contextGroup })
-        contextGroup = []
-      }
-    }
-
-    const flushActivityCluster = () => {
-      if (activityCluster.length === 0) return
-      if (activityCluster.length === 1) {
-        result.push(activityCluster[0]!)
-      } else {
-        result.push({ type: "activity-cluster", tools: activityCluster })
-      }
-      activityCluster = []
-    }
-
-    for (const part of parts()) {
-      if (part.type === "tool") {
-        if (HIDDEN_TOOLS.has(part.tool)) continue
-        if (CONTEXT_GROUP_TOOLS.has(part.tool)) {
-          flushActivityCluster()
-          contextGroup.push(part)
-        } else if (CLUSTERABLE_TOOLS.has(part.tool.toLowerCase())) {
-          flushContextGroup()
-          activityCluster.push(part)
-        } else {
-          flushContextGroup()
-          flushActivityCluster()
-          result.push(part)
-        }
-      } else {
-        flushContextGroup()
-        flushActivityCluster()
-        result.push(part)
-      }
-    }
-    flushContextGroup()
-    flushActivityCluster()
-    return result
-  })
-
-  const assistantNarrative = createMemo(() =>
-    composeAssistantNarrative({
-      thinkingLead: thinkingLead(),
-      reasoning: reasoningParts().map((part) => cleanReasoningText(part.text)).filter(Boolean),
-      reasoningFallback: semanticNarrative().reasoningFallback ?? [],
-      doingLead: semanticNarrative().doingLead,
-      result: semanticNarrative().result,
-      next: nextMove(),
+  // Flat sequential parts — no grouping. Each tool renders individually in order.
+  const renderableParts = createMemo(() =>
+    parts().filter((part) => {
+      if (part.type === "tool") return !HIDDEN_TOOLS.has(part.tool)
+      return true
     }),
   )
 
-  const renderActivityRail = () => (
-    <Show when={renderableParts().some((part) => part.type === "tool" || part.type === "context-group" || part.type === "activity-cluster")}>
-      <box paddingTop={assistantNarrative() ? 1 : 0}>
-        <For each={renderableParts().filter((part) => part.type === "tool" || part.type === "context-group" || part.type === "activity-cluster")}>
-          {(part, index) => {
-            const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
-            return (
-              <Show when={component()}>
-                <Dynamic
-                  last={index() === renderableParts().length - 1}
-                  component={component()}
-                  part={part as any}
-                  message={props.message as AssistantMessage}
-                  marginTop={0}
-                />
-              </Show>
-            )
-          }}
-        </For>
-      </box>
-    </Show>
+  const isPendingEmpty = createMemo(
+    () => props.message.role === "assistant" && !final() && renderableParts().length === 0,
   )
 
   return (
-    <Show when={renderableParts().length > 0 || !!props.message.error}>
+    <Show when={renderableParts().length > 0 || !!props.message.error || isPendingEmpty()}>
+      {/* Pre-token loading state: role header + thinking spinner */}
+      <Show when={isPendingEmpty()}>
+        <box flexDirection="column" marginTop={0} marginBottom={0}>
+          <Show when={!props.suppressHeader}>
+            <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} paddingRight={1} marginBottom={1}>
+              <text fg={roleColor()} attributes={TextAttributes.BOLD}>
+                {roleLabel().toLowerCase()}
+              </text>
+            </box>
+          </Show>
+          <box flexDirection="row" gap={2} paddingLeft={2} alignItems="center" marginBottom={1}>
+            <Spinner color={tint(theme.textMuted, roleColor(), 0.35)} />
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>thinking</text>
+          </box>
+        </box>
+      </Show>
       <Show when={renderableParts().length > 0}>
         <box
           paddingLeft={0}
@@ -2039,52 +1971,44 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
           marginTop={0}
           marginBottom={0}
         >
-          <box
-            flexDirection="row"
-            gap={1}
-            alignItems="center"
-            paddingTop={0}
-            paddingBottom={0}
-            marginBottom={1}
-            paddingLeft={1}
-            paddingRight={1}
-          >
-            <text fg={tint(theme.textMuted, roleColor(), 0.5)} dim>
-              ● {roleLabel().toLowerCase()}
-            </text>
-            <Show when={ctx.showTimestamps()}>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-                {Locale.todayTimeOrDateTime(props.message.time.created)}
-              </text>
-            </Show>
-          </box>
-          <box paddingLeft={1} paddingRight={1} paddingBottom={0} flexDirection="column" gap={0}>
-            <Show
-              when={conversationalAssistant()}
-              fallback={
-                <For each={renderableParts()}>
-                  {(part, index) => {
-                    const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
-                    return (
-                      <Show when={component()}>
-                        <Dynamic
-                          last={index() === renderableParts().length - 1}
-                          component={component()}
-                          part={part as any}
-                          message={props.message as AssistantMessage}
-                          marginTop={0}
-                        />
-                      </Show>
-                    )
-                  }}
-                </For>
-              }
+          <Show when={!props.suppressHeader}>
+            <box
+              flexDirection="row"
+              gap={1}
+              alignItems="center"
+              paddingTop={0}
+              paddingBottom={0}
+              marginBottom={1}
+              paddingLeft={1}
+              paddingRight={1}
             >
-              <Show when={assistantNarrative()}>
-                <NarrativeMarkdown content={assistantNarrative()!} tone="result" marginTop={0} />
+              <text fg={roleColor()} attributes={TextAttributes.BOLD}>
+                {roleLabel().toLowerCase()}
+              </text>
+              <Show when={ctx.showTimestamps()}>
+                <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                  {Locale.todayTimeOrDateTime(props.message.time.created)}
+                </text>
               </Show>
-              {renderActivityRail()}
-            </Show>
+            </box>
+          </Show>
+          <box paddingLeft={0} paddingRight={0} paddingBottom={0} flexDirection="column" gap={0}>
+            <For each={renderableParts()}>
+              {(part, index) => {
+                const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
+                return (
+                  <Show when={component()}>
+                    <Dynamic
+                      last={index() === renderableParts().length - 1}
+                      component={component()}
+                      part={part as any}
+                      message={props.message as AssistantMessage}
+                      marginTop={0}
+                    />
+                  </Show>
+                )
+              }}
+            </For>
           </box>
         </box>
       </Show>
@@ -2097,7 +2021,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
           marginTop={1}
           backgroundColor={tint(theme.background, theme.error, 0.15)}
         >
-          <text fg={theme.error}>{props.message.error?.data.message}</text>
+          <text fg={theme.error}>{textValue(props.message.error?.data.message, "Unknown session error")}</text>
         </box>
       </Show>
     </Show>
@@ -2108,127 +2032,12 @@ const PART_MAPPING = {
   text: TextPart,
   tool: ToolPart,
   reasoning: ReasoningPart,
-  "activity-cluster": ActivityClusterPart,
-  "context-group": ContextGroupPart,
 }
 
 function relativizePath(absPath: string, workspaceDir: string): string {
   if (!absPath || !workspaceDir) return absPath
   const normalized = workspaceDir.endsWith("/") ? workspaceDir : workspaceDir + "/"
   return absPath.startsWith(normalized) ? absPath.slice(normalized.length) : absPath
-}
-
-function ContextGroupPart(props: { part: { type: "context-group"; tools: ToolPart[] } }) {
-  const { theme } = useTheme()
-  const sync = useSync()
-
-  const hasActive = createMemo(() =>
-    props.part.tools.some((t) => t.state.status === "pending" || t.state.status === "running"),
-  )
-
-  // Each tool contributes one path to show; filter out empty entries
-  const rows = createMemo(() =>
-    props.part.tools
-      .map((p) => {
-        const input = (p.state.status !== "pending" ? p.state.input : {}) as any
-        const rawPath: string = input?.filePath || input?.path || input?.pattern || input?.query || ""
-        const displayPath = relativizePath(rawPath, sync.data.path.directory)
-        const icon =
-          p.tool === "glob" || p.tool === "list"
-            ? "✦"
-            : p.tool === "grep" || p.tool === "codesearch"
-              ? "⌕"
-              : p.tool === "webfetch" || p.tool === "websearch"
-                ? "↗"
-                : "→"
-        return displayPath ? { icon, path: displayPath } : null
-      })
-      .filter((r): r is { icon: string; path: string } => r !== null),
-  )
-
-  return (
-    <Show when={rows().length > 0 || hasActive()} fallback={null}>
-      <box
-        flexDirection="row"
-        gap={1}
-        marginTop={1}
-        marginBottom={0}
-        marginLeft={2}
-        marginRight={1}
-      >
-        <text fg={hasActive() ? tint(theme.primary, theme.text, 0.35) : theme.borderSubtle}>│</text>
-        <box flexDirection="column" gap={0}>
-          <box flexDirection="row" gap={1} alignItems="center">
-            <Show when={hasActive()} fallback={<text fg={theme.textMuted}>·</text>}>
-              <Spinner color={theme.primary} />
-            </Show>
-            <text fg={hasActive() ? theme.text : theme.textMuted} wrapMode="word">
-              {hasActive()
-                ? `Reviewing ${rows().length || props.part.tools.length} source${(rows().length || props.part.tools.length) === 1 ? "" : "s"} to ground this step.`
-                : `Reviewed ${rows().length || props.part.tools.length} source${(rows().length || props.part.tools.length) === 1 ? "" : "s"} to ground this step.`}
-            </text>
-          </box>
-          <Show when={rows().length > 0}>
-            <box flexDirection="column" gap={0} paddingTop={0.5}>
-              <For each={rows().slice(0, 3)}>
-                {(row) => (
-                  <box flexDirection="row" gap={1} alignItems="flex-start">
-                    <text fg={theme.textMuted} dim flexShrink={0}>
-                      {row.icon}
-                    </text>
-                    <text fg={theme.textMuted} dim wrapMode="truncate-end">
-                      {row.path}
-                    </text>
-                  </box>
-                )}
-              </For>
-              <Show when={rows().length > 3}>
-                <text fg={theme.textMuted} dim>
-                  +{rows().length - 3} more sources
-                </text>
-              </Show>
-            </box>
-          </Show>
-        </box>
-      </box>
-    </Show>
-  )
-}
-
-function ActivityClusterPart(props: { part: { type: "activity-cluster"; tools: ToolPart[] } }) {
-  return <ActivityCluster tools={props.part.tools} />
-}
-
-function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOperatorTraceLine>>) {
-  switch (trace.action) {
-    case "READ":
-      return `Read \`${trace.target}\` to gather the needed context.`
-    case "GLOB":
-    case "LIST":
-      return `Scanned \`${trace.target}\` to map the relevant files.`
-    case "GREP":
-      return `Searched \`${trace.target}\` to isolate the relevant matches.`
-    case "SHELL":
-      return `Ran \`${trace.target}\` to check the current state.`
-    case "WRITE":
-      return `Wrote \`${trace.target}\` to land the scoped change.`
-    case "EDIT":
-      return `Edited \`${trace.target}\` to refine the scoped change.`
-    case "PATCH":
-      return `Patched \`${trace.target}\` to update the workspace precisely.`
-    case "TASK":
-      return `Structured \`${trace.target}\` so the next move stays clear.`
-    case "TODO":
-      return `Updated \`${trace.target}\` so progress stays visible.`
-    case "QUESTION":
-      return `Raised \`${trace.target}\` to unblock the next decision.`
-    case "SKILL":
-      return `Loaded \`${trace.target}\` to bring the right workflow into the run.`
-    case "REFLECTION":
-      return `Captured \`${trace.target}\` to keep the run grounded.`
-    default:
-      return `${trace.summary}.`
-  }
 }
 
 function extractResultMeta(result: string | undefined): string | undefined {
@@ -2238,384 +2047,30 @@ function extractResultMeta(result: string | undefined): string | undefined {
   return m?.[1]
 }
 
-function NarrativeToolList(props: { tools: ToolPart[] }) {
-  const { theme } = useTheme()
-  const traces = createMemo(() => props.tools.map((tool) => ({ tool, trace: deriveOperatorTraceLine(tool) })))
-  const activeItems = createMemo(() =>
-    traces().filter((item) => item.tool.state.status === "pending" || item.tool.state.status === "running"),
-  )
-  const completedItems = createMemo(() => traces().filter((item) => item.tool.state.status === "completed"))
-  const failedItems = createMemo(() => traces().filter((item) => item.tool.state.status === "error"))
-  const header = createMemo(() => {
-    if (activeItems().length > 0) {
-      const first = activeItems()[0]
-      const sentence = first?.trace ? describeNarrativeTrace(first.trace) : deriveToolNarrativeDescriptor(first!.tool)?.sentence
-      if (activeItems().length === 1) return sentence ?? "I’m working through the current step."
-      return `${sentence ?? "I’m working through the current step."} +${activeItems().length - 1} more tool${activeItems().length === 2 ? "" : "s"} running.`
-    }
-    if (failedItems().length > 0) {
-      return `This step hit ${failedItems().length} failed tool${failedItems().length === 1 ? "" : "s"}.`
-    }
-    if (completedItems().length > 0) {
-      return `Checked ${completedItems().length} related thing${completedItems().length === 1 ? "" : "s"} to move this step forward.`
-    }
-    return undefined
-  })
-  const visibleItems = createMemo(() => {
-    const preferred = activeItems().length > 0 ? activeItems() : traces()
-    return preferred.slice(0, 3)
-  })
-  const hiddenCount = createMemo(() => Math.max(0, traces().length - visibleItems().length))
-
-  return (
-    <box
-      flexDirection="row"
-      gap={1}
-      marginTop={1}
-      marginBottom={0}
-      marginLeft={2}
-      marginRight={1}
-    >
-      <text fg={activeItems().length > 0 ? tint(theme.primary, theme.text, 0.35) : theme.borderSubtle}>│</text>
-      <box flexDirection="column" gap={0}>
-        <Show when={header()}>
-          <box paddingTop={0} paddingBottom={0}>
-            <text
-              fg={activeItems().length > 0 ? theme.text : failedItems().length > 0 ? theme.error : theme.textMuted}
-              wrapMode="word"
-            >
-              {header()!}
-            </text>
-          </box>
-        </Show>
-
-        <Show when={visibleItems().length > 0}>
-          <box flexDirection="column" gap={0} paddingTop={0.5}>
-            <For each={visibleItems()}>
-              {(item) => {
-                const descriptor = createMemo(() => deriveToolNarrativeDescriptor(item.tool))
-                const active = createMemo(() => item.tool.state.status === "pending" || item.tool.state.status === "running")
-                return (
-                  <box flexDirection="row" gap={1} alignItems="flex-start" marginBottom={0.5}>
-                    <Show when={active()} fallback={<text fg={theme.textMuted}>·</text>}>
-                      <Spinner color={theme.primary} />
-                    </Show>
-                    <text fg={active() ? theme.text : theme.textMuted} wrapMode="word">
-                      {descriptor()?.sentence ?? (item.trace ? describeNarrativeTrace(item.trace) : item.tool.tool)}
-                    </text>
-                  </box>
-                )
-              }}
-            </For>
-          </box>
-        </Show>
-
-        <Show when={hiddenCount() > 0}>
-          <box paddingTop={0} paddingBottom={0}>
-            <text fg={theme.textMuted} dim>
-              +{hiddenCount()} more tool{hiddenCount() === 1 ? "" : "s"} tucked into this step
-            </text>
-          </box>
-        </Show>
-      </box>
-    </box>
-  )
-}
-
-function ActivityCluster(props: { tools: ToolPart[] }) {
-  return <NarrativeToolList tools={props.tools} />
-}
-
-type SemanticNarrativeSections = {
-  doingLead?: string
-  next?: string
-  result?: string
-  reasoningFallback?: string[]
+function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOperatorTraceLine>>) {
+  switch (trace.action) {
+    case "READ": return `Read \`${trace.target}\` to gather the needed context.`
+    case "GLOB":
+    case "LIST": return `Scanned \`${trace.target}\` to map the relevant files.`
+    case "GREP": return `Searched \`${trace.target}\` to isolate the relevant matches.`
+    case "SHELL": return `Ran \`${trace.target}\` to check the current state.`
+    case "WRITE": return `Wrote \`${trace.target}\` to land the scoped change.`
+    case "EDIT": return `Edited \`${trace.target}\` to refine the scoped change.`
+    case "PATCH": return `Patched \`${trace.target}\` to update the workspace precisely.`
+    case "TASK": return `Structured \`${trace.target}\` so the next move stays clear.`
+    case "TODO": return `Updated \`${trace.target}\` so progress stays visible.`
+    case "QUESTION": return `Raised \`${trace.target}\` to unblock the next decision.`
+    case "SKILL": return `Loaded \`${trace.target}\` to bring the right workflow into the run.`
+    case "REFLECTION": return `Captured \`${trace.target}\` to keep the run grounded.`
+    default: return `${trace.summary}.`
+  }
 }
 
 function cleanReasoningText(text: string) {
   return text
-    .replace("[REDACTED]", "")
+    .replace(/\[REDACTED\]/g, "")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .trim()
-}
-
-function latestReflectionTool(parts: Part[]) {
-  return parts.findLast((part): part is ToolPart => part.type === "tool" && part.tool.toLowerCase() === "reflection")
-}
-
-function sentence(value: string | undefined) {
-  const normalized = value?.replace(/\s+/g, " ").trim()
-  if (!normalized) return undefined
-  return /[.!?]$/.test(normalized) ? normalized : `${normalized}.`
-}
-
-function joinNaturalList(values: string[]) {
-  if (values.length === 0) return ""
-  if (values.length === 1) return values[0]!
-  if (values.length === 2) return `${values[0]} and ${values[1]}`
-  return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`
-}
-
-function normalizeNarrativeSentence(value: string | undefined) {
-  const normalized = sentence(value)
-  if (!normalized) return undefined
-  if (/^found:\s*/i.test(normalized)) {
-    const rest = normalized.replace(/^found:\s*/i, "")
-    return sentence(`I found ${rest}`) ?? normalized
-  }
-  if (/^got it[—-]/i.test(normalized)) {
-    return sentence(normalized.replace(/^got it[—-]\s*/i, "")) ?? normalized
-  }
-  if (/^checkpoint\s*(?::|-|—)\s*/i.test(normalized)) {
-    return sentence(normalized.replace(/^checkpoint\s*(?::|-|—)\s*/i, "")) ?? normalized
-  }
-  return normalized
-}
-
-function collapseNarrativeParagraphs(lines: string[]) {
-  if (lines.length === 0) return undefined
-  const hasStructuredLines = lines.some((line) =>
-    /^([-*]|\d+\.)\s/.test(line) || /^#{1,6}\s/.test(line) || /^\*\*/.test(line),
-  )
-  if (hasStructuredLines) return lines.join("\n")
-  return lines.join(" ")
-}
-
-function stripNarrativePrefix(line: string, label: string) {
-  return sentence(line.replace(new RegExp(`^${label}\\s*(?::|-|—)\\s*`, "i"), "").trim())
-}
-
-function simplifyGoalToThinking(goal: string | undefined) {
-  const normalized = goal?.replace(/\s+/g, " ").trim()
-  if (!normalized) return undefined
-  const lower = normalized.toLowerCase()
-  if (lower.includes("ready to release") || lower.includes("release readiness") || lower.includes("production readiness")) {
-    return "I’m checking whether DAX is ready to release."
-  }
-  if (lower.includes("release")) return "I’m mapping the release plan against the current repo state."
-  if (lower.includes("stream")) return "I’m shaping the live stream so it stays clear while work is happening."
-  if (lower.includes("ui") || lower.includes("ux")) return "I’m tightening the UX so the work stays easy to follow."
-  return undefined
-}
-
-function deriveSemanticNarrativeSections(parts: Part[]): SemanticNarrativeSections {
-  const text = parts
-    .filter((part): part is TextPart => part.type === "text" && !part.synthetic)
-    .map((part) => part.text)
-    .join("\n")
-    .trim()
-
-  const checkpoints: string[] = []
-  const nextMoves: string[] = []
-  const results: string[] = []
-
-  if (text) {
-    for (const rawLine of text.split(/\n+/)) {
-      const line = rawLine.trim()
-      if (!line) continue
-      if (/^checkpoint\s*(?::|-|—)/i.test(line)) {
-        const value = normalizeNarrativeSentence(stripNarrativePrefix(line, "checkpoint"))
-        if (value) checkpoints.push(value)
-        continue
-      }
-      if (/^next\s*(?::|-|—)/i.test(line)) {
-        const value = normalizeNarrativeSentence(stripNarrativePrefix(line, "next"))
-        if (value) nextMoves.push(value)
-        continue
-      }
-      const value = normalizeNarrativeSentence(line)
-      if (value) results.push(value)
-    }
-  }
-
-  const reflection = latestReflectionTool(parts)
-  const reflectionInput =
-    reflection?.state.status !== "pending" ? ((reflection?.state.input ?? {}) as Record<string, any>) : {}
-  const reasoningFallback: string[] = []
-  const ambiguities: string[] = []
-  const risks: string[] = []
-  const verificationPlan: string[] = []
-
-  const reflectionReasoning = sentence(
-    typeof reflectionInput.justification === "string"
-      ? reflectionInput.justification
-      : typeof reflectionInput.outcome_expected === "string"
-        ? reflectionInput.outcome_expected
-        : undefined,
-  )
-  if (reflectionReasoning) reasoningFallback.push(reflectionReasoning)
-
-  if (Array.isArray(reflectionInput.ambiguities)) {
-    for (const item of reflectionInput.ambiguities) {
-      if (typeof item === "string") {
-        const normalized = item.replace(/\s+/g, " ").trim()
-        if (normalized) ambiguities.push(normalized)
-      }
-    }
-  }
-
-  if (Array.isArray(reflectionInput.risks)) {
-    for (const risk of reflectionInput.risks) {
-      if (risk && typeof risk.item === "string") {
-        const normalized = risk.item.replace(/\s+/g, " ").trim()
-        if (normalized) risks.push(normalized)
-      }
-    }
-  }
-
-  if (Array.isArray(reflectionInput.verificationPlan)) {
-    for (const item of reflectionInput.verificationPlan) {
-      if (typeof item === "string") {
-        const normalized = item.replace(/\s+/g, " ").trim()
-        if (normalized) verificationPlan.push(normalized)
-      }
-    }
-  }
-
-  if (ambiguities.length > 0) {
-    const normalized = sentence(`I still need to pin down ${joinNaturalList(ambiguities)}`)
-    if (normalized) reasoningFallback.push(normalized)
-  }
-
-  if (risks.length > 0) {
-    const normalized = sentence(`The main risks here are ${joinNaturalList(risks)}`)
-    if (normalized) reasoningFallback.push(normalized)
-  }
-
-  if (verificationPlan.length > 0) {
-    const normalized = sentence(`I’ll verify this by ${joinNaturalList(verificationPlan.map((item) => item.charAt(0).toLowerCase() + item.slice(1)))}`)
-    if (normalized) reasoningFallback.push(normalized)
-  }
-
-  if (reasoningFallback.length === 0) {
-    const hasContext = parts.some((part) => part.type === "tool" && CONTEXT_GROUP_TOOLS.has(part.tool.toLowerCase()))
-    const hasShell = parts.some((part) => part.type === "tool" && part.tool.toLowerCase() === "shell")
-    const hasPlanningTool = parts.some((part) =>
-      part.type === "tool" && ["task", "question", "skill", "reflection"].includes(part.tool.toLowerCase()),
-    )
-    if (hasShell) {
-      reasoningFallback.push("I want direct command evidence so the guidance reflects the repo’s actual state.")
-    } else if (hasContext) {
-      reasoningFallback.push("I’m grounding this in repo evidence first so the guidance stays concrete and trustworthy.")
-    } else if (hasPlanningTool) {
-      reasoningFallback.push("I’m shaping the next step so the run stays clear, scoped, and easy to follow.")
-    }
-  }
-
-  return {
-    doingLead: checkpoints[0],
-    next: nextMoves[0] ?? checkpoints[1],
-    result: collapseNarrativeParagraphs(results),
-    reasoningFallback,
-  }
-}
-
-function summarizeThinkingLead(parts: Part[], sections?: SemanticNarrativeSections) {
-  const reflectionGoal =
-    latestReflectionTool(parts)?.state.status !== "pending"
-      ? simplifyGoalToThinking((latestReflectionTool(parts)?.state.input as any)?.goal)
-      : undefined
-  if (reflectionGoal) return reflectionGoal
-
-  const freeformResult = sections?.result
-  if (freeformResult) {
-    const firstLine = sentence(freeformResult.split(/\n+/)[0])
-    if (firstLine && firstLine.length <= 72) return firstLine
-  }
-
-  const activeTool = parts.findLast((part) => part.type === "tool" && (part.state.status === "pending" || part.state.status === "running"))
-  const recentTool = activeTool ?? parts.findLast((part) => part.type === "tool")
-  if (recentTool?.type === "tool") {
-    const tool = recentTool.tool.toLowerCase()
-    if (CONTEXT_GROUP_TOOLS.has(tool)) return "Trying to figure this out."
-    if (tool === "task" || tool === "question" || tool === "skill" || tool === "reflection") {
-      return "Thinking through the next step."
-    }
-    if (tool === "write" || tool === "edit" || tool === "apply_patch") {
-      return "Thinking through the safest way to make this change."
-    }
-    if (tool === "shell") return "Thinking through the next action."
-  }
-
-  const reasoning = parts.find((part) => part.type === "reasoning" && cleanReasoningText(part.text))
-  if (reasoning?.type === "reasoning") return "Trying to figure this out."
-
-  const hasText = parts.some((part) => part.type === "text" && part.text.trim().length > 0)
-  const hasTools = parts.some((part) => part.type === "tool")
-  if (hasText && !hasTools && !reasoning) return undefined
-  if (hasText) return "Summing up what I found."
-  return undefined
-}
-
-function dedupeNarrativeLines(lines: Array<string | undefined | null | false>) {
-  const seen = new Set<string>()
-  return lines.filter((line) => {
-    if (typeof line !== "string") return false
-    const key = line.trim().toLowerCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function normalizeNarrativeNext(value: string | undefined) {
-  const normalized = sentence(value)
-  if (!normalized) return undefined
-  const simplified = normalized.toLowerCase()
-  if (
-    simplified.includes("carry that structure into the next visible step") ||
-    simplified.includes("roll the result into the next operator step") ||
-    simplified.includes("review the command result and decide the next move") ||
-    simplified.includes("wait for the command result, then verify it") ||
-    simplified.includes("use the result to choose the next concrete check") ||
-    simplified.includes("let the planning step settle before acting")
-  ) {
-    return undefined
-  }
-  if (/^next[:,]?\s*/i.test(normalized)) return normalized
-  if (/^(i('|’)ll|i will|we('|’)ll|we will|then)\b/i.test(normalized)) return normalized
-  return `Next, ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`
-}
-
-function composeAssistantNarrative(input: {
-  thinkingLead?: string
-  reasoning: string[]
-  reasoningFallback: string[]
-  doingLead?: string
-  result?: string
-  next?: string
-}) {
-  const paragraphs = dedupeNarrativeLines([
-    sentence(input.thinkingLead),
-    ...input.reasoning.map(sentence),
-    ...input.reasoningFallback.map(sentence),
-    sentence(input.doingLead),
-    sentence(input.result),
-    normalizeNarrativeNext(input.next),
-  ])
-
-  return paragraphs.length > 0 ? paragraphs.join("\n\n") : undefined
-}
-
-function NarrativeMarkdown(props: {
-  content: string
-  tone: "thinking" | "reasoning" | "doing" | "result" | "next"
-  marginTop?: number
-}) {
-  const { syntax, theme } = useTheme()
-  const ctx = use()
-  const fg = createMemo(() => {
-    if (props.tone === "reasoning" || props.tone === "next") return tint(theme.textMuted, theme.text, 0.35)
-    if (props.tone === "doing") return theme.text
-    return theme.text
-  })
-
-  return (
-    <box paddingLeft={2} paddingRight={2} marginTop={props.marginTop ?? 1} marginBottom={0}>
-      <markdown syntaxStyle={syntax()} streaming={true} content={props.content} conceal={ctx.conceal()} fg={fg()} />
-    </box>
-  )
 }
 
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage; marginTop?: number }) {
@@ -2623,23 +2078,46 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   const ctx = use()
   const content = createMemo(() => cleanReasoningText(props.part.text))
   const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
+  const lineCount = createMemo(() => content()?.split("\n").filter((l) => l.trim()).length ?? 0)
+  const [collapsed, setCollapsed] = createSignal(false)
 
   return (
     <Show when={content() && ctx.showThinking()}>
       <box
         id={"reasoning-" + props.part.id}
-        paddingLeft={2}
-        paddingRight={2}
+        flexDirection="column"
+        gap={0}
         marginTop={props.marginTop ?? 1}
         marginBottom={0}
+        paddingLeft={1}
       >
-        <markdown
-          syntaxStyle={syntax()}
-          streaming={true}
-          content={content()!}
-          conceal={ctx.conceal()}
-          fg={reasoningFg()}
-        />
+        <box
+          flexDirection="row"
+          gap={1}
+          alignItems="center"
+          onMouseUp={() => setCollapsed((c) => !c)}
+        >
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} flexShrink={0}>
+            {collapsed() ? "▸" : "▾"}
+          </text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>thinking</text>
+          <Show when={collapsed() && lineCount() > 0}>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              · {lineCount()} line{lineCount() === 1 ? "" : "s"}
+            </text>
+          </Show>
+        </box>
+        <Show when={!collapsed()}>
+          <box paddingTop={1} paddingRight={2}>
+            <markdown
+              syntaxStyle={syntax()}
+              streaming={true}
+              content={content()!}
+              conceal={ctx.conceal()}
+              fg={reasoningFg()}
+            />
+          </box>
+        </Show>
       </box>
     </Show>
   )
@@ -2681,12 +2159,7 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
       >
-        <markdown
-          syntaxStyle={syntax()}
-          streaming={true}
-          content={props.part.text.trim()}
-          conceal={ctx.conceal()}
-        />
+        <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
         <Show when={isStreaming()}>
           <text fg={theme.primary} attributes={TextAttributes.BOLD}>
             {cursorOn() ? "▋" : " "}
@@ -2697,241 +2170,114 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
   )
 }
 
-const BLOCK_TOOLS = new Set(["shell", "edit", "write", "apply_patch", "task", "question", "reflection", "skill"])
-
-function humanizeToolTitle(tool: string) {
+function toolDisplayName(tool: string): string {
   switch (tool.toLowerCase()) {
-    case "skill":
-      return "Skill"
-    case "reflection":
-      return "Checkpoint"
-    case "task":
-      return "Task"
-    case "question":
-      return "Question"
-    case "apply_patch":
-      return "Patch"
-    default:
-      return tool
+    case "shell": return "Bash"
+    case "read": return "Read"
+    case "write": return "Write"
+    case "edit": return "Edit"
+    case "apply_patch": return "Patch"
+    case "glob": return "Glob"
+    case "grep": return "Grep"
+    case "list": return "List"
+    case "webfetch": return "Fetch"
+    case "websearch":
+    case "codesearch": return "Search"
+    case "task": return "Task"
+    case "reflection": return "Checkpoint"
+    case "question": return "Question"
+    case "skill": return "Skill"
+    default: return tool
+  }
+}
+
+function toolArgPreview(tool: string, input: Record<string, unknown>): string {
+  const s = (k: string) => textValue((input as any)[k])
+  const p = (k: string) => normalizePath(s(k))
+  const clip = (v: string, max = 56) => v.length > max ? v.slice(0, max - 1) + "…" : v
+  switch (tool.toLowerCase()) {
+    case "shell": return s("command")
+    case "read": return shortPath(p("filePath") || p("path"))
+    case "write": return shortPath(p("filePath"))
+    case "edit": return shortPath(p("filePath"))
+    case "apply_patch": {
+      const n = Object.keys((input.changes as any) ?? {}).length
+      return `${n} file${n === 1 ? "" : "s"}`
+    }
+    case "glob": return s("pattern")
+    case "grep": {
+      const pattern = s("pattern")
+      const path = p("path") || p("glob")
+      return path ? clip(`${pattern}, ${path}`) : clip(pattern)
+    }
+    case "list": return p("path")
+    case "webfetch": return clip(s("url"))
+    case "websearch":
+    case "codesearch": return clip(s("query"))
+    case "task": {
+      const agent = s("subagent_type") || "task"
+      const desc = s("description")
+      return desc ? clip(`${agent} — ${desc}`) : agent
+    }
+    case "reflection": return clip(s("goal") || s("summary") || "checkpoint")
+    case "question": return clip(s("question"))
+    case "skill": return s("name") || "skill"
+    default: return ""
   }
 }
 
 function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMessage; marginTop?: number }) {
-  const ctx = use()
   const sync = useSync()
-  const { theme } = useTheme()
-
-  const toolprops = {
-    get metadata() {
-      return props.part.state.status === "pending" ? {} : (props.part.state.metadata ?? {})
-    },
-    get input() {
-      return props.part.state.input ?? {}
-    },
-    get output() {
-      return props.part.state.status === "completed" ? props.part.state.output : undefined
-    },
-    get permission() {
-      const permissions = sync.data.permission[props.message.sessionID] ?? []
-      const permissionIndex = permissions.findIndex((x) => x.tool?.callID === props.part.callID)
-      return permissions[permissionIndex]
-    },
-    get tool() {
-      return props.part.tool
-    },
-    get part() {
-      return props.part
-    },
-    get marginTop() {
-      return props.marginTop
-    },
-  }
-
   const toolName = createMemo(() => props.part.tool.toLowerCase())
-  const isBlock = createMemo(() => BLOCK_TOOLS.has(toolName()))
-  const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
+  const input = createMemo(() => ((props.part.state.status !== "pending" ? props.part.state.input : {}) ?? {}) as Record<string, unknown>)
+  const output = createMemo(() => (props.part.state.status === "completed" ? props.part.state.output : undefined))
+  const metadata = createMemo(() => (props.part.state.status === "pending" ? {} : (props.part.state.metadata ?? {})))
+  const permission = createMemo(() => {
+    const perms = sync.data.permission[props.message.sessionID] ?? []
+    const i = perms.findIndex((x) => x.tool?.callID === props.part.callID)
+    return perms[i]
+  })
 
   return (
-    <Switch>
-      <Match when={toolName() === "shell"}>
-        <Bash {...toolprops} />
-      </Match>
-      <Match when={toolName() === "write"}>
-        <Write {...toolprops} />
-      </Match>
-      <Match when={toolName() === "edit"}>
-        <Edit {...toolprops} />
-      </Match>
-      <Match when={isBlock()}>
-        <BlockTool
-          title={humanizeToolTitle(props.part.tool)}
-          isRunning={isRunning()}
-          part={props.part}
-          input={toolprops.input}
-          output={toolprops.output}
-        >
-          <Switch>
-            <Match when={toolName() === "task"}>
-              <text fg={theme.text}>
-                {(toolprops.input as any).subagent_type ?? "Task"}: {(toolprops.input as any).description ?? ""}
-              </text>
-            </Match>
-            <Match when={toolName() === "question"}>
-              <text fg={theme.text}>{(toolprops.input as any).question ?? ""}</text>
-            </Match>
-            <Match when={toolName() === "apply_patch"}>
-              <text fg={theme.text}>
-                {(() => {
-                  const n = Object.keys((toolprops.input as any).changes ?? {}).length
-                  return `${n} file${n === 1 ? "" : "s"} patched`
-                })()}
-              </text>
-            </Match>
-            <Match when={toolName() === "reflection"}>
-              <text fg={theme.text}>
-                {(toolprops.input as any).goal ?? (toolprops.input as any).summary ?? "Locking in checkpoint"}
-              </text>
-            </Match>
-            <Match when={toolName() === "skill"}>
-              <text fg={theme.text}>
-                {(toolprops.input as any).name ?? "Loading skill"}
-              </text>
-            </Match>
-          </Switch>
-        </BlockTool>
-      </Match>
-      <Match when={true}>
-        <InlineTool
-          icon={props.part.state.status === "completed" ? "✓" : "◌"}
-          complete={props.part.state.status === "completed"}
-          pending={`Running ${props.part.tool}...`}
-          part={props.part}
-        >
-          <text fg={theme.textMuted}>{props.part.tool}</text>
-          <Show when={props.part.state.status === "completed" && (toolprops.input as any).filePath}>
-            <text fg={theme.textMuted}> {(toolprops.input as any).filePath}</text>
-          </Show>
-          <Show when={props.part.state.status === "completed" && (toolprops.input as any).pattern}>
-            <text fg={theme.textMuted}> {(toolprops.input as any).pattern}</text>
-          </Show>
-          <Show when={props.part.state.status === "completed" && (toolprops.input as any).url}>
-            <text fg={theme.textMuted}> {(toolprops.input as any).url}</text>
-          </Show>
-          <Show when={props.part.state.status === "completed" && (toolprops.input as any).query}>
-            <text fg={theme.textMuted}> {(toolprops.input as any).query}</text>
-          </Show>
-        </InlineTool>
-      </Match>
-    </Switch>
-  )
-}
-
-function InlineTool(props: {
-  icon: string
-  complete: boolean
-  pending: string
-  children: JSX.Element
-  part: ToolPart
-}) {
-  const { theme } = useTheme()
-  const isRunning = createMemo(() => props.part.state.status === "running" || props.part.state.status === "pending")
-
-  return (
-    <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1}>
-      <Show
-        when={isRunning() && !props.complete}
-        fallback={
-          <text fg={props.complete ? theme.textMuted : theme.textMuted}>{props.complete ? "⎿" : props.icon}</text>
-        }
-      >
-        <Spinner color={theme.primary} />
-      </Show>
-      <Show
-        when={props.complete}
-        fallback={
-          <text fg={theme.textMuted} dim>
-            {props.pending}
-          </text>
-        }
-      >
-        {props.children}
-      </Show>
-    </box>
-  )
-}
-
-function BlockTool(props: {
-  title: string
-  isRunning: boolean
-  part: ToolPart
-  input: Record<string, unknown>
-  output?: unknown
-  children?: JSX.Element
-}) {
-  const { theme } = useTheme()
-  const isCompleted = createMemo(() => props.part.state.status === "completed")
-  const hasError = createMemo(() => props.part.state.status === "error")
-  const accentColor = createMemo(() => (hasError() ? theme.error : isCompleted() ? theme.borderSubtle : theme.primary))
-
-  if (isCompleted() && !hasError()) {
-    return (
-      <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} marginTop={1}>
-        <text fg={theme.textMuted}>⎿</text>
-        <text fg={theme.textMuted}>{props.title.toLowerCase()}</text>
-        <Show when={props.children}>
-          <box flexDirection="row" gap={1} alignItems="center">
-            <text fg={theme.textMuted} dim>
-              —
-            </text>
-            {props.children}
-          </box>
-        </Show>
-      </box>
-    )
-  }
-
-  return (
-    <box
-      flexDirection="column"
-      gap={0}
-      marginTop={1}
-      marginBottom={0}
-      marginLeft={1}
-      marginRight={1}
-      paddingLeft={1}
-      paddingRight={1}
-      borderStyle="rounded"
-      borderColor={accentColor()}
-      backgroundColor={theme.background}
+    <Show
+      when={toolName() === "shell"}
+      fallback={<ToolLine part={props.part} toolName={toolName()} input={input()} />}
     >
-      <box flexDirection="row" gap={1} alignItems="center" justifyContent="space-between">
-        <box flexDirection="row" gap={1} alignItems="center">
-          <box flexDirection="row" gap={0.5} marginRight={1}>
-            <text fg={theme.error}>●</text>
-            <text fg={theme.warning}>●</text>
-            <text fg={theme.success}>●</text>
-          </box>
-          <Show
-            when={!hasError() && !isCompleted()}
-            fallback={<text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "✓"}</text>}
-          >
-            <Spinner color={theme.primary} />
-          </Show>
-          <text
-            fg={hasError() ? theme.error : isCompleted() ? theme.textMuted : theme.primary}
-            attributes={props.isRunning ? TextAttributes.BOLD : undefined}
-          >
-            {props.title}
-          </text>
-          <Show when={props.children}>
-            <box flexDirection="row" gap={1} alignItems="center">
-              <text fg={theme.textMuted} dim>
-                —
-              </text>
-              {props.children}
-            </box>
-          </Show>
-        </box>
+      <Bash
+        part={props.part}
+        input={input() as any}
+        output={output() as any}
+        metadata={metadata() as any}
+        permission={permission() as any}
+        tool={props.part.tool}
+      />
+    </Show>
+  )
+}
+
+function ToolLine(props: { part: ToolPart; toolName: string; input: Record<string, unknown> }) {
+  const { theme } = useTheme()
+  const status = createMemo(() => props.part.state.status)
+  const isRunning = createMemo(() => status() === "running" || status() === "pending")
+  const hasError = createMemo(() => status() === "error")
+  const displayName = createMemo(() => toolDisplayName(props.toolName))
+  const argPreview = createMemo(() => toolArgPreview(props.toolName, props.input))
+
+  return (
+    <box flexDirection="column" gap={0} marginTop={1}>
+      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
+        <Show
+          when={!isRunning()}
+          fallback={<Spinner color={theme.primary} />}
+        >
+          <text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "⏺"}</text>
+        </Show>
+        <text fg={hasError() ? theme.error : isRunning() ? theme.primary : theme.text} attributes={isRunning() ? TextAttributes.BOLD : undefined}>
+          {" "}{displayName()}
+        </text>
+        <Show when={argPreview()}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>({argPreview()})</text>
+        </Show>
       </box>
     </box>
   )
@@ -2942,6 +2288,9 @@ function Bash(props: ToolProps<typeof ShellTool>) {
   const status = createMemo(() => props.part.state.status)
   const isRunning = createMemo(() => status() === "running" || status() === "pending")
   const hasError = createMemo(() => status() === "error")
+  const timing = createMemo<Record<string, unknown> | undefined>(() =>
+    "time" in props.part.state ? ((props.part.state.time ?? {}) as Record<string, unknown>) : undefined,
+  )
 
   const rawOutput = createMemo(() => {
     const raw =
@@ -2958,133 +2307,126 @@ function Bash(props: ToolProps<typeof ShellTool>) {
       .split("\n")
       .filter((l) => l.trim() !== ""),
   )
-  // Show the last 3 non-empty lines while streaming
-  const liveLines = createMemo(() => outputLines().slice(-3))
+  const previewLines = createMemo(() => outputLines().slice(0, 8))
+  const hiddenCount = createMemo(() => Math.max(0, outputLines().length - 8))
 
   const command = createMemo(() => String((props.input as any).command ?? ""))
-  const description = createMemo(() => String((props.input as any).description ?? ""))
   const displayCommand = createMemo(() => {
     const cmd = command()
-    return cmd.length > 58 ? cmd.slice(0, 55) + "…" : cmd
+    return cmd.length > 72 ? cmd.slice(0, 69) + "…" : cmd
   })
+  const exitCode = createMemo(() => {
+    const metadata = props.metadata as Record<string, unknown>
+    if (typeof metadata.exitCode === "number") return metadata.exitCode
+    if (typeof metadata.exit === "number") return metadata.exit
+    return undefined
+  })
+  const duration = createMemo(() => {
+    const start = timing()?.start
+    const end = timing()?.end
+    if (typeof start === "number" && typeof end === "number" && end >= start) {
+      return formatElapsed(end - start)
+    }
+    return undefined
+  })
+  const isNonZeroExit = createMemo(() => exitCode() !== undefined && exitCode() !== 0)
+  const liveLines = createMemo(() => outputLines().slice(-4))
 
   return (
-    <Switch>
-      {/* ── Running or errored: rounded terminal block ── */}
-      <Match when={isRunning() || hasError()}>
-        <box
-          flexDirection="column"
-          gap={0}
-          marginTop={1}
-          marginLeft={1}
-          marginRight={1}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingBottom={liveLines().length > 0 ? 0 : 1}
-          borderStyle="rounded"
-          borderColor={hasError() ? theme.error : theme.accent}
-          backgroundColor={theme.background}
+    <box flexDirection="column" gap={0} marginTop={1}>
+      {/* ── Header: ⏺ Bash(command) [status] ── */}
+      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
+        <Show
+          when={!isRunning()}
+          fallback={<Spinner color={theme.primary} />}
         >
-          {/* Header: ❯ command + spinner/error */}
-          <box flexDirection="row" gap={1} justifyContent="space-between" alignItems="center">
-            <box flexDirection="row" gap={1} alignItems="center">
-              <box flexDirection="row" gap={0.5} marginRight={1}>
-                <text fg={theme.error}>●</text>
-                <text fg={theme.warning}>●</text>
-                <text fg={theme.success}>●</text>
-              </box>
-              <text fg={hasError() ? theme.error : theme.accent} attributes={TextAttributes.BOLD}>
-                ❯
-              </text>
-              <text
-                fg={hasError() ? theme.error : theme.text}
-                attributes={isRunning() ? TextAttributes.BOLD : undefined}
-                wrapMode="none"
-              >
-                {displayCommand()}
-              </text>
-              <Show when={description()}>
-                <text fg={theme.textMuted} dim>
-                  — {description()}
-                </text>
-              </Show>
-            </box>
-            <Show when={isRunning()}>
-              <Spinner color={theme.accent} />
-            </Show>
-            <Show when={hasError()}>
-              <text fg={theme.error} attributes={TextAttributes.BOLD}>
-                ✗
-              </text>
-            </Show>
-          </box>
+          <text fg={hasError() || isNonZeroExit() ? theme.error : theme.success}>⏺</text>
+        </Show>
+        <text
+          fg={hasError() || isNonZeroExit() ? theme.error : isRunning() ? theme.primary : theme.text}
+          attributes={isRunning() ? TextAttributes.BOLD : undefined}
+        >
+          {" "}Bash
+        </text>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>({displayCommand()})</text>
+        <Show when={!isRunning() && duration()}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}> · {duration()}</text>
+        </Show>
+        <Show when={isNonZeroExit()}>
+          <text fg={theme.error} attributes={TextAttributes.DIM}> · exit {exitCode()}</text>
+        </Show>
+      </box>
 
-          {/* Separator + live output lines */}
-          <Show when={liveLines().length > 0}>
-            <box
-              flexDirection="column"
-              gap={0}
-              paddingTop={1}
-              paddingBottom={1}
-              paddingLeft={1}
-              border={["top"]}
-              borderColor={hasError() ? theme.error : tint(theme.borderSubtle, theme.background, 0.5)}
-            >
-              <For each={liveLines()}>
-                {(line) => (
-                  <text fg={hasError() ? theme.error : theme.textMuted} wrapMode="word">
-                    {line}
-                  </text>
-                )}
-              </For>
-            </box>
-          </Show>
+      {/* ── Live output while running ── */}
+      <Show when={isRunning() && liveLines().length > 0}>
+        <box flexDirection="column" gap={0} paddingLeft={3}>
+          <For each={liveLines()}>
+            {(line, i) => (
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end">
+                {i() === 0 ? "└ " : "  "}{line}
+              </text>
+            )}
+          </For>
         </box>
-      </Match>
+      </Show>
 
-      {/* ── Completed: compact single line ── */}
-      <Match when={true}>
-        <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1}>
-          <text fg={theme.textMuted}>⎿</text>
-          <text fg={theme.textMuted}>$</text>
-          <text fg={theme.textMuted}>{description() || displayCommand()}</text>
-          <Show when={description() && command()}>
-            <text fg={theme.textMuted} dim>
-              ({displayCommand()})
-            </text>
-          </Show>
-          <Show when={outputLines().length > 0}>
-            <text fg={theme.textMuted} dim>
-              · {String(outputLines().length)} lines
+      {/* ── Completed output (success or error) ── */}
+      <Show when={!isRunning() && previewLines().length > 0}>
+        <box flexDirection="column" gap={0} paddingLeft={3}>
+          <For each={previewLines()}>
+            {(line, i) => (
+              <text fg={hasError() || isNonZeroExit() ? theme.error : theme.textMuted} wrapMode="truncate-end">
+                {i() === 0 ? "└ " : "  "}{line}
+              </text>
+            )}
+          </For>
+          <Show when={hiddenCount() > 0}>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              … +{hiddenCount()} line{hiddenCount() === 1 ? "" : "s"}
             </text>
           </Show>
         </box>
-      </Match>
-    </Switch>
-  )
-}
-
-function Write(props: ToolProps<typeof WriteTool>) {
-  const { theme } = useTheme()
-  return (
-    <InlineTool icon="✓" pending="Writing file..." complete={props.part.state.status === "completed"} part={props.part}>
-      <text fg={theme.textMuted}>Wrote {normalizePath((props.input as any).filePath!)}</text>
-    </InlineTool>
-  )
-}
-
-function Edit(props: ToolProps<typeof EditTool>) {
-  const { theme } = useTheme()
-  return (
-    <InlineTool icon="✓" pending="Editing file..." complete={props.part.state.status === "completed"} part={props.part}>
-      <text fg={theme.textMuted}>Edited {normalizePath((props.input as any).filePath!)}</text>
-    </InlineTool>
+      </Show>
+    </box>
   )
 }
 
 function normalizePath(filePath: string) {
   if (!filePath) return ""
   return filePath.replace(/\\/g, "/")
+}
+
+// For display in tool arg previews: if path is long, show dir/basename only
+function shortPath(filePath: string): string {
+  if (!filePath) return ""
+  const normalized = normalizePath(filePath)
+  if (normalized.length <= 40) return normalized
+  const parts = normalized.split("/")
+  if (parts.length <= 2) return normalized
+  return parts.at(-2) + "/" + parts.at(-1)
+}
+
+function textValue(value: unknown, fallback = ""): string {
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value)
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => textValue(item))
+      .filter(Boolean)
+      .join(", ")
+    return summarize(joined || undefined, 140) ?? fallback
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    if (typeof record.message === "string") return record.message
+    if (typeof record.title === "string") return record.title
+    try {
+      return summarize(JSON.stringify(value), 140) ?? fallback
+    } catch {
+      return fallback
+    }
+  }
+  return fallback
 }
 
 function filetype(filePath?: string) {

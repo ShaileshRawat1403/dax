@@ -1,7 +1,7 @@
 import { createStore } from "solid-js/store"
 import { createMemo, For, Match, Show, Switch, type Component } from "solid-js"
 import { Portal, useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
-import type { TextareaRenderable } from "@opentui/core"
+import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useKeybind } from "../../context/keybind"
 import { useTheme, selectedForeground } from "../../context/theme"
 import type { PermissionRequest } from "@dax-ai/sdk/v2"
@@ -134,7 +134,7 @@ function RiskCallout(props: {
   return (
     <Show when={props.level !== "normal"}>
       <box paddingLeft={1} flexDirection="column" gap={0}>
-        <text fg={color()} attributes={1}>
+        <text fg={color()} attributes={TextAttributes.BOLD}>
           {label()}
         </text>
         <text fg={theme.textMuted}>{props.reason}</text>
@@ -260,11 +260,11 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                     <box flexDirection="row" gap={2} paddingLeft={1}>
                       <box flexDirection="row" gap={1}>
                         <text fg={theme.textMuted}>Files Touched:</text>
-                        <text fg={theme.primary}>{governanceSummary()!.files}</text>
+                        <text fg={theme.primary}>{String(governanceSummary()!.files)}</text>
                       </box>
                       <box flexDirection="row" gap={1}>
                         <text fg={theme.textMuted}>Mutations:</text>
-                        <text fg={theme.primary}>{governanceSummary()!.commands}</text>
+                        <text fg={theme.primary}>{String(governanceSummary()!.commands)}</text>
                       </box>
                     </box>
                   </Show>
@@ -546,7 +546,7 @@ function Prompt<const T extends Record<string, string>>(props: {
               <box
                 paddingLeft={1}
                 paddingRight={1}
-                backgroundColor={option === store.selected ? theme.warning : theme.backgroundMenu}
+                backgroundColor={option === store.selected ? theme.warning : theme.backgroundElement}
                 onMouseOver={() => setStore("selected", option)}
                 onMouseUp={() => {
                   setStore("selected", option)

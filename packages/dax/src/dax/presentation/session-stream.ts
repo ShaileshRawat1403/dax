@@ -186,22 +186,39 @@ function extractToolTarget(part: Part): string {
     return normalizePathLike(String((input as any).filePath ?? (input as any).path ?? "")) ?? "workspace file"
   }
   if (tool === "apply_patch") {
-    return normalizePathLike(String((metadata.filePath as string | undefined) ?? (input as any).filePath ?? "")) ?? "workspace patch"
+    return (
+      normalizePathLike(String((metadata.filePath as string | undefined) ?? (input as any).filePath ?? "")) ??
+      "workspace patch"
+    )
   }
   if (tool === "grep" || tool === "codesearch" || tool === "websearch") {
-    return summarizeValue(stripQuotes(String((input as any).pattern ?? (input as any).query ?? "")), 56) ?? "search query"
+    return (
+      summarizeValue(stripQuotes(String((input as any).pattern ?? (input as any).query ?? "")), 56) ?? "search query"
+    )
   }
   if (tool === "glob" || tool === "list") {
     return summarizeValue(String((input as any).pattern ?? (input as any).path ?? ""), 56) ?? "workspace listing"
   }
   if (tool === "webfetch") return summarizeValue(String((input as any).url ?? ""), 56) ?? "external URL"
   if (tool === "task" || tool === "question" || tool === "skill") {
-    return summarizeValue(String((input as any).description ?? (input as any).prompt ?? (input as any).name ?? ""), 56) ?? "operator step"
+    return (
+      summarizeValue(String((input as any).description ?? (input as any).prompt ?? (input as any).name ?? ""), 56) ??
+      "operator step"
+    )
   }
-  return summarizeValue(
-    String((input as any).filePath ?? (input as any).path ?? (input as any).query ?? (input as any).pattern ?? (input as any).command ?? ""),
-    56,
-  ) ?? "runtime target"
+  return (
+    summarizeValue(
+      String(
+        (input as any).filePath ??
+          (input as any).path ??
+          (input as any).query ??
+          (input as any).pattern ??
+          (input as any).command ??
+          "",
+      ),
+      56,
+    ) ?? "runtime target"
+  )
 }
 
 function deriveToolEvidence(part: Part): string | undefined {
@@ -210,44 +227,24 @@ function deriveToolEvidence(part: Part): string | undefined {
   const metadata = ("metadata" in part.state ? (part.state.metadata ?? {}) : {}) as Record<string, unknown>
   if (status === "pending" || status === "running") return undefined
   if (status === "error" || status === "failed") return "Tool failed."
-  if (typeof metadata.exitCode === "number") return metadata.exitCode === 0 ? "Completed cleanly." : `Completed with exit ${metadata.exitCode}.`
+  if (typeof metadata.exitCode === "number")
+    return metadata.exitCode === 0 ? "Completed cleanly." : `Completed with exit ${metadata.exitCode}.`
   if (typeof metadata.matchCount === "number") {
     return `Found ${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"}.`
   }
-  if (Array.isArray(metadata.matches)) return `Found ${metadata.matches.length} match${metadata.matches.length === 1 ? "" : "es"}.`
-  if (Array.isArray(metadata.paths)) return `Resolved ${metadata.paths.length} path${metadata.paths.length === 1 ? "" : "s"}.`
+  if (Array.isArray(metadata.matches))
+    return `Found ${metadata.matches.length} match${metadata.matches.length === 1 ? "" : "es"}.`
+  if (Array.isArray(metadata.paths))
+    return `Resolved ${metadata.paths.length} path${metadata.paths.length === 1 ? "" : "s"}.`
   if (metadata.written === true) return "Workspace updated."
   if (metadata.read === true) return "Content loaded."
   if (status === "completed") return "Completed."
   return undefined
 }
 
-function deriveToolNext(tool: string, status: string) {
-  const done = status === "completed"
-  switch (tool) {
-    case "read":
-    case "glob":
-    case "grep":
-    case "list":
-    case "codesearch":
-    case "websearch":
-    case "webfetch":
-      return done ? "Compare the findings against the next relevant source." : "Use the result to choose the next concrete check."
-    case "task":
-    case "todowrite":
-    case "question":
-    case "skill":
-    case "reflection":
-      return done ? "Carry that structure into the next visible step." : "Let the planning step settle before acting."
-    case "write":
-    case "edit":
-    case "apply_patch":
-      return done ? "Verify the change before moving on." : "Finish the mutation, then verify it."
-    case "shell":
-      return done ? "Review the command result and decide the next move." : "Wait for the command result, then verify it."
-    default:
-      return done ? "Roll the result into the next operator step." : "Wait for the tool to finish, then continue."
-  }
+function deriveToolNext(_tool: string, _status: string): undefined {
+  // "Next" for individual tool rows is noise — let the model's narrative prose carry it.
+  return undefined
 }
 
 export function deriveToolNarrativeDescriptor(part: Part): StreamNarrativeDescriptor | undefined {
@@ -340,8 +337,8 @@ export function deriveLiveNarrativeStatus(input: {
   if (!input.pendingID) {
     return {
       status: "idle",
-      now: "Standing by for the next task.",
-      next: "Ready for your next direction.",
+      now: "Ready.",
+      next: undefined,
     }
   }
 
@@ -353,7 +350,7 @@ export function deriveLiveNarrativeStatus(input: {
       return {
         status: stripInlineMarkdown(narrative.label).toLowerCase(),
         now: stripInlineMarkdown(narrative.sentence),
-        next: narrative.next ?? "Continue with the next governed step.",
+        next: undefined,
       }
     }
   }
@@ -365,7 +362,7 @@ export function deriveLiveNarrativeStatus(input: {
       return {
         status: `${stripInlineMarkdown(narrative.label).toLowerCase()} complete`,
         now: stripInlineMarkdown(narrative.sentence),
-        next: narrative.next ?? "Carry the result into the next step.",
+        next: undefined,
       }
     }
   }
@@ -373,21 +370,21 @@ export function deriveLiveNarrativeStatus(input: {
   if (nonEmptyTextPart(parts, "reasoning")) {
     return {
       status: "thinking",
-      now: "Thinking.",
-      next: "Turn that into the next visible step.",
+      now: "Reasoning through the options.",
+      next: undefined,
     }
   }
   if (nonEmptyTextPart(parts, "text")) {
     return {
       status: "thinking",
-      now: "Thinking.",
-      next: "Wrap up with the final response.",
+      now: "Composing.",
+      next: undefined,
     }
   }
   return {
-    status: "waiting for provider response",
-    now: "Waiting for the provider to return the next chunk.",
-    next: "Resume the run as soon as the stream advances.",
+    status: "loading",
+    now: "Loading.",
+    next: undefined,
   }
 }
 
@@ -400,10 +397,10 @@ function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescrip
   switch (item.type) {
     case "intent.created":
       return {
-        label: "Target",
+        label: "Goal",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Turn that goal into a concrete plan.",
+        next: "Planning now.",
         sourceKind: "run-event",
       }
     case "plan.compiled":
@@ -411,7 +408,7 @@ function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescrip
         label: "Plan",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Start the first concrete step.",
+        next: "Starting.",
         sourceKind: "run-event",
       }
     case "step.failed":
@@ -419,7 +416,7 @@ function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescrip
         label: "Step failed",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Inspect the failure and recover deliberately.",
+        next: "Checking what went wrong.",
         sourceKind: "run-event",
       }
     case "artifact.created":
@@ -427,7 +424,7 @@ function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescrip
         label: "Evidence",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Use that evidence in the next checkpoint.",
+        next: undefined,
         sourceKind: "run-event",
       }
     case "audit.posture_updated":
@@ -435,15 +432,15 @@ function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescrip
         label: "Trust",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Use the updated posture to decide whether to continue or review.",
+        next: undefined,
         sourceKind: "run-event",
       }
     case "run.completed":
       return {
-        label: "Complete",
+        label: "Done",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Review the result or move to the next task.",
+        next: undefined,
         sourceKind: "run-event",
       }
     case "run.failed":
@@ -451,7 +448,7 @@ function deriveRunEventNarrative(item: RunNarrativeItem): StreamNarrativeDescrip
         label: "Run failed",
         sentence: `${detail}.`,
         now: `${detail}.`,
-        next: "Resolve the failure before continuing.",
+        next: undefined,
         sourceKind: "run-event",
       }
     default:
@@ -662,7 +659,12 @@ export function buildStreamItems(
       status: item.type === "intervention.required" || item.type === "approval.requested" ? "pending" : "completed",
       expanded: true,
       narrative: {
-        label: item.type === "approval.requested" ? "Approval required" : item.type === "intervention.required" ? "Intervention required" : "Alert",
+        label:
+          item.type === "approval.requested"
+            ? "Approval required"
+            : item.type === "intervention.required"
+              ? "Intervention required"
+              : "Alert",
         sentence: sentenceCase(item.message) ? `${sentenceCase(item.message)}.` : "Attention required.",
         now: sentenceCase(item.message) ? `${sentenceCase(item.message)}.` : "Attention required.",
         next:

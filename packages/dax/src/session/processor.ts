@@ -118,6 +118,19 @@ export namespace SessionProcessor {
                 }
               }
             }
+            // Use a managed abort controller so we can reset the stall deadline
+            // while tools are in-flight (waiting for user input, approvals, etc.).
+            // AbortSignal.timeout() would fire unconditionally after 180 s and
+            // kill the stream even when the question tool is just waiting for the
+            // user to type an answer.
+            const stallController = new AbortController()
+            let stallTimer = setTimeout(() => stallController.abort(), PROVIDER_STALL_TIMEOUT_MS)
+            const resetStallTimer = () => {
+              clearTimeout(stallTimer)
+              stallTimer = setTimeout(() => stallController.abort(), PROVIDER_STALL_TIMEOUT_MS)
+            }
+            const combinedAbort = AbortSignal.any([input.abort, stallController.signal])
+
             const delayedMonitor =
               shouldTrackDelayedProvider &&
               setInterval(() => {
@@ -126,10 +139,11 @@ export namespace SessionProcessor {
                 trackPressure()
                 if (delayedRaised) return
                 // A tool is in-flight — it may be waiting for user approval or a
-                // question answer. Keep the progress timer fresh so we never
-                // incorrectly flag "delayed" or fire the stall timeout.
+                // question answer. Keep the progress timer and the stall deadline
+                // fresh so we never incorrectly flag "delayed" or fire the timeout.
                 if (toolsInFlight > 0) {
                   lastProgressAt = Date.now()
+                  resetStallTimer()
                   return
                 }
                 if (Date.now() - lastProgressAt < PROVIDER_DELAY_THRESHOLD_MS) return
@@ -141,8 +155,6 @@ export namespace SessionProcessor {
                   since: lastProgressAt,
                 })
               }, 1000)
-            const timeoutSignal = AbortSignal.timeout(PROVIDER_STALL_TIMEOUT_MS)
-            const combinedAbort = AbortSignal.any([input.abort, timeoutSignal])
 
             trackPressure()
             const stream = await LLM.stream({
@@ -153,6 +165,14 @@ export namespace SessionProcessor {
             try {
               const iterator = stream.fullStream[Symbol.asyncIterator]()
               const nextEvent = async () => {
+                // While tools are in-flight the LLM stream is paused waiting for
+                // tool execution results (e.g. the question tool blocking on user
+                // input). The stall timer is already being reset by the monitor
+                // above — do NOT race against an additional fixed setTimeout here
+                // or the question tool will always time out after 180 s.
+                if (toolsInFlight > 0) {
+                  return iterator.next()
+                }
                 const remaining = PROVIDER_STALL_TIMEOUT_MS - (Date.now() - lastProgressAt)
                 if (remaining <= 0) {
                   throw new Error(
@@ -442,6 +462,7 @@ export namespace SessionProcessor {
               }
             } finally {
               if (delayedMonitor) clearInterval(delayedMonitor)
+              clearTimeout(stallTimer)
             }
           } catch (caught: unknown) {
             const e =

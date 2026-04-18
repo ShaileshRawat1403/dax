@@ -1,6 +1,6 @@
 # Contributing to DAX
 
-Thank you for your interest in contributing to **DAX (Deterministic AI eXecution)**. We are building the execution control plane for AI-assisted SDLC, and we value your help.
+Thank you for your interest in contributing to **DAX**. We are building the execution control plane for AI-assisted SDLC, and we value your help.
 
 ---
 

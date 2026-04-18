@@ -5,11 +5,13 @@ import { Log } from "@/util/log"
 import path from "path"
 import { ulid } from "ulid"
 import z from "zod"
+import fs from "fs"
 
 export namespace PM {
   const log = Log.create({ service: "pm" })
   const db = (() => {
     const file = path.join(Global.Path.state, "pm.sqlite")
+    fs.mkdirSync(path.dirname(file), { recursive: true })
     const db = new Database(file, { create: true })
     db.exec(
       [

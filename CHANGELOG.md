@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-release changes land here until the next tagged cut. Release tags remain the shipped truth; `main` resumes as the next development line immediately after a release.
 
+- Release-hardening work in progress for the next cut lives here until release notes are intentionally prepared.
+
 ## [1.0.32] - 2026-04-16
 
 ### Added

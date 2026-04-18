@@ -44,15 +44,15 @@ function TelemetryPanel(props: { state: WorkstationState }) {
       <box flexDirection="column" gap={0} paddingLeft={1} borderStyle="round" borderColor={theme.backgroundElement}>
         <box flexDirection="row" justifyContent="space-between">
           <text fg={theme.textMuted}>Writes</text>
-          <text fg={theme.text}>{props.state.artifactSummary.workspaceWrites}</text>
+          <text fg={theme.text}>{String(props.state.artifactSummary.workspaceWrites)}</text>
         </box>
         <box flexDirection="row" justifyContent="space-between">
           <text fg={theme.textMuted}>Reports</text>
-          <text fg={theme.text}>{props.state.artifactSummary.reports}</text>
+          <text fg={theme.text}>{String(props.state.artifactSummary.reports)}</text>
         </box>
         <box flexDirection="row" justifyContent="space-between">
           <text fg={theme.textMuted}>Metadata</text>
-          <text fg={theme.text}>{props.state.artifactSummary.metadata}</text>
+          <text fg={theme.text}>{String(props.state.artifactSummary.metadata)}</text>
         </box>
       </box>
 
@@ -495,10 +495,10 @@ export function Sidebar(props: {
                           </text>
                           <box flexDirection="row" gap={1} flexShrink={0}>
                             <Show when={item.additions}>
-                              <text fg={theme.diffAdded}>+{item.additions}</text>
+                              <text fg={theme.diffAdded}>{`+${item.additions}`}</text>
                             </Show>
                             <Show when={item.deletions}>
-                              <text fg={theme.diffRemoved}>-{item.deletions}</text>
+                              <text fg={theme.diffRemoved}>{`-${item.deletions}`}</text>
                             </Show>
                           </box>
                         </box>
@@ -515,17 +515,17 @@ export function Sidebar(props: {
                 <box flexDirection="row" gap={1} flexWrap="wrap" marginTop={1}>
                   <text fg={theme.primary}>{workflowMode()}</text>
                   <text fg={theme.textMuted}>·</text>
-                  <text fg={theme.textMuted}>{userTurnCount()} turns</text>
+                  <text fg={theme.textMuted}>{`${userTurnCount()} turns`}</text>
                   <Show when={permissions().length + questions().length > 0}>
                     <>
                       <text fg={theme.textMuted}>·</text>
-                      <text fg={theme.warning}>{permissions().length + questions().length} waiting</text>
+                      <text fg={theme.warning}>{`${permissions().length + questions().length} waiting`}</text>
                     </>
                   </Show>
                   <Show when={incompleteTodoCount() > 0}>
                     <>
                       <text fg={theme.textMuted}>·</text>
-                      <text fg={theme.textMuted}>{incompleteTodoCount()} todos</text>
+                      <text fg={theme.textMuted}>{`${incompleteTodoCount()} todos`}</text>
                     </>
                   </Show>
                 </box>

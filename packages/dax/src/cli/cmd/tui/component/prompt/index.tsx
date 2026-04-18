@@ -84,7 +84,11 @@ export type PromptRef = {
   submit(): void
 }
 
-const PLACEHOLDERS = ["Plan this project in plain language", "Ship one safe improvement", "Find the best next step"]
+const PLACEHOLDERS = [
+  "Ask for one concrete outcome",
+  "Describe the change you want in plain language",
+  "Tell DAX what to check, fix, or explain",
+]
 const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
 const WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"]
 const WORKFLOW_MODE_HINT = "Tab: cycle mode"
@@ -1036,6 +1040,7 @@ export function Prompt(props: PromptProps) {
       parts: [],
     })
     setStore("extmarkToPartIndex", new Map())
+    kv.set(DAX_SETTING.session_refined_prompt, "")
     props.onSubmit?.()
 
     // temporary hack to make sure the message is sent
@@ -1220,7 +1225,7 @@ export function Prompt(props: PromptProps) {
                     ? ""
                     : explainMode()
                       ? ELI12_PLACEHOLDER
-                      : `State one clear goal: ${PLACEHOLDERS[store.placeholder]}`
+                      : `Ask DAX clearly: ${PLACEHOLDERS[store.placeholder]}`
                 }
                 textColor={keybind.leader ? theme.textMuted : theme.text}
                 focusedTextColor={keybind.leader ? theme.textMuted : theme.text}
@@ -1457,7 +1462,7 @@ export function Prompt(props: PromptProps) {
               />
             </box>
             <box flexDirection="row" flexShrink={0} paddingTop={0.5} gap={1}>
-              <text fg={highlight()}>{store.mode === "shell" ? "Shell" : activeWorkflowLabel()} </text>
+              <text fg={highlight()}>{store.mode === "shell" ? "Shell" : activeWorkflowLabel()}</text>
               <Show when={store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>
                   <text flexShrink={0} fg={keybind.leader ? theme.textMuted : theme.text}>
@@ -1520,7 +1525,9 @@ export function Prompt(props: PromptProps) {
                           <Match when={showRetryHint()}>
                             <text fg={theme.textMuted}>↻ provider recovering…</text>
                           </Match>
-                          <Match when={status().type === "delayed" && pendingPermissions() === 0 && pendingQuestions() === 0}>
+                          <Match
+                            when={status().type === "delayed" && pendingPermissions() === 0 && pendingQuestions() === 0}
+                          >
                             <text fg={theme.textMuted}>provider is slow, still waiting…</text>
                           </Match>
                         </Switch>
@@ -1528,16 +1535,12 @@ export function Prompt(props: PromptProps) {
                     })()}
                   </box>
                 </box>
-                <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
+                <text fg={store.interrupt > 0 ? theme.warning : theme.textMuted}>
                   esc{" "}
-                  <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
+                  <span style={{ fg: store.interrupt > 0 ? theme.warning : theme.textMuted }}>
                     {store.interrupt > 0
-                      ? explainMode()
-                        ? "again to stop"
-                        : "again to interrupt"
-                      : explainMode()
-                        ? "stop"
-                        : "interrupt"}
+                      ? "again to stop"
+                      : "interrupt"}
                   </span>
                 </text>
               </box>
@@ -1550,29 +1553,27 @@ export function Prompt(props: PromptProps) {
                 <Show when={store.prompt.input.length > 0}>
                   <box
                     onMouseUp={handleRefine}
-                    backgroundColor={theme.accent}
+                    backgroundColor={theme.backgroundElement}
+                    border={["round"]}
+                    borderColor={theme.borderSubtle}
+                    paddingLeft={1}
+                    paddingRight={1}
+                  >
+                    <text fg={theme.textMuted}>Refine</text>
+                  </box>
+                </Show>
+                <Show when={explainMode()}>
+                  <box
+                    onMouseUp={() => setExplainMode(false)}
+                    backgroundColor={theme.success}
                     border={["round"]}
                     borderColor={theme.borderActive}
                     paddingLeft={1}
                     paddingRight={1}
                   >
-                    <text fg={theme.background} attributes={TextAttributes.BOLD}>
-                      Refine
-                    </text>
+                    <text fg={theme.background}>ELI12</text>
                   </box>
                 </Show>
-                <box
-                  onMouseUp={() => setExplainMode(!explainMode())}
-                  backgroundColor={explainMode() ? theme.success : theme.backgroundElement}
-                  border={["round"]}
-                  borderColor={explainMode() ? theme.borderActive : theme.borderSubtle}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
-                  <text fg={explainMode() ? theme.background : theme.textMuted}>
-                    ELI12: {explainMode() ? "ON" : "OFF"}
-                  </text>
-                </box>
               </box>
               <box
                 onMouseUp={submit}
@@ -1582,7 +1583,7 @@ export function Prompt(props: PromptProps) {
                 paddingLeft={1}
                 paddingRight={1}
               >
-                <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>Submit [enter]</text>
+                <text fg={store.prompt.input.length > 0 ? theme.background : theme.textMuted}>Send ↵</text>
               </box>
             </Show>
           </box>

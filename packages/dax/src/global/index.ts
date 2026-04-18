@@ -6,33 +6,72 @@ import { readEnv } from "@/flag/flag"
 
 const app = "dax"
 
-const data = path.join(xdgData!, app)
-const cache = path.join(xdgCache!, app)
-const config = path.join(xdgConfig!, app)
-const state = path.join(xdgState!, app)
+function homeDir() {
+  return readEnv("DAX_TEST_HOME") || os.homedir()
+}
+
+function xdgDir(kind: "data" | "cache" | "config" | "state") {
+  const testHome = readEnv("DAX_TEST_HOME")
+  if (testHome) {
+    const roots = {
+      data: path.join(testHome, ".local", "share"),
+      cache: path.join(testHome, ".cache"),
+      config: path.join(testHome, ".config"),
+      state: path.join(testHome, ".local", "state"),
+    }
+    return path.join(roots[kind], app)
+  }
+
+  const resolved =
+    kind === "data"
+      ? xdgData
+      : kind === "cache"
+        ? xdgCache
+        : kind === "config"
+          ? xdgConfig
+          : xdgState
+
+  return path.join(resolved!, app)
+}
 
 export namespace Global {
   export const Path = {
-    // Allow override via DAX_TEST_HOME for test isolation
     get home() {
-      return readEnv("DAX_TEST_HOME") || os.homedir()
+      return homeDir()
     },
-    data,
-    bin: path.join(data, "bin"),
-    log: path.join(data, "log"),
-    cache,
-    config,
-    state,
+    get data() {
+      return xdgDir("data")
+    },
+    get bin() {
+      return path.join(Global.Path.data, "bin")
+    },
+    get log() {
+      return path.join(Global.Path.data, "log")
+    },
+    get cache() {
+      return xdgDir("cache")
+    },
+    get config() {
+      return xdgDir("config")
+    },
+    get state() {
+      return xdgDir("state")
+    },
+  }
+
+  export async function ensureDirectories() {
+    await Promise.all([
+      fs.mkdir(Global.Path.data, { recursive: true }),
+      fs.mkdir(Global.Path.config, { recursive: true }),
+      fs.mkdir(Global.Path.state, { recursive: true }),
+      fs.mkdir(Global.Path.log, { recursive: true }),
+      fs.mkdir(Global.Path.bin, { recursive: true }),
+      fs.mkdir(Global.Path.cache, { recursive: true }),
+    ])
   }
 }
 
-await Promise.all([
-  fs.mkdir(Global.Path.data, { recursive: true }),
-  fs.mkdir(Global.Path.config, { recursive: true }),
-  fs.mkdir(Global.Path.state, { recursive: true }),
-  fs.mkdir(Global.Path.log, { recursive: true }),
-  fs.mkdir(Global.Path.bin, { recursive: true }),
-])
+await Global.ensureDirectories()
 
 const CACHE_VERSION = "21"
 

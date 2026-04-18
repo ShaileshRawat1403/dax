@@ -13,6 +13,15 @@ export const PANE_FOLLOW_MODE = ["live", "smart"] as const
 export type PaneFollowMode = (typeof PANE_FOLLOW_MODE)[number]
 
 export function paneLabel(mode: PaneMode, eli12: boolean) {
+  if (eli12) {
+    return {
+      audit: "checks",
+      approvals: "my decisions",
+      memory: "my notes",
+      refine: "refine",
+      operator: "controls",
+    }[mode]
+  }
   return {
     audit: "audit",
     approvals: "approvals",
@@ -23,6 +32,15 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
 }
 
 export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
+  if (eli12) {
+    return {
+      audit: "checks",
+      approvals: "decide",
+      memory: "notes",
+      refine: "refine",
+      operator: "ctrl",
+    }[mode]
+  }
   return {
     audit: "audit",
     approvals: "approve",
@@ -74,9 +92,9 @@ export function deriveAutoPaneMode(input: {
 }): PaneMode {
   if (input.hasApprovals) return "approvals"
   if ((input.liveStage === "verifying" || input.liveStage === "done") && input.hasAuditAttention) return "audit"
-  if (input.hasRefineDraft) return "refine"
   if (input.hasAuditAttention) return "audit"
   if (input.hasMemoryContext) return "memory"
+  if (input.hasRefineDraft) return "refine"
   return input.fallback
 }
 
@@ -95,7 +113,6 @@ export function deriveActivePaneMode(input: {
   paneFollowMode: PaneFollowMode
   following: boolean
 }): PaneMode {
-  if (input.hasRefineDraft) return "refine"
   if (input.hasApprovals) return "approvals"
   if (input.paneVisibility === "pinned" && !input.following) return input.paneMode
 
@@ -133,6 +150,10 @@ function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage
   if (currentMode === recommendedMode) return false
 
   if (currentMode === "approvals" && recommendedMode !== "approvals") {
+    return true
+  }
+
+  if (currentMode === "refine" && recommendedMode !== "refine") {
     return true
   }
 

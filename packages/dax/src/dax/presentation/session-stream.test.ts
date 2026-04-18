@@ -194,7 +194,7 @@ describe("session-stream presentation model", () => {
       expect(runCreated).toBeUndefined()
       const intentCreated = runEvents.find((item) => item.type === "intent.created")
       expect(intentCreated).toBeDefined() // surfaces agent's interpretation under UNDERSTANDING
-      expect(intentCreated?.narrative?.label).toBe("Target")
+      expect(intentCreated?.narrative?.label).toBe("Goal")
       const planCompiled = runEvents.find((item) => item.type === "plan.compiled")
       expect(planCompiled).toBeUndefined()
     })
@@ -455,7 +455,7 @@ describe("session-stream presentation model", () => {
 
       expect(descriptor?.sentence).toContain("Running")
       expect(descriptor?.sentence).toContain("bun test src/foo.test.ts")
-      expect(descriptor?.next).toBe("Wait for the command result, then verify it.")
+      expect(descriptor?.next).toBeUndefined()
     })
 
     it("derives live narrative status from the same canonical tool wording", () => {
@@ -468,7 +468,7 @@ describe("session-stream presentation model", () => {
 
       expect(status.status).toBe("reading files complete")
       expect(status.now).toContain("Read packages/dax/src/dax/presentation/session-stream.ts")
-      expect(status.next).toBe("Compare the findings against the next relevant source.")
+      expect(status.next).toBeUndefined()
     })
   })
 

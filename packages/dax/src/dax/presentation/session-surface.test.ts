@@ -11,26 +11,28 @@ import {
 
 describe("session surface helpers", () => {
   test("parses fenced audit json safely", () => {
-    const result = parseAuditResult([
-      "```json",
-      JSON.stringify({
-        run_id: "run-1",
-        timestamp: "2026-03-18T00:00:00.000Z",
-        profile: "strict",
-        status: "warn",
-        findings: [],
-        summary: {
-          blocker_count: 0,
-          warning_count: 2,
-          info_count: 1,
-        },
-        next_actions: ["Fix warnings"],
-        metadata: {
-          trigger: "manual",
-        },
-      }),
-      "```",
-    ].join("\n"))
+    const result = parseAuditResult(
+      [
+        "```json",
+        JSON.stringify({
+          run_id: "run-1",
+          timestamp: "2026-03-18T00:00:00.000Z",
+          profile: "strict",
+          status: "warn",
+          findings: [],
+          summary: {
+            blocker_count: 0,
+            warning_count: 2,
+            info_count: 1,
+          },
+          next_actions: ["Fix warnings"],
+          metadata: {
+            trigger: "manual",
+          },
+        }),
+        "```",
+      ].join("\n"),
+    )
 
     expect(result?.status).toBe("warn")
     expect(result?.summary.warning_count).toBe(2)
@@ -77,7 +79,7 @@ describe("session surface helpers", () => {
         sessionStatusType: "busy",
         partsForMessage: () => [],
       }),
-    ).toEqual({ stage: "waiting", reason: "waiting for approval" })
+    ).toEqual({ stage: "waiting", reason: "needs your approval" })
 
     expect(
       deriveLiveSessionStageState({
@@ -93,7 +95,7 @@ describe("session surface helpers", () => {
           } as any,
         ],
       }),
-    ).toEqual({ stage: "executing", reason: "running a command" })
+    ).toEqual({ stage: "executing", reason: "running commands" })
 
     expect(
       deriveLiveSessionStageState({
@@ -102,19 +104,16 @@ describe("session surface helpers", () => {
         sessionStatusType: "delayed",
         partsForMessage: () => [],
       }),
-    ).toEqual({ stage: "thinking", reason: "waiting for provider response" })
+    ).toEqual({ stage: "thinking", reason: "waiting on provider" })
   })
 
   test("derives stream status for visible reasoning and text content", () => {
     expect(
       deriveLiveStreamStatus({
         pendingID: "assistant-1",
-        partsForMessage: () => [
-          { type: "reasoning", text: "   " } as any,
-          { type: "text", text: "   " } as any,
-        ],
+        partsForMessage: () => [{ type: "reasoning", text: "   " } as any, { type: "text", text: "   " } as any],
       }),
-    ).toBe("waiting for provider response")
+    ).toBe("loading")
 
     expect(
       deriveLiveStreamStatus({
@@ -211,13 +210,10 @@ describe("session surface helpers", () => {
     expect(
       deriveStreamFidelitySnapshot({
         pendingID: "assistant-1",
-        partsForMessage: () => [
-          { type: "reasoning", text: " " } as any,
-          { type: "text", text: " " } as any,
-        ],
+        partsForMessage: () => [{ type: "reasoning", text: " " } as any, { type: "text", text: " " } as any],
       }),
     ).toEqual({
-      streamStatus: "waiting for provider response",
+      streamStatus: "loading",
       hasPendingTool: false,
       hasCompletedTool: false,
       hasVisibleReasoning: false,
@@ -239,10 +235,10 @@ describe("session surface helpers", () => {
     expect(line).toEqual({
       action: "READ",
       target: "packages/dax/src/session/prompt.ts",
-      why: "gather context",
-      result: "completed (content loaded)",
-      next: "decide next operation",
-      summary: "READ packages/dax/src/session/prompt.ts · completed (content loaded)",
+      why: "understanding context",
+      result: "loaded",
+      next: "building on findings",
+      summary: "READ packages/dax/src/session/prompt.ts · loaded",
     })
   })
 
@@ -259,8 +255,8 @@ describe("session surface helpers", () => {
 
     expect(line?.action).toBe("SHELL")
     expect(line?.target).toBe("bun run typecheck:dax")
-    expect(line?.why).toBe("execute workflow command")
-    expect(line?.result).toBe("in progress")
-    expect(line?.next).toBe("wait for command completion")
+    expect(line?.why).toBe("checking state")
+    expect(line?.result).toBe("in flight")
+    expect(line?.next).toBe("waiting")
   })
 })

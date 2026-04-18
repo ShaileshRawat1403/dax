@@ -310,86 +310,86 @@ export function RefinePane(props: {
           <box flexDirection="row" gap={1} flexWrap="wrap" paddingTop={1}>
             <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
               <text fg={theme.textMuted}>
-                context <span style={{ fg: theme.text }}>{contextCount()}</span>
+                context <span style={{ fg: theme.text }}>{String(contextCount())}</span>
               </text>
             </box>
             <Show when={targetCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.textMuted}>
-                  targets <span style={{ fg: theme.text }}>{targetCount()}</span>
+                  targets <span style={{ fg: theme.text }}>{String(targetCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={writesCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.textMuted}>
-                  writes <span style={{ fg: theme.text }}>{writesCount()}</span>
+                  writes <span style={{ fg: theme.text }}>{String(writesCount())}</span>
                 </text>
               </box>
             </Show>
             <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
               <text fg={theme.textMuted}>
-                plan <span style={{ fg: theme.text }}>{planCount()}</span>
+                plan <span style={{ fg: theme.text }}>{String(planCount())}</span>
               </text>
             </box>
             <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
               <text fg={theme.textMuted}>
-                checks <span style={{ fg: theme.text }}>{successCount()}</span>
+                checks <span style={{ fg: theme.text }}>{String(successCount())}</span>
               </text>
             </box>
             <Show when={validationCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.textMuted}>
-                  verify <span style={{ fg: theme.text }}>{validationCount()}</span>
+                  verify <span style={{ fg: theme.text }}>{String(validationCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={approvalCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.warning}>
-                  approvals <span style={{ fg: theme.text }}>{approvalCount()}</span>
+                  approvals <span style={{ fg: theme.text }}>{String(approvalCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={governanceCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.warning}>
-                  governance <span style={{ fg: theme.text }}>{governanceCount()}</span>
+                  governance <span style={{ fg: theme.text }}>{String(governanceCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={deltaCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.accent}>
-                  delta <span style={{ fg: theme.text }}>{deltaCount()}</span>
+                  delta <span style={{ fg: theme.text }}>{String(deltaCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={impactCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.primary}>
-                  impact <span style={{ fg: theme.text }}>{impactCount()}</span>
+                  impact <span style={{ fg: theme.text }}>{String(impactCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={unknownCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.warning}>
-                  unknowns <span style={{ fg: theme.text }}>{unknownCount()}</span>
+                  unknowns <span style={{ fg: theme.text }}>{String(unknownCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={watchoutCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.warning}>
-                  watchouts <span style={{ fg: theme.text }}>{watchoutCount()}</span>
+                  watchouts <span style={{ fg: theme.text }}>{String(watchoutCount())}</span>
                 </text>
               </box>
             </Show>
             <Show when={validationPlanCount() > 0}>
               <box backgroundColor={theme.backgroundElement} paddingLeft={1} paddingRight={1}>
                 <text fg={theme.accent}>
-                  staged validation <span style={{ fg: theme.text }}>{validationPlanCount()}</span>
+                  staged validation <span style={{ fg: theme.text }}>{String(validationPlanCount())}</span>
                 </text>
               </box>
             </Show>
