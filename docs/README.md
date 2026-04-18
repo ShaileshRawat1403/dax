@@ -29,7 +29,7 @@ mindmap
       Contributing
 ```
 
-## Getting Started
+## Start Here
 
 If you are new to DAX, start here to understand the core concepts and get your environment ready.
 
