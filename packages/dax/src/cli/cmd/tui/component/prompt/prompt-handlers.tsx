@@ -35,7 +35,7 @@ export function usePromptHandlers(
     pasteStyleId: () => number
     fileStyleId: () => number
     agentStyleId: () => number
-  }
+  },
 ) {
   const sdk = useSDK()
   const route = useRoute()
@@ -249,7 +249,8 @@ export function usePromptHandlers(
             : state.status().type === "delayed"
               ? "waiting on provider response"
               : state.currentFocus(),
-        todo: state.sessionTodos()
+        todo: state
+          .sessionTodos()
           .map((item: any) => item?.content)
           .filter(Boolean)
           .slice(0, 5),
@@ -596,6 +597,13 @@ export function usePromptHandlers(
         return
       }
     }
+
+    if (keybind.match("session_interrupt", e)) {
+      e.preventDefault()
+      command.trigger("session.interrupt")
+      return
+    }
+
     if (keybind.match("input_clear", e) && store.prompt.input !== "") {
       input.clear()
       input.extmarks.clear()
@@ -671,8 +679,7 @@ export function usePromptHandlers(
         return
       }
 
-      if (keybind.match("history_previous", e) && input.visualCursor.visualRow === 0)
-        input.cursorOffset = 0
+      if (keybind.match("history_previous", e) && input.visualCursor.visualRow === 0) input.cursorOffset = 0
       if (keybind.match("history_next", e) && input.visualCursor.visualRow === input.height - 1)
         input.cursorOffset = input.plainText.length
     }
@@ -726,10 +733,7 @@ export function usePromptHandlers(
     }
 
     const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
-    if (
-      (lineCount >= 3 || pastedContent.length > 150) &&
-      !sync.data.config.experimental?.disable_paste_summary
-    ) {
+    if ((lineCount >= 3 || pastedContent.length > 150) && !sync.data.config.experimental?.disable_paste_summary) {
       event.preventDefault()
       pasteText(pastedContent, `[Pasted ~${lineCount} lines]`)
       return
