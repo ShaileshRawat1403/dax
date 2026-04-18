@@ -78,7 +78,7 @@ describe("Agent Run Graph: Explore Pipeline", () => {
     router.register(new ExploreOperator())
 
     // 3. Execution
-    const cwd = path.resolve("../../test/fixtures/healthy-repo")
+    const cwd = path.resolve(import.meta.dir, "../../../../test/fixtures/healthy-repo")
     const result = await Instance.provide({
       directory: cwd,
       fn: () => runGraph(graph, { cwd, sessionId: "test_session" }, router),

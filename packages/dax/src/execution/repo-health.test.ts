@@ -57,7 +57,7 @@ describe("repo-health workflow", () => {
   const router = createInitializedRouter()
 
   test("should run repo-health workflow on healthy fixture", async () => {
-    const fixturePath = path.resolve("../../test/fixtures/healthy-repo")
+    const fixturePath = path.resolve(import.meta.dir, "../../../../test/fixtures/healthy-repo")
     const sessionId = "test-healthy"
 
     const graph = buildWorkflowGraph("repo-health")
@@ -79,7 +79,7 @@ describe("repo-health workflow", () => {
   })
 
   test("should run repo-health workflow on messy fixture", async () => {
-    const fixturePath = path.resolve("../../test/fixtures/messy-repo")
+    const fixturePath = path.resolve(import.meta.dir, "../../../../test/fixtures/messy-repo")
     const sessionId = "test-messy"
 
     const graph = buildWorkflowGraph("repo-health")
@@ -101,7 +101,7 @@ describe("repo-health workflow", () => {
   })
 
   test("should handle low trust scenario", async () => {
-    const fixturePath = path.resolve("../../test/fixtures/blocked-repo")
+    const fixturePath = path.resolve(import.meta.dir, "../../../../test/fixtures/blocked-repo")
     const sessionId = "test-blocked"
 
     const graph = buildWorkflowGraph("repo-health")
