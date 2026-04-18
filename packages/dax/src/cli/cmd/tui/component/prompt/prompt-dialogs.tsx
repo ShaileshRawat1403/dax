@@ -78,22 +78,18 @@ export function usePromptDialogs(
         keybind: "session_interrupt",
         category: "Session",
         hidden: true,
-        enabled: state.status().type !== "idle",
+        enabled: !!props.sessionID,
         onSelect: (dialog) => {
-          if (refs.autocomplete()?.visible) return
+          if (!props.sessionID) return
           if (store.mode === "shell") {
             setStore("mode", "normal")
+            dialog.clear()
             return
           }
-          if (!props.sessionID) return
-
-          setStore("interrupt", store.interrupt + 1)
-
-          setTimeout(() => {
-            setStore("interrupt", 0)
-          }, 5000)
-
-          if (store.interrupt >= 2) {
+          const next = store.interrupt + 1
+          setStore("interrupt", next)
+          setTimeout(() => setStore("interrupt", 0), 5000)
+          if (next >= 2) {
             sdk.client.session.abort({ sessionID: props.sessionID })
             setStore("interrupt", 0)
             toast.show({ variant: "warning", message: "Session interrupted." })

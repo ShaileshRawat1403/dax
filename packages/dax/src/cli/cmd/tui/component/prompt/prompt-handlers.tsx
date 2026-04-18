@@ -553,11 +553,28 @@ export function usePromptHandlers(
     const autocomplete = refs.autocomplete()
     if (!input || !autocomplete) return
 
-    // Interrupt must bypass the disabled guard — ESC should always be able to stop
-    // a running session regardless of prompt lock state.
+    // Interrupt must bypass the disabled guard AND the command-enabled gate.
+    // Routing through command.trigger() silently no-ops when enabled=false
+    // (stale sync data race). Inline the logic so ESC always reaches the handler.
     if (keybind.match("session_interrupt", e)) {
       e.preventDefault()
-      command.trigger("session.interrupt")
+      if (store.mode === "shell") {
+        setStore("mode", "normal")
+        return
+      }
+      if (refs.autocomplete()?.visible) return
+      if (props.sessionID) {
+        const next = store.interrupt + 1
+        setStore("interrupt", next)
+        setTimeout(() => setStore("interrupt", 0), 5000)
+        if (next >= 2) {
+          sdk.client.session.abort({ sessionID: props.sessionID })
+          setStore("interrupt", 0)
+          toast.show({ variant: "warning", message: "Session interrupted." })
+        } else {
+          toast.show({ variant: "warning", message: "Press ESC again to stop the session." })
+        }
+      }
       return
     }
 
