@@ -54,7 +54,7 @@ export async function runGraph(
     // We need a way to set the state directly, or just use it as the base
     // For now, we'll assume the stateManager is initialized with this state
     // or we pass it to the operators
-    console.log("Restoring session state from snapshot...")
+    // State restore is handled by the stateManager initializer; nothing to do here yet.
   }
 
   const previousGraphStatus = graph.status

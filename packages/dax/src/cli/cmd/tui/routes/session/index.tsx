@@ -123,6 +123,7 @@ import {
   buildStreamItems,
   deriveLiveNarrativeStatus,
   deriveToolNarrativeDescriptor,
+  stripInlineMarkdown,
   getCurrentPhase,
   getActivePhases,
   type RenderableStreamItem,
@@ -131,6 +132,16 @@ import { StreamItem } from "../../component/stream"
 import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
 
 const HIDDEN_TOOLS = new Set(["todowrite"])
+const COMPACT_TOOLS = new Set(["read", "glob", "grep", "list"])
+const COMPACT_MIN = 3
+type CompactGroup = {
+  type: "tool.group"
+  id: string
+  toolName: string
+  count: number
+  parts: ToolPart[]
+  representativePath?: string
+}
 import { isEli12Mode } from "@/dax/intent"
 import { DAX_SETTING } from "@/dax/settings"
 import {
@@ -1452,6 +1463,26 @@ export function Session() {
                   </>
                 )}
               </For>
+              <Show when={sessionStatusType() === "retry" || sessionStatusType() === "delayed"}>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  paddingLeft={2}
+                  paddingRight={2}
+                  paddingTop={1}
+                  paddingBottom={1}
+                  marginTop={1}
+                  backgroundColor={tint(theme.background, theme.warning, 0.08)}
+                  alignItems="center"
+                >
+                  <Spinner color={theme.warning} />
+                  <text fg={theme.warning} wrapMode="word">
+                    {sessionStatusType() === "delayed"
+                      ? "Provider delayed — waiting for response…"
+                      : "Connection interrupted — retrying…"}
+                  </text>
+                </box>
+              </Show>
             </box>
           </scrollbox>
 
@@ -1930,17 +1961,82 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     }
   })
 
-  // Flat sequential parts — no grouping. Each tool renders individually in order.
-  const renderableParts = createMemo(() =>
-    parts().filter((part) => {
-      if (part.type === "tool") return !HIDDEN_TOOLS.has(part.tool)
+  // Flat sequential parts with compaction: consecutive same-type read-like tools collapse into one row.
+  const renderableParts = createMemo((): (Part | CompactGroup)[] => {
+    const visible = parts().filter((part) => {
+      if (part.type === "tool") return !HIDDEN_TOOLS.has((part as ToolPart).tool)
       return true
-    }),
-  )
+    })
+    const result: (Part | CompactGroup)[] = []
+    let i = 0
+    while (i < visible.length) {
+      const part = visible[i]!
+      if (part.type === "tool") {
+        const toolName = (part as ToolPart).tool.toLowerCase()
+        if (COMPACT_TOOLS.has(toolName)) {
+          let j = i + 1
+          while (
+            j < visible.length &&
+            visible[j]!.type === "tool" &&
+            (visible[j] as ToolPart).tool.toLowerCase() === toolName
+          ) {
+            j++
+          }
+          const count = j - i
+          if (count >= COMPACT_MIN) {
+            const groupParts = visible.slice(i, j) as ToolPart[]
+            result.push({
+              type: "tool.group",
+              id: `group-${(part as ToolPart).id}`,
+              toolName,
+              count,
+              parts: groupParts,
+              representativePath: extractGroupPath(toolName, groupParts),
+            })
+            i = j
+            continue
+          }
+        }
+      }
+      result.push(part)
+      i++
+    }
+    return result
+  })
 
   const isPendingEmpty = createMemo(
     () => props.message.role === "assistant" && !final() && renderableParts().length === 0,
   )
+
+  // When a message has NO text parts at all (pure tool block), synthesise a leading
+  // sentence so the block doesn't feel mechanical and context-free.
+  const autoBlockNarration = createMemo(() => {
+    if (props.message.role !== "assistant") return ""
+    const rp = renderableParts()
+    const hasText = rp.some((p) => (p as any).type === "text" && (p as any).text?.trim())
+    if (hasText) return ""
+    const toolNames = rp
+      .map((p) => {
+        if ((p as any).type === "tool") return ((p as ToolPart).tool ?? "").toLowerCase()
+        if ((p as any).type === "tool.group") return (p as CompactGroup).toolName
+        return ""
+      })
+      .filter(Boolean)
+    if (toolNames.length === 0) return ""
+    const allRead = toolNames.every((t) => t === "read" || t === "glob" || t === "list" || t === "grep")
+    const allWrite = toolNames.every((t) => t === "write" || t === "edit" || t === "apply_patch")
+    const allShell = toolNames.every((t) => t === "shell")
+    const hasWrite = toolNames.some((t) => t === "write" || t === "edit" || t === "apply_patch")
+    const hasRead = toolNames.some((t) => t === "read" || t === "glob" || t === "grep")
+    const hasShell = toolNames.some((t) => t === "shell")
+    if (allRead) return "Scanning the codebase to gather the relevant context."
+    if (allWrite) return "Applying the targeted changes to the workspace."
+    if (allShell) return "Running the required checks."
+    if (hasWrite && hasRead) return "Reading and updating the relevant files."
+    if (hasWrite && hasShell) return "Applying changes and verifying the result."
+    if (hasRead && hasShell) return "Gathering context and running the checks."
+    return "Working through the required steps."
+  })
 
   return (
     <Show when={renderableParts().length > 0 || !!props.message.error || isPendingEmpty()}>
@@ -1956,7 +2052,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
           </Show>
           <box flexDirection="row" gap={2} paddingLeft={2} alignItems="center" marginBottom={1}>
             <Spinner color={tint(theme.textMuted, roleColor(), 0.35)} />
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>thinking</text>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>working on it</text>
           </box>
         </box>
       </Show>
@@ -1993,6 +2089,13 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             </box>
           </Show>
           <box paddingLeft={0} paddingRight={0} paddingBottom={0} flexDirection="column" gap={0}>
+            <Show when={autoBlockNarration()}>
+              <box paddingLeft={2} paddingRight={2}>
+                <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
+                  {autoBlockNarration()}
+                </text>
+              </box>
+            </Show>
             <For each={renderableParts()}>
               {(part, index) => {
                 const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
@@ -2003,7 +2106,6 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
                       component={component()}
                       part={part as any}
                       message={props.message as AssistantMessage}
-                      marginTop={0}
                     />
                   </Show>
                 )
@@ -2021,7 +2123,12 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
           marginTop={1}
           backgroundColor={tint(theme.background, theme.error, 0.15)}
         >
-          <text fg={theme.error}>{textValue(props.message.error?.data.message, "Unknown session error")}</text>
+          <text fg={theme.error} wrapMode="word">
+            {textValue(
+              props.message.error?.data.message ?? props.message.error?.name,
+              "Session error — check logs for details",
+            )}
+          </text>
         </box>
       </Show>
     </Show>
@@ -2031,6 +2138,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
 const PART_MAPPING = {
   text: TextPart,
   tool: ToolPart,
+  "tool.group": CompactedToolGroup,
   reasoning: ReasoningPart,
 }
 
@@ -2226,10 +2334,84 @@ function toolArgPreview(tool: string, input: Record<string, unknown>): string {
   }
 }
 
+function extractGroupPath(toolName: string, parts: ToolPart[]): string | undefined {
+  const paths: string[] = []
+  for (const part of parts) {
+    if (part.state.status === "pending") continue
+    const input = (part.state.input ?? {}) as Record<string, unknown>
+    const fp = String(input.filePath || input.path || "")
+    if (fp) paths.push(normalizePath(fp))
+  }
+  if (paths.length === 0) return undefined
+  const segs0 = paths[0]!.split("/")
+  let common = segs0.slice(0, -1)
+  for (const p of paths.slice(1)) {
+    const segs = p.split("/")
+    const limit = Math.min(common.length, segs.length - 1)
+    let k = 0
+    while (k < limit && common[k] === segs[k]) k++
+    common = common.slice(0, k)
+  }
+  if (common.length === 0) return shortPath(paths[0]!)
+  return common.slice(-2).join("/") + "/…"
+}
+
+function compactGroupNarration(toolName: string, count: number, isRunning: boolean): string {
+  const n = count
+  switch (toolName) {
+    case "read":
+      return isRunning
+        ? `Reading ${n} files to gather the relevant context.`
+        : `Read ${n} files to gather the relevant context.`
+    case "glob":
+    case "list":
+      return isRunning
+        ? `Scanning ${n} paths to map the workspace shape.`
+        : `Scanned ${n} paths to map the workspace shape.`
+    case "grep":
+      return isRunning
+        ? `Searching ${n} patterns to isolate the key signals.`
+        : `Searched ${n} patterns to isolate the key signals.`
+    default:
+      return isRunning ? `Running ${n} operations.` : `Completed ${n} operations.`
+  }
+}
+
+function CompactedToolGroup(props: { part: CompactGroup; last: boolean; message: AssistantMessage; marginTop?: number }) {
+  const { theme } = useTheme()
+  const anyRunning = () => props.part.parts.some((p) => p.state.status === "pending" || p.state.status === "running")
+  const narration = () => compactGroupNarration(props.part.toolName, props.part.count, anyRunning())
+
+  return (
+    <box flexDirection="column" gap={0} marginTop={1}>
+      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
+        <Show when={!anyRunning()} fallback={<Spinner color={theme.primary} />}>
+          <text fg={theme.success}>⏺</text>
+        </Show>
+        <text
+          fg={anyRunning() ? theme.primary : theme.text}
+          attributes={anyRunning() ? TextAttributes.BOLD : undefined}
+        >
+          {" "}{toolDisplayName(props.part.toolName)}
+        </text>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}> ×{props.part.count}</text>
+        <Show when={props.part.representativePath}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}> ({props.part.representativePath})</text>
+        </Show>
+      </box>
+      <box paddingLeft={3}>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
+      </box>
+    </box>
+  )
+}
+
 function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMessage; marginTop?: number }) {
   const sync = useSync()
   const toolName = createMemo(() => props.part.tool.toLowerCase())
-  const input = createMemo(() => ((props.part.state.status !== "pending" ? props.part.state.input : {}) ?? {}) as Record<string, unknown>)
+  // Always use the real input so arg preview and narration work from the moment
+  // the tool call appears, even while status is still "pending".
+  const input = createMemo(() => (("input" in props.part.state ? props.part.state.input : undefined) ?? {}) as Record<string, unknown>)
   const output = createMemo(() => (props.part.state.status === "completed" ? props.part.state.output : undefined))
   const metadata = createMemo(() => (props.part.state.status === "pending" ? {} : (props.part.state.metadata ?? {})))
   const permission = createMemo(() => {
@@ -2262,23 +2444,35 @@ function ToolLine(props: { part: ToolPart; toolName: string; input: Record<strin
   const hasError = createMemo(() => status() === "error")
   const displayName = createMemo(() => toolDisplayName(props.toolName))
   const argPreview = createMemo(() => toolArgPreview(props.toolName, props.input))
+  // Only show narration when we have a real target — suppresses "runtime target" placeholder.
+  const narration = createMemo(() => {
+    if (!argPreview()) return ""
+    const n = deriveToolNarrativeDescriptor(props.part)
+    if (!n) return ""
+    return stripInlineMarkdown(n.sentence)
+  })
 
   return (
     <box flexDirection="column" gap={0} marginTop={1}>
-      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
+      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1} overflow="hidden">
         <Show
           when={!isRunning()}
           fallback={<Spinner color={theme.primary} />}
         >
-          <text fg={hasError() ? theme.error : theme.success}>{hasError() ? "✗" : "⏺"}</text>
+          <text fg={hasError() ? theme.error : theme.success} flexShrink={0}>{hasError() ? "✗" : "⏺"}</text>
         </Show>
-        <text fg={hasError() ? theme.error : isRunning() ? theme.primary : theme.text} attributes={isRunning() ? TextAttributes.BOLD : undefined}>
+        <text fg={hasError() ? theme.error : isRunning() ? theme.primary : theme.text} attributes={isRunning() ? TextAttributes.BOLD : undefined} flexShrink={0}>
           {" "}{displayName()}
         </text>
         <Show when={argPreview()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>({argPreview()})</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}> ({argPreview()})</text>
         </Show>
       </box>
+      <Show when={narration()}>
+        <box paddingLeft={3}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
+        </box>
+      </Show>
     </box>
   )
 }
@@ -2291,6 +2485,13 @@ function Bash(props: ToolProps<typeof ShellTool>) {
   const timing = createMemo<Record<string, unknown> | undefined>(() =>
     "time" in props.part.state ? ((props.part.state.time ?? {}) as Record<string, unknown>) : undefined,
   )
+  const narration = createMemo(() => {
+    const cmd = String((props.input as any)?.command ?? "")
+    if (!cmd) return ""
+    const n = deriveToolNarrativeDescriptor(props.part)
+    if (!n) return ""
+    return stripInlineMarkdown(n.sentence)
+  })
 
   const rawOutput = createMemo(() => {
     const raw =
@@ -2307,8 +2508,8 @@ function Bash(props: ToolProps<typeof ShellTool>) {
       .split("\n")
       .filter((l) => l.trim() !== ""),
   )
-  const previewLines = createMemo(() => outputLines().slice(0, 8))
-  const hiddenCount = createMemo(() => Math.max(0, outputLines().length - 8))
+  const previewLines = createMemo(() => outputLines().slice(0, 5))
+  const hiddenCount = createMemo(() => Math.max(0, outputLines().length - 5))
 
   const command = createMemo(() => String((props.input as any).command ?? ""))
   const displayCommand = createMemo(() => {
@@ -2334,7 +2535,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
 
   return (
     <box flexDirection="column" gap={0} marginTop={1}>
-      {/* ── Header: ⏺ Bash(command) [status] ── */}
+      {/* ── Header: ⏺ Bash (command) [status] ── */}
       <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
         <Show
           when={!isRunning()}
@@ -2348,7 +2549,9 @@ function Bash(props: ToolProps<typeof ShellTool>) {
         >
           {" "}Bash
         </text>
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>({displayCommand()})</text>
+        <Show when={displayCommand()}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}> ({displayCommand()})</text>
+        </Show>
         <Show when={!isRunning() && duration()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM}> · {duration()}</text>
         </Show>
@@ -2356,6 +2559,12 @@ function Bash(props: ToolProps<typeof ShellTool>) {
           <text fg={theme.error} attributes={TextAttributes.DIM}> · exit {exitCode()}</text>
         </Show>
       </box>
+      {/* ── Narration subtitle ── */}
+      <Show when={narration()}>
+        <box paddingLeft={3}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
+        </box>
+      </Show>
 
       {/* ── Live output while running ── */}
       <Show when={isRunning() && liveLines().length > 0}>

@@ -2,6 +2,7 @@ import { Show, createMemo } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { type RenderableStreamItem, stripInlineMarkdown } from "@/dax/presentation/session-stream"
 import { useTheme } from "@tui/context/theme"
+import { Spinner } from "@tui/component/spinner"
 
 export function RunEventRow(props: { item: RenderableStreamItem }) {
   const { theme } = useTheme()
@@ -83,13 +84,21 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
     )
   }
 
-  // default — compact muted line
+  // default — compact tool-style row matching ⏺ chrome
+  const isPending = () => !isCompleted() && !isFailed()
   return (
-    <box flexDirection="row" gap={1} paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={0}>
-      <text fg={isCompleted() ? theme.success : theme.textMuted} flexShrink={0}>
-        {isCompleted() ? "✓" : "·"}
-      </text>
-      <text fg={theme.textMuted} wrapMode="word">{sentence()}</text>
+    <box flexDirection="column" gap={0} paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={0}>
+      <box flexDirection="row" gap={1} alignItems="center">
+        <Show
+          when={isCompleted()}
+          fallback={<Spinner color={theme.textMuted} />}
+        >
+          <text fg={theme.success} flexShrink={0}>⏺</text>
+        </Show>
+        <Show when={sentence()}>
+          <text fg={theme.textMuted} wrapMode="word">{sentence()}</text>
+        </Show>
+      </box>
     </box>
   )
 }
