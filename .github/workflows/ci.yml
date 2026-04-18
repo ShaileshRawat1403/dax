@@ -43,4 +43,4 @@ jobs:
         run: bun run typecheck:dax
 
       - name: Test
-        run: bun run test
+        run: bun run test --coverage
