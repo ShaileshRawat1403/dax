@@ -419,38 +419,37 @@ export namespace Config {
   const COMMAND_GLOB = new Bun.Glob("{command,commands}/**/*.md")
   async function loadCommand(dir: string) {
     const result: Record<string, Command> = {}
-    for await (const item of COMMAND_GLOB.scan({
-      absolute: true,
-      followSymlinks: true,
-      dot: true,
-      cwd: dir,
-    })) {
-      const md = await ConfigMarkdown.parse(item).catch(async (err) => {
-        const message = ConfigMarkdown.FrontmatterError.isInstance(err)
-          ? err.data.message
-          : `Failed to parse command ${item}`
-        const { Session } = await import("@/session")
-        Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
-        log.error("failed to load command", { command: item, err })
-        return undefined
-      })
-      if (!md) continue
+    try {
+      for await (const item of COMMAND_GLOB.scan({ absolute: true, followSymlinks: true, dot: true, cwd: dir })) {
+        const md = await ConfigMarkdown.parse(item).catch(async (err) => {
+          const message = ConfigMarkdown.FrontmatterError.isInstance(err)
+            ? err.data.message
+            : `Failed to parse command ${item}`
+          const { Session } = await import("@/session")
+          Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
+          log.error("failed to load command", { command: item, err })
+          return undefined
+        })
+        if (!md) continue
 
-      const patterns = ["/.dax/command/", "/.dax/commands/", "/command/", "/commands/"]
-      const file = rel(item, patterns) ?? path.basename(item)
-      const name = trim(file)
+        const patterns = ["/.dax/command/", "/.dax/commands/", "/command/", "/commands/"]
+        const file = rel(item, patterns) ?? path.basename(item)
+        const name = trim(file)
 
-      const config = {
-        name,
-        ...md.data,
-        template: md.content.trim(),
+        const config = {
+          name,
+          ...md.data,
+          template: md.content.trim(),
+        }
+        const parsed = Command.safeParse(config)
+        if (parsed.success) {
+          result[config.name] = parsed.data
+          continue
+        }
+        throw new InvalidError({ path: item, issues: parsed.error.issues }, { cause: parsed.error })
       }
-      const parsed = Command.safeParse(config)
-      if (parsed.success) {
-        result[config.name] = parsed.data
-        continue
-      }
-      throw new InvalidError({ path: item, issues: parsed.error.issues }, { cause: parsed.error })
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") throw err
     }
     return result
   }
@@ -458,39 +457,37 @@ export namespace Config {
   const AGENT_GLOB = new Bun.Glob("{agent,agents}/**/*.md")
   async function loadAgent(dir: string) {
     const result: Record<string, Agent> = {}
+    try {
+      for await (const item of AGENT_GLOB.scan({ absolute: true, followSymlinks: true, dot: true, cwd: dir })) {
+        const md = await ConfigMarkdown.parse(item).catch(async (err) => {
+          const message = ConfigMarkdown.FrontmatterError.isInstance(err)
+            ? err.data.message
+            : `Failed to parse agent ${item}`
+          const { Session } = await import("@/session")
+          Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
+          log.error("failed to load agent", { agent: item, err })
+          return undefined
+        })
+        if (!md) continue
 
-    for await (const item of AGENT_GLOB.scan({
-      absolute: true,
-      followSymlinks: true,
-      dot: true,
-      cwd: dir,
-    })) {
-      const md = await ConfigMarkdown.parse(item).catch(async (err) => {
-        const message = ConfigMarkdown.FrontmatterError.isInstance(err)
-          ? err.data.message
-          : `Failed to parse agent ${item}`
-        const { Session } = await import("@/session")
-        Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
-        log.error("failed to load agent", { agent: item, err })
-        return undefined
-      })
-      if (!md) continue
+        const patterns = ["/.dax/agent/", "/.dax/agents/", "/agent/", "/agents/"]
+        const file = rel(item, patterns) ?? path.basename(item)
+        const agentName = trim(file)
 
-      const patterns = ["/.dax/agent/", "/.dax/agents/", "/agent/", "/agents/"]
-      const file = rel(item, patterns) ?? path.basename(item)
-      const agentName = trim(file)
-
-      const config = {
-        name: agentName,
-        ...md.data,
-        prompt: md.content.trim(),
+        const config = {
+          name: agentName,
+          ...md.data,
+          prompt: md.content.trim(),
+        }
+        const parsed = Agent.safeParse(config)
+        if (parsed.success) {
+          result[config.name] = parsed.data
+          continue
+        }
+        throw new InvalidError({ path: item, issues: parsed.error.issues }, { cause: parsed.error })
       }
-      const parsed = Agent.safeParse(config)
-      if (parsed.success) {
-        result[config.name] = parsed.data
-        continue
-      }
-      throw new InvalidError({ path: item, issues: parsed.error.issues }, { cause: parsed.error })
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") throw err
     }
     return result
   }
@@ -498,36 +495,34 @@ export namespace Config {
   const MODE_GLOB = new Bun.Glob("{mode,modes}/*.md")
   async function loadMode(dir: string) {
     const result: Record<string, Agent> = {}
-    for await (const item of MODE_GLOB.scan({
-      absolute: true,
-      followSymlinks: true,
-      dot: true,
-      cwd: dir,
-    })) {
-      const md = await ConfigMarkdown.parse(item).catch(async (err) => {
-        const message = ConfigMarkdown.FrontmatterError.isInstance(err)
-          ? err.data.message
-          : `Failed to parse mode ${item}`
-        const { Session } = await import("@/session")
-        Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
-        log.error("failed to load mode", { mode: item, err })
-        return undefined
-      })
-      if (!md) continue
+    try {
+      for await (const item of MODE_GLOB.scan({ absolute: true, followSymlinks: true, dot: true, cwd: dir })) {
+        const md = await ConfigMarkdown.parse(item).catch(async (err) => {
+          const message = ConfigMarkdown.FrontmatterError.isInstance(err)
+            ? err.data.message
+            : `Failed to parse mode ${item}`
+          const { Session } = await import("@/session")
+          Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
+          log.error("failed to load mode", { mode: item, err })
+          return undefined
+        })
+        if (!md) continue
 
-      const config = {
-        name: path.basename(item, ".md"),
-        ...md.data,
-        prompt: md.content.trim(),
-      }
-      const parsed = Agent.safeParse(config)
-      if (parsed.success) {
-        result[config.name] = {
-          ...parsed.data,
-          mode: "primary" as const,
+        const config = {
+          name: path.basename(item, ".md"),
+          ...md.data,
+          prompt: md.content.trim(),
         }
-        continue
+        const parsed = Agent.safeParse(config)
+        if (parsed.success) {
+          result[config.name] = {
+            ...parsed.data,
+            mode: "primary" as const,
+          }
+        }
       }
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") throw err
     }
     return result
   }
@@ -535,14 +530,12 @@ export namespace Config {
   const PLUGIN_GLOB = new Bun.Glob("{plugin,plugins}/*.{ts,js}")
   async function loadPlugin(dir: string) {
     const plugins: string[] = []
-
-    for await (const item of PLUGIN_GLOB.scan({
-      absolute: true,
-      followSymlinks: true,
-      dot: true,
-      cwd: dir,
-    })) {
-      plugins.push(pathToFileURL(item).href)
+    try {
+      for await (const item of PLUGIN_GLOB.scan({ absolute: true, followSymlinks: true, dot: true, cwd: dir })) {
+        plugins.push(pathToFileURL(item).href)
+      }
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") throw err
     }
     return plugins
   }
