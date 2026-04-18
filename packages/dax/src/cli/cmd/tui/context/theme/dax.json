@@ -50,7 +50,7 @@
     "markdownLinkText": "blue",
     "markdownCode": "accent",
     "markdownBlockQuote": "slate",
-    "markdownStrong": "text",
+    "markdownStrong": "primary",
     "markdownEmph": "accent",
     "markdownHorizontalRule": "border",
     "markdownListItem": "tan",

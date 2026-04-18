@@ -2512,8 +2512,6 @@ function Bash(props: ToolProps<typeof ShellTool>) {
       .split("\n")
       .filter((l) => l.trim() !== ""),
   )
-  const previewLines = createMemo(() => outputLines().slice(0, 5))
-  const hiddenCount = createMemo(() => Math.max(0, outputLines().length - 5))
 
   const command = createMemo(() => String((props.input as any).command ?? ""))
   const displayCommand = createMemo(() => {
@@ -2536,6 +2534,23 @@ function Bash(props: ToolProps<typeof ShellTool>) {
   })
   const isNonZeroExit = createMemo(() => exitCode() !== undefined && exitCode() !== 0)
   const liveLines = createMemo(() => outputLines().slice(-4))
+
+  const [expanded, setExpanded] = createSignal(false)
+  const PREVIEW_COUNT = 3
+  const filteredLines = createMemo(() => {
+    const lines = outputLines()
+    if (isNonZeroExit()) return lines.filter((l) => !/^(INFO|DEBUG)\s/.test(l))
+    return lines
+  })
+  const previewLines = createMemo(() => {
+    const lines = filteredLines()
+    if (expanded() || lines.length <= PREVIEW_COUNT) return lines
+    return lines.slice(-PREVIEW_COUNT)
+  })
+  const hiddenCount = createMemo(() => {
+    if (expanded()) return 0
+    return Math.max(0, filteredLines().length - PREVIEW_COUNT)
+  })
 
   return (
     <box flexDirection="column" gap={0} marginTop={1}>
@@ -2586,6 +2601,15 @@ function Bash(props: ToolProps<typeof ShellTool>) {
       {/* ── Completed output (success or error) ── */}
       <Show when={!isRunning() && previewLines().length > 0}>
         <box flexDirection="column" gap={0} paddingLeft={3}>
+          <Show when={hiddenCount() > 0}>
+            <text
+              fg={theme.primary}
+              attributes={TextAttributes.DIM}
+              onClick={() => setExpanded(true)}
+            >
+              {"  "}↕ +{hiddenCount()} line{hiddenCount() === 1 ? "" : "s"} — click to expand
+            </text>
+          </Show>
           <For each={previewLines()}>
             {(line, i) => (
               <text fg={hasError() || isNonZeroExit() ? theme.error : theme.textMuted} wrapMode="truncate-end">
@@ -2593,11 +2617,6 @@ function Bash(props: ToolProps<typeof ShellTool>) {
               </text>
             )}
           </For>
-          <Show when={hiddenCount() > 0}>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              … +{hiddenCount()} line{hiddenCount() === 1 ? "" : "s"}
-            </text>
-          </Show>
         </box>
       </Show>
     </box>
