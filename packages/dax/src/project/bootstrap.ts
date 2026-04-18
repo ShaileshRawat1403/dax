@@ -15,9 +15,11 @@ import { Snapshot } from "../snapshot"
 import { Truncate } from "../tool/truncation"
 import { loadEnvHierarchy } from "@/env/load"
 import { ModelsDev } from "../provider/models"
+import { Global } from "@/global"
 
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
+  await Global.ensureDirectories()
   loadEnvHierarchy(Instance.directory)
   ModelsDev.init()
   await PluginModule.Plugin.init()

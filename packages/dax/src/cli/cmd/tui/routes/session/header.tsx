@@ -70,6 +70,8 @@ export function Header(props: {
     const decision = props.decisionState.toLowerCase().trim()
     if (!decision) return false
     if (lifecycle && lifecycle === decision) return false
+    // Lifecycle chip already communicates terminal outcomes — decision chip adds nothing
+    if (lifecycle === "completed" || lifecycle === "failed") return false
     return true
   })
 

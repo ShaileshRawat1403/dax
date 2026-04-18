@@ -88,7 +88,7 @@ export function shouldShowWorkstationPane(input: {
   if (input.hasCriticalIntervention) return true
   if (input.paneVisibility === "hidden") return false
   if (input.paneVisibility === "pinned") return true
-  return input.hasAuditNeed || input.hasRefineNeed
+  return input.hasAuditNeed
 }
 
 export function hasMemoryContext(input: {

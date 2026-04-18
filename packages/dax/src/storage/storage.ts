@@ -143,6 +143,7 @@ export namespace Storage {
 
   const state = lazy(async () => {
     const dir = path.join(Global.Path.data, "storage")
+    await fs.mkdir(dir, { recursive: true })
     const migration = await Bun.file(path.join(dir, "migration"))
       .json()
       .then((x) => parseInt(x))

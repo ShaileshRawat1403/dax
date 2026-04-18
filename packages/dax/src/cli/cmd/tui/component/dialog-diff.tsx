@@ -72,11 +72,11 @@ export function DialogDiff(props: { diffs: DialogDiffItem[]; onOpenPane?: () => 
       </box>
 
       <box flexDirection="row" gap={1} flexWrap="wrap">
-        <text fg={theme.textMuted}>{summary().files} files</text>
+        <text fg={theme.textMuted}>{`${summary().files} files`}</text>
         <text fg={theme.textMuted}>•</text>
-        <text fg={theme.diffAdded}>+{summary().additions}</text>
+        <text fg={theme.diffAdded}>{`+${summary().additions}`}</text>
         <text fg={theme.textMuted}>•</text>
-        <text fg={theme.diffRemoved}>-{summary().deletions}</text>
+        <text fg={theme.diffRemoved}>{`-${summary().deletions}`}</text>
       </box>
 
       <Show when={props.diffs.length > 0} fallback={<text fg={theme.textMuted}>{emptyState()}</text>}>
@@ -107,9 +107,9 @@ export function DialogDiff(props: { diffs: DialogDiffItem[]; onOpenPane?: () => 
               <text fg={theme.textMuted}>Status: {current()!.status ?? "modified"}</text>
               <box flexDirection="row" gap={1} flexWrap="wrap">
                 <text fg={theme.textMuted}>Changes:</text>
-                <text fg={theme.diffAdded}>+{current()!.additions}</text>
+                <text fg={theme.diffAdded}>{`+${current()!.additions}`}</text>
                 <text fg={theme.textMuted}>•</text>
-                <text fg={theme.diffRemoved}>-{current()!.deletions}</text>
+                <text fg={theme.diffRemoved}>{`-${current()!.deletions}`}</text>
               </box>
               <Show when={current()!.before}>
                 <text fg={theme.textMuted}>Before: {current()!.before}</text>

@@ -258,7 +258,7 @@ function compactActivityItems(
 ) {
   const toolItems = recentTooling
     .slice(0, 2)
-    .map((item) => item.label)
+    .map((item) => summarizeToolingLabel(item.label))
     .filter(Boolean)
   const items = [
     currentStep,
@@ -268,6 +268,17 @@ function compactActivityItems(
   return Array.from(new Set(items))
     .map((item) => summarize(item, 72) ?? item)
     .slice(0, 3)
+}
+
+function summarizeToolingLabel(value: string | undefined) {
+  if (!value) return value
+  const normalized = value.replace(/\s+/g, " ").trim()
+  return normalized
+    .replace(/^shell\s*[·-]\s*/i, "")
+    .replace(/^read\s*[·-]\s*/i, "Read ")
+    .replace(/^write\s*[·-]\s*/i, "Wrote ")
+    .replace(/^edit\s*[·-]\s*/i, "Edited ")
+    .replace(/^apply_patch\s*[·-]\s*/i, "Patched ")
 }
 
 function trustGuardSignals(input: {

@@ -52,6 +52,7 @@ type ThemeColors = {
   error: RGBA
   warning: RGBA
   success: RGBA
+  highlight?: RGBA
   info: RGBA
   text: RGBA
   textMuted: RGBA
@@ -133,9 +134,10 @@ type ColorValue = HexColor | RefName | Variant | RGBA
 type ThemeJson = {
   $schema?: string
   defs?: Record<string, HexColor | RefName>
-  theme: Omit<Record<keyof ThemeColors, ColorValue>, "selectedListItemText" | "backgroundMenu"> & {
+  theme: Omit<Record<keyof ThemeColors, ColorValue>, "selectedListItemText" | "backgroundMenu" | "highlight"> & {
     selectedListItemText?: ColorValue
     backgroundMenu?: ColorValue
+    highlight?: ColorValue
     thinkingOpacity?: number
   }
 }
@@ -225,6 +227,14 @@ function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
     resolved.backgroundMenu = resolveColor(theme.theme.backgroundMenu)
   } else {
     resolved.backgroundMenu = resolved.backgroundElement
+  }
+
+  // Handle highlight - optional warm amber/tan color for inline tool completion markers
+  // Falls back to amber if not defined, preserving green success for diff/verification
+  if (theme.theme.highlight !== undefined) {
+    resolved.highlight = resolveColor(theme.theme.highlight)
+  } else {
+    resolved.highlight = resolved.warning
   }
 
   // Handle thinkingOpacity - optional with default of 0.6

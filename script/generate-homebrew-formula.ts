@@ -16,7 +16,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   const versionRaw = get("--version") ?? process.env.DAX_VERSION
   if (!versionRaw) {
-    throw new Error("Missing --version (or DAX_VERSION). Example: --version v1.0.3")
+    throw new Error("Missing --version (or DAX_VERSION). Example: --version vX.Y.Z")
   }
 
   const version = versionRaw.startsWith("v") ? versionRaw : `v${versionRaw}`
@@ -57,7 +57,7 @@ async function main() {
   const linuxX64 = "dax-linux-x64.tar.gz"
 
   const formula = `class Dax < Formula
-  desc "Deterministic AI eXecution CLI"
+  desc "Governed execution CLI with a deterministic runtime contract"
   homepage "https://github.com/${args.repo}"
   version "${versionNoV}"
   license "MIT"

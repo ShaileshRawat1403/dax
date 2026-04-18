@@ -186,8 +186,18 @@ await fs.mkdir(artifactsDir, { recursive: true })
 const auditArtifact = path.join(artifactsDir, "audit-result.json")
 const authArtifact = path.join(artifactsDir, "doctor-auth.json")
 const provenanceArtifact = path.join(artifactsDir, "release-provenance.json")
+const releaseCheckHome = path.join(artifactsDir, ".release-check-home")
+await fs.mkdir(releaseCheckHome, { recursive: true })
+
+const daxReleaseEnv = {
+  ...process.env,
+  DAX_DISABLE_MODELS_FETCH: process.env.DAX_DISABLE_MODELS_FETCH ?? "1",
+  DAX_TEST_HOME: process.env.DAX_TEST_HOME ?? releaseCheckHome,
+  DAX_DISABLE_CONFIG_AUTO_INSTALL: process.env.DAX_DISABLE_CONFIG_AUTO_INSTALL ?? "1",
+}
 
 const auditOutput = await $`bun run --cwd packages/dax src/index.ts audit run --profile strict --json`
+  .env(daxReleaseEnv)
   .text()
   .catch((error) => {
     throw new Error(`failed to generate audit artifact: ${error instanceof Error ? error.message : String(error)}`)
@@ -209,9 +219,10 @@ try {
 
 console.log(`release-check: wrote ${path.relative(root, auditArtifact)}`)
 
-const doctorAuthOutput = await $`bun run --cwd packages/dax src/index.ts doctor auth --json`.text().catch((error) => {
-  throw new Error(`failed to generate doctor auth artifact: ${error instanceof Error ? error.message : String(error)}`)
-})
+const doctorAuthOutput = await $`bun run --cwd packages/dax src/index.ts doctor auth --json`
+  .env(daxReleaseEnv)
+  .throws(false)
+  .text()
 
 try {
   const start = doctorAuthOutput.indexOf("{")
@@ -241,16 +252,24 @@ let manifest: ReleaseManifest | undefined
 if (existsSync(releaseManifestPath)) {
   manifest = JSON.parse(await fs.readFile(releaseManifestPath, "utf8")) as ReleaseManifest
   if (manifest.version && manifest.version !== packageVersion) {
-    throw new Error(
-      `release provenance check failed: dist/release manifest version=${manifest.version} does not match package version=${packageVersion}`,
+    if (releaseMode) {
+      throw new Error(
+        `release provenance check failed: dist/release manifest version=${manifest.version} does not match package version=${packageVersion}`,
+      )
+    }
+
+    console.log(
+      `release-check: ignoring stale dist/release manifest version=${manifest.version} for non-release package version=${packageVersion}`,
     )
-  }
-  const manifestAssets = (manifest.assets ?? []).map((asset) => asset.filename).filter(Boolean) as string[]
-  const missingManifestAssets = expectedArtifactFilenames.filter((filename) => !manifestAssets.includes(filename))
-  if (missingManifestAssets.length > 0) {
-    throw new Error(
-      `release provenance check failed: dist/release manifest is missing expected assets: ${missingManifestAssets.join(", ")}`,
-    )
+    manifest = undefined
+  } else {
+    const manifestAssets = (manifest.assets ?? []).map((asset) => asset.filename).filter(Boolean) as string[]
+    const missingManifestAssets = expectedArtifactFilenames.filter((filename) => !manifestAssets.includes(filename))
+    if (missingManifestAssets.length > 0) {
+      throw new Error(
+        `release provenance check failed: dist/release manifest is missing expected assets: ${missingManifestAssets.join(", ")}`,
+      )
+    }
   }
 }
 

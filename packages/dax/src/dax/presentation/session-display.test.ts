@@ -135,7 +135,7 @@ describe("session-display", () => {
     ).toBe(true)
   })
 
-  test("refine drafts keep the workstation pane visible across display modes", () => {
+  test("refine drafts do not auto-open the workstation pane in operator mode", () => {
     expect(
       shouldShowWorkstationPane({
         displayMode: "operator",
@@ -144,7 +144,7 @@ describe("session-display", () => {
         hasAuditNeed: false,
         hasRefineNeed: true,
       }),
-    ).toBe(true)
+    ).toBe(false)
 
     expect(
       shouldShowWorkstationPane({

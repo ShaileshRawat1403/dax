@@ -63,31 +63,31 @@ function describeToolProgress(tool: string) {
     case "read":
       return "reading files"
     case "glob":
-      return "searching the workspace"
+      return "mapping the workspace"
     case "grep":
-      return "searching file contents"
+      return "searching for patterns"
     case "list":
-      return "listing project files"
+      return "listing structure"
     case "shell":
-      return "running a command"
+      return "running commands"
     case "write":
-      return "writing a file"
+      return "writing files"
     case "edit":
-      return "editing a file"
+      return "updating files"
     case "apply_patch":
-      return "patching files"
+      return "applying patches"
     case "task":
-      return "structuring the task"
+      return "breaking down tasks"
     case "todowrite":
-      return "updating the checklist"
+      return "tracking progress"
     case "question":
-      return "waiting for clarification"
+      return "checking with you"
     case "skill":
-      return "loading a skill"
+      return "loading skill"
     case "reflection":
-      return "recording reflection"
+      return "capturing insights"
     default:
-      return `${tool} in progress`
+      return `${tool}`
   }
 }
 
@@ -140,7 +140,10 @@ function extractTarget(part: any): string {
   if (tool === "task" || tool === "question" || tool === "skill") {
     return summarizeValue(input.description ?? input.prompt ?? input.name, 56) ?? "operator step"
   }
-  return summarizeValue(input.filePath ?? input.path ?? input.query ?? input.pattern ?? input.command, 56) ?? "runtime target"
+  return (
+    summarizeValue(input.filePath ?? input.path ?? input.query ?? input.pattern ?? input.command, 56) ??
+    "runtime target"
+  )
 }
 
 function deriveWhy(tool: string) {
@@ -152,42 +155,43 @@ function deriveWhy(tool: string) {
     case "codesearch":
     case "websearch":
     case "webfetch":
-      return "gather context"
+      return "understanding context"
     case "task":
     case "todowrite":
     case "question":
     case "skill":
     case "reflection":
-      return "shape execution plan"
+      return "shaping approach"
     case "write":
     case "edit":
     case "apply_patch":
-      return "apply scoped change"
+      return "making changes"
     case "shell":
-      return "execute workflow command"
+      return "checking state"
     default:
-      return "advance current run"
+      return "working through this"
   }
 }
 
 function deriveResult(part: any) {
   const status = String(part?.state?.status ?? "pending").toLowerCase()
   const metadata = part?.state?.metadata ?? {}
-  if (status === "pending" || status === "running") return "in progress"
-  if (status === "error" || status === "failed") return "failed"
+  if (status === "pending" || status === "running") return "in flight"
+  if (status === "error" || status === "failed") return "hit issue"
   if (status !== "completed") return status
 
-  if (typeof metadata?.exitCode === "number") return metadata.exitCode === 0 ? "completed (exit 0)" : `completed (exit ${metadata.exitCode})`
-  if (typeof metadata?.matchCount === "number") return `completed (${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"})`
-  if (Array.isArray(metadata?.matches)) return `completed (${metadata.matches.length} match${metadata.matches.length === 1 ? "" : "es"})`
-  if (Array.isArray(metadata?.paths)) return `completed (${metadata.paths.length} path${metadata.paths.length === 1 ? "" : "s"})`
-  if (metadata?.written === true) return "completed (workspace updated)"
-  if (metadata?.read === true) return "completed (content loaded)"
-  return "completed"
+  if (typeof metadata?.exitCode === "number") return metadata.exitCode === 0 ? "clean" : `exit ${metadata.exitCode}`
+  if (typeof metadata?.matchCount === "number")
+    return `${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"}`
+  if (Array.isArray(metadata?.matches)) return `${metadata.matches.length} found`
+  if (Array.isArray(metadata?.paths)) return `${metadata.paths.length} resolved`
+  if (metadata?.written === true) return "updated"
+  if (metadata?.read === true) return "loaded"
+  return "done"
 }
 
 function deriveNext(tool: string, result: string) {
-  const done = result.startsWith("completed")
+  const done = !result.includes("flight") && !result.includes("issue")
   switch (tool) {
     case "read":
     case "glob":
@@ -196,21 +200,21 @@ function deriveNext(tool: string, result: string) {
     case "codesearch":
     case "websearch":
     case "webfetch":
-      return done ? "decide next operation" : "wait for context"
+      return done ? "building on findings" : "waiting"
     case "task":
     case "todowrite":
     case "question":
     case "skill":
     case "reflection":
-      return done ? "continue plan execution" : "wait for planning step"
+      return done ? "moving forward" : "waiting"
     case "write":
     case "edit":
     case "apply_patch":
-      return done ? "run verification" : "wait for mutation"
+      return done ? "checking changes" : "working on it"
     case "shell":
-      return done ? "capture evidence and verify" : "wait for command completion"
+      return done ? "looking at output" : "waiting"
     default:
-      return done ? "continue governed run" : "wait for tool completion"
+      return done ? "next" : "working"
   }
 }
 
@@ -294,16 +298,16 @@ export function deriveLiveSessionStageState(input: {
   if (input.permissionsCount > 0 || input.questionsCount > 0) {
     return {
       stage: "waiting",
-      reason: input.permissionsCount > 0 ? "waiting for approval" : "waiting for user input",
+      reason: input.permissionsCount > 0 ? "needs your approval" : "needs your input",
     }
   }
 
   if (input.sessionStatusType === "retry") {
-    return { stage: "retrying", reason: "provider cooldown in progress" }
+    return { stage: "retrying", reason: "cooling down briefly" }
   }
 
   if (input.sessionStatusType === "delayed") {
-    return { stage: "thinking", reason: "waiting for provider response" }
+    return { stage: "thinking", reason: "waiting on provider" }
   }
 
   if (input.pendingID) {
@@ -318,28 +322,25 @@ export function deriveLiveSessionStageState(input: {
       if (PLAN_TOOLS.has(tool)) return { stage: "planning", reason: describeToolProgress(tool) }
       if (EXECUTE_TOOLS.has(tool)) return { stage: "executing", reason: describeToolProgress(tool) }
       if (VERIFY_TOOLS.has(tool) && completedExecutionInTurn) {
-        return { stage: "verifying", reason: "checking the result after execution" }
+        return { stage: "verifying", reason: "checking result" }
       }
       if (EXPLORE_TOOLS.has(tool)) return { stage: "exploring", reason: describeToolProgress(tool) }
       return { stage: "executing", reason: describeToolProgress(tool) }
     }
 
     const hasReasoning = parts.some((part) => part.type === "reasoning" && part.text.trim().length > 0)
-    if (hasReasoning) return { stage: "thinking", reason: "working through the request" }
-    return { stage: "thinking", reason: "response stream active" }
+    if (hasReasoning) return { stage: "thinking", reason: "working through this" }
+    return { stage: "thinking", reason: "processing" }
   }
 
   if (input.sessionStatusType === "busy") {
-    return { stage: "thinking", reason: "session processing" }
+    return { stage: "thinking", reason: "working on it" }
   }
 
   return { stage: "done", reason: "idle" }
 }
 
-export function deriveLiveStreamStatus(input: {
-  pendingID?: string
-  partsForMessage: (messageID: string) => Part[]
-}) {
+export function deriveLiveStreamStatus(input: { pendingID?: string; partsForMessage: (messageID: string) => Part[] }) {
   return deriveLiveNarrativeStatus(input).status
 }
 
@@ -383,7 +384,7 @@ export function deriveAssistantInsightCard(input: {
     total: number
     percent: number
   } | null
-}) : AssistantInsightCard {
+}): AssistantInsightCard {
   const metrics: AssistantInsightCard["metrics"] = [
     { label: "Stage", value: titlecase(input.stage), tone: "primary" as const },
     { label: "Stream", value: input.streamStatus, tone: "accent" as const },

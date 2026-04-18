@@ -81,7 +81,7 @@ export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string;
   const small = createMemo(() => width() < 95)
 
   const mode = createMemo(() => {
-    if (route.data.type !== "session") return "LAUNCH"
+    if (route.data.type !== "session") return "READY"
     return (props?.lifecycleLabel ?? "READY").toUpperCase()
   })
 
@@ -140,7 +140,11 @@ export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string;
             paddingRight={1}
           >
             <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-              {props?.workflowMode?.toUpperCase()}
+              {props?.workflowMode === "plan"
+                ? "CHAT"
+                : props?.workflowMode === "build"
+                  ? "BUILD"
+                  : props?.workflowMode?.toUpperCase()}
             </text>
           </box>
         </Show>
