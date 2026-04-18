@@ -28,44 +28,40 @@ function normalizeAsked(asked: string) {
   return asked.trim().toLowerCase()
 }
 
-function buildGuidedPreamble(input: AssistantNarrativeInput) {
+function buildGuidedPreamble(input: AssistantNarrativeInput): string | undefined {
   const asked = normalizeAsked(input.asked)
 
   if (input.hasError) {
-    return "I encountered an issue while processing. Let me adjust and try again."
+    return "Encountered an issue — adjusting approach."
   }
 
-  if (/review|summarize|analy[sz]e|read( me)?|repo|repository|architecture/.test(asked)) {
+  if (/fix|debug|error|failing|broken|bug|issue/.test(asked)) {
     return input.completed
-      ? "I've completed my analysis of the repository based on the actual code and documentation."
-      : "I'm analyzing the repository structure and contents to provide a comprehensive overview."
-  }
-
-  if (/fix|debug|error|failing|broken|test|bug|issue/.test(asked)) {
-    return input.completed
-      ? "I've identified the root cause and mapped out a safe path for the fix."
-      : "I'm investigating the failure boundary to find the most direct path to a resolution."
-  }
-
-  if (/learn|understand|explain|teach|walk me through/.test(asked)) {
-    return input.completed
-      ? "I've framed this explanation to highlight the core concepts and next steps."
-      : "I'm breaking this down to help you understand the key architectural flows."
+      ? "Root cause identified."
+      : "Tracing the failure."
   }
 
   if (input.mode === "plan") {
     return input.completed
-      ? "The strategy is now fully mapped and ready for implementation."
-      : "I'm drafting a grounded execution plan to ensure we move safely."
+      ? "Plan ready."
+      : "Mapping the execution plan."
   }
 
-  if (input.hasExecuteTool) {
-    return "Executing the planned changes now. I'll verify the system state at each step."
+  if (input.mode === "audit") {
+    return input.completed
+      ? "Audit complete."
+      : "Reviewing for release risk."
   }
 
-  return input.completed
-    ? "I've processed the request and refined the current state."
-    : "I'm moving forward with the most relevant steps for this task."
+  if (input.mode === "explore") {
+    return input.completed ? undefined : "Searching the codebase."
+  }
+
+  if (input.mode === "docs") {
+    return input.completed ? undefined : "Reading the repository."
+  }
+
+  return undefined
 }
 
 function isLightRequest(asked: string) {

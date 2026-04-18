@@ -78,7 +78,7 @@ describe("assistant narrative contract", () => {
     expect(narrative?.preamble).toBeUndefined()
   })
 
-  it("adapts guided preambles to repo review work", () => {
+  it("shows plan preamble for plan-mode turns regardless of request text", () => {
     const narrative = buildAssistantNarrative({
       asked: "can you review my repo",
       mode: "plan",
@@ -94,29 +94,10 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("analyzing the repository")
+    expect(narrative?.preamble).toBe("Mapping the execution plan.")
   })
 
-  it("drops meta preambles for direct docs asks", () => {
-    const narrative = buildAssistantNarrative({
-      asked: "review this repo readme",
-      mode: "plan",
-      hasPendingTool: false,
-      hasToolActivity: false,
-      toolCount: 0,
-      hasExecuteTool: false,
-      hasVerifyTool: false,
-      hasReasoning: true,
-      hasError: false,
-      completed: false,
-      doing: "Understanding the request and preparing the next step.",
-      next: "Continue with a follow-up request.",
-    })
-    expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("analyzing the repository")
-  })
-
-  it("adapts guided preambles to release-readiness work", () => {
+  it("shows plan preamble for release-readiness turns in plan mode", () => {
     const narrative = buildAssistantNarrative({
       asked: "lets plan the release readiness for DAX",
       mode: "plan",
@@ -132,13 +113,32 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("analyzing the repository")
+    expect(narrative?.preamble).toBe("Mapping the execution plan.")
   })
 
-  it("adapts guided preambles to streaming UX work", () => {
+  it("shows 'Plan ready.' when plan mode completes", () => {
     const narrative = buildAssistantNarrative({
-      asked: "i want to check the model streaming",
+      asked: "lets plan the release readiness for DAX",
       mode: "plan",
+      hasPendingTool: false,
+      hasToolActivity: false,
+      toolCount: 0,
+      hasExecuteTool: false,
+      hasVerifyTool: false,
+      hasReasoning: true,
+      hasError: false,
+      completed: true,
+      doing: "Understanding the request and preparing the next step.",
+      next: "Continue with a follow-up request.",
+    })
+    expect(narrative?.intensity).toBe("guided")
+    expect(narrative?.preamble).toBe("Plan ready.")
+  })
+
+  it("shows audit preamble for audit-mode turns", () => {
+    const narrative = buildAssistantNarrative({
+      asked: "audit the repo for release",
+      mode: "audit",
       hasPendingTool: false,
       hasToolActivity: false,
       toolCount: 0,
@@ -151,13 +151,13 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("grounded execution plan")
+    expect(narrative?.preamble).toBe("Reviewing for release risk.")
   })
 
-  it("adapts guided preambles to architecture review work", () => {
+  it("shows 'Audit complete.' when audit mode finishes", () => {
     const narrative = buildAssistantNarrative({
-      asked: "explain the dax architecture and orchestration flow",
-      mode: "plan",
+      asked: "audit the repo for release",
+      mode: "audit",
       hasPendingTool: false,
       hasToolActivity: false,
       toolCount: 0,
@@ -165,15 +165,15 @@ describe("assistant narrative contract", () => {
       hasVerifyTool: false,
       hasReasoning: true,
       hasError: false,
-      completed: false,
-      doing: "Understanding the request and preparing the next step.",
-      next: "Continue with a follow-up request.",
+      completed: true,
+      doing: "Audit complete.",
+      next: "Review findings.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("analyzing the repository")
+    expect(narrative?.preamble).toBe("Audit complete.")
   })
 
-  it("adapts guided preambles to debugging work", () => {
+  it("prioritises debug signal over mode when request is a debugging ask", () => {
     const narrative = buildAssistantNarrative({
       asked: "debug why streaming is broken in dax run",
       mode: "plan",
@@ -189,13 +189,32 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("failure boundary")
+    expect(narrative?.preamble).toBe("Tracing the failure.")
   })
 
-  it("adapts guided preambles to learning-oriented prompts", () => {
+  it("returns 'Root cause identified.' when debug turn completes", () => {
+    const narrative = buildAssistantNarrative({
+      asked: "fix the failing test",
+      mode: "build",
+      hasPendingTool: false,
+      hasToolActivity: false,
+      toolCount: 0,
+      hasExecuteTool: false,
+      hasVerifyTool: false,
+      hasReasoning: true,
+      hasError: false,
+      completed: true,
+      doing: "Fixed.",
+      next: "Done.",
+    })
+    expect(narrative?.intensity).toBe("guided")
+    expect(narrative?.preamble).toBe("Root cause identified.")
+  })
+
+  it("returns no preamble for generic build-mode asks without debug signal", () => {
     const narrative = buildAssistantNarrative({
       asked: "help me understand how DAX works",
-      mode: "plan",
+      mode: "build",
       hasPendingTool: false,
       hasToolActivity: false,
       toolCount: 0,
@@ -208,7 +227,26 @@ describe("assistant narrative contract", () => {
       next: "Continue with a follow-up request.",
     })
     expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toContain("breaking this down")
+    expect(narrative?.preamble).toBeUndefined()
+  })
+
+  it("returns no preamble for explore mode (stream speaks for itself)", () => {
+    const narrative = buildAssistantNarrative({
+      asked: "find all tsx files using useContext",
+      mode: "explore",
+      hasPendingTool: false,
+      hasToolActivity: false,
+      toolCount: 0,
+      hasExecuteTool: false,
+      hasVerifyTool: false,
+      hasReasoning: true,
+      hasError: false,
+      completed: true,
+      doing: "Search complete.",
+      next: "Done.",
+    })
+    expect(narrative?.intensity).toBe("guided")
+    expect(narrative?.preamble).toBeUndefined()
   })
 
   it("keeps the structured execution card for tool-heavy work", () => {
