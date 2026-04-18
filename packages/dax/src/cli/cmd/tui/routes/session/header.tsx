@@ -72,6 +72,16 @@ export function Header(props: {
     if (lifecycle && lifecycle === decision) return false
     // Lifecycle chip already communicates terminal outcomes — decision chip adds nothing
     if (lifecycle === "completed" || lifecycle === "failed") return false
+    // Suppress when the decision label is the phase-tactical alias for the same lifecycle stage
+    const phaseAliases: Record<string, string> = {
+      intel: "understanding",
+      briefing: "planning",
+      engaged: "executing",
+      debrief: "verifying",
+      hold: "waiting",
+      complete: "completed",
+    }
+    if (lifecycle && phaseAliases[decision] === lifecycle) return false
     return true
   })
 

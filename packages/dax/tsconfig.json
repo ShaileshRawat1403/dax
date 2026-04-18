@@ -5,6 +5,7 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
     "noUncheckedIndexedAccess": false,
     "customConditions": ["browser"],
     "paths": {
