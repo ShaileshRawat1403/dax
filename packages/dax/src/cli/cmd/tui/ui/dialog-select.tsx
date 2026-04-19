@@ -238,27 +238,29 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
             <text fg={hover() ? theme.selectedListItemText : theme.textMuted}>esc</text>
           </box>
         </box>
-        <box paddingTop={1}>
-          <input
-            onInput={(value: string) => {
-              batch(() => {
-                setStore("filter", value)
-                props.onFilter?.(value)
-              })
-            }}
-            focusedBackgroundColor={theme.backgroundElement}
-            cursorColor={theme.primary}
-            focusedTextColor={theme.textMuted}
-            ref={(r: InputRenderable) => {
-              input = r
-              setTimeout(() => {
-                if (!input) return
-                if (input.isDestroyed) return
-                input.focus()
-              }, 1)
-            }}
-            placeholder={props.placeholder ?? "Search"}
-          />
+        <box paddingTop={1} paddingBottom={1}>
+          <box border={["round"]} borderColor={theme.borderActive} paddingLeft={1} paddingRight={1}>
+            <input
+              onInput={(value: string) => {
+                batch(() => {
+                  setStore("filter", value)
+                  props.onFilter?.(value)
+                })
+              }}
+              focusedBackgroundColor={theme.background}
+              cursorColor={theme.primary}
+              focusedTextColor={theme.text}
+              ref={(r: InputRenderable) => {
+                input = r
+                setTimeout(() => {
+                  if (!input) return
+                  if (input.isDestroyed) return
+                  input.focus()
+                }, 1)
+              }}
+              placeholder={props.placeholder ?? "Search..."}
+            />
+          </box>
         </box>
       </box>
       <Show
@@ -312,10 +314,12 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
                           if (index === -1) return
                           moveTo(index)
                         }}
-                        backgroundColor={active() ? (option.bg ?? theme.primary) : RGBA.fromInts(0, 0, 0, 0)}
-                        paddingLeft={current() || option.gutter ? 1 : 3}
+                        backgroundColor={active() ? (option.bg ?? theme.backgroundElement) : RGBA.fromInts(0, 0, 0, 0)}
+                        paddingLeft={current() || option.gutter ? 1 : 2}
                         paddingRight={3}
                         gap={1}
+                        border={["left"]}
+                        borderColor={active() ? theme.primary : RGBA.fromInts(0,0,0,0)}
                       >
                         <Option
                           title={option.title}
@@ -362,12 +366,11 @@ function Option(props: {
   onMouseOver?: () => void
 }) {
   const { theme } = useTheme()
-  const fg = selectedForeground(theme)
 
   return (
     <>
       <Show when={props.current}>
-        <text flexShrink={0} fg={props.active ? fg : props.current ? theme.primary : theme.text} marginRight={0}>
+        <text flexShrink={0} fg={props.current ? theme.primary : theme.text} marginRight={0}>
           ●
         </text>
       </Show>
@@ -376,9 +379,9 @@ function Option(props: {
           {props.gutter}
         </box>
       </Show>
-      <box flexGrow={1} paddingLeft={3} flexDirection="column" overflow="hidden">
+      <box flexGrow={1} paddingLeft={2} flexDirection="column" overflow="hidden">
         <text
-          fg={props.active ? fg : props.current ? theme.primary : theme.text}
+          fg={props.active ? theme.text : props.current ? theme.primary : theme.text}
           attributes={props.active ? TextAttributes.BOLD : undefined}
           overflow="hidden"
           wrapMode="none"
@@ -386,14 +389,14 @@ function Option(props: {
           {Locale.truncate(props.title, 61)}
         </text>
         <Show when={props.description}>
-          <text fg={props.active ? fg : theme.textMuted} overflow="hidden" wrapMode="word">
+          <text fg={theme.textMuted} overflow="hidden" wrapMode="word">
             {props.description}
           </text>
         </Show>
       </box>
       <Show when={props.footer}>
         <box flexShrink={0}>
-          <text fg={props.active ? fg : theme.textMuted}>{props.footer}</text>
+          <text fg={theme.textMuted}>{props.footer}</text>
         </box>
       </Show>
     </>

@@ -96,25 +96,27 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
         <box>
           <text fg={theme.text}>Filename:</text>
         </box>
-        <textarea
-          onSubmit={() => {
-            props.onConfirm?.({
-              filename: textarea.plainText,
-              thinking: store.thinking,
-              toolDetails: store.toolDetails,
-              assistantMetadata: store.assistantMetadata,
-              openWithoutSaving: store.openWithoutSaving,
-            })
-          }}
-          height={3}
-          keyBindings={[{ name: "return", action: "submit" }]}
-          ref={(val: TextareaRenderable) => (textarea = val)}
-          initialValue={props.defaultFilename}
-          placeholder="Enter filename"
-          textColor={theme.text}
-          focusedTextColor={theme.text}
-          cursorColor={theme.text}
-        />
+        <box border={["round"]} borderColor={theme.borderActive} paddingLeft={1} paddingRight={1}>
+          <textarea
+            onSubmit={() => {
+              props.onConfirm?.({
+                filename: textarea.plainText,
+                thinking: store.thinking,
+                toolDetails: store.toolDetails,
+                assistantMetadata: store.assistantMetadata,
+                openWithoutSaving: store.openWithoutSaving,
+              })
+            }}
+            height={3}
+            keyBindings={[{ name: "return", action: "submit" }]}
+            ref={(val: TextareaRenderable) => (textarea = val)}
+            initialValue={props.defaultFilename}
+            placeholder="Enter filename"
+            textColor={theme.text}
+            focusedTextColor={theme.text}
+            cursorColor={theme.primary}
+          />
+        </box>
       </box>
       <box flexDirection="column">
         <box

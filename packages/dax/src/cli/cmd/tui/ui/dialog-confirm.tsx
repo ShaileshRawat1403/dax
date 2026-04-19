@@ -73,12 +73,15 @@ export function DialogConfirm(props: DialogConfirmProps) {
         </text>
       </box>
       <text fg={theme.textMuted}>Enter confirm · Esc cancel · Y/N quick choice</text>
-      <box flexDirection="row" justifyContent="flex-end" paddingBottom={1}>
+      <box flexDirection="row" justifyContent="flex-end" paddingBottom={1} paddingTop={1}>
         <For each={["cancel", "confirm"]}>
           {(key) => (
             <box
-              paddingLeft={1}
-              paddingRight={1}
+              paddingLeft={2}
+              paddingRight={2}
+              marginLeft={1}
+              border={["round"]}
+              borderColor={key === store.active ? theme.primary : theme.borderSubtle}
               backgroundColor={key === store.active ? theme.primary : undefined}
               onMouseUp={() => {
                 if (key === "confirm") props.onConfirm?.()
@@ -86,7 +89,10 @@ export function DialogConfirm(props: DialogConfirmProps) {
                 dialog.clear()
               }}
             >
-              <text fg={key === store.active ? theme.selectedListItemText : theme.textMuted}>
+              <text 
+                fg={key === store.active ? theme.background : theme.text} 
+                attributes={key === store.active ? TextAttributes.BOLD : undefined}
+              >
                 {Locale.titlecase(key)}
               </text>
             </box>
