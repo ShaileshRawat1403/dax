@@ -212,6 +212,9 @@ function classifyPathZone(relativePath: string) {
   ) {
     return "forbidden" as const
   }
+  if (lower.startsWith(".dax/lab/")) {
+    return "lab" as const
+  }
   if (
     /^\.env($|\.)/i.test(path.basename(normalized)) ||
     lower.includes("secret") ||
@@ -500,8 +503,13 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   }
 
   const touchedFiles = collectTouchedPaths(input.req)
+  const isOnlyLabAction = touchedFiles.length > 0 && touchedFiles.every((p) => classifyPathZone(p) === "lab")
+
   for (const relativePath of touchedFiles) {
     const zone = classifyPathZone(relativePath)
+    if (zone === "lab") {
+      continue
+    }
     if (zone === "forbidden") {
       const reason = `${relativePath} is outside the allowed workspace or inside a forbidden system/config zone.`
       await blockViolation(input, {
@@ -549,14 +557,18 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   }
 
   const nextTouched = new Set(currentGuard.touchedFiles)
-  touchedFiles.forEach((item) => nextTouched.add(item))
+  touchedFiles.forEach((item) => {
+    if (classifyPathZone(item) !== "lab") {
+      nextTouched.add(item)
+    }
+  })
 
   const nextFilesTouched = nextTouched.size
   const nextMutatingCommands =
     currentGuard.budget.mutatingCommands +
-    (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish" ? 1 : 0)
+    (!isOnlyLabAction && (actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") ? 1 : 0)
 
-  if (nextFilesTouched > currentGuard.budget.maxFilesTouched) {
+  if (!isOnlyLabAction && nextFilesTouched > currentGuard.budget.maxFilesTouched) {
     const reason = `This run would touch ${nextFilesTouched} files, exceeding the mutation budget of ${currentGuard.budget.maxFilesTouched}. Pause and confirm direction.`
     await blockViolation(input, {
       code: "mutation_budget",
@@ -567,7 +579,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     })
   }
 
-  if (nextMutatingCommands > currentGuard.budget.maxMutatingCommands) {
+  if (!isOnlyLabAction && nextMutatingCommands > currentGuard.budget.maxMutatingCommands) {
     const reason = `This run would exceed the mutating-command budget of ${currentGuard.budget.maxMutatingCommands}. Pause and summarize before continuing.`
     await blockViolation(input, {
       code: "command_budget",

@@ -27,3 +27,4 @@ ss/
 # Testing
 reports/
 .stryker-tmp/
+.dax/lab/
