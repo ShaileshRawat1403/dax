@@ -14,7 +14,7 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
   const duration = createMemo(() => {
     if (!props.item.durationMs) return ""
     const ms = props.item.durationMs
-    if (ms < 1000) return ""
+    if (ms < 1000) return `${ms}ms`
     const s = Math.round(ms / 1000)
     if (s < 60) return `${s}s`
     const m = Math.floor(s / 60)
@@ -84,19 +84,33 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
     )
   }
 
-  // default — compact tool-style row matching ⏺ chrome
+  // default — compact tool-style row matching container-like execution chrome
   const isPending = () => !isCompleted() && !isFailed()
   return (
     <box flexDirection="column" gap={0} paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={0}>
       <box flexDirection="row" gap={1} alignItems="center">
-        <Show
-          when={isCompleted()}
-          fallback={<Spinner color={theme.textMuted} />}
-        >
-          <text fg={theme.success} flexShrink={0}>⏺</text>
-        </Show>
+        <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
         <Show when={sentence()}>
-          <text fg={theme.textMuted} wrapMode="word">{sentence()}</text>
+          <text fg={theme.text} wrapMode="word">{sentence()}</text>
+        </Show>
+      </box>
+      
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={1} marginLeft={1} marginTop={0}>
+        {/* Output tail placeholder or actual output could go here */}
+        <Show when={isCompleted()}>
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
+            <text fg={theme.success}>╰─ ✓</text>
+            <Show when={duration()}>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{duration()}</text>
+            </Show>
+          </box>
+        </Show>
+        <Show when={isPending()}>
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
+            <text fg={theme.borderSubtle}>╰─</text>
+            <Spinner color={theme.textMuted} />
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>running...</text>
+          </box>
         </Show>
       </box>
     </box>

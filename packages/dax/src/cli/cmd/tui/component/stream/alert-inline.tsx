@@ -86,8 +86,6 @@ export function AlertInline(props: {
       paddingLeft={2}
       paddingRight={2}
       marginTop={1}
-      border={["left"]}
-      borderColor={borderColor()}
       onMouseUp={() => {
         if (isActionable() && props.onNavigateToApprovals) {
           props.onNavigateToApprovals()
@@ -96,35 +94,35 @@ export function AlertInline(props: {
     >
       {/* Header row */}
       <box flexDirection="row" gap={1} alignItems="center">
-        <text fg="$warning" attributes={TextAttributes.BOLD}>⚠</text>
-        <text fg="$warning" attributes={TextAttributes.BOLD}>
+        <text fg={borderColor()} attributes={TextAttributes.BOLD}>⚠</text>
+        <text fg={borderColor()} attributes={TextAttributes.BOLD}>
           {typeLabel()}
         </text>
         <Show when={riskLabel()}>
-          <text fg="$warning" attributes={TextAttributes.DIM}>
+          <text fg={borderColor()} attributes={TextAttributes.DIM}>
             ({riskLabel()})
           </text>
         </Show>
       </box>
 
-      {/* Message */}
-      <Show when={props.item.message}>
-        <box paddingLeft={2} paddingTop={0}>
-          <text fg="$text" wrapMode="word">
-            {stripInlineMarkdown(props.item.message!)}
-          </text>
-        </box>
-      </Show>
-
-      {/* CTA for actionable alerts */}
-      <Show when={isActionable()}>
-        <box paddingLeft={2} paddingTop={1}>
-          <box flexDirection="row" gap={1}>
-            <text fg="$warning">→</text>
-            <text fg="$textMuted">Open review queue to respond</text>
+      {/* Message and CTA */}
+      <box flexDirection="column" border={["left"]} borderColor="$borderSubtle" paddingLeft={1} marginLeft={1} marginTop={0}>
+        <Show when={props.item.message}>
+          <box paddingLeft={0} paddingTop={0}>
+            <text fg="$text" wrapMode="word">
+              {stripInlineMarkdown(props.item.message!)}
+            </text>
           </box>
-        </box>
-      </Show>
+        </Show>
+
+        <Show when={isActionable()}>
+          <box flexDirection="row" gap={1} alignItems="center" paddingTop={0}>
+            <text fg="$borderSubtle">╰─</text>
+            <text fg="$warning" attributes={TextAttributes.BOLD}>[ Review ]</text>
+            <text fg="$textMuted" attributes={TextAttributes.DIM}>Click to open review queue</text>
+          </box>
+        </Show>
+      </box>
     </box>
   )
 }
