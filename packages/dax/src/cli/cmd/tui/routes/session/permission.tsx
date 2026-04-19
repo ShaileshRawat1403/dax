@@ -424,14 +424,16 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
         alignItems={narrow() ? "flex-start" : "center"}
         gap={1}
       >
-        <textarea
-          ref={(val: TextareaRenderable) => (input = val)}
-          focused
-          textColor={theme.text}
-          focusedTextColor={theme.text}
-          cursorColor={theme.primary}
-          keyBindings={textareaKeybindings()}
-        />
+        <box border={["round"]} borderColor={theme.borderActive} paddingLeft={1} paddingRight={1} flexGrow={1}>
+          <textarea
+            ref={(val: TextareaRenderable) => (input = val)}
+            focused
+            textColor={theme.text}
+            focusedTextColor={theme.text}
+            cursorColor={theme.primary}
+            keyBindings={textareaKeybindings()}
+          />
+        </box>
         <box flexDirection="row" gap={2} flexShrink={0}>
           <box flexDirection="row" gap={1}>
             <text fg={theme.text}>enter</text>
@@ -544,16 +546,22 @@ function Prompt<const T extends Record<string, string>>(props: {
           <For each={keys}>
             {(option) => (
               <box
-                paddingLeft={1}
-                paddingRight={1}
-                backgroundColor={option === store.selected ? theme.warning : theme.backgroundElement}
+                paddingLeft={2}
+                paddingRight={2}
+                marginLeft={1}
+                border={["round"]}
+                borderColor={option === store.selected ? theme.warning : theme.borderSubtle}
+                backgroundColor={option === store.selected ? theme.warning : undefined}
                 onMouseOver={() => setStore("selected", option)}
                 onMouseUp={() => {
                   setStore("selected", option)
                   props.onSelect(option)
                 }}
               >
-                <text fg={option === store.selected ? selectedForeground(theme, theme.warning) : theme.textMuted}>
+                <text 
+                  fg={option === store.selected ? theme.background : theme.text} 
+                  attributes={option === store.selected ? TextAttributes.BOLD : undefined}
+                >
                   {props.options[option]}
                 </text>
               </box>
