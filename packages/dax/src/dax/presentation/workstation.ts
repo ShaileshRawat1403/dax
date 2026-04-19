@@ -65,6 +65,11 @@ export type WorkstationState = {
     ready: boolean
     missing: string[]
   }
+  blastRadius?: {
+    level: "low" | "medium" | "high" | "critical"
+    reason: string
+    affected_areas: string[]
+  }
   alertSummary?: {
     level: "info" | "warning" | "error"
     message: string
@@ -99,6 +104,11 @@ export function deriveWorkstationState(input: {
   completionProof?: {
     ready: boolean
     missing: string[]
+  }
+  blastRadius?: {
+    level: "low" | "medium" | "high" | "critical"
+    reason: string
+    affected_areas: string[]
   }
   alert?: {
     level: "info" | "warning" | "error" | "none"
@@ -185,14 +195,17 @@ export function deriveWorkstationState(input: {
       approvals: approvalsPending,
       overrides: 0,
       evidencePresent,
-      findingsCount: (input.audit?.blockerCount ?? 0) + (input.audit?.warningCount ?? 0) + (input.audit?.infoCount ?? 0),
+      findingsCount:
+        (input.audit?.blockerCount ?? 0) + (input.audit?.warningCount ?? 0) + (input.audit?.infoCount ?? 0),
       blockerCount: input.audit?.blockerCount ?? 0,
       warningCount: input.audit?.warningCount ?? 0,
       posture: trustPosture,
     },
     planQuality: input.planQuality,
     completionProof: input.completionProof,
-    alertSummary: input.alert && input.alert.level !== "none" ? { ...input.alert, level: input.alert.level as any } : undefined,
+    blastRadius: input.blastRadius,
+    alertSummary:
+      input.alert && input.alert.level !== "none" ? { ...input.alert, level: input.alert.level as any } : undefined,
   }
 }
 
@@ -223,7 +236,8 @@ function deriveLifecycle(input: {
   alertLevel?: "info" | "warning" | "error"
 }): WorkstationLifecycle {
   if (input.approvalsPending > 0 || input.stage === "waiting") return "awaiting_approval"
-  if (input.sessionStatusType === "retry" || input.alertLevel === "error" || input.stage === "retrying") return "blocked"
+  if (input.sessionStatusType === "retry" || input.alertLevel === "error" || input.stage === "retrying")
+    return "blocked"
   if (input.stage === "thinking" || input.stage === "exploring") return "understanding"
   if (input.stage === "planning") return "planning"
   if (input.stage === "executing") return "executing"
@@ -234,7 +248,15 @@ function deriveLifecycle(input: {
   return "ready"
 }
 
-type WorkstationStage = "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
+type WorkstationStage =
+  | "exploring"
+  | "thinking"
+  | "planning"
+  | "executing"
+  | "verifying"
+  | "waiting"
+  | "retrying"
+  | "done"
 
 function deriveTrustPosture(input: {
   lifecycleHint?: "completed"
@@ -246,7 +268,8 @@ function deriveTrustPosture(input: {
 }): WorkstationTrustPosture {
   if (input.blockerCount > 0 || input.auditStatus === "fail") return "blocked"
   if (input.completionProofReady === false) return "review_needed"
-  if (input.lifecycleHint === "completed" && input.approvalsPending === 0 && input.auditStatus !== "warn") return "clear"
+  if (input.lifecycleHint === "completed" && input.approvalsPending === 0 && input.auditStatus !== "warn")
+    return "clear"
   if (input.approvalsPending > 0 || !input.evidencePresent || input.auditStatus === "warn") return "review_needed"
   return "clear"
 }

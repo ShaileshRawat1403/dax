@@ -158,9 +158,9 @@ import { deriveGitHubCINudge } from "@/dax/presentation/ci-guard"
 addDefaultParsers(parsers.parsers)
 
 type PMTab = "note" | "list" | "rules"
-type WorkflowMode = "build" | "plan" | "explore" | "docs" | "audit"
-const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
-const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs", "audit"])
+type WorkflowMode = "build" | "plan" | "explore" | "docs"
+const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs"]
+const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs"])
 const MUTATION_INTENT_RE =
   /\b(create|add|edit|update|change|fix|delete|remove|rename|move|install|run|execute|patch|write|commit|push|release|publish)\b/i
 const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
@@ -798,6 +798,7 @@ export function Session() {
           : undefined,
         planQuality: (s?.state_v2 as any)?.plan_quality,
         completionProof: (s?.state_v2 as any)?.completion_proof,
+        blastRadius: (s?.state_v2 as any)?.blast_radius,
         recentTooling: recentTooling(),
         alert: undefined,
       })
@@ -1828,7 +1829,7 @@ export function Session() {
           lifecycleLabel={workstationState().lifecycleLabel}
           workflowMode={workflowMode()}
           onCycleWorkflowMode={() => {
-            const modes: WorkflowMode[] = ["plan", "build", "explore", "docs", "audit"]
+            const modes: WorkflowMode[] = ["plan", "build", "explore", "docs"]
             const idx = modes.indexOf(workflowMode())
             setWorkflowMode(modes[(idx + 1) % modes.length]!)
           }}
@@ -1839,7 +1840,12 @@ export function Session() {
   )
 }
 
-function Message(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: Part[]; suppressHeader?: boolean }) {
+function Message(props: {
+  message: AssistantMessage | UserMessage
+  last: boolean
+  partsOverride?: Part[]
+  suppressHeader?: boolean
+}) {
   const ctx = use()
   const sync = useSync()
   const { theme } = useTheme()
@@ -2039,7 +2045,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     return "Working through the required steps."
   })
 
-  const baseTextColor = () => props.last ? theme.text : theme.textMuted
+  const baseTextColor = () => (props.last ? theme.text : theme.textMuted)
 
   return (
     <Show when={renderableParts().length > 0 || !!props.message.error || isPendingEmpty()}>
@@ -2057,7 +2063,9 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
             </Show>
             <box flexDirection="row" gap={2} paddingLeft={3} alignItems="center" marginBottom={1}>
               <Spinner color={tint(theme.textMuted, roleColor(), 0.35)} />
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>thinking...</text>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                thinking...
+              </text>
             </box>
           </box>
         </Show>
@@ -2163,20 +2171,33 @@ function extractResultMeta(result: string | undefined): string | undefined {
 
 function describeNarrativeTrace(trace: NonNullable<ReturnType<typeof deriveOperatorTraceLine>>) {
   switch (trace.action) {
-    case "READ": return `Read \`${trace.target}\` to gather the needed context.`
+    case "READ":
+      return `Read \`${trace.target}\` to gather the needed context.`
     case "GLOB":
-    case "LIST": return `Scanned \`${trace.target}\` to map the relevant files.`
-    case "GREP": return `Searched \`${trace.target}\` to isolate the relevant matches.`
-    case "SHELL": return `Ran \`${trace.target}\` to check the current state.`
-    case "WRITE": return `Wrote \`${trace.target}\` to land the scoped change.`
-    case "EDIT": return `Edited \`${trace.target}\` to refine the scoped change.`
-    case "PATCH": return `Patched \`${trace.target}\` to update the workspace precisely.`
-    case "TASK": return `Structured \`${trace.target}\` so the next move stays clear.`
-    case "TODO": return `Updated \`${trace.target}\` so progress stays visible.`
-    case "QUESTION": return `Raised \`${trace.target}\` to unblock the next decision.`
-    case "SKILL": return `Loaded \`${trace.target}\` to bring the right workflow into the run.`
-    case "REFLECTION": return `Captured \`${trace.target}\` to keep the run grounded.`
-    default: return `${trace.summary}.`
+    case "LIST":
+      return `Scanned \`${trace.target}\` to map the relevant files.`
+    case "GREP":
+      return `Searched \`${trace.target}\` to isolate the relevant matches.`
+    case "SHELL":
+      return `Ran \`${trace.target}\` to check the current state.`
+    case "WRITE":
+      return `Wrote \`${trace.target}\` to land the scoped change.`
+    case "EDIT":
+      return `Edited \`${trace.target}\` to refine the scoped change.`
+    case "PATCH":
+      return `Patched \`${trace.target}\` to update the workspace precisely.`
+    case "TASK":
+      return `Structured \`${trace.target}\` so the next move stays clear.`
+    case "TODO":
+      return `Updated \`${trace.target}\` so progress stays visible.`
+    case "QUESTION":
+      return `Raised \`${trace.target}\` to unblock the next decision.`
+    case "SKILL":
+      return `Loaded \`${trace.target}\` to bring the right workflow into the run.`
+    case "REFLECTION":
+      return `Captured \`${trace.target}\` to keep the run grounded.`
+    default:
+      return `${trace.summary}.`
   }
 }
 
@@ -2192,7 +2213,12 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   const ctx = use()
   const content = createMemo(() => cleanReasoningText(props.part.text))
   const reasoningFg = createMemo(() => tint(theme.textMuted, theme.text, 0.35))
-  const lineCount = createMemo(() => content()?.split("\n").filter((l) => l.trim()).length ?? 0)
+  const lineCount = createMemo(
+    () =>
+      content()
+        ?.split("\n")
+        .filter((l) => l.trim()).length ?? 0,
+  )
   const [collapsed, setCollapsed] = createSignal(false)
 
   return (
@@ -2205,16 +2231,13 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         marginBottom={0}
         paddingLeft={1}
       >
-        <box
-          flexDirection="row"
-          gap={1}
-          alignItems="center"
-          onMouseUp={() => setCollapsed((c) => !c)}
-        >
+        <box flexDirection="row" gap={1} alignItems="center" onMouseUp={() => setCollapsed((c) => !c)}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM} flexShrink={0}>
             {collapsed() ? "▸" : "▾"}
           </text>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>thinking</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            thinking
+          </text>
           <Show when={collapsed() && lineCount() > 0}>
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
               · {lineCount()} line{lineCount() === 1 ? "" : "s"}
@@ -2298,57 +2321,84 @@ function TextPart(props: {
 
 function toolDisplayName(tool: string): string {
   switch (tool.toLowerCase()) {
-    case "shell": return "Bash"
-    case "read": return "Read"
-    case "write": return "Write"
-    case "edit": return "Edit"
-    case "apply_patch": return "Patch"
-    case "glob": return "Glob"
-    case "grep": return "Grep"
-    case "list": return "List"
-    case "webfetch": return "Fetch"
+    case "shell":
+      return "Bash"
+    case "read":
+      return "Read"
+    case "write":
+      return "Write"
+    case "edit":
+      return "Edit"
+    case "apply_patch":
+      return "Patch"
+    case "glob":
+      return "Glob"
+    case "grep":
+      return "Grep"
+    case "list":
+      return "List"
+    case "webfetch":
+      return "Fetch"
     case "websearch":
-    case "codesearch": return "Search"
-    case "task": return "Task"
-    case "reflection": return "Checkpoint"
-    case "question": return "Question"
-    case "skill": return "Skill"
-    default: return tool
+    case "codesearch":
+      return "Search"
+    case "task":
+      return "Task"
+    case "reflection":
+      return "Checkpoint"
+    case "question":
+      return "Question"
+    case "skill":
+      return "Skill"
+    default:
+      return tool
   }
 }
 
 function toolArgPreview(tool: string, input: Record<string, unknown>): string {
   const s = (k: string) => textValue((input as any)[k])
   const p = (k: string) => normalizePath(s(k))
-  const clip = (v: string, max = 56) => v.length > max ? v.slice(0, max - 1) + "…" : v
+  const clip = (v: string, max = 56) => (v.length > max ? v.slice(0, max - 1) + "…" : v)
   switch (tool.toLowerCase()) {
-    case "shell": return s("command")
-    case "read": return shortPath(p("filePath") || p("path"))
-    case "write": return shortPath(p("filePath"))
-    case "edit": return shortPath(p("filePath"))
+    case "shell":
+      return s("command")
+    case "read":
+      return shortPath(p("filePath") || p("path"))
+    case "write":
+      return shortPath(p("filePath"))
+    case "edit":
+      return shortPath(p("filePath"))
     case "apply_patch": {
       const n = Object.keys((input.changes as any) ?? {}).length
       return `${n} file${n === 1 ? "" : "s"}`
     }
-    case "glob": return s("pattern")
+    case "glob":
+      return s("pattern")
     case "grep": {
       const pattern = s("pattern")
       const path = p("path") || p("glob")
       return path ? clip(`${pattern}, ${path}`) : clip(pattern)
     }
-    case "list": return p("path")
-    case "webfetch": return clip(s("url"))
+    case "list":
+      return p("path")
+    case "webfetch":
+      return clip(s("url"))
     case "websearch":
-    case "codesearch": return clip(s("query"))
+    case "codesearch":
+      return clip(s("query"))
     case "task": {
       const agent = s("subagent_type") || "task"
       const desc = s("description")
       return desc ? clip(`${agent} — ${desc}`) : agent
     }
-    case "reflection": return clip(s("goal") || s("summary") || "checkpoint")
-    case "question": return clip(s("question"))
-    case "skill": return s("name") || "skill"
-    default: return ""
+    case "reflection":
+      return clip(s("goal") || s("summary") || "checkpoint")
+    case "question":
+      return clip(s("question"))
+    case "skill":
+      return s("name") || "skill"
+    default:
+      return ""
   }
 }
 
@@ -2412,19 +2462,24 @@ function CompactedToolGroup(props: {
         <Show when={!anyRunning()} fallback={<Spinner color={theme.info} />}>
           <text fg={theme.success}>✓</text>
         </Show>
-        <text
-          fg={anyRunning() ? theme.info : theme.text}
-          attributes={TextAttributes.BOLD}
-        >
+        <text fg={anyRunning() ? theme.info : theme.text} attributes={TextAttributes.BOLD}>
           {toolDisplayName(props.part.toolName)}
         </text>
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM}> ×{props.part.count}</text>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+          {" "}
+          ×{props.part.count}
+        </text>
         <Show when={props.part.representativePath}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}> ({props.part.representativePath})</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            {" "}
+            ({props.part.representativePath})
+          </text>
         </Show>
       </box>
       <box paddingLeft={2} border={["left"]} borderColor={theme.borderSubtle} marginLeft={0.5}>
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
+          {narration()}
+        </text>
       </box>
     </box>
   )
@@ -2441,7 +2496,9 @@ function ToolPart(props: {
   const toolName = createMemo(() => props.part.tool.toLowerCase())
   // Always use the real input so arg preview and narration work from the moment
   // the tool call appears, even while status is still "pending".
-  const input = createMemo(() => (("input" in props.part.state ? props.part.state.input : undefined) ?? {}) as Record<string, unknown>)
+  const input = createMemo(
+    () => (("input" in props.part.state ? props.part.state.input : undefined) ?? {}) as Record<string, unknown>,
+  )
   const output = createMemo(() => (props.part.state.status === "completed" ? props.part.state.output : undefined))
   const metadata = createMemo(() => (props.part.state.status === "pending" ? {} : (props.part.state.metadata ?? {})))
   const permission = createMemo(() => {
@@ -2456,7 +2513,9 @@ function ToolPart(props: {
   return (
     <Show
       when={toolName() === "shell"}
-      fallback={<ToolLine part={props.part} toolName={toolName()} input={input()} baseTextColor={props.baseTextColor} />}
+      fallback={
+        <ToolLine part={props.part} toolName={toolName()} input={input()} baseTextColor={props.baseTextColor} />
+      }
     >
       <Bash
         part={props.part}
@@ -2471,12 +2530,7 @@ function ToolPart(props: {
   )
 }
 
-function ToolLine(props: {
-  part: ToolPart
-  toolName: string
-  input: Record<string, unknown>
-  baseTextColor?: RGBA
-}) {
+function ToolLine(props: { part: ToolPart; toolName: string; input: Record<string, unknown>; baseTextColor?: RGBA }) {
   const { theme } = useTheme()
   const status = createMemo(() => props.part.state.status)
   const isRunning = createMemo(() => status() === "running" || status() === "pending")
@@ -2497,24 +2551,40 @@ function ToolLine(props: {
   return (
     <box flexDirection="column" gap={0} marginTop={1} paddingLeft={2}>
       <box flexDirection="row" gap={1} alignItems="center">
-        <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
+        <text fg={theme.info} attributes={TextAttributes.BOLD}>
+          [exec]
+        </text>
         <text fg={hasError() ? theme.error : isRunning() ? theme.info : theme.text} flexShrink={0}>
           {displayName()}
         </text>
         <Show when={argPreview()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}> ({argPreview()})</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}>
+            {" "}
+            ({argPreview()})
+          </text>
         </Show>
       </box>
-      
-      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+
+      <box
+        flexDirection="column"
+        border={["left"]}
+        borderColor={theme.borderSubtle}
+        paddingLeft={2}
+        marginLeft={0.5}
+        marginTop={0}
+      >
         <Show when={narration()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
+            {narration()}
+          </text>
         </Show>
         <Show when={!isRunning()}>
           <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
             <text fg={hasError() ? theme.error : theme.success}>{hasError() ? "╰─ ✗" : "╰─ ✓"}</text>
             <Show when={timing()?.end}>
-               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{formatElapsed((timing()!.end as number) - (timing()!.start as number))}</text>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                {formatElapsed((timing()!.end as number) - (timing()!.start as number))}
+              </text>
             </Show>
           </box>
         </Show>
@@ -2522,7 +2592,9 @@ function ToolLine(props: {
           <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
             <text fg={theme.borderSubtle}>╰─</text>
             <Spinner color={theme.textMuted} />
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>running...</text>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              running...
+            </text>
           </box>
         </Show>
       </box>
@@ -2604,7 +2676,9 @@ function Bash(props: ToolProps<typeof ShellTool>) {
   return (
     <box flexDirection="column" gap={0} marginTop={1} paddingLeft={2}>
       <box flexDirection="row" gap={1} alignItems="center">
-        <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
+        <text fg={theme.info} attributes={TextAttributes.BOLD}>
+          [exec]
+        </text>
         <text
           fg={hasError() || isNonZeroExit() ? theme.error : isRunning() ? theme.info : theme.text}
           attributes={isRunning() ? TextAttributes.BOLD : undefined}
@@ -2612,13 +2686,30 @@ function Bash(props: ToolProps<typeof ShellTool>) {
           Bash
         </text>
         <Show when={displayCommand()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}> ({displayCommand()})</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}>
+            {" "}
+            ({displayCommand()})
+          </text>
         </Show>
       </box>
-      
-      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+
+      <box
+        flexDirection="column"
+        border={["left"]}
+        borderColor={theme.borderSubtle}
+        paddingLeft={2}
+        marginLeft={0.5}
+        marginTop={0}
+      >
         <Show when={narration()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word" marginBottom={isRunning() || isNonZeroExit() ? 1 : 0}>{narration()}</text>
+          <text
+            fg={theme.textMuted}
+            attributes={TextAttributes.DIM}
+            wrapMode="word"
+            marginBottom={isRunning() || isNonZeroExit() ? 1 : 0}
+          >
+            {narration()}
+          </text>
         </Show>
 
         {/* ── Live output while running ── */}
@@ -2638,11 +2729,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
         <Show when={!isRunning() && (hasError() || isNonZeroExit()) && previewLines().length > 0}>
           <box flexDirection="column" gap={0} marginBottom={1}>
             <Show when={hiddenCount() > 0}>
-              <text
-                fg={theme.primary}
-                attributes={TextAttributes.DIM}
-                onClick={() => setExpanded(true)}
-              >
+              <text fg={theme.primary} attributes={TextAttributes.DIM} onClick={() => setExpanded(true)}>
                 ↕ +{hiddenCount()} lines — click to expand
               </text>
             </Show>
@@ -2663,10 +2750,14 @@ function Bash(props: ToolProps<typeof ShellTool>) {
               {hasError() || isNonZeroExit() ? "╰─ ✗" : "╰─ ✓"}
             </text>
             <Show when={duration()}>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{duration()}</text>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                {duration()}
+              </text>
             </Show>
             <Show when={isNonZeroExit()}>
-              <text fg={theme.error} attributes={TextAttributes.DIM}>exit {exitCode()}</text>
+              <text fg={theme.error} attributes={TextAttributes.DIM}>
+                exit {exitCode()}
+              </text>
             </Show>
           </box>
         </Show>
@@ -2674,7 +2765,9 @@ function Bash(props: ToolProps<typeof ShellTool>) {
           <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
             <text fg={theme.borderSubtle}>╰─</text>
             <Spinner color={theme.textMuted} />
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>running...</text>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              running...
+            </text>
           </box>
         </Show>
       </box>

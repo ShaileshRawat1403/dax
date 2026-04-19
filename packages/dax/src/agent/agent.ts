@@ -15,7 +15,6 @@ import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_DOCS from "./prompt/docs.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
-import PROMPT_AUDIT from "./prompt/audit.txt"
 import PROMPT_AGILE from "./prompt/agile.txt"
 import PROMPT_LEAN from "./prompt/lean.txt"
 import PROMPT_TS_EXPERT from "./prompt/ts-expert.txt"
@@ -228,42 +227,6 @@ export namespace Agent {
             "*": "deny",
             ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
             shell: "deny",
-            external_directory: {
-              [Truncate.GLOB]: "allow",
-            },
-          }),
-          user,
-        ),
-        options: {},
-        mode: "primary",
-        native: true,
-      },
-      audit: {
-        name: "audit",
-        description: "SDLC audit agent for release readiness, policy checks, documentation quality, and delivery risk.",
-        prompt: PROMPT_AUDIT,
-        permission: Permission.merge(
-          defaults,
-          Permission.fromConfig({
-            "*": "deny",
-            ...Object.fromEntries(EXPLORE_TOOLS.map((t) => [t, "allow"])),
-            shell: {
-              // Only allow verified read-only commands - blocks mutating commands at permission layer
-              // Runtime guard further restricts to verify-only via classifyActionClass
-              "pytest*": "allow",
-              "vitest*": "allow",
-              "jest*": "allow",
-              "cargo test*": "allow",
-              "go test*": "allow",
-              "bun test*": "allow",
-              "npm test*": "allow",
-              "pnpm test*": "allow",
-              "tsc*": "allow",
-              "typecheck*": "allow",
-              "ruff*": "allow",
-              "eslint*": "allow",
-              "*": "deny", // Explicit deny for non-verification commands
-            },
             external_directory: {
               [Truncate.GLOB]: "allow",
             },

@@ -13,7 +13,7 @@ import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 
-const WORKFLOW_AGENT_ORDER = ["plan", "build", "explore", "docs", "audit"] as const
+const WORKFLOW_AGENT_ORDER = ["plan", "build", "explore", "docs"] as const
 
 function sortWorkflowAgents<T extends { name: string }>(agents: T[]) {
   return [...agents].sort((a, b) => {

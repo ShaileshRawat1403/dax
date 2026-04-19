@@ -179,9 +179,14 @@ export namespace SessionPrompt {
       const rawPrompt = input.parts.find((p) => p.type === "text")?.text || ""
       if (rawPrompt) {
         try {
+          const projectMemories = await PM.list_memory({
+            project_id: Instance.project.id,
+            limit: 10,
+          }).catch(() => [])
           const intent = await interpretIntent(rawPrompt, {
             cwd: Instance.directory,
             session_id: input.sessionID,
+            project_memories: projectMemories,
           })
           await Session.update(input.sessionID, (draft) => {
             draft.state_v2 = {
@@ -1158,8 +1163,7 @@ export namespace SessionPrompt {
                 // file, so no interactive approval is shown), but we still block
                 // plaintext credential files to prevent accidental secret exposure.
                 // The user can still share these files by pasting the content directly.
-                const SENSITIVE_ATTACH_RE =
-                  /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|\.npmrc|\.aws/i
+                const SENSITIVE_ATTACH_RE = /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|\.npmrc|\.aws/i
                 if (SENSITIVE_ATTACH_RE.test(filepath)) {
                   return [
                     {

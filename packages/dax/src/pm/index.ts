@@ -67,6 +67,19 @@ export namespace PM {
           created_at integer not null
         );`,
         "create index if not exists idx_pm_rao_project_time on pm_rao_event(project_id, created_at desc);",
+        `create table if not exists pm_memory (
+          id text primary key,
+          project_id text not null,
+          session_id text,
+          category text not null,
+          title text not null,
+          content text not null,
+          tags text not null,
+          source text not null,
+          created_at integer not null
+        );`,
+        "create index if not exists idx_pm_memory_project_time on pm_memory(project_id, created_at desc);",
+        "create index if not exists idx_pm_memory_category on pm_memory(project_id, category, created_at desc);",
       ].join("\n"),
     )
     return db
@@ -289,9 +302,9 @@ export namespace PM {
              order by created_at desc
              limit ?`,
           )
-      const rows = (input.day
-        ? stmt.all(input.project_id, input.day, input.limit)
-        : stmt.all(input.project_id, input.limit)) as Array<{
+      const rows = (
+        input.day ? stmt.all(input.project_id, input.day, input.limit) : stmt.all(input.project_id, input.limit)
+      ) as Array<{
         id: string
         project_id: string
         day: string
@@ -408,4 +421,104 @@ export namespace PM {
       }>
     },
   )
+
+  const MemoryCategory = z.enum(["architecture", "decision", "pattern", "preference", "learning"])
+  type MemoryCategory = z.infer<typeof MemoryCategory>
+
+  const SaveMemoryInput = z.object({
+    project_id: z.string(),
+    category: MemoryCategory,
+    title: z.string(),
+    content: z.string(),
+    tags: z.array(z.string()).optional(),
+    session_id: z.string().optional(),
+    source: z.enum(["agent", "user", "system"]).default("agent"),
+  })
+
+  export const save_memory = fn(SaveMemoryInput, async (input) => {
+    touch(input.project_id)
+    const now = Date.now()
+    const id = ulid()
+    db.prepare(
+      `insert into pm_memory
+        (id, project_id, session_id, category, title, content, tags, source, created_at)
+       values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      input.project_id,
+      input.session_id ?? null,
+      input.category,
+      input.title.trim(),
+      input.content.trim(),
+      JSON.stringify(input.tags ?? []),
+      input.source,
+      now,
+    )
+    log.info("saved memory", { id, project_id: input.project_id, category: input.category })
+    return { id, created_at: now }
+  })
+
+  const ListMemoryInput = z.object({
+    project_id: z.string(),
+    category: MemoryCategory.optional(),
+    limit: z.number().int().positive().max(200).default(20),
+  })
+
+  export const list_memory = fn(ListMemoryInput, async (input) => {
+    touch(input.project_id)
+    const rows = input.category
+      ? (db
+          .prepare(
+            `select id, project_id, session_id, category, title, content, tags, source, created_at
+             from pm_memory
+             where project_id = ? and category = ?
+             order by created_at desc
+             limit ?`,
+          )
+          .all(input.project_id, input.category, input.limit) as Array<{
+          id: string
+          project_id: string
+          session_id: string | null
+          category: string
+          title: string
+          content: string
+          tags: string
+          source: string
+          created_at: number
+        }>)
+      : (db
+          .prepare(
+            `select id, project_id, session_id, category, title, content, tags, source, created_at
+             from pm_memory
+             where project_id = ?
+             order by created_at desc
+             limit ?`,
+          )
+          .all(input.project_id, input.limit) as Array<{
+          id: string
+          project_id: string
+          session_id: string | null
+          category: string
+          title: string
+          content: string
+          tags: string
+          source: string
+          created_at: number
+        }>)
+    return rows.map((x) => ({
+      ...x,
+      tags: JSON.parse(x.tags) as string[],
+    })) as Array<{
+      id: string
+      project_id: string
+      session_id: string | null
+      category: MemoryCategory
+      title: string
+      content: string
+      tags: string[]
+      source: "agent" | "user" | "system"
+      created_at: number
+    }>
+  })
 }

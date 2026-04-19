@@ -362,7 +362,7 @@ function isTerminalStepReason(reason: string) {
   return !["tool-calls", "unknown"].includes(reason)
 }
 
-const DEFAULT_CHECKPOINT_AGENTS = new Set(["plan", "explore", "docs", "audit", "agile"])
+const DEFAULT_CHECKPOINT_AGENTS = new Set(["plan", "explore", "docs", "agile"])
 
 export async function executeRun(args: RunArgs, options?: { defaultCommand?: string }) {
   process.env.DAX_FORCE_EXIT = "1"
@@ -599,10 +599,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
             UI.error(err)
           }
 
-          if (
-            event.type === "session.status" &&
-            event.properties.sessionID === sessionID
-          ) {
+          if (event.type === "session.status" && event.properties.sessionID === sessionID) {
             const status = event.properties.status
             if (status.type === "idle") {
               break
@@ -610,7 +607,8 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
             if (status.type === "retry") {
               if (emit("status", { status })) continue
               UI.println(
-                UI.Style.TEXT_WARNING + `${status.message}. Retrying in ${Math.max(0, Math.ceil((status.next - Date.now()) / 1000))}s.`,
+                UI.Style.TEXT_WARNING +
+                  `${status.message}. Retrying in ${Math.max(0, Math.ceil((status.next - Date.now()) / 1000))}s.`,
               )
               continue
             }

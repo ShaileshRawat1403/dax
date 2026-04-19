@@ -18,7 +18,7 @@ export const PLACEHOLDERS = [
   "Tell DAX what to check, fix, or explain",
 ]
 export const ELI12_PLACEHOLDER = "Tell DAX what you need in plain language"
-export const WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"]
+export const WORKFLOW_MODES = ["plan", "build", "explore", "docs"]
 export const WORKFLOW_MODE_HINT = "Tab: cycle mode"
 export const WORKFLOW_AGENT_MODES = new Set(WORKFLOW_MODES)
 export const ELI12_PREFIX = `SYSTEM: DAX - ELI12 Streaming Mode (Deterministic, Concrete, Non-Technical)
@@ -90,7 +90,8 @@ Primary success criteria:
 - The user understands what is happening.
 - The user can execute one step at a time without confusion.`
 
-export const ELI12_TEMPLATE_RE = /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i
+export const ELI12_TEMPLATE_RE =
+  /^SYSTEM:\s*DAX\s*-\s*ELI12[\s\S]*?Primary success criteria:[\s\S]*?without confusion\.\s*/i
 
 export const REFINE_PREFIX = `SYSTEM: DAX - Auto-Refine Mode (Structured Execution)
 

@@ -211,7 +211,7 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
     ),
   )
 
-  const WORKFLOW_AGENT_MODES = new Set(["plan", "build", "explore", "docs", "audit"])
+  const WORKFLOW_AGENT_MODES = new Set(["plan", "build", "explore", "docs"])
   createEffect(() => {
     const current = local.agent.current()?.name
     if (current && WORKFLOW_AGENT_MODES.has(current)) {
@@ -386,8 +386,8 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       onSelect: () => {
         dialog.replace(() => <DialogSessionList />)
       },
-      },
-      {
+    },
+    {
       title: "Skill Marketplace",
       value: "skill.marketplace",
       category: "Skills",
@@ -398,8 +398,8 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       onSelect: () => {
         dialog.replace(() => <DialogMarketplace />)
       },
-      },
-      {
+    },
+    {
       title: "Switch agent",
       suggested: route.data.type === "session",
       value: "session.new",
