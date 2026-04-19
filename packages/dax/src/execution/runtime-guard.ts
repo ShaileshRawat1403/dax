@@ -169,7 +169,8 @@ async function latestUserText(sessionID: string) {
       if (part.type === "text" && part.text.trim()) return part.text.trim()
     }
   }
-  return ""
+  const session = await Session.get(sessionID).catch(() => undefined)
+  return session?.state_v2?.intent?.prompt?.trim() || ""
 }
 
 function isActionAllowed(mode: string, action: RuntimeActionClass, lifecycle: string) {

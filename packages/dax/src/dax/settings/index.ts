@@ -23,6 +23,9 @@ export const DAX_SETTING = {
   operator_verbosity: "operator_verbosity",
   operator_risk: "operator_risk",
   operator_approval: "operator_approval",
+
+  sandbox_enabled: "sandbox_enabled",
+  sandbox_provider: "sandbox_provider",
 } as const
 
 export function sessionWorkflowModeKey(sessionID?: string) {

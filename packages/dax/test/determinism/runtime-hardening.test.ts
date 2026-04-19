@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import path from "path"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
+import { MessageV2 } from "../../src/session/message-v2"
 import { compileWithRunId } from "../../src/execution/compiler"
 import { ContractGuardian } from "../../src/execution/contract-guardian"
 import { enforceRuntimeGuard, RuntimeGuardViolationError } from "../../src/execution/runtime-guard"
@@ -205,6 +206,64 @@ describe("runtime hardening", () => {
         ).rejects.toMatchObject<Partial<RuntimeGuardViolationError>>({
           code: "sensitive_path",
         })
+      },
+    })
+  })
+
+  test("allows approved sensitive paths when approval signal explicitly references the path", async () => {
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const target = ".github/workflows/ci.yml"
+        const session = await setupGuardedSession({
+          cwd: process.cwd(),
+          targetFiles: [target],
+        })
+
+        await Session.update(session.id, (draft) => {
+          draft.state_v2 = {
+            ...(draft.state_v2 ?? {
+              activity_timeline: [],
+              approvals: [],
+              artifacts: [],
+              audit_findings: [],
+            }),
+            intent: {
+              ...(draft.state_v2?.intent ?? {
+                prompt: "",
+                intentType: "code_change",
+                confidence: 0.9,
+                activeMode: "build",
+                suggestedOperator: "build",
+                requiredSkills: [],
+                requestedOutput: "diff",
+                riskLevel: "medium",
+                scope: "repo",
+                constraints: [],
+              }),
+              prompt:
+                "Approve mutation of sensitive CI file: .github/workflows/ci.yml to add non-blocking mutation job.",
+            },
+          }
+        })
+
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            agent: "build",
+            toolID: "apply_patch",
+            callID: "call_sensitive_approved_1",
+            req: {
+              permission: "edit",
+              patterns: [target],
+              always: ["*"],
+              metadata: {
+                filepath: path.join(process.cwd(), target),
+                diff: "@@",
+              },
+            },
+          }),
+        ).resolves.toBeUndefined()
       },
     })
   })
