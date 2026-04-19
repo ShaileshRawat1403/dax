@@ -4,8 +4,9 @@ import { type RenderableStreamItem, stripInlineMarkdown } from "@/dax/presentati
 import { useTheme } from "@tui/context/theme"
 import { Spinner } from "@tui/component/spinner"
 
-export function RunEventRow(props: { item: RenderableStreamItem }) {
+export function RunEventRow(props: { item: RenderableStreamItem; isLast?: boolean }) {
   const { theme } = useTheme()
+  const baseTextColor = () => props.isLast ? theme.text : theme.textMuted
   const status = () => props.item.status ?? "pending"
   const isFailed = () => status() === "failed"
   const isCompleted = () => status() === "completed"
@@ -87,16 +88,15 @@ export function RunEventRow(props: { item: RenderableStreamItem }) {
   // default — compact tool-style row matching container-like execution chrome
   const isPending = () => !isCompleted() && !isFailed()
   return (
-    <box flexDirection="column" gap={0} paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={0}>
+    <box flexDirection="column" gap={0} paddingLeft={5} paddingRight={2} marginTop={1} marginBottom={0}>
       <box flexDirection="row" gap={1} alignItems="center">
         <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
         <Show when={sentence()}>
-          <text fg={theme.text} wrapMode="word">{sentence()}</text>
+          <text fg={baseTextColor()} wrapMode="word">{sentence()}</text>
         </Show>
       </box>
       
-      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={1} marginLeft={1} marginTop={0}>
-        {/* Output tail placeholder or actual output could go here */}
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
         <Show when={isCompleted()}>
           <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
             <text fg={theme.success}>╰─ ✓</text>

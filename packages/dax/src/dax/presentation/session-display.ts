@@ -88,6 +88,13 @@ export function shouldShowWorkstationPane(input: {
   if (input.hasCriticalIntervention) return true
   if (input.paneVisibility === "hidden") return false
   if (input.paneVisibility === "pinned") return true
+
+  // Auto mode: show only if there is an active need.
+  // Refine need only auto-opens in inspect mode; operator mode stays clean.
+  if (input.displayMode === "inspect") {
+    return input.hasAuditNeed || input.hasRefineNeed
+  }
+
   return input.hasAuditNeed
 }
 

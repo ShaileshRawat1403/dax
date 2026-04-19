@@ -155,25 +155,26 @@ function PermissionCard(props: {
     const isSelected = idx === props.selectedButtonIdx
     if (key === "once")
       return {
-        bg: isSelected ? theme.primary : tint(theme.primary, theme.background, 0.4),
-        border: isSelected ? theme.borderActive : theme.primary,
-        fg: isSelected ? selectedForeground(theme, theme.primary) : theme.primary,
-        label: "Y  Allow once",
+        bg: isSelected ? theme.primary : undefined,
+        border: isSelected ? theme.primary : theme.borderSubtle,
+        fg: isSelected ? theme.background : theme.primary,
+        label: "Allow once",
+        key: "Y",
       }
     if (key === "always")
       return {
-        bg: isSelected ? theme.accent : tint(theme.accent, theme.background, 0.4),
-        border: isSelected ? theme.borderActive : theme.accent,
-        fg: isSelected ? selectedForeground(theme, theme.accent) : theme.accent,
-        label: "A  Allow always",
+        bg: isSelected ? theme.accent : undefined,
+        border: isSelected ? theme.accent : theme.borderSubtle,
+        fg: isSelected ? theme.background : theme.accent,
+        label: "Allow for session",
+        key: "A",
       }
     return {
-      bg: isSelected
-        ? tint(theme.backgroundElement, theme.error, 0.22)
-        : tint(theme.backgroundElement, theme.error, 0.1),
-      border: isSelected ? theme.borderActive : theme.error,
-      fg: theme.error,
-      label: "N  Deny",
+      bg: isSelected ? theme.error : undefined,
+      border: isSelected ? theme.error : theme.borderSubtle,
+      fg: isSelected ? theme.background : theme.error,
+      label: "Deny",
+      key: "N",
     }
   }
 
@@ -181,7 +182,7 @@ function PermissionCard(props: {
     <box
       flexDirection="column"
       gap={1}
-      backgroundColor={riskBg()}
+      backgroundColor={theme.backgroundElement}
       borderStyle="round"
       borderColor={props.cardPhase === "sent" ? theme.success : tint(riskColor(), theme.background, 0.3)}
       paddingLeft={2}
@@ -221,299 +222,302 @@ function PermissionCard(props: {
         </text>
       </box>
 
-      {/* ── Shell command detail ── */}
-      <Show when={props.request.permission === "shell" && props.input.command}>
-        <box
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={0.5}
-          paddingBottom={0.5}
-          backgroundColor={tint(theme.background, theme.textMuted, 0.04)}
-          borderStyle="round"
-          borderColor={theme.borderSubtle}
-        >
-          <text fg={theme.textMuted} wrapMode="word" attributes={TextAttributes.DIM}>
-            $ {String(props.input.command)}
-          </text>
-        </box>
-      </Show>
-
-      {/* ── Diff preview for edits ── */}
-      <Show when={hasDiff()}>
-        <box flexDirection="column" gap={0}>
-          <box flexDirection="row" gap={1} onMouseUp={() => props.onToggleDiff()} paddingLeft={1}>
-            <text fg={theme.textMuted}>{props.diffExpanded ? "▾" : "▸"}</text>
-            <text fg={props.diffExpanded ? theme.text : theme.textMuted}>
-              {props.diffExpanded ? "Hide diff" : "Show diff"}
-            </text>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              Ctrl+D
-            </text>
-          </box>
-          <Show when={props.diffExpanded}>
-            <box
-              maxHeight={14}
-              border={["top", "right", "bottom", "left"]}
-              borderColor={theme.borderSubtle}
-              backgroundColor={theme.background}
-            >
-              <scrollbox height="100%" width="100%">
-                <diff
-                  diff={diff()}
-                  view="unified"
-                  filetype={ft()}
-                  syntaxStyle={syntax()}
-                  showLineNumbers={true}
-                  width={Math.max(40, dimensions().width - 8)}
-                  wrapMode="word"
-                  fg={theme.text}
-                  addedBg={theme.diffAddedBg}
-                  removedBg={theme.diffRemovedBg}
-                  contextBg={theme.diffContextBg}
-                  addedSignColor={theme.diffHighlightAdded}
-                  removedSignColor={theme.diffHighlightRemoved}
-                  lineNumberFg={theme.diffLineNumber}
-                  lineNumberBg={theme.diffContextBg}
-                  addedLineNumberBg={theme.diffAddedLineNumberBg}
-                  removedLineNumberBg={theme.diffRemovedLineNumberBg}
-                />
-              </scrollbox>
-            </box>
-          </Show>
-        </box>
-      </Show>
-
-      {/* ── Risk callout ── */}
-      <Show when={props.risk.level !== "normal"}>
-        <box
-          flexDirection="column"
-          gap={0}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={1}
-          paddingBottom={1}
-          backgroundColor={
-            props.risk.level === "critical"
-              ? tint(theme.background, theme.error, 0.14)
-              : tint(theme.background, theme.warning, 0.1)
-          }
-          border={["left"]}
-          borderColor={props.risk.level === "critical" ? theme.error : theme.warning}
-        >
-          <text fg={props.risk.level === "critical" ? theme.error : theme.warning} attributes={TextAttributes.BOLD}>
-            {props.risk.level === "critical" ? "⚠  Critical action" : "⚠  Privacy-sensitive"}
-          </text>
-          <text fg={theme.textMuted} wrapMode="word">
-            {props.risk.reason}
-          </text>
-          <Show when={props.risk.suggestion}>
-            <text fg={theme.text} wrapMode="word">
-              Suggestion: {props.risk.suggestion}
-            </text>
-          </Show>
-        </box>
-      </Show>
-
-      {/* ════════════════════════════════════════════════════
-          PHASE: sent — item will disappear from queue shortly
-          ════════════════════════════════════════════════════ */}
-      <Show when={props.cardPhase === "sent"}>
-        <box
-          flexDirection="row"
-          gap={1}
-          alignItems="center"
-          paddingLeft={1}
-          paddingTop={1}
-          paddingBottom={1}
-          backgroundColor={tint(theme.background, theme.success, 0.08)}
-          border={["left"]}
-          borderColor={theme.success}
-        >
-          <text fg={theme.success} attributes={TextAttributes.BOLD}>
-            ✓
-          </text>
-          <text fg={theme.success}>Decision sent — DAX will continue.</text>
-        </box>
-      </Show>
-
-      {/* ════════════════════════════════════════════════════
-          PHASE: deciding — main action buttons
-          ════════════════════════════════════════════════════ */}
-      <Show when={props.cardPhase === "deciding"}>
-        <text fg={theme.textMuted} wrapMode="word">
-          Allow once to continue this step · allow always to trust this pattern · deny to pause.
-        </text>
-
-        {/* Buttons row */}
-        <box flexDirection="row" gap={1} flexWrap="wrap">
-          <For each={props.buttons}>
-            {(key, i) => {
-              const s = () => buttonStyle(key, i())
-              return (
-                <box
-                  backgroundColor={s().bg}
-                  paddingLeft={2}
-                  paddingRight={2}
-                  borderStyle="rounded"
-                  borderColor={s().border}
-                  onMouseOver={() => props.onSetSelectedBtn(i())}
-                  onMouseUp={() => {
-                    props.onSetSelectedBtn(i())
-                    if (key === "once") props.onApproveOnce()
-                    else if (key === "always") props.onSetPhase("confirming-always")
-                    else props.onSetPhase("denying")
-                  }}
-                >
-                  <text fg={s().fg} attributes={TextAttributes.BOLD}>
-                    {s().label}
-                  </text>
-                </box>
-              )
-            }}
-          </For>
-        </box>
-
-        {/* Keyboard hint */}
-        <box flexDirection="row" gap={2}>
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.text}>← →</text>
-            <text fg={theme.textMuted}>select</text>
-          </box>
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.text}>Enter</text>
-            <text fg={theme.textMuted}>confirm</text>
-          </box>
-          <Show when={hasDiff()}>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.text}>Ctrl+D</text>
-              <text fg={theme.textMuted}>diff</text>
-            </box>
-          </Show>
-        </box>
-      </Show>
-
-      {/* ════════════════════════════════════════════════════
-          PHASE: confirming-always — show patterns + confirm
-          ════════════════════════════════════════════════════ */}
-      <Show when={props.cardPhase === "confirming-always"}>
-        <box
-          flexDirection="column"
-          gap={1}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={1}
-          paddingBottom={1}
-          backgroundColor={tint(theme.background, theme.accent, 0.08)}
-          border={["left"]}
-          borderColor={theme.accent}
-        >
-          <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-            Confirm — Allow always
-          </text>
-          <Show
-            when={props.request.always.length === 1 && props.request.always[0] === "*"}
-            fallback={
-              <box flexDirection="column" gap={0}>
-                <text fg={theme.textMuted}>These patterns will be trusted for this session:</text>
-                <For each={props.request.always}>{(pattern) => <text fg={theme.text}> · {pattern}</text>}</For>
-              </box>
-            }
-          >
-            <text fg={theme.textMuted}>
-              All <text fg={theme.text}>{props.request.permission}</text> actions will be allowed until DAX restarts.
-            </text>
-          </Show>
-        </box>
-
-        <box flexDirection="row" gap={1} flexWrap="wrap">
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+        {/* ── Shell command detail ── */}
+        <Show when={props.request.permission === "shell" && props.input.command}>
           <box
-            backgroundColor={theme.accent}
-            paddingLeft={2}
-            paddingRight={2}
-            borderStyle="rounded"
-            borderColor={theme.accent}
-            onMouseUp={() => props.onApproveAlways()}
-          >
-            <text fg={selectedForeground(theme, theme.accent)} attributes={TextAttributes.BOLD}>
-              Enter Confirm
-            </text>
-          </box>
-          <box
-            backgroundColor={theme.backgroundElement}
-            paddingLeft={2}
-            paddingRight={2}
-            borderStyle="rounded"
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={0.5}
+            paddingBottom={0.5}
+            backgroundColor={tint(theme.background, theme.textMuted, 0.04)}
+            borderStyle="round"
             borderColor={theme.borderSubtle}
-            onMouseUp={() => props.onSetPhase("deciding")}
+            marginBottom={1}
           >
-            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-              Esc Cancel
+            <text fg={theme.textMuted} wrapMode="word" attributes={TextAttributes.DIM}>
+              $ {String(props.input.command)}
             </text>
           </box>
-        </box>
-        <text fg={theme.textMuted}>Enter confirm · Esc cancel</text>
-      </Show>
+        </Show>
 
-      {/* ════════════════════════════════════════════════════
-          PHASE: denying — inline reason textarea
-          ════════════════════════════════════════════════════ */}
-      <Show when={props.cardPhase === "denying"}>
-        <box
-          flexDirection="column"
-          gap={1}
-          paddingLeft={1}
-          paddingRight={1}
-          paddingTop={1}
-          paddingBottom={1}
-          backgroundColor={tint(theme.background, theme.error, 0.07)}
-          border={["left"]}
-          borderColor={theme.error}
-        >
-          <text fg={theme.error} attributes={TextAttributes.BOLD}>
-            △ Deny — tell DAX what to do differently
-          </text>
-          <text fg={theme.textMuted}>Optional. Press Enter to confirm, Esc to go back.</text>
-          <textarea
-            ref={props.denyTextareaRef}
-            focused
-            textColor={theme.text}
-            focusedTextColor={theme.text}
-            cursorColor={theme.primary}
-            keyBindings={props.textareaKeybindings()}
-          />
-        </box>
+        {/* ── Diff preview for edits ── */}
+        <Show when={hasDiff()}>
+          <box flexDirection="column" gap={0} marginBottom={1}>
+            <box flexDirection="row" gap={1} onMouseUp={() => props.onToggleDiff()} paddingLeft={1}>
+              <text fg={theme.textMuted}>{props.diffExpanded ? "▾" : "▸"}</text>
+              <text fg={props.diffExpanded ? theme.text : theme.textMuted}>
+                {props.diffExpanded ? "Hide diff" : "Show diff"}
+              </text>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                Ctrl+D
+              </text>
+            </box>
+            <Show when={props.diffExpanded}>
+              <box
+                maxHeight={14}
+                border={["top", "right", "bottom", "left"]}
+                borderColor={theme.borderSubtle}
+                backgroundColor={theme.background}
+              >
+                <scrollbox height="100%" width="100%">
+                  <diff
+                    diff={diff()}
+                    view="unified"
+                    filetype={ft()}
+                    syntaxStyle={syntax()}
+                    showLineNumbers={true}
+                    width={Math.max(40, dimensions().width - 8)}
+                    wrapMode="word"
+                    fg={theme.text}
+                    addedBg={theme.diffAddedBg}
+                    removedBg={theme.diffRemovedBg}
+                    contextBg={theme.diffContextBg}
+                    addedSignColor={theme.diffHighlightAdded}
+                    removedSignColor={theme.diffHighlightRemoved}
+                    lineNumberFg={theme.diffLineNumber}
+                    lineNumberBg={theme.diffContextBg}
+                    addedLineNumberBg={theme.diffAddedLineNumberBg}
+                    removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                  />
+                </scrollbox>
+              </box>
+            </Show>
+          </box>
+        </Show>
 
-        <box flexDirection="row" gap={1} flexWrap="wrap">
+        {/* ── Risk callout ── */}
+        <Show when={props.risk.level !== "normal"}>
           <box
-            backgroundColor={tint(theme.backgroundElement, theme.error, 0.15)}
-            paddingLeft={2}
-            paddingRight={2}
-            borderStyle="rounded"
+            flexDirection="column"
+            gap={0}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={1}
+            paddingBottom={1}
+            backgroundColor={
+              props.risk.level === "critical"
+                ? tint(theme.background, theme.error, 0.14)
+                : tint(theme.background, theme.warning, 0.1)
+            }
+            border={["left"]}
+            borderColor={props.risk.level === "critical" ? theme.error : theme.warning}
+            marginBottom={1}
+          >
+            <text fg={props.risk.level === "critical" ? theme.error : theme.warning} attributes={TextAttributes.BOLD}>
+              {props.risk.level === "critical" ? "⚠  Critical action" : "⚠  Privacy-sensitive"}
+            </text>
+            <text fg={theme.textMuted} wrapMode="word">
+              {props.risk.reason}
+            </text>
+            <Show when={props.risk.suggestion}>
+              <text fg={theme.text} wrapMode="word">
+                Suggestion: {props.risk.suggestion}
+              </text>
+            </Show>
+          </box>
+        </Show>
+
+        {/* ════════════════════════════════════════════════════
+            PHASE: sent — item will disappear from queue shortly
+            ════════════════════════════════════════════════════ */}
+        <Show when={props.cardPhase === "sent"}>
+          <box
+            flexDirection="row"
+            gap={1}
+            alignItems="center"
+            paddingLeft={1}
+            paddingTop={1}
+            paddingBottom={1}
+            backgroundColor={tint(theme.background, theme.success, 0.08)}
+            border={["left"]}
+            borderColor={theme.success}
+          >
+            <text fg={theme.success} attributes={TextAttributes.BOLD}>
+              ✓
+            </text>
+            <text fg={theme.success}>Decision sent — DAX will continue.</text>
+          </box>
+        </Show>
+
+        {/* ════════════════════════════════════════════════════
+            PHASE: deciding — main action buttons
+            ════════════════════════════════════════════════════ */}
+        <Show when={props.cardPhase === "deciding"}>
+          {/* Buttons row */}
+          <box flexDirection="row" gap={1} flexWrap="wrap" marginBottom={1}>
+            <For each={props.buttons}>
+              {(key, i) => {
+                const s = () => buttonStyle(key, i())
+                return (
+                  <box
+                    backgroundColor={s().bg}
+                    paddingLeft={2}
+                    paddingRight={2}
+                    borderStyle="round"
+                    borderColor={s().border}
+                    onMouseOver={() => props.onSetSelectedBtn(i())}
+                    onMouseUp={() => {
+                      props.onSetSelectedBtn(i())
+                      if (key === "once") props.onApproveOnce()
+                      else if (key === "always") props.onSetPhase("confirming-always")
+                      else props.onSetPhase("denying")
+                    }}
+                    flexDirection="row"
+                    gap={1}
+                  >
+                    <text fg={s().fg} attributes={TextAttributes.BOLD}>{s().key}</text>
+                    <text fg={s().fg}>{s().label}</text>
+                  </box>
+                )
+              }}
+            </For>
+          </box>
+
+          {/* Keyboard hint */}
+          <box flexDirection="row" gap={2}>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.text}>← →</text>
+              <text fg={theme.textMuted}>select</text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.text}>Enter</text>
+              <text fg={theme.textMuted}>confirm</text>
+            </box>
+            <Show when={hasDiff()}>
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.text}>Ctrl+D</text>
+                <text fg={theme.textMuted}>diff</text>
+              </box>
+            </Show>
+          </box>
+        </Show>
+
+        {/* ════════════════════════════════════════════════════
+            PHASE: confirming-always — show patterns + confirm
+            ════════════════════════════════════════════════════ */}
+        <Show when={props.cardPhase === "confirming-always"}>
+          <box
+            flexDirection="column"
+            gap={1}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={1}
+            paddingBottom={1}
+            backgroundColor={tint(theme.background, theme.accent, 0.08)}
+            border={["left"]}
+            borderColor={theme.accent}
+            marginBottom={1}
+          >
+            <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+              Confirm — Allow always
+            </text>
+            <Show
+              when={props.request.always.length === 1 && props.request.always[0] === "*"}
+              fallback={
+                <box flexDirection="column" gap={0}>
+                  <text fg={theme.textMuted}>These patterns will be trusted for this session:</text>
+                  <For each={props.request.always}>{(pattern) => <text fg={theme.text}> · {pattern}</text>}</For>
+                </box>
+              }
+            >
+              <text fg={theme.textMuted}>
+                All <text fg={theme.text}>{props.request.permission}</text> actions will be allowed until DAX restarts.
+              </text>
+            </Show>
+          </box>
+
+          <box flexDirection="row" gap={1} flexWrap="wrap">
+            <box
+              backgroundColor={theme.accent}
+              paddingLeft={2}
+              paddingRight={2}
+              borderStyle="round"
+              borderColor={theme.accent}
+              onMouseUp={() => props.onApproveAlways()}
+            >
+              <text fg={theme.background} attributes={TextAttributes.BOLD}>
+                Enter Confirm
+              </text>
+            </box>
+            <box
+              backgroundColor={theme.backgroundElement}
+              paddingLeft={2}
+              paddingRight={2}
+              borderStyle="round"
+              borderColor={theme.borderSubtle}
+              onMouseUp={() => props.onSetPhase("deciding")}
+            >
+              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                Esc Cancel
+              </text>
+            </box>
+          </box>
+        </Show>
+
+        {/* ════════════════════════════════════════════════════
+            PHASE: denying — inline reason textarea
+            ════════════════════════════════════════════════════ */}
+        <Show when={props.cardPhase === "denying"}>
+          <box
+            flexDirection="column"
+            gap={1}
+            paddingLeft={1}
+            paddingRight={1}
+            paddingTop={1}
+            paddingBottom={1}
+            backgroundColor={tint(theme.background, theme.error, 0.07)}
+            border={["left"]}
             borderColor={theme.error}
-            onMouseUp={() => {
-              // Mouse confirm: fire deny (textarea value read by keyboard handler in RAOPane)
-              // We signal by calling onDeny with empty string — RAOPane reads the ref
-              props.onDeny()
-            }}
+            marginBottom={1}
           >
             <text fg={theme.error} attributes={TextAttributes.BOLD}>
-              Enter Confirm deny
+              △ Deny — tell DAX what to do differently
             </text>
+            <box border={["round"]} borderColor={theme.borderActive} paddingLeft={1} paddingRight={1}>
+              <textarea
+                ref={props.denyTextareaRef}
+                focused
+                textColor={theme.text}
+                focusedTextColor={theme.text}
+                cursorColor={theme.primary}
+                keyBindings={props.textareaKeybindings()}
+              />
+            </box>
           </box>
-          <box
-            backgroundColor={theme.backgroundElement}
-            paddingLeft={2}
-            paddingRight={2}
-            borderStyle="rounded"
-            borderColor={theme.borderSubtle}
-            onMouseUp={() => props.onSetPhase("deciding")}
-          >
-            <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
-              Esc Cancel
-            </text>
+
+          <box flexDirection="row" gap={1} flexWrap="wrap">
+            <box
+              backgroundColor={theme.error}
+              paddingLeft={2}
+              paddingRight={2}
+              borderStyle="round"
+              borderColor={theme.error}
+              onMouseUp={() => {
+                // Mouse confirm: fire deny (textarea value read by keyboard handler in RAOPane)
+                // We signal by calling onDeny with empty string — RAOPane reads the ref
+                props.onDeny()
+              }}
+            >
+              <text fg={theme.background} attributes={TextAttributes.BOLD}>
+                Enter Confirm deny
+              </text>
+            </box>
+            <box
+              backgroundColor={theme.backgroundElement}
+              paddingLeft={2}
+              paddingRight={2}
+              borderStyle="round"
+              borderColor={theme.borderSubtle}
+              onMouseUp={() => props.onSetPhase("deciding")}
+            >
+              <text fg={theme.textMuted} attributes={TextAttributes.BOLD}>
+                Esc Cancel
+              </text>
+            </box>
           </box>
-        </box>
-      </Show>
+        </Show>
+      </box>
     </box>
   )
 }
