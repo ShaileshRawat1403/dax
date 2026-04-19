@@ -76,9 +76,32 @@ export namespace Config {
 
   const Sandbox = z
     .object({
-      enabled: z.boolean().optional().describe("Enable isolated shell execution (Docker)"),
-      image: z.string().optional().describe("Docker image to use for sandboxed execution"),
-      provider: z.enum(["docker"]).optional().describe("Sandbox provider (default: docker)"),
+      enabled: z.boolean().optional().describe("Enable sandbox for shell execution"),
+      provider: z
+        .enum(["auto", "none", "docker", "bwrap", "seatbelt", "wsl", "landlock"])
+        .optional()
+        .describe("Sandbox provider (auto: best available, none: disabled)"),
+      strict: z.boolean().optional().default(true).describe("Enable strict sandbox (deny all by default)"),
+      filesystem: z
+        .enum(["none", "read-only", "write", "strict"])
+        .optional()
+        .default("strict")
+        .describe("Filesystem access level"),
+      network: z
+        .enum(["full", "localhost-only", "none"])
+        .optional()
+        .default("localhost-only")
+        .describe("Network access level"),
+      allowNetwork: z.boolean().optional().default(false).describe("Allow network access (overrides network setting)"),
+      maxMemory: z.number().optional().describe("Maximum memory in MB"),
+      maxProcesses: z.number().optional().describe("Maximum number of processes"),
+      maxTime: z.number().optional().describe("Maximum execution time in seconds"),
+      image: z.string().optional().describe("Docker image to use (when docker fallback)"),
+      fallback: z
+        .enum(["none", "docker", "permissive"])
+        .optional()
+        .default("docker")
+        .describe("Fallback when native sandbox unavailable"),
     })
     .optional()
 

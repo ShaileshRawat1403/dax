@@ -53,6 +53,7 @@ import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { detectPythonEnvironment, formatEnvironmentDoctorReport } from "./util/environment"
 import { DAX_SETTING, sessionWorkflowModeKey } from "@/dax/settings"
 import { parsePolicyProfile, type PolicyProfile } from "@/dax/approval"
+import { Sandbox } from "@/shell/sandbox"
 import { UIActivityProvider } from "./context/activity"
 import { bootstrap } from "../../bootstrap"
 import { formatDoctorSection, mcpSection, projectSection } from "@/doctor"
@@ -84,19 +85,16 @@ export function tui(input: {
     await render(
       () => {
         return (
-          <ErrorBoundary fallback={(error, reset) => <ErrorComponent error={error} reset={reset} onExit={onExit} mode={mode} />}>
+          <ErrorBoundary
+            fallback={(error, reset) => <ErrorComponent error={error} reset={reset} onExit={onExit} mode={mode} />}
+          >
             <ArgsProvider {...input.args}>
               <ExitProvider onExit={onExit}>
                 <UIActivityProvider>
                   <KVProvider>
                     <ToastProvider>
                       <RouteProvider>
-                        <SDKProvider
-                          url={input.url}
-                          fetch={input.fetch}
-                          headers={input.headers}
-                          events={input.events}
-                        >
+                        <SDKProvider url={input.url} fetch={input.fetch} headers={input.headers} events={input.events}>
                           <SyncProvider>
                             <ThemeProvider mode={mode}>
                               <LocalProvider>
@@ -107,7 +105,11 @@ export function tui(input: {
                                         <CommandProvider>
                                           <FrecencyProvider>
                                             <PromptHistoryProvider>
-                                              <App onSessionChange={(id) => { finalSessionID = id }} />
+                                              <App
+                                                onSessionChange={(id) => {
+                                                  finalSessionID = id
+                                                }}
+                                              />
                                             </PromptHistoryProvider>
                                           </FrecencyProvider>
                                         </CommandProvider>
@@ -212,7 +214,8 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
   createEffect(() => {
     const current = local.agent.current()?.name
     if (current && WORKFLOW_AGENT_MODES.has(current)) {
-      const key = route.data.type === "session" ? sessionWorkflowModeKey(route.data.sessionID) : DAX_SETTING.session_workflow_mode
+      const key =
+        route.data.type === "session" ? sessionWorkflowModeKey(route.data.sessionID) : DAX_SETTING.session_workflow_mode
       kv.set(key, current)
     }
   })
@@ -580,7 +583,7 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       },
     },
     {
-      title: "Policy: toggle profile",
+      title: "Toggle policy profile",
       value: "policy.profile.toggle",
       slash: {
         name: "policy",
@@ -588,6 +591,26 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       category: "System",
       onSelect: (dialog) => {
         setPolicyProfile(policyProfile() === "strict" ? "balanced" : "strict")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Toggle sandbox",
+      value: "sandbox.toggle",
+      slash: {
+        name: "sandbox",
+      },
+      category: "System",
+      onSelect: async (dialog) => {
+        const check = await Sandbox.check()
+        const currentlyEnabled = check.available
+        const newState = !currentlyEnabled
+        kv.set(DAX_SETTING.sandbox_enabled, newState ? "true" : "false")
+        toast.show({
+          variant: "success",
+          message: newState ? `Sandbox enabled (${check.provider || "auto"})` : "Sandbox disabled",
+          duration: 2500,
+        })
         dialog.clear()
       },
     },

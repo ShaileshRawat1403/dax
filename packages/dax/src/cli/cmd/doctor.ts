@@ -2,6 +2,9 @@ import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
+import { Sandbox } from "@/shell/sandbox"
+import { Flag } from "@/flag/flag"
+import { DoctorSandboxCommand } from "./sandbox"
 import {
   aggregateDoctorReport,
   authSection,
@@ -130,7 +133,8 @@ export const DoctorCommand = cmd({
       .command(DoctorMcpCommand)
       .command(DoctorLspCommand)
       .command(DoctorEnvCommand)
-      .command(DoctorProjectCommand),
+      .command(DoctorProjectCommand)
+      .command(DoctorSandboxCommand),
   async handler(args) {
     const report = await bootstrap(process.cwd(), () => aggregateDoctorReport(process.cwd(), args.model))
     if (args.json) {

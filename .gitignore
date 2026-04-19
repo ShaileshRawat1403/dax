@@ -23,3 +23,7 @@ docs/images/_incoming/
 .opencode/
 
 ss/
+
+# Testing
+reports/
+.stryker-tmp/
