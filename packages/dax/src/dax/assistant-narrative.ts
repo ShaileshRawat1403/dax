@@ -36,21 +36,11 @@ function buildGuidedPreamble(input: AssistantNarrativeInput): string | undefined
   }
 
   if (/fix|debug|error|failing|broken|bug|issue/.test(asked)) {
-    return input.completed
-      ? "Root cause identified."
-      : "Tracing the failure."
+    return input.completed ? "Root cause identified." : "Tracing the failure."
   }
 
   if (input.mode === "plan") {
-    return input.completed
-      ? "Plan ready."
-      : "Mapping the execution plan."
-  }
-
-  if (input.mode === "audit") {
-    return input.completed
-      ? "Audit complete."
-      : "Reviewing for release risk."
+    return input.completed ? "Plan ready." : "Mapping the execution plan."
   }
 
   if (input.mode === "explore") {
@@ -80,7 +70,13 @@ function isLightRequest(asked: string) {
 }
 
 export function classifyAssistantNarrativeIntensity(input: AssistantNarrativeInput): AssistantNarrativeIntensity {
-  if (!input.hasPendingTool && !input.hasToolActivity && !input.hasExecuteTool && !input.hasError && isLightRequest(input.asked)) {
+  if (
+    !input.hasPendingTool &&
+    !input.hasToolActivity &&
+    !input.hasExecuteTool &&
+    !input.hasError &&
+    isLightRequest(input.asked)
+  ) {
     return "light"
   }
   if (input.hasError) return "operational"

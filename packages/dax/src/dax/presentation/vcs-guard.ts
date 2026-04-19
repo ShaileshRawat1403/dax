@@ -25,7 +25,7 @@ export function deriveFeatureBranchNudge(input: {
     }
   }
 
-  if (mode === "plan" || mode === "explore" || mode === "docs" || mode === "audit") return
+  if (mode === "plan" || mode === "explore" || mode === "docs") return
 
   if (input.hasConcreteChanges) {
     return {

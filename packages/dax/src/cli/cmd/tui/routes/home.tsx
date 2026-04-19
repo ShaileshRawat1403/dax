@@ -30,7 +30,7 @@ import { Header } from "./session/header"
 import { Footer } from "./session/footer"
 import { MacOSScrollAccel } from "@opentui/core"
 
-const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs", "audit"] as const
+const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
 
 function formatAge(ms: number): string {
@@ -144,8 +144,8 @@ export function Home() {
   const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
   const showHomeTips = createMemo(() => showTips() && !tipsHidden() && height() > 30)
 
-  const activeWorkflowMode = createMemo<HomeWorkflowMode>(() =>
-    kv.get(DAX_SETTING.session_workflow_mode, "plan") as HomeWorkflowMode
+  const activeWorkflowMode = createMemo<HomeWorkflowMode>(
+    () => kv.get(DAX_SETTING.session_workflow_mode, "plan") as HomeWorkflowMode,
   )
 
   const dirName = createMemo(() => path.basename(directory()))
@@ -185,22 +185,20 @@ export function Home() {
   const greeting = getGreeting()
   const displayName = os.userInfo().username || "operator"
 
-
   function promptText(kind: HomeWorkflowMode) {
     if (explainMode()) {
       return {
         build: "Build the next safe improvement for this project in simple language.",
         explore: "Explore this repository and explain the main parts in simple language.",
         plan: "Plan the safest next steps for this project in simple language.",
-        audit: "Audit this repository for the most important release, policy, and quality risks in simple language.",
         docs: "Read the docs and explain what this project does in simple language.",
       }[kind]
     }
     return {
       build: "Build the next safe improvement for this project and explain the implementation clearly.",
-      explore: "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
+      explore:
+        "Explore this repository. Map the entry points, execution flow, key files, unknowns, and next reading targets.",
       plan: "Plan the next safe implementation steps for this project.",
-      audit: "Audit this repository for the most important release, policy, test, and documentation risks.",
       docs: "Read the documentation and summarize the product surface, architecture, and operator flow.",
     }[kind]
   }
@@ -279,15 +277,6 @@ export function Home() {
       },
     },
     {
-      title: "Start Audit prompt",
-      value: "dax.audit.start",
-      category: "Workflows",
-      onSelect: (dialog) => {
-        setPromptDraft(promptText("audit"), false, "audit")
-        dialog.clear()
-      },
-    },
-    {
       title: "Start Docs prompt",
       value: "dax.docs.start",
       category: "Workflows",
@@ -332,28 +321,20 @@ export function Home() {
   const smartChips = createMemo(() => [
     { label: "Plan fix", tone: "accent" as const, prompt: promptText("plan"), mode: "plan" as const },
     { label: "Explore repo", tone: "primary" as const, prompt: promptText("explore"), mode: "explore" as const },
-    { label: "Audit risks", tone: "warning" as const, prompt: promptText("audit"), mode: "audit" as const },
     { label: "Read docs", tone: "muted" as const, prompt: promptText("docs"), mode: "docs" as const },
   ])
 
   return (
     <box height="100%" flexDirection="column" backgroundColor={theme.background}>
-      <Header
-        busy={sync.status === "loading"}
-        emphasis="normal"
-        onCyclePersona={() => {}}
-      />
+      <Header busy={sync.status === "loading"} emphasis="normal" onCyclePersona={() => {}} />
 
-      <scrollbox flexGrow={1} width="100%" scrollAcceleration={process.platform === "darwin" ? new MacOSScrollAccel() : undefined}>
-        <box
-          flexDirection="column"
-          alignItems="center"
-          paddingTop={2}
-          paddingBottom={4}
-          gap={tiny() ? 1 : 2}
-        >
+      <scrollbox
+        flexGrow={1}
+        width="100%"
+        scrollAcceleration={process.platform === "darwin" ? new MacOSScrollAccel() : undefined}
+      >
+        <box flexDirection="column" alignItems="center" paddingTop={2} paddingBottom={4} gap={tiny() ? 1 : 2}>
           <box width="100%" maxWidth={layout().maxWidth} alignItems="center" gap={tiny() ? 0 : 1}>
-
             {/* ── Greeting row: text left, mascot right ── */}
             <box width="100%" flexDirection="row" justifyContent="space-between" alignItems="flex-start">
               <box flexDirection="column" gap={0} flexGrow={1}>
@@ -368,7 +349,7 @@ export function Home() {
                   <BrandLetters theme={theme} />
                   <Show when={!tiny()}>
                     <text fg={theme.textMuted} dim>
-                      ·  operative · online
+                      · operative · online
                     </text>
                   </Show>
                 </box>
@@ -380,12 +361,7 @@ export function Home() {
 
             {/* ── Workspace context card ── */}
             <Show when={!tiny() && !small()}>
-              <WorkspaceCard
-                dirName={dirName()}
-                branch={branch()}
-                modelName={modelName()}
-                theme={theme}
-              />
+              <WorkspaceCard dirName={dirName()} branch={branch()} modelName={modelName()} theme={theme} />
             </Show>
 
             {/* ── Prompt input ── */}
@@ -402,7 +378,9 @@ export function Home() {
             {/* ── Smart chips ── */}
             <Show when={showActions() && !tiny()}>
               <box width="100%" flexDirection="column" gap={1}>
-                <text fg={theme.textMuted} attributes={TextAttributes.BOLD} dim>QUICK START</text>
+                <text fg={theme.textMuted} attributes={TextAttributes.BOLD} dim>
+                  QUICK START
+                </text>
                 <box flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-start">
                   <For each={smartChips()}>
                     {(chip) => (
@@ -430,7 +408,6 @@ export function Home() {
                 paddingTop={1}
                 paddingBottom={1}
               >
-
                 {/* First-time guide */}
                 <Show when={isFirstTimeUser()}>
                   <SectionDivider label="START HERE" theme={theme} />
@@ -439,7 +416,9 @@ export function Home() {
                     justifyContent="space-between"
                     paddingLeft={2}
                     paddingRight={2}
-                    onMouseUp={() => { openGuideSession().catch(() => {}) }}
+                    onMouseUp={() => {
+                      openGuideSession().catch(() => {})
+                    }}
                   >
                     <box flexDirection="row" gap={1}>
                       <PulseArrow theme={theme} />
@@ -458,7 +437,9 @@ export function Home() {
                     <For each={visibleActiveRuns().slice(0, 3)}>
                       {(r) => (
                         <box
-                          onMouseUp={() => { navigate({ type: "session", sessionID: r.runId }) }}
+                          onMouseUp={() => {
+                            navigate({ type: "session", sessionID: r.runId })
+                          }}
                           paddingLeft={2}
                           paddingRight={2}
                           flexDirection="row"
@@ -468,19 +449,24 @@ export function Home() {
                             <text fg={theme.primary}>
                               ▸{" "}
                               {r.title
-                                ? r.title.length > 45 ? r.title.slice(0, 42) + "..." : r.title
+                                ? r.title.length > 45
+                                  ? r.title.slice(0, 42) + "..."
+                                  : r.title
                                 : r.runId.slice(0, 8)}
                             </text>
                             <Show when={r.currentStep}>
                               <text fg={theme.textMuted} dim>
-                                {"  "}{r.currentStep?.title?.slice(0, 40) ?? "in progress"}
+                                {"  "}
+                                {r.currentStep?.title?.slice(0, 40) ?? "in progress"}
                               </text>
                             </Show>
                           </box>
                           <box flexDirection="column" gap={0} alignItems="flex-end">
                             <text fg={theme.textMuted}>{r.status}</text>
                             <Show when={r.status === "waiting_approval" && r.pendingApprovalCount > 0}>
-                              <text fg={theme.warning} dim>⚠ {r.pendingApprovalCount}</text>
+                              <text fg={theme.warning} dim>
+                                ⚠ {r.pendingApprovalCount}
+                              </text>
                             </Show>
                           </box>
                         </box>
@@ -506,7 +492,6 @@ export function Home() {
                     </For>
                   </box>
                 </Show>
-
               </box>
             </Show>
 
@@ -516,15 +501,11 @@ export function Home() {
                 <Tips />
               </box>
             </Show>
-
           </box>
         </box>
       </scrollbox>
 
-      <Footer
-        workflowMode={activeWorkflowMode()}
-        onCycleWorkflowMode={() => cycleWorkflowMode(1)}
-      />
+      <Footer workflowMode={activeWorkflowMode()} onCycleWorkflowMode={() => cycleWorkflowMode(1)} />
       <Toast />
     </box>
   )
@@ -582,7 +563,12 @@ function WorkspaceCard(props: { dirName: string; branch?: string; modelName: str
   )
 }
 
-function SmartChip(props: { label: string; tone: "primary" | "accent" | "warning" | "muted"; theme: any; onPress: () => void }) {
+function SmartChip(props: {
+  label: string
+  tone: "primary" | "accent" | "warning" | "muted"
+  theme: any
+  onPress: () => void
+}) {
   const color = () => {
     if (props.tone === "primary") return props.theme.primary
     if (props.tone === "accent") return props.theme.accent
@@ -605,13 +591,7 @@ function SmartChip(props: { label: string; tone: "primary" | "accent" | "warning
 
 function RecentRunRow(props: { title: string; status: string; ageMs: number; theme: any; onOpen: () => void }) {
   return (
-    <box
-      onMouseUp={props.onOpen}
-      paddingLeft={2}
-      paddingRight={2}
-      flexDirection="row"
-      justifyContent="space-between"
-    >
+    <box onMouseUp={props.onOpen} paddingLeft={2} paddingRight={2} flexDirection="row" justifyContent="space-between">
       <box flexDirection="row" gap={1}>
         <text fg={props.theme.textMuted} dim>
           ·

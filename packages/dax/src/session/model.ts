@@ -238,6 +238,14 @@ export namespace SessionV2 {
   })
   export type CompletionProofState = z.infer<typeof CompletionProofState>
 
+  export const BlastRadiusState = z.object({
+    level: z.enum(["low", "medium", "high", "critical"]),
+    reason: z.string(),
+    affected_areas: z.string().array().default([]),
+    analyzedAt: z.string(),
+  })
+  export type BlastRadiusState = z.infer<typeof BlastRadiusState>
+
   export const State = z
     .object({
       intent: Intent.optional(),
@@ -251,6 +259,7 @@ export namespace SessionV2 {
       reflection_history: Reflection.array().optional(),
       runtime_guard: RuntimeGuardState.optional(),
       plan_quality: PlanQualityState.optional(),
+      blast_radius: BlastRadiusState.optional(),
       completion_proof: CompletionProofState.optional(),
       guard_enforcement_mode: z.enum(["warn", "enforce"]).optional(),
     })

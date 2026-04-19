@@ -19,6 +19,14 @@ export interface IntentContext {
   pending_approvals?: number
   pending_questions?: number
   audit_status?: "pass" | "warn" | "fail"
+  project_memories?: Array<{
+    id: string
+    category: string
+    title: string
+    content: string
+    tags: string[]
+    created_at: number
+  }>
 }
 
 type ContractDraft = {
@@ -131,9 +139,7 @@ function deriveApprovalLikelihood(input: {
 }
 
 function deriveTargetSubsystems(hints: PromptHints, prompt: string) {
-  const fromPaths = hints.fileHints
-    .map((item) => item.split("/").slice(0, -1).join("/"))
-    .filter(Boolean)
+  const fromPaths = hints.fileHints.map((item) => item.split("/").slice(0, -1).join("/")).filter(Boolean)
   const keywords = Array.from(
     prompt.matchAll(/\b(auth|approval|governance|release|readme|docs|tests?|ui|tui|server|workflow|memory|refine)\b/gi),
   ).map((match) => match[1]!.toLowerCase())
@@ -147,21 +153,30 @@ function buildValidationPlan(input: {
   riskLevel?: "low" | "medium" | "high"
   approvalForecast?: string[]
 }) {
-  const preflight = unique([
-    input.targetFiles?.length ? `Inspect ${input.targetFiles.slice(0, 3).join(", ")} before changing implementation.` : "",
-    input.approvalForecast?.length ? "Confirm likely approval checkpoints before the run reaches a write or destructive step." : "",
-  ].filter(Boolean))
+  const preflight = unique(
+    [
+      input.targetFiles?.length
+        ? `Inspect ${input.targetFiles.slice(0, 3).join(", ")} before changing implementation.`
+        : "",
+      input.approvalForecast?.length
+        ? "Confirm likely approval checkpoints before the run reaches a write or destructive step."
+        : "",
+    ].filter(Boolean),
+  )
 
-  const postChange = unique([
-    ...(input.validationCommands ?? []),
-    firstNonEmpty(input.successCriteria),
-  ].filter(Boolean) as string[])
+  const postChange = unique(
+    [...(input.validationCommands ?? []), firstNonEmpty(input.successCriteria)].filter(Boolean) as string[],
+  )
 
-  const shipReadiness = unique([
-    input.riskLevel === "high" ? "Review remaining risk and rollback readiness before considering the work done." : "",
-    input.approvalForecast?.length ? "Confirm all approvals or operator questions have been resolved cleanly." : "",
-    "Capture the final evidence, summary, and any follow-up work before handoff.",
-  ].filter(Boolean))
+  const shipReadiness = unique(
+    [
+      input.riskLevel === "high"
+        ? "Review remaining risk and rollback readiness before considering the work done."
+        : "",
+      input.approvalForecast?.length ? "Confirm all approvals or operator questions have been resolved cleanly." : "",
+      "Capture the final evidence, summary, and any follow-up work before handoff.",
+    ].filter(Boolean),
+  )
 
   return { preflight, postChange, shipReadiness }
 }
@@ -174,46 +189,55 @@ function buildGovernanceHints(input: {
   pendingApprovals?: number
   pendingQuestions?: number
 }) {
-  const likelyTriggers = unique([
-    ...(input.approvalForecast ?? []),
-    (input.likelyWrites?.length ?? 0) > 1 ? "Multi-file edits can trigger extra review attention." : "",
-    input.riskLevel === "high" ? "High-risk requests should stay in a safer execution posture until validated." : "",
-  ].filter(Boolean))
+  const likelyTriggers = unique(
+    [
+      ...(input.approvalForecast ?? []),
+      (input.likelyWrites?.length ?? 0) > 1 ? "Multi-file edits can trigger extra review attention." : "",
+      input.riskLevel === "high" ? "High-risk requests should stay in a safer execution posture until validated." : "",
+    ].filter(Boolean),
+  )
 
-  const lowerRiskAlternatives = unique([
-    (input.likelyWrites?.length ?? 0) > 1 ? "Start with the smallest single-file slice before expanding the change surface." : "",
-    (input.validationCommands?.length ?? 0) === 0 ? "Add a concrete validation command before executing writes." : "",
-    input.riskLevel === "high" ? "Use safe or audit-heavy mode if the current request can be narrowed first." : "",
-  ].filter(Boolean))
+  const lowerRiskAlternatives = unique(
+    [
+      (input.likelyWrites?.length ?? 0) > 1
+        ? "Start with the smallest single-file slice before expanding the change surface."
+        : "",
+      (input.validationCommands?.length ?? 0) === 0 ? "Add a concrete validation command before executing writes." : "",
+      input.riskLevel === "high" ? "Use safe or audit-heavy mode if the current request can be narrowed first." : "",
+    ].filter(Boolean),
+  )
 
-  const operatorDecisionsNeeded = unique([
-    (input.pendingApprovals ?? 0) > 0 ? "Resolve existing approvals before relying on a smooth execution path." : "",
-    (input.pendingQuestions ?? 0) > 0 ? "Answer the outstanding operator question before execution expands." : "",
-    input.riskLevel === "high" ? "Confirm whether the operator wants the safer path or the faster path." : "",
-  ].filter(Boolean))
+  const operatorDecisionsNeeded = unique(
+    [
+      (input.pendingApprovals ?? 0) > 0 ? "Resolve existing approvals before relying on a smooth execution path." : "",
+      (input.pendingQuestions ?? 0) > 0 ? "Answer the outstanding operator question before execution expands." : "",
+      input.riskLevel === "high" ? "Confirm whether the operator wants the safer path or the faster path." : "",
+    ].filter(Boolean),
+  )
 
   return { likelyTriggers, lowerRiskAlternatives, operatorDecisionsNeeded }
 }
 
-function buildRepoImpact(input: {
-  hints: PromptHints
-  prompt: string
-  likelyWrites?: string[]
-}) {
+function buildRepoImpact(input: { hints: PromptHints; prompt: string; likelyWrites?: string[] }) {
   const lowerPrompt = input.prompt.toLowerCase()
   const targetSubsystems = deriveTargetSubsystems(input.hints, input.prompt)
   const targetFiles = unique([...(input.hints.fileHints ?? []), ...(input.likelyWrites ?? [])]).slice(0, 5)
-  const avoidAreas = unique([
-    lowerPrompt.includes("docs") ? "" : "Avoid widening scope into unrelated docs unless the task clearly needs it.",
-    lowerPrompt.includes("test") ? "" : "Avoid broad test-suite churn beyond the affected surface.",
-    lowerPrompt.includes("release") ? "" : "Avoid release metadata or packaging changes unless this task directly targets shipping.",
-  ].filter(Boolean))
+  const avoidAreas = unique(
+    [
+      lowerPrompt.includes("docs") ? "" : "Avoid widening scope into unrelated docs unless the task clearly needs it.",
+      lowerPrompt.includes("test") ? "" : "Avoid broad test-suite churn beyond the affected surface.",
+      lowerPrompt.includes("release")
+        ? ""
+        : "Avoid release metadata or packaging changes unless this task directly targets shipping.",
+    ].filter(Boolean),
+  )
 
   return {
     targetFiles,
     targetSubsystems,
     docsImpact: /\b(doc|readme|guide|changelog)\b/i.test(input.prompt),
-    testImpact: /\b(test|spec|verify|validation)\b/i.test(input.prompt) || targetFiles.some((item) => /test|spec/i.test(item)),
+    testImpact:
+      /\b(test|spec|verify|validation)\b/i.test(input.prompt) || targetFiles.some((item) => /test|spec/i.test(item)),
     avoidAreas,
   }
 }
@@ -225,10 +249,14 @@ function buildContractDelta(input: {
   unknowns?: string[]
   riskLevel?: "low" | "medium" | "high"
 }) {
-  const scope = unique([
-    input.hints.fileHints.length > 0 ? `Focused on ${input.hints.fileHints.length} likely file or path target(s).` : "No specific file target was given, so DAX should inspect before writing.",
-    input.riskLevel === "high" ? "Elevated the execution posture because the request looks high risk." : "",
-  ].filter(Boolean))
+  const scope = unique(
+    [
+      input.hints.fileHints.length > 0
+        ? `Focused on ${input.hints.fileHints.length} likely file or path target(s).`
+        : "No specific file target was given, so DAX should inspect before writing.",
+      input.riskLevel === "high" ? "Elevated the execution posture because the request looks high risk." : "",
+    ].filter(Boolean),
+  )
   const targets = input.hints.fileHints.map((item) => `Likely target inferred from prompt: ${item}`)
   const addedValidation = (input.validationCommands ?? []).map((item) => `Validation added: ${item}`)
   const unresolvedUnknowns = (input.unknowns ?? []).map((item) => `Operator assumption: ${item}`)
@@ -306,10 +334,16 @@ export function formatStructuredExecutionContract(contract: ContractDraft) {
       ? [
           "",
           "## Execution Profile",
-          ...(contract.executionProfile?.mode || contract.executionMode ? [`- Mode: ${contract.executionProfile?.mode ?? contract.executionMode}`] : []),
-          ...(contract.executionProfile?.riskLevel || contract.riskLevel ? [`- Risk level: ${contract.executionProfile?.riskLevel ?? contract.riskLevel}`] : []),
+          ...(contract.executionProfile?.mode || contract.executionMode
+            ? [`- Mode: ${contract.executionProfile?.mode ?? contract.executionMode}`]
+            : []),
+          ...(contract.executionProfile?.riskLevel || contract.riskLevel
+            ? [`- Risk level: ${contract.executionProfile?.riskLevel ?? contract.riskLevel}`]
+            : []),
           ...(contract.executionProfile?.writeScope ? [`- Write scope: ${contract.executionProfile.writeScope}`] : []),
-          ...(contract.executionProfile?.approvalLikelihood ? [`- Approval likelihood: ${contract.executionProfile.approvalLikelihood}`] : []),
+          ...(contract.executionProfile?.approvalLikelihood
+            ? [`- Approval likelihood: ${contract.executionProfile.approvalLikelihood}`]
+            : []),
         ]
       : []),
     ...(contract.targetFiles && contract.targetFiles.length > 0
@@ -363,8 +397,12 @@ export function formatStructuredExecutionContract(contract: ContractDraft) {
       ? [
           "",
           "## Validation Plan",
-          ...(contract.validationPlan.preflight?.length ? ["### Preflight", ...contract.validationPlan.preflight.map((item) => `- ${item}`)] : []),
-          ...(contract.validationPlan.postChange?.length ? ["### Post-change", ...contract.validationPlan.postChange.map((item) => `- ${item}`)] : []),
+          ...(contract.validationPlan.preflight?.length
+            ? ["### Preflight", ...contract.validationPlan.preflight.map((item) => `- ${item}`)]
+            : []),
+          ...(contract.validationPlan.postChange?.length
+            ? ["### Post-change", ...contract.validationPlan.postChange.map((item) => `- ${item}`)]
+            : []),
           ...(contract.validationPlan.shipReadiness?.length
             ? ["### Ship readiness", ...contract.validationPlan.shipReadiness.map((item) => `- ${item}`)]
             : []),
@@ -412,8 +450,7 @@ function buildRefinementPrompt(prompt: string, context: IntentContext) {
   if (context.session_title) lines.push(`SESSION GOAL: ${context.session_title}`)
   if (context.current_focus) lines.push(`CURRENT FOCUS: ${context.current_focus}`)
   if (context.todo?.length) lines.push(`KNOWN MILESTONES: ${context.todo.slice(0, 5).join(" | ")}`)
-  if (context.recent_activity?.length)
-    lines.push(`RECENT ACTIVITY: ${context.recent_activity.slice(0, 5).join(" | ")}`)
+  if (context.recent_activity?.length) lines.push(`RECENT ACTIVITY: ${context.recent_activity.slice(0, 5).join(" | ")}`)
   if (context.recent_tools?.length) lines.push(`RECENT TOOLS: ${context.recent_tools.slice(0, 4).join(" | ")}`)
   if (context.recent_history?.length)
     lines.push(`RECENT USER HISTORY: ${context.recent_history.slice(0, 4).join(" | ")}`)
@@ -668,152 +705,196 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
   const isTest = lowerPrompt.includes("test") || lowerPrompt.includes("spec")
 
   if (isExploration) {
-    return attachDerivedContractSections({
-      goal: `Understand the repository and answer: ${target}`,
-      plan: [
-        "Inspect top-level files and directories to map the repository boundary",
-        `Find the primary entry points, startup paths, and orchestration surfaces${targetFiles ? ` relevant to ${targetFiles}` : ""}`,
-        "Identify major modules and explain their responsibilities",
-        "Summarize how control flows through the system in plain language",
-        "Report what the repo is for, how it is used, and key risks or constraints",
-      ],
-      successCriteria: [
-        "Repository structure documented",
-        "Main entry points and core modules identified",
-        "High-level architecture explained clearly",
-        "Practical usage purpose stated with evidence",
-      ],
-      targetFiles: hints.fileHints,
-      validationCommands: defaultValidationCommands(),
-      constraints: ["Read-only analysis preferred", "Focus on understanding structure", repoConstraint],
-      contextSignals,
-      operatorWatchouts,
-      executionMode: executionMode === "fast" ? "balanced" : executionMode,
-      riskLevel: riskLevel === "high" ? "medium" : riskLevel,
-      likelyWrites: [],
-      approvalForecast,
-      unknowns,
-      rollbackPlan,
-    }, { prompt, context, hints })
+    return attachDerivedContractSections(
+      {
+        goal: `Understand the repository and answer: ${target}`,
+        plan: [
+          "Inspect top-level files and directories to map the repository boundary",
+          `Find the primary entry points, startup paths, and orchestration surfaces${targetFiles ? ` relevant to ${targetFiles}` : ""}`,
+          "Identify major modules and explain their responsibilities",
+          "Summarize how control flows through the system in plain language",
+          "Report what the repo is for, how it is used, and key risks or constraints",
+        ],
+        successCriteria: [
+          "Repository structure documented",
+          "Main entry points and core modules identified",
+          "High-level architecture explained clearly",
+          "Practical usage purpose stated with evidence",
+        ],
+        targetFiles: hints.fileHints,
+        validationCommands: defaultValidationCommands(),
+        constraints: ["Read-only analysis preferred", "Focus on understanding structure", repoConstraint],
+        contextSignals,
+        operatorWatchouts,
+        executionMode: executionMode === "fast" ? "balanced" : executionMode,
+        riskLevel: riskLevel === "high" ? "medium" : riskLevel,
+        likelyWrites: [],
+        approvalForecast,
+        unknowns,
+        rollbackPlan,
+      },
+      { prompt, context, hints },
+    )
   }
 
   if (isFix) {
-    return attachDerivedContractSections({
-      goal: `Fix the reported issue: ${target}`,
-      plan: [
-        `Inspect the failing area${targetFiles ? ` in or around ${targetFiles}` : ""} and confirm the root cause before editing`,
-        targetCommand
-          ? `Reproduce or validate the problem with the most relevant command: ${targetCommand}`
-          : "Reproduce the issue with the smallest relevant command, test, or workflow",
-        `Implement the smallest safe change that resolves the issue${targetFiles ? ` while keeping ${targetFiles} coherent` : ""}`,
-        "Run targeted validation for the affected behavior, then run the nearest regression checks",
-        "Summarize the fix, the evidence that it works, and any remaining risk or follow-up",
-      ],
-      successCriteria: [
-        "The reported failure is resolved in a reproducible way",
-        "Targeted verification for the affected path passes",
-        "Nearby behavior is checked for regressions",
-        "The fix is minimal and aligned with existing project patterns",
-      ],
-      targetFiles: hints.fileHints,
-      validationCommands: defaultValidationCommands(
-        targetCommand || "Run the smallest relevant test or verification command",
-      ),
-      constraints: [
-        "Minimize the change surface until the root cause is confirmed",
-        "Preserve existing behavior outside the broken path",
-        repoConstraint,
-      ],
-      contextSignals,
-      operatorWatchouts,
-      executionMode,
-      riskLevel,
-      likelyWrites,
-      approvalForecast,
-      unknowns,
-      rollbackPlan,
-    }, { prompt, context, hints })
+    return attachDerivedContractSections(
+      {
+        goal: `Fix the reported issue: ${target}`,
+        plan: [
+          `Inspect the failing area${targetFiles ? ` in or around ${targetFiles}` : ""} and confirm the root cause before editing`,
+          targetCommand
+            ? `Reproduce or validate the problem with the most relevant command: ${targetCommand}`
+            : "Reproduce the issue with the smallest relevant command, test, or workflow",
+          `Implement the smallest safe change that resolves the issue${targetFiles ? ` while keeping ${targetFiles} coherent` : ""}`,
+          "Run targeted validation for the affected behavior, then run the nearest regression checks",
+          "Summarize the fix, the evidence that it works, and any remaining risk or follow-up",
+        ],
+        successCriteria: [
+          "The reported failure is resolved in a reproducible way",
+          "Targeted verification for the affected path passes",
+          "Nearby behavior is checked for regressions",
+          "The fix is minimal and aligned with existing project patterns",
+        ],
+        targetFiles: hints.fileHints,
+        validationCommands: defaultValidationCommands(
+          targetCommand || "Run the smallest relevant test or verification command",
+        ),
+        constraints: [
+          "Minimize the change surface until the root cause is confirmed",
+          "Preserve existing behavior outside the broken path",
+          repoConstraint,
+        ],
+        contextSignals,
+        operatorWatchouts,
+        executionMode,
+        riskLevel,
+        likelyWrites,
+        approvalForecast,
+        unknowns,
+        rollbackPlan,
+      },
+      { prompt, context, hints },
+    )
   }
 
   if (isBuild) {
-    return attachDerivedContractSections({
-      goal: `Implement the requested change: ${target}`,
-      plan: [
-        `Inspect the existing code paths, files, and interfaces involved${targetFiles ? `, especially ${targetFiles}` : ""}`,
-        "Choose the smallest implementation approach that fits current project conventions",
-        "Make the necessary code or configuration changes with clear boundaries",
-        targetCommand
-          ? `Run the most relevant validation command: ${targetCommand}`
-          : "Run targeted verification for the changed behavior and expand to broader checks if needed",
-        "Review the result for regressions, incomplete edges, and follow-up work",
-      ],
-      successCriteria: [
-        "The requested behavior or output is implemented end to end",
-        "The changed path is validated with concrete evidence",
-        "The implementation follows existing project patterns and constraints",
-        "No obvious regressions remain in adjacent behavior",
-      ],
-      targetFiles: hints.fileHints,
-      validationCommands: defaultValidationCommands(
-        targetCommand || "Run the most relevant verification command for the changed surface",
-      ),
-      constraints: ["Preserve existing functionality unless the request explicitly changes it", repoConstraint],
-      contextSignals,
-      operatorWatchouts,
-      executionMode,
-      riskLevel,
-      likelyWrites,
-      approvalForecast,
-      unknowns,
-      rollbackPlan,
-    }, { prompt, context, hints })
+    return attachDerivedContractSections(
+      {
+        goal: `Implement the requested change: ${target}`,
+        plan: [
+          `Inspect the existing code paths, files, and interfaces involved${targetFiles ? `, especially ${targetFiles}` : ""}`,
+          "Choose the smallest implementation approach that fits current project conventions",
+          "Make the necessary code or configuration changes with clear boundaries",
+          targetCommand
+            ? `Run the most relevant validation command: ${targetCommand}`
+            : "Run targeted verification for the changed behavior and expand to broader checks if needed",
+          "Review the result for regressions, incomplete edges, and follow-up work",
+        ],
+        successCriteria: [
+          "The requested behavior or output is implemented end to end",
+          "The changed path is validated with concrete evidence",
+          "The implementation follows existing project patterns and constraints",
+          "No obvious regressions remain in adjacent behavior",
+        ],
+        targetFiles: hints.fileHints,
+        validationCommands: defaultValidationCommands(
+          targetCommand || "Run the most relevant verification command for the changed surface",
+        ),
+        constraints: ["Preserve existing functionality unless the request explicitly changes it", repoConstraint],
+        contextSignals,
+        operatorWatchouts,
+        executionMode,
+        riskLevel,
+        likelyWrites,
+        approvalForecast,
+        unknowns,
+        rollbackPlan,
+      },
+      { prompt, context, hints },
+    )
   }
 
   if (isDocs) {
-    return attachDerivedContractSections({
-      goal: `Write or improve documentation for: ${target}`,
-      plan: [
-        "Identify the audience, missing information, and the docs surface that should change",
-        "Review existing documentation and adjacent implementation details for accuracy",
-        "Draft concise documentation with examples, commands, or workflows where helpful",
-        "Check the final copy for correctness, scanning clarity, and consistency with existing docs",
-      ],
-      successCriteria: [
-        "Documentation answers the user’s need clearly and accurately",
-        "Examples and commands match the current implementation",
-        "Tone and structure fit the existing documentation set",
-      ],
-      targetFiles: hints.fileHints,
-      validationCommands: ["Re-read the updated docs for accuracy and completeness"],
-      constraints: ["Follow existing documentation style", repoConstraint],
-      contextSignals,
-      operatorWatchouts,
-      executionMode: executionMode === "fast" ? "balanced" : executionMode,
-      riskLevel: riskLevel === "high" ? "medium" : riskLevel,
-      likelyWrites,
-      approvalForecast,
-      unknowns,
-      rollbackPlan,
-    }, { prompt, context, hints })
+    return attachDerivedContractSections(
+      {
+        goal: `Write or improve documentation for: ${target}`,
+        plan: [
+          "Identify the audience, missing information, and the docs surface that should change",
+          "Review existing documentation and adjacent implementation details for accuracy",
+          "Draft concise documentation with examples, commands, or workflows where helpful",
+          "Check the final copy for correctness, scanning clarity, and consistency with existing docs",
+        ],
+        successCriteria: [
+          "Documentation answers the user’s need clearly and accurately",
+          "Examples and commands match the current implementation",
+          "Tone and structure fit the existing documentation set",
+        ],
+        targetFiles: hints.fileHints,
+        validationCommands: ["Re-read the updated docs for accuracy and completeness"],
+        constraints: ["Follow existing documentation style", repoConstraint],
+        contextSignals,
+        operatorWatchouts,
+        executionMode: executionMode === "fast" ? "balanced" : executionMode,
+        riskLevel: riskLevel === "high" ? "medium" : riskLevel,
+        likelyWrites,
+        approvalForecast,
+        unknowns,
+        rollbackPlan,
+      },
+      { prompt, context, hints },
+    )
   }
 
   if (isTest) {
-    return attachDerivedContractSections({
-      goal: `Add or improve tests for: ${target}`,
+    return attachDerivedContractSections(
+      {
+        goal: `Add or improve tests for: ${target}`,
+        plan: [
+          `Identify the behavior, edge cases, and failure modes that need coverage${targetFiles ? ` around ${targetFiles}` : ""}`,
+          "Use existing test style and helpers to add focused coverage first",
+          "Add broader integration coverage only where unit-level checks are not enough",
+          targetCommand ? `Run ${targetCommand}` : "Run the relevant test command and inspect failures carefully",
+        ],
+        successCriteria: [
+          "New or updated tests cover the intended behavior and edge cases",
+          "The relevant test suite passes",
+          "Tests are readable and aligned with existing patterns",
+        ],
+        targetFiles: hints.fileHints,
+        validationCommands: defaultValidationCommands(targetCommand || "Run the relevant test command"),
+        constraints: ["Follow existing test patterns", repoConstraint],
+        contextSignals,
+        operatorWatchouts,
+        executionMode,
+        riskLevel,
+        likelyWrites,
+        approvalForecast,
+        unknowns,
+        rollbackPlan,
+      },
+      { prompt, context, hints },
+    )
+  }
+
+  // Default fallback
+  return attachDerivedContractSections(
+    {
+      goal: `Complete the request: ${target}`,
       plan: [
-        `Identify the behavior, edge cases, and failure modes that need coverage${targetFiles ? ` around ${targetFiles}` : ""}`,
-        "Use existing test style and helpers to add focused coverage first",
-        "Add broader integration coverage only where unit-level checks are not enough",
-        targetCommand ? `Run ${targetCommand}` : "Run the relevant test command and inspect failures carefully",
+        "Clarify the concrete target, affected files, and validation path implied by the request",
+        "Inspect the most relevant files or commands before making changes",
+        "Execute the smallest useful change or investigation step",
+        "Verify the outcome with concrete evidence and capture any follow-up work",
       ],
       successCriteria: [
-        "New or updated tests cover the intended behavior and edge cases",
-        "The relevant test suite passes",
-        "Tests are readable and aligned with existing patterns",
+        "The request is completed as described",
+        "The result is checked with concrete evidence",
+        "No obvious regressions or loose ends remain",
       ],
       targetFiles: hints.fileHints,
-      validationCommands: defaultValidationCommands(targetCommand || "Run the relevant test command"),
-      constraints: ["Follow existing test patterns", repoConstraint],
+      validationCommands: defaultValidationCommands(targetCommand),
+      constraints: [repoConstraint],
       contextSignals,
       operatorWatchouts,
       executionMode,
@@ -822,35 +903,9 @@ function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: 
       approvalForecast,
       unknowns,
       rollbackPlan,
-    }, { prompt, context, hints })
-  }
-
-  // Default fallback
-  return attachDerivedContractSections({
-    goal: `Complete the request: ${target}`,
-    plan: [
-      "Clarify the concrete target, affected files, and validation path implied by the request",
-      "Inspect the most relevant files or commands before making changes",
-      "Execute the smallest useful change or investigation step",
-      "Verify the outcome with concrete evidence and capture any follow-up work",
-    ],
-    successCriteria: [
-      "The request is completed as described",
-      "The result is checked with concrete evidence",
-      "No obvious regressions or loose ends remain",
-    ],
-    targetFiles: hints.fileHints,
-    validationCommands: defaultValidationCommands(targetCommand),
-    constraints: [repoConstraint],
-    contextSignals,
-    operatorWatchouts,
-    executionMode,
-    riskLevel,
-    likelyWrites,
-    approvalForecast,
-    unknowns,
-    rollbackPlan,
-  }, { prompt, context, hints })
+    },
+    { prompt, context, hints },
+  )
 }
 
 function deriveRiskLevel(lowerPrompt: string, context: IntentContext): "low" | "medium" | "high" {
@@ -892,7 +947,12 @@ function deriveExecutionMode(
 
 function buildApprovalForecast(lowerPrompt: string, context: IntentContext, hints: PromptHints) {
   const forecast: string[] = []
-  if (hints.fileHints.length > 0 || lowerPrompt.includes("edit") || lowerPrompt.includes("fix") || lowerPrompt.includes("implement")) {
+  if (
+    hints.fileHints.length > 0 ||
+    lowerPrompt.includes("edit") ||
+    lowerPrompt.includes("fix") ||
+    lowerPrompt.includes("implement")
+  ) {
     forecast.push("Expect review before non-trivial file writes or multi-file edits.")
   }
   if (
@@ -915,7 +975,9 @@ function buildUnknowns(prompt: string, lowerPrompt: string, hints: PromptHints, 
     unknowns.push("The affected files or subsystem are not explicit yet and may need quick discovery first.")
   }
   if (!commandHint && (lowerPrompt.includes("fix") || lowerPrompt.includes("build") || lowerPrompt.includes("test"))) {
-    unknowns.push("The exact validation command is not named, so DAX may need to discover the right check before changing code.")
+    unknowns.push(
+      "The exact validation command is not named, so DAX may need to discover the right check before changing code.",
+    )
   }
   if (prompt.trim().split(/\s+/).length < 8) {
     unknowns.push("The request is terse enough that success boundaries may need one more pass before execution.")
@@ -944,6 +1006,12 @@ function buildContextSignals(context: IntentContext) {
     signals.push(`Recent tool activity: ${context.recent_tools.slice(0, 3).join(" | ")}`)
   if (context.recent_history?.length)
     signals.push(`Latest user context: ${context.recent_history.slice(0, 2).join(" | ")}`)
+  if (context.project_memories?.length) {
+    const memorySignals = context.project_memories
+      .slice(0, 3)
+      .map((m) => `[Project Memory] ${m.title}: ${m.content.slice(0, 80)}`)
+    signals.push(...memorySignals)
+  }
   return unique(signals).slice(0, 5)
 }
 

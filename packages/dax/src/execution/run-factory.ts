@@ -18,6 +18,7 @@ import { resolveGuardEnforcementMode } from "./guard-mode"
 import { createAndPersistApproval } from "@/approval/approval-transitions"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
+import { ShadowAuditor } from "./shadow-auditor"
 
 import { ContractGuardian } from "./contract-guardian"
 import {
@@ -255,6 +256,10 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 
   Tracer.runCreated(session.id, contract.workflowClass, contract.executionMode)
   Tracer.contractCompiled(session.id, contract.contractId, contract.riskLevel)
+
+  // Kick off background shadow auditor
+  void ShadowAuditor.analyze(session.id, input.request.intent.input, contract)
+
   const requiresPauseForPlanQuality = planQuality.decision === "pause" && guardMode === "enforce"
   if (planQuality.decision === "pause") {
     const note = `Plan quality gate flagged this run (${planQuality.score}/100): ${planQuality.failedChecks.join(", ")}`

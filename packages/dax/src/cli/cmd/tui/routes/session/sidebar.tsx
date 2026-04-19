@@ -388,6 +388,41 @@ export function Sidebar(props: {
               </SidebarCard>
             </Show>
 
+            <Show when={workstationState().blastRadius}>
+              <SidebarCard>
+                <text
+                  fg={
+                    workstationState().blastRadius!.level === "critical" ||
+                    workstationState().blastRadius!.level === "high"
+                      ? theme.error
+                      : workstationState().blastRadius!.level === "medium"
+                        ? theme.warning
+                        : theme.success
+                  }
+                  attributes={TextAttributes.BOLD}
+                >
+                  Blast Radius: {workstationState().blastRadius!.level.toUpperCase()}
+                </text>
+                <text fg={theme.text} wrapMode="word">
+                  {workstationState().blastRadius!.reason}
+                </text>
+                <Show when={workstationState().blastRadius!.affected_areas.length > 0}>
+                  <box flexDirection="column" gap={0} marginTop={1}>
+                    <text fg={theme.textMuted} dim>
+                      AFFECTED AREAS
+                    </text>
+                    <For each={workstationState().blastRadius!.affected_areas}>
+                      {(area) => (
+                        <text fg={theme.textMuted} dim>
+                          • {area}
+                        </text>
+                      )}
+                    </For>
+                  </box>
+                </Show>
+              </SidebarCard>
+            </Show>
+
             <Show when={showSection("runtime")}>
               <SidebarCard>
                 <text fg={theme.text}>
