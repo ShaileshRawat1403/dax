@@ -39,6 +39,7 @@ import { Session } from "@tui/routes/session"
 import { PromptHistoryProvider } from "./component/prompt/history"
 import { FrecencyProvider } from "./component/prompt/frecency"
 import { PromptStashProvider } from "./component/prompt/stash"
+import { DialogMarketplace } from "./ui/dialog-marketplace"
 import { DialogAlert } from "./ui/dialog-alert"
 import { ToastProvider, useToast, type ToastPosition, type ToastStyle } from "./ui/toast"
 import { ExitProvider, useExit } from "./context/exit"
@@ -385,9 +386,21 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       onSelect: () => {
         dialog.replace(() => <DialogSessionList />)
       },
-    },
-    {
-      title: "New session",
+      },
+      {
+      title: "Skill Marketplace",
+      value: "skill.marketplace",
+      category: "Skills",
+      slash: {
+        name: "marketplace",
+        aliases: ["skills", "install"],
+      },
+      onSelect: () => {
+        dialog.replace(() => <DialogMarketplace />)
+      },
+      },
+      {
+      title: "Switch agent",
       suggested: route.data.type === "session",
       value: "session.new",
       keybind: "session_new",
