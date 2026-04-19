@@ -53,19 +53,21 @@ export function DialogPrompt(props: DialogPromptProps) {
       </box>
       <box gap={1}>
         {props.description}
-        <textarea
-          onSubmit={() => {
-            props.onConfirm?.(textarea.plainText)
-          }}
-          height={3}
-          keyBindings={[{ name: "return", action: "submit" }]}
-          ref={(val: TextareaRenderable) => (textarea = val)}
-          initialValue={props.value}
-          placeholder={props.placeholder ?? "Enter text"}
-          textColor={theme.text}
-          focusedTextColor={theme.text}
-          cursorColor={theme.text}
-        />
+        <box border={["round"]} borderColor={theme.borderActive} paddingLeft={1} paddingRight={1}>
+          <textarea
+            onSubmit={() => {
+              props.onConfirm?.(textarea.plainText)
+            }}
+            height={3}
+            keyBindings={[{ name: "return", action: "submit" }]}
+            ref={(val: TextareaRenderable) => (textarea = val)}
+            initialValue={props.value}
+            placeholder={props.placeholder ?? "Enter text"}
+            textColor={theme.text}
+            focusedTextColor={theme.text}
+            cursorColor={theme.primary}
+          />
+        </box>
       </box>
       <box paddingBottom={1} gap={1} flexDirection="row">
         <box flexDirection="row" gap={1}>

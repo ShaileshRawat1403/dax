@@ -54,9 +54,16 @@ export function DialogHelp() {
         <text fg={theme.textMuted}>Build, Plan, Explore, Docs</text>
         <text fg={theme.textMuted}>Use Explore first when you need a repo map, entry points, unknowns, or a safe reading order.</text>
       </box>
-      <box flexDirection="row" justifyContent="flex-end" paddingBottom={1}>
-        <box paddingLeft={3} paddingRight={3} backgroundColor={theme.primary} onMouseUp={() => dialog.clear()}>
-          <text fg={theme.selectedListItemText}>ok</text>
+      <box flexDirection="row" justifyContent="flex-end" paddingBottom={1} paddingTop={1}>
+        <box
+          paddingLeft={2}
+          paddingRight={2}
+          border={["round"]}
+          borderColor={theme.primary}
+          backgroundColor={theme.primary}
+          onMouseUp={() => dialog.clear()}
+        >
+          <text fg={theme.background} attributes={TextAttributes.BOLD}>Ok</text>
         </box>
       </box>
     </box>
