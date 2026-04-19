@@ -21,13 +21,13 @@ describe("repo_analyze workflow", () => {
     mkdirSync(testHome, { recursive: true })
     const { bootstrap } = await import("../../src/cli/bootstrap")
     await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {})
-  })
+  }, 30000)
 
   afterEach(() => {
     if (previousHome === undefined) delete process.env.DAX_TEST_HOME
     else process.env.DAX_TEST_HOME = previousHome
     rmSync(testHome, { recursive: true, force: true })
-  })
+  }, 30000)
 
   test("isFixedWorkflow returns true for repo_analyze", () => {
     expect(isFixedWorkflow("repo_analyze")).toBe(true)
