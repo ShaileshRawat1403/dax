@@ -2046,12 +2046,13 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
         <box flexDirection="column" marginTop={0} marginBottom={0}>
           <Show when={!props.suppressHeader}>
             <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} paddingRight={1} marginBottom={1}>
+              <text fg={roleColor()}>◇</text>
               <text fg={roleColor()} attributes={TextAttributes.BOLD}>
                 {roleLabel().toLowerCase()}
               </text>
             </box>
           </Show>
-          <box flexDirection="row" gap={2} paddingLeft={2} alignItems="center" marginBottom={1}>
+          <box flexDirection="row" gap={2} paddingLeft={3} alignItems="center" marginBottom={1}>
             <Spinner color={tint(theme.textMuted, roleColor(), 0.35)} />
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>working on it</text>
           </box>
@@ -2079,6 +2080,7 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
               paddingLeft={1}
               paddingRight={1}
             >
+              <text fg={roleColor()}>◇</text>
               <text fg={roleColor()} attributes={TextAttributes.BOLD}>
                 {roleLabel().toLowerCase()}
               </text>

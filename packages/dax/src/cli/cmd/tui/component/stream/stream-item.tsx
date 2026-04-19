@@ -71,12 +71,9 @@ export function StreamItem(props: {
 }
 
 function TurnSeparator() {
-  const { theme } = useTheme()
   return (
     <box
       flexShrink={0}
-      border={["top"]}
-      borderColor={theme.borderSubtle}
       marginTop={1}
       marginBottom={0}
       marginLeft={2}
@@ -97,9 +94,7 @@ function CompactionMarker() {
       marginTop={1}
       marginBottom={1}
     >
-      <text fg={theme.borderSubtle}>────</text>
-      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>⟳ context compacted</text>
-      <text fg={theme.borderSubtle}>────</text>
+      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>⟳  context compacted</text>
     </box>
   )
 }
