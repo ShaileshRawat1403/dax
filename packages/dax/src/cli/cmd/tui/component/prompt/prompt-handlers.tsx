@@ -423,6 +423,42 @@ export function usePromptHandlers(
         })()
     const messageID = Identifier.ascending("message")
 
+    if (sessionID && state.pendingPermissions() > 0) {
+      const lower = trimmed.toLowerCase()
+      if (lower.length < 50 && !/\b(except|but|only)\b/.test(lower)) {
+        let replyType: "once" | "always" | "reject" | undefined
+
+        if (/\b(always|allow for this session|allow for this run|always allow)\b/.test(lower)) {
+          replyType = "always"
+        } else if (/^(no|n|deny|stop|reject|cancel|never|don't|do not)$/.test(lower) || /\b(deny|reject)\b/.test(lower)) {
+          replyType = "reject"
+        } else if (/^(yes|y|ok|okay|approve|allow|proceed|do it|go ahead)$/.test(lower) || /\b(approve|allow|all clear)\b/.test(lower)) {
+          replyType = "once"
+        }
+
+        if (replyType) {
+          const pending = sync.data.permission[sessionID] ?? []
+          if (pending.length > 0) {
+            for (const req of pending) {
+              sdk.client.permission.reply({ requestID: req.id, reply: replyType })
+            }
+            
+            toast.show({
+              variant: replyType === "reject" ? "warning" : "success",
+              message: `Interpreted "${trimmed}" as ${replyType === "once" ? "Approve once" : replyType === "always" ? "Always allow" : "Deny"}`,
+              duration: 2500,
+            })
+            
+            input.extmarks.clear()
+            setStore("prompt", { input: "", parts: [] })
+            setStore("extmarkToPartIndex", new Map())
+            input.clear()
+            return
+          }
+        }
+      }
+    }
+
     let inputText = eli12Command.handled ? eli12Command.submitText! : store.prompt.input
     let inputSystem: string | undefined
 
