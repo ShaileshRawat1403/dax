@@ -6,6 +6,19 @@ import { Global } from "../global"
 export namespace Discovery {
   const log = Log.create({ service: "skill-discovery" })
 
+  export type RegistryEntry = {
+    name: string
+    description: string
+    url: string
+    author?: string
+    stars?: number
+  }
+
+  export type RegistryIndex = {
+    version: number
+    skills: RegistryEntry[]
+  }
+
   type Index = {
     skills: Array<{
       name: string
@@ -16,6 +29,43 @@ export namespace Discovery {
 
   export function dir() {
     return path.join(Global.Path.cache, "skills")
+  }
+
+  /**
+   * Fetches the global skill registry.
+   */
+  export async function registry(): Promise<RegistryEntry[]> {
+    // In a real implementation, this would fetch from a CDN
+    // const REGISTRY_URL = "https://dax.ai/skills/registry.json"
+    // return fetch(REGISTRY_URL).then(r => r.json()).then(j => j.skills)
+
+    // For the prototype, we return a curated list of high-value skills
+    return [
+      {
+        name: "skill-repro",
+        description: "Minimal bug reproduction generator (Built-in)",
+        url: "https://dax.ai/skills/core",
+        author: "DAX Team",
+      },
+      {
+        name: "performance-audit",
+        description: "Analyze bundle sizes and dependency performance bottlenecks",
+        url: "https://dax.ai/skills/perf",
+        author: "Community",
+      },
+      {
+        name: "security-guard",
+        description: "Deep security scan for secrets and vulnerable patterns",
+        url: "https://dax.ai/skills/security",
+        author: "DAX Security",
+      },
+      {
+        name: "migration-helper",
+        description: "Safely migrate between libraries (e.g. Axios to Fetch)",
+        url: "https://dax.ai/skills/migration",
+        author: "Community",
+      },
+    ]
   }
 
   async function get(url: string, dest: string): Promise<boolean> {

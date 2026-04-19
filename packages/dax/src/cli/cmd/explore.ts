@@ -8,6 +8,7 @@ import { runGraph } from "../../execution/run-graph"
 import { OperatorRouter } from "../../operators/router"
 import { ExploreOperator } from "../../operators/explore"
 import { renderExploreResult, type RepoExploreResult } from "../../explore/repo-explore"
+import { generateDependencyGraph, renderDependencyGraph } from "../../explore/dependency-graph"
 
 export const ExploreCommand = cmd({
   command: "explore [path]",
@@ -25,6 +26,11 @@ export const ExploreCommand = cmd({
         choices: ["table", "json"],
         default: "table",
       })
+      .option("graph", {
+        describe: "visualize module dependency graph in the terminal",
+        type: "boolean",
+        default: false,
+      })
       .option("eli12", {
         describe: "simplify explanations in the rendered report without changing the Explore structure",
         type: "boolean",
@@ -34,6 +40,11 @@ export const ExploreCommand = cmd({
     const target = String(args.path ?? ".").replace(/\0/g, "")
     const resolvedTarget = path.resolve(target)
     await bootstrap(resolvedTarget, async () => {
+      if (args.graph) {
+        const graph = await generateDependencyGraph(resolvedTarget)
+        console.log(renderDependencyGraph(graph))
+        return
+      }
 
       // 1. Intent Interpreter
       const intent = await interpretIntent(`explore ${target}`, { cwd: resolvedTarget })
