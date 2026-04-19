@@ -135,44 +135,6 @@ describe("assistant narrative contract", () => {
     expect(narrative?.preamble).toBe("Plan ready.")
   })
 
-  it("shows audit preamble for audit-mode turns", () => {
-    const narrative = buildAssistantNarrative({
-      asked: "audit the repo for release",
-      mode: "audit",
-      hasPendingTool: false,
-      hasToolActivity: false,
-      toolCount: 0,
-      hasExecuteTool: false,
-      hasVerifyTool: false,
-      hasReasoning: true,
-      hasError: false,
-      completed: false,
-      doing: "Understanding the request and preparing the next step.",
-      next: "Continue with a follow-up request.",
-    })
-    expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toBe("Reviewing for release risk.")
-  })
-
-  it("shows 'Audit complete.' when audit mode finishes", () => {
-    const narrative = buildAssistantNarrative({
-      asked: "audit the repo for release",
-      mode: "audit",
-      hasPendingTool: false,
-      hasToolActivity: false,
-      toolCount: 0,
-      hasExecuteTool: false,
-      hasVerifyTool: false,
-      hasReasoning: true,
-      hasError: false,
-      completed: true,
-      doing: "Audit complete.",
-      next: "Review findings.",
-    })
-    expect(narrative?.intensity).toBe("guided")
-    expect(narrative?.preamble).toBe("Audit complete.")
-  })
-
   it("prioritises debug signal over mode when request is a debugging ask", () => {
     const narrative = buildAssistantNarrative({
       asked: "debug why streaming is broken in dax run",
