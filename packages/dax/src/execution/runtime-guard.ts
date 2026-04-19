@@ -13,6 +13,7 @@ import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
 import { deriveCompletionProof } from "./completion-proof"
 import { MessageV2 } from "@/session/message-v2"
 import { deriveRuntimeActionSemantics } from "./action-semantics"
+import { Permission } from "@/governance"
 
 export type RuntimeActionClass = "analyze" | "propose" | "mutate" | "commit" | "publish" | "verify"
 
@@ -226,6 +227,34 @@ function classifyPathZone(relativePath: string) {
     return "artifact_or_temp" as const
   }
   return "repo_safe" as const
+}
+
+function hasExplicitApprovalSignalForPath(input: string, relativePath: string) {
+  const text = input.trim().toLowerCase()
+  if (!text) return false
+  const approved = /\b(approve|approved|consent|allow|all clear|yes|y|ok|okay|go ahead|proceed|do it)\b/.test(text)
+  if (!approved) return false
+  
+  // If the user provides a short generic approval without caveats, accept it for a smooth UX
+  if (text.length < 50 && !/\b(except|but|only|not|don't|do not)\b/.test(text)) {
+    return true
+  }
+
+  const normalizedPath = relativePath.replace(/\\/g, "/").toLowerCase()
+  const basename = path.basename(normalizedPath)
+  return text.includes(normalizedPath) || text.includes(basename)
+}
+
+async function hasScopedSensitiveApproval(input: RuntimeGuardInput, relativePath: string): Promise<boolean> {
+  const permission = input.req.permission || "edit"
+  const approvedRules = await Permission.getApproved().catch(() => [])
+  if (approvedRules.length > 0) {
+    const decision = Permission.evaluate(permission, relativePath, approvedRules)
+    if (decision.action === "allow") return true
+  }
+
+  const userIntent = await latestUserText(input.sessionID)
+  return hasExplicitApprovalSignalForPath(userIntent, relativePath)
 }
 
 async function resolveBaselineRef() {
@@ -483,6 +512,10 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       })
     }
     if (zone === "sensitive") {
+      const approved = await hasScopedSensitiveApproval(input, relativePath)
+      if (approved) {
+        continue
+      }
       const reason = `${relativePath} is a sensitive path. DAX requires explicit operator approval before reading or mutating secrets, auth, CI, or publish surfaces.`
       await blockViolation(input, {
         code: "sensitive_path",
@@ -659,7 +692,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
               : state.governance.verification,
         completionProof:
           compiledContract && session.state_v2?.runtime_guard
-              ? deriveCompletionProof({
+            ? deriveCompletionProof({
                 contract: compiledContract,
                 runState: {
                   ...state,
