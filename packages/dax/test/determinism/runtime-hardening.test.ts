@@ -268,6 +268,100 @@ describe("runtime hardening", () => {
     })
   })
 
+  test("allows implicit approval and budget bypass for the lab zone", async () => {
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const session = await setupGuardedSession({
+          cwd: process.cwd(),
+          targetFiles: ["src/execution/compiler.ts"],
+          budgetOverride: {
+            maxMutatingCommands: 1,
+            maxFilesTouched: 1,
+          },
+        })
+
+        const labFile = ".dax/lab/repro_bug_123.ts"
+
+        // 1. Verify lab write is allowed even if not in targetFiles
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            agent: "build",
+            toolID: "write",
+            req: {
+              permission: "write",
+              patterns: [labFile],
+              always: ["*"],
+              metadata: {
+                filepath: path.join(process.cwd(), labFile),
+              },
+            },
+          }),
+        ).resolves.toBeUndefined()
+
+        // 2. Verify lab write doesn't count against mutation budget
+        // Run 3 lab writes (exceeding budget of 1)
+        for (let i = 0; i < 3; i++) {
+          await enforceRuntimeGuard({
+            sessionID: session.id,
+            agent: "build",
+            toolID: "write",
+            req: {
+              permission: "write",
+              patterns: [`.dax/lab/test_${i}.ts`],
+              always: ["*"],
+              metadata: {
+                filepath: path.join(process.cwd(), `.dax/lab/test_${i}.ts`),
+              },
+            },
+          })
+        }
+
+        const updated = await Session.get(session.id)
+        // Lab files should NOT be in touchedFiles
+        expect(updated.state_v2?.runtime_guard?.touchedFiles.length).toBe(0)
+        expect(updated.state_v2?.runtime_guard?.budget.mutatingCommands).toBe(0)
+
+        // 3. Verify that a real mutation still counts and triggers budget exhaustion
+        const target = "src/execution/compiler.ts"
+        await enforceRuntimeGuard({
+          sessionID: session.id,
+          agent: "build",
+          toolID: "edit",
+          req: {
+            permission: "edit",
+            patterns: [target],
+            always: ["*"],
+            metadata: {
+              filepath: path.join(process.cwd(), target),
+              diff: "@@",
+            },
+          },
+        })
+
+        // Second real mutation should fail
+        const target2 = "src/execution/runtime-guard.ts"
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            agent: "build",
+            toolID: "edit",
+            req: {
+              permission: "edit",
+              patterns: [target2],
+              always: ["*"],
+              metadata: {
+                filepath: path.join(process.cwd(), target2),
+                diff: "@@",
+              },
+            },
+          }),
+        ).rejects.toThrow(RuntimeGuardViolationError)
+      },
+    })
+  })
+
   test("blocks mutation budget exhaustion", async () => {
     await Instance.provide({
       directory: process.cwd(),
