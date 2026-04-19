@@ -516,7 +516,7 @@ export function Session() {
   const approvalQueueCount = createMemo(() => permissions().length + questions().length)
   const openApprovalsPane = () => {
     setPaneMode(() => "approvals")
-    setPaneVisibility(() => "pinned")
+    setPaneVisibility(() => "auto")
     setPaneFollowMode(() => "smart")
     setFollowing(false)
   }
@@ -2039,101 +2039,104 @@ function Message(props: { message: AssistantMessage | UserMessage; last: boolean
     return "Working through the required steps."
   })
 
+  const baseTextColor = () => props.last ? theme.text : theme.textMuted
+
   return (
     <Show when={renderableParts().length > 0 || !!props.message.error || isPendingEmpty()}>
-      {/* Pre-token loading state: role header + thinking spinner */}
-      <Show when={isPendingEmpty()}>
-        <box flexDirection="column" marginTop={0} marginBottom={0}>
-          <Show when={!props.suppressHeader}>
-            <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} paddingRight={1} marginBottom={1}>
-              <text fg={roleColor()}>◇</text>
-              <text fg={roleColor()} attributes={TextAttributes.BOLD}>
-                {roleLabel().toLowerCase()}
-              </text>
-            </box>
-          </Show>
-          <box flexDirection="row" gap={2} paddingLeft={3} alignItems="center" marginBottom={1}>
-            <Spinner color={tint(theme.textMuted, roleColor(), 0.35)} />
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>working on it</text>
-          </box>
-        </box>
-      </Show>
-      <Show when={renderableParts().length > 0}>
-        <box
-          paddingLeft={0}
-          paddingRight={0}
-          flexDirection="column"
-          borderStyle="none"
-          borderColor={theme.borderSubtle}
-          backgroundColor="transparent"
-          marginTop={0}
-          marginBottom={0}
-        >
-          <Show when={!props.suppressHeader}>
-            <box
-              flexDirection="row"
-              gap={1}
-              alignItems="center"
-              paddingTop={0}
-              paddingBottom={0}
-              marginBottom={1}
-              paddingLeft={1}
-              paddingRight={1}
-            >
-              <text fg={roleColor()}>◇</text>
-              <text fg={roleColor()} attributes={TextAttributes.BOLD}>
-                {roleLabel().toLowerCase()}
-              </text>
-              <Show when={ctx.showTimestamps()}>
-                <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-                  {Locale.todayTimeOrDateTime(props.message.time.created)}
-                </text>
-              </Show>
-            </box>
-          </Show>
-          <box paddingLeft={0} paddingRight={0} paddingBottom={0} flexDirection="column" gap={0}>
-            <Show when={autoBlockNarration()}>
-              <box paddingLeft={2} paddingRight={2}>
-                <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
-                  {autoBlockNarration()}
+      <box>
+        {/* Pre-token loading state: role header + thinking spinner */}
+        <Show when={isPendingEmpty()}>
+          <box flexDirection="column" marginTop={1} marginBottom={0}>
+            <Show when={!props.suppressHeader}>
+              <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} paddingRight={1} marginBottom={0}>
+                <text fg={roleColor()}>◇</text>
+                <text fg={roleColor()} attributes={TextAttributes.BOLD}>
+                  {roleLabel().toLowerCase()}
                 </text>
               </box>
             </Show>
-            <For each={renderableParts()}>
-              {(part, index) => {
-                const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
-                return (
-                  <Show when={component()}>
-                    <Dynamic
-                      last={index() === renderableParts().length - 1}
-                      component={component()}
-                      part={part as any}
-                      message={props.message as AssistantMessage}
-                    />
-                  </Show>
-                )
-              }}
-            </For>
+            <box flexDirection="row" gap={2} paddingLeft={3} alignItems="center" marginBottom={1}>
+              <Spinner color={tint(theme.textMuted, roleColor(), 0.35)} />
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>thinking...</text>
+            </box>
           </box>
-        </box>
-      </Show>
-      <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
-        <box
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={2}
-          marginTop={1}
-          backgroundColor={tint(theme.background, theme.error, 0.15)}
-        >
-          <text fg={theme.error} wrapMode="word">
-            {textValue(
-              props.message.error?.data.message ?? props.message.error?.name,
-              "Session error — check logs for details",
-            )}
-          </text>
-        </box>
-      </Show>
+        </Show>
+        <Show when={renderableParts().length > 0}>
+          <box
+            paddingLeft={0}
+            paddingRight={0}
+            flexDirection="column"
+            borderStyle="none"
+            borderColor={theme.borderSubtle}
+            backgroundColor="transparent"
+            marginTop={props.suppressHeader ? 0 : 1}
+            marginBottom={0}
+          >
+            <Show when={!props.suppressHeader}>
+              <box
+                flexDirection="row"
+                gap={1}
+                alignItems="center"
+                paddingTop={0}
+                paddingBottom={0}
+                marginBottom={0}
+                paddingLeft={1}
+                paddingRight={1}
+              >
+                <text fg={roleColor()}>◇</text>
+                <text fg={roleColor()} attributes={TextAttributes.BOLD}>
+                  {roleLabel().toLowerCase()}
+                </text>
+                <Show when={ctx.showTimestamps()}>
+                  <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+                    {Locale.todayTimeOrDateTime(props.message.time.created)}
+                  </text>
+                </Show>
+              </box>
+            </Show>
+            <box paddingLeft={3} paddingRight={2} paddingBottom={0} flexDirection="column" gap={0}>
+              <Show when={autoBlockNarration()}>
+                <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word" marginBottom={1}>
+                  {autoBlockNarration()}
+                </text>
+              </Show>
+              <For each={renderableParts()}>
+                {(part, index) => {
+                  const component = createMemo(() => PART_MAPPING[part.type as keyof typeof PART_MAPPING])
+                  return (
+                    <Show when={component()}>
+                      <Dynamic
+                        last={index() === renderableParts().length - 1}
+                        component={component()}
+                        part={part as any}
+                        message={props.message as AssistantMessage}
+                        baseTextColor={baseTextColor()}
+                      />
+                    </Show>
+                  )
+                }}
+              </For>
+            </box>
+          </box>
+        </Show>
+        <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
+          <box
+            paddingTop={1}
+            paddingBottom={1}
+            paddingLeft={2}
+            paddingRight={2}
+            marginTop={1}
+            backgroundColor={tint(theme.background, theme.error, 0.15)}
+          >
+            <text fg={theme.error} wrapMode="word">
+              {textValue(
+                props.message.error?.data.message ?? props.message.error?.name,
+                "Session error — check logs for details",
+              )}
+            </text>
+          </box>
+        </Show>
+      </box>
     </Show>
   )
 }
@@ -2247,10 +2250,16 @@ const SUB_TASK_AGENTS_UI = new Set([
   "auditor",
 ])
 
-function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage; marginTop?: number }) {
+function TextPart(props: {
+  last: boolean
+  part: TextPart
+  message: AssistantMessage | UserMessage
+  marginTop?: number
+  baseTextColor?: RGBA
+}) {
   const ctx = use()
   const { syntax, theme } = useTheme()
-  const isStreaming = createMemo(() => props.last && !props.message.time.completed)
+  const isStreaming = createMemo(() => props.last && !(props.message.time as any).completed)
   const agentName = createMemo(() => (props.message as AssistantMessage).agent?.toLowerCase() ?? "")
   // Sub-task agent text is suppressed entirely — their output is not meaningful to the user
   const isSubTaskAgent = createMemo(() => SUB_TASK_AGENTS_UI.has(agentName()))
@@ -2264,13 +2273,19 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
     <Show when={props.part.text.trim() && !isSubTaskAgent()}>
       <box
         id={"text-" + props.part.id}
-        paddingLeft={2}
+        paddingLeft={0}
         paddingRight={2}
         paddingBottom={1}
         marginTop={props.marginTop ?? 1}
         flexShrink={0}
       >
-        <markdown syntaxStyle={syntax()} streaming={true} content={props.part.text.trim()} conceal={ctx.conceal()} />
+        <markdown
+          syntaxStyle={syntax()}
+          streaming={true}
+          content={props.part.text.trim()}
+          conceal={ctx.conceal()}
+          fg={props.baseTextColor}
+        />
         <Show when={isStreaming()}>
           <text fg={theme.primary} attributes={TextAttributes.BOLD}>
             {cursorOn() ? "▋" : " "}
@@ -2380,36 +2395,48 @@ function compactGroupNarration(toolName: string, count: number, isRunning: boole
   }
 }
 
-function CompactedToolGroup(props: { part: CompactGroup; last: boolean; message: AssistantMessage; marginTop?: number }) {
+function CompactedToolGroup(props: {
+  part: CompactGroup
+  last: boolean
+  message: AssistantMessage
+  marginTop?: number
+  baseTextColor?: RGBA
+}) {
   const { theme } = useTheme()
   const anyRunning = () => props.part.parts.some((p) => p.state.status === "pending" || p.state.status === "running")
   const narration = () => compactGroupNarration(props.part.toolName, props.part.count, anyRunning())
 
   return (
-    <box flexDirection="column" gap={0} marginTop={1}>
-      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
-        <Show when={!anyRunning()} fallback={<Spinner color={theme.primary} />}>
-          <text fg={theme.success}>⏺</text>
+    <box flexDirection="column" gap={0} marginTop={1} paddingLeft={2}>
+      <box flexDirection="row" gap={1} alignItems="center">
+        <Show when={!anyRunning()} fallback={<Spinner color={theme.info} />}>
+          <text fg={theme.success}>✓</text>
         </Show>
         <text
-          fg={anyRunning() ? theme.primary : theme.text}
-          attributes={anyRunning() ? TextAttributes.BOLD : undefined}
+          fg={anyRunning() ? theme.info : theme.text}
+          attributes={TextAttributes.BOLD}
         >
-          {" "}{toolDisplayName(props.part.toolName)}
+          {toolDisplayName(props.part.toolName)}
         </text>
         <text fg={theme.textMuted} attributes={TextAttributes.DIM}> ×{props.part.count}</text>
         <Show when={props.part.representativePath}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM}> ({props.part.representativePath})</text>
         </Show>
       </box>
-      <box paddingLeft={3}>
+      <box paddingLeft={2} border={["left"]} borderColor={theme.borderSubtle} marginLeft={0.5}>
         <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
       </box>
     </box>
   )
 }
 
-function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMessage; marginTop?: number }) {
+function ToolPart(props: {
+  last: boolean
+  part: ToolPart
+  message: AssistantMessage
+  marginTop?: number
+  baseTextColor?: RGBA
+}) {
   const sync = useSync()
   const toolName = createMemo(() => props.part.tool.toLowerCase())
   // Always use the real input so arg preview and narration work from the moment
@@ -2429,7 +2456,7 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
   return (
     <Show
       when={toolName() === "shell"}
-      fallback={<ToolLine part={props.part} toolName={toolName()} input={input()} />}
+      fallback={<ToolLine part={props.part} toolName={toolName()} input={input()} baseTextColor={props.baseTextColor} />}
     >
       <Bash
         part={props.part}
@@ -2438,16 +2465,25 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
         metadata={metadata() as any}
         permission={permission() as any}
         tool={props.part.tool}
+        baseTextColor={props.baseTextColor}
       />
     </Show>
   )
 }
 
-function ToolLine(props: { part: ToolPart; toolName: string; input: Record<string, unknown> }) {
+function ToolLine(props: {
+  part: ToolPart
+  toolName: string
+  input: Record<string, unknown>
+  baseTextColor?: RGBA
+}) {
   const { theme } = useTheme()
   const status = createMemo(() => props.part.state.status)
   const isRunning = createMemo(() => status() === "running" || status() === "pending")
   const hasError = createMemo(() => status() === "error")
+  const timing = createMemo<Record<string, unknown> | undefined>(() =>
+    "time" in props.part.state ? ((props.part.state.time ?? {}) as Record<string, unknown>) : undefined,
+  )
   const displayName = createMemo(() => toolDisplayName(props.toolName))
   const argPreview = createMemo(() => toolArgPreview(props.toolName, props.input))
   // Only show narration when we have a real target — suppresses "runtime target" placeholder.
@@ -2459,26 +2495,37 @@ function ToolLine(props: { part: ToolPart; toolName: string; input: Record<strin
   })
 
   return (
-    <box flexDirection="column" gap={0} marginTop={1}>
-      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1} overflow="hidden">
-        <Show
-          when={!isRunning()}
-          fallback={<Spinner color={theme.primary} />}
-        >
-          <text fg={hasError() ? theme.error : theme.success} flexShrink={0}>{hasError() ? "✗" : "⏺"}</text>
-        </Show>
-        <text fg={hasError() ? theme.error : isRunning() ? theme.primary : theme.text} attributes={isRunning() ? TextAttributes.BOLD : undefined} flexShrink={0}>
-          {" "}{displayName()}
+    <box flexDirection="column" gap={0} marginTop={1} paddingLeft={2}>
+      <box flexDirection="row" gap={1} alignItems="center">
+        <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
+        <text fg={hasError() ? theme.error : isRunning() ? theme.info : theme.text} flexShrink={0}>
+          {displayName()}
         </text>
         <Show when={argPreview()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}> ({argPreview()})</text>
         </Show>
       </box>
-      <Show when={narration()}>
-        <box paddingLeft={3}>
+      
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+        <Show when={narration()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
-        </box>
-      </Show>
+        </Show>
+        <Show when={!isRunning()}>
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
+            <text fg={hasError() ? theme.error : theme.success}>{hasError() ? "╰─ ✗" : "╰─ ✓"}</text>
+            <Show when={timing()?.end}>
+               <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{formatElapsed((timing()!.end as number) - (timing()!.start as number))}</text>
+            </Show>
+          </box>
+        </Show>
+        <Show when={isRunning()}>
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
+            <text fg={theme.borderSubtle}>╰─</text>
+            <Spinner color={theme.textMuted} />
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>running...</text>
+          </box>
+        </Show>
+      </box>
     </box>
   )
 }
@@ -2555,72 +2602,82 @@ function Bash(props: ToolProps<typeof ShellTool>) {
   })
 
   return (
-    <box flexDirection="column" gap={0} marginTop={1}>
-      {/* ── Header: ⏺ Bash (command) [status] ── */}
-      <box flexDirection="row" gap={0} alignItems="center" paddingLeft={1}>
-        <Show
-          when={!isRunning()}
-          fallback={<Spinner color={theme.primary} />}
-        >
-          <text fg={hasError() || isNonZeroExit() ? theme.error : theme.success}>⏺</text>
-        </Show>
+    <box flexDirection="column" gap={0} marginTop={1} paddingLeft={2}>
+      <box flexDirection="row" gap={1} alignItems="center">
+        <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
         <text
-          fg={hasError() || isNonZeroExit() ? theme.error : isRunning() ? theme.primary : theme.text}
+          fg={hasError() || isNonZeroExit() ? theme.error : isRunning() ? theme.info : theme.text}
           attributes={isRunning() ? TextAttributes.BOLD : undefined}
         >
-          {" "}Bash
+          Bash
         </text>
         <Show when={displayCommand()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end" flexShrink={1}> ({displayCommand()})</text>
         </Show>
-        <Show when={!isRunning() && duration()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}> · {duration()}</text>
+      </box>
+      
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+        <Show when={narration()}>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word" marginBottom={isRunning() || isNonZeroExit() ? 1 : 0}>{narration()}</text>
         </Show>
-        <Show when={isNonZeroExit()}>
-          <text fg={theme.error} attributes={TextAttributes.DIM}> · exit {exitCode()}</text>
+
+        {/* ── Live output while running ── */}
+        <Show when={isRunning() && liveLines().length > 0}>
+          <box flexDirection="column" gap={0} marginBottom={1}>
+            <For each={liveLines()}>
+              {(line) => (
+                <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end">
+                  {line}
+                </text>
+              )}
+            </For>
+          </box>
+        </Show>
+
+        {/* ── Failed/Error output ── */}
+        <Show when={!isRunning() && (hasError() || isNonZeroExit()) && previewLines().length > 0}>
+          <box flexDirection="column" gap={0} marginBottom={1}>
+            <Show when={hiddenCount() > 0}>
+              <text
+                fg={theme.primary}
+                attributes={TextAttributes.DIM}
+                onClick={() => setExpanded(true)}
+              >
+                ↕ +{hiddenCount()} lines — click to expand
+              </text>
+            </Show>
+            <For each={previewLines()}>
+              {(line) => (
+                <text fg={theme.error} wrapMode="truncate-end">
+                  {line}
+                </text>
+              )}
+            </For>
+          </box>
+        </Show>
+
+        {/* ── Footer ── */}
+        <Show when={!isRunning()}>
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
+            <text fg={hasError() || isNonZeroExit() ? theme.error : theme.success}>
+              {hasError() || isNonZeroExit() ? "╰─ ✗" : "╰─ ✓"}
+            </text>
+            <Show when={duration()}>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{duration()}</text>
+            </Show>
+            <Show when={isNonZeroExit()}>
+              <text fg={theme.error} attributes={TextAttributes.DIM}>exit {exitCode()}</text>
+            </Show>
+          </box>
+        </Show>
+        <Show when={isRunning()}>
+          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
+            <text fg={theme.borderSubtle}>╰─</text>
+            <Spinner color={theme.textMuted} />
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>running...</text>
+          </box>
         </Show>
       </box>
-      {/* ── Narration subtitle ── */}
-      <Show when={narration()}>
-        <box paddingLeft={3}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">{narration()}</text>
-        </box>
-      </Show>
-
-      {/* ── Live output while running ── */}
-      <Show when={isRunning() && liveLines().length > 0}>
-        <box flexDirection="column" gap={0} paddingLeft={3}>
-          <For each={liveLines()}>
-            {(line, i) => (
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end">
-                {i() === 0 ? "└ " : "  "}{line}
-              </text>
-            )}
-          </For>
-        </box>
-      </Show>
-
-      {/* ── Completed output (success or error) ── */}
-      <Show when={!isRunning() && previewLines().length > 0}>
-        <box flexDirection="column" gap={0} paddingLeft={3}>
-          <Show when={hiddenCount() > 0}>
-            <text
-              fg={theme.primary}
-              attributes={TextAttributes.DIM}
-              onClick={() => setExpanded(true)}
-            >
-              {"  "}↕ +{hiddenCount()} line{hiddenCount() === 1 ? "" : "s"} — click to expand
-            </text>
-          </Show>
-          <For each={previewLines()}>
-            {(line, i) => (
-              <text fg={hasError() || isNonZeroExit() ? theme.error : theme.textMuted} wrapMode="truncate-end">
-                {i() === 0 ? "└ " : "  "}{line}
-              </text>
-            )}
-          </For>
-        </box>
-      </Show>
     </box>
   )
 }
@@ -2684,6 +2741,7 @@ type ToolProps<T extends Tool.Info> = {
   output?: string
   part: ToolPart
   marginTop?: number
+  baseTextColor?: RGBA
 }
 
 function formatElapsed(ms: number): string {

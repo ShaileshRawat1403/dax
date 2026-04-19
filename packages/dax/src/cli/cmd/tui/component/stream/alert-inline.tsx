@@ -37,6 +37,7 @@ function getResolutionReason(metadata?: Record<string, any>): string {
 export function AlertInline(props: {
   item: RenderableStreamItem
   onNavigateToApprovals?: () => void
+  isLast?: boolean
 }) {
   const narrativeItem = props.item.data as RunNarrativeItem
   const typeLabel = () => getAlertTypeLabel(props.item.type ?? "")
@@ -46,6 +47,8 @@ export function AlertInline(props: {
   const isResolved = () => props.item.type === "approval.resolved" || props.item.type === "intervention.resolved"
   const isActionable = () =>
     props.item.type === "approval.requested" || props.item.type === "intervention.required"
+
+  const baseTextColor = () => props.isLast ? "$text" : "$textMuted"
 
   const borderColor = () => {
     if (isResolved()) return "$success"
@@ -60,13 +63,14 @@ export function AlertInline(props: {
         flexDirection="row"
         gap={1}
         alignItems="center"
-        paddingLeft={2}
+        paddingLeft={3}
         paddingTop={0}
         paddingBottom={0}
         marginTop={0}
       >
         <text fg="$success">✓</text>
-        <text fg="$success">{typeLabel()}</text>
+        <text fg="$success" attributes={TextAttributes.BOLD}>Approval received</text>
+        <text fg="$textMuted" dim>· {typeLabel()}</text>
         <Show when={resolutionReason()}>
           <text fg="$textMuted" dim>— {resolutionReason()}</text>
         </Show>
@@ -83,7 +87,7 @@ export function AlertInline(props: {
       gap={0}
       paddingTop={1}
       paddingBottom={1}
-      paddingLeft={2}
+      paddingLeft={3}
       paddingRight={2}
       marginTop={1}
       onMouseUp={() => {
@@ -106,10 +110,10 @@ export function AlertInline(props: {
       </box>
 
       {/* Message and CTA */}
-      <box flexDirection="column" border={["left"]} borderColor="$borderSubtle" paddingLeft={1} marginLeft={1} marginTop={0}>
+      <box flexDirection="column" border={["left"]} borderColor="$borderSubtle" paddingLeft={2} marginLeft={0.5} marginTop={0}>
         <Show when={props.item.message}>
           <box paddingLeft={0} paddingTop={0}>
-            <text fg="$text" wrapMode="word">
+            <text fg={baseTextColor()} wrapMode="word">
               {stripInlineMarkdown(props.item.message!)}
             </text>
           </box>

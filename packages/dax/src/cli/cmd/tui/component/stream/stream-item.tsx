@@ -40,11 +40,11 @@ export function StreamItem(props: {
       </Match>
 
       <Match when={props.item.kind === "run.event"}>
-        <RunEventRow item={props.item} />
+        <RunEventRow item={props.item} isLast={props.isLast} />
       </Match>
 
       <Match when={props.item.kind === "alert.inline"}>
-        <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} />
+        <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} isLast={props.isLast} />
       </Match>
 
       <Match when={props.item.kind === "compaction.marker"}>
@@ -74,8 +74,8 @@ function TurnSeparator() {
   return (
     <box
       flexShrink={0}
-      marginTop={1}
-      marginBottom={0}
+      marginTop={2}
+      marginBottom={1}
       marginLeft={2}
       marginRight={2}
     />
