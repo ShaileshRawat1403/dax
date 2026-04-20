@@ -35,27 +35,17 @@ jobs:
           bun install
 
       - name: Build
-        run: bun run build -- --single
+        run: bun run build
         working-directory: packages/dax
 
-      - name: Create archive
-        shell: bash
-        run: |
-          cd packages/dax/dist
-          for dir in dax-${{ matrix.platform }}-*; do
-            if [ -d "$dir" ]; then
-              name="${dir}.tar.gz"
-              tar -czf "$name" "$dir"
-            fi
-          done
+      - name: List dist
+        run: ls -la dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}
-          path: |
-            packages/dax/dist/*.tar.gz
-            packages/dax/dist/*.zip
+          path: dist/
 
   release:
     needs: build
@@ -73,10 +63,18 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
-      - name: List files
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create archives
         run: |
-          find artifacts -type f
+          for dir in darwin linux win32; do
+            if [ -d "artifacts/$dir" ]; then
+              tar -czf dax-$dir.tar.gz -C artifacts "$dir"
+            fi
+          done
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -85,7 +83,8 @@ jobs:
           name: "DAX ${{ steps.version.outputs.VERSION }}"
           draft: false
           files: |
-            artifacts/**/*.tar.gz
-            artifacts/**/*.zip
+            dax-darwin.tar.gz
+            dax-linux.tar.gz
+            dax-win32.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
