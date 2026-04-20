@@ -39,7 +39,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Check repo integrity
         run: bun run check:repo
