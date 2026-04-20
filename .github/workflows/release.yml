@@ -40,8 +40,6 @@ jobs:
       - name: Build
         run: bun run build -- --single --baseline
         working-directory: packages/dax
-        env:
-          DAX_BUILD_RELEASE_ASSETS: "1"
 
       - name: List dist
         run: ls -la dist/
