@@ -92,10 +92,11 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event.inputs.version }}" != "" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -103,15 +104,49 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Create Release
-        uses: ncipollo/release-action@v1
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Upload Release Assets
+        uses: actions/github-script@v7
         with:
-          tag: ${{ steps.version.outputs.version }}
-          name: "DAX ${{ steps.version.outputs.version }}"
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') }}
-          skipIfReleaseExists: true
-          artifacts: "artifacts/*"
-          artifactContentType: application/octet-stream
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const glob = require('glob');
+
+            const artifactsDir = 'artifacts';
+            const releaseTag = process.env.VERSION;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Get release by tag
+            const releaseResp = await github.request('GET /repos/{owner}/{repo}/releases/tags/{tag}', {
+              owner,
+              repo,
+              tag: releaseTag
+            });
+            const releaseId = releaseResp.data.id;
+
+            // Upload each artifact
+            const files = fs.readdirSync(artifactsDir);
+            for (const file of files) {
+              const filePath = path.join(artifactsDir, file);
+              const stat = fs.statSync(filePath);
+              if (stat.isFile()) {
+                console.log(`Uploading ${file}...`);
+                const mediaType = file.endsWith('.zip') ? 'application/zip' : 'application/gzip';
+                await github.request('POST /repos/{owner}/{repo}/releases/{release_id}/assets', {
+                  owner,
+                  repo,
+                  release_id: releaseId,
+                  name: path.basename(filePath),
+                  mediaType: mediaType
+                }, {
+                  data: fs.createReadStream(filePath)
+                });
+                console.log(`Uploaded ${file}`);
+              }
+            }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
