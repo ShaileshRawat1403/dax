@@ -108,7 +108,7 @@ jobs:
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') }}
           generateReleaseNotes: true
-          skipIfReleaseExists: true
+          allowForks: true
           artifacts: "artifacts/*"
           artifactContentType: application/octet-stream
         env:
