@@ -1,7 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@dax-ai/script",
+  "version": "1.0.0",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/bun": "catalog:"
   },

@@ -1,10 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "version": "1.0.0",
-  "name": "dax",
+  "name": "@dax-ai/dax",
   "type": "module",
   "license": "MIT",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
@@ -22,7 +24,7 @@
     "@dax-ai/script": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@octokit/webhooks-types": "7.6.1",
-    "@parcel/watcher": "^2.5.6",
+    "@parcel/watcher": "2.5.6",
     "@parcel/watcher-darwin-arm64": "2.5.1",
     "@parcel/watcher-darwin-x64": "2.5.1",
     "@parcel/watcher-linux-arm64-glibc": "2.5.1",
