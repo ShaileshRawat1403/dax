@@ -16,11 +16,11 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: dax-darwin
+            platform: darwin
           - os: ubuntu-latest
-            artifact: dax-linux
+            platform: linux
           - os: windows-latest
-            artifact: dax-windows
+            platform: win32
 
     steps:
       - name: Checkout code
@@ -42,14 +42,7 @@ jobs:
         shell: bash
         run: |
           cd packages/dax/dist
-          if [ "$(uname)" = "Darwin" ]; then
-            PLATFORM="darwin"
-          elif [ "$(uname)" = "Windows" ]; then
-            PLATFORM="windows"
-          else
-            PLATFORM="linux"
-          fi
-          for dir in dax-$PLATFORM-*; do
+          for dir in dax-${{ matrix.platform }}-*; do
             if [ -d "$dir" ]; then
               name="${dir}.tar.gz"
               tar -czf "$name" "$dir"
@@ -59,7 +52,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: ${{ matrix.platform }}
           path: |
             packages/dax/dist/*.tar.gz
             packages/dax/dist/*.zip
@@ -76,14 +69,14 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la artifacts/
+      - name: List files
+        run: |
+          find artifacts -type f
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -92,7 +85,7 @@ jobs:
           name: "DAX ${{ steps.version.outputs.VERSION }}"
           draft: false
           files: |
-            artifacts/*.tar.gz
-            artifacts/*.zip
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
