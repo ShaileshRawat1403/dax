@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ShaileshRawat1403/dax-tui/actions/workflows/ci.yml">
-    <img src="https://github.com/ShaileshRawat1403/dax-tui/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status">
+  <a href="https://github.com/ShaileshRawat1403/dax/actions/workflows/ci.yml">
+    <img src="https://github.com/ShaileshRawat1403/dax/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status">
   </a>
-  <a href="https://github.com/ShaileshRawat1403/dax-tui/releases">
-    <img src="https://img.shields.io/github/v/release/ShaileshRawat1403/dax-tui?color=blue&label=release" alt="Latest Release">
+  <a href="https://github.com/ShaileshRawat1403/dax/releases/latest">
+    <img src="https://img.shields.io/github/v/release/ShaileshRawat1403/dax?color=blue&label=release" alt="Latest Release">
   </a>
   <a href="./LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
@@ -22,7 +22,7 @@
   <a href="https://bun.sh">
     <img src="https://img.shields.io/badge/runtime-Bun-black?logo=bun&logoColor=white" alt="Bun">
   </a>
-  <a href="https://github.com/ShaileshRawat1403/dax-tui">
+  <a href="https://github.com/ShaileshRawat1403/dax">
     <img src="https://img.shields.io/badge/DAX--hound-trained-orange?logo=dataadventurer&logoColor=white" alt="DAX-hound Trained">
   </a>
 </p>
@@ -161,7 +161,7 @@ The recommended way to install the DAX binary is via the universal installation 
 
 ```bash
 # Install the latest version
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax/main/script/install.sh | bash
 ```
 
 ### macOS and Linux via Homebrew
@@ -275,8 +275,8 @@ See the [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) and [Deployment Gui
 ### Installation
 
 ```bash
-git clone https://github.com/ShaileshRawat1403/dax-tui.git
-cd dax-tui
+git clone https://github.com/ShaileshRawat1403/dax.git
+cd dax
 bun install
 ```
 
