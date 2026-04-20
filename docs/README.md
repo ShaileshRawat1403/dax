@@ -65,7 +65,7 @@ Deep dives into how to use DAX features for real-world delivery.
 - [**Policy Customization and RAO Tuning**](./product/POLICY_TUNING.md) - How to think about approvals, posture, and governance.
 - [**Runs, Approvals and Recovery**](./product/RUNS_APPROVALS_AND_RECOVERY.md) - Practical guide to runs, approvals, contracts, and crash recovery.
 - [**TUI Design Freeze (v1)**](./product/TUI_DESIGN_FREEZE_v1.md) - Canonical session-screen behavior contract to prevent UX drift.
-- [**Audit Guide**](../product/audit-agent.md) - Release-readiness and governance checks.
+- [**Audit Guide**](./product/audit-agent.md) - Release-readiness and governance checks.
 - [**Workflows**](./product/WORKFLOWS.md) - Standardizing multi-step AI operations.
 - [**GitHub CI Integration**](./product/integrations-github-ci.md) - Automated safety gates in your pipeline.
 - [**Build on DAX**](./product/build-on-dax.md) - Extending the platform with custom capabilities.
