@@ -1,8 +1,8 @@
-# DAX Audit Agent (Beta)
+# DAX Audit
 
-The `audit` agent helps teams run release-readiness and governance checks from natural language, CLI, and CI.
+DAX provides deterministic audit capabilities for release-readiness and governance checks, accessible via natural language, CLI, and CI.
 
-## Enable Beta
+## Enable
 
 ```bash
 export DAX_AUDIT_BETA=1
@@ -15,16 +15,18 @@ export DAX_AUDIT_PROFILE=strict
 export DAX_AUDIT_AUTOTRIGGERS=before_release,after_pr_review
 ```
 
-## Commands
+## Usage
 
-```bash
+### Chat Interface
+
+```
 /audit
 /audit profile strict
 /audit gate
 /audit explain <finding_id>
 ```
 
-CLI equivalents:
+### CLI
 
 ```bash
 dax audit
@@ -37,9 +39,7 @@ dax audit events --type audit
 
 ## Trust Summary
 
-`dax audit` is the default trust surface.
-
-It summarizes:
+`dax audit` provides the default trust surface, summarizing:
 
 - pending approvals
 - recorded overrides
@@ -88,25 +88,3 @@ Read these fields first:
 3. top `next_actions`
 
 If blockers are non-zero, resolve those first.
-
-## Screenshot Placeholders
-
-### 1) Audit pass
-
-Capture:
-- Right pane in `audit` mode
-- `status: pass`
-- zero blockers visible
-
-### 2) Audit fail with blockers
-
-Capture:
-- `status: fail`
-- blocker count
-- at least one `BLOCKER` line and fix text
-
-### 3) Profile switch flow
-
-Capture:
-- `/audit profile strict|balanced|advisory`
-- follow-up `/audit gate` output

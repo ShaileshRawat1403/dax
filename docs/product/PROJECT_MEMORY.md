@@ -23,6 +23,7 @@ Project Memory stores useful project-specific signals such as:
 - lightweight rules and guardrails
 - preferences
 - run-related events
+- **architectural decisions** (durable work memory)
 
 In practice, PM helps DAX carry forward practical context:
 
@@ -154,6 +155,32 @@ mindmap
 - keep credentials out of PM
 - use PM for guidance, not secrets
 - use source control and docs for canonical long-term decisions
+
+## Related Guides
+
+- [User Guide](./USER_GUIDE.md)
+- [Policy Customization and RAO Tuning](./POLICY_TUNING.md)
+
+### Save Architectural Memory
+
+```text
+/pm memory save <category> <title> | <content> | <tag1,tag2>
+```
+
+Categories: `architecture`, `decision`, `pattern`, `preference`, `learning`
+
+Example:
+
+```text
+/pm memory save architecture Core API Design | The API uses a service layer pattern to decouple business logic from HTTP concerns | api,architecture
+```
+
+### List Architectural Memory
+
+```text
+/pm memory list
+/pm memory list --category architecture
+```
 
 ## Related Guides
 
