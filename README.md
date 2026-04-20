@@ -161,7 +161,7 @@ The recommended way to install the DAX binary is via the universal installation 
 
 ```bash
 # Install the latest version
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax/main/script/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax/main/script/install.sh | DAX_REPO=ShaileshRawat1403/dax bash
 ```
 
 ### macOS and Linux via Homebrew
