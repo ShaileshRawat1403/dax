@@ -7,6 +7,9 @@ dist/
 artifacts/
 packages/dax/src/provider/models-snapshot.ts
 
+# Claude settings
+.claude/
+
 # Local state
 .dax/
 .env
