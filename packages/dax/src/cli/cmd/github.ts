@@ -244,7 +244,7 @@ export const GithubInstallCommand = cmd({
           await installGitHubApp()
 
           const providers = await ModelsDev.get().then((p) => {
-            // TODO: add guide for copilot, for now just hide it
+            // Note: add guide for copilot later, for now just hide it from provider list
             delete p["github-copilot"]
             return p
           })

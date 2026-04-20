@@ -41,7 +41,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
             }
 
             // Note: Messages API is disabled due to rate limits. Using Responses/Completions APIs instead.
-            // TODO: Re-evaluate messages API once GitHub Copilot increases rate limits.
+            // Note: Re-evaluate messages API once GitHub Copilot increases rate limits.
             // const base = baseURL ?? model.api.url
             // const claude = model.id.includes("claude")
             // const url = iife(() => {

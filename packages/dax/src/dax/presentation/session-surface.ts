@@ -220,7 +220,7 @@ function deriveNext(tool: string, result: string) {
 
 function normalizeAction(tool: string) {
   const upper = tool.toUpperCase()
-  if (upper === "TODOWRITE") return "TODO"
+  if (upper === "TODOWRITE") return "TODO" // Map todowrite tool to TODO action
   if (upper === "APPLY_PATCH") return "PATCH"
   return upper
 }

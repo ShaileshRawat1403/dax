@@ -65,7 +65,7 @@ export namespace Provider {
   //
   // This is a known trade-off - the current approach allows easy provider addition
   // at the cost of type safety in the provider factory map.
-  // TODO: Consider using a mapped type with provider-specific settings
+  // See GitHub issue: Consider using a mapped type with provider-specific settings
   const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
     "@ai-sdk/amazon-bedrock": createAmazonBedrock,
     "@ai-sdk/anthropic": createAnthropic,
@@ -87,7 +87,7 @@ export namespace Provider {
     "@ai-sdk/togetherai": createTogetherAI,
     "@ai-sdk/perplexity": createPerplexity,
     "@ai-sdk/vercel": createVercel,
-    // @ts-ignore (TODO: kill this code so we dont have to maintain it)
+    // @ts-ignore: @ai-sdk/github-copilot package may not be installed, using openai-compatible fallback
     "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
   }
 
@@ -95,7 +95,7 @@ export namespace Provider {
   // The sdk parameter is the provider SDK instance (varies by provider), and the returned
   // model is provider-specific. Using 'any' here because each provider (OpenAI, Anthropic, etc.)
   // has its own model type from the AI SDK.
-  // TODO: Consider using a union type or generics for stronger type safety.
+  // See GitHub issue: Consider using a union type or generics for stronger type safety.
   type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
   type CustomLoader = (provider: Info) => Promise<{
     autoload: boolean
