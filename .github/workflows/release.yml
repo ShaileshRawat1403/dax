@@ -110,6 +110,7 @@ jobs:
           name: "DAX ${{ steps.version.outputs.version }}"
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') }}
+          skipIfReleaseExists: true
           artifacts: "artifacts/*"
           artifactContentType: application/octet-stream
         env:
