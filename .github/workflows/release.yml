@@ -9,6 +9,9 @@ permissions:
   contents: write
   actions: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -35,7 +38,7 @@ jobs:
           bun install
 
       - name: Build
-        run: bun run build
+        run: bun run build -- --single --baseline
         working-directory: packages/dax
 
       - name: List dist
