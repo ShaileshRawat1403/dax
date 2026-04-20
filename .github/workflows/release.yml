@@ -8,7 +8,7 @@ on:
     inputs:
       version:
         description: "Version tag (e.g., v1.0.0)"
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -25,27 +25,22 @@ jobs:
             platform: darwin
             arch: arm64
             artifact_name: dax-darwin-arm64
-            archive_ext: tar.gz
           - os: macos-latest
             platform: darwin
             arch: x64
             artifact_name: dax-darwin-x64
-            archive_ext: tar.gz
           - os: ubuntu-latest
             platform: linux
             arch: x64
             artifact_name: dax-linux-x64
-            archive_ext: tar.gz
           - os: ubuntu-latest
             platform: linux
             arch: arm64
             artifact_name: dax-linux-arm64
-            archive_ext: tar.gz
           - os: windows-latest
             platform: win32
             arch: x64
             artifact_name: dax-windows-x64
-            archive_ext: zip
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -57,7 +52,11 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Install dependencies
+      - name: Install cross-platform dependencies
+        run: bun install --os="*" --cpu="*" @opentui/core @parcel/watcher
+        working-directory: packages/dax
+
+      - name: Install project dependencies
         run: bun install --frozen-lockfile
 
       - name: Build for ${{ matrix.platform }}-${{ matrix.arch }}
@@ -69,10 +68,12 @@ jobs:
         run: |
           cd packages/dax/dist
           if [ "${{ matrix.platform }}" = "win32" ]; then
+            cd dax-${{ matrix.platform }}-${{ matrix.arch }}
             powershell -Command "Compress-Archive -Path * -DestinationPath ../${{ matrix.artifact_name }}.zip -Force"
           else
-            tar -czf ../${{ matrix.artifact_name }}.tar.gz *
+            tar -czf ../${{ matrix.artifact_name }}.tar.gz dax-${{ matrix.platform }}-${{ matrix.arch }}
           fi
+        working-directory: ${{ github.workspace }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -87,15 +88,85 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get version
+        id: version
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          else
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="v1.0.0"
           fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: actions/github-script@v7
+        id: create-release
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const version = process.env.VERSION;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // Check if release already exists
+            try {
+              const existing = await github.request('GET /repos/{owner}/{repo}/releases/tags/{tag}', {
+                owner, repo, tag: version
+              });
+              if (existing.data.id) {
+                console.log('Release already exists:', existing.data.id);
+                return existing.data.id;
+              }
+            } catch (e) {
+              // Release doesn't exist, create it
+            }
+            
+            // Get latest commit for changelog
+            const commit = await github.request('GET /repos/{owner}/{repo}/commits/{ref}', {
+              owner, repo, ref: 'HEAD'
+            });
+            
+            const changelog = `## Installation
+
+### macOS/Linux
+\`\`\`bash
+curl -fsSL https://raw.githubusercontent.com/${owner}/${repo}/main/script/install.sh | bash
+\`\`\`
+
+### Homebrew
+\`\`\`bash
+brew install ${owner}/tap/dax
+\`\`\`
+
+### Windows
+\`\`\`bash
+winget install DaxAi.DAX
+\`\`\`
+
+## Changes
+See [CHANGELOG.md](https://github.com/${owner}/${repo}/blob/main/CHANGELOG.md) for full details.
+`;
+            
+            const release = await github.request('POST /repos/{owner}/{repo}/releases', {
+              owner,
+              repo,
+              tag_name: version,
+              name: 'DAX ' + version,
+              body: changelog,
+              draft: false,
+              prerelease: version.includes('alpha') || version.includes('beta')
+            });
+            console.log('Created release:', release.data.id);
+            return release.data.id;
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -103,47 +174,46 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la artifacts/
-
-- name: Upload Release Assets
+      - name: Upload Release Assets
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
-            
+            const releaseId = process.env.VERSION;
             const artifactsDir = 'artifacts';
-            const releaseTag = process.env.VERSION;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-
-            // Get release by tag
-            const releaseResp = await github.request('GET /repos/{owner}/{repo}/releases/tags/{tag}', {
+            
+            // Get release ID from previous step
+            const releaseResult = await github.request('GET /repos/{owner}/{repo}/releases/tags/{tag}', {
               owner,
               repo,
-              tag: releaseTag
+              tag: releaseId
             });
-            const releaseId = releaseResp.data.id;
-
+            
+            const relId = releaseResult.data.id;
+            console.log('Uploading to release:', relId);
+            
             // Upload each artifact
             const files = fs.readdirSync(artifactsDir);
             for (const file of files) {
               const filePath = path.join(artifactsDir, file);
               const stat = fs.statSync(filePath);
               if (stat.isFile()) {
-                console.log(`Uploading ${file}...`);
+                console.log('Uploading:', file);
                 const mediaType = file.endsWith('.zip') ? 'application/zip' : 'application/gzip';
-                await github.request('POST /repos/{owner}/{repo}/releases/{release_id}/assets', {
+                
+                const upload = await github.request('POST /repos/{owner}/{repo}/releases/{release_id}/assets', {
                   owner,
                   repo,
-                  release_id: releaseId,
+                  release_id: relId,
                   name: path.basename(filePath),
                   mediaType: mediaType
                 }, {
                   data: fs.createReadStream(filePath)
                 });
-                console.log(`Uploaded ${file}`);
+                console.log('Uploaded:', file);
               }
             }
         env:
