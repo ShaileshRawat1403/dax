@@ -17,6 +17,8 @@ import pkg from "../package.json"
 import { Script } from "@dax-ai/script"
 import { releaseTargets, type ReleaseTarget } from "./release-metadata"
 
+const artifactBaseName = pkg.name.includes("/") ? pkg.name.split("/").at(-1)! : pkg.name
+
 const modelsUrl = process.env.DAX_MODELS_URL || "https://models.dev"
 let modelsData: string | undefined
 
@@ -111,7 +113,7 @@ if (!skipInstall) {
 
 function targetName(item: (typeof allTargets)[number]) {
   return [
-    pkg.name,
+    artifactBaseName,
     item.os === "win32" ? "windows" : item.os,
     item.arch,
     item.avx2 === false ? "baseline" : undefined,
@@ -123,7 +125,7 @@ function targetName(item: (typeof allTargets)[number]) {
 
 async function buildTarget(item: (typeof allTargets)[number]) {
   const name = [
-    pkg.name,
+    artifactBaseName,
     item.os === "win32" ? "windows" : item.os,
     item.arch,
     item.avx2 === false ? "baseline" : undefined,
@@ -151,7 +153,7 @@ async function buildTarget(item: (typeof allTargets)[number]) {
       //@ts-ignore (bun types aren't up to date)
       autoloadTsconfig: true,
       autoloadPackageJson: true,
-      target: name.replace(pkg.name, "bun") as any,
+      target: name.replace(artifactBaseName, "bun") as any,
       outfile: `dist/${name}/bin/dax`,
       execArgv: [`--user-agent=dax/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
@@ -252,7 +254,7 @@ if (shouldPackageReleaseAssets) {
   }
 
   const missingAssets = releaseTargets
-    .map((x) => `${pkg.name}-${x.os}-${x.arch}.${x.archive}`)
+    .map((x) => `${artifactBaseName}-${x.os}-${x.arch}.${x.archive}`)
     .filter((filename) => !releaseAssets.some((asset) => asset.filename === filename))
   if (missingAssets.length > 0) {
     throw new Error(`Release assets were not created: ${missingAssets.join(", ")}`)

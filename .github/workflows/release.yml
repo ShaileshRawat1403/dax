@@ -7,23 +7,13 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            platform: darwin
-          - os: ubuntu-latest
-            platform: linux
-          - os: windows-latest
-            platform: win32
+  release:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -37,57 +27,32 @@ jobs:
           bun install --os="*" --cpu="*" @opentui/core @parcel/watcher
           bun install
 
-      - name: Build
-        run: bun run build -- --single --baseline
+      - name: Verify release inputs
+        run: bun run release:check
+
+      - name: Build canonical release assets
+        run: bun run build
         working-directory: packages/dax
 
-      - name: List dist
-        run: ls -la dist/
+      - name: List release assets
+        run: find packages/dax/dist/release -maxdepth 1 -type f | sort
 
-      - name: Upload artifact
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}
-          path: dist/
+          name: release-assets
+          path: packages/dax/dist/release/*
+          if-no-files-found: error
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: List artifacts
-        run: find artifacts -type f
-
-      - name: Create archives
-        run: |
-          for dir in darwin linux win32; do
-            if [ -d "artifacts/$dir" ]; then
-              tar -czf dax-$dir.tar.gz -C artifacts "$dir"
-            fi
-          done
-
-      - name: Create Release
+      - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.version.outputs.VERSION }}
-          name: "DAX ${{ steps.version.outputs.VERSION }}"
-          draft: false
           files: |
-            dax-darwin.tar.gz
-            dax-linux.tar.gz
-            dax-win32.tar.gz
+            packages/dax/dist/release/*.tar.gz
+            packages/dax/dist/release/*.zip
+            packages/dax/dist/release/manifest.json
+            packages/dax/dist/release/SHA256SUMS
+            packages/dax/dist/release/install.sh
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
