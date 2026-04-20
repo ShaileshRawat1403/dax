@@ -7,16 +7,24 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: dax-darwin
+          - os: ubuntu-latest
+            artifact: dax-linux
+          - os: windows-latest
+            artifact: dax-windows
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -26,31 +34,65 @@ jobs:
           bun install --os="*" --cpu="*" @opentui/core @parcel/watcher
           bun install
 
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
       - name: Build
-        run: bun run build
+        run: bun run build -- --single
         working-directory: packages/dax
 
-      - name: Create archives
+      - name: Create archive
+        shell: bash
         run: |
           cd packages/dax/dist
-          for dir in dax-*; do
+          if [ "$(uname)" = "Darwin" ]; then
+            PLATFORM="darwin"
+          elif [ "$(uname)" = "Windows" ]; then
+            PLATFORM="windows"
+          else
+            PLATFORM="linux"
+          fi
+          for dir in dax-$PLATFORM-*; do
             if [ -d "$dir" ]; then
               name="${dir}.tar.gz"
               tar -czf "$name" "$dir"
             fi
           done
 
-      - name: Upload Release Asset
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            packages/dax/dist/*.tar.gz
+            packages/dax/dist/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: "DAX ${{ steps.version.outputs.VERSION }}"
           draft: false
           files: |
-            packages/dax/dist/*.tar.gz
+            artifacts/*.tar.gz
+            artifacts/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
