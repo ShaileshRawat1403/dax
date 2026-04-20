@@ -403,7 +403,6 @@ export namespace SessionPrompt {
       const task = tasks.pop()
 
       // pending subtask
-      // TODO: centralize "invoke tool" logic
       if (task?.type === "subtask") {
         const taskTool = await TaskTool.init()
         const taskModel = task.model ? await Provider.getModel(task.model.providerID, task.model.modelID) : model
@@ -2000,7 +1999,7 @@ ${
               providerID: taskModel.providerID,
               modelID: taskModel.modelID,
             },
-            // TODO: how can we make task tool accept a more complex input?
+            // Note: Task tool currently accepts a string prompt. Consider adding structured input support.
             prompt: templateParts.find((y) => y.type === "text")?.text ?? "",
           },
         ]

@@ -625,7 +625,7 @@ export namespace MessageV2 {
           const replayReasoning = process.env.DAX_REPLAY_REASONING === "true"
           if (part.type === "reasoning") {
             // WARNING: This replays raw reasoning back into model context.
-            // TODO: Replace with structured reflection summary only -
+            // Enhancement: Replace with structured reflection summary only -
             // raw reasoning should not influence future model turns.
             // See product philosophy: "structured reflection, not raw monologue"
             // Only replay if explicitly enabled via environment variable

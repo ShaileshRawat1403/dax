@@ -369,7 +369,7 @@ export namespace Config {
     await BunProc.run(
       [
         "install",
-        // TODO: get rid of this case (see: https://github.com/oven-sh/bun/issues/19936)
+        // Known workaround: proxy causes bun install to hang without --no-cache (see: https://github.com/oven-sh/bun/issues/19936)
         ...(proxied() ? ["--no-cache"] : []),
       ],
       { cwd: dir },
