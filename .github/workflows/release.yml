@@ -22,22 +22,27 @@ jobs:
             platform: darwin
             arch: arm64
             artifact_name: dax-darwin-arm64
+            archive_ext: tar.gz
           - os: macos-latest
             platform: darwin
             arch: x64
             artifact_name: dax-darwin-x64
+            archive_ext: tar.gz
           - os: ubuntu-latest
             platform: linux
             arch: x64
             artifact_name: dax-linux-x64
+            archive_ext: tar.gz
           - os: ubuntu-latest
             platform: linux
             arch: arm64
             artifact_name: dax-linux-arm64
+            archive_ext: tar.gz
           - os: windows-latest
             platform: win32
             arch: x64
             artifact_name: dax-windows-x64
+            archive_ext: zip
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -54,6 +59,7 @@ jobs:
 
       - name: Build for ${{ matrix.platform }}-${{ matrix.arch }}
         run: bun run build -- --single --${{ matrix.platform }} --${{ matrix.arch }}
+        working-directory: packages/dax
 
       - name: Create archive
         shell: bash
@@ -71,11 +77,10 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: packages/dax/${{ matrix.artifact_name }}.*
 
-  create-release:
+  release:
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -89,76 +94,22 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          tag_name: ${{ steps.version.outputs.version }}
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.version }}
           name: "DAX ${{ steps.version.outputs.version }}"
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') }}
-          generate_release_notes: true
+          generateReleaseNotes: true
+          skipIfReleaseExists: true
+          artifacts: "artifacts/*"
+          artifactContentType: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  upload-assets:
-    needs: [build, create-release]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - artifact_name: dax-darwin-arm64
-            archive_name: dax-darwin-arm64.tar.gz
-          - artifact_name: dax-darwin-x64
-            archive_name: dax-darwin-x64.tar.gz
-          - artifact_name: dax-linux-x64
-            archive_name: dax-linux-x64.tar.gz
-          - artifact_name: dax-linux-arm64
-            archive_name: dax-linux-arm64.tar.gz
-          - artifact_name: dax-windows-x64
-            archive_name: dax-windows-x64.zip
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: ${{ matrix.archive_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-homebrew:
-    needs: [build, create-release]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: ShaileshRawat1403/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TOKEN }}
-
-      - name: Get version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "VERSION=${VERSION#v}" >> $GITHUB_ENV
-
-      - name: Update Homebrew formula
-        run: |
-          # Calculate SHA for each platform
-          curl -sL "https://github.com/ShaileshRawat1403/dax/releases/download/v$VERSION/dax-darwin-arm64.tar.gz" | sha256sum
-          curl -sL "https://github.com/ShaileshRawat1403/dax/releases/download/v$VERSION/dax-darwin-x64.tar.gz" | sha256sum
-          curl -sL "https://github.com/ShaileshRawat1403/dax/releases/download/v$VERSION/dax-linux-x64.tar.gz" | sha256sum
-          curl -sL "https://github.com/ShaileshRawat1403/dax/releases/download/v$VERSION/dax-linux-arm64.tar.gz" | sha256sum
-
-      - name: Commit Homebrew formula
-        run: |
-          git config --local user.email "shailesh.rawat1403@gmail.com"
-          git config --local user.name "ShaileshRawat1403"
-          git add .
-          git commit -m "Update DAX to $VERSION"
-          git push
