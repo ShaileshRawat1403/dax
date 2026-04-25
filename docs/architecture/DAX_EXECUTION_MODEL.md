@@ -6,6 +6,8 @@ DAX is the execution control plane for AI-assisted work.
 
 Its job is not to generate answers in isolation. Its job is to move work through a governed lifecycle that operators can inspect, interrupt, and trust.
 
+This lifecycle is formalized in the **RAO Protocol** (Run, Audit, Override). See the [RAO Protocol Specification](./RAO_PROTOCOL.md) for details on the underlying protocol schemas.
+
 The execution model is the architectural north star for DAX. Commands, TUI flows, and future APIs should all map back to this lifecycle.
 
 ## Core Lifecycle
