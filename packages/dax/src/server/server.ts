@@ -42,6 +42,7 @@ import { GlobalRoutes } from "./routes/global"
 import { MDNS } from "./mdns"
 import { Installation } from "../installation"
 import { RunRoutes } from "./routes/run"
+import { RaoRoutes } from "./routes/rao"
 import { SoothsayerRoutes } from "./routes/soothsayer"
 import { SubstrateRoutes } from "./routes/substrate"
 import { getSecrets } from "@/secrets/secrets-loader"
@@ -231,6 +232,7 @@ export namespace Server {
         .route("/experimental", ExperimentalRoutes())
         .route("/session", SessionRoutes())
         .route("/runs", RunRoutes())
+        .route("/rao", RaoRoutes())
         .route("/soothsayer", SoothsayerRoutes())
         .route("/permission", PermissionRoutes())
         .route("/question", QuestionRoutes())
