@@ -85,34 +85,20 @@ export function RunEventRow(props: { item: RenderableStreamItem; isLast?: boolea
     )
   }
 
-  // default — compact tool-style row matching container-like execution chrome
+  // default — single muted prose row. Tool execution chrome belongs to ToolPart;
+  // narrative run.events here are intentionally lightweight to avoid duplicating it.
   const isPending = () => !isCompleted() && !isFailed()
   return (
-    <box flexDirection="column" gap={0} paddingLeft={5} paddingRight={2} marginTop={1} marginBottom={0}>
-      <box flexDirection="row" gap={1} alignItems="center">
-        <text fg={theme.info} attributes={TextAttributes.BOLD}>[exec]</text>
-        <Show when={sentence()}>
-          <text fg={baseTextColor()} wrapMode="word">{sentence()}</text>
-        </Show>
-      </box>
-      
-      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
-        <Show when={isCompleted()}>
-          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
-            <text fg={theme.success}>╰─ ✓</text>
-            <Show when={duration()}>
-              <text fg={theme.textMuted} attributes={TextAttributes.DIM}>{duration()}</text>
-            </Show>
-          </box>
-        </Show>
-        <Show when={isPending()}>
-          <box flexDirection="row" gap={1} alignItems="center" marginTop={0}>
-            <text fg={theme.borderSubtle}>╰─</text>
-            <Spinner color={theme.textMuted} />
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>running...</text>
-          </box>
-        </Show>
-      </box>
+    <box flexDirection="row" gap={1} alignItems="center" paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={0}>
+      <Show when={isPending()} fallback={<text fg={theme.textMuted} flexShrink={0}>·</text>}>
+        <Spinner color={theme.textMuted} />
+      </Show>
+      <Show when={sentence()}>
+        <text fg={baseTextColor()} wrapMode="word" attributes={TextAttributes.DIM}>{sentence()}</text>
+      </Show>
+      <Show when={duration()}>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM} flexShrink={0}>{duration()}</text>
+      </Show>
     </box>
   )
 }

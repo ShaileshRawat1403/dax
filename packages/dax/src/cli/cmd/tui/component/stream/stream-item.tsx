@@ -1,10 +1,11 @@
 import { Show, Switch, Match } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
+import { type RenderableStreamItem, type RunPhase, getPhaseLabel } from "@/dax/presentation/session-stream"
 import type { AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import { useTheme } from "@tui/context/theme"
 import { RunEventRow } from "./run-event-row"
 import { AlertInline } from "./alert-inline"
+import { PhaseRail } from "./phase-rail"
 
 export function StreamItem(props: {
   item: RenderableStreamItem
@@ -36,7 +37,13 @@ export function StreamItem(props: {
   return (
     <Switch>
       <Match when={props.item.kind === "phase.marker"}>
-        <></>
+        <PhaseRail
+          phase={(props.item.phase ?? "executing") as RunPhase}
+          label={getPhaseLabel((props.item.phase ?? "executing") as RunPhase)}
+          status={props.item.status ?? "completed"}
+          stepCount={props.item.phaseStepCount}
+          durationMs={props.item.durationMs}
+        />
       </Match>
 
       <Match when={props.item.kind === "run.event"}>
@@ -44,11 +51,11 @@ export function StreamItem(props: {
       </Match>
 
       <Match when={props.item.kind === "alert.inline"}>
-        <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} isLast={props.isLast} />
+        <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} isLast={props.isLast} reviewKeyHint="press r" />
       </Match>
 
       <Match when={props.item.kind === "compaction.marker"}>
-        <CompactionMarker />
+        <CompactionMarker variant={props.item.message} />
       </Match>
 
       <Match when={props.item.kind === "message.user"}>
@@ -82,7 +89,7 @@ function TurnSeparator() {
   )
 }
 
-function CompactionMarker() {
+function CompactionMarker(props: { variant?: string }) {
   const { theme } = useTheme()
   return (
     <box
@@ -94,7 +101,9 @@ function CompactionMarker() {
       marginTop={1}
       marginBottom={1}
     >
-      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>⟳  context compacted</text>
+      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+        {props.variant ? `⟳  context compacted · ${props.variant}` : "⟳  context compacted"}
+      </text>
     </box>
   )
 }

@@ -690,15 +690,18 @@ export function buildStreamItems(
   for (const message of messages) {
     if (message.role === "user") {
       const parts = partsByMessageId[message.id] ?? []
-      const hasCompactionPart = parts.some((p: any) => p.type === "compaction")
+      const compactionPart = parts.find((p: any) => p.type === "compaction") as
+        | { type: "compaction"; auto?: boolean }
+        | undefined
       const hasTextPart = parts.some((p: any) => p.type === "text" && !p.synthetic)
-      if (hasCompactionPart && !hasTextPart) {
+      if (compactionPart && !hasTextPart) {
         // Internal compaction trigger — surface as a context checkpoint divider
         streamItems.push({
           id: `compaction-${message.id}`,
           kind: "compaction.marker",
           timestamp: message.time.created,
           status: "completed",
+          message: compactionPart.auto ? "auto" : "manual",
         })
         continue
       }
@@ -808,14 +811,17 @@ function buildLegacyStreamItems(
   for (const message of messages) {
     if (message.role === "user") {
       const parts = partsByMessageId[message.id] ?? []
-      const hasCompactionPart = parts.some((p: any) => p.type === "compaction")
+      const compactionPart = parts.find((p: any) => p.type === "compaction") as
+        | { type: "compaction"; auto?: boolean }
+        | undefined
       const hasTextPart = parts.some((p: any) => p.type === "text" && !p.synthetic)
-      if (hasCompactionPart && !hasTextPart) {
+      if (compactionPart && !hasTextPart) {
         streamItems.push({
           id: `compaction-${message.id}`,
           kind: "compaction.marker",
           timestamp: message.time.created,
           status: "completed",
+          message: compactionPart.auto ? "auto" : "manual",
         })
         continue
       }

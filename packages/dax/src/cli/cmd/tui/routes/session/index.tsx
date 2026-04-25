@@ -1214,7 +1214,21 @@ export function Session() {
   })
 
   const renderer = useRenderer()
-  const keyboard = useKeyboard(() => {})
+  // Stream-level keyboard parity: keys only fire when the prompt textarea is NOT focused,
+  // so they don't intercept normal typing. These mirror mouse-only affordances on inline
+  // alerts and reasoning blocks for keyboard-first TUI users.
+  useKeyboard((evt) => {
+    if (promptRef.current?.focused) return
+    if (evt.ctrl || evt.meta || evt.shift) return
+    if (evt.name === "r" && hasApprovalsNeed()) {
+      openApprovalsPane()
+      return
+    }
+    if (evt.name === "t") {
+      setShowThinking((v) => !v)
+      return
+    }
+  })
 
   const openPmPane = () => {
     setPaneMode(() => "memory")
@@ -1878,11 +1892,6 @@ function Message(props: {
     return completed - props.message.time.created
   })
 
-  const modeLabel = createMemo(() => {
-    if (props.message.role === "user") return "USER"
-    return (props.message as AssistantMessage).agent.toUpperCase()
-  })
-
   if (props.message.role === "user") {
     return (
       <box
@@ -1921,26 +1930,26 @@ function Message(props: {
   const showMetadata = createMemo(() => ctx.showAssistantMetadata())
 
   const roleLabel = createMemo(() => {
-    if (props.message.role === "user") return "USER"
+    if (props.message.role === "user") return "user"
     const agent = (props.message as AssistantMessage).agent.toLowerCase()
     switch (agent) {
       case "dax":
-        return "DAX"
+        return "dax"
       case "explore":
-        return "EXPLORER"
+        return "explorer"
       case "plan":
       case "planner":
-        return "PLANNER"
+        return "planner"
       case "review":
-        return "REVIEWER"
+        return "reviewer"
       case "verify":
       case "verifier":
-        return "VERIFIER"
+        return "verifier"
       case "audit":
       case "auditor":
-        return "AUDITOR"
+        return "auditor"
       default:
-        return agent.toUpperCase()
+        return agent
     }
   })
 
@@ -2057,7 +2066,7 @@ function Message(props: {
               <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} paddingRight={1} marginBottom={0}>
                 <text fg={roleColor()}>◇</text>
                 <text fg={roleColor()} attributes={TextAttributes.BOLD}>
-                  {roleLabel().toLowerCase()}
+                  {roleLabel()}
                 </text>
               </box>
             </Show>
@@ -2093,7 +2102,7 @@ function Message(props: {
               >
                 <text fg={roleColor()}>◇</text>
                 <text fg={roleColor()} attributes={TextAttributes.BOLD}>
-                  {roleLabel().toLowerCase()}
+                  {roleLabel()}
                 </text>
                 <Show when={ctx.showTimestamps()}>
                   <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
@@ -2219,6 +2228,14 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
         ?.split("\n")
         .filter((l) => l.trim()).length ?? 0,
   )
+  const reasoningDuration = createMemo(() => {
+    const completed = props.message.time.completed ?? Date.now()
+    const created = props.message.time.created
+    const dur = completed - created
+    if (dur < 1000) return ""
+    return formatElapsed(dur)
+  })
+  const isStreaming = createMemo(() => !props.message.time.completed)
   const [collapsed, setCollapsed] = createSignal(false)
 
   return (
@@ -2243,12 +2260,22 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
               · {lineCount()} line{lineCount() === 1 ? "" : "s"}
             </text>
           </Show>
+          <Show when={collapsed() && reasoningDuration()}>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              · {reasoningDuration()}
+            </text>
+          </Show>
+          <Show when={!collapsed()}>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              · click or press t to hide
+            </text>
+          </Show>
         </box>
         <Show when={!collapsed()}>
           <box paddingTop={1} paddingRight={2}>
             <markdown
               syntaxStyle={syntax()}
-              streaming={true}
+              streaming={isStreaming()}
               content={content()!}
               conceal={ctx.conceal()}
               fg={reasoningFg()}
@@ -2304,7 +2331,7 @@ function TextPart(props: {
       >
         <markdown
           syntaxStyle={syntax()}
-          streaming={true}
+          streaming={isStreaming()}
           content={props.part.text.trim()}
           conceal={ctx.conceal()}
           fg={props.baseTextColor}
@@ -2654,10 +2681,10 @@ function Bash(props: ToolProps<typeof ShellTool>) {
     return undefined
   })
   const isNonZeroExit = createMemo(() => exitCode() !== undefined && exitCode() !== 0)
-  const liveLines = createMemo(() => outputLines().slice(-4))
 
   const [expanded, setExpanded] = createSignal(false)
-  const PREVIEW_COUNT = 3
+  const TAIL = 3
+  const liveTail = createMemo(() => outputLines().slice(-TAIL))
   const filteredLines = createMemo(() => {
     const lines = outputLines()
     if (isNonZeroExit()) return lines.filter((l) => !/^(INFO|DEBUG)\s/.test(l))
@@ -2665,12 +2692,12 @@ function Bash(props: ToolProps<typeof ShellTool>) {
   })
   const previewLines = createMemo(() => {
     const lines = filteredLines()
-    if (expanded() || lines.length <= PREVIEW_COUNT) return lines
-    return lines.slice(-PREVIEW_COUNT)
+    if (expanded() || lines.length <= TAIL) return lines
+    return lines.slice(-TAIL)
   })
   const hiddenCount = createMemo(() => {
     if (expanded()) return 0
-    return Math.max(0, filteredLines().length - PREVIEW_COUNT)
+    return Math.max(0, filteredLines().length - TAIL)
   })
 
   return (
@@ -2713,9 +2740,9 @@ function Bash(props: ToolProps<typeof ShellTool>) {
         </Show>
 
         {/* ── Live output while running ── */}
-        <Show when={isRunning() && liveLines().length > 0}>
+        <Show when={isRunning() && liveTail().length > 0}>
           <box flexDirection="column" gap={0} marginBottom={1}>
-            <For each={liveLines()}>
+            <For each={liveTail()}>
               {(line) => (
                 <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="truncate-end">
                   {line}
@@ -2729,8 +2756,8 @@ function Bash(props: ToolProps<typeof ShellTool>) {
         <Show when={!isRunning() && (hasError() || isNonZeroExit()) && previewLines().length > 0}>
           <box flexDirection="column" gap={0} marginBottom={1}>
             <Show when={hiddenCount() > 0}>
-              <text fg={theme.primary} attributes={TextAttributes.DIM} onClick={() => setExpanded(true)}>
-                ↕ +{hiddenCount()} lines — click to expand
+              <text fg={theme.primary} attributes={TextAttributes.DIM} onMouseUp={() => setExpanded((v) => !v)}>
+                ↕ {expanded() ? "click to collapse" : `+${hiddenCount()} lines — click to expand`}
               </text>
             </Show>
             <For each={previewLines()}>

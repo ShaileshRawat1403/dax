@@ -22,8 +22,15 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
 
   return (
     <Show when={props.todos.length > 0}>
-      <box flexDirection="column" marginTop={0} marginBottom={0}>
-        <text fg={theme.borderSubtle}>{"─".repeat(40)}</text>
+      <box
+        flexDirection="column"
+        marginTop={0}
+        marginBottom={0}
+        border={["top", "bottom"]}
+        borderColor={theme.borderSubtle}
+        paddingTop={0}
+        paddingBottom={0}
+      >
         <box flexDirection="column">
           <For each={visibleTodos()}>
             {(todo) => <TodoItem status={todo.status} content={todo.content} />}
@@ -36,7 +43,6 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
             </text>
           </box>
         </Show>
-        <text fg={theme.borderSubtle}>{"─".repeat(40)}</text>
       </box>
     </Show>
   )

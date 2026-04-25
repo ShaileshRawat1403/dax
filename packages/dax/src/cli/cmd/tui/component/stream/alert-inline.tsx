@@ -1,18 +1,8 @@
 import { Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import type { RenderableStreamItem } from "@/dax/presentation/session-stream"
+import { type RenderableStreamItem, stripInlineMarkdown } from "@/dax/presentation/session-stream"
+import { useTheme } from "@tui/context/theme"
 import type { RunNarrativeItem } from "@/server/run-contract"
-
-function stripInlineMarkdown(text: string): string {
-  return text
-    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/__(.+?)__/g, "$1")
-    .replace(/_(.+?)_/g, "$1")
-    .replace(/`(.+?)`/g, "$1")
-    .replace(/~~(.+?)~~/g, "$1")
-}
 
 function getAlertTypeLabel(type: string): string {
   if (type === "intervention.required") return "INTERVENTION REQUIRED"
@@ -38,7 +28,9 @@ export function AlertInline(props: {
   item: RenderableStreamItem
   onNavigateToApprovals?: () => void
   isLast?: boolean
+  reviewKeyHint?: string
 }) {
+  const { theme } = useTheme()
   const narrativeItem = props.item.data as RunNarrativeItem
   const typeLabel = () => getAlertTypeLabel(props.item.type ?? "")
   const riskLabel = () => getRiskLabel(narrativeItem?.metadata)
@@ -48,12 +40,12 @@ export function AlertInline(props: {
   const isActionable = () =>
     props.item.type === "approval.requested" || props.item.type === "intervention.required"
 
-  const baseTextColor = () => props.isLast ? "$text" : "$textMuted"
+  const baseTextColor = () => (props.isLast ? theme.text : theme.textMuted)
 
   const borderColor = () => {
-    if (isResolved()) return "$success"
-    if (isPending()) return "$warning"
-    return "$borderSubtle"
+    if (isResolved()) return theme.success
+    if (isPending()) return theme.warning
+    return theme.borderSubtle
   }
 
   // Resolved state: compact single-line acknowledgement, no extra chrome
@@ -63,19 +55,19 @@ export function AlertInline(props: {
         flexDirection="row"
         gap={1}
         alignItems="center"
-        paddingLeft={3}
+        paddingLeft={2}
         paddingTop={0}
         paddingBottom={0}
         marginTop={0}
       >
-        <text fg="$success">✓</text>
-        <text fg="$success" attributes={TextAttributes.BOLD}>Approval received</text>
-        <text fg="$textMuted" dim>· {typeLabel()}</text>
+        <text fg={theme.success}>✓</text>
+        <text fg={theme.success} attributes={TextAttributes.BOLD}>Approval received</text>
+        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>· {typeLabel()}</text>
         <Show when={resolutionReason()}>
-          <text fg="$textMuted" dim>— {resolutionReason()}</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>— {resolutionReason()}</text>
         </Show>
         <Show when={!resolutionReason() && props.item.message}>
-          <text fg="$textMuted" dim>— {stripInlineMarkdown(props.item.message!)}</text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>— {stripInlineMarkdown(props.item.message!)}</text>
         </Show>
       </box>
     )
@@ -87,7 +79,7 @@ export function AlertInline(props: {
       gap={0}
       paddingTop={1}
       paddingBottom={1}
-      paddingLeft={3}
+      paddingLeft={2}
       paddingRight={2}
       marginTop={1}
       onMouseUp={() => {
@@ -110,7 +102,7 @@ export function AlertInline(props: {
       </box>
 
       {/* Message and CTA */}
-      <box flexDirection="column" border={["left"]} borderColor="$borderSubtle" paddingLeft={2} marginLeft={0.5} marginTop={0}>
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
         <Show when={props.item.message}>
           <box paddingLeft={0} paddingTop={0}>
             <text fg={baseTextColor()} wrapMode="word">
@@ -121,9 +113,11 @@ export function AlertInline(props: {
 
         <Show when={isActionable()}>
           <box flexDirection="row" gap={1} alignItems="center" paddingTop={0}>
-            <text fg="$borderSubtle">╰─</text>
-            <text fg="$warning" attributes={TextAttributes.BOLD}>[ Review ]</text>
-            <text fg="$textMuted" attributes={TextAttributes.DIM}>Click to open review queue</text>
+            <text fg={theme.borderSubtle}>╰─</text>
+            <text fg={theme.warning} attributes={TextAttributes.BOLD}>[ Review ]</text>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              {props.reviewKeyHint ? `${props.reviewKeyHint} or click` : "click"} to open review queue
+            </text>
           </box>
         </Show>
       </box>
