@@ -15,6 +15,36 @@ The short version: DAX provides a **deterministic runtime contract around stocha
 | Govern risky actions                               | Approval gates pause execution for human review                                     |
 | Audit execution history                            | Trust scores, terminal reasons, and contract violations are tracked                 |
 
+## The Deterministic/Stochastic Boundary
+
+This distinction matters for understanding what DAX can and cannot prove.
+
+**Stochastic layer (the model):**
+
+The underlying AI model is probabilistic. It can produce different outputs on identical inputs. It can be wrong, incomplete, or inconsistent. DAX does not change this.
+
+**Deterministic layer (the runtime contract):**
+
+DAX wraps model execution in a deterministic runtime contract. This contract is implemented in three Rust proof surfaces:
+
+- `dax-core` replays the canonical event log to prove what happened. The same event log always produces the same run state.
+- `dax-policy` evaluates proposed actions against policy with no model call. The same request against the same policy always produces the same decision.
+- `dax-audit` derives trust posture from six structured checks. The same run signals always produce the same posture.
+
+These proof surfaces do not make the model correct. They make the governance layer around it verifiable.
+
+The claim DAX makes is this:
+
+> DAX uses Rust for deterministic replay, policy evaluation, and audit proof surfaces around stochastic model execution.
+
+Not this:
+
+> DAX makes AI deterministic.
+> DAX guarantees deterministic AI behavior.
+> DAX fully verifies all AI output.
+
+The model stays stochastic. The runtime contract does not.
+
 ## What DAX Cannot Guarantee
 
 ## First-Class Limitations
