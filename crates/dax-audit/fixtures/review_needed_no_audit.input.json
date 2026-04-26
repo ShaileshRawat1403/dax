@@ -1,0 +1,15 @@
+{
+  "session_id": "ses_no_audit",
+  "events": [
+    {"eventId":"e1","sequence":1,"cursor":"c1","runId":"run_no_audit","timestamp":"2026-04-26T13:00:00Z","type":"run.created","payload":{"status":"created","title":"no audit run"}},
+    {"eventId":"e2","sequence":2,"cursor":"c2","runId":"run_no_audit","timestamp":"2026-04-26T13:00:01Z","type":"run.started","payload":{"status":"running"}},
+    {"eventId":"e3","sequence":3,"cursor":"c3","runId":"run_no_audit","timestamp":"2026-04-26T13:00:02Z","type":"step.proposed","payload":{"stepId":"s1","title":"analyse"}},
+    {"eventId":"e4","sequence":4,"cursor":"c4","runId":"run_no_audit","timestamp":"2026-04-26T13:00:03Z","type":"step.started","payload":{"stepId":"s1","title":"analyse"}},
+    {"eventId":"e5","sequence":5,"cursor":"c5","runId":"run_no_audit","timestamp":"2026-04-26T13:00:04Z","type":"step.completed","payload":{"stepId":"s1","title":"analyse","durationMs":300}},
+    {"eventId":"e6","sequence":6,"cursor":"c6","runId":"run_no_audit","timestamp":"2026-04-26T13:00:05Z","type":"run.completed","payload":{"status":"completed","summaryAvailable":false}}
+  ],
+  "findings": [],
+  "policy_decision_count": 0,
+  "override_count": 0,
+  "audit_present": false
+}

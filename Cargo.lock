@@ -37,6 +37,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "dax-audit"
+version = "0.1.0"
+dependencies = [
+ "dax-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "dax-audit-bin"
+version = "0.1.0"
+dependencies = [
+ "dax-audit",
+ "serde_json",
+]
+
+[[package]]
 name = "dax-core"
 version = "0.1.0"
 dependencies = [

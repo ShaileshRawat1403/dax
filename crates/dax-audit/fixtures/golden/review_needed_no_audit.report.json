@@ -1,0 +1,57 @@
+{
+  "schema_version": "dax.audit.v1",
+  "session_id": "ses_no_audit",
+  "posture": "review_needed",
+  "verification_result": "incomplete",
+  "checks": [
+    {
+      "id": "approval_compliance",
+      "label": "Approval Compliance",
+      "status": "pass",
+      "summary": "No pending approvals."
+    },
+    {
+      "id": "policy_compliance",
+      "label": "Policy Compliance",
+      "status": "incomplete",
+      "summary": "No audit has been performed for this session."
+    },
+    {
+      "id": "artifact_presence",
+      "label": "Artifact Presence",
+      "status": "warn",
+      "summary": "Run completed without recording any artifacts."
+    },
+    {
+      "id": "evidence_completeness",
+      "label": "Evidence Completeness",
+      "status": "incomplete",
+      "summary": "No policy decisions were recorded for this session."
+    },
+    {
+      "id": "trace_contiguity",
+      "label": "Trace Continuity",
+      "status": "pass",
+      "summary": "Trace contains 1 completed step(s)."
+    },
+    {
+      "id": "overrides_justified",
+      "label": "Overrides Justified",
+      "status": "pass",
+      "summary": "No governance overrides were recorded."
+    }
+  ],
+  "blocking_factors": [],
+  "missing_evidence": [
+    "No audit has been performed for this session.",
+    "No policy decisions were recorded for this session."
+  ],
+  "degrading_factors": [
+    "Run completed without recording any artifacts."
+  ],
+  "passing_signals": [
+    "No pending approvals.",
+    "Trace contains 1 completed step(s).",
+    "No governance overrides were recorded."
+  ]
+}

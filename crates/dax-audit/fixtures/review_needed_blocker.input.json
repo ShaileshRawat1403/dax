@@ -1,0 +1,17 @@
+{
+  "session_id": "ses_review_blocker",
+  "events": [
+    {"eventId":"e1","sequence":1,"cursor":"c1","runId":"run_blocker","timestamp":"2026-04-26T12:00:00Z","type":"run.created","payload":{"status":"created","title":"blocker run"}},
+    {"eventId":"e2","sequence":2,"cursor":"c2","runId":"run_blocker","timestamp":"2026-04-26T12:00:01Z","type":"run.started","payload":{"status":"running"}},
+    {"eventId":"e3","sequence":3,"cursor":"c3","runId":"run_blocker","timestamp":"2026-04-26T12:00:02Z","type":"step.proposed","payload":{"stepId":"s1","title":"analyse"}},
+    {"eventId":"e4","sequence":4,"cursor":"c4","runId":"run_blocker","timestamp":"2026-04-26T12:00:03Z","type":"step.started","payload":{"stepId":"s1","title":"analyse"}},
+    {"eventId":"e5","sequence":5,"cursor":"c5","runId":"run_blocker","timestamp":"2026-04-26T12:00:04Z","type":"step.completed","payload":{"stepId":"s1","title":"analyse","durationMs":200}},
+    {"eventId":"e6","sequence":6,"cursor":"c6","runId":"run_blocker","timestamp":"2026-04-26T12:00:05Z","type":"run.completed","payload":{"status":"completed","summaryAvailable":false}}
+  ],
+  "findings": [
+    {"id":"policy.instructions.remote_without_allowlist","severity":"critical","category":"policy","title":"Remote instruction URLs without allowlist","blocking":true}
+  ],
+  "policy_decision_count": 2,
+  "override_count": 0,
+  "audit_present": true
+}

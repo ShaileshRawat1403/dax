@@ -1,0 +1,12 @@
+[package]
+name = "dax-audit-bin"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "dax-audit"
+path = "src/main.rs"
+
+[dependencies]
+dax-audit = { path = "../dax-audit" }
+serde_json = "1"

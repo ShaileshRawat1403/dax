@@ -1,0 +1,55 @@
+{
+  "schema_version": "dax.audit.v1",
+  "session_id": "ses_verified_clean",
+  "posture": "verified",
+  "verification_result": "passed",
+  "checks": [
+    {
+      "id": "approval_compliance",
+      "label": "Approval Compliance",
+      "status": "pass",
+      "summary": "No pending approvals."
+    },
+    {
+      "id": "policy_compliance",
+      "label": "Policy Compliance",
+      "status": "pass",
+      "summary": "Session is compliant with current policies."
+    },
+    {
+      "id": "artifact_presence",
+      "label": "Artifact Presence",
+      "status": "pass",
+      "summary": "1 artifact(s) recorded."
+    },
+    {
+      "id": "evidence_completeness",
+      "label": "Evidence Completeness",
+      "status": "pass",
+      "summary": "5 policy decision(s) recorded as evidence."
+    },
+    {
+      "id": "trace_contiguity",
+      "label": "Trace Continuity",
+      "status": "pass",
+      "summary": "Trace contains 1 completed step(s)."
+    },
+    {
+      "id": "overrides_justified",
+      "label": "Overrides Justified",
+      "status": "pass",
+      "summary": "No governance overrides were recorded."
+    }
+  ],
+  "blocking_factors": [],
+  "missing_evidence": [],
+  "degrading_factors": [],
+  "passing_signals": [
+    "No pending approvals.",
+    "Session is compliant with current policies.",
+    "1 artifact(s) recorded.",
+    "5 policy decision(s) recorded as evidence.",
+    "Trace contains 1 completed step(s).",
+    "No governance overrides were recorded."
+  ]
+}
