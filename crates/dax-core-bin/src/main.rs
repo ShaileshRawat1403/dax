@@ -49,7 +49,10 @@ fn run_replay() {
     let events = read_events();
     match replay_run_state(&events) {
         Ok(state) => {
-            println!("{}", serde_json::to_string_pretty(&state).expect("serialization failed"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&state).expect("serialization failed")
+            );
         }
         Err(e) => {
             eprintln!("replay error: {e}");
@@ -80,7 +83,10 @@ fn run_proof() {
                 "stateHash": state_hash,
                 "eventSequenceHash": event_sequence_hash
             });
-            println!("{}", serde_json::to_string_pretty(&report).expect("serialization failed"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report).expect("serialization failed")
+            );
         }
         Err(e) => {
             let report = serde_json::json!({
@@ -90,7 +96,10 @@ fn run_proof() {
                 "error": e.to_string(),
                 "eventSequenceHash": event_sequence_hash
             });
-            eprintln!("{}", serde_json::to_string_pretty(&report).expect("serialization failed"));
+            eprintln!(
+                "{}",
+                serde_json::to_string_pretty(&report).expect("serialization failed")
+            );
             process::exit(1);
         }
     }

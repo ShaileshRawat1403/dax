@@ -1,5 +1,8 @@
 use crate::events::{EventPayload, RunEvent};
-use crate::state::{RunError, RunState, RunStatus, StepError, StepRecord, StepStatus, StepType, TrustPosture, TrustSummary};
+use crate::state::{
+    RunError, RunState, RunStatus, StepError, StepRecord, StepStatus, StepType, TrustPosture,
+    TrustSummary,
+};
 use crate::transitions::validate_transition;
 use thiserror::Error;
 
@@ -10,9 +13,17 @@ pub enum ReplayError {
     #[error("missing run.created event")]
     MissingCreationEvent,
     #[error("sequence gap: expected {expected} but got {got} at index {index}")]
-    SequenceGap { expected: u32, got: u32, index: usize },
+    SequenceGap {
+        expected: u32,
+        got: u32,
+        index: usize,
+    },
     #[error("illegal transition from {from:?} to {to:?} at sequence {sequence}")]
-    IllegalTransition { from: RunStatus, to: RunStatus, sequence: u32 },
+    IllegalTransition {
+        from: RunStatus,
+        to: RunStatus,
+        sequence: u32,
+    },
     #[error("unknown run status \"{status}\" at sequence {sequence}")]
     UnknownStatus { status: String, sequence: u32 },
 }
@@ -64,10 +75,12 @@ pub fn replay_run_state(events: &[RunEvent]) -> Result<RunState, ReplayError> {
 
             EventPayload::RunStateChanged { current_status, .. } => {
                 let next = parse_status(current_status, event.sequence)?;
-                validate_transition(&state.status, &next).map_err(|_| ReplayError::IllegalTransition {
-                    from: state.status.clone(),
-                    to: next.clone(),
-                    sequence: event.sequence,
+                validate_transition(&state.status, &next).map_err(|_| {
+                    ReplayError::IllegalTransition {
+                        from: state.status.clone(),
+                        to: next.clone(),
+                        sequence: event.sequence,
+                    }
                 })?;
                 state.status = next;
                 if state.status == RunStatus::Running && state.started_at.is_none() {
@@ -160,7 +173,9 @@ pub fn replay_run_state(events: &[RunEvent]) -> Result<RunState, ReplayError> {
 
             EventPayload::ApprovalRequested { approval } => {
                 if !state.pending_approval_ids.contains(&approval.approval_id) {
-                    state.pending_approval_ids.push(approval.approval_id.clone());
+                    state
+                        .pending_approval_ids
+                        .push(approval.approval_id.clone());
                 }
             }
 
@@ -210,7 +225,10 @@ fn parse_status(s: &str, sequence: u32) -> Result<RunStatus, ReplayError> {
         "completed" => Ok(RunStatus::Completed),
         "failed" => Ok(RunStatus::Failed),
         "cancelled" => Ok(RunStatus::Cancelled),
-        _ => Err(ReplayError::UnknownStatus { status: s.to_string(), sequence }),
+        _ => Err(ReplayError::UnknownStatus {
+            status: s.to_string(),
+            sequence,
+        }),
     }
 }
 
@@ -234,13 +252,58 @@ mod tests {
     #[test]
     fn replays_basic_completed_run() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: Some("Test run".to_string()) }),
-            event(2, EventPayload::RunStateChanged { previous_status: "created".to_string(), current_status: "compiled".to_string(), reason: Some("contract compiled".to_string()) }),
-            event(3, EventPayload::RunStateChanged { previous_status: "compiled".to_string(), current_status: "queued".to_string(), reason: Some("queued".to_string()) }),
-            event(4, EventPayload::RunStarted { status: "running".to_string() }),
-            event(5, EventPayload::StepStarted { step_id: "step_1".to_string(), title: "Run tests".to_string(), detail: None }),
-            event(6, EventPayload::StepCompleted { step_id: "step_1".to_string(), title: "Run tests".to_string(), duration_ms: Some(120) }),
-            event(7, EventPayload::RunCompleted { status: "completed".to_string(), summary_available: true }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: Some("Test run".to_string()),
+                },
+            ),
+            event(
+                2,
+                EventPayload::RunStateChanged {
+                    previous_status: "created".to_string(),
+                    current_status: "compiled".to_string(),
+                    reason: Some("contract compiled".to_string()),
+                },
+            ),
+            event(
+                3,
+                EventPayload::RunStateChanged {
+                    previous_status: "compiled".to_string(),
+                    current_status: "queued".to_string(),
+                    reason: Some("queued".to_string()),
+                },
+            ),
+            event(
+                4,
+                EventPayload::RunStarted {
+                    status: "running".to_string(),
+                },
+            ),
+            event(
+                5,
+                EventPayload::StepStarted {
+                    step_id: "step_1".to_string(),
+                    title: "Run tests".to_string(),
+                    detail: None,
+                },
+            ),
+            event(
+                6,
+                EventPayload::StepCompleted {
+                    step_id: "step_1".to_string(),
+                    title: "Run tests".to_string(),
+                    duration_ms: Some(120),
+                },
+            ),
+            event(
+                7,
+                EventPayload::RunCompleted {
+                    status: "completed".to_string(),
+                    summary_available: true,
+                },
+            ),
         ];
 
         let state = replay_run_state(&events).expect("replay should pass");
@@ -257,12 +320,51 @@ mod tests {
     #[test]
     fn replays_pending_approval_then_resolution() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::RunStarted { status: "running".to_string() }),
-            event(3, EventPayload::ApprovalRequested { approval: ApprovalSummary { approval_id: "approval_1".to_string() } }),
-            event(4, EventPayload::RunStateChanged { previous_status: "running".to_string(), current_status: "waiting_approval".to_string(), reason: Some("approval required".to_string()) }),
-            event(5, EventPayload::ApprovalResolved { approval_id: "approval_1".to_string(), decision: "allow".to_string(), resolved_at: "2026-04-26T00:00:05Z".to_string() }),
-            event(6, EventPayload::RunStateChanged { previous_status: "waiting_approval".to_string(), current_status: "running".to_string(), reason: Some("approval resolved".to_string()) }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                2,
+                EventPayload::RunStarted {
+                    status: "running".to_string(),
+                },
+            ),
+            event(
+                3,
+                EventPayload::ApprovalRequested {
+                    approval: ApprovalSummary {
+                        approval_id: "approval_1".to_string(),
+                    },
+                },
+            ),
+            event(
+                4,
+                EventPayload::RunStateChanged {
+                    previous_status: "running".to_string(),
+                    current_status: "waiting_approval".to_string(),
+                    reason: Some("approval required".to_string()),
+                },
+            ),
+            event(
+                5,
+                EventPayload::ApprovalResolved {
+                    approval_id: "approval_1".to_string(),
+                    decision: "allow".to_string(),
+                    resolved_at: "2026-04-26T00:00:05Z".to_string(),
+                },
+            ),
+            event(
+                6,
+                EventPayload::RunStateChanged {
+                    previous_status: "waiting_approval".to_string(),
+                    current_status: "running".to_string(),
+                    reason: Some("approval resolved".to_string()),
+                },
+            ),
         ];
 
         let state = replay_run_state(&events).expect("replay should pass");
@@ -274,9 +376,27 @@ mod tests {
     #[test]
     fn keeps_unresolved_approval_pending() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::RunStarted { status: "running".to_string() }),
-            event(3, EventPayload::ApprovalRequested { approval: ApprovalSummary { approval_id: "approval_1".to_string() } }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                2,
+                EventPayload::RunStarted {
+                    status: "running".to_string(),
+                },
+            ),
+            event(
+                3,
+                EventPayload::ApprovalRequested {
+                    approval: ApprovalSummary {
+                        approval_id: "approval_1".to_string(),
+                    },
+                },
+            ),
         ];
 
         let state = replay_run_state(&events).expect("replay should pass");
@@ -287,9 +407,29 @@ mod tests {
     #[test]
     fn records_artifact_ids_once() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::ArtifactCreated { artifact: ArtifactSummary { artifact_id: "artifact_1".to_string() } }),
-            event(3, EventPayload::ArtifactCreated { artifact: ArtifactSummary { artifact_id: "artifact_1".to_string() } }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                2,
+                EventPayload::ArtifactCreated {
+                    artifact: ArtifactSummary {
+                        artifact_id: "artifact_1".to_string(),
+                    },
+                },
+            ),
+            event(
+                3,
+                EventPayload::ArtifactCreated {
+                    artifact: ArtifactSummary {
+                        artifact_id: "artifact_1".to_string(),
+                    },
+                },
+            ),
         ];
 
         let state = replay_run_state(&events).expect("replay should pass");
@@ -300,15 +440,24 @@ mod tests {
     #[test]
     fn records_audit_posture() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::AuditPostureUpdated {
-                trust: TrustUpdate {
-                    posture: Some("strong".to_string()),
-                    score: Some(91.0),
-                    blocked: Some(false),
-                    reasons: Some(vec!["evidence complete".to_string()]),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
                 },
-            }),
+            ),
+            event(
+                2,
+                EventPayload::AuditPostureUpdated {
+                    trust: TrustUpdate {
+                        posture: Some("strong".to_string()),
+                        score: Some(91.0),
+                        blocked: Some(false),
+                        reasons: Some(vec!["evidence complete".to_string()]),
+                    },
+                },
+            ),
         ];
 
         let state = replay_run_state(&events).expect("replay should pass");
@@ -328,7 +477,12 @@ mod tests {
 
     #[test]
     fn rejects_missing_creation_event() {
-        let events = vec![event(1, EventPayload::RunStarted { status: "running".to_string() })];
+        let events = vec![event(
+            1,
+            EventPayload::RunStarted {
+                status: "running".to_string(),
+            },
+        )];
         let err = replay_run_state(&events).expect_err("missing run.created should fail");
         assert!(matches!(err, ReplayError::MissingCreationEvent));
     }
@@ -336,8 +490,19 @@ mod tests {
     #[test]
     fn rejects_sequence_gap() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(3, EventPayload::RunStarted { status: "running".to_string() }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                3,
+                EventPayload::RunStarted {
+                    status: "running".to_string(),
+                },
+            ),
         ];
         let err = replay_run_state(&events).expect_err("sequence gap should fail");
         assert!(matches!(err, ReplayError::SequenceGap { .. }));
@@ -346,26 +511,49 @@ mod tests {
     #[test]
     fn produces_same_state_for_unsorted_input() {
         let ordered = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::RunStarted { status: "running".to_string() }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                2,
+                EventPayload::RunStarted {
+                    status: "running".to_string(),
+                },
+            ),
         ];
         let unordered = vec![ordered[1].clone(), ordered[0].clone()];
 
         let a = replay_run_state(&ordered).expect("ordered replay should pass");
         let b = replay_run_state(&unordered).expect("unordered replay should pass");
 
-        assert_eq!(serde_json::to_value(a).unwrap(), serde_json::to_value(b).unwrap());
+        assert_eq!(
+            serde_json::to_value(a).unwrap(),
+            serde_json::to_value(b).unwrap()
+        );
     }
 
     #[test]
     fn rejects_illegal_transition() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::RunStateChanged {
-                previous_status: "created".to_string(),
-                current_status: "completed".to_string(),
-                reason: Some("invalid direct completion".to_string()),
-            }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                2,
+                EventPayload::RunStateChanged {
+                    previous_status: "created".to_string(),
+                    current_status: "completed".to_string(),
+                    reason: Some("invalid direct completion".to_string()),
+                },
+            ),
         ];
         let err = replay_run_state(&events).expect_err("illegal transition should fail");
         assert!(matches!(err, ReplayError::IllegalTransition { .. }));
@@ -374,12 +562,21 @@ mod tests {
     #[test]
     fn rejects_unknown_status() {
         let events = vec![
-            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
-            event(2, EventPayload::RunStateChanged {
-                previous_status: "created".to_string(),
-                current_status: "teleported".to_string(),
-                reason: None,
-            }),
+            event(
+                1,
+                EventPayload::RunCreated {
+                    status: "created".to_string(),
+                    title: None,
+                },
+            ),
+            event(
+                2,
+                EventPayload::RunStateChanged {
+                    previous_status: "created".to_string(),
+                    current_status: "teleported".to_string(),
+                    reason: None,
+                },
+            ),
         ];
         let err = replay_run_state(&events).expect_err("unknown status should fail");
         assert!(matches!(err, ReplayError::UnknownStatus { .. }));

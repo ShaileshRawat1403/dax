@@ -8,8 +8,7 @@ fn load_events(name: &str) -> Vec<RunEvent> {
         .join(format!("{name}.events.json"));
     let raw = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("cannot read fixture {name}: {e}"));
-    serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("cannot parse fixture {name}: {e}"))
+    serde_json::from_str(&raw).unwrap_or_else(|e| panic!("cannot parse fixture {name}: {e}"))
 }
 
 fn load_golden(name: &str) -> serde_json::Value {
@@ -17,16 +16,15 @@ fn load_golden(name: &str) -> serde_json::Value {
         .join("fixtures")
         .join("golden")
         .join(format!("{name}.state.json"));
-    let raw = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("cannot read golden {name}: {e}"));
-    serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("cannot parse golden {name}: {e}"))
+    let raw =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read golden {name}: {e}"));
+    serde_json::from_str(&raw).unwrap_or_else(|e| panic!("cannot parse golden {name}: {e}"))
 }
 
 fn assert_golden(fixture: &str) {
     let events = load_events(fixture);
-    let state = replay_run_state(&events)
-        .unwrap_or_else(|e| panic!("replay failed for {fixture}: {e}"));
+    let state =
+        replay_run_state(&events).unwrap_or_else(|e| panic!("replay failed for {fixture}: {e}"));
     let actual = serde_json::to_value(&state)
         .unwrap_or_else(|e| panic!("serialization failed for {fixture}: {e}"));
     let expected = load_golden(fixture);

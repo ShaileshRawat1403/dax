@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", content = "payload")]
 pub enum EventPayload {
     #[serde(rename = "run.created")]
-    RunCreated { status: String, title: Option<String> },
+    RunCreated {
+        status: String,
+        title: Option<String>,
+    },
 
     #[serde(rename = "run.started")]
     RunStarted { status: String },
@@ -27,10 +30,7 @@ pub enum EventPayload {
     },
 
     #[serde(rename = "run.failed")]
-    RunFailed {
-        status: String,
-        error: EventError,
-    },
+    RunFailed { status: String, error: EventError },
 
     #[serde(rename = "step.proposed")]
     StepProposed {
@@ -66,9 +66,7 @@ pub enum EventPayload {
     },
 
     #[serde(rename = "approval.requested")]
-    ApprovalRequested {
-        approval: ApprovalSummary,
-    },
+    ApprovalRequested { approval: ApprovalSummary },
 
     #[serde(rename = "approval.resolved")]
     ApprovalResolved {
@@ -80,14 +78,10 @@ pub enum EventPayload {
     },
 
     #[serde(rename = "artifact.created")]
-    ArtifactCreated {
-        artifact: ArtifactSummary,
-    },
+    ArtifactCreated { artifact: ArtifactSummary },
 
     #[serde(rename = "audit.posture_updated")]
-    AuditPostureUpdated {
-        trust: TrustUpdate,
-    },
+    AuditPostureUpdated { trust: TrustUpdate },
 
     #[serde(rename = "intent.created")]
     IntentCreated {
