@@ -1177,9 +1177,55 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           type: "oauth" as const,
           label: "Sign in with Google",
           description:
-            "Sign in with your Google account using a secure browser flow.\n" +
-            "Works with Gemini free tier, Pro, and Plus subscriptions — no CLI required.\n" +
-            "If the `gemini` CLI is already running, your session will be detected automatically.",
+            "Sign in directly with your Google account using a secure browser flow.\n" +
+            "Works with Gemini free tier, Pro, and Plus subscriptions — no CLI install required.",
+          async authorize() {
+            const clientID = getGoogleCliClientId()
+            const clientSecret = getGoogleCliClientSecret()
+
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            const state = generateState()
+            const pkce = await generatePKCE()
+            return {
+              method: "auto" as const,
+              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID, "compat"),
+              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
+              async callback() {
+                const code = await waitForOAuthCode(state)
+                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
+                if (!token.access_token) throw new Error("Token response missing access_token")
+                const health = await checkTokenHealth(token.access_token)
+                if (!health.ok) {
+                  if (health.reason === "scope_missing")
+                    throw new Error(
+                      "Google account token is missing required scopes (cloud-platform, peruserquota, or retriever.readonly).",
+                    )
+                  if (health.reason === "token_expired")
+                    throw new Error("Token expired during verification. Retry sign-in.")
+                  throw new Error(`Token verification failed: ${health.reason}`)
+                }
+                const current = await readCreds()
+                return {
+                  type: "success" as const,
+                  access: token.access_token,
+                  refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                  clientID,
+                  clientSecret,
+                  accountId: health.email,
+                  mode: "codeassist" as const,
+                }
+              },
+            }
+          },
+        },
+        {
+          type: "oauth" as const,
+          label: "Import from Gemini CLI",
+          description:
+            "Sign in with Google or import your existing `gemini` CLI session — whichever completes first.\n" +
+            "Use this if you already have the Gemini CLI running and want to reuse that login.",
           async authorize() {
             const baseline = await readCliCreds()
             const clientID = getGoogleCliClientId()
@@ -1195,12 +1241,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               method: "auto" as const,
               url: signInUrl,
               instructions:
-                "Click the link to sign in with your Google account, or run `gemini` in a terminal — DAX will detect your session automatically.",
+                "Sign in with Google in your browser, or run `gemini` in a terminal — DAX will accept whichever completes first.",
               async callback() {
                 const winner = await raceGoogleAuth(webState, baseline, WAIT_MS)
                 if (!winner) return { type: "failed" as const }
 
-                // Web browser OAuth completed first
                 if (winner.source === "web") {
                   const token = await exchangeCodeForTokens(winner.code, redirectURI, pkce, clientID, clientSecret)
                   if (!token.access_token) return { type: "failed" as const }
@@ -1227,7 +1272,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   }
                 }
 
-                // Gemini CLI credentials file detected first
+                // CLI credentials file detected
                 const creds = winner.creds
                 let access = creds.access
                 let expires = creds.expires ?? 0
@@ -1252,7 +1297,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing")
                     throw new Error(
-                      "Imported Gemini CLI session is missing required scopes. Sign in with Google above instead.",
+                      "Imported Gemini CLI session is missing required scopes. Use 'Sign in with Google' instead.",
                     )
                   if (health.reason === "token_expired") throw importedGeminiCliExpiredError()
                   throw new Error(`Token validation failed: ${health.reason}`)
