@@ -202,6 +202,49 @@ export function onGeminiReauthRequired(cb: (url: string) => void): () => void {
   return () => _reauthUrlCallbacks.delete(cb)
 }
 
+type AuthRaceWinner = { source: "web"; code: string } | { source: "cli"; creds: OAuthCreds }
+
+/**
+ * Race a web OAuth code arrival against CLI credentials file detection.
+ * Returns the first valid result, or null if neither completes within timeoutMs.
+ */
+async function raceGoogleAuth(
+  webState: string,
+  baseline: OAuthCreds | undefined,
+  timeoutMs: number,
+): Promise<AuthRaceWinner | null> {
+  return new Promise<AuthRaceWinner | null>((resolve) => {
+    let done = false
+    const finish = (result: AuthRaceWinner | null) => {
+      if (done) return
+      done = true
+      resolve(result)
+    }
+
+    const webTimer = setInterval(() => {
+      const code = oauthCode.get(webState)
+      if (code) {
+        oauthCode.delete(webState)
+        clearInterval(webTimer)
+        finish({ source: "web", code })
+      }
+    }, 400)
+
+    waitForCliImportCreds({ baseline, timeoutMs }).then((creds) => {
+      if (creds?.refresh) {
+        clearInterval(webTimer)
+        oauthCode.delete(webState)
+        finish({ source: "cli", creds })
+      }
+    })
+
+    setTimeout(() => {
+      clearInterval(webTimer)
+      finish(null)
+    }, timeoutMs)
+  })
+}
+
 /**
  * Start a background web OAuth flow to renew an expired CLI session.
  * Returns the sign-in URL immediately and a promise for the new token.
@@ -1131,35 +1174,74 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           },
         },
         {
-          type: "oauth",
-          label: "Import from Gemini CLI",
-          description: "Use your existing `gemini` CLI login for Gemini Pro or Plus subscription access.",
+          type: "oauth" as const,
+          label: "Sign in with Google",
+          description:
+            "Sign in with your Google account using a secure browser flow.\n" +
+            "Works with Gemini free tier, Pro, and Plus subscriptions — no CLI required.\n" +
+            "If the `gemini` CLI is already running, your session will be detected automatically.",
           async authorize() {
             const baseline = await readCliCreds()
+            const clientID = getGoogleCliClientId()
+            const clientSecret = getGoogleCliClientSecret()
+
+            const redirectURI = await startOAuthServer()
+            oauthCode.clear()
+            const webState = generateState()
+            const pkce = await generatePKCE()
+            const signInUrl = buildGoogleAuthorizeURL(redirectURI, webState, pkce, clientID, "compat")
+
             return {
               method: "auto" as const,
-              url: GEMINI_OAUTH_DOC,
+              url: signInUrl,
               instructions:
-                "Run `gemini` and finish Google login, then wait here while DAX connects your Gemini subscription session.",
+                "Click the link to sign in with your Google account, or run `gemini` in a terminal — DAX will detect your session automatically.",
               async callback() {
-                const creds = await waitForCliImportCreds({ baseline })
-                if (!creds?.refresh) return { type: "failed" as const }
+                const winner = await raceGoogleAuth(webState, baseline, WAIT_MS)
+                if (!winner) return { type: "failed" as const }
+
+                // Web browser OAuth completed first
+                if (winner.source === "web") {
+                  const token = await exchangeCodeForTokens(winner.code, redirectURI, pkce, clientID, clientSecret)
+                  if (!token.access_token) return { type: "failed" as const }
+                  const health = await checkTokenHealth(token.access_token)
+                  if (!health.ok) {
+                    if (health.reason === "scope_missing")
+                      throw new Error(
+                        "Google account token is missing required scopes (cloud-platform, peruserquota, or retriever.readonly).",
+                      )
+                    if (health.reason === "token_expired")
+                      throw new Error("Token expired during verification. Retry sign-in.")
+                    throw new Error(`Token verification failed: ${health.reason}`)
+                  }
+                  const current = await readCreds()
+                  return {
+                    type: "success" as const,
+                    access: token.access_token,
+                    refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
+                    expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+                    clientID,
+                    clientSecret,
+                    accountId: health.email,
+                    mode: "codeassist" as const,
+                  }
+                }
+
+                // Gemini CLI credentials file detected first
+                const creds = winner.creds
                 let access = creds.access
                 let expires = creds.expires ?? 0
-
                 let health = access ? await checkTokenHealth(access) : { ok: false, reason: "token_expired" as const }
 
                 if (!health.ok && health.reason === "token_expired") {
                   if (!creds.clientID || !creds.clientSecret) {
-                    const renewed = await refreshGoogleToken(creds.refresh)
-                    if (!renewed?.access) {
-                      throw importedGeminiCliExpiredError()
-                    }
+                    const renewed = await refreshGoogleToken(creds.refresh!)
+                    if (!renewed?.access) throw importedGeminiCliExpiredError()
                     access = renewed.access
                     expires = renewed.expires
                     health = await checkTokenHealth(access)
                   } else {
-                    const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
+                    const renewed = await refreshGoogleToken(creds.refresh!, creds.clientID, creds.clientSecret)
                     if (!renewed?.access) return { type: "failed" as const }
                     access = renewed.access
                     expires = renewed.expires
@@ -1168,11 +1250,10 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 }
 
                 if (!health.ok) {
-                  if (health.reason === "scope_missing") {
+                  if (health.reason === "scope_missing")
                     throw new Error(
-                      "Your imported Gemini CLI session is missing the scopes DAX needs. Use `Gemini API Key`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`. For gcloud credentials, use the Vertex provider.",
+                      "Imported Gemini CLI session is missing required scopes. Sign in with Google above instead.",
                     )
-                  }
                   if (health.reason === "token_expired") throw importedGeminiCliExpiredError()
                   throw new Error(`Token validation failed: ${health.reason}`)
                 }
@@ -1180,62 +1261,12 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 return {
                   type: "success" as const,
                   access: access!,
-                  refresh: creds.refresh,
+                  refresh: creds.refresh!,
                   expires: expires || Date.now() + 30 * 60 * 1000,
                   clientID: creds.clientID,
                   clientSecret: creds.clientSecret,
                   accountId: health.email,
                   mode: "cli-import" as const,
-                }
-              },
-            }
-          },
-        },
-        {
-          type: "oauth" as const,
-          label: "Google Code Assist / Pro-Plus Sign-In",
-          description:
-            "Sign in directly with your Google account for Gemini Pro or Plus subscriptions.\n" +
-            "Uses a secure browser flow — no CLI install required.",
-          async authorize() {
-            const clientID = getGoogleCliClientId()
-            const clientSecret = getGoogleCliClientSecret()
-
-            const redirectURI = await startOAuthServer()
-            oauthCode.clear()
-            const state = generateState()
-            const pkce = await generatePKCE()
-            return {
-              method: "auto" as const,
-              url: buildGoogleAuthorizeURL(redirectURI, state, pkce, clientID, "compat"),
-              instructions: "Complete sign-in in your browser. DAX will detect the localhost redirect automatically.",
-              async callback() {
-                const code = await waitForOAuthCode(state)
-                const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
-
-                if (!token.access_token) throw new Error("Token response missing access_token")
-
-                const health = await checkTokenHealth(token.access_token)
-                if (!health.ok) {
-                  if (health.reason === "scope_missing")
-                    throw new Error(
-                      "Google account token is missing required scopes (cloud-platform, peruserquota, or retriever.readonly).",
-                    )
-                  if (health.reason === "token_expired")
-                    throw new Error("Token expired during verification. Retry sign-in.")
-                  throw new Error(`Token verification failed: ${health.reason}`)
-                }
-
-                const current = await readCreds()
-                return {
-                  type: "success" as const,
-                  access: token.access_token,
-                  refresh: token.refresh_token ?? current?.refresh ?? `${ACCESS_ONLY_PREFIX}${Date.now()}`,
-                  expires: Date.now() + (token.expires_in ?? 3600) * 1000,
-                  clientID,
-                  clientSecret,
-                  accountId: health.email,
-                  mode: "codeassist" as const,
                 }
               },
             }
