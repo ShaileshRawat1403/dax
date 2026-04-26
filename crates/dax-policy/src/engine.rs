@@ -49,9 +49,10 @@ pub fn evaluate(request: &PolicyRequest) -> PolicyDecision {
         (ActionClass::Analyze, RiskLevel::Low)
     };
 
-    // Path zone risk
+    // Path zone risk — blocklist entries act as custom forbidden patterns;
+    // sensitive_paths entries act as custom sensitive patterns.
     let path_risk = action.path.as_deref().or(action.cwd.as_deref()).map(|p| {
-        let zone = classify_path_zone(p, &ctx.blocklist, &[]);
+        let zone = classify_path_zone(p, &ctx.blocklist, &ctx.sensitive_paths);
         match zone {
             PathZone::Forbidden => RiskLevel::Critical,
             PathZone::Sensitive => RiskLevel::High,
@@ -63,7 +64,7 @@ pub fn evaluate(request: &PolicyRequest) -> PolicyDecision {
 
     // Forbidden path → immediate deny
     if let Some(p) = action.path.as_deref().or(action.cwd.as_deref()) {
-        let zone = classify_path_zone(p, &ctx.blocklist, &[]);
+        let zone = classify_path_zone(p, &ctx.blocklist, &ctx.sensitive_paths);
         if zone == PathZone::Forbidden {
             return PolicyDecision::deny(
                 RiskLevel::Critical,
@@ -97,23 +98,36 @@ pub fn evaluate(request: &PolicyRequest) -> PolicyDecision {
         _ => base_risk,
     };
 
-    // Allowlist check — skip approval gate if explicitly allowed
-    for allowed in &ctx.allowlist {
-        let allowed_lower = allowed.to_lowercase();
-        if let Some(cmd) = &action.command {
-            if cmd.to_lowercase().contains(&allowed_lower) {
-                return PolicyDecision::allow(
-                    effective_risk,
-                    format!("command matches allowlist: {allowed}"),
-                );
-            }
+    // Allowlist check — can bypass ask but never bypass deny.
+    // A profile-level deny (strict: high/critical, standard/permissive: critical)
+    // cannot be overridden by allowlist. Allowlist only lifts ask gates.
+    let profile_would_deny = match ctx.profile {
+        PolicyProfile::Strict => {
+            matches!(effective_risk, RiskLevel::High | RiskLevel::Critical)
         }
-        if let Some(tool) = &action.tool {
-            if tool.to_lowercase().contains(&allowed_lower) {
-                return PolicyDecision::allow(
-                    effective_risk,
-                    format!("tool matches allowlist: {allowed}"),
-                );
+        PolicyProfile::Standard | PolicyProfile::Permissive => {
+            matches!(effective_risk, RiskLevel::Critical)
+        }
+    };
+
+    if !profile_would_deny {
+        for allowed in &ctx.allowlist {
+            let allowed_lower = allowed.to_lowercase();
+            if let Some(cmd) = &action.command {
+                if cmd.to_lowercase().contains(&allowed_lower) {
+                    return PolicyDecision::allow(
+                        effective_risk,
+                        format!("command matches allowlist: {allowed}"),
+                    );
+                }
+            }
+            if let Some(tool) = &action.tool {
+                if tool.to_lowercase().contains(&allowed_lower) {
+                    return PolicyDecision::allow(
+                        effective_risk,
+                        format!("tool matches allowlist: {allowed}"),
+                    );
+                }
             }
         }
     }
@@ -250,6 +264,7 @@ mod tests {
                 allowlist,
                 blocklist,
                 avoid_areas,
+                sensitive_paths: Vec::new(),
                 budget,
             },
         }
@@ -383,5 +398,48 @@ mod tests {
         );
         let d = evaluate(&req);
         assert_eq!(d.decision, Decision::Allow);
+    }
+
+    #[test]
+    fn allowlist_cannot_bypass_deny() {
+        // git push = Publish = Critical; Standard profile denies Critical regardless of allowlist
+        let req = make_request(
+            "command",
+            Some("git push origin main"),
+            None,
+            None,
+            PolicyProfile::Standard,
+            vec!["git push".to_string()],
+            vec![],
+            vec![],
+            PolicyBudget::default(),
+        );
+        let d = evaluate(&req);
+        assert_eq!(d.decision, Decision::Deny);
+        assert_eq!(d.risk, RiskLevel::Critical);
+    }
+
+    #[test]
+    fn sensitive_paths_escalate_to_ask() {
+        // /project/internal/secrets.json is not in the built-in sensitive list
+        // but with a custom sensitive_paths entry it should escalate to high risk / ask
+        let req = PolicyRequest {
+            session_id: "test-custom-sensitive".to_string(),
+            action: PolicyAction {
+                action_type: "tool".to_string(),
+                command: None,
+                path: Some("/project/internal/secrets.json".to_string()),
+                tool: Some("read_file".to_string()),
+                cwd: None,
+            },
+            context: PolicyContext {
+                profile: PolicyProfile::Standard,
+                sensitive_paths: vec!["internal/secrets".to_string()],
+                ..Default::default()
+            },
+        };
+        let d = evaluate(&req);
+        assert_eq!(d.decision, Decision::Ask);
+        assert_eq!(d.risk, RiskLevel::High);
     }
 }

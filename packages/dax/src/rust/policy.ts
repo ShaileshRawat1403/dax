@@ -32,6 +32,8 @@ export type DaxPolicyContext = {
   allowlist?: string[]
   blocklist?: string[]
   avoid_areas?: string[]
+  /** Custom path substrings that elevate zone to Sensitive (high risk / ask). */
+  sensitive_paths?: string[]
   budget?: Partial<DaxPolicyBudget>
 }
 

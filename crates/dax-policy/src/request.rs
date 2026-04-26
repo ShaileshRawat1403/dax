@@ -56,6 +56,10 @@ pub struct PolicyContext {
     pub blocklist: Vec<String>,
     #[serde(default)]
     pub avoid_areas: Vec<String>,
+    /// Custom path substrings that elevate zone classification to Sensitive.
+    /// Blocklist entries elevate paths to Forbidden; sensitive_paths elevate to Sensitive.
+    #[serde(default)]
+    pub sensitive_paths: Vec<String>,
     #[serde(default)]
     pub budget: PolicyBudget,
 }

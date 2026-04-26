@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { evaluatePolicyWithRust, type DaxPolicyRequest } from "./policy"
+import {
+  evaluatePolicyWithRust,
+  type DaxPolicyDecision,
+  type DaxPolicyRequest,
+  type DaxPolicyRisk,
+} from "./policy"
 
 const DEFAULT_BUDGET = {
   total_allowed: 8,
@@ -15,7 +20,7 @@ const DEFAULT_BUDGET = {
 const CANONICAL_SCENARIOS: Array<{
   name: string
   request: DaxPolicyRequest
-  expected: { decision: string; risk: string }
+  expected: { decision: DaxPolicyDecision; risk: DaxPolicyRisk }
 }> = [
   {
     name: "allow: read_file on repo-safe path (standard)",
@@ -110,18 +115,36 @@ const CANONICAL_SCENARIOS: Array<{
     },
     expected: { decision: "allow", risk: "low" },
   },
+  {
+    name: "deny: allowlist cannot bypass critical deny (git push, standard)",
+    request: {
+      session_id: "parity-deny-allowlist-critical",
+      action: { type: "command", command: "git push origin main" },
+      context: { profile: "standard", allowlist: ["git push"], budget: DEFAULT_BUDGET },
+    },
+    expected: { decision: "deny", risk: "critical" },
+  },
+  {
+    name: "ask: custom sensitive_paths escalates safe path to high risk",
+    request: {
+      session_id: "parity-ask-custom-sensitive",
+      action: { type: "tool", tool: "read_file", path: "/project/internal/secrets.json" },
+      context: { profile: "standard", sensitive_paths: ["internal/secrets"], budget: DEFAULT_BUDGET },
+    },
+    expected: { decision: "ask", risk: "high" },
+  },
 ]
 
-describe(
-  "policy parity: Rust engine matches canonical decisions",
-  () => {
-    for (const { name, request, expected } of CANONICAL_SCENARIOS) {
-      test(name, async () => {
+describe("policy parity: Rust engine matches canonical decisions", () => {
+  for (const { name, request, expected } of CANONICAL_SCENARIOS) {
+    test(
+      name,
+      async () => {
         const result = await evaluatePolicyWithRust(request)
-        expect(result.decision, `decision mismatch for "${name}"`).toBe(expected.decision)
-        expect(result.risk, `risk mismatch for "${name}"`).toBe(expected.risk)
-      })
-    }
-  },
-  { timeout: 120_000 },
-)
+        expect(result.decision).toBe(expected.decision)
+        expect(result.risk).toBe(expected.risk)
+      },
+      120_000,
+    )
+  }
+})
