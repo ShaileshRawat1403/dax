@@ -1,0 +1,34 @@
+{
+  "runId": "run_failed",
+  "contractId": "unknown_contract",
+  "status": "failed",
+  "currentStepId": null,
+  "steps": [
+    {
+      "stepId": "step_1",
+      "title": "Run integration tests",
+      "type": "proposed",
+      "status": "failed",
+      "startedAt": "2026-04-26T12:00:03Z",
+      "completedAt": "2026-04-26T12:00:05Z",
+      "error": {
+        "code": "TEST_FAILURE",
+        "message": "2 tests failed",
+        "retryable": false
+      },
+      "outputs": []
+    }
+  ],
+  "pendingApprovalIds": [],
+  "artifactIds": [],
+  "trust": null,
+  "error": {
+    "code": "STEP_FAILURE",
+    "message": "Step step_1 failed: 2 tests failed",
+    "retryable": false
+  },
+  "createdAt": "2026-04-26T12:00:00Z",
+  "updatedAt": "2026-04-26T12:00:06Z",
+  "startedAt": "2026-04-26T12:00:01Z",
+  "completedAt": "2026-04-26T12:00:06Z"
+}

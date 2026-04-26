@@ -48,8 +48,25 @@ jobs:
         if: runner.os != 'Windows'
         run: bun run guard:legacy
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
       - name: Typecheck
         run: bun run typecheck:dax
 
       - name: Test
         run: bun run test --coverage
+
+      - name: Rust fmt
+        run: cargo fmt --all -- --check
+
+      - name: Rust clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust test
+        run: cargo test --workspace

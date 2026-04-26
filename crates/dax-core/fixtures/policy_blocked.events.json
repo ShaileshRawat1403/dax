@@ -1,0 +1,45 @@
+[
+  {
+    "eventId": "evt_1",
+    "sequence": 1,
+    "cursor": "c1",
+    "runId": "run_blocked",
+    "timestamp": "2026-04-26T13:00:00Z",
+    "type": "run.created",
+    "payload": { "status": "created" }
+  },
+  {
+    "eventId": "evt_2",
+    "sequence": 2,
+    "cursor": "c2",
+    "runId": "run_blocked",
+    "timestamp": "2026-04-26T13:00:01Z",
+    "type": "run.started",
+    "payload": { "status": "running" }
+  },
+  {
+    "eventId": "evt_3",
+    "sequence": 3,
+    "cursor": "c3",
+    "runId": "run_blocked",
+    "timestamp": "2026-04-26T13:00:02Z",
+    "type": "audit.posture_updated",
+    "payload": {
+      "trust": {
+        "posture": "low",
+        "score": 12.0,
+        "blocked": true,
+        "reasons": ["budget exceeded", "sensitive path touched without approval"]
+      }
+    }
+  },
+  {
+    "eventId": "evt_4",
+    "sequence": 4,
+    "cursor": "c4",
+    "runId": "run_blocked",
+    "timestamp": "2026-04-26T13:00:03Z",
+    "type": "run.state_changed",
+    "payload": { "previousStatus": "running", "currentStatus": "cancelled", "reason": "policy block: budget exceeded" }
+  }
+]
