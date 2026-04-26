@@ -45,14 +45,14 @@ async function readCreds(): Promise<{ access: string; refresh?: string } | null>
 }
 
 async function refreshToken(refreshToken: string): Promise<{ access: string; refresh?: string } | null> {
-  const GOOGLE_CLI_CLIENT_ID = "764086051750-76sqf96j9pjkndisqve66smditp53m6j.apps.googleusercontent.com"
+  const clientID = process.env.DAX_GOOGLE_CLI_CLIENT_ID ?? process.env.GEMINI_OAUTH_CLIENT_ID
   const clientSecret = process.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? process.env.GEMINI_OAUTH_CLIENT_SECRET
-  if (!clientSecret) {
-    console.warn("[creds] no client secret available for refresh, set DAX_GOOGLE_CLI_CLIENT_SECRET")
+  if (!clientID || !clientSecret) {
+    console.warn("[creds] set DAX_GOOGLE_CLI_CLIENT_ID and DAX_GOOGLE_CLI_CLIENT_SECRET to enable token refresh")
     return null
   }
   const body = new URLSearchParams({
-    client_id: GOOGLE_CLI_CLIENT_ID,
+    client_id: clientID,
     client_secret: clientSecret,
     refresh_token: refreshToken,
     grant_type: "refresh_token",

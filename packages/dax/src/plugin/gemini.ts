@@ -22,11 +22,10 @@ const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
-// Google's official OAuth credentials for direct sign-in (Pro/Plus)
-// Set via environment variables: DAX_GOOGLE_CLI_CLIENT_ID, DAX_GOOGLE_CLI_CLIENT_SECRET
-const GOOGLE_CLOUD_SDK_CLIENT_ID = "764086051750-76sqf96j9pjkndisqve66smditp53m6j.apps.googleusercontent.com"
-const getGoogleCliClientId = () =>
-  Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID ?? GOOGLE_CLOUD_SDK_CLIENT_ID
+// No credentials are hardcoded. Set DAX_GOOGLE_CLI_CLIENT_ID + DAX_GOOGLE_CLI_CLIENT_SECRET
+// (or GEMINI_OAUTH_CLIENT_ID + GEMINI_OAUTH_CLIENT_SECRET) for "Sign in with Google".
+// CLI import reads credentials directly from ~/.gemini/oauth_creds.json.
+const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
 
 let cachedCloudCodeProjectId: string | undefined = undefined
@@ -250,7 +249,7 @@ async function raceGoogleAuth(
  * Returns the sign-in URL immediately and a promise for the new token.
  * Deduplicates: if a flow is already in progress, returns the same state.
  */
-async function beginWebOAuthRefresh(): Promise<{
+async function beginWebOAuthRefresh(clientID: string, clientSecret: string | undefined): Promise<{
   url: string
   tokens: Promise<{ access: string; expires: number; refresh?: string } | null>
 } | null> {
@@ -268,8 +267,6 @@ async function beginWebOAuthRefresh(): Promise<{
   oauthCode.clear()
   const reauthState = generateState()
   const pkce = await generatePKCE()
-  const clientID = getGoogleCliClientId()
-  const clientSecret = getGoogleCliClientSecret()
   _webReauthUrl = buildGoogleAuthorizeURL(redirectURI, reauthState, pkce, clientID, "compat")
 
   for (const cb of _reauthUrlCallbacks) {
@@ -410,9 +407,10 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
   const [stored, file] = await Promise.all([getAuth(), readCreds()])
   const oauth = stored?.type === "oauth" ? stored : undefined
 
-  // Prefer explicitly stored non-import lanes so a freshly completed custom
-  // or Code Assist sign-in is not unexpectedly replaced by external CLI files.
-  if (oauth?.refresh && oauth.mode && oauth.mode !== "cli-import") {
+  // Prefer stored creds over CLI file unless the stored record is explicitly
+  // cli-import. This also handles mode === undefined (mode was not saved by an
+  // older version) — stored creds with a clientID/clientSecret are trustworthy.
+  if (oauth?.refresh && oauth.mode !== "cli-import") {
     return oauth
   }
 
@@ -793,28 +791,32 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 renewed = await refreshStoredGoogleAccess(fresh, refresh)
               } catch (err) {
                 if (err instanceof GeminiCliSessionExpiredError) {
-                  const reauth = await beginWebOAuthRefresh()
-                  if (reauth) {
-                    reauth.tokens
-                      .then(async (result) => {
-                        if (!result?.access) return
-                        await input.client.auth.set({
-                          providerID: "google",
-                          auth: {
-                            type: "oauth",
-                            access: result.access,
-                            refresh: result.refresh ?? fresh?.refresh ?? refresh,
-                            expires: result.expires,
-                            clientID: getGoogleCliClientId(),
-                            clientSecret: getGoogleCliClientSecret(),
-                            mode: "codeassist",
-                          } as any,
+                  const reauthClientID = fresh?.clientID ?? getGoogleCliClientId()
+                  const reauthClientSecret = fresh?.clientSecret ?? getGoogleCliClientSecret()
+                  if (reauthClientID) {
+                    const reauth = await beginWebOAuthRefresh(reauthClientID, reauthClientSecret)
+                    if (reauth) {
+                      reauth.tokens
+                        .then(async (result) => {
+                          if (!result?.access) return
+                          await input.client.auth.set({
+                            providerID: "google",
+                            auth: {
+                              type: "oauth",
+                              access: result.access,
+                              refresh: result.refresh ?? fresh?.refresh ?? refresh,
+                              expires: result.expires,
+                              clientID: reauthClientID,
+                              clientSecret: reauthClientSecret,
+                              mode: "codeassist",
+                            } as any,
+                          })
                         })
-                      })
-                      .catch(() => {})
-                    throw new Error(
-                      `Gemini session expired. Sign in to renew:\n${reauth.url}\n\nOnce signed in, send your message again.`,
-                    )
+                        .catch(() => {})
+                      throw new Error(
+                        `Gemini session expired. Sign in to renew:\n${reauth.url}\n\nOnce signed in, send your message again.`,
+                      )
+                    }
                   }
                 }
                 throw err
@@ -1044,28 +1046,32 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 renewed = await refreshStoredGoogleAccess(fresh, refresh)
               } catch (err) {
                 if (err instanceof GeminiCliSessionExpiredError) {
-                  const reauth = await beginWebOAuthRefresh()
-                  if (reauth) {
-                    reauth.tokens
-                      .then(async (result) => {
-                        if (!result?.access) return
-                        await input.client.auth.set({
-                          providerID: "google",
-                          auth: {
-                            type: "oauth",
-                            access: result.access,
-                            refresh: result.refresh ?? fresh?.refresh ?? refresh,
-                            expires: result.expires,
-                            clientID: getGoogleCliClientId(),
-                            clientSecret: getGoogleCliClientSecret(),
-                            mode: "codeassist",
-                          } as any,
+                  const reauthClientID = fresh?.clientID ?? getGoogleCliClientId()
+                  const reauthClientSecret = fresh?.clientSecret ?? getGoogleCliClientSecret()
+                  if (reauthClientID) {
+                    const reauth = await beginWebOAuthRefresh(reauthClientID, reauthClientSecret)
+                    if (reauth) {
+                      reauth.tokens
+                        .then(async (result) => {
+                          if (!result?.access) return
+                          await input.client.auth.set({
+                            providerID: "google",
+                            auth: {
+                              type: "oauth",
+                              access: result.access,
+                              refresh: result.refresh ?? fresh?.refresh ?? refresh,
+                              expires: result.expires,
+                              clientID: reauthClientID,
+                              clientSecret: reauthClientSecret,
+                              mode: "codeassist",
+                            } as any,
+                          })
                         })
-                      })
-                      .catch(() => {})
-                    throw new Error(
-                      `Gemini session expired. Sign in to renew:\n${reauth.url}\n\nOnce signed in, send your message again.`,
-                    )
+                        .catch(() => {})
+                      throw new Error(
+                        `Gemini session expired. Sign in to renew:\n${reauth.url}\n\nOnce signed in, send your message again.`,
+                      )
+                    }
                   }
                 }
                 throw err
@@ -1183,6 +1189,19 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const clientID = getGoogleCliClientId()
             const clientSecret = getGoogleCliClientSecret()
 
+            if (!clientID || !clientSecret) {
+              throw new Error(
+                "Google OAuth credentials are required for browser sign-in.\n\n" +
+                  "Set these environment variables and restart DAX:\n" +
+                  "  DAX_GOOGLE_CLI_CLIENT_ID=<your-client-id>\n" +
+                  "  DAX_GOOGLE_CLI_CLIENT_SECRET=<your-client-secret>\n\n" +
+                  "Create an OAuth 2.0 Desktop-app client at:\n" +
+                  "  https://console.cloud.google.com/apis/credentials\n\n" +
+                  "Or use 'Import from Gemini CLI' if you have the Gemini CLI installed,\n" +
+                  "or use 'Custom Google OAuth Client' to provide credentials in-app.",
+              )
+            }
+
             const redirectURI = await startOAuthServer()
             oauthCode.clear()
             const state = generateState()
@@ -1228,8 +1247,50 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             "Use this if you already have the Gemini CLI running and want to reuse that login.",
           async authorize() {
             const baseline = await readCliCreds()
-            const clientID = getGoogleCliClientId()
-            const clientSecret = getGoogleCliClientSecret()
+            // Prefer credentials from the user's CLI file — no hardcoded fallback.
+            // Falls back to env vars if the file lacks them (older CLI versions).
+            const clientID = baseline?.clientID ?? getGoogleCliClientId()
+            const clientSecret = baseline?.clientSecret ?? getGoogleCliClientSecret()
+
+            // If no credentials available at all, fall back to CLI-only waiting mode.
+            if (!clientID || !clientSecret) {
+              return {
+                method: "auto" as const,
+                url: GEMINI_OAUTH_DOC,
+                instructions:
+                  "Run `gemini` in a terminal to authenticate with Google, then return here.\n" +
+                  "DAX will detect the login automatically.",
+                async callback() {
+                  const creds = await waitForCliImportCreds({ baseline, timeoutMs: WAIT_MS })
+                  if (!creds?.refresh) return { type: "failed" as const }
+                  const access = creds.access
+                  const health = access ? await checkTokenHealth(access) : { ok: false, reason: "token_expired" as const }
+                  if (!health.ok && health.reason === "token_expired") {
+                    const renewed = await refreshGoogleToken(creds.refresh, creds.clientID, creds.clientSecret)
+                    if (!renewed?.access) return { type: "failed" as const }
+                    return {
+                      type: "success" as const,
+                      access: renewed.access,
+                      refresh: creds.refresh,
+                      expires: renewed.expires,
+                      clientID: creds.clientID,
+                      clientSecret: creds.clientSecret,
+                      mode: "cli-import" as const,
+                    }
+                  }
+                  if (!health.ok) return { type: "failed" as const }
+                  return {
+                    type: "success" as const,
+                    access: access!,
+                    refresh: creds.refresh,
+                    expires: creds.expires ?? Date.now() + 30 * 60 * 1000,
+                    clientID: creds.clientID,
+                    clientSecret: creds.clientSecret,
+                    mode: "cli-import" as const,
+                  }
+                },
+              }
+            }
 
             const redirectURI = await startOAuthServer()
             oauthCode.clear()
@@ -1347,8 +1408,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               customAuth?.clientID ||
               Bun.env.DAX_GEMINI_OAUTH_CLIENT_ID ||
               Bun.env.GEMINI_OAUTH_CLIENT_ID ||
-              GOOGLE_CLOUD_SDK_CLIENT_ID
-            const clientSecret = inputs.clientSecret || customAuth?.clientSecret
+              getGoogleCliClientId()
+            const clientSecret = inputs.clientSecret || customAuth?.clientSecret || getGoogleCliClientSecret()
 
             if (!clientID) {
               throw new Error(

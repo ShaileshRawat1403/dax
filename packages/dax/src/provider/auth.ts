@@ -134,15 +134,10 @@ export namespace ProviderAuth {
             refresh: result.refresh,
             expires: result.expires,
           }
-          if (result.accountId) {
-            info.accountId = result.accountId
-          }
-          if (result.clientID) {
-            info.clientID = result.clientID
-          }
-          if (result.clientSecret) {
-            info.clientSecret = result.clientSecret
-          }
+          if (result.accountId) info.accountId = result.accountId
+          if (result.clientID) info.clientID = result.clientID
+          if (result.clientSecret) info.clientSecret = result.clientSecret
+          if (result.mode) info.mode = result.mode
           await Auth.set(input.providerID, info)
         }
         return
