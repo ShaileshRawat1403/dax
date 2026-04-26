@@ -1,0 +1,63 @@
+[
+  {
+    "eventId": "evt_1",
+    "sequence": 1,
+    "cursor": "c1",
+    "runId": "run_failed",
+    "timestamp": "2026-04-26T12:00:00Z",
+    "type": "run.created",
+    "payload": { "status": "created" }
+  },
+  {
+    "eventId": "evt_2",
+    "sequence": 2,
+    "cursor": "c2",
+    "runId": "run_failed",
+    "timestamp": "2026-04-26T12:00:01Z",
+    "type": "run.started",
+    "payload": { "status": "running" }
+  },
+  {
+    "eventId": "evt_3",
+    "sequence": 3,
+    "cursor": "c3",
+    "runId": "run_failed",
+    "timestamp": "2026-04-26T12:00:02Z",
+    "type": "step.proposed",
+    "payload": { "stepId": "step_1", "title": "Run integration tests" }
+  },
+  {
+    "eventId": "evt_4",
+    "sequence": 4,
+    "cursor": "c4",
+    "runId": "run_failed",
+    "timestamp": "2026-04-26T12:00:03Z",
+    "type": "step.started",
+    "payload": { "stepId": "step_1", "title": "Run integration tests" }
+  },
+  {
+    "eventId": "evt_5",
+    "sequence": 5,
+    "cursor": "c5",
+    "runId": "run_failed",
+    "timestamp": "2026-04-26T12:00:05Z",
+    "type": "step.failed",
+    "payload": {
+      "stepId": "step_1",
+      "title": "Run integration tests",
+      "error": { "code": "TEST_FAILURE", "message": "2 tests failed" }
+    }
+  },
+  {
+    "eventId": "evt_6",
+    "sequence": 6,
+    "cursor": "c6",
+    "runId": "run_failed",
+    "timestamp": "2026-04-26T12:00:06Z",
+    "type": "run.failed",
+    "payload": {
+      "status": "failed",
+      "error": { "code": "STEP_FAILURE", "message": "Step step_1 failed: 2 tests failed", "retryable": false }
+    }
+  }
+]

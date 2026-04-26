@@ -1,0 +1,23 @@
+{
+  "runId": "run_blocked",
+  "contractId": "unknown",
+  "status": "cancelled",
+  "currentStepId": null,
+  "steps": [],
+  "pendingApprovalIds": [],
+  "artifactIds": [],
+  "trust": {
+    "posture": "low",
+    "score": 12.0,
+    "blocked": true,
+    "reasons": [
+      "budget exceeded",
+      "sensitive path touched without approval"
+    ]
+  },
+  "error": null,
+  "createdAt": "2026-04-26T13:00:00Z",
+  "updatedAt": "2026-04-26T13:00:03Z",
+  "startedAt": "2026-04-26T13:00:01Z",
+  "completedAt": "2026-04-26T13:00:03Z"
+}

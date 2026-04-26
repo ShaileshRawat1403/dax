@@ -1,0 +1,83 @@
+[
+  {
+    "eventId": "evt_1",
+    "sequence": 1,
+    "cursor": "c1",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:00Z",
+    "type": "run.created",
+    "payload": { "status": "created", "title": "Basic completed run" }
+  },
+  {
+    "eventId": "evt_2",
+    "sequence": 2,
+    "cursor": "c2",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:01Z",
+    "type": "run.state_changed",
+    "payload": { "previousStatus": "created", "currentStatus": "compiled", "reason": "contract compiled" }
+  },
+  {
+    "eventId": "evt_3",
+    "sequence": 3,
+    "cursor": "c3",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:02Z",
+    "type": "run.state_changed",
+    "payload": { "previousStatus": "compiled", "currentStatus": "queued", "reason": "queued for execution" }
+  },
+  {
+    "eventId": "evt_4",
+    "sequence": 4,
+    "cursor": "c4",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:03Z",
+    "type": "run.started",
+    "payload": { "status": "running" }
+  },
+  {
+    "eventId": "evt_5",
+    "sequence": 5,
+    "cursor": "c5",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:04Z",
+    "type": "step.proposed",
+    "payload": { "stepId": "step_1", "title": "Analyse repository" }
+  },
+  {
+    "eventId": "evt_6",
+    "sequence": 6,
+    "cursor": "c6",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:05Z",
+    "type": "step.started",
+    "payload": { "stepId": "step_1", "title": "Analyse repository" }
+  },
+  {
+    "eventId": "evt_7",
+    "sequence": 7,
+    "cursor": "c7",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:06Z",
+    "type": "step.completed",
+    "payload": { "stepId": "step_1", "title": "Analyse repository", "durationMs": 1200 }
+  },
+  {
+    "eventId": "evt_8",
+    "sequence": 8,
+    "cursor": "c8",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:07Z",
+    "type": "artifact.created",
+    "payload": { "artifact": { "artifactId": "artifact_report_1" } }
+  },
+  {
+    "eventId": "evt_9",
+    "sequence": 9,
+    "cursor": "c9",
+    "runId": "run_basic",
+    "timestamp": "2026-04-26T10:00:08Z",
+    "type": "run.completed",
+    "payload": { "status": "completed", "summaryAvailable": true }
+  }
+]

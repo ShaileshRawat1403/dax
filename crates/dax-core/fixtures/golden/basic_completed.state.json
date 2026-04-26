@@ -1,0 +1,28 @@
+{
+  "runId": "run_basic",
+  "contractId": "unknown",
+  "status": "completed",
+  "currentStepId": null,
+  "steps": [
+    {
+      "stepId": "step_1",
+      "title": "Analyse repository",
+      "type": "proposed",
+      "status": "completed",
+      "startedAt": "2026-04-26T10:00:05Z",
+      "completedAt": "2026-04-26T10:00:06Z",
+      "error": null,
+      "outputs": []
+    }
+  ],
+  "pendingApprovalIds": [],
+  "artifactIds": [
+    "artifact_report_1"
+  ],
+  "trust": null,
+  "error": null,
+  "createdAt": "2026-04-26T10:00:00Z",
+  "updatedAt": "2026-04-26T10:00:08Z",
+  "startedAt": "2026-04-26T10:00:03Z",
+  "completedAt": "2026-04-26T10:00:08Z"
+}

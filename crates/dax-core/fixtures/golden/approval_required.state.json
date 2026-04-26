@@ -1,0 +1,26 @@
+{
+  "runId": "run_approval",
+  "contractId": "unknown",
+  "status": "completed",
+  "currentStepId": null,
+  "steps": [
+    {
+      "stepId": "step_1",
+      "title": "Write migration script",
+      "type": "proposed",
+      "status": "proposed",
+      "startedAt": null,
+      "completedAt": null,
+      "error": null,
+      "outputs": []
+    }
+  ],
+  "pendingApprovalIds": [],
+  "artifactIds": [],
+  "trust": null,
+  "error": null,
+  "createdAt": "2026-04-26T11:00:00Z",
+  "updatedAt": "2026-04-26T11:00:32Z",
+  "startedAt": "2026-04-26T11:00:01Z",
+  "completedAt": "2026-04-26T11:00:32Z"
+}
