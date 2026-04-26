@@ -1,0 +1,5 @@
+{
+  "decision": "deny",
+  "risk": "high",
+  "reason": "strict profile: high/critical risk denied"
+}

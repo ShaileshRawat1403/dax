@@ -1,0 +1,5 @@
+{
+  "decision": "deny",
+  "risk": "critical",
+  "reason": "path is in forbidden zone: /etc/passwd"
+}

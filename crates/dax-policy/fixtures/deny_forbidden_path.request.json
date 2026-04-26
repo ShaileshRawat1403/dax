@@ -1,0 +1,22 @@
+{
+  "session_id": "session-deny-forbidden",
+  "action": {
+    "type": "tool",
+    "tool": "read_file",
+    "path": "/etc/passwd"
+  },
+  "context": {
+    "profile": "permissive",
+    "allowlist": [],
+    "blocklist": [],
+    "avoid_areas": [],
+    "budget": {
+      "total_allowed": 8,
+      "mutating_allowed": 6,
+      "external_allowed": 4,
+      "total_used": 0,
+      "mutating_used": 0,
+      "external_used": 0
+    }
+  }
+}

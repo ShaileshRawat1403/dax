@@ -1,0 +1,21 @@
+{
+  "session_id": "session-deny-blocked",
+  "action": {
+    "type": "command",
+    "command": "rm -rf /"
+  },
+  "context": {
+    "profile": "standard",
+    "allowlist": [],
+    "blocklist": ["rm -rf"],
+    "avoid_areas": [],
+    "budget": {
+      "total_allowed": 8,
+      "mutating_allowed": 6,
+      "external_allowed": 4,
+      "total_used": 0,
+      "mutating_used": 0,
+      "external_used": 0
+    }
+  }
+}

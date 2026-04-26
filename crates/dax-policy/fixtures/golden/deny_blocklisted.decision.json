@@ -1,0 +1,5 @@
+{
+  "decision": "deny",
+  "risk": "critical",
+  "reason": "command matches blocklist: rm -rf"
+}

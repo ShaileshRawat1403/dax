@@ -56,6 +56,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dax-policy"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "dax-policy-bin"
+version = "0.1.0"
+dependencies = [
+ "dax-policy",
+ "serde_json",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
