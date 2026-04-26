@@ -186,7 +186,13 @@ await fs.mkdir(artifactsDir, { recursive: true })
 const auditArtifact = path.join(artifactsDir, "audit-result.json")
 const authArtifact = path.join(artifactsDir, "doctor-auth.json")
 const provenanceArtifact = path.join(artifactsDir, "release-provenance.json")
+const determinismArtifact = path.join(artifactsDir, "determinism-proof.json")
 const releaseCheckHome = path.join(artifactsDir, ".release-check-home")
+
+const determinismFixture = path.join(root, "crates/dax-core/fixtures/basic_completed.events.json")
+if (!existsSync(determinismFixture)) {
+  throw new Error(`Missing deterministic replay fixture: ${path.relative(root, determinismFixture)}`)
+}
 await fs.mkdir(releaseCheckHome, { recursive: true })
 
 const daxReleaseEnv = {
@@ -240,6 +246,43 @@ try {
 
 console.log(`release-check: wrote ${path.relative(root, authArtifact)}`)
 
+const determinismOutput = await $`bun run --cwd packages/dax src/index.ts verify replay --events ${determinismFixture} --format json`
+  .env(daxReleaseEnv)
+  .text()
+  .catch((error) => {
+    throw new Error(`failed to generate determinism proof artifact: ${error instanceof Error ? error.message : String(error)}`)
+  })
+
+try {
+  const start = determinismOutput.indexOf("{")
+  const end = determinismOutput.lastIndexOf("}")
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("no JSON object found in determinism proof output")
+  }
+  const parsed = JSON.parse(determinismOutput.slice(start, end + 1)) as Record<string, unknown>
+
+  if (parsed.schemaVersion !== "dax.core.proof.v1") {
+    throw new Error(`unexpected determinism proof schemaVersion: ${parsed.schemaVersion}`)
+  }
+  if (parsed.result !== "pass") {
+    throw new Error(`determinism proof did not pass: ${JSON.stringify(parsed)}`)
+  }
+  if (typeof parsed.stateHash !== "string" || !parsed.stateHash.startsWith("sha256:")) {
+    throw new Error("determinism proof missing valid stateHash")
+  }
+  if (typeof parsed.eventSequenceHash !== "string" || !parsed.eventSequenceHash.startsWith("sha256:")) {
+    throw new Error("determinism proof missing valid eventSequenceHash")
+  }
+
+  await fs.writeFile(determinismArtifact, JSON.stringify(parsed, null, 2) + "\n", "utf8")
+} catch (error) {
+  throw new Error(
+    `invalid determinism proof JSON output while writing artifact: ${error instanceof Error ? error.message : String(error)}`,
+  )
+}
+
+console.log(`release-check: wrote ${path.relative(root, determinismArtifact)}`)
+
 type ReleaseManifest = {
   version?: string
   generated_at?: string
@@ -285,6 +328,11 @@ const provenance = {
   version: {
     package: packageVersion,
     changelog: latestReleaseVersion,
+  },
+  proofs: {
+    deterministic_replay: {
+      path: path.relative(root, determinismArtifact),
+    },
   },
   artifacts: {
     expected: expectedArtifactFilenames,
