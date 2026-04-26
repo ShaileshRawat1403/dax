@@ -5,4 +5,6 @@ members = [
   "crates/dax-core-bin",
   "crates/dax-policy",
   "crates/dax-policy-bin",
+  "crates/dax-audit",
+  "crates/dax-audit-bin",
 ]
