@@ -23,7 +23,9 @@ TypeScript orchestrates. Rust decides deterministic facts.
 
 In development, TypeScript calls `cargo run -q -p dax-{core,policy,audit}-bin` as a fallback.
 
-In release builds, pre-built binaries are placed under `packages/dax/dist/bin/` and the adapters use those instead. Set `DAX_RUST_BIN_DIR` to point at a custom directory of pre-built binaries.
+In release builds, `build.ts` compiles the three sidecar binaries for the host platform and places them alongside the `dax` binary in `dist/<target>/bin/`. At runtime, the adapter resolves the sidecar via `process.execPath`-adjacent lookup — it checks the directory containing the running `dax` executable. Set `DAX_RUST_BIN_DIR` to override with a custom directory.
+
+Cross-platform sidecar compilation requires a per-platform build agent (e.g., linux-arm64 CI runner for the ARM Linux sidecar). The `build.ts --single` flag builds only the current host target and its sidecars; full multi-platform release packaging requires running the build on each target platform.
 
 ## Schema versions
 

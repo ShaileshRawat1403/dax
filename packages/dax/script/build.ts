@@ -19,6 +19,9 @@ import { releaseTargets, type ReleaseTarget } from "./release-metadata"
 
 const artifactBaseName = pkg.name.includes("/") ? pkg.name.split("/").at(-1)! : pkg.name
 
+const REPO_ROOT = path.resolve(dir, "../..")
+const RUST_SIDECAR_BINARIES = ["dax-core", "dax-policy", "dax-audit"]
+
 const modelsUrl = process.env.DAX_MODELS_URL || "https://models.dev"
 let modelsData: string | undefined
 
@@ -111,6 +114,26 @@ if (!skipInstall) {
   }
 }
 
+function isHostTarget(item: (typeof allTargets)[number]): boolean {
+  return (
+    item.os === process.platform &&
+    item.arch === process.arch &&
+    item.abi === undefined &&
+    item.avx2 !== false
+  )
+}
+
+async function buildRustSidecars(targetDirName: string): Promise<void> {
+  const ext = process.platform === "win32" ? ".exe" : ""
+  console.log(`building Rust sidecars for ${targetDirName}`)
+  await $`cargo build --release -p dax-core-bin -p dax-policy-bin -p dax-audit-bin`.cwd(REPO_ROOT)
+  for (const binaryName of RUST_SIDECAR_BINARIES) {
+    const src = path.join(REPO_ROOT, "target", "release", `${binaryName}${ext}`)
+    const dst = path.join(dir, "dist", targetDirName, "bin", `${binaryName}${ext}`)
+    await $`cp ${src} ${dst}`
+  }
+}
+
 function targetName(item: (typeof allTargets)[number]) {
   return [
     artifactBaseName,
@@ -169,6 +192,11 @@ async function buildTarget(item: (typeof allTargets)[number]) {
   })
 
   await $`rm -rf ./dist/${name}/bin/tui`
+
+  if (isHostTarget(item)) {
+    await buildRustSidecars(name)
+  }
+
   await Bun.file(`dist/${name}/package.json`).write(
     JSON.stringify(
       {
@@ -231,10 +259,23 @@ if (shouldPackageReleaseAssets) {
     await $`rm -f ${stagingBinary}`
     await $`cp ${sourceBinary} ${stagingBinary}`
 
+    // Copy any Rust sidecar binaries that were built for this target
+    const sidecarExt = target.os === "win32" ? ".exe" : ""
+    const presentSidecarNames: string[] = []
+    for (const binaryName of RUST_SIDECAR_BINARIES) {
+      const sidecarName = `${binaryName}${sidecarExt}`
+      const sidecarSrc = path.join(dir, "dist", target.sourceName, "bin", sidecarName)
+      if (fs.existsSync(sidecarSrc)) {
+        await $`cp ${sidecarSrc} ${path.join(stagingDir, sidecarName)}`
+        presentSidecarNames.push(sidecarName)
+      }
+    }
+
     if (target.archive === "tar.gz") {
-      await $`tar -czf ${destination} -C ${stagingDir} ${target.binary}`
+      await $`tar -czf ${destination} -C ${stagingDir} ${[target.binary, ...presentSidecarNames]}`
     } else {
-      await $`zip -j -q ${destination} ${stagingBinary}`
+      const allStagingFiles = [stagingBinary, ...presentSidecarNames.map((s) => path.join(stagingDir, s))]
+      await $`zip -j -q ${destination} ${allStagingFiles}`
     }
 
     const hash = new Bun.CryptoHasher("sha256")
