@@ -1,4 +1,5 @@
 import path from "path"
+import { resolveRustBinary } from "./resolve-binary"
 
 const REPO_ROOT = path.resolve(import.meta.dir, "../../../..")
 
@@ -80,7 +81,7 @@ export type DaxCoreOptions = {
 }
 
 function defaultCmd(command: DaxCoreCommand): string[] {
-  return ["cargo", "run", "-q", "-p", "dax-core-bin", "--", command]
+  return [...resolveRustBinary("dax-core", "dax-core"), command]
 }
 
 async function runDaxCoreJson<T>(command: DaxCoreCommand, input: unknown, options: DaxCoreOptions = {}): Promise<T> {

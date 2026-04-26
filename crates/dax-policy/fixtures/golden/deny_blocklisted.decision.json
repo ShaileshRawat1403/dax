@@ -1,4 +1,5 @@
 {
+  "schema_version": "dax.policy.decision.v1",
   "decision": "deny",
   "risk": "critical",
   "reason": "command matches blocklist: rm -rf"

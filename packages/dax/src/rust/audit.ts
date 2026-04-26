@@ -1,4 +1,5 @@
 import path from "path"
+import { resolveRustBinary } from "./resolve-binary"
 
 const REPO_ROOT = path.resolve(import.meta.dir, "../../../..")
 
@@ -80,7 +81,7 @@ export type DaxAuditOptions = {
 }
 
 function defaultCmd(command: DaxAuditCommand): string[] {
-  return ["cargo", "run", "-q", "-p", "dax-audit-bin", "--", command]
+  return [...resolveRustBinary("dax-audit", "dax-audit"), command]
 }
 
 async function runDaxAuditJson<T>(

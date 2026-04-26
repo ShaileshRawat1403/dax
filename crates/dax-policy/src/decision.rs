@@ -19,6 +19,7 @@ pub enum Decision {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolicyDecision {
+    pub schema_version: String,
     pub decision: Decision,
     pub risk: RiskLevel,
     pub reason: String,
@@ -26,9 +27,12 @@ pub struct PolicyDecision {
     pub gate: Option<String>,
 }
 
+const SCHEMA_VERSION: &str = "dax.policy.decision.v1";
+
 impl PolicyDecision {
     pub fn allow(risk: RiskLevel, reason: impl Into<String>) -> Self {
         Self {
+            schema_version: SCHEMA_VERSION.to_string(),
             decision: Decision::Allow,
             risk,
             reason: reason.into(),
@@ -38,6 +42,7 @@ impl PolicyDecision {
 
     pub fn ask(risk: RiskLevel, reason: impl Into<String>, gate: impl Into<String>) -> Self {
         Self {
+            schema_version: SCHEMA_VERSION.to_string(),
             decision: Decision::Ask,
             risk,
             reason: reason.into(),
@@ -47,6 +52,7 @@ impl PolicyDecision {
 
     pub fn deny(risk: RiskLevel, reason: impl Into<String>) -> Self {
         Self {
+            schema_version: SCHEMA_VERSION.to_string(),
             decision: Decision::Deny,
             risk,
             reason: reason.into(),

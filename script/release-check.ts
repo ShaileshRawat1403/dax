@@ -9,6 +9,9 @@ import {
   matchesReleaseTagName,
   toReleaseTag,
 } from "../packages/dax/script/release-metadata"
+import { createRustProofReport } from "../packages/dax/src/rust/core"
+import { evaluatePolicyWithRust } from "../packages/dax/src/rust/policy"
+import { evaluateAuditWithRust } from "../packages/dax/src/rust/audit"
 
 const root = process.cwd()
 const releaseMode = process.env.DAX_RELEASE === "1"
@@ -182,11 +185,18 @@ if (releaseMode) {
 }
 
 const artifactsDir = path.join(root, "artifacts")
+const proofPackDir = path.join(artifactsDir, "proof-pack")
 await fs.mkdir(artifactsDir, { recursive: true })
+await fs.mkdir(proofPackDir, { recursive: true })
 const auditArtifact = path.join(artifactsDir, "audit-result.json")
 const authArtifact = path.join(artifactsDir, "doctor-auth.json")
 const provenanceArtifact = path.join(artifactsDir, "release-provenance.json")
+// kept for backwards compatibility with scripts that reference it by old name
 const determinismArtifact = path.join(artifactsDir, "determinism-proof.json")
+const replayProofArtifact = path.join(proofPackDir, "replay-proof.json")
+const policyProofArtifact = path.join(proofPackDir, "policy-proof.json")
+const auditProofArtifact = path.join(proofPackDir, "audit-proof.json")
+const proofSummaryArtifact = path.join(proofPackDir, "proof-summary.md")
 const releaseCheckHome = path.join(artifactsDir, ".release-check-home")
 
 const determinismFixture = path.join(root, "crates/dax-core/fixtures/basic_completed.events.json")
@@ -246,42 +256,120 @@ try {
 
 console.log(`release-check: wrote ${path.relative(root, authArtifact)}`)
 
-const determinismOutput = await $`bun run --cwd packages/dax src/index.ts verify replay --events ${determinismFixture} --format json`
-  .env(daxReleaseEnv)
-  .text()
-  .catch((error) => {
-    throw new Error(`failed to generate determinism proof artifact: ${error instanceof Error ? error.message : String(error)}`)
-  })
+// ---------------------------------------------------------------------------
+// Proof pack — all three Rust proof surfaces
+// ---------------------------------------------------------------------------
 
-try {
-  const start = determinismOutput.indexOf("{")
-  const end = determinismOutput.lastIndexOf("}")
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("no JSON object found in determinism proof output")
-  }
-  const parsed = JSON.parse(determinismOutput.slice(start, end + 1)) as Record<string, unknown>
-
-  if (parsed.schemaVersion !== "dax.core.proof.v1") {
-    throw new Error(`unexpected determinism proof schemaVersion: ${parsed.schemaVersion}`)
-  }
-  if (parsed.result !== "pass") {
-    throw new Error(`determinism proof did not pass: ${JSON.stringify(parsed)}`)
-  }
-  if (typeof parsed.stateHash !== "string" || !parsed.stateHash.startsWith("sha256:")) {
-    throw new Error("determinism proof missing valid stateHash")
-  }
-  if (typeof parsed.eventSequenceHash !== "string" || !parsed.eventSequenceHash.startsWith("sha256:")) {
-    throw new Error("determinism proof missing valid eventSequenceHash")
-  }
-
-  await fs.writeFile(determinismArtifact, JSON.stringify(parsed, null, 2) + "\n", "utf8")
-} catch (error) {
-  throw new Error(
-    `invalid determinism proof JSON output while writing artifact: ${error instanceof Error ? error.message : String(error)}`,
-  )
+// 1. Replay proof (dax-core)
+const replayEvents = JSON.parse(await fs.readFile(determinismFixture, "utf8")) as unknown[]
+const replayProof = await createRustProofReport(replayEvents).catch((error: unknown) => {
+  throw new Error(`failed to generate replay proof: ${error instanceof Error ? error.message : String(error)}`)
+})
+if (replayProof.schemaVersion !== "dax.core.proof.v1") {
+  throw new Error(`unexpected replay proof schemaVersion: ${replayProof.schemaVersion}`)
 }
+if (replayProof.result !== "pass") {
+  throw new Error(`replay proof did not pass: ${JSON.stringify(replayProof)}`)
+}
+if (typeof replayProof.stateHash !== "string" || !replayProof.stateHash.startsWith("sha256:")) {
+  throw new Error("replay proof missing valid stateHash")
+}
+await fs.writeFile(replayProofArtifact, JSON.stringify(replayProof, null, 2) + "\n", "utf8")
+// backwards-compatible alias
+await fs.writeFile(determinismArtifact, JSON.stringify(replayProof, null, 2) + "\n", "utf8")
+console.log(`release-check: wrote ${path.relative(root, replayProofArtifact)}`)
 
-console.log(`release-check: wrote ${path.relative(root, determinismArtifact)}`)
+// 2. Policy proof (dax-policy) — canonical allow/ask/deny snapshot
+const policyProofEntries = await Promise.all([
+  evaluatePolicyWithRust({
+    session_id: "release_check_policy",
+    action: { type: "tool_call", tool: "read_file", path: "src/index.ts" },
+    context: { profile: "standard" },
+  }),
+  evaluatePolicyWithRust({
+    session_id: "release_check_policy",
+    action: { type: "tool_call", tool: "bash", command: "git commit -m 'update'" },
+    context: { profile: "standard" },
+  }),
+  evaluatePolicyWithRust({
+    session_id: "release_check_policy",
+    action: { type: "tool_call", tool: "bash", command: "rm -rf /tmp/build" },
+    context: { profile: "standard", blocklist: ["rm -rf"] },
+  }),
+]).catch((error: unknown) => {
+  throw new Error(`failed to generate policy proof: ${error instanceof Error ? error.message : String(error)}`)
+})
+for (const entry of policyProofEntries) {
+  if (entry.schema_version !== "dax.policy.decision.v1") {
+    throw new Error(`unexpected policy proof schemaVersion: ${entry.schema_version}`)
+  }
+}
+const policyProof = {
+  schema_version: "dax.policy.proof.v1",
+  generated_at: new Date().toISOString(),
+  decisions: policyProofEntries,
+}
+await fs.writeFile(policyProofArtifact, JSON.stringify(policyProof, null, 2) + "\n", "utf8")
+console.log(`release-check: wrote ${path.relative(root, policyProofArtifact)}`)
+
+// 3. Audit proof (dax-audit) — clean verified run using the replay fixture
+const auditProof = await evaluateAuditWithRust({
+  session_id: "release_check_audit",
+  events: replayEvents,
+  findings: [],
+  policy_decision_count: 3,
+  override_count: 0,
+  audit_present: true,
+}).catch((error: unknown) => {
+  throw new Error(`failed to generate audit proof: ${error instanceof Error ? error.message : String(error)}`)
+})
+if (auditProof.schema_version !== "dax.audit.v1") {
+  throw new Error(`unexpected audit proof schemaVersion: ${auditProof.schema_version}`)
+}
+if (auditProof.posture !== "verified") {
+  throw new Error(`audit proof posture is not verified: ${auditProof.posture}`)
+}
+await fs.writeFile(auditProofArtifact, JSON.stringify(auditProof, null, 2) + "\n", "utf8")
+console.log(`release-check: wrote ${path.relative(root, auditProofArtifact)}`)
+
+// 4. Proof summary
+const policyDecisions = policyProofEntries.map((e) => `${e.decision} (risk: ${e.risk})`).join(", ")
+const auditChecks = auditProof.checks.map((c) => `${c.label}: ${c.status}`).join("\n  - ")
+const proofSummary = `# DAX Proof Pack
+
+Generated: ${new Date().toISOString()}
+Commit: ${gitHeadSha}
+Package version: ${packageVersion}
+
+## Replay proof (dax-core)
+
+Schema: ${replayProof.schemaVersion}
+Result: ${replayProof.result}
+Events: ${replayProof.eventCount}
+Final status: ${replayProof.finalStatus ?? "—"}
+State hash: ${replayProof.stateHash}
+Sequence hash: ${replayProof.eventSequenceHash}
+
+## Policy proof (dax-policy)
+
+Schema: dax.policy.decision.v1
+Decisions: ${policyDecisions}
+
+## Audit proof (dax-audit)
+
+Schema: ${auditProof.schema_version}
+Posture: ${auditProof.posture}
+Verification: ${auditProof.verification_result}
+Checks:
+  - ${auditChecks}
+
+---
+
+DAX does not make model outputs deterministic.
+DAX provides a deterministic runtime contract around stochastic model execution.
+`
+await fs.writeFile(proofSummaryArtifact, proofSummary, "utf8")
+console.log(`release-check: wrote ${path.relative(root, proofSummaryArtifact)}`)
 
 type ReleaseManifest = {
   version?: string
@@ -330,9 +418,12 @@ const provenance = {
     changelog: latestReleaseVersion,
   },
   proofs: {
-    deterministic_replay: {
-      path: path.relative(root, determinismArtifact),
-    },
+    replay: { path: path.relative(root, replayProofArtifact) },
+    policy: { path: path.relative(root, policyProofArtifact) },
+    audit: { path: path.relative(root, auditProofArtifact) },
+    summary: { path: path.relative(root, proofSummaryArtifact) },
+    // backwards-compatible alias
+    deterministic_replay: { path: path.relative(root, determinismArtifact) },
   },
   artifacts: {
     expected: expectedArtifactFilenames,
