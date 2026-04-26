@@ -116,7 +116,7 @@ impl RunState {
     pub fn new(run_id: String, timestamp: String) -> Self {
         Self {
             run_id,
-            contract_id: String::from("unknown"),
+            contract_id: String::from("unknown_contract"),
             status: RunStatus::Created,
             current_step_id: None,
             steps: Vec::new(),

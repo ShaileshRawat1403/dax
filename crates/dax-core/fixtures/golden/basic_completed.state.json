@@ -1,6 +1,6 @@
 {
   "runId": "run_basic",
-  "contractId": "unknown",
+  "contractId": "unknown_contract",
   "status": "completed",
   "currentStepId": null,
   "steps": [

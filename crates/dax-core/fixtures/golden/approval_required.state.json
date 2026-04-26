@@ -1,6 +1,6 @@
 {
   "runId": "run_approval",
-  "contractId": "unknown",
+  "contractId": "unknown_contract",
   "status": "completed",
   "currentStepId": null,
   "steps": [

@@ -1,6 +1,6 @@
 {
   "runId": "run_blocked",
-  "contractId": "unknown",
+  "contractId": "unknown_contract",
   "status": "cancelled",
   "currentStepId": null,
   "steps": [],
