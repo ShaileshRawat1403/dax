@@ -70,8 +70,10 @@ A replay failure surfaces immediately as a blocking `trace_continuity` failure, 
 
 Each crate has a companion `*-bin` that reads JSON from stdin and emits JSON to stdout. TypeScript calls the sidecar via `Bun.spawn`. The typed adapters are:
 
-- `evaluatePolicyWithRust(request, context)` → `DaxPolicyReport`
-- `evaluateAuditWithRust(input)` → `DaxTrustReport`
+- `replayRunStateWithRust(events, options?)` → `DaxCoreRunState`
+- `createRustProofReport(events, options?)` → `DaxCoreProofReport`
+- `evaluatePolicyWithRust(request, options?)` → `DaxPolicyResult`
+- `evaluateAuditWithRust(input, options?)` → `DaxTrustReport`
 
 The boundary is a JSON contract. TypeScript orchestrates. Rust decides deterministic facts.
 
