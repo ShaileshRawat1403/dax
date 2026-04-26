@@ -22,6 +22,7 @@
     "rust:clippy": "cargo clippy --workspace --all-targets -- -D warnings",
     "rust:test": "cargo test --workspace",
     "test:determinism": "cargo test -p dax-core",
+    "demo:proof-ladder": "bun run script/demo-proof-ladder.ts",
     "verify:hybrid": "bun run typecheck:dax && bun run test && bun run rust:test",
     "release:verify": "bun run release:check && bun run typecheck:dax && bun run test",
     "release": "bun run release:verify && bun run build",

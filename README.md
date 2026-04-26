@@ -112,6 +112,12 @@ The model output remains stochastic. The runtime layer around it does not.
 
 Each crate calls through a JSON stdio boundary from TypeScript. See [Rust Proof Ladder](./docs/architecture/RUST_PROOF_LADDER.md) for the full breakdown.
 
+To run all three surfaces end to end against a synthetic session:
+
+```bash
+bun run demo:proof-ladder
+```
+
 ### The RAO Governance Loop
 
 DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
@@ -304,6 +310,9 @@ bun run dev
 
 # Run a quality check
 bun run test
+
+# Run the Rust proof ladder end to end (no credentials required)
+bun run demo:proof-ladder
 ```
 
 ---
