@@ -96,6 +96,22 @@ mindmap
       CI signals
 ```
 
+### Rust Proof Ladder
+
+DAX's runtime contract is made testable by three deterministic Rust crates:
+
+| Crate | Proves |
+| ----- | ------ |
+| `dax-core` | What happened — replays the canonical event log to reconstruct run state |
+| `dax-policy` | Whether an action should proceed — evaluates tool requests against policy with no model call |
+| `dax-audit` | Whether a run is trustworthy — derives trust posture from six structured checks |
+
+The model output remains stochastic. The runtime layer around it does not.
+
+> DAX uses Rust for deterministic replay, policy evaluation, and audit proof surfaces around stochastic model execution.
+
+Each crate calls through a JSON stdio boundary from TypeScript. See [Rust Proof Ladder](./docs/architecture/RUST_PROOF_LADDER.md) for the full breakdown.
+
 ### The RAO Governance Loop
 
 DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
@@ -146,7 +162,7 @@ DAX is not trying to be the fastest “AI coding assistant” in an editor tab. 
 | :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Getting Started**   | [What Is DAX?](./docs/product/WHAT_IS_DAX.md) • [In Simple Words](./docs/product/DAX_IN_SIMPLE_WORDS.md) • [Quickstart](./docs/product/QUICKSTART.md) • [Start Here](./docs/product/start-here.md) • [Provider Setup](./docs/product/providers.md) |
 | **Product & Use**     | [User Guide](./docs/product/USER_GUIDE.md) • [Intent Guide](./docs/product/INTENT_GUIDE.md) • [Tool & Risk Matrix](./docs/product/TOOLS_AND_RISK_MATRIX.md) • [Runs, Approvals & Recovery](./docs/product/RUNS_APPROVALS_AND_RECOVERY.md) • [Workflows](./docs/product/WORKFLOWS.md) • [Positioning](./docs/product/POSITIONING.md) • [Roadmap](./docs/product/ROADMAP.md) |
-| **Architecture**      | [How DAX Works](./docs/architecture/HOW_DAX_WORKS.md) • [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md) • [Stack Operating Model](./docs/STACK_OPERATING_MODEL.md) |
+| **Architecture**      | [How DAX Works](./docs/architecture/HOW_DAX_WORKS.md) • [Full Architecture](./docs/architecture/ARCHITECTURE.md) • [Trust Model](./docs/architecture/DAX_TRUST_MODEL.md) • [Execution Model](./docs/architecture/DAX_EXECUTION_MODEL.md) • [Rust Proof Ladder](./docs/architecture/RUST_PROOF_LADDER.md) • [Stack Operating Model](./docs/STACK_OPERATING_MODEL.md) |
 | **Open Source Stack** | [Stack Roadmap](./docs/OPEN_SOURCE_STACK_ROADMAP.md) • [Deployment Guide](./docs/OPEN_SOURCE_STACK_DEPLOYMENT.md)                                                                                                                                  |
 | **Governance**        | [Policy Tuning](./docs/product/POLICY_TUNING.md) • [Project Memory](./docs/product/PROJECT_MEMORY.md) • [Transparency & Limitations](./docs/product/TRANSPARENCY_AND_LIMITATIONS.md) • [Write Governance](./docs/features/DAX_WRITE_GOVERNANCE.md) |
 | **Context**           | [Builder's Note](./docs/BUILDERS_NOTE.md) • [Non-Developer Guide](./docs/product/NON_DEVELOPERS.md)                                                                                                                                               |

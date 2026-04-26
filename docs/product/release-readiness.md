@@ -66,6 +66,7 @@ bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemi
 - `bun run release:check` should fail when package version and latest tagged changelog entry drift
 - `bun run release:check` should write both `artifacts/audit-result.json` and `artifacts/doctor-auth.json`
 - `bun run release:check` should write `artifacts/release-provenance.json`
+- `bun run release:check` should write `artifacts/determinism-proof.json` — a machine-readable receipt that the Rust proof surfaces (replay, policy, audit) produced consistent output against the release snapshot; this artifact records that the deterministic contract held, not that the model was correct
 - in release mode, `bun run release:check` should fail when `HEAD` is untagged, mismatched, or dirty
 
 ### Doctor
@@ -157,7 +158,7 @@ Validate these in one real session before release:
 You are in a reasonable pre-release state when:
 
 1. typecheck passes
-2. tests pass
+2. tests pass (including `cargo test --workspace` for Rust proof surfaces)
 3. repo integrity checks pass
 4. CLI help renders correctly
 5. MCP health is confirmed
@@ -166,6 +167,7 @@ You are in a reasonable pre-release state when:
 8. docs strict QA works
 9. interactive TUI review flows feel coherent
 10. any remaining degraded or blocked doctor result is understood and intentional
+11. `artifacts/determinism-proof.json` is present and records passing Rust proof surface checks
 
 Maintainer anti-drift blockers:
 
