@@ -65,6 +65,7 @@ import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import parsers from "../../../../../../parsers-config.ts"
 import { Clipboard } from "@tui/util/clipboard"
 import { Toast, useToast } from "../../ui/toast"
+import { onGeminiReauthRequired } from "@/plugin/gemini"
 import { useKV } from "../../context/kv.tsx"
 import { Editor } from "../../util/editor"
 import stripAnsi from "strip-ansi"
@@ -493,6 +494,18 @@ export function Session() {
   })
   onCleanup(() => {
     promptRef.set(undefined)
+  })
+
+  const toast = useToast()
+  onMount(() => {
+    const unsub = onGeminiReauthRequired((url) => {
+      toast.show({
+        variant: "warning",
+        message: `Gemini session expired — sign in to continue: ${url}`,
+        duration: 30_000,
+      })
+    })
+    onCleanup(unsub)
   })
 
   const isThinking = createMemo(() => {

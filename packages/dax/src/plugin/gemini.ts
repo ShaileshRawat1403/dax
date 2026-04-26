@@ -178,10 +178,82 @@ function isSubscriptionMode(mode: OAuthState["mode"]) {
   return mode === "cli-import" || mode === "codeassist"
 }
 
+class GeminiCliSessionExpiredError extends Error {
+  constructor() {
+    super(
+      "Your imported Gemini CLI session expired. Reconnect with 'Gemini CLI Session Import', switch to 'Google OAuth Client Sign-In', or run `gemini` again to refresh your local terminal login.",
+    )
+    this.name = "GeminiCliSessionExpiredError"
+  }
+}
+
 function importedGeminiCliExpiredError() {
-  return new Error(
-    "Your imported Gemini CLI session expired. Reconnect with 'Gemini CLI Session Import', switch to 'Google OAuth Client Sign-In', or run `gemini` again to refresh your local terminal login.",
-  )
+  return new GeminiCliSessionExpiredError()
+}
+
+// Module-level web OAuth re-auth state — shared across all concurrent fetch calls.
+let _webReauthUrl: string | undefined
+let _webReauthPromise: Promise<{ access: string; expires: number; refresh?: string } | null> | undefined
+const _reauthUrlCallbacks = new Set<(url: string) => void>()
+
+/** Register a callback that fires when a Gemini CLI session expires and web re-auth starts. */
+export function onGeminiReauthRequired(cb: (url: string) => void): () => void {
+  _reauthUrlCallbacks.add(cb)
+  return () => _reauthUrlCallbacks.delete(cb)
+}
+
+/**
+ * Start a background web OAuth flow to renew an expired CLI session.
+ * Returns the sign-in URL immediately and a promise for the new token.
+ * Deduplicates: if a flow is already in progress, returns the same state.
+ */
+async function beginWebOAuthRefresh(): Promise<{
+  url: string
+  tokens: Promise<{ access: string; expires: number; refresh?: string } | null>
+} | null> {
+  if (_webReauthUrl && _webReauthPromise) {
+    return { url: _webReauthUrl, tokens: _webReauthPromise }
+  }
+
+  let redirectURI: string
+  try {
+    redirectURI = await startOAuthServer()
+  } catch {
+    return null
+  }
+
+  oauthCode.clear()
+  const reauthState = generateState()
+  const pkce = await generatePKCE()
+  const clientID = getGoogleCliClientId()
+  const clientSecret = getGoogleCliClientSecret()
+  _webReauthUrl = buildGoogleAuthorizeURL(redirectURI, reauthState, pkce, clientID, "compat")
+
+  for (const cb of _reauthUrlCallbacks) {
+    try {
+      cb(_webReauthUrl)
+    } catch {}
+  }
+
+  _webReauthPromise = (async () => {
+    try {
+      const code = await waitForOAuthCode(reauthState)
+      const token = await exchangeCodeForTokens(code, redirectURI, pkce, clientID, clientSecret)
+      if (!token.access_token) return null
+      return {
+        access: token.access_token,
+        expires: Date.now() + (token.expires_in ?? 3600) * 1000,
+        refresh: token.refresh_token,
+      }
+    } catch {
+      return null
+    } finally {
+      _webReauthUrl = undefined
+      _webReauthPromise = undefined
+    }
+  })()
+
+  return { url: _webReauthUrl, tokens: _webReauthPromise }
 }
 
 type TokenResponse = {
@@ -673,7 +745,37 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             const quotaProjectID = fresh?.quotaProjectID
 
             if (!access || expires < Date.now() || Bun.env.DAX_GEMINI_SIMULATE_EXPIRE) {
-              const renewed = await refreshStoredGoogleAccess(fresh, refresh)
+              let renewed: { access: string; expires: number } | undefined
+              try {
+                renewed = await refreshStoredGoogleAccess(fresh, refresh)
+              } catch (err) {
+                if (err instanceof GeminiCliSessionExpiredError) {
+                  const reauth = await beginWebOAuthRefresh()
+                  if (reauth) {
+                    reauth.tokens
+                      .then(async (result) => {
+                        if (!result?.access) return
+                        await input.client.auth.set({
+                          providerID: "google",
+                          auth: {
+                            type: "oauth",
+                            access: result.access,
+                            refresh: result.refresh ?? fresh?.refresh ?? refresh,
+                            expires: result.expires,
+                            clientID: getGoogleCliClientId(),
+                            clientSecret: getGoogleCliClientSecret(),
+                            mode: "codeassist",
+                          } as any,
+                        })
+                      })
+                      .catch(() => {})
+                    throw new Error(
+                      `Gemini session expired. Sign in to renew:\n${reauth.url}\n\nOnce signed in, send your message again.`,
+                    )
+                  }
+                }
+                throw err
+              }
               if (renewed) {
                 access = renewed.access
                 expires = renewed.expires
@@ -894,7 +996,37 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             // Handle 401 (Token Expired/Invalid) - Reactive Refresh
             if (first.status === 401) {
-              const renewed = await refreshStoredGoogleAccess(fresh, refresh)
+              let renewed: { access: string; expires: number } | undefined
+              try {
+                renewed = await refreshStoredGoogleAccess(fresh, refresh)
+              } catch (err) {
+                if (err instanceof GeminiCliSessionExpiredError) {
+                  const reauth = await beginWebOAuthRefresh()
+                  if (reauth) {
+                    reauth.tokens
+                      .then(async (result) => {
+                        if (!result?.access) return
+                        await input.client.auth.set({
+                          providerID: "google",
+                          auth: {
+                            type: "oauth",
+                            access: result.access,
+                            refresh: result.refresh ?? fresh?.refresh ?? refresh,
+                            expires: result.expires,
+                            clientID: getGoogleCliClientId(),
+                            clientSecret: getGoogleCliClientSecret(),
+                            mode: "codeassist",
+                          } as any,
+                        })
+                      })
+                      .catch(() => {})
+                    throw new Error(
+                      `Gemini session expired. Sign in to renew:\n${reauth.url}\n\nOnce signed in, send your message again.`,
+                    )
+                  }
+                }
+                throw err
+              }
               if (renewed?.access) {
                 await input.client.auth.set({
                   providerID: "google",
