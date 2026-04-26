@@ -1,0 +1,21 @@
+{
+  "session_id": "session-deny-budget",
+  "action": {
+    "type": "command",
+    "command": "cargo test"
+  },
+  "context": {
+    "profile": "standard",
+    "allowlist": [],
+    "blocklist": [],
+    "avoid_areas": [],
+    "budget": {
+      "total_allowed": 5,
+      "mutating_allowed": 3,
+      "external_allowed": 2,
+      "total_used": 5,
+      "mutating_used": 0,
+      "external_used": 0
+    }
+  }
+}

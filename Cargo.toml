@@ -3,4 +3,6 @@ resolver = "2"
 members = [
   "crates/dax-core",
   "crates/dax-core-bin",
+  "crates/dax-policy",
+  "crates/dax-policy-bin",
 ]

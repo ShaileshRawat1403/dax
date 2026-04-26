@@ -1,0 +1,5 @@
+{
+  "decision": "deny",
+  "risk": "high",
+  "reason": "action budget exhausted: total_used >= total_allowed"
+}

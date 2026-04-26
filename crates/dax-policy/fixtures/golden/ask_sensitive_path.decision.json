@@ -1,0 +1,6 @@
+{
+  "decision": "ask",
+  "risk": "high",
+  "reason": "standard profile: high risk requires approval",
+  "gate": "human_approval"
+}
