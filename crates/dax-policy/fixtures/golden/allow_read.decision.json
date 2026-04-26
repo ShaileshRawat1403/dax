@@ -1,4 +1,5 @@
 {
+  "schema_version": "dax.policy.decision.v1",
   "decision": "allow",
   "risk": "low",
   "reason": "standard profile: low risk allowed"

@@ -1,4 +1,5 @@
 {
+  "schema_version": "dax.policy.decision.v1",
   "decision": "deny",
   "risk": "high",
   "reason": "action budget exhausted: total_used >= total_allowed"

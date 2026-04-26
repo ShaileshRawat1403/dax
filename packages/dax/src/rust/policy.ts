@@ -1,4 +1,5 @@
 import path from "path"
+import { resolveRustBinary } from "./resolve-binary"
 
 const REPO_ROOT = path.resolve(import.meta.dir, "../../../..")
 
@@ -44,6 +45,7 @@ export type DaxPolicyRequest = {
 }
 
 export type DaxPolicyResult = {
+  schema_version: "dax.policy.decision.v1"
   decision: DaxPolicyDecision
   risk: DaxPolicyRisk
   reason: string
@@ -74,7 +76,7 @@ export type DaxPolicyOptions = {
 }
 
 function defaultCmd(command: DaxPolicyCommand): string[] {
-  return ["cargo", "run", "-q", "-p", "dax-policy-bin", "--", command]
+  return [...resolveRustBinary("dax-policy", "dax-policy"), command]
 }
 
 async function runDaxPolicyJson<T>(

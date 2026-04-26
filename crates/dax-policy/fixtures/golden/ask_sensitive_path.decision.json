@@ -1,4 +1,5 @@
 {
+  "schema_version": "dax.policy.decision.v1",
   "decision": "ask",
   "risk": "high",
   "reason": "standard profile: high risk requires approval",
