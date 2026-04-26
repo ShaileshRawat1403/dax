@@ -7,7 +7,7 @@ pub enum CheckId {
     PolicyCompliance,
     ArtifactPresence,
     EvidenceCompleteness,
-    TraceContiguity,
+    TraceContinuity,
     OverridesJustified,
 }
 

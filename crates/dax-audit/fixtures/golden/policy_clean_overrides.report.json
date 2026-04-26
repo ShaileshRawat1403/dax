@@ -29,7 +29,7 @@
       "summary": "4 policy decision(s) recorded as evidence."
     },
     {
-      "id": "trace_contiguity",
+      "id": "trace_continuity",
       "label": "Trace Continuity",
       "status": "pass",
       "summary": "Trace contains 1 completed step(s)."

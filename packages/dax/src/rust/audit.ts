@@ -28,7 +28,7 @@ export type DaxCheckId =
   | "policy_compliance"
   | "artifact_presence"
   | "evidence_completeness"
-  | "trace_contiguity"
+  | "trace_continuity"
   | "overrides_justified"
 
 export type DaxCheckStatus = "pass" | "fail" | "warn" | "incomplete"

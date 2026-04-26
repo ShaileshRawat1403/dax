@@ -11,32 +11,23 @@ struct RunSignals {
     run_terminal: bool,
 }
 
-fn derive_signals(input: &AuditInput) -> RunSignals {
-    match replay_run_state(&input.events) {
-        Ok(state) => {
-            let completed_steps = state
-                .steps
-                .iter()
-                .filter(|s| s.status == StepStatus::Completed)
-                .count();
-            let terminal = matches!(
-                state.status,
-                RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled
-            );
-            RunSignals {
-                pending_approval_count: state.pending_approval_ids.len(),
-                artifact_count: state.artifact_ids.len(),
-                completed_step_count: completed_steps,
-                run_terminal: terminal,
-            }
-        }
-        Err(_) => RunSignals {
-            pending_approval_count: 0,
-            artifact_count: 0,
-            completed_step_count: 0,
-            run_terminal: false,
-        },
-    }
+fn derive_signals(input: &AuditInput) -> Result<RunSignals, String> {
+    let state = replay_run_state(&input.events).map_err(|e| e.to_string())?;
+    let completed_steps = state
+        .steps
+        .iter()
+        .filter(|s| s.status == StepStatus::Completed)
+        .count();
+    let terminal = matches!(
+        state.status,
+        RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled
+    );
+    Ok(RunSignals {
+        pending_approval_count: state.pending_approval_ids.len(),
+        artifact_count: state.artifact_ids.len(),
+        completed_step_count: completed_steps,
+        run_terminal: terminal,
+    })
 }
 
 fn check_approval_compliance(pending: usize) -> AuditCheck {
@@ -141,14 +132,14 @@ fn check_evidence_completeness(policy_decision_count: u32) -> AuditCheck {
 fn check_trace_continuity(completed_step_count: usize) -> AuditCheck {
     if completed_step_count > 0 {
         AuditCheck {
-            id: CheckId::TraceContiguity,
+            id: CheckId::TraceContinuity,
             label: "Trace Continuity".to_string(),
             status: CheckStatus::Pass,
             summary: format!("Trace contains {completed_step_count} completed step(s)."),
         }
     } else {
         AuditCheck {
-            id: CheckId::TraceContiguity,
+            id: CheckId::TraceContinuity,
             label: "Trace Continuity".to_string(),
             status: CheckStatus::Incomplete,
             summary: "No completed steps recorded in the run trace.".to_string(),
@@ -175,7 +166,28 @@ fn check_overrides_justified(override_count: u32) -> AuditCheck {
 }
 
 pub fn evaluate(input: &AuditInput) -> TrustReport {
-    let signals = derive_signals(input);
+    let signals = match derive_signals(input) {
+        Ok(signals) => signals,
+        Err(error) => {
+            let summary = format!("Run event replay failed: {error}");
+            return TrustReport {
+                schema_version: "dax.audit.v1".to_string(),
+                session_id: input.session_id.clone(),
+                posture: TrustPostureLevel::ReviewNeeded,
+                verification_result: VerificationResult::Failed,
+                checks: vec![AuditCheck {
+                    id: CheckId::TraceContinuity,
+                    label: "Trace Continuity".to_string(),
+                    status: CheckStatus::Fail,
+                    summary: summary.clone(),
+                }],
+                blocking_factors: vec![summary],
+                missing_evidence: vec![],
+                degrading_factors: vec![],
+                passing_signals: vec![],
+            };
+        }
+    };
 
     let checks = vec![
         check_approval_compliance(signals.pending_approval_count),
@@ -350,5 +362,26 @@ mod tests {
         let report = evaluate(&input);
         // Overrides present → PolicyClean even when no blockers/warnings
         assert_eq!(report.posture, TrustPostureLevel::PolicyClean);
+    }
+
+    #[test]
+    fn replay_failure_becomes_audit_failure() {
+        // An empty event log has no run.created event → replay fails
+        let input = AuditInput {
+            session_id: "ses_replay_fail".to_string(),
+            events: vec![],
+            findings: vec![],
+            policy_decision_count: 0,
+            override_count: 0,
+            audit_present: false,
+        };
+        let report = evaluate(&input);
+        assert_eq!(report.posture, TrustPostureLevel::ReviewNeeded);
+        assert_eq!(report.verification_result, VerificationResult::Failed);
+        assert!(!report.blocking_factors.is_empty());
+        assert!(report.blocking_factors[0].contains("replay failed"));
+        assert_eq!(report.checks.len(), 1);
+        assert_eq!(report.checks[0].id, CheckId::TraceContinuity);
+        assert_eq!(report.checks[0].status, CheckStatus::Fail);
     }
 }
