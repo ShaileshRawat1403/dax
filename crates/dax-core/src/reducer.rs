@@ -1,5 +1,6 @@
 use crate::events::{EventPayload, RunEvent};
 use crate::state::{RunError, RunState, RunStatus, StepError, StepRecord, StepStatus, StepType, TrustPosture, TrustSummary};
+use crate::transitions::validate_transition;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,8 +11,10 @@ pub enum ReplayError {
     MissingCreationEvent,
     #[error("sequence gap: expected {expected} but got {got} at index {index}")]
     SequenceGap { expected: u32, got: u32, index: usize },
-    #[error("step not found: {step_id}")]
-    StepNotFound { step_id: String },
+    #[error("illegal transition from {from:?} to {to:?} at sequence {sequence}")]
+    IllegalTransition { from: RunStatus, to: RunStatus, sequence: u32 },
+    #[error("unknown run status \"{status}\" at sequence {sequence}")]
+    UnknownStatus { status: String, sequence: u32 },
 }
 
 /// Pure function: reconstructs canonical RunState from an ordered event log.
@@ -60,7 +63,13 @@ pub fn replay_run_state(events: &[RunEvent]) -> Result<RunState, ReplayError> {
             }
 
             EventPayload::RunStateChanged { current_status, .. } => {
-                state.status = parse_status(current_status);
+                let next = parse_status(current_status, event.sequence)?;
+                validate_transition(&state.status, &next).map_err(|_| ReplayError::IllegalTransition {
+                    from: state.status.clone(),
+                    to: next.clone(),
+                    sequence: event.sequence,
+                })?;
+                state.status = next;
                 if state.status == RunStatus::Running && state.started_at.is_none() {
                     state.started_at = Some(event.timestamp.clone());
                 }
@@ -191,17 +200,17 @@ pub fn replay_run_state(events: &[RunEvent]) -> Result<RunState, ReplayError> {
     Ok(state)
 }
 
-fn parse_status(s: &str) -> RunStatus {
+fn parse_status(s: &str, sequence: u32) -> Result<RunStatus, ReplayError> {
     match s {
-        "created" => RunStatus::Created,
-        "compiled" => RunStatus::Compiled,
-        "queued" => RunStatus::Queued,
-        "running" => RunStatus::Running,
-        "waiting_approval" => RunStatus::WaitingApproval,
-        "completed" => RunStatus::Completed,
-        "failed" => RunStatus::Failed,
-        "cancelled" => RunStatus::Cancelled,
-        _ => RunStatus::Failed,
+        "created" => Ok(RunStatus::Created),
+        "compiled" => Ok(RunStatus::Compiled),
+        "queued" => Ok(RunStatus::Queued),
+        "running" => Ok(RunStatus::Running),
+        "waiting_approval" => Ok(RunStatus::WaitingApproval),
+        "completed" => Ok(RunStatus::Completed),
+        "failed" => Ok(RunStatus::Failed),
+        "cancelled" => Ok(RunStatus::Cancelled),
+        _ => Err(ReplayError::UnknownStatus { status: s.to_string(), sequence }),
     }
 }
 
@@ -346,5 +355,33 @@ mod tests {
         let b = replay_run_state(&unordered).expect("unordered replay should pass");
 
         assert_eq!(serde_json::to_value(a).unwrap(), serde_json::to_value(b).unwrap());
+    }
+
+    #[test]
+    fn rejects_illegal_transition() {
+        let events = vec![
+            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
+            event(2, EventPayload::RunStateChanged {
+                previous_status: "created".to_string(),
+                current_status: "completed".to_string(),
+                reason: Some("invalid direct completion".to_string()),
+            }),
+        ];
+        let err = replay_run_state(&events).expect_err("illegal transition should fail");
+        assert!(matches!(err, ReplayError::IllegalTransition { .. }));
+    }
+
+    #[test]
+    fn rejects_unknown_status() {
+        let events = vec![
+            event(1, EventPayload::RunCreated { status: "created".to_string(), title: None }),
+            event(2, EventPayload::RunStateChanged {
+                previous_status: "created".to_string(),
+                current_status: "teleported".to_string(),
+                reason: None,
+            }),
+        ];
+        let err = replay_run_state(&events).expect_err("unknown status should fail");
+        assert!(matches!(err, ReplayError::UnknownStatus { .. }));
     }
 }
