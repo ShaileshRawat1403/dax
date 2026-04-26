@@ -95,7 +95,16 @@ result("proof result", proof.result)
 header("Step 3 · dax-policy — should the action proceed?")
 console.log("  Evaluating three representative actions...\n")
 
-const policyBase = { session_id: SESSION_ID, context: { profile: "standard" as const } }
+// blocklist makes the deny case explicit and reproducible — the demo uses it
+// to show the full allow / ask / deny spectrum rather than relying on profile
+// defaults alone.
+const policyBase = {
+  session_id: SESSION_ID,
+  context: {
+    profile: "standard" as const,
+    blocklist: ["rm -rf"],
+  },
+}
 
 const policyScenarios = [
   { label: "read file (low risk)", action: { type: "tool_call", tool: "read_file", path: "src/index.ts" } },
