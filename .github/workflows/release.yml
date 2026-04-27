@@ -34,7 +34,7 @@ jobs:
         run: bun run build
         working-directory: packages/dax
         env:
-          DAX_RELEASE: "1"
+          DAX_CHANNEL: "latest"
 
       - name: List release assets
         run: find packages/dax/dist/release -maxdepth 1 -type f | sort
