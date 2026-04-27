@@ -933,7 +933,7 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       when={themeState.ready}
       fallback={
         <box width={dimensions().width} height={dimensions().height} justifyContent="center" alignItems="center">
-          <text fg="#ffffff">System Initializing...</text>
+          <text>System Initializing...</text>
         </box>
       }
     >

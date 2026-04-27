@@ -17,6 +17,40 @@ const geminiSubscriptionCooldownFile = path.join(Global.Path.state, "gemini-subs
 
 const DEBUG_ENABLED = process.env.DAX_GEMINI_DEBUG === "1"
 
+const THROTTLE_MESSAGES: Record<string, string> = {
+  QUOTA_EXHAUSTED:
+    "Daily Gemini limit reached — free tier resets at midnight Pacific.\nSwitch to a Gemini API key or Pro subscription for continuous access.",
+  RATE_LIMIT_EXCEEDED: "Gemini rate limit hit after multiple retries. Wait a moment and try again.",
+  MODEL_CAPACITY_EXHAUSTED: "Gemini model is at capacity. Try again shortly or switch to gemini-flash.",
+}
+
+export class GeminiThrottleError extends Error {
+  constructor(
+    public readonly reason: string,
+    public readonly terminal: boolean,
+  ) {
+    super(THROTTLE_MESSAGES[reason] ?? "Gemini is temporarily unavailable — please try again.")
+    this.name = "GeminiThrottleError"
+  }
+}
+
+type ThrottleRetryEvent = { reason: string; retryInMs: number; attempt: number }
+const _throttleCallbacks = new Set<(event: ThrottleRetryEvent) => void>()
+
+/** Register a callback that fires each time a Gemini request is throttled and scheduled for retry. */
+export function onGeminiThrottle(cb: (event: ThrottleRetryEvent) => void): () => void {
+  _throttleCallbacks.add(cb)
+  return () => _throttleCallbacks.delete(cb)
+}
+
+function notifyThrottle(event: ThrottleRetryEvent) {
+  for (const cb of _throttleCallbacks) {
+    try {
+      cb(event)
+    } catch {}
+  }
+}
+
 function debugLog(message: string, meta?: Record<string, unknown>) {
   if (DEBUG_ENABLED) {
     log.info(`[GEMINI-DEBUG] ${message}`, meta)
@@ -175,14 +209,14 @@ async function processNext() {
           throttleKey: next.throttleKey.slice(0, 80),
         })
         retryCooldownByKey.delete(next.throttleKey)
-        next.resolve(null)
+        next.reject(new GeminiThrottleError(quotaContext.reason ?? "QUOTA_EXHAUSTED", true))
       } else if (next.attempt >= DEFAULT_MAX_ATTEMPTS) {
         debugLog(`max attempts (${DEFAULT_MAX_ATTEMPTS}) reached, giving up`, {
           attempt: next.attempt,
           throttleKey: next.throttleKey.slice(0, 80),
         })
         retryCooldownByKey.delete(next.throttleKey)
-        next.resolve(null)
+        next.reject(new GeminiThrottleError(quotaContext?.reason ?? "RATE_LIMIT_EXCEEDED", false))
       } else {
         let delayMs: number
 
@@ -207,6 +241,8 @@ async function processNext() {
           debugLog(`MODEL_CAPACITY_EXHAUSTED, setting ${modelCapDelay}ms cooldown`)
           setRetryCooldown(next.throttleKey, modelCapDelay)
         }
+
+        notifyThrottle({ reason: quotaContext?.reason ?? "RATE_LIMIT_EXCEEDED", retryInMs: delayMs, attempt: next.attempt })
 
         scheduleRetry(next, delayMs)
       }

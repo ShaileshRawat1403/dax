@@ -28,10 +28,10 @@ export function VerificationReceipt(props: VerificationReceiptProps) {
   const checkIcon = (status: string) => {
     switch (status) {
       case "pass": return "✓"
-      case "warn": return "!"
+      case "warn": return "⚠"
       case "fail": return "✗"
       case "pending": return "○"
-      default: return "•"
+      default: return "·"
     }
   }
 

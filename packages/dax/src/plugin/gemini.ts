@@ -1,7 +1,13 @@
 import type { Hooks, PluginInput } from "@dax-ai/plugin"
 import { Auth, OAUTH_DUMMY_KEY } from "@/auth"
 import { parseGeminiSubscriptionRetryMs } from "./gemini-rate-limit"
-import { scheduleGeminiSubscriptionRequest, persistGeminiSubscriptionCooldown } from "./gemini-scheduler"
+import {
+  scheduleGeminiSubscriptionRequest,
+  persistGeminiSubscriptionCooldown,
+  GeminiThrottleError,
+  onGeminiThrottle,
+} from "./gemini-scheduler"
+export { onGeminiThrottle }
 import { Global } from "@/global"
 import path from "path"
 import { iife } from "../util/iife"
@@ -908,10 +914,9 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   projectId: resolvedProject,
                   model: modelName,
                 })
+                // GeminiThrottleError is thrown (not returned) — this guard covers unexpected nulls only
                 if (!response) {
-                  const err: any = new Error("Throttled")
-                  err.status = 429
-                  throw err
+                  throw new GeminiThrottleError("RATE_LIMIT_EXCEEDED", false)
                 }
               } else {
                 response = await doFetch()

@@ -88,7 +88,7 @@ export function DialogStatus() {
                       )[item.status],
                     }}
                   >
-                    •
+                    {({ connected: "✓", failed: "✗", needs_auth: "⚠", needs_client_registration: "✗", disabled: "·" } as Record<string, string>)[item.status] ?? "·"}
                   </text>
                   <box flexDirection="column">
                     <text fg={theme.text} wrapMode="word">
@@ -140,7 +140,7 @@ export function DialogStatus() {
                       }[item.status],
                     }}
                   >
-                    •
+                    {({ connected: "✓", error: "✗" } as Record<string, string>)[item.status] ?? "·"}
                   </text>
                   <box flexDirection="column">
                     <text fg={theme.text} wrapMode="word">

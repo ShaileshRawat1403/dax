@@ -64,7 +64,7 @@ import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import parsers from "../../../../../../parsers-config.ts"
 import { Clipboard } from "@tui/util/clipboard"
 import { Toast, useToast } from "../../ui/toast"
-import { onGeminiReauthRequired } from "@/plugin/gemini"
+import { onGeminiReauthRequired, onGeminiThrottle } from "@/plugin/gemini"
 import { useKV } from "../../context/kv.tsx"
 import { Editor } from "../../util/editor"
 import stripAnsi from "strip-ansi"
@@ -497,14 +497,29 @@ export function Session() {
 
   const toast = useToast()
   onMount(() => {
-    const unsub = onGeminiReauthRequired((url) => {
+    const unsubReauth = onGeminiReauthRequired((url) => {
       toast.show({
         variant: "warning",
         message: `Gemini session expired — sign in to continue: ${url}`,
         duration: 30_000,
       })
     })
-    onCleanup(unsub)
+    const unsubThrottle = onGeminiThrottle(({ reason, retryInMs, attempt }) => {
+      const secs = Math.ceil(retryInMs / 1000)
+      const label =
+        reason === "MODEL_CAPACITY_EXHAUSTED"
+          ? "Gemini model at capacity"
+          : "Gemini rate limited"
+      toast.show({
+        variant: "warning",
+        message: `${label} — retrying in ${secs}s (attempt ${attempt})`,
+        duration: Math.min(retryInMs, 8_000),
+      })
+    })
+    onCleanup(() => {
+      unsubReauth()
+      unsubThrottle()
+    })
   })
 
   const isThinking = createMemo(() => {
