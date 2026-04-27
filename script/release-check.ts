@@ -34,7 +34,7 @@ for (const file of requiredFiles) {
 
 const requiredCommands = ["bun", "tar", "zip"]
 for (const cmd of requiredCommands) {
-  const found = await $`command -v ${cmd}`.nothrow()
+  const found = await $`which ${cmd}`.nothrow().quiet()
   if (found.exitCode !== 0) {
     throw new Error(`Missing required command: ${cmd}`)
   }
