@@ -1,5 +1,4 @@
 import {
-  batch,
   createContext,
   createEffect,
   createMemo,
@@ -2327,7 +2326,11 @@ function TextPart(props: {
   // Sub-task agent text is suppressed entirely — their output is not meaningful to the user
   const isSubTaskAgent = createMemo(() => SUB_TASK_AGENTS_UI.has(agentName()))
   const [cursorOn, setCursorOn] = createSignal(true)
-  onMount(() => {
+  createEffect(() => {
+    if (!isStreaming()) {
+      setCursorOn(true)
+      return
+    }
     const timer = setInterval(() => setCursorOn((v) => !v), 530)
     onCleanup(() => clearInterval(timer))
   })

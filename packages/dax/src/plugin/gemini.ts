@@ -996,8 +996,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify(json.response)}${suffix}`))
                             return
                           }
-                        } catch {
-                          // Fall through to raw enqueue on parse error
+                        } catch (e) {
+                          console.error("[Gemini] SSE JSON parse error — passing raw line downstream", {
+                            error: (e as Error).message,
+                            line: jsonText.slice(0, 120),
+                          })
                         }
                       }
                     }

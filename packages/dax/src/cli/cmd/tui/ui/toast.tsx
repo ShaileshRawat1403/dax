@@ -29,10 +29,21 @@ export function Toast() {
     onCleanup(() => clearTimeout(t1))
   })
 
+  const TOAST_MAX_LINES = 5
+
   return (
     <Show when={toast.currentToast}>
       {(current) => {
         const toastWidth = Math.min(72, Math.max(28, current().message.length + (current().title ? 12 : 8)))
+        const effectiveWidth = Math.min(toastWidth, dimensions().width - 4)
+        const fullText = current().title ? `${current().title}: ${current().message}` : current().message
+        // Estimate lines needed and truncate if it would overflow max height
+        const charsPerLine = effectiveWidth - 4
+        const estimatedLines = Math.ceil(fullText.length / Math.max(1, charsPerLine))
+        const isTruncated = estimatedLines > TOAST_MAX_LINES
+        const displayText = isTruncated
+          ? fullText.slice(0, charsPerLine * TOAST_MAX_LINES - 3) + "..."
+          : fullText
         const bg = () =>
           flash()
             ? tint(theme[current().variant], theme.text, 0.35)
@@ -45,7 +56,8 @@ export function Toast() {
             top={1}
             left={Math.max(1, Math.floor((dimensions().width - toastWidth) / 2))}
             width={toastWidth}
-            maxWidth={Math.min(72, dimensions().width - 4)}
+            maxWidth={effectiveWidth}
+            maxHeight={TOAST_MAX_LINES + 1}
             paddingLeft={2}
             paddingRight={2}
             paddingTop={0}
@@ -53,7 +65,7 @@ export function Toast() {
             backgroundColor={bg()}
           >
             <text fg={theme.background} attributes={TextAttributes.BOLD} wrapMode="word" width="100%">
-              {current().title ? `${current().title}: ${current().message}` : current().message}
+              {displayText}
             </text>
           </box>
         )
