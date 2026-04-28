@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+
+import childProcess from "node:child_process"
+import fs from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+const scriptPath = fs.realpathSync(fileURLToPath(import.meta.url))
+const scriptDir = path.dirname(scriptPath)
+const daxScript = path.join(scriptDir, "dax")
+
+if (!fs.existsSync(daxScript)) {
+  console.error(`dax-acp: sibling launcher not found at ${daxScript}`)
+  process.exit(1)
+}
+
+const result = childProcess.spawnSync(
+  process.execPath,
+  [daxScript, "acp", ...process.argv.slice(2)],
+  { stdio: "inherit" },
+)
+if (result.error) {
+  console.error(result.error.message)
+  process.exit(1)
+}
+process.exit(typeof result.status === "number" ? result.status : 0)

@@ -15,7 +15,8 @@
     "lint": "eslint src/ --ext .ts,.tsx,.js,.jsx"
   },
   "bin": {
-    "dax": "./bin/dax"
+    "dax": "./bin/dax",
+    "dax-acp": "./bin/dax-acp"
   },
   "exports": {
     "./*": "./src/*.ts"

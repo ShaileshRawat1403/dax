@@ -140,7 +140,14 @@ fi
 mkdir -p "$INSTALL_DIR"
 install -m 755 "$tmp_dir/dax" "$INSTALL_DIR/dax"
 
+cat > "$tmp_dir/dax-acp" <<'SHIM'
+#!/usr/bin/env bash
+exec dax acp "$@"
+SHIM
+install -m 755 "$tmp_dir/dax-acp" "$INSTALL_DIR/dax-acp"
+
 echo "Installed dax to $INSTALL_DIR/dax"
+echo "Installed dax-acp to $INSTALL_DIR/dax-acp"
 case ":$PATH:" in
   *":$INSTALL_DIR:"*)
     echo "dax is on your PATH. Run: dax"
