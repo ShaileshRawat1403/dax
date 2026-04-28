@@ -25,6 +25,13 @@ import { useRenderer } from "@opentui/solid"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 
+const OPERATOR_CONTROL_DEFAULTS = {
+  speed: "balanced",
+  verbosity: "balanced",
+  risk: "balanced",
+  approval: "normal",
+} as const
+
 export function usePromptHandlers(
   props: PromptProps,
   state: ReturnType<typeof import("./prompt-state").usePromptState>,
@@ -52,6 +59,30 @@ export function usePromptHandlers(
   const dialog = useDialog()
 
   const { store, setStore } = state
+
+  function buildOperatorSystemNote() {
+    const instruction = kv.get(DAX_SETTING.operator_instruction, "").trim()
+    const sessionTag = kv.get(DAX_SETTING.operator_session_tag, "").trim()
+    const speed = kv.get(DAX_SETTING.operator_speed, OPERATOR_CONTROL_DEFAULTS.speed)
+    const verbosity = kv.get(DAX_SETTING.operator_verbosity, OPERATOR_CONTROL_DEFAULTS.verbosity)
+    const risk = kv.get(DAX_SETTING.operator_risk, OPERATOR_CONTROL_DEFAULTS.risk)
+    const approval = kv.get(DAX_SETTING.operator_approval, OPERATOR_CONTROL_DEFAULTS.approval)
+
+    const lines: string[] = []
+    if (instruction) lines.push(`Operator instruction: ${instruction}`)
+    if (sessionTag) lines.push(`Session tag: ${sessionTag}`)
+
+    const controls = [
+      speed !== OPERATOR_CONTROL_DEFAULTS.speed ? `speed=${speed}` : undefined,
+      verbosity !== OPERATOR_CONTROL_DEFAULTS.verbosity ? `verbosity=${verbosity}` : undefined,
+      risk !== OPERATOR_CONTROL_DEFAULTS.risk ? `risk=${risk}` : undefined,
+      approval !== OPERATOR_CONTROL_DEFAULTS.approval ? `approval=${approval}` : undefined,
+    ].filter(Boolean)
+
+    if (controls.length > 0) lines.push(`Operator controls: ${controls.join(", ")}`)
+    if (lines.length === 0) return undefined
+    return `Operator context:\n${lines.map((line) => `- ${line}`).join("\n")}`
+  }
 
   function restoreExtmarksFromParts(parts: PromptInfo["parts"]) {
     const input = refs.input()
@@ -495,6 +526,10 @@ export function usePromptHandlers(
     if (!isSlashCommand) {
       if (state.explainMode() || eli12Command.handled) {
         inputSystem = ELI12_PREFIX
+      }
+      const operatorSystemNote = buildOperatorSystemNote()
+      if (operatorSystemNote) {
+        inputSystem = inputSystem ? `${inputSystem}\n\n${operatorSystemNote}` : operatorSystemNote
       }
     }
 

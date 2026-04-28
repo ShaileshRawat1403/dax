@@ -62,6 +62,7 @@ import { OperatorRouter } from "@/operators/router"
 import { ExploreOperator } from "@/operators/explore"
 import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
 import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
+import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -164,6 +165,13 @@ export namespace SessionPrompt {
   export type PromptInput = z.infer<typeof PromptInput>
 
   export const prompt = fn(PromptInput, async (input) => {
+    if (input.tools && Object.keys(input.tools).length > 0) {
+      log.warn("deprecated prompt.tools compatibility path used; prefer session permissions", {
+        sessionID: input.sessionID,
+        tools: Object.keys(input.tools),
+      })
+    }
+
     const cfg = await Config.get()
     const preferredNamePrompt =
       cfg.username && cfg.username !== os.userInfo().username ? buildPreferredNamePrompt(cfg.username) : undefined
@@ -225,14 +233,7 @@ export namespace SessionPrompt {
 
     // this is backwards compatibility for allowing `tools` to be specified when
     // prompting
-    const permissions: Permission.Ruleset = []
-    for (const [tool, enabled] of Object.entries(input.tools ?? {})) {
-      permissions.push({
-        permission: tool,
-        action: enabled ? "allow" : "deny",
-        pattern: "*",
-      })
-    }
+    const permissions = Permission.fromConfig(legacyToolTogglesToPermissionConfig(input.tools) as any)
     if (permissions.length > 0) {
       session.permission = permissions
       await Session.update(session.id, (draft) => {

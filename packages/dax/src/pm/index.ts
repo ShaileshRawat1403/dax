@@ -96,9 +96,8 @@ export namespace PM {
     risk_mode: RiskMode.optional(),
   })
 
-  function touch(project_id: string, risk_mode?: z.infer<typeof RiskMode>) {
-    const now = Date.now()
-    const current = db
+  function readState(project_id: string) {
+    return db
       .prepare("select project_id, pm_rev, risk_mode, created_at, updated_at from pm_state where project_id = ?")
       .get(project_id) as
       | {
@@ -109,18 +108,27 @@ export namespace PM {
           updated_at: number
         }
       | undefined
+  }
+
+  function defaultState(project_id: string, now = Date.now(), risk_mode?: z.infer<typeof RiskMode>) {
+    return {
+      project_id,
+      pm_rev: 1,
+      risk_mode: risk_mode ?? ("balanced" as const),
+      created_at: now,
+      updated_at: now,
+    }
+  }
+
+  function touch(project_id: string, risk_mode?: z.infer<typeof RiskMode>) {
+    const now = Date.now()
+    const current = readState(project_id)
     if (!current) {
       db.prepare(
         `insert into pm_state (project_id, pm_rev, risk_mode, created_at, updated_at)
          values (?, ?, ?, ?, ?)`,
       ).run(project_id, 1, risk_mode ?? "balanced", now, now)
-      return {
-        project_id,
-        pm_rev: 1,
-        risk_mode: risk_mode ?? ("balanced" as const),
-        created_at: now,
-        updated_at: now,
-      }
+      return defaultState(project_id, now, risk_mode)
     }
     db.prepare("update pm_state set risk_mode = ?, updated_at = ? where project_id = ?").run(
       risk_mode ?? current.risk_mode,
@@ -141,18 +149,7 @@ export namespace PM {
       project_id: z.string(),
     }),
     async (input) => {
-      const state = db
-        .prepare("select project_id, pm_rev, risk_mode, created_at, updated_at from pm_state where project_id = ?")
-        .get(input.project_id) as
-        | {
-            project_id: string
-            pm_rev: number
-            risk_mode: z.infer<typeof RiskMode>
-            created_at: number
-            updated_at: number
-          }
-        | undefined
-      return state ?? touch(input.project_id)
+      return readState(input.project_id) ?? defaultState(input.project_id)
     },
   )
 
@@ -180,7 +177,6 @@ export namespace PM {
       project_id: z.string(),
     }),
     async (input) => {
-      touch(input.project_id)
       return db
         .prepare("select project_id, pref_key, pref_value, updated_at from pm_preferences where project_id = ?")
         .all(input.project_id) as Array<{
@@ -221,7 +217,6 @@ export namespace PM {
       limit: z.number().int().positive().max(500).default(100),
     }),
     async (input) => {
-      touch(input.project_id)
       return db
         .prepare(
           `select id, project_id, rule_type, pattern, action, source, created_at
@@ -286,7 +281,6 @@ export namespace PM {
       limit: z.number().int().positive().max(200).default(20),
     }),
     async (input) => {
-      touch(input.project_id)
       const stmt = input.day
         ? db.prepare(
             `select id, project_id, day, title, note, tags, author, session_id, source, created_at
@@ -362,7 +356,6 @@ export namespace PM {
       limit: z.number().int().positive().max(500).default(100),
     }),
     async (input) => {
-      touch(input.project_id)
       const rows = input.event_type
         ? (db
             .prepare(

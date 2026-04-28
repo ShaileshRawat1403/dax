@@ -58,7 +58,6 @@ import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { DialogDiff } from "../../component/dialog-diff"
 import { DialogStatus } from "../../component/dialog-status"
-import { Sidebar } from "./sidebar"
 import { Flag } from "@/flag/flag"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import parsers from "../../../../../../parsers-config.ts"
@@ -78,7 +77,6 @@ import { Identifier } from "@/id/id"
 import { Auth } from "@/auth"
 import { Instance } from "@/project/instance"
 import { PermissionPrompt } from "./permission"
-import { QuestionPrompt } from "./question"
 import { RAOPane } from "./rao-pane"
 import { AuditLogPane } from "../../component/prompt/audit-log"
 import { RefinePane } from "../../component/prompt/refine"
@@ -109,10 +107,8 @@ import {
 } from "@/dax/presentation/session-surface"
 import {
   hasMemoryContext,
-  resolveSessionSidebarVisibility,
   resolveDisplayDetailToggles,
   shouldShowWorkstationPane,
-  shouldAutoOpenSidebar,
   shouldShowInterventionQueue,
   type DisplayMode,
 } from "@/dax/presentation/session-display"
@@ -222,6 +218,8 @@ export function Session() {
   const sync = useSync()
   const kv = useKV()
   const sdk = useSDK()
+  const command = useCommandDialog()
+  const dialog = useDialog()
 
   const [personaId, setPersonaId] = kv.signal<string>(DAX_SETTING.session_persona, "mission")
   const activePersona = createMemo(() => getPersona(personaId()))
@@ -369,8 +367,10 @@ export function Session() {
   })
 
   const questions = createMemo(() => {
+    const legacy = !session() || session()?.parentID ? [] : children().flatMap((x) => sync.data.question[x.id] ?? [])
+
     if (projectedRun()) {
-      return (projectedRun()?.approvals ?? [])
+      const projectedQuestions = (projectedRun()?.approvals ?? [])
         .filter((a) => a.type === "question")
         .map((a) => ({
           id: a.approvalId,
@@ -380,12 +380,13 @@ export function Session() {
               question: a.reason,
               header: a.title,
               options: [],
+              custom: true,
             },
           ],
         }))
+      if (projectedQuestions.length > 0) return projectedQuestions
+      return legacy
     }
-    if (!session() || session()?.parentID) return []
-    const legacy = children().flatMap((x) => sync.data.question[x.id] ?? [])
     return legacy
   })
 
@@ -400,8 +401,6 @@ export function Session() {
   })
 
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
-  const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(false)
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
@@ -485,11 +484,6 @@ export function Session() {
     if (local.agent.current()?.name === mode) return
     if (!availableAgents.some((a) => a.name === mode)) return
     local.agent.set(mode)
-  })
-  createEffect(() => {
-    if (!session()?.parentID && shouldAutoOpenSidebar(displayMode())) {
-      setSidebarOpen(true)
-    }
   })
   onCleanup(() => {
     promptRef.set(undefined)
@@ -699,16 +693,7 @@ export function Session() {
   const narrow = createMemo(() => dimensions().width < 80)
   const liveStacked = createMemo(() => !wide())
 
-  const sidebarVisible = createMemo(() => {
-    if (narrow()) return false
-    return resolveSessionSidebarVisibility({
-      hasParentSession: !!session()?.parentID,
-      sidebarOpen: sidebarOpen(),
-      displayMode: displayMode(),
-    })
-  })
-
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() && wide() ? 42 : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - 4)
 
   const livePaneWidth = createMemo(() => {
     if (liveStacked()) return contentWidth()
@@ -1262,6 +1247,121 @@ export function Session() {
     setPaneVisibility(() => "pinned")
   }
 
+  const operatorControls = createMemo(() => ({
+    speed: kv.get(DAX_SETTING.operator_speed, "balanced"),
+    verbosity: kv.get(DAX_SETTING.operator_verbosity, "balanced"),
+    risk: kv.get(DAX_SETTING.operator_risk, "balanced"),
+    approval: kv.get(DAX_SETTING.operator_approval, "normal"),
+  }))
+
+  const applyOperatorInstructionOnce = () => {
+    const instruction = kv.get(DAX_SETTING.operator_instruction, "").trim()
+    const prompt = promptRef.current
+    if (!instruction) {
+      toast.show({ variant: "warning", message: "Add an instruction first.", duration: 2000 })
+      return
+    }
+    if (!prompt?.alive) {
+      toast.show({ variant: "warning", message: "Prompt is not ready yet.", duration: 2000 })
+      return
+    }
+    const current = prompt.current.input.trimEnd()
+    const next = current
+      ? `${current}\n\nOperator instruction for this turn: ${instruction}`
+      : `Operator instruction for this turn: ${instruction}`
+    prompt.set({ input: next, parts: prompt.current.parts })
+    prompt.focus()
+    toast.show({ variant: "success", message: "Instruction added to the next prompt.", duration: 2200 })
+  }
+
+  const applyOperatorInstructionSession = () => {
+    const instruction = kv.get(DAX_SETTING.operator_instruction, "").trim()
+    if (!instruction) {
+      toast.show({ variant: "warning", message: "Add an instruction first.", duration: 2000 })
+      return
+    }
+    toast.show({ variant: "success", message: "Instruction will apply to future prompts.", duration: 2200 })
+  }
+
+  const exportSessionTranscript = async () => {
+    const info = session()
+    if (!info) {
+      toast.show({ variant: "error", message: "Session data is not available.", duration: 2500 })
+      return
+    }
+    const options = await DialogExportOptions.show(
+      dialog,
+      `${info.title.replace(/[^\w.-]+/g, "_") || route.sessionID}.md`,
+      detailToggles().showThinking,
+      true,
+      detailToggles().showAssistantMetadata,
+      false,
+    )
+    if (!options) return
+
+    const transcript = formatTranscript(
+      info,
+      messages().map((message) => ({
+        info: message,
+        parts: sync.data.part[message.id] ?? [],
+      })),
+      {
+        thinking: options.thinking,
+        toolDetails: options.toolDetails,
+        assistantMetadata: options.assistantMetadata,
+      },
+    )
+
+    if (options.openWithoutSaving) {
+      const editorResult = await Editor.open({ value: transcript, renderer })
+      if (editorResult === undefined) {
+        await Clipboard.copy(transcript).catch(() => {})
+        toast.show({ variant: "info", message: "Transcript copied to clipboard.", duration: 2500 })
+        return
+      }
+      toast.show({ variant: "success", message: "Transcript opened in your editor.", duration: 2500 })
+      return
+    }
+
+    const filename = options.filename.trim() || `${route.sessionID}.md`
+    const outputPath = path.resolve(process.cwd(), filename)
+    await Bun.write(outputPath, transcript)
+    toast.show({ variant: "success", message: `Transcript saved to ${filename}.`, duration: 3000 })
+  }
+
+  const forkCurrentSession = async () => {
+    const result = await sdk.client.session.fork({ sessionID: route.sessionID })
+    if (!result.data?.id) {
+      toast.show({ variant: "error", message: "Failed to fork session.", duration: 2500 })
+      return
+    }
+    navigate({
+      type: "session",
+      sessionID: result.data.id,
+      initialPrompt: promptRef.current?.current,
+    })
+    toast.show({ variant: "success", message: "Forked into a new session.", duration: 2200 })
+  }
+
+  const runOperatorCommand = async (name: "/clear" | "/export" | "/fork" | "/help") => {
+    if (name === "/clear") {
+      promptRef.current?.reset()
+      toast.show({ variant: "info", message: "Prompt cleared.", duration: 1800 })
+      return
+    }
+    if (name === "/export") {
+      await exportSessionTranscript()
+      return
+    }
+    if (name === "/fork") {
+      await forkCurrentSession()
+      return
+    }
+    if (name === "/help") {
+      command.trigger("help.show")
+    }
+  }
+
   const openRefinePane = () => {
     setPaneMode(() => "refine")
     setPaneVisibility(() => "pinned")
@@ -1488,6 +1588,9 @@ export function Session() {
                   </text>
                 </box>
               </Show>
+              <Show when={todo().length > 0}>
+                <TodoStreamBlock todos={todo()} />
+              </Show>
               <For each={streamItems()}>
                 {(item, index) => (
                   <>
@@ -1500,9 +1603,6 @@ export function Session() {
                       onNavigateToApprovals={openApprovalsPane}
                       MessageComponent={Message}
                     />
-                    <Show when={item.kind === "phase.marker" && item.phase === "planning" && todo().length > 0}>
-                      <TodoStreamBlock todos={todo()} />
-                    </Show>
                   </>
                 )}
               </For>
@@ -1806,13 +1906,26 @@ export function Session() {
                     <OperatorPane
                       instruction={kv.get(DAX_SETTING.operator_instruction, "")}
                       onInstructionChange={(value) => kv.set(DAX_SETTING.operator_instruction, value)}
+                      onApplyOnce={applyOperatorInstructionOnce}
+                      onApplySession={applyOperatorInstructionSession}
                       onClear={() => kv.set(DAX_SETTING.operator_instruction, "")}
+                      controls={operatorControls()}
+                      onControlChange={(key, value) => kv.set(DAX_SETTING[`operator_${key}`], value)}
                       contextUsage={sessionTelemetry().contextPercent ?? 0}
                       stepsUsed={workstationState().planSummary.steps.filter((s) => s.status === "done").length}
                       stepsTotal={workstationState().planSummary.totalSteps || undefined}
                       pmRulesCount={memoryRules().rows.length}
                       sessionTag={kv.get(DAX_SETTING.operator_session_tag, "")}
                       onSessionTagChange={(value) => kv.set(DAX_SETTING.operator_session_tag, value)}
+                      onCommand={(name) => {
+                        runOperatorCommand(name).catch((error) => {
+                          toast.show({
+                            variant: "error",
+                            message: String(error instanceof Error ? error.message : error),
+                            duration: 3000,
+                          })
+                        })
+                      }}
                     />
                   </Match>
                 </Switch>
@@ -1857,6 +1970,10 @@ export function Session() {
           <Prompt
             ref={promptRef.set}
             disabled={promptDisabled()}
+            panePinned={paneVisibility() === "pinned"}
+            activePaneMode={activePaneMode()}
+            approvalAttentionCount={permissions().length}
+            questionAttentionCount={questions().length}
             onRefineReady={() => {
               openRefinePane()
             }}
@@ -2896,6 +3013,7 @@ type ToolProps<T extends Tool.Info> = {
 }
 
 function formatElapsed(ms: number): string {
+  if (ms < 1000) return `${Math.max(1, ms)}ms`
   const s = Math.floor(ms / 1000)
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)

@@ -263,7 +263,10 @@ export const CreateRunRequest = z
         workflowId: z.string().optional(),
         channel: z.string().optional(),
         sessionId: z.string().optional(),
-        allowLegacyFallback: z.boolean().optional(),
+        allowLegacyFallback: z
+          .boolean()
+          .optional()
+          .describe("@deprecated Temporary compatibility escape hatch. Avoid this in new integrations."),
         targeting: z
           .object({
             mode: z.enum(["explicit_repo_path", "default_cwd"]),

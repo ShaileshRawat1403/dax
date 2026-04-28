@@ -21,16 +21,81 @@ export type MessageWithParts = {
   parts: Part[]
 }
 
+function escapeTableCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\n/g, "<br />").trim()
+}
+
+function markdownTable(headers: string[], rows: string[][]): string {
+  const header = `| ${headers.map(escapeTableCell).join(" | ")} |`
+  const divider = `| ${headers.map(() => "---").join(" | ")} |`
+  const body = rows.map((row) => `| ${row.map((cell) => escapeTableCell(cell)).join(" | ")} |`)
+  return [header, divider, ...body].join("\n")
+}
+
+function summarizeValue(value: unknown, max = 96): string {
+  if (value === null || value === undefined) return ""
+  const text =
+    typeof value === "string"
+      ? value
+      : typeof value === "object"
+        ? JSON.stringify(value)
+        : String(value)
+  const normalized = text.replace(/\s+/g, " ").trim()
+  if (normalized.length <= max) return normalized
+  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`
+}
+
+function formatDurationMs(ms: number): string {
+  if (ms < 1000) return `${Math.max(1, ms)}ms`
+  const seconds = Math.round(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const rem = seconds % 60
+  return rem > 0 ? `${minutes}m ${rem}s` : `${minutes}m`
+}
+
+function buildTranscriptSummary(session: SessionInfo, messages: MessageWithParts[]): string {
+  const userMessages = messages.filter((message) => message.info.role === "user").length
+  const assistantMessages = messages.filter((message) => message.info.role === "assistant").length
+  const toolCalls = messages.reduce(
+    (count, message) => count + message.parts.filter((part) => part.type === "tool").length,
+    0,
+  )
+  const reasoningBlocks = messages.reduce(
+    (count, message) => count + message.parts.filter((part) => part.type === "reasoning").length,
+    0,
+  )
+
+  const overviewTable = markdownTable(
+    ["Field", "Value"],
+    [
+      ["Session", session.title],
+      ["Session ID", session.id],
+      ["Created", new Date(session.time.created).toLocaleString()],
+      ["Updated", new Date(session.time.updated).toLocaleString()],
+    ],
+  )
+
+  const statsTable = markdownTable(
+    ["Metric", "Value"],
+    [
+      ["User turns", String(userMessages)],
+      ["Assistant turns", String(assistantMessages)],
+      ["Tool calls", String(toolCalls)],
+      ["Reasoning blocks", String(reasoningBlocks)],
+    ],
+  )
+
+  return `## Session Overview\n\n${overviewTable}\n\n## Conversation Summary\n\n${statsTable}\n\n---\n\n`
+}
+
 export function formatTranscript(
   session: SessionInfo,
   messages: MessageWithParts[],
   options: TranscriptOptions,
 ): string {
   let transcript = `# ${session.title}\n\n`
-  transcript += `**Session ID:** ${session.id}\n`
-  transcript += `**Created:** ${new Date(session.time.created).toLocaleString()}\n`
-  transcript += `**Updated:** ${new Date(session.time.updated).toLocaleString()}\n\n`
-  transcript += `---\n\n`
+  transcript += buildTranscriptSummary(session, messages)
 
   for (const msg of messages) {
     transcript += formatMessage(msg.info, msg.parts, options)
@@ -80,7 +145,28 @@ export function formatPart(part: Part, options: TranscriptOptions): string {
   }
 
   if (part.type === "tool") {
-    let result = `**Tool: ${part.tool}**\n`
+    const time =
+      "time" in part.state && part.state.time && typeof part.state.time.start === "number"
+        ? (part.state.time as { start: number; end?: number })
+        : undefined
+    const timing =
+      typeof time?.end === "number" && time.end >= time.start ? formatDurationMs(time.end - time.start) : ""
+    const summaryTable = markdownTable(
+      ["Tool", "Status", "Duration", "Summary"],
+      [
+        [
+          String(part.tool),
+          String(part.state.status),
+          timing,
+          summarizeValue(
+            part.state.status === "completed" ? part.state.output : part.state.status === "error" ? part.state.error : "",
+            120,
+          ),
+        ],
+      ],
+    )
+
+    let result = `${summaryTable}\n`
     if (options.toolDetails && part.state.input) {
       result += `\n**Input:**\n\`\`\`json\n${JSON.stringify(part.state.input, null, 2)}\n\`\`\`\n`
     }

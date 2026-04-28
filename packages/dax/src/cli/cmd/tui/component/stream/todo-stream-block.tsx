@@ -1,4 +1,5 @@
 import { For, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { useTheme } from "@tui/context/theme"
 import { TodoItem } from "@tui/component/todo-item"
 
@@ -14,11 +15,18 @@ interface TodoStreamBlockProps {
 
 export function TodoStreamBlock(props: TodoStreamBlockProps) {
   const { theme } = useTheme()
+  const isCompleted = (status: string) => status === "completed" || status === "done"
 
-  const visibleTodos = () => props.todos.filter((t) => t.status !== "completed" || props.todos.length <= 5)
-  const completedCount = () => props.todos.filter((t) => t.status === "completed").length
-  const activeCount = () => props.todos.filter((t) => t.status !== "completed").length
-  const hiddenCompletedCount = () => completedCount() - visibleTodos().filter((t) => t.status === "completed").length
+  const visibleTodos = () => {
+    if (props.todos.length <= 5) return props.todos
+    const active = props.todos.filter((t) => !isCompleted(t.status))
+    if (active.length === 0) return props.todos.slice(-5)
+    const latestCompleted = [...props.todos].reverse().find((t) => isCompleted(t.status))
+    return latestCompleted ? [...active, latestCompleted] : active
+  }
+  const completedCount = () => props.todos.filter((t) => isCompleted(t.status)).length
+  const activeCount = () => props.todos.filter((t) => !isCompleted(t.status)).length
+  const hiddenCompletedCount = () => completedCount() - visibleTodos().filter((t) => isCompleted(t.status)).length
 
   return (
     <Show when={props.todos.length > 0}>
@@ -31,6 +39,19 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
         paddingTop={0}
         paddingBottom={0}
       >
+        <box flexDirection="row" gap={1} paddingLeft={0} paddingRight={0}>
+          <text fg={theme.info} attributes={TextAttributes.BOLD}>
+            Plan
+          </text>
+          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            {completedCount()}/{props.todos.length} done
+          </text>
+          <Show when={activeCount() > 0}>
+            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+              · {activeCount()} active
+            </text>
+          </Show>
+        </box>
         <box flexDirection="column">
           <For each={visibleTodos()}>
             {(todo) => <TodoItem status={todo.status} content={todo.content} />}

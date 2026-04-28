@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import os from "os"
 import path from "path"
 import { rmSync } from "fs"
@@ -22,6 +22,91 @@ async function eventually<T>(assertion: () => Promise<T>, options?: { timeoutMs?
 }
 
 describe("run gateway v1 contract", () => {
+  test("refuses silent downgrade when execution contract creation fails", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-run-no-silent-fallback-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const RunFactoryModule = await import("@/execution/run-factory")
+      const { RunGateway } = await import("./run-gateway")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const createMock = spyOn(RunFactoryModule.RunFactory, "create").mockImplementation(async () => {
+          throw new Error("contract compile failed")
+        })
+
+        try {
+          await expect(
+            RunGateway.createRun({
+              intent: {
+                input: "",
+              },
+              metadata: {
+                source: "api",
+                initiatedBy: "release-test-user",
+              },
+            }),
+          ).rejects.toThrow("Silent downgrade to legacy path is disabled")
+        } finally {
+          createMock.mockRestore()
+        }
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
+
+  test("returns explicit warnings when deprecated legacy fallback is requested and used", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-run-explicit-fallback-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const RunFactoryModule = await import("@/execution/run-factory")
+      const { RunGateway } = await import("./run-gateway")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const createMock = spyOn(RunFactoryModule.RunFactory, "create").mockImplementation(async () => {
+          throw new Error("contract compile failed")
+        })
+
+        try {
+          const create = await RunGateway.createRun({
+            intent: {
+              input: "",
+            },
+            metadata: {
+              source: "api",
+              initiatedBy: "release-test-user",
+              allowLegacyFallback: true,
+            },
+          })
+
+          expect(create.status).toBe("created")
+          expect(create.warnings).toContain(
+            "metadata.allowLegacyFallback is deprecated and will be removed after the execution-contract migration window.",
+          )
+          expect(create.warnings).toContain(
+            "Execution contract failed and DAX used the deprecated legacy run fallback because allowLegacyFallback was explicitly enabled.",
+          )
+        } finally {
+          createMock.mockRestore()
+        }
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
+
   test("maps external approval decisions onto current DAX permission replies", async () => {
     const testHome = path.join(os.tmpdir(), `dax-run-gateway-${Date.now().toString(36)}`)
     const previousHome = process.env.DAX_TEST_HOME

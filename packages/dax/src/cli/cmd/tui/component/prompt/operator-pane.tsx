@@ -3,6 +3,7 @@ import { TextAttributes } from "@opentui/core"
 import { createSignal, Show, For, createMemo } from "solid-js"
 
 type OperatorTab = "instructions" | "controls" | "context" | "session" | "commands"
+type OperatorControlKey = keyof typeof CONTROL_OPTIONS
 
 const OPERATOR_TABS: OperatorTab[] = ["instructions", "controls", "context", "session", "commands"]
 
@@ -22,13 +23,28 @@ const CONTROL_OPTIONS = {
   approval: ["minimal", "normal", "strict"],
 }
 
+function readInputValue(event: unknown) {
+  if (typeof event === "string") return event
+  if (typeof (event as { currentTarget?: { value?: unknown } })?.currentTarget?.value === "string") {
+    return (event as { currentTarget: { value: string } }).currentTarget.value
+  }
+  if (typeof (event as { target?: { value?: unknown } })?.target?.value === "string") {
+    return (event as { target: { value: string } }).target.value
+  }
+  if (typeof (event as { value?: unknown })?.value === "string") {
+    return (event as { value: string }).value
+  }
+  return ""
+}
+
 export function OperatorPane(props: {
   instruction?: string
   onInstructionChange?: (value: string) => void
   onApplyOnce?: () => void
   onApplySession?: () => void
   onClear?: () => void
-  onControlChange?: (key: string, value: string) => void
+  controls?: Partial<Record<OperatorControlKey, string>>
+  onControlChange?: (key: OperatorControlKey, value: string) => void
   contextUsage?: number
   stepsUsed?: number
   stepsTotal?: number
@@ -37,6 +53,7 @@ export function OperatorPane(props: {
   sessionDuration?: string
   sessionTag?: string
   onSessionTagChange?: (value: string) => void
+  onCommand?: (command: "/clear" | "/export" | "/fork" | "/help") => void
 }) {
   const { theme } = useTheme()
   const [activeTab, setActiveTab] = createSignal<OperatorTab>("instructions")
@@ -101,7 +118,7 @@ export function OperatorPane(props: {
               fg={theme.text}
               placeholder="Enter instruction..."
               value={props.instruction ?? ""}
-              onInput={(e: any) => props.onInstructionChange?.(e.target.value)}
+              onInput={(event: unknown) => props.onInstructionChange?.(readInputValue(event))}
             />
           </box>
 
@@ -156,6 +173,20 @@ export function OperatorPane(props: {
           <box flexDirection="row" gap={1} marginTop={1}>
             <box
               onMouseUp={() => {
+                if (instructionScope() === "once") props.onApplyOnce?.()
+                else props.onApplySession?.()
+              }}
+              border={["round"]}
+              borderColor={theme.primary}
+              paddingLeft={1}
+              paddingRight={1}
+            >
+              <text fg={theme.primary} fontSize={0.85}>
+                {instructionScope() === "once" ? "APPLY ONCE" : "USE EACH TURN"}
+              </text>
+            </box>
+            <box
+              onMouseUp={() => {
                 props.onClear?.()
                 props.onInstructionChange?.("")
               }}
@@ -183,8 +214,26 @@ export function OperatorPane(props: {
                 <box flexDirection="row" gap={0.5}>
                   <For each={options}>
                     {(option) => (
-                      <box border={["round"]} borderColor={theme.borderSubtle} paddingLeft={0.5} paddingRight={0.5}>
-                        <text fg={theme.textMuted} fontSize={0.8}>
+                      <box
+                        onMouseUp={() => props.onControlChange?.(key as OperatorControlKey, option)}
+                        border={["round"]}
+                        borderColor={
+                          props.controls?.[key as OperatorControlKey] === option ? theme.primary : theme.borderSubtle
+                        }
+                        backgroundColor={
+                          props.controls?.[key as OperatorControlKey] === option
+                            ? tint(theme.backgroundElement, theme.primary, 0.16)
+                            : undefined
+                        }
+                        paddingLeft={0.5}
+                        paddingRight={0.5}
+                      >
+                        <text
+                          fg={
+                            props.controls?.[key as OperatorControlKey] === option ? theme.primary : theme.textMuted
+                          }
+                          fontSize={0.8}
+                        >
                           {option}
                         </text>
                       </box>
@@ -282,7 +331,7 @@ export function OperatorPane(props: {
               fg={theme.text}
               placeholder="feature, bugfix, refactor..."
               value={props.sessionTag ?? ""}
-              onInput={(e: any) => props.onSessionTagChange?.(e.target.value)}
+              onInput={(event: unknown) => props.onSessionTagChange?.(readInputValue(event))}
             />
           </box>
 
@@ -317,12 +366,12 @@ export function OperatorPane(props: {
           <box flexDirection="column" gap={0.5}>
             <For each={["/clear", "/export", "/fork", "/help"]}>
               {(cmd) => (
-                <box flexDirection="row" gap={1} alignItems="center">
-                  <text fg={theme.primary} fontSize={0.9}>
+                <box flexDirection="row" gap={1} alignItems="center" onMouseUp={() => props.onCommand?.(cmd as any)}>
+                  <text fg={theme.primary} fontSize={0.9} attributes={TextAttributes.BOLD}>
                     {cmd}
                   </text>
                   <text fg={theme.textMuted} fontSize={0.8}>
-                    -
+                    run
                   </text>
                 </box>
               )}

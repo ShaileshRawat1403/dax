@@ -21,6 +21,7 @@ Use this checklist when you want confidence that the shipped DAX product still w
 - docs workflows still generate and validate documentation
 - the repo contains a current release-readiness artifact
 - the flagship TUI review surfaces still feel coherent in a live session
+- active deprecated compatibility paths are known and intentionally tracked
 
 ## Recommended Scope
 
@@ -138,6 +139,23 @@ Validate these in one real session before release:
    - position indicator updates
    - `jump live` works
    - transcript jump controls remain understandable on your terminal width
+9. Trigger a free-form question and confirm the review pane accepts and submits a typed answer.
+10. Use the operator commands and confirm:
+   - `export` writes a transcript with markdown tables
+   - `fork` creates a follow-on session
+   - `help` opens the in-session help surface
+11. Confirm sub-second tool calls render as `ms` instead of `0s`.
+
+## Compatibility Review
+
+Before release, review the active compatibility inventory in [deprecation-tracker.md](./deprecation-tracker.md).
+
+Sign-off expectations:
+
+- every remaining deprecated path has a clear reason to exist
+- every remaining deprecated path is centralized or otherwise bounded
+- high-risk deprecated paths emit warnings or metrics instead of silently changing behavior
+- any path removed in the release was proven dead, not merely old
 
 ## Troubleshooting
 
@@ -168,6 +186,7 @@ You are in a reasonable pre-release state when:
 9. interactive TUI review flows feel coherent
 10. any remaining degraded or blocked doctor result is understood and intentional
 11. `artifacts/determinism-proof.json` is present and records passing Rust proof surface checks
+12. active compatibility paths have been reviewed against [deprecation-tracker.md](./deprecation-tracker.md)
 
 Maintainer anti-drift blockers:
 
@@ -193,4 +212,5 @@ Release provenance means the machine-readable receipt for a cut proves:
 
 1. Keep this guide wired into release verification and CI documentation checks.
 2. Capture one visual TUI validation pass with screenshots for the home dashboard, MCP cockpit, approvals, diff review, and docs review.
-3. Remove the frozen root legacy paths once references and CI checks show they are no longer needed.
+3. Keep [deprecation-tracker.md](./deprecation-tracker.md) current as compatibility paths are hardened or removed.
+4. Remove the frozen root legacy paths once references and CI checks show they are no longer needed.

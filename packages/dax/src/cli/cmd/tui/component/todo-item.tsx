@@ -1,3 +1,4 @@
+import { TextAttributes } from "@opentui/core"
 import { useTheme } from "../context/theme"
 
 export interface TodoItemProps {
@@ -23,8 +24,9 @@ export function TodoItem(props: TodoItemProps) {
       <text
         flexGrow={1}
         wrapMode="word"
+        attributes={isCompleted ? TextAttributes.DIM : undefined}
         style={{
-          fg: isActive ? theme.warning : isCompleted ? theme.text : theme.textMuted,
+          fg: isActive ? theme.warning : isCompleted ? theme.textMuted : theme.textMuted,
         }}
       >
         {props.content}

@@ -31,6 +31,7 @@ import { Event } from "../server/event"
 import { PackageRegistry } from "@/bun/registry"
 import { proxied } from "@/util/proxied"
 import { iife } from "@/util/iife"
+import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
 
 export namespace Config {
   const ModelId = z.string().meta({ $ref: "https://models.dev/model-schema.json#/$defs/Model" })
@@ -289,16 +290,7 @@ export namespace Config {
 
     // Backwards compatibility: legacy top-level `tools` config
     if (result.tools) {
-      const perms: Record<string, Config.PermissionAction> = {}
-      for (const [tool, enabled] of Object.entries(result.tools)) {
-        const action: Config.PermissionAction = enabled ? "allow" : "deny"
-        if (tool === "write" || tool === "edit" || tool === "patch" || tool === "multiedit") {
-          perms.edit = action
-          continue
-        }
-        perms[tool] = action
-      }
-      result.permission = mergeDeep(perms, result.permission ?? {})
+      result.permission = mergeDeep(legacyToolTogglesToPermissionConfig(result.tools), result.permission ?? {})
     }
 
     if (!result.username) result.username = os.userInfo().username
@@ -833,16 +825,7 @@ export namespace Config {
       }
 
       // Convert legacy tools config to permissions
-      const permission: Permission = {}
-      for (const [tool, enabled] of Object.entries(agent.tools ?? {})) {
-        const action = enabled ? "allow" : "deny"
-        // write, edit, patch, multiedit all map to edit permission
-        if (tool === "write" || tool === "edit" || tool === "patch" || tool === "multiedit") {
-          permission.edit = action
-        } else {
-          permission[tool] = action
-        }
-      }
+      const permission: Permission = legacyToolTogglesToPermissionConfig(agent.tools)
       Object.assign(permission, agent.permission)
 
       // Convert legacy maxSteps to steps

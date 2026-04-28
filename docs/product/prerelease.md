@@ -92,6 +92,12 @@ Release artifacts produced by `bun run release:check`:
 - `artifacts/doctor-auth.json`
 - `artifacts/release-provenance.json`
 
+Compatibility review before publishing:
+
+- review [deprecation-tracker.md](./deprecation-tracker.md)
+- confirm no deprecated path silently changes authority or execution behavior
+- confirm explicit fallback paths still emit warnings and are covered by tests
+
 Google auth checks:
 
 ```bash
@@ -141,6 +147,7 @@ Required sign-off evidence for every release:
 - `artifacts/audit-result.json`
 - `artifacts/doctor-auth.json`
 - `artifacts/release-provenance.json`
+- compatibility review against `docs/product/deprecation-tracker.md`
 
 Release provenance must prove the cut is coherent:
 

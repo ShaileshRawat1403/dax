@@ -37,13 +37,6 @@ export namespace SessionStatus {
         status: Info,
       }),
     ),
-    // deprecated
-    Idle: BusEvent.define(
-      "session.idle",
-      z.object({
-        sessionID: z.string(),
-      }),
-    ),
   }
 
   const state = Instance.state(() => {
@@ -69,10 +62,6 @@ export namespace SessionStatus {
       status,
     })
     if (status.type === "idle") {
-      // deprecated
-      Bus.publish(Event.Idle, {
-        sessionID,
-      })
       delete state()[sessionID]
       return
     }

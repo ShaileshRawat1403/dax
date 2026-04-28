@@ -531,15 +531,29 @@ function QuestionCard(props: {
   sent: boolean
   onSelectTab: (i: number) => void
   onSelectOption: (i: number) => void
+  onAnswerChange: (value: string) => void
   onSubmit: () => void
   onSkip: () => void
 }) {
   const { theme } = useTheme()
+  let customTextarea: TextareaRenderable | undefined
 
   const questions = () => props.request.questions ?? []
   const question = () => questions()[props.store.tab]
   const options = () => question()?.options ?? []
+  const allowsCustom = () => question()?.custom !== false
+  const customValue = () => props.store.answers[props.store.tab]?.[0] ?? ""
   const single = () => questions().length === 1 && questions()[0]?.multiple !== true
+
+  createEffect(
+    on(
+      () => [props.store.tab, customValue()],
+      () => {
+        if (!customTextarea || customTextarea.isDestroyed) return
+        customTextarea.setText(customValue())
+      },
+    ),
+  )
 
   return (
     <box
@@ -588,34 +602,58 @@ function QuestionCard(props: {
       </text>
 
       {/* Options list */}
-      <box flexDirection="column" gap={0} paddingLeft={1}>
-        <For each={options()}>
-          {(opt, i) => (
-            <box
-              flexDirection="row"
-              gap={1}
-              backgroundColor={
-                props.store.selected === i() ? tint(theme.backgroundPanel, theme.accent, 0.12) : undefined
-              }
-              paddingLeft={1}
-              paddingRight={1}
-              onMouseUp={() => {
-                if (single()) {
-                  props.onSelectOption(i())
-                  props.onSubmit()
-                } else {
-                  props.onSelectOption(i())
+      <Show when={options().length > 0}>
+        <box flexDirection="column" gap={0} paddingLeft={1}>
+          <For each={options()}>
+            {(opt, i) => (
+              <box
+                flexDirection="row"
+                gap={1}
+                backgroundColor={
+                  props.store.selected === i() ? tint(theme.backgroundPanel, theme.accent, 0.12) : undefined
                 }
+                paddingLeft={1}
+                paddingRight={1}
+                onMouseUp={() => {
+                  if (single() && !allowsCustom()) {
+                    props.onSelectOption(i())
+                    props.onSubmit()
+                  } else {
+                    props.onSelectOption(i())
+                  }
+                }}
+              >
+                <text fg={props.store.selected === i() ? theme.accent : theme.textMuted}>
+                  {props.store.selected === i() ? "▸" : " "}
+                </text>
+                <text fg={theme.text}>{opt.label}</text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
+
+      <Show when={allowsCustom()}>
+        <box flexDirection="column" gap={0.5} paddingLeft={1}>
+          <text fg={theme.textMuted}>
+            {options().length > 0 ? "Or type a custom answer" : "Type your answer"}
+          </text>
+          <box border={["round"]} borderColor={theme.borderSubtle} paddingLeft={1} paddingRight={1}>
+            <textarea
+              ref={(value: TextareaRenderable) => {
+                customTextarea = value
               }}
-            >
-              <text fg={props.store.selected === i() ? theme.accent : theme.textMuted}>
-                {props.store.selected === i() ? "▸" : " "}
-              </text>
-              <text fg={theme.text}>{opt.label}</text>
-            </box>
-          )}
-        </For>
-      </box>
+              minHeight={1}
+              maxHeight={4}
+              textColor={theme.text}
+              focusedTextColor={theme.text}
+              cursorColor={theme.primary}
+              initialValue={customValue()}
+              onChange={(value: string) => props.onAnswerChange(value)}
+            />
+          </box>
+        </box>
+      </Show>
 
       {/* Sent confirmation */}
       <Show when={props.sent}>
@@ -664,7 +702,9 @@ function QuestionCard(props: {
             </text>
           </box>
         </box>
-        <text fg={theme.textMuted}>↑↓ pick · Enter confirm · click directly</text>
+        <text fg={theme.textMuted}>
+          {allowsCustom() ? "Type, then Enter submit · Esc skip" : "↑↓ pick · Enter confirm · click directly"}
+        </text>
       </Show>
     </box>
   )
@@ -777,6 +817,14 @@ export function RAOPane(props: {
       setSelectedButtonIdx(0)
       setDiffExpanded(false)
       setQuestionSent(false)
+      const item = currentItem()
+      if (item?.type === "question") {
+        setQuestionStore({
+          tab: 0,
+          selected: 0,
+          answers: (item.data.questions ?? []).map(() => [] as QuestionAnswer),
+        })
+      }
     }),
   )
 
@@ -960,19 +1008,37 @@ export function RAOPane(props: {
       const qs = request.questions ?? []
       const currentQ = qs[questionStore.tab]
       const optCount = currentQ?.options?.length ?? 0
+      const allowsCustom = currentQ?.custom !== false
+      const currentAnswer = questionStore.answers[questionStore.tab]?.[0]?.trim() ?? ""
 
-      if (evt.name === "up" || (evt.ctrl && evt.name === "p")) {
+      if (optCount > 0 && (evt.name === "up" || (evt.ctrl && evt.name === "p"))) {
         evt.preventDefault()
         setQuestionStore("selected", (prev) => Math.max(0, prev - 1))
         return
       }
-      if (evt.name === "down" || (evt.ctrl && evt.name === "n")) {
+      if (optCount > 0 && (evt.name === "down" || (evt.ctrl && evt.name === "n"))) {
         evt.preventDefault()
         setQuestionStore("selected", (prev) => Math.min(optCount - 1, prev + 1))
         return
       }
       if (evt.name === "return") {
         evt.preventDefault()
+        if (allowsCustom && currentAnswer.length > 0) {
+          const answers = [...questionStore.answers]
+          answers[questionStore.tab] = [currentAnswer]
+          if (qs.length === 1) {
+            handleQuestionReply(request.id, answers as Array<QuestionAnswer>)
+            return
+          }
+          setQuestionStore("answers", answers)
+          if (questionStore.tab < qs.length - 1) {
+            setQuestionStore("tab", questionStore.tab + 1)
+            setQuestionStore("selected", 0)
+            return
+          }
+          handleQuestionReply(request.id, answers as Array<QuestionAnswer>)
+          return
+        }
         const option = currentQ?.options?.[questionStore.selected]
         if (!option) return
         if (qs.length === 1 && currentQ?.multiple !== true) {
@@ -1155,10 +1221,21 @@ export function RAOPane(props: {
                     setQuestionStore("tab", i)
                     setQuestionStore("selected", 0)
                   }}
-                  onSelectOption={(i) => setQuestionStore("selected", i)}
+                  onSelectOption={(i) => {
+                    setQuestionStore("selected", i)
+                    const option = item.data.questions?.[questionStore.tab]?.options?.[i]
+                    if (option) {
+                      setQuestionStore("answers", questionStore.tab, [option.label])
+                    }
+                  }}
+                  onAnswerChange={(value) => setQuestionStore("answers", questionStore.tab, [value])}
                   onSubmit={() => {
                     const qs = item.data.questions ?? []
-                    const answers = qs.map((_, i) => questionStore.answers[i] ?? [])
+                    const answers = qs.map((q, i) => {
+                      const typed = questionStore.answers[i]?.[0]?.trim()
+                      if (typed && q.custom !== false) return [typed]
+                      return questionStore.answers[i] ?? []
+                    })
                     handleQuestionReply(item.data.id, answers as unknown as Array<QuestionAnswer>)
                   }}
                   onSkip={() => handleQuestionReject(item.data.id)}

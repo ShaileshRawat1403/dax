@@ -57,6 +57,10 @@ type RunMeta = {
 
 const log = Log.create({ service: "run-gateway" })
 const legacyLog = Log.create({ service: "run-gateway", subsystem: "legacy" })
+const LEGACY_RUN_FALLBACK_FLAG_WARNING =
+  "metadata.allowLegacyFallback is deprecated and will be removed after the execution-contract migration window."
+const LEGACY_RUN_FALLBACK_USED_WARNING =
+  "Execution contract failed and DAX used the deprecated legacy run fallback because allowLegacyFallback was explicitly enabled."
 
 const authorityCounters = Instance.state(() => ({
   dax_state_machine: 0,
@@ -130,6 +134,10 @@ function extractTerminalReason(events: RunEvent[]): WorkflowTerminalReason | und
 
 function iso(timestamp: number | undefined) {
   return typeof timestamp === "number" ? new Date(timestamp).toISOString() : undefined
+}
+
+function mergeWarnings(...groups: Array<string[] | undefined>) {
+  return [...new Set(groups.flatMap((group) => group ?? []).filter(Boolean))]
 }
 
 function artifactType(kind?: string): ArtifactRecord["type"] {
@@ -876,6 +884,7 @@ export namespace RunGateway {
 
   export async function createRun(input: CreateRunRequest): Promise<CreateRunResponse> {
     initialize()
+    const compatibilityWarnings = input.metadata?.allowLegacyFallback ? [LEGACY_RUN_FALLBACK_FLAG_WARNING] : []
 
     try {
       const result = await RunFactory.create({ request: input })
@@ -887,7 +896,10 @@ export namespace RunGateway {
         riskLevel: result.contract.riskLevel,
         warnings: result.warnings,
       })
-      return result.response
+      return {
+        ...result.response,
+        warnings: mergeWarnings(result.response.warnings, result.warnings, compatibilityWarnings),
+      }
     } catch (error) {
       if (input.metadata?.allowLegacyFallback) {
         log.warn("execution contract failed, falling back to legacy path as explicitly allowed", { error })
@@ -941,6 +953,7 @@ export namespace RunGateway {
       runId: session.id,
       status: "created",
       createdAt: new Date(session.time.created).toISOString(),
+      warnings: mergeWarnings(compatibilityWarnings, [LEGACY_RUN_FALLBACK_USED_WARNING]),
     }
   }
 
