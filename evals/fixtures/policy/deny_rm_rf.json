@@ -1,0 +1,5 @@
+{
+  "session_id": "run_eval_policy",
+  "action": { "type": "tool_call", "tool": "bash", "command": "rm -rf /tmp/build" },
+  "context": { "profile": "standard", "blocklist": ["rm -rf"] }
+}
