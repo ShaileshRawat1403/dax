@@ -1,6 +1,6 @@
 {
   "name": "replay_valid_completed_run",
-  "suite": "smoke",
+  "suite": ["smoke", "proof"],
   "kind": "core_proof",
   "input": "../fixtures/events/clean_completed_run.json",
   "expected": {

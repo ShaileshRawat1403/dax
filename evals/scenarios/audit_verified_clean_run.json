@@ -1,6 +1,6 @@
 {
   "name": "audit_verified_clean_run",
-  "suite": "smoke",
+  "suite": ["smoke", "proof"],
   "kind": "audit",
   "input": "../fixtures/audit/verified_clean_run.json",
   "expected": {

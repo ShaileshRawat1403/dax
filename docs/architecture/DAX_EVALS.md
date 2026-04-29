@@ -40,7 +40,7 @@ The smoke suite covers three scenarios:
 ```json
 {
   "name": "policy_deny_destructive_command",
-  "suite": "smoke",
+  "suite": ["smoke", "proof"],
   "kind": "policy",
   "input": "../fixtures/policy/deny_rm_rf.json",
   "expected": {
@@ -51,6 +51,9 @@ The smoke suite covers three scenarios:
 ```
 
 Supported `kind` values: `core_proof`, `policy`, `audit`.
+
+The `suite` field may be either a single suite name or an array of suite
+names when a scenario belongs to more than one suite.
 
 Paths in `input` are relative to `evals/scenarios/`.
 

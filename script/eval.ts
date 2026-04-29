@@ -12,12 +12,12 @@
  *   bun run eval            # same as eval:smoke
  */
 
-import { readdir, readFile } from "fs/promises"
-import { join, dirname, resolve } from "path"
+import { mkdir, readdir, readFile } from "fs/promises"
+import { join, resolve } from "path"
 import { createRustProofReport } from "../packages/dax/src/rust/core"
 import { evaluatePolicyWithRust } from "../packages/dax/src/rust/policy"
 import { evaluateAuditWithRust } from "../packages/dax/src/rust/audit"
-import type { Scenario, ScenarioKind, EvalReport, ScenarioResult, CheckResult } from "../evals/types"
+import type { Scenario, EvalReport, ScenarioResult, CheckResult } from "../evals/types"
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -46,7 +46,8 @@ async function loadScenarios(suite: string): Promise<Scenario[]> {
   for (const f of files) {
     if (!f.endsWith(".json")) continue
     const raw = JSON.parse(await readFile(join(SCENARIOS_DIR, f), "utf-8"))
-    if (raw.suite === suite) scenarios.push(raw as Scenario)
+    const suites = Array.isArray(raw.suite) ? raw.suite : [raw.suite]
+    if (suites.includes(suite)) scenarios.push(raw as Scenario)
   }
   return scenarios.sort((a, b) => a.name.localeCompare(b.name))
 }
@@ -120,6 +121,7 @@ function checkExpected(
 // ---------------------------------------------------------------------------
 
 async function writeReport(report: EvalReport): Promise<void> {
+  await mkdir(ARTIFACTS_DIR, { recursive: true })
   await Bun.write(join(ARTIFACTS_DIR, `${report.suite}-report.json`), JSON.stringify(report, null, 2))
 }
 

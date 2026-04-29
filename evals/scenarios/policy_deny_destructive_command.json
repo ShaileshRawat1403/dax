@@ -1,6 +1,6 @@
 {
   "name": "policy_deny_destructive_command",
-  "suite": "smoke",
+  "suite": ["smoke", "proof"],
   "kind": "policy",
   "input": "../fixtures/policy/deny_rm_rf.json",
   "expected": {

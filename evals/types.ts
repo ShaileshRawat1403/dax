@@ -2,7 +2,7 @@ export type ScenarioKind = "core_proof" | "policy" | "audit"
 
 export interface Scenario {
   name: string
-  suite: string
+  suite: string | string[]
   kind: ScenarioKind
   input: string
   expected: Record<string, unknown>
