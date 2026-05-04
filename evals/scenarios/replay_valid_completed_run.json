@@ -1,0 +1,12 @@
+{
+  "name": "replay_valid_completed_run",
+  "suite": ["smoke", "proof"],
+  "kind": "core_proof",
+  "input": "../fixtures/events/clean_completed_run.json",
+  "expected": {
+    "result": "pass",
+    "finalStatus": "completed",
+    "stateHash": "sha256:",
+    "eventSequenceHash": "sha256:"
+  }
+}

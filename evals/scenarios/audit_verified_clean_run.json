@@ -1,0 +1,10 @@
+{
+  "name": "audit_verified_clean_run",
+  "suite": ["smoke", "proof"],
+  "kind": "audit",
+  "input": "../fixtures/audit/verified_clean_run.json",
+  "expected": {
+    "posture": "verified",
+    "verification_result": "passed"
+  }
+}

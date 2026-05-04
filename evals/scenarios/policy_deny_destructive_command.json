@@ -1,0 +1,10 @@
+{
+  "name": "policy_deny_destructive_command",
+  "suite": ["smoke", "proof"],
+  "kind": "policy",
+  "input": "../fixtures/policy/deny_rm_rf.json",
+  "expected": {
+    "decision": "deny",
+    "risk": "critical"
+  }
+}
