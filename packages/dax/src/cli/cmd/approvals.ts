@@ -5,6 +5,7 @@ import { Permission } from "../../governance"
 import { Locale } from "../../util/locale"
 import { EOL } from "os"
 import { Session } from "../../session"
+import { renderTable } from "@/util/table"
 import { RunGateway } from "../../server/run-gateway"
 
 type ApprovalRow = {
@@ -138,18 +139,22 @@ export function toApprovalRow(input: Permission.Request): ApprovalRow {
 export function formatApprovalTable(rows: ApprovalRow[]): string {
   if (rows.length === 0) return "No pending approvals."
 
-  return rows
-    .map((row) =>
-      [
-        `Approval ID: ${row.id}`,
-        `Status: Awaiting operator decision`,
-        `Requested operation: ${row.requested_action}`,
-        `Related session: ${row.session_id}`,
-        `Created: ${Locale.todayTimeOrDateTime(row.created_at)}`,
-        `Reason: ${row.reason}`,
-      ].join(EOL),
-    )
-    .join(`${EOL}${"─".repeat(72)}${EOL}`)
+  return renderTable(
+    [
+      { header: "Approval ID", minWidth: 16 },
+      { header: "Session", minWidth: 16 },
+      { header: "Operation", minWidth: 20, maxWidth: 40 },
+      { header: "Reason", minWidth: 20, maxWidth: 40 },
+      { header: "Created", minWidth: 16 },
+    ],
+    rows.map((row) => [
+      row.id,
+      row.session_id,
+      row.requested_action,
+      row.reason,
+      Locale.todayTimeOrDateTime(row.created_at),
+    ]),
+  )
 }
 
 export const ApprovalsPruneCommand = cmd({

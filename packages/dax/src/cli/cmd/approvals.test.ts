@@ -63,11 +63,11 @@ describe("approvals command", () => {
 
           const row = toApprovalRow(pending[0]!)
           const rendered = formatApprovalTable([row])
-          expect(rendered).toContain("Approval ID: " + row.id)
-          expect(rendered).toContain("Status: Awaiting operator decision")
-          expect(rendered).toContain("Requested operation: shell " + approvalCommand)
-          expect(rendered).toContain("Related session: session_approval_view")
-          expect(rendered).toContain("Reason: Run test suite")
+          // Table cells: each value appears in its column
+          expect(rendered).toContain(row.id)
+          expect(rendered).toContain("session_approval_view")
+          expect(rendered).toContain("shell " + approvalCommand)
+          expect(rendered).toContain("Run test suite")
         })
       } finally {
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME

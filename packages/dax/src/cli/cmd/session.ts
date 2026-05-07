@@ -23,6 +23,7 @@ import {
 } from "@/governance"
 import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "@/governance"
 import { buildAuditSummary, type AuditPosture } from "./audit"
+import { renderTable } from "@/util/table"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -243,39 +244,26 @@ export async function collectSessionHistoryRows(sessions: Session.Info[]) {
 }
 
 export function formatSessionTable(rows: SessionHistoryRow[]): string {
-  const lines: string[] = []
+  if (rows.length === 0) return "No sessions found."
 
-  const maxIdWidth = Math.max(20, ...rows.map((s) => s.id.length))
-  const maxTitleWidth = Math.max(25, ...rows.map((s) => s.title.length))
-  const maxOutcomeWidth = Math.max(9, ...rows.map((row) => formatSessionOutcome(row.outcome).length))
-  const maxTrustWidth = Math.max(12, ...rows.map((row) => formatSessionTrustPosture(row.trust_posture).length))
-  const maxVerificationWidth = Math.max(12, ...rows.map((row) => formatVerificationResultLabel(row.verification_result).length))
-
-  const header = [
-    `Session ID${" ".repeat(maxIdWidth - 10)}`,
-    `Title${" ".repeat(maxTitleWidth - 5)}`,
-    `Outcome${" ".repeat(maxOutcomeWidth - 7)}`,
-    `Trust${" ".repeat(maxTrustWidth - 5)}`,
-    `Verification${" ".repeat(maxVerificationWidth - 12)}`,
-    "Updated",
-  ].join("  ")
-  lines.push(header)
-  lines.push("─".repeat(header.length))
-  for (const session of rows) {
-    const truncatedTitle = Locale.truncate(session.title, maxTitleWidth)
-    const timeStr = Locale.todayTimeOrDateTime(session.updated)
-    const line = [
-      session.id.padEnd(maxIdWidth),
-      truncatedTitle.padEnd(maxTitleWidth),
-      formatSessionOutcome(session.outcome).padEnd(maxOutcomeWidth),
-      formatSessionTrustPosture(session.trust_posture).padEnd(maxTrustWidth),
-      formatVerificationResultLabel(session.verification_result).padEnd(maxVerificationWidth),
-      timeStr,
-    ].join("  ")
-    lines.push(line)
-  }
-
-  return lines.join(EOL)
+  return renderTable(
+    [
+      { header: "Session ID", minWidth: 20 },
+      { header: "Title", minWidth: 25, maxWidth: 40 },
+      { header: "Outcome", minWidth: 9 },
+      { header: "Trust", minWidth: 12 },
+      { header: "Verification", minWidth: 12 },
+      { header: "Updated", minWidth: 16 },
+    ],
+    rows.map((s) => [
+      s.id,
+      s.title,
+      formatSessionOutcome(s.outcome),
+      formatSessionTrustPosture(s.trust_posture),
+      formatVerificationResultLabel(s.verification_result),
+      Locale.todayTimeOrDateTime(s.updated),
+    ]),
+  )
 }
 
 function formatSessionJSON(sessions: SessionHistoryRow[]): string {
@@ -753,32 +741,54 @@ export function formatSessionTimeline(rows: SessionTimelineRow[]) {
 }
 
 export function formatSessionShowSummary(summary: SessionShowSummary) {
+  const lifecycleValue =
+    formatSessionLifecycleState(summary.lifecycle_state) +
+    (summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : "")
+
+  const writeGovernanceValue =
+    formatWriteGovernanceStatus(summary.write_governance_status) +
+    (summary.write_risk_bucket ? ` (${formatWriteRiskBucket(summary.write_risk_bucket)})` : "")
+
+  const identityRows: string[][] = [
+    ["Session", summary.id],
+    ["Title", summary.title],
+    ["Project", summary.project_id],
+    ["Directory", summary.directory],
+    ["Created", Locale.todayTimeOrDateTime(summary.created)],
+    ["Updated", Locale.todayTimeOrDateTime(summary.updated)],
+    ...(summary.latest_activity_at
+      ? [["Latest activity", Locale.todayTimeOrDateTime(summary.latest_activity_at)]]
+      : []),
+  ]
+
+  const statusRows: string[][] = [
+    ["Outcome", formatSessionOutcome(summary.outcome)],
+    ["Lifecycle", lifecycleValue],
+    ["Stage", formatSessionStage(summary.stage)],
+    ["Trust posture", formatSessionTrustPosture(summary.trust_posture)],
+    ["Verification", formatVerificationResultLabel(summary.verification_result)],
+    ["Write outcome", formatWriteOutcome(summary.write_outcome)],
+    ["Write governance", writeGovernanceValue],
+    ["Audit posture", formatAuditPosture(summary.audit_posture)],
+  ]
+
+  const recordRows: string[][] = [
+    ["Timeline events", String(summary.timeline_count)],
+    ["Retained artifacts", String(summary.artifact_count)],
+    ["Pending approvals", String(summary.approval_count)],
+    ["Overrides recorded", String(summary.override_count)],
+  ]
+
+  const kvCols = [{ header: "Field", minWidth: 18 }, { header: "Value", minWidth: 20, maxWidth: 70 }]
+
   return [
-    `Session: ${summary.id}`,
-    `Title: ${summary.title}`,
-    `Project: ${summary.project_id}`,
-    `Directory: ${summary.directory}`,
-    `Created: ${Locale.todayTimeOrDateTime(summary.created)}`,
-    `Updated: ${Locale.todayTimeOrDateTime(summary.updated)}`,
-    summary.latest_activity_at ? `Latest activity: ${Locale.todayTimeOrDateTime(summary.latest_activity_at)}` : undefined,
+    renderTable(kvCols, identityRows),
     "",
-    `Outcome: ${formatSessionOutcome(summary.outcome)}`,
-    `Lifecycle: ${formatSessionLifecycleState(summary.lifecycle_state)}${summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : ""}`,
-    `Stage: ${formatSessionStage(summary.stage)}`,
-    `Trust posture: ${formatSessionTrustPosture(summary.trust_posture)}`,
-    `Verification: ${formatVerificationResultLabel(summary.verification_result)}`,
-    `Write outcome: ${formatWriteOutcome(summary.write_outcome)}`,
-    `Write governance: ${formatWriteGovernanceStatus(summary.write_governance_status)}${summary.write_risk_bucket ? ` (${formatWriteRiskBucket(summary.write_risk_bucket)})` : ""}`,
-    `Audit posture: ${formatAuditPosture(summary.audit_posture)}`,
+    renderTable(kvCols, statusRows),
     "",
     "Session record",
-    `- Timeline events: ${summary.timeline_count}`,
-    `- Retained artifacts: ${summary.artifact_count}`,
-    `- Pending approvals: ${summary.approval_count}`,
-    `- Overrides recorded: ${summary.override_count}`,
-  ]
-    .filter(Boolean)
-    .join(EOL)
+    renderTable(kvCols, recordRows),
+  ].join(EOL)
 }
 
 export function formatSessionInspectSummary(summary: SessionInspectSummary) {

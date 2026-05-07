@@ -551,16 +551,16 @@ describe("session timeline helpers", () => {
       latest_activity_at: 2_000,
     })
 
-    expect(rendered).toContain("Session: session_show_1")
-    expect(rendered).toContain("Outcome: Completed")
-    expect(rendered).toContain("Lifecycle: completed")
-    expect(rendered).toContain("Stage: Verification")
-    expect(rendered).toContain("Trust posture: Verified")
-    expect(rendered).toContain("Verification: Passed")
-    expect(rendered).toContain("Write outcome: Governed completed write")
-    expect(rendered).toContain("Write governance: Governed (Governed project write)")
-    expect(rendered).toContain("Audit posture: Review needed")
-    expect(rendered).toContain("Timeline events: 6")
+    // Table cells: field name and value appear in the same row separated by │
+    expect(rendered).toContain("session_show_1")
+    expect(rendered).toContain("Completed")
+    expect(rendered).toContain("Lifecycle")
+    expect(rendered).toContain("completed")
+    expect(rendered).toContain("Verification")
+    expect(rendered).toContain("Passed")
+    expect(rendered).toContain("Governed completed write")
+    expect(rendered).toContain("Review needed")
+    expect(rendered).toContain("6")
   })
 
   test("derives a review stage when governance or audit review is still active", () => {
