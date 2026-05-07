@@ -20,7 +20,7 @@ import { releaseTargets, type ReleaseTarget } from "./release-metadata"
 const artifactBaseName = pkg.name.includes("/") ? pkg.name.split("/").at(-1)! : pkg.name
 
 const REPO_ROOT = path.resolve(dir, "../..")
-const RUST_SIDECAR_BINARIES = ["dax-core", "dax-policy", "dax-audit"]
+const RUST_SIDECAR_BINARIES = ["dax-core", "dax-policy", "dax-audit", "dax-ledger"]
 
 const modelsUrl = process.env.DAX_MODELS_URL || "https://models.dev"
 let modelsData: string | undefined
@@ -126,7 +126,7 @@ function isHostTarget(item: (typeof allTargets)[number]): boolean {
 async function buildRustSidecars(targetDirName: string): Promise<void> {
   const ext = process.platform === "win32" ? ".exe" : ""
   console.log(`building Rust sidecars for ${targetDirName}`)
-  await $`cargo build --release -p dax-core-bin -p dax-policy-bin -p dax-audit-bin`.cwd(REPO_ROOT)
+  await $`cargo build --release -p dax-core-bin -p dax-policy-bin -p dax-audit-bin -p dax-ledger-bin`.cwd(REPO_ROOT)
   for (const binaryName of RUST_SIDECAR_BINARIES) {
     const src = path.join(REPO_ROOT, "target", "release", `${binaryName}${ext}`)
     const dst = path.join(dir, "dist", targetDirName, "bin", `${binaryName}${ext}`)

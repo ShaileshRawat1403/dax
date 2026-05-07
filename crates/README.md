@@ -7,9 +7,11 @@ DAX uses Rust only for deterministic proof surfaces around stochastic model exec
 | `dax-core` | Replays canonical run events to reconstruct run state; generates deterministic proof reports |
 | `dax-policy` | Evaluates proposed actions against policy context into `allow / ask / deny` decisions |
 | `dax-audit` | Evaluates trust posture from six structured run signals |
+| `dax-ledger` | Builds and verifies tamper-evident append-only ledger chains |
 | `dax-core-bin` | JSON stdio boundary for `dax-core` (commands: `replay`, `proof`, `version`) |
 | `dax-policy-bin` | JSON stdio boundary for `dax-policy` (commands: `evaluate`, `classify`, `version`) |
 | `dax-audit-bin` | JSON stdio boundary for `dax-audit` (commands: `evaluate`, `version`) |
+| `dax-ledger-bin` | JSON stdio boundary for `dax-ledger` (commands: `append`, `verify`, `append-file`, `export`, `version`) |
 
 TypeScript orchestrates. Rust decides deterministic facts.
 
@@ -23,7 +25,7 @@ TypeScript orchestrates. Rust decides deterministic facts.
 
 In development, TypeScript calls `cargo run -q -p dax-{core,policy,audit}-bin` as a fallback.
 
-In release builds, `build.ts` compiles the three sidecar binaries for the host platform and places them alongside the `dax` binary in `dist/<target>/bin/`. At runtime, the adapter resolves the sidecar via `process.execPath`-adjacent lookup — it checks the directory containing the running `dax` executable. Set `DAX_RUST_BIN_DIR` to override with a custom directory.
+In release builds, `build.ts` compiles the Rust sidecar binaries for the host platform and places them alongside the `dax` binary in `dist/<target>/bin/`. At runtime, the adapter resolves the sidecar via `process.execPath`-adjacent lookup — it checks the directory containing the running `dax` executable. Set `DAX_RUST_BIN_DIR` to override with a custom directory.
 
 Cross-platform sidecar compilation requires a per-platform build agent (e.g., linux-arm64 CI runner for the ARM Linux sidecar). The `build.ts --single` flag builds only the current host target and its sidecars; full multi-platform release packaging requires running the build on each target platform.
 
@@ -34,6 +36,7 @@ Cross-platform sidecar compilation requires a per-platform build agent (e.g., li
 | Core proof report | `dax.core.proof.v1` |
 | Policy decision | `dax.policy.decision.v1` |
 | Audit trust report | `dax.audit.v1` |
+| Ledger entry | `dax.ledger.entry.v1` |
 
 ## Running tests
 

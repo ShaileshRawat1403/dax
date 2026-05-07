@@ -11,12 +11,13 @@ DAX evals start as deterministic execution checks:
 - dax-core proves what happened (replay, proof receipts)
 - dax-policy proves whether actions should proceed
 - dax-audit proves whether a run is trustworthy
+- dax-ledger proves whether an append-only event chain is intact
 
 ## Eval Ladder
 
 | Level | What it covers | Implementation |
 |-------|---------------|----------------|
-| 0 | Rust proof tests | `cargo test -p dax-core -p dax-policy -p dax-audit` |
+| 0 | Rust proof tests | `cargo test --workspace` |
 | 1 | Deterministic smoke evals | `bun run eval:smoke` — this layer |
 | 2 | Fixture repo evals | Planned: real CLI subprocess scenarios |
 | 3 | Model-assisted evals | Planned: token efficiency, provider comparisons |

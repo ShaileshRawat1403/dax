@@ -7,4 +7,6 @@ members = [
   "crates/dax-policy-bin",
   "crates/dax-audit",
   "crates/dax-audit-bin",
+  "crates/dax-ledger",
+  "crates/dax-ledger-bin",
 ]

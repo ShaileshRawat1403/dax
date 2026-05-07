@@ -74,6 +74,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dax-ledger"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "dax-ledger-bin"
+version = "0.1.0"
+dependencies = [
+ "dax-ledger",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "dax-policy"
 version = "0.1.0"
 dependencies = [

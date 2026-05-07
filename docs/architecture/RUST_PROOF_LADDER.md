@@ -2,7 +2,7 @@
 
 ## What This Is
 
-The Rust proof ladder is three deterministic crates that make DAX's runtime contract testable.
+The Rust proof ladder is the deterministic crate set that makes DAX's runtime contract testable.
 
 DAX does not make model outputs deterministic.
 
@@ -19,13 +19,14 @@ Runtime contract          ← deterministic, owned by DAX
   - what happened?           dax-core
   - should it proceed?       dax-policy
   - is the run trustworthy?  dax-audit
+  - is the event chain intact? dax-ledger
 ```
 
 The model can produce different outputs on identical inputs. That is expected and accepted.
 
 What must not vary is whether DAX correctly recorded what happened, correctly evaluated whether an action was permitted, and correctly assessed whether the resulting run is trustworthy.
 
-## The Three Crates
+## The Crates
 
 ### `crates/dax-core` — Replay
 
@@ -66,6 +67,14 @@ The checks are:
 
 A replay failure surfaces immediately as a blocking `trace_continuity` failure, not silent degradation.
 
+### `crates/dax-ledger` — Chain integrity
+
+**Proves: whether an append-only event chain is intact.**
+
+`dax-ledger` creates and verifies hash-chained ledger entries. Each entry carries the previous entry's chain hash and the canonical hash of its own body. Body mutation, sequence gaps, reordering, and forged chain hashes are detected at the exact broken entry.
+
+Phase 1 exposes the proof surface and JSONL file helpers. It is not yet wired into live event emission.
+
 ## Integration Pattern
 
 Each crate has a companion `*-bin` that reads JSON from stdin and emits JSON to stdout. TypeScript calls the sidecar via `Bun.spawn`. The typed adapters are:
@@ -74,6 +83,8 @@ Each crate has a companion `*-bin` that reads JSON from stdin and emits JSON to 
 - `createRustProofReport(events, options?)` → `DaxCoreProofReport`
 - `evaluatePolicyWithRust(request, options?)` → `DaxPolicyResult`
 - `evaluateAuditWithRust(input, options?)` → `DaxTrustReport`
+- `appendLedgerEntry(prev, body, ts, options?)` → `LedgerEntry`
+- `verifyLedgerChain(entries, options?)` → `VerifyLedgerResult`
 
 The boundary is a JSON contract. TypeScript orchestrates. Rust decides deterministic facts.
 
@@ -95,7 +106,7 @@ This keeps the proof surfaces stable across refactors.
 
 ## Safe Claim
 
-DAX uses Rust for deterministic replay, policy evaluation, and audit proof surfaces around stochastic model execution.
+DAX uses Rust for deterministic replay, policy evaluation, audit, and ledger proof surfaces around stochastic model execution.
 
 ## Relationship to the Trust Model
 

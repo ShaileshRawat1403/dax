@@ -25,17 +25,18 @@ The underlying AI model is probabilistic. It can produce different outputs on id
 
 **Deterministic layer (the runtime contract):**
 
-DAX wraps model execution in a deterministic runtime contract. This contract is implemented in three Rust proof surfaces:
+DAX wraps model execution in a deterministic runtime contract. This contract is implemented in Rust proof surfaces:
 
 - `dax-core` replays the canonical event log to prove what happened. The same event log always produces the same run state.
 - `dax-policy` evaluates proposed actions against policy with no model call. The same request against the same policy always produces the same decision.
 - `dax-audit` derives trust posture from six structured checks. The same run signals always produce the same posture.
+- `dax-ledger` verifies hash-chained event entries. The same chain always verifies or fails at the same point.
 
 These proof surfaces do not make the model correct. They make the governance layer around it verifiable.
 
 The claim DAX makes is this:
 
-> DAX uses Rust for deterministic replay, policy evaluation, and audit proof surfaces around stochastic model execution.
+> DAX uses Rust for deterministic replay, policy evaluation, audit, and ledger proof surfaces around stochastic model execution.
 
 Not this:
 

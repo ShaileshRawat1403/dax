@@ -98,13 +98,14 @@ mindmap
 
 ### Rust Proof Ladder
 
-DAX's runtime contract is made testable by three deterministic Rust crates:
+DAX's runtime contract is made testable by deterministic Rust proof crates:
 
 | Crate | Proves |
 | ----- | ------ |
 | `dax-core` | What happened — replays the canonical event log to reconstruct run state |
 | `dax-policy` | Whether an action should proceed — evaluates tool requests against policy with no model call |
 | `dax-audit` | Whether a run is trustworthy — derives trust posture from six structured checks |
+| `dax-ledger` | Whether an event chain is intact — verifies append-only tamper evidence |
 
 The model output remains stochastic. The runtime layer around it does not.
 
@@ -112,7 +113,7 @@ The model output remains stochastic. The runtime layer around it does not.
 
 Each crate calls through a JSON stdio boundary from TypeScript. See [Rust Proof Ladder](./docs/architecture/RUST_PROOF_LADDER.md) for the full breakdown.
 
-To run all three surfaces end to end against a synthetic session:
+To run the core proof ladder end to end against a synthetic session:
 
 ```bash
 bun run demo:proof-ladder
