@@ -123,7 +123,23 @@ function permissionTitle(request: PermissionRequest, input: Record<string, unkno
     return `Access external dir: ${normalizePath(parent ?? filepath ?? derived)}`
   }
   if (perm === "doom_loop") return "Continue after repeated failures"
+  // Generic permission types (tool_use, command_execute, file_write,
+  // patch_apply, workflow_gate, etc.) — fall back to the policy gate's
+  // reason if available so the user actually knows what they're approving
+  // instead of seeing the bare permission slug.
+  const fallback = request.patterns?.[0]
+  if (typeof fallback === "string" && fallback.length > 0) {
+    return `${humanizePermission(perm)}: ${fallback}`
+  }
+  return humanizePermission(perm)
+}
+
+function humanizePermission(perm: string): string {
+  // tool_use → "Tool use", command_execute → "Command execute", etc.
   return perm
+    .split("_")
+    .map((word, i) => (i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(" ")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -811,22 +827,37 @@ export function RAOPane(props: {
   // The caller pre-filters to status="pending" via the shared selector
   // (packages/dax/src/dax/presentation/approvals.ts), so resolved items
   // disappear automatically when the server updates the projected run.
-  // confirmingIDs (above) re-attaches just-replied items to items() for a
-  // brief window so the sent-phase confirmation is reliably visible.
+  // confirmingIDs (above) re-attaches just-replied items so the
+  // sent-phase confirmation stays visible briefly.
+  //
+  // CRITICAL: this memo MUST return stable RAOItem references when the
+  // underlying data hasn't changed. If we returned fresh objects on every
+  // evaluation, currentItem() would change reference whenever confirmingIDs
+  // changes, which would fire `on(currentItem, ...)` and reset cardPhase
+  // back to "deciding" — wiping the "sent" feedback the moment the user
+  // clicks. Cache by approval/question id.
   const itemsByID = new Map<string, RAOItem>()
-  const items = createMemo<RAOItem[]>((prev) => {
+  const items = createMemo<RAOItem[]>(() => {
     const result: RAOItem[] = []
     const seen = new Set<string>()
     props.permissions.forEach((p, i) => {
-      const item: RAOItem = { type: "permission", data: p, index: i }
-      result.push(item)
+      const cached = itemsByID.get(p.id)
+      const item: RAOItem =
+        cached && cached.type === "permission" && cached.data === p && cached.index === i
+          ? cached
+          : { type: "permission", data: p, index: i }
       itemsByID.set(p.id, item)
+      result.push(item)
       seen.add(p.id)
     })
     props.questions.forEach((q, i) => {
-      const item: RAOItem = { type: "question", data: q, index: i }
-      result.push(item)
+      const cached = itemsByID.get(q.id)
+      const item: RAOItem =
+        cached && cached.type === "question" && cached.data === q && cached.index === i
+          ? cached
+          : { type: "question", data: q, index: i }
       itemsByID.set(q.id, item)
+      result.push(item)
       seen.add(q.id)
     })
     // Re-include any confirming IDs that already left the upstream queue
@@ -838,10 +869,8 @@ export function RAOPane(props: {
       if (cached) result.push(cached)
     })
     // Garbage-collect cache entries that are neither current nor holding.
-    if (prev) {
-      for (const id of itemsByID.keys()) {
-        if (!seen.has(id) && !holding.has(id)) itemsByID.delete(id)
-      }
+    for (const id of Array.from(itemsByID.keys())) {
+      if (!seen.has(id) && !holding.has(id)) itemsByID.delete(id)
     }
     return result
   })
