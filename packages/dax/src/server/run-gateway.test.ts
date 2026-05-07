@@ -138,7 +138,11 @@ describe("run gateway v1 contract", () => {
           ruleset: Permission.fromConfig({ shell: "ask" } as any),
         })
 
-        const approvals = await RunGateway.getApprovals(create.runId)
+        const approvals = await eventually(async () => {
+          const current = await RunGateway.getApprovals(create.runId)
+          expect(current).toHaveLength(1)
+          return current
+        })
         expect(approvals).toHaveLength(1)
         expect(approvals[0]?.type).toBe("command_execute")
 

@@ -1155,6 +1155,20 @@ export namespace RunGateway {
         await ApprovalTransitions.deny(runId, approvalId, input.actorId, input.comment)
       }
 
+      const originalPermissionId = canonicalApproval.context?.originalPermissionId
+      if (originalPermissionId) {
+        const livePermission = (await Permission.list()).find(
+          (item) => item.id === originalPermissionId && item.sessionID === runId,
+        )
+        if (livePermission) {
+          await Permission.reply({
+            requestID: originalPermissionId,
+            reply: input.decision === "approve" ? "once" : "reject",
+            message: input.comment,
+          })
+        }
+      }
+
       const updated = await ApprovalStore.get(runId, approvalId)
       return {
         approvalId,
