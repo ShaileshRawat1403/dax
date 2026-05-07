@@ -100,6 +100,7 @@ import {
 } from "@/dax/presentation/pane"
 import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
+import { buildEvidenceLedger } from "@/dax/presentation/evidence-ledger"
 import {
   deriveAuditHistory,
   deriveLiveSessionStageState,
@@ -262,6 +263,8 @@ export function Session() {
   const projectedRun = createMemo(() => sync.data.run[route.sessionID])
 
   const interventions = createMemo(() => projectedRun()?.interventions ?? [])
+
+  const evidenceLedger = createMemo(() => buildEvidenceLedger(projectedRun()))
 
   const permissions = createMemo(() => {
     if (projectedRun()) {
@@ -1696,7 +1699,7 @@ export function Session() {
                   </Match>
 
                   <Match when={activePaneMode() === "audit"}>
-                    <AuditLogPane history={auditHistory()} latest={latestAudit()} />
+                    <AuditLogPane history={auditHistory()} latest={latestAudit()} ledger={evidenceLedger()} />
                   </Match>
 
                   <Match when={activePaneMode() === "refine"}>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { deriveWorkstationState } from "./workstation"
+import { deriveWorkstationState, describeLifecycle } from "./workstation"
 
 describe("workstation presentation model", () => {
   test("derives compact operator summaries from execution state", () => {
@@ -76,7 +76,7 @@ describe("workstation presentation model", () => {
     expect(toolingState.activitySummary.items).toContain("read · README.md")
   })
 
-  test("treats provider delay as active execution instead of a blocked state", () => {
+  test("maps delayed session status to waiting_for_capacity", () => {
     const delayedState = deriveWorkstationState({
       sessionID: "delayed-session",
       stage: "thinking",
@@ -91,9 +91,9 @@ describe("workstation presentation model", () => {
       recentTooling: [{ label: "read · README.md", status: "completed" }],
     })
 
-    expect(delayedState.lifecycle).toBe("understanding")
+    expect(delayedState.lifecycle).toBe("waiting_for_capacity")
+    expect(delayedState.lifecycleLabel).toBe("Waiting for model capacity")
     expect(delayedState.currentStep).toBe("Check provider behavior")
-    expect(delayedState.activitySummary.items).toContain("Check provider behavior")
   })
 
   test("does not keep completed idle runs in review-needed posture without active risk", () => {
@@ -114,6 +114,50 @@ describe("workstation presentation model", () => {
     expect(completedState.lifecycle).toBe("completed")
     expect(completedState.trustPosture).toBe("clear")
     expect(completedState.trustLabel).toBe("Clear")
+  })
+
+  test("maps retry session status to retrying, not blocked", () => {
+    const retryState = deriveWorkstationState({
+      sessionID: "retry-session",
+      stage: "retrying",
+      stageReason: "provider rate limit reached",
+      sessionStatusType: "retry",
+      goal: "Run tests",
+      todo: [],
+      approvals: [],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+    })
+
+    expect(retryState.lifecycle).toBe("retrying")
+    expect(retryState.lifecycleLabel).toBe("Retrying")
+  })
+
+  test("preserves blocked state for error-level alerts requiring intervention", () => {
+    const blockedState = deriveWorkstationState({
+      sessionID: "blocked-session",
+      stage: "executing",
+      stageReason: "permission denied",
+      sessionStatusType: "busy",
+      goal: "Write to protected path",
+      todo: [],
+      approvals: [],
+      questions: 0,
+      artifacts: [],
+      diffCount: 0,
+      alert: { level: "error", message: "missing permission" },
+    })
+
+    expect(blockedState.lifecycle).toBe("blocked")
+    expect(blockedState.lifecycleLabel).toBe("Blocked")
+  })
+
+  test("describeLifecycle returns no-action copy for capacity wait and retry", () => {
+    expect(describeLifecycle({ lifecycle: "waiting_for_capacity" })).toContain("automatically")
+    expect(describeLifecycle({ lifecycle: "retrying" })).toContain("automatically")
+    expect(describeLifecycle({ lifecycle: "blocked" })).toContain("intervention")
+    expect(describeLifecycle({ lifecycle: "awaiting_approval" })).toContain("approval")
   })
 
   test("surfaces plan gate and completion proof warnings in activity summary", () => {

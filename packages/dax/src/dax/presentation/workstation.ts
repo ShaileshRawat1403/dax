@@ -7,6 +7,8 @@ export type WorkstationLifecycle =
   | "executing"
   | "verifying"
   | "awaiting_approval"
+  | "waiting_for_capacity"
+  | "retrying"
   | "blocked"
   | "completed"
   | "failed"
@@ -236,8 +238,9 @@ function deriveLifecycle(input: {
   alertLevel?: "info" | "warning" | "error"
 }): WorkstationLifecycle {
   if (input.approvalsPending > 0 || input.stage === "waiting") return "awaiting_approval"
-  if (input.sessionStatusType === "retry" || input.alertLevel === "error" || input.stage === "retrying")
-    return "blocked"
+  if (input.sessionStatusType === "delayed") return "waiting_for_capacity"
+  if (input.sessionStatusType === "retry" || input.stage === "retrying") return "retrying"
+  if (input.alertLevel === "error") return "blocked"
   if (input.stage === "thinking" || input.stage === "exploring") return "understanding"
   if (input.stage === "planning") return "planning"
   if (input.stage === "executing") return "executing"
@@ -376,12 +379,38 @@ export function labelLifecycle(lifecycle: WorkstationLifecycle) {
       return "Verifying"
     case "awaiting_approval":
       return "Awaiting approval"
+    case "waiting_for_capacity":
+      return "Waiting for model capacity"
+    case "retrying":
+      return "Retrying"
     case "blocked":
       return "Blocked"
     case "completed":
       return "Completed"
     case "failed":
       return "Failed"
+  }
+}
+
+export function describeLifecycle(input: {
+  lifecycle: WorkstationLifecycle
+  retryNext?: number
+}): string {
+  switch (input.lifecycle) {
+    case "waiting_for_capacity":
+      return "The model provider is temporarily limiting capacity. DAX will continue automatically."
+    case "retrying":
+      return input.retryNext
+        ? `Provider delay detected. Retrying automatically at ${input.retryNext}.`
+        : "Provider delay detected. Retrying automatically."
+    case "awaiting_approval":
+      return "DAX is waiting for your approval before continuing."
+    case "blocked":
+      return "DAX needs intervention before it can safely continue."
+    case "failed":
+      return "DAX could not complete this run."
+    default:
+      return ""
   }
 }
 

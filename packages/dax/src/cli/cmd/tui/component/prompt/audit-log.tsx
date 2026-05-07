@@ -1,5 +1,6 @@
 import { useTheme } from "@tui/context/theme"
 import { For, Show } from "solid-js"
+import { type EvidenceLedgerItem, evidenceSeverityGlyph } from "@/dax/presentation/evidence-ledger"
 
 export type AuditLogEntry = {
   commandText: string
@@ -30,7 +31,11 @@ function countLabel(value: number, noun: string) {
   return `${value} ${noun}${value === 1 ? "" : "s"}`
 }
 
-export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLogEntry }) {
+export function AuditLogPane(props: {
+  history: AuditLogEntry[]
+  latest?: AuditLogEntry
+  ledger?: EvidenceLedgerItem[]
+}) {
   const { theme } = useTheme()
 
   const latest = () => props.latest?.result
@@ -142,6 +147,80 @@ export function AuditLogPane(props: { history: AuditLogEntry[]; latest?: AuditLo
             </box>
           </box>
         )}
+      </Show>
+
+      <EvidenceLedgerSection ledger={props.ledger ?? []} />
+    </box>
+  )
+}
+
+function EvidenceLedgerSection(props: { ledger: EvidenceLedgerItem[] }) {
+  const { theme } = useTheme()
+
+  const severityColor = (severity: EvidenceLedgerItem["severity"]) => {
+    switch (severity) {
+      case "success":
+        return theme.success
+      case "warning":
+        return theme.warning
+      case "error":
+        return theme.error
+      case "info":
+        return theme.primary
+      case "neutral":
+        return theme.textMuted
+    }
+  }
+
+  return (
+    <box flexDirection="column" gap={0} paddingTop={1} border={["top"]} borderColor={theme.borderSubtle}>
+      <text fg={theme.primary} bold>
+        Evidence Ledger
+      </text>
+      <Show
+        when={props.ledger.length > 0}
+        fallback={
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>No evidence recorded yet.</text>
+            <text fg={theme.textMuted}>
+              DAX will list artifacts, approvals, proposed changes, and verification signals here as the run
+              progresses.
+            </text>
+          </box>
+        }
+      >
+        <box flexDirection="column" gap={1} paddingTop={1}>
+          <For each={props.ledger}>
+            {(item) => (
+              <box
+                flexDirection="column"
+                gap={0}
+                paddingLeft={1}
+                border={["left"]}
+                borderColor={severityColor(item.severity)}
+              >
+                <box flexDirection="row" gap={1}>
+                  <text fg={severityColor(item.severity)}>{evidenceSeverityGlyph(item.severity)}</text>
+                  <text fg={theme.text}>{item.title}</text>
+                </box>
+                <Show when={item.detail}>
+                  <text fg={theme.textMuted}>{item.detail}</text>
+                </Show>
+                <box flexDirection="row" gap={1} flexWrap="wrap">
+                  <Show when={item.proofLabel}>
+                    <text fg={theme.textMuted}>{item.proofLabel}</text>
+                  </Show>
+                  <Show when={item.proofRef}>
+                    <text fg={theme.textMuted}>·</text>
+                    <text fg={theme.textMuted}>{item.proofRef}</text>
+                  </Show>
+                  <text fg={theme.textMuted}>·</text>
+                  <text fg={theme.textMuted}>{formatAuditTime(Date.parse(item.timestamp))}</text>
+                </box>
+              </box>
+            )}
+          </For>
+        </box>
       </Show>
     </box>
   )
