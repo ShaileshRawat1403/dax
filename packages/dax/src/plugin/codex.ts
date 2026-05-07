@@ -350,8 +350,13 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
 
 const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 
-// Models available via ChatGPT Pro/Plus subscription (union of codex-branded
-// models and the newer gpt-5.4+ generation that dropped the "codex" suffix).
+// Models callable via the ChatGPT Pro/Plus Codex endpoint
+// (https://chatgpt.com/backend-api/codex). Source: OpenAI Codex model
+// docs at https://developers.openai.com/codex/models. Note that the
+// 5.4/5.5 generation dropped the explicit "-codex" suffix — they are
+// Codex-capable frontier models reached by their base ID. The "-pro"
+// and "-nano" variants are NOT routed through the Codex endpoint and
+// require a paid OpenAI API key, so they are excluded here.
 const SUBSCRIPTION_FALLBACKS: ReadonlyArray<{ id: string; release_date: string }> = [
   { id: "gpt-5.1-codex", release_date: "2026-01-01" },
   { id: "gpt-5.1-codex-max", release_date: "2026-01-01" },
@@ -359,12 +364,10 @@ const SUBSCRIPTION_FALLBACKS: ReadonlyArray<{ id: string; release_date: string }
   { id: "gpt-5.2", release_date: "2026-01-01" },
   { id: "gpt-5.2-codex", release_date: "2026-01-01" },
   { id: "gpt-5.3-codex", release_date: "2026-02-05" },
+  { id: "gpt-5.3-codex-spark", release_date: "2026-02-05" },
   { id: "gpt-5.4", release_date: "2026-03-05" },
-  { id: "gpt-5.4-pro", release_date: "2026-03-05" },
   { id: "gpt-5.4-mini", release_date: "2026-03-17" },
-  { id: "gpt-5.4-nano", release_date: "2026-03-17" },
   { id: "gpt-5.5", release_date: "2026-04-23" },
-  { id: "gpt-5.5-pro", release_date: "2026-04-23" },
 ]
 
 const SUBSCRIPTION_IDS = new Set(SUBSCRIPTION_FALLBACKS.map((m) => m.id))
