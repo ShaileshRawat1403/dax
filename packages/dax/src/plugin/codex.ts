@@ -348,6 +348,49 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
   })
 }
 
+const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
+
+function isCodexModel(id: string): boolean {
+  return /codex/i.test(id)
+}
+
+function buildCodexModel(id: string) {
+  // "gpt-5.3-codex" → "GPT-5.3 Codex", "gpt-5.4-codex-mini" → "GPT-5.4 Codex Mini"
+  const parts = id.split("-")
+  const version = parts[1] ?? ""
+  const suffix = parts
+    .slice(2)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ")
+  const name = version ? `GPT-${version} ${suffix}` : id
+
+  const model = {
+    id,
+    providerID: "openai",
+    api: { id, url: CODEX_BASE_URL, npm: "@ai-sdk/openai" },
+    name,
+    capabilities: {
+      temperature: false,
+      reasoning: true,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, audio: false, image: true, video: false, pdf: false },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+    limit: { context: 400_000, input: 272_000, output: 128_000 },
+    status: "active" as const,
+    options: {},
+    headers: {},
+    release_date: "2026-01-01",
+    variants: {} as Record<string, Record<string, any>>,
+    family: "gpt-codex",
+  }
+  model.variants = ProviderTransform.variants(model)
+  return model
+}
+
 export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
   return {
     auth: {
@@ -356,60 +399,43 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
         const auth = await getAuth()
         if (auth.type !== "oauth") return {}
 
-        // Filter models to only allowed Codex models for OAuth
-        const allowedModels = new Set([
-          "gpt-5.1-codex-max",
-          "gpt-5.1-codex-mini",
-          "gpt-5.2",
-          "gpt-5.2-codex",
-          "gpt-5.3-codex",
-          "gpt-5.1-codex",
-        ])
+        // Keep only Codex-family models from the provider registry
         for (const modelId of Object.keys(provider.models)) {
-          if (!allowedModels.has(modelId)) {
+          if (!isCodexModel(modelId)) {
             delete provider.models[modelId]
           }
         }
 
-        if (!provider.models["gpt-5.3-codex"]) {
-          const model = {
-            id: "gpt-5.3-codex",
-            providerID: "openai",
-            api: {
-              id: "gpt-5.3-codex",
-              url: "https://chatgpt.com/backend-api/codex",
-              npm: "@ai-sdk/openai",
-            },
-            name: "GPT-5.3 Codex",
-            capabilities: {
-              temperature: false,
-              reasoning: true,
-              attachment: true,
-              toolcall: true,
-              input: { text: true, audio: false, image: true, video: false, pdf: false },
-              output: { text: true, audio: false, image: false, video: false, pdf: false },
-              interleaved: false,
-            },
-            cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-            limit: { context: 400_000, input: 272_000, output: 128_000 },
-            status: "active" as const,
-            options: {},
-            headers: {},
-            release_date: "2026-02-05",
-            variants: {} as Record<string, Record<string, any>>,
-            family: "gpt-codex",
+        // Dynamically discover models available for this subscription.
+        // Try OpenAI's standard models endpoint; fall back silently if the
+        // ChatGPT OAuth token doesn't have scope for it.
+        if (auth.access && auth.expires > Date.now()) {
+          try {
+            const res = await fetch("https://api.openai.com/v1/models", {
+              headers: { Authorization: `Bearer ${auth.access}` },
+            })
+            if (res.ok) {
+              const data = (await res.json()) as { data: Array<{ id: string }> }
+              for (const { id } of data.data) {
+                if (!isCodexModel(id)) continue
+                if (!provider.models[id]) {
+                  provider.models[id] = buildCodexModel(id)
+                }
+              }
+            }
+          } catch {
+            log.debug("codex model discovery unavailable, using provider registry")
           }
-          model.variants = ProviderTransform.variants(model)
-          provider.models["gpt-5.3-codex"] = model
         }
 
-        // Zero out costs for Codex (included with ChatGPT subscription)
+        // Ensure at least gpt-5.3-codex is present as a known-good fallback
+        if (!provider.models["gpt-5.3-codex"]) {
+          provider.models["gpt-5.3-codex"] = buildCodexModel("gpt-5.3-codex")
+        }
+
+        // Zero out costs — Codex is included with the ChatGPT subscription
         for (const model of Object.values(provider.models)) {
-          model.cost = {
-            input: 0,
-            output: 0,
-            cache: { read: 0, write: 0 },
-          }
+          model.cost = { input: 0, output: 0, cache: { read: 0, write: 0 } }
         }
 
         return {
