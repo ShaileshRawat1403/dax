@@ -62,6 +62,9 @@ jobs:
       - name: Test
         run: bun run test --coverage
 
+      - name: Smoke evals
+        run: bun run eval:smoke
+
       - name: Rust fmt
         run: cargo fmt --all -- --check
 
