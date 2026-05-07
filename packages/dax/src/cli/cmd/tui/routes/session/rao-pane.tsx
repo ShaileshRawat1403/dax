@@ -800,15 +800,19 @@ export function RAOPane(props: {
   const dialog = useDialog()
   const textareaKeybindings = useTextareaKeybindings()
 
+  // UI-only hold: keeps a just-replied card visible briefly so the user
+  // actually sees the confirmation echo even when the server is fast.
+  // This is NOT the source of truth for the queue (status="pending" is) —
+  // it only delays the visual removal. Declared before items() so the
+  // memo can read it on first evaluation without a temporal-dead-zone error.
+  const [confirmingIDs, setConfirmingIDs] = createSignal(new Set<string>())
+
   // The queue renders directly from props.permissions / props.questions.
   // The caller pre-filters to status="pending" via the shared selector
   // (packages/dax/src/dax/presentation/approvals.ts), so resolved items
   // disappear automatically when the server updates the projected run.
-  //
-  // confirmingIDs is a UX-only hold: a just-replied card stays in items()
-  // for 600ms so the user always sees the sent-phase confirmation even
-  // when the server is fast. The IDs we hold are tracked separately and
-  // re-attached to items derived from the queue at the previous tick.
+  // confirmingIDs (above) re-attaches just-replied items to items() for a
+  // brief window so the sent-phase confirmation is reliably visible.
   const itemsByID = new Map<string, RAOItem>()
   const items = createMemo<RAOItem[]>((prev) => {
     const result: RAOItem[] = []
@@ -907,11 +911,6 @@ export function RAOPane(props: {
   // can be specific ("Approved once" vs "Approved + always" vs "Denied")
   // instead of generic. Reset when navigating to a new card.
   const [lastDecision, setLastDecision] = createSignal<DecisionEcho | null>(null)
-  // UI-only: keeps the just-replied card visible briefly so the user
-  // actually sees the confirmation even when the server is fast. This
-  // is NOT the source of truth for the queue (status="pending" is) —
-  // it only delays the visual removal.
-  const [confirmingIDs, setConfirmingIDs] = createSignal(new Set<string>())
   let denyTextarea: TextareaRenderable | undefined
 
   createEffect(
