@@ -193,7 +193,16 @@ export namespace Ripgrep {
         await Bun.write(filepath, await rgBlob.arrayBuffer())
         await zipFileReader.close()
       }
-      await fs.unlink(archivePath)
+      // Cleanup the archive — already extracted what we need.
+      // On Windows the file occasionally disappears before this point
+      // (antivirus / tempdir GC / file handle race), so ENOENT here is
+      // benign and must not fail bootstrap.
+      try {
+        await fs.unlink(archivePath)
+      } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException)?.code
+        if (code !== "ENOENT") throw err
+      }
       if (!platformKey.endsWith("-win32")) await fs.chmod(filepath, 0o755)
     }
 
