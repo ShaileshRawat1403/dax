@@ -270,7 +270,7 @@ export function Session() {
   const permissions = createMemo(() => {
     if (projectedRun()) {
       return (projectedRun()?.approvals ?? [])
-        .filter((a) => a.type !== "question")
+        .filter((a) => a.type !== "question" && a.status === "pending")
         .map((a) => ({
           id: a.approvalId,
           sessionID: a.runId,
@@ -800,6 +800,7 @@ export function Session() {
         approvals: (pr.approvals as any[]).map((p: any) => ({
           label: p.title || p.permission,
           reason: p.reason || (p.metadata?.reason as string | undefined),
+          status: p.status,
         })),
         questions: questions().length,
         artifacts: pr.artifacts.map((a: any) => ({ label: a.title || a.path || a.id, kind: a.type })),

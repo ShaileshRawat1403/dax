@@ -1,4 +1,5 @@
 import type { ExecutionReflection } from "@/session/state-types"
+import { pendingApprovals } from "./approvals"
 
 export type WorkstationLifecycle =
   | "understanding"
@@ -85,7 +86,7 @@ export function deriveWorkstationState(input: {
   sessionStatusType: "busy" | "idle" | "retry" | "delayed"
   goal?: string
   todo: Array<{ content: string; status: string }>
-  approvals: Array<{ label?: string; reason?: string }>
+  approvals: Array<{ label?: string; reason?: string; status?: string }>
   questions: number
   artifacts: Array<{ label: string; kind?: string }>
   diffCount: number
@@ -119,7 +120,10 @@ export function deriveWorkstationState(input: {
 }): WorkstationState {
   const currentTodo = input.todo.find((item) => item.status === "in_progress")
   const currentTodoIndex = input.todo.findIndex((item) => item.status === "in_progress")
-  const approvalsPending = input.approvals.length + input.questions
+  // Approvals stay in the array as historical records after resolution.
+  // Only status="pending" entries are actionable. See ./approvals.ts.
+  const actionableApprovals = pendingApprovals(input.approvals)
+  const approvalsPending = actionableApprovals.length + input.questions
   const evidencePresent = input.artifacts.length > 0 || input.diffCount > 0
   const trustPosture = deriveTrustPosture({
     lifecycleHint: input.stage === "done" && approvalsPending === 0 ? "completed" : undefined,
@@ -142,7 +146,7 @@ export function deriveWorkstationState(input: {
   const currentStep = resolveCurrentStep({
     currentTodo: currentTodo?.content,
     stageReason: input.stageReason,
-    approvals: input.approvals,
+    approvals: actionableApprovals,
     questions: input.questions,
     recentTooling: input.recentTooling ?? [],
   })
@@ -179,8 +183,10 @@ export function deriveWorkstationState(input: {
     },
     approvalSummary: {
       pendingCount: approvalsPending,
-      topReason: input.approvals[0]?.reason ?? (input.questions > 0 ? "awaiting operator input" : undefined),
-      topLabel: input.approvals[0]?.label ?? (input.questions > 0 ? "Open question" : undefined),
+      topReason:
+        actionableApprovals[0]?.reason ?? (input.questions > 0 ? "awaiting operator input" : undefined),
+      topLabel:
+        actionableApprovals[0]?.label ?? (input.questions > 0 ? "Open question" : undefined),
     },
     artifactSummary: {
       count: input.artifacts.length,
