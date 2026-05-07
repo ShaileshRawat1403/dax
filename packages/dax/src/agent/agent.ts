@@ -26,6 +26,37 @@ import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
 import { EXPLORE_TOOLS, MUTATING_SHELL_PATTERNS } from "../tool/constants"
 
+/**
+ * Sensitive-path gates applied to every file-discovery / file-content
+ * operation by default. Mirrors github.com/github/gitignore Node.gitignore
+ * `.env` patterns plus broader secret markers. Allowed exceptions:
+ * `.env.example` (commonly committed as a template).
+ *
+ * Each tool that consumes path-relevant input passes that input into
+ * ctx.ask's `patterns` array so these rules actually fire — see
+ * tool/grep.ts for the path-and-include inclusion pattern. The set covers
+ * existence-leak (glob/list), content-leak (grep/read), and content-egress
+ * (webfetch/codesearch/websearch) vectors uniformly.
+ *
+ * Exported so tests can verify the gate against many path samples without
+ * depending on the live agent state.
+ */
+export const SENSITIVE_PATH_RULES = {
+  "*": "allow",
+  "*.env": "ask",
+  "*.env.*": "ask",
+  "*.env.example": "allow",
+  "*secrets*": "ask",
+  "*credentials*": "ask",
+  "*/id_rsa": "ask",
+  "*/id_ed25519": "ask",
+  "*/id_ecdsa": "ask",
+  "*.pem": "ask",
+  "*.key": "ask",
+  "*.p12": "ask",
+  "*.pfx": "ask",
+} as const
+
 export namespace Agent {
   export const Info = z
     .object({
@@ -69,13 +100,13 @@ export namespace Agent {
       question: "deny",
       plan_enter: "deny",
       plan_exit: "deny",
-      // mirrors github.com/github/gitignore Node.gitignore pattern for .env files
-      read: {
-        "*": "allow",
-        "*.env": "ask",
-        "*.env.*": "ask",
-        "*.env.example": "allow",
-      },
+      read: SENSITIVE_PATH_RULES,
+      glob: SENSITIVE_PATH_RULES,
+      list: SENSITIVE_PATH_RULES,
+      grep: SENSITIVE_PATH_RULES,
+      codesearch: SENSITIVE_PATH_RULES,
+      webfetch: SENSITIVE_PATH_RULES,
+      websearch: SENSITIVE_PATH_RULES,
     })
     const user = Permission.fromConfig(cfg.permission ?? {})
 

@@ -21,9 +21,16 @@ export const GrepTool = Tool.define("grep", {
       throw new Error("pattern is required")
     }
 
+    // Patterns array carries the regex needle plus any path/include filters
+    // so policy rules can match either by needle or by file scope (e.g.
+    // a default rule like "*.env": "ask" can fire when the user grepped
+    // an .env file).
+    const askPatterns = [params.pattern]
+    if (params.path) askPatterns.push(params.path)
+    if (params.include) askPatterns.push(params.include)
     await ctx.ask({
       permission: "grep",
-      patterns: [params.pattern],
+      patterns: askPatterns,
       always: ["*"],
       metadata: {
         pattern: params.pattern,
