@@ -541,7 +541,7 @@ export function Session() {
   const approvalQueueCount = createMemo(() => permissions().length + questions().length)
   const openApprovalsPane = () => {
     setPaneMode(() => "approvals")
-    setPaneVisibility(() => "auto")
+    setPaneVisibility(() => "pinned")
     setPaneFollowMode(() => "smart")
     setFollowing(false)
   }

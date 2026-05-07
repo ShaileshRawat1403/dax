@@ -437,7 +437,19 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
             // Check if token needs refresh
             if (!currentAuth.access || currentAuth.expires < Date.now()) {
               log.info("refreshing codex access token")
-              const tokens = await refreshAccessToken(currentAuth.refresh)
+              let tokens: TokenResponse
+              try {
+                tokens = await refreshAccessToken(currentAuth.refresh)
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err)
+                if (msg.includes("401") || msg.includes("403")) {
+                  log.warn("codex refresh token expired, re-auth required")
+                  throw new Error(
+                    "Codex session expired. Re-authenticate: Settings → Providers → OpenAI → Reconnect.",
+                  )
+                }
+                throw err
+              }
               const newAccountId = extractAccountId(tokens) || authWithAccount.accountId
               await input.client.auth.set({
                 providerID: "openai",

@@ -155,10 +155,6 @@ export function deriveActivePaneMode(input: {
 function isModeStale(currentMode: PaneMode, recommendedMode: PaneMode, liveStage?: string): boolean {
   if (currentMode === recommendedMode) return false
 
-  if (currentMode === "approvals" && recommendedMode !== "approvals") {
-    return true
-  }
-
   if (currentMode === "refine" && recommendedMode !== "refine") {
     return true
   }
