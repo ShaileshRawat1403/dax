@@ -1,4 +1,4 @@
-export const PANE_MODE = ["audit", "approvals", "memory", "refine", "operator"] as const
+export const PANE_MODE = ["audit", "approvals", "memory", "refine", "operator", "runtime"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
 
@@ -20,6 +20,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
       memory: "my notes",
       refine: "refine",
       operator: "controls",
+      runtime: "runtime",
     }[mode]
   }
   return {
@@ -28,6 +29,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
     memory: "memory",
     refine: "refine",
     operator: "operator",
+    runtime: "runtime",
   }[mode]
 }
 
@@ -39,6 +41,7 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
       memory: "notes",
       refine: "refine",
       operator: "ctrl",
+      runtime: "env",
     }[mode]
   }
   return {
@@ -47,6 +50,7 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
     memory: "memory",
     refine: "refine",
     operator: "operator",
+    runtime: "runtime",
   }[mode]
 }
 
@@ -74,6 +78,8 @@ export function paneContextLabel(mode: PaneMode): string {
       return "Refine prompt and execution profile"
     case "operator":
       return "Operator controls and session management"
+    case "runtime":
+      return "Sandbox, background jobs, and execution environment"
     default:
       return ""
   }

@@ -79,6 +79,7 @@ import { Instance } from "@/project/instance"
 import { PermissionPrompt } from "./permission"
 import { RAOPane } from "./rao-pane"
 import { AuditLogPane } from "../../component/prompt/audit-log"
+import { RuntimePane } from "../../component/prompt/runtime-pane"
 import { RefinePane } from "../../component/prompt/refine"
 import { OperatorPane } from "../../component/prompt/operator-pane"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
@@ -1700,6 +1701,10 @@ export function Session() {
 
                   <Match when={activePaneMode() === "audit"}>
                     <AuditLogPane history={auditHistory()} latest={latestAudit()} ledger={evidenceLedger()} />
+                  </Match>
+
+                  <Match when={activePaneMode() === "runtime"}>
+                    <RuntimePane />
                   </Match>
 
                   <Match when={activePaneMode() === "refine"}>

@@ -45,6 +45,7 @@ import { RunRoutes } from "./routes/run"
 import { RaoRoutes } from "./routes/rao"
 import { SoothsayerRoutes } from "./routes/soothsayer"
 import { SubstrateRoutes } from "./routes/substrate"
+import { SandboxRoutes } from "./routes/sandbox"
 import { getSecrets } from "@/secrets/secrets-loader"
 import { initialize as initializeOtel } from "@/runtime/otel"
 
@@ -241,6 +242,7 @@ export namespace Server {
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
         .route("/substrate", SubstrateRoutes)
+        .route("/sandbox", SandboxRoutes)
         .post(
           "/instance/dispose",
           describeRoute({

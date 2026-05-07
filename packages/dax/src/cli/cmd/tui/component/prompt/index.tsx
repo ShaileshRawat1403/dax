@@ -21,7 +21,7 @@ export type PromptProps = {
   visible?: boolean
   disabled?: boolean
   panePinned?: boolean
-  activePaneMode?: "diff" | "audit" | "approvals" | "memory" | "refine" | "operator"
+  activePaneMode?: "diff" | "audit" | "approvals" | "memory" | "refine" | "operator" | "runtime"
   approvalAttentionCount?: number
   questionAttentionCount?: number
   onRefineReady?: (prompt: string) => void
