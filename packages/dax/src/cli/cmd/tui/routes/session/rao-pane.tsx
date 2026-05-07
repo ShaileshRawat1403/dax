@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { TextAttributes, type TextareaRenderable } from "@opentui/core"
@@ -64,6 +64,30 @@ type RAOItem =
 // Card lifecycle: deciding → confirming-always or denying → sent
 export type CardPhase = "deciding" | "confirming-always" | "denying" | "sent"
 
+// What the user just decided — echoed in the sent-phase confirmation so
+// the user gets a specific acknowledgment instead of generic "decision sent".
+export type DecisionEcho =
+  | { kind: "permission"; reply: "once" | "always" | "reject"; message?: string }
+  | { kind: "question"; action: "answered" | "rejected" }
+
+function sentPhaseMessage(d: DecisionEcho | null): string {
+  if (!d) return "Decision sent — DAX will continue."
+  if (d.kind === "permission") {
+    switch (d.reply) {
+      case "once":
+        return "Approved (once) — DAX will continue."
+      case "always":
+        return "Approved & added to allowlist — DAX will continue."
+      case "reject":
+        return "Denied — DAX will stop this action."
+    }
+  }
+  if (d.kind === "question") {
+    return d.action === "answered" ? "Answer sent — DAX will continue." : "Question dismissed — DAX will continue."
+  }
+  return "Decision sent — DAX will continue."
+}
+
 function permissionIcon(perm: string) {
   if (perm === "shell") return "#"
   if (perm === "edit" || perm === "apply_patch") return "✎"
@@ -110,6 +134,7 @@ function PermissionCard(props: {
   input: Record<string, unknown>
   risk: { level: PermissionRiskLevel; reason: string; suggestion?: string }
   cardPhase: CardPhase
+  lastDecision: DecisionEcho | null
   selectedButtonIdx: number
   buttons: Array<"once" | "always" | "deny">
   diffExpanded: boolean
@@ -329,14 +354,16 @@ function PermissionCard(props: {
             paddingLeft={1}
             paddingTop={1}
             paddingBottom={1}
-            backgroundColor={tint(theme.background, theme.success, 0.08)}
+            backgroundColor={tint(theme.background, props.lastDecision?.kind === "permission" && props.lastDecision.reply === "reject" ? theme.error : theme.success, 0.08)}
             border={["left"]}
-            borderColor={theme.success}
+            borderColor={props.lastDecision?.kind === "permission" && props.lastDecision.reply === "reject" ? theme.error : theme.success}
           >
-            <text fg={theme.success} attributes={TextAttributes.BOLD}>
-              ✓
+            <text fg={props.lastDecision?.kind === "permission" && props.lastDecision.reply === "reject" ? theme.error : theme.success} attributes={TextAttributes.BOLD}>
+              {props.lastDecision?.kind === "permission" && props.lastDecision.reply === "reject" ? "✗" : "✓"}
             </text>
-            <text fg={theme.success}>Decision sent — DAX will continue.</text>
+            <text fg={props.lastDecision?.kind === "permission" && props.lastDecision.reply === "reject" ? theme.error : theme.success}>
+              {sentPhaseMessage(props.lastDecision)}
+            </text>
           </box>
         </Show>
 
@@ -758,6 +785,13 @@ export function RAOPane(props: {
   questions: QuestionRequest[]
   sessionID: string
   initialRequestID?: string
+  /**
+   * Fires when the queue transitions from non-empty to empty after a
+   * decision. The host (session/index.tsx) uses this to gracefully
+   * release the pane back to auto-mode so the sidebar doesn't stay
+   * pinned on "All clear" forever.
+   */
+  onAllResolved?: () => void
 }) {
   const sdk = useSDK()
   const kv = useKV()
@@ -770,10 +804,41 @@ export function RAOPane(props: {
   // The caller pre-filters to status="pending" via the shared selector
   // (packages/dax/src/dax/presentation/approvals.ts), so resolved items
   // disappear automatically when the server updates the projected run.
-  const items = createMemo<RAOItem[]>(() => {
+  //
+  // confirmingIDs is a UX-only hold: a just-replied card stays in items()
+  // for 600ms so the user always sees the sent-phase confirmation even
+  // when the server is fast. The IDs we hold are tracked separately and
+  // re-attached to items derived from the queue at the previous tick.
+  const itemsByID = new Map<string, RAOItem>()
+  const items = createMemo<RAOItem[]>((prev) => {
     const result: RAOItem[] = []
-    props.permissions.forEach((p, i) => result.push({ type: "permission", data: p, index: i }))
-    props.questions.forEach((q, i) => result.push({ type: "question", data: q, index: i }))
+    const seen = new Set<string>()
+    props.permissions.forEach((p, i) => {
+      const item: RAOItem = { type: "permission", data: p, index: i }
+      result.push(item)
+      itemsByID.set(p.id, item)
+      seen.add(p.id)
+    })
+    props.questions.forEach((q, i) => {
+      const item: RAOItem = { type: "question", data: q, index: i }
+      result.push(item)
+      itemsByID.set(q.id, item)
+      seen.add(q.id)
+    })
+    // Re-include any confirming IDs that already left the upstream queue
+    // (server flipped status<-pending) so the user keeps seeing the card.
+    const holding = confirmingIDs()
+    holding.forEach((id) => {
+      if (seen.has(id)) return
+      const cached = itemsByID.get(id)
+      if (cached) result.push(cached)
+    })
+    // Garbage-collect cache entries that are neither current nor holding.
+    if (prev) {
+      for (const id of itemsByID.keys()) {
+        if (!seen.has(id) && !holding.has(id)) itemsByID.delete(id)
+      }
+    }
     return result
   })
 
@@ -785,6 +850,41 @@ export function RAOPane(props: {
     if (len === 0) return
     const idx = selectedIndex()
     if (idx < 0 || idx >= len) setSelectedIndex(Math.max(0, len - 1))
+  })
+
+  // Auto-close pane when the queue transitions from non-empty to empty.
+  // We only fire onAllResolved if the queue had items at some point in
+  // this lifetime — that way arriving on the pane with zero items (e.g.
+  // user clicked the approvals tab manually) doesn't cause an immediate
+  // unwanted close. A 1500ms celebration window gives the user time to
+  // see "All clear" before the pane releases back to auto-mode. If a new
+  // approval arrives during the window, the timer is cancelled.
+  let everHadItems = false
+  let resolveTimer: ReturnType<typeof setTimeout> | undefined
+  createEffect(() => {
+    const len = items().length
+    if (len > 0) {
+      everHadItems = true
+      if (resolveTimer) {
+        clearTimeout(resolveTimer)
+        resolveTimer = undefined
+      }
+      return
+    }
+    if (!everHadItems) return
+    if (resolveTimer) return
+    resolveTimer = setTimeout(() => {
+      resolveTimer = undefined
+      // Only fire if still empty when the timer expires
+      if (items().length === 0) {
+        everHadItems = false
+        props.onAllResolved?.()
+      }
+    }, 1500)
+  })
+
+  onCleanup(() => {
+    if (resolveTimer) clearTimeout(resolveTimer)
   })
 
   // Jump to specific request from external navigation
@@ -803,6 +903,15 @@ export function RAOPane(props: {
   const [selectedButtonIdx, setSelectedButtonIdx] = createSignal(0)
   const [diffExpanded, setDiffExpanded] = createSignal(false)
   const [questionSent, setQuestionSent] = createSignal(false)
+  // Echoes the decision the user just made so the sent-phase confirmation
+  // can be specific ("Approved once" vs "Approved + always" vs "Denied")
+  // instead of generic. Reset when navigating to a new card.
+  const [lastDecision, setLastDecision] = createSignal<DecisionEcho | null>(null)
+  // UI-only: keeps the just-replied card visible briefly so the user
+  // actually sees the confirmation even when the server is fast. This
+  // is NOT the source of truth for the queue (status="pending" is) —
+  // it only delays the visual removal.
+  const [confirmingIDs, setConfirmingIDs] = createSignal(new Set<string>())
   let denyTextarea: TextareaRenderable | undefined
 
   createEffect(
@@ -811,6 +920,7 @@ export function RAOPane(props: {
       setSelectedButtonIdx(0)
       setDiffExpanded(false)
       setQuestionSent(false)
+      setLastDecision(null)
       const item = currentItem()
       if (item?.type === "question") {
         setQuestionStore({
@@ -861,18 +971,44 @@ export function RAOPane(props: {
   })
 
   function handlePermissionReply(requestID: string, reply: "once" | "always" | "reject", message?: string) {
+    setLastDecision({ kind: "permission", reply, message })
     setCardPhase("sent")
     sdk.client.permission.reply({ reply, requestID, message })
+    holdConfirmation(requestID)
   }
 
   function handleQuestionReply(requestID: string, answers: Array<QuestionAnswer>) {
+    setLastDecision({ kind: "question", action: "answered" })
     setQuestionSent(true)
     sdk.client.question.reply({ requestID, answers })
+    holdConfirmation(requestID)
   }
 
   function handleQuestionReject(requestID: string) {
+    setLastDecision({ kind: "question", action: "rejected" })
     setQuestionSent(true)
     sdk.client.question.reject({ requestID })
+    holdConfirmation(requestID)
+  }
+
+  // UI-only confirmation hold: keep the just-replied card visible for
+  // ~600ms so the user always sees the sent-phase echo even when the
+  // server flips status<-pending instantly. After the hold expires, the
+  // card naturally falls out of items() because its status is no longer
+  // "pending" upstream.
+  function holdConfirmation(requestID: string) {
+    setConfirmingIDs((prev) => {
+      const next = new Set(prev)
+      next.add(requestID)
+      return next
+    })
+    setTimeout(() => {
+      setConfirmingIDs((prev) => {
+        const next = new Set(prev)
+        next.delete(requestID)
+        return next
+      })
+    }, 600)
   }
 
   // ── Keyboard handler — fully state-aware ──
@@ -1166,6 +1302,7 @@ export function RAOPane(props: {
                   input={currentPermissionInput()}
                   risk={currentRisk()}
                   cardPhase={cardPhase()}
+                  lastDecision={lastDecision()}
                   selectedButtonIdx={selectedButtonIdx()}
                   buttons={permissionButtons()}
                   diffExpanded={diffExpanded()}

@@ -1696,7 +1696,23 @@ export function Session() {
                 <Switch>
                   <Match when={activePaneMode() === "approvals"}>
                     <box flexGrow={1} minHeight={0}>
-                      <RAOPane permissions={permissions()} questions={questions()} sessionID={route.sessionID} />
+                      <RAOPane
+                        permissions={permissions()}
+                        questions={questions()}
+                        sessionID={route.sessionID}
+                        onAllResolved={() => {
+                          // Only release the pane if the user is still
+                          // viewing approvals — they may have already
+                          // navigated away during the celebration window.
+                          if (paneMode() !== "approvals") return
+                          // Switch from "pinned" back to "auto" so the
+                          // existing deriveActivePaneMode logic picks the
+                          // next sensible pane (audit/refine/etc) instead
+                          // of staying stuck on "All clear".
+                          setPaneVisibility(() => "auto")
+                          setFollowing(true)
+                        }}
+                      />
                     </box>
                   </Match>
 
