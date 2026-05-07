@@ -4,6 +4,15 @@ import path from "path"
 import { rmSync } from "fs"
 import { formatApprovalTable, toApprovalRow } from "./approvals"
 
+async function waitForPending(Permission: { list: () => Promise<any[]> }, count: number): Promise<any[]> {
+  for (let attempt = 0; attempt < 250; attempt++) {
+    const pending = await Permission.list()
+    if (pending.length === count) return pending
+    await Bun.sleep(20)
+  }
+  return Permission.list()
+}
+
 describe("approvals command", () => {
   test("formats empty approval state for operators", () => {
     expect(formatApprovalTable([])).toBe("No pending approvals.")
@@ -58,7 +67,7 @@ describe("approvals command", () => {
             ruleset: Permission.fromConfig({ bash: "ask" } as any),
           })
 
-          const pending = await Permission.list()
+          const pending = await waitForPending(Permission, 1)
           expect(pending.length).toBe(1)
 
           const row = toApprovalRow(pending[0]!)
