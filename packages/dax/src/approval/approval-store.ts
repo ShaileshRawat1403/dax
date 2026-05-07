@@ -32,20 +32,20 @@ export async function writeApprovals(runId: string, approvals: Approval[]): Prom
   }
 }
 
-export async function addApproval(runId: string, approval: Approval): Promise<Approval[]> {
+export async function addApproval(runId: string, approval: Approval): Promise<Approval> {
   const approvals = await readApprovals(runId)
 
   const existing = approvals.find((a) => a.approvalId === approval.approvalId)
   if (existing) {
-    log.warn("approval already exists", { runId, approvalId: approval.approvalId })
-    return approvals
+    log.warn("approval already exists, returning existing", { runId, approvalId: approval.approvalId })
+    return existing
   }
 
   const updated = [...approvals, approval]
   await writeApprovals(runId, updated)
   log.info("approval added", { runId, approvalId: approval.approvalId })
 
-  return updated
+  return approval
 }
 
 export async function getApproval(runId: string, approvalId: string): Promise<Approval | null> {
@@ -111,21 +111,25 @@ export async function resolveApproval(
   approvalId: string,
   resolution: { decision: "approve" | "deny"; actorId?: string; comment?: string },
 ): Promise<Approval | null> {
-  const approval = await getApproval(runId, approvalId)
+  // Single read-check-write cycle to minimize TOCTOU window
+  const approvals = await readApprovals(runId)
+  const index = approvals.findIndex((a) => a.approvalId === approvalId)
 
-  if (!approval) {
+  if (index === -1) {
     log.warn("approval not found for resolution", { runId, approvalId })
     return null
   }
 
-  if (!isPending(approval.status)) {
-    log.warn("approval already resolved", { runId, approvalId, currentStatus: approval.status })
-    return approval
+  const existing = approvals[index]
+
+  if (!isPending(existing.status)) {
+    log.warn("approval already resolved", { runId, approvalId, currentStatus: existing.status })
+    return existing
   }
 
   const now = new Date().toISOString()
   const updated: Approval = {
-    ...approval,
+    ...existing,
     status: resolution.decision === "approve" ? "approved" : "denied",
     resolvedAt: now,
     actor: resolution.actorId ?? null,
@@ -137,7 +141,12 @@ export async function resolveApproval(
     },
   }
 
-  return updateApproval(runId, approvalId, () => updated)
+  const newApprovals = [...approvals]
+  newApprovals[index] = updated
+  await writeApprovals(runId, newApprovals)
+  log.info("approval resolved", { runId, approvalId, decision: resolution.decision })
+
+  return updated
 }
 
 export namespace ApprovalStore {
@@ -149,7 +158,7 @@ export namespace ApprovalStore {
     return getApproval(runId, approvalId)
   }
 
-  export async function add(runId: string, approval: Approval): Promise<Approval[]> {
+  export async function add(runId: string, approval: Approval): Promise<Approval> {
     return addApproval(runId, approval)
   }
 

@@ -80,14 +80,18 @@ export namespace RAOAdapter {
       },
       risk: internal.risk,
       diffPreview: internal.context?.diffPreview
-        ? {
-            filesChanged: 1, // Basic heuristic since diff payload parsing isn't standardized yet
-            additions: 0,
-            deletions: 0,
-            patch: internal.context.diffPreview,
-          }
+        ? buildDiffPreview(internal.context.diffPreview)
         : undefined,
     }
+  }
+
+  function buildDiffPreview(patch: string): { filesChanged: number; additions: number; deletions: number; patch: string } {
+    const gitHeaders = (patch.match(/^diff --git /gm) ?? []).length
+    const unifiedHeaders = (patch.match(/^--- /gm) ?? []).length
+    const filesChanged = Math.max(1, gitHeaders > 0 ? gitHeaders : unifiedHeaders)
+    const additions = (patch.match(/^\+(?!\+\+)/gm) ?? []).length
+    const deletions = (patch.match(/^-(?!--)/gm) ?? []).length
+    return { filesChanged, additions, deletions, patch }
   }
 
   export function toRAORunRequest(internal: InternalExecutionContract): RAOProtocol.RunRequest {

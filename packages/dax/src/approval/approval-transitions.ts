@@ -64,6 +64,13 @@ async function generateDeterministicApprovalId(params: CreateApprovalParams): Pr
 export async function createAndPersistApproval(params: CreateApprovalParams): Promise<Approval> {
   const approvalId = await generateDeterministicApprovalId(params)
 
+  // Return existing approval unchanged to avoid duplicate events (idempotent create)
+  const existing = await ApprovalStore.get(params.runId, approvalId)
+  if (existing) {
+    log.debug("approval already exists, skipping creation", { runId: params.runId, approvalId })
+    return existing
+  }
+
   const approval: Approval = {
     approvalId,
     runId: params.runId,
