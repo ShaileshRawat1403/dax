@@ -8,10 +8,12 @@ DAX uses Rust only for deterministic proof surfaces around stochastic model exec
 | `dax-policy` | Evaluates proposed actions against policy context into `allow / ask / deny` decisions |
 | `dax-audit` | Evaluates trust posture from six structured run signals |
 | `dax-ledger` | Builds and verifies tamper-evident append-only ledger chains |
+| `dax-indexer` | Builds deterministic local repo structure indexes for context selection |
 | `dax-core-bin` | JSON stdio boundary for `dax-core` (commands: `replay`, `proof`, `version`) |
 | `dax-policy-bin` | JSON stdio boundary for `dax-policy` (commands: `evaluate`, `classify`, `version`) |
 | `dax-audit-bin` | JSON stdio boundary for `dax-audit` (commands: `evaluate`, `version`) |
 | `dax-ledger-bin` | JSON stdio boundary for `dax-ledger` (commands: `append`, `verify`, `append-file`, `export`, `version`) |
+| `dax-indexer-bin` | JSON stdio boundary for `dax-indexer` (commands: `build`, `query`, `symbols`, `imports`, `dump`, `version`) |
 
 TypeScript orchestrates. Rust decides deterministic facts.
 
@@ -37,6 +39,7 @@ Cross-platform sidecar compilation requires a per-platform build agent (e.g., li
 | Policy decision | `dax.policy.decision.v1` |
 | Audit trust report | `dax.audit.v1` |
 | Ledger entry | `dax.ledger.entry.v1` |
+| Indexer index | `dax.indexer.index.v1` |
 
 ## Running tests
 

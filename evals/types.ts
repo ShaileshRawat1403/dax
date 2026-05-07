@@ -1,4 +1,4 @@
-export type ScenarioKind = "core_proof" | "policy" | "audit"
+export type ScenarioKind = "core_proof" | "policy" | "audit" | "indexer"
 
 export interface Scenario {
   name: string

@@ -9,4 +9,6 @@ members = [
   "crates/dax-audit-bin",
   "crates/dax-ledger",
   "crates/dax-ledger-bin",
+  "crates/dax-indexer",
+  "crates/dax-indexer-bin",
 ]

@@ -12,11 +12,13 @@
  *   bun run eval            # same as eval:smoke
  */
 
-import { mkdir, readdir, readFile } from "fs/promises"
-import { join, resolve } from "path"
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "fs/promises"
+import { dirname, join, resolve } from "path"
+import { tmpdir } from "os"
 import { createRustProofReport } from "../packages/dax/src/rust/core"
 import { evaluatePolicyWithRust } from "../packages/dax/src/rust/policy"
 import { evaluateAuditWithRust } from "../packages/dax/src/rust/audit"
+import { buildIndex, getSymbols, queryIndex } from "../packages/dax/src/rust/indexer"
 import type { Scenario, EvalReport, ScenarioResult, CheckResult } from "../evals/types"
 
 // ---------------------------------------------------------------------------
@@ -91,6 +93,32 @@ async function runAudit(input: Record<string, unknown>): Promise<Record<string, 
     posture: report.posture,
     verification_result: report.verification_result,
     checks: report.checks,
+  }
+}
+
+async function runIndexer(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const root = await mkdtemp(join(tmpdir(), "dax-indexer-eval-"))
+  const files = input.files as Array<{ path: string; content: string }>
+  for (const file of files) {
+    const target = join(root, file.path)
+    await mkdir(dirname(target), { recursive: true })
+    await writeFile(target, file.content)
+  }
+
+  const cacheDir = join(root, ".cache", "index")
+  const build = await buildIndex({ repoRoot: root, cacheDir, projectId: "eval" })
+  const hits = await queryIndex(cacheDir, {
+    keywords: [String(input.query ?? "")],
+    limit: Number(input.limit ?? 3),
+  })
+  const symbolsFile = input.symbolsFile ? String(input.symbolsFile) : hits[0]?.path
+  const symbols = symbolsFile ? await getSymbols(cacheDir, symbolsFile) : []
+
+  return {
+    filesIndexed: build.files_indexed,
+    topPath: hits[0]?.path ?? null,
+    hitPaths: hits.map((hit) => hit.path),
+    symbolNames: symbols.map((symbol) => symbol.name).toSorted(),
   }
 }
 
@@ -194,6 +222,9 @@ async function main() {
           break
         case "audit":
           actual = await runAudit(fixture as Record<string, unknown>)
+          break
+        case "indexer":
+          actual = await runIndexer(fixture as Record<string, unknown>)
           break
         default:
           throw new Error(`Unknown scenario kind: ${(scenario as Scenario).kind}`)

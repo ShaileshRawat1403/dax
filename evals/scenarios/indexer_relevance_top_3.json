@@ -1,0 +1,10 @@
+{
+  "name": "indexer_relevance_top_3",
+  "suite": ["smoke", "proof"],
+  "kind": "indexer",
+  "input": "../fixtures/indexer/structural_repo.json",
+  "expected": {
+    "topPath": "src/approval.ts",
+    "hitPaths": ["src/approval.ts", "src/store.ts"]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "indexer_extracts_symbols",
+  "suite": ["smoke", "proof"],
+  "kind": "indexer",
+  "input": "../fixtures/indexer/structural_repo.json",
+  "expected": {
+    "filesIndexed": 3,
+    "symbolNames": ["ApprovalRequest", "createApproval"]
+  }
+}

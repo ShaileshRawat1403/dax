@@ -1,18 +1,18 @@
 # Rust Indexer — `dax-indexer`
 
-**Status:** candidate architecture. No code yet.
+**Status:** Phase 1 implemented.
 
-This document is a reviewed roadmap note, not approval to add a new crate immediately. See [`RUST_PROOF_LADDER.md`](./RUST_PROOF_LADDER.md) for the broader Rust strategy and [`RUST_CORE_BOUNDARY.md`](./RUST_CORE_BOUNDARY.md) for the TS↔Rust split.
+This document tracks the implemented Phase 1 surface and remaining roadmap. See [`RUST_PROOF_LADDER.md`](./RUST_PROOF_LADDER.md) for the broader Rust strategy and [`RUST_CORE_BOUNDARY.md`](./RUST_CORE_BOUNDARY.md) for the TS↔Rust split.
 
 ## Purpose
 
-`dax-indexer` is a candidate Rust sidecar that produces structured, compressed views of a local codebase. It builds a static index: file tree, exported symbols per file, import edges, definition locations, and structural relevance hints that DAX can query before deciding which files to read.
+`dax-indexer` is a Rust sidecar that produces structured, compressed views of a local codebase. It builds a static index: file tree, exported symbols per file, import edges, definition locations, and structural relevance hints that DAX can query before deciding which files to read.
 
 This is not a semantic index. There are no embeddings, no vector search, no LLM calls. It is a deterministic, fast, language-aware structural index built on `tree-sitter`.
 
 ## Architecture boundary
 
-`RUST_CORE_BOUNDARY.md` already lists repo indexing and structured context extraction as Rust-owned work. That makes `dax-indexer` a better Rust fit than storage: indexing is deterministic, performance-sensitive, replayable against a fixed tree, and easy to validate with golden fixtures.
+`RUST_CORE_BOUNDARY.md` already lists repo indexing and structured context extraction as Rust-owned work. That makes `dax-indexer` a strong Rust fit: indexing is deterministic, performance-sensitive, replayable against a fixed tree, and easy to validate with fixtures.
 
 The boundary still matters:
 
@@ -23,7 +23,7 @@ The boundary still matters:
 - Index results are advisory. DAX still chooses which files to read through existing tool and permission paths.
 - The indexer must respect DAX's project boundary, repo ignore files, and sensitive-path policy before paths or symbol names are surfaced to a model.
 
-If implementation starts, update `crates/README.md` in the same PR and document the TS integration path in `packages/dax/src/rust/`.
+The Phase 1 implementation updates `crates/README.md`, ships a `dax-indexer` sidecar, and exposes a typed TS adapter in `packages/dax/src/rust/indexer.ts`.
 
 ## Why this matters
 
@@ -39,22 +39,13 @@ Every agent CLI hits the same wall: context window economics. Sending whole file
 
 The leverage is real if it is integrated carefully. This capability should reduce DAX's per-task token cost while keeping the existing read/search permission model intact.
 
-## Candidate crate layout
+## Implemented crate layout
 
 ```
 crates/
 ├── dax-indexer/             # library
 │   ├── src/
-│   │   ├── lib.rs
-│   │   ├── languages.rs     # supported tree-sitter grammars
-│   │   ├── extractor.rs     # symbol + import extraction per language
-│   │   ├── index.rs         # in-memory Index struct, query API
-│   │   ├── builder.rs       # walk repo, parse, populate index
-│   │   ├── cache.rs         # mtime + content-hash keyed cache
-│   │   ├── relevance.rs     # scoring: symbol match + path match + import distance
-│   │   └── error.rs
-│   └── tests/
-│       └── indexer_golden.rs
+│   │   └── lib.rs           # index model, build/cache/query/extraction
 └── dax-indexer-bin/         # sidecar binary
     └── src/main.rs          # commands: build | query | symbols | imports | dump
 ```
@@ -79,7 +70,11 @@ Index data should live under DAX's cache directory, not state: `${Global.Path.ca
   "project_id": "<Project.Info.id>",
   "repo_root": "/abs/path/to/repo",
   "generated_at": "2026-05-07T10:00:00.000Z",
-  "language_versions": { "typescript": "0.21.0", "rust": "0.21.2" },
+  "language_versions": {
+    "javascript": "tree-sitter-javascript:0.25",
+    "rust": "tree-sitter-rust:0.24",
+    "typescript": "tree-sitter-typescript:0.23"
+  },
   "exclude_fingerprint": "sha256:...",
   "files": [
     {
@@ -114,18 +109,19 @@ impl Index {
     pub fn files(&self) -> &[FileEntry];
     pub fn symbols(&self, file: &str) -> &[Symbol];
     pub fn definitions(&self, name: &str) -> Vec<Definition>;
-    pub fn importers(&self, file: &str) -> Vec<&FileEntry>;
+    pub fn importers(&self, file: &str) -> Vec<String>;
+    pub fn imports_report(&self, file: &str) -> ImportsReport;
     pub fn relevance(&self, query: &Query, limit: usize) -> Vec<RelevanceHit>;
 }
 
 pub struct Query {
     pub keywords: Vec<String>,
-    pub touched_files: Vec<PathBuf>,   // for "near my recent edits"
+    pub touched_files: Vec<String>,   // for "near my recent edits"
     pub filter_lang: Option<Language>,
 }
 
 pub struct RelevanceHit {
-    pub path: PathBuf,
+    pub path: String,
     pub score: f32,
     pub reasons: Vec<String>,    // "symbol match: Foo", "imports ./bar"
 }
@@ -146,29 +142,37 @@ pub struct RelevanceHit {
 `packages/dax/src/rust/indexer.ts`
 
 ```typescript
-export async function buildIndex(opts?: { force?: boolean }): Promise<BuildResult>
-export async function queryIndex(query: Query): Promise<RelevanceHit[]>
-export async function getSymbols(file: string): Promise<Symbol[]>
-export async function getImporters(file: string): Promise<FileEntry[]>
-export async function getRelevantFiles(query: string, opts?: { limit?: number; touched?: string[] }): Promise<RelevanceHit[]>
+export async function buildIndex(request: BuildIndexRequest): Promise<BuildIndexResult>
+export async function queryIndex(cacheDir: string, query: IndexQuery): Promise<RelevanceHit[]>
+export async function getSymbols(cacheDir: string, file: string): Promise<IndexedSymbol[]>
+export async function getImports(cacheDir: string, file: string): Promise<ImportsResult>
+export async function dumpIndex(cacheDir: string): Promise<DaxIndex>
+export async function dumpIndexTree(cacheDir: string): Promise<string>
+export async function getRelevantFiles(request: {
+  repoRoot: string
+  query: string
+  limit?: number
+  touched?: string[]
+  cacheDir?: string
+  projectId?: string
+}): Promise<RelevanceHit[]>
 ```
 
 The high-level `getRelevantFiles` is what DAX can use before choosing specific read/search operations. Lower-level functions are for tools, MCP integrations, and future Soothsayer surfaces.
 
-Initial integration should be behind an explicit flag, for example:
+Runtime integration into DAX's live context-selection loop should remain behind an explicit flag, for example:
 
 ```typescript
 const INDEXER_ENABLED = process.env.DAX_INDEXER === "1"
 ```
 
-When the flag is off, DAX keeps using the current ripgrep, LSP, and MCP paths. When the flag is on and the sidecar is missing or the cache cannot be built, DAX should fail that indexer call with a clear diagnostic and fall back only through an intentional caller decision.
+The adapter itself is implemented and tested. When live integration is added and the flag is off, DAX should keep using the current ripgrep, LSP, and MCP paths. When the flag is on and the sidecar is missing or the cache cannot be built, DAX should fail that indexer call with a clear diagnostic and fall back only through an intentional caller decision.
 
 ## Test strategy
 
 | Layer | Coverage |
 | --- | --- |
-| Rust unit (`cargo test -p dax-indexer`) | Per-language extractor: known input → known symbol set; covers each grammar feature (default exports, re-exports, namespace imports, etc.) |
-| Rust golden (`tests/indexer_golden.rs`) | Fixture mini-repo (5–10 files spanning all supported langs); full `Index::build` output compared byte-for-byte against committed JSON |
+| Rust unit (`cargo test -p dax-indexer`) | Fixture mini-repo spanning TS and Rust; build, relevance, save/load |
 | TS bridge (`packages/dax/src/rust/indexer.test.ts`) | End-to-end build + query round-trip on the fixture repo |
 | Eval scenario (`evals/scenarios/indexer_extracts_symbols.json`) | Smoke suite: fixture repo, expect symbol set per file |
 | Eval scenario (`evals/scenarios/indexer_relevance_top_3.json`) | Smoke suite: known query, expect specific top-3 file ranking |
@@ -177,7 +181,7 @@ When the flag is off, DAX keeps using the current ripgrep, LSP, and MCP paths. W
 
 | Phase | Scope | Shippable signal |
 | --- | --- | --- |
-| 1 | TypeScript/TSX, JavaScript/JSX, and Rust support. File tree + exports + imports. Cache layer. CLI commands. TS bridge. Two eval scenarios in CI. | `dax-indexer build` indexes the DAX repo itself; `dax-indexer query "approval store"` returns the right files. |
+| 1 | TypeScript/TSX, JavaScript/JSX, and Rust support. File tree + exports + imports. Cache layer. CLI commands. TS bridge. Two eval scenarios in CI. | Implemented. `dax-indexer build/query/symbols/imports/dump` work through Rust and TS tests. |
 | 2 | Add Python and Go. Improve relevance: import-graph distance, recency boost from `touched_files`. Wire `getRelevantFiles` into DAX's local repo context-selection path. | Agent visibly reads fewer irrelevant files per task; token usage on cold-start tasks drops. |
 | 3 | Incremental indexing on file change (via existing `@parcel/watcher` integration). Live updates without full rebuild. | Index stays warm across edits; rebuild cost amortizes to per-changed-file. |
 
@@ -215,7 +219,7 @@ Phase 1 is the minimum shippable cut and the most leverage per line of code.
 | `dax-ledger` | independent |
 | `dax-storage` | independent candidate. Future: index cache could move to SQLite if filesystem cache becomes a measured bottleneck. |
 
-The indexer stands alone. It is one of the strongest Rust roadmap candidates because it has no dependencies on the runtime/policy/audit triad and it directly improves DAX's local-codebase ergonomics.
+The indexer stands alone. It is one of the strongest Rust investments because it has no dependencies on the runtime/policy/audit triad and it directly improves DAX's local-codebase ergonomics.
 
 ## Out-of-scope follow-ups (track elsewhere)
 

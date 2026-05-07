@@ -1,0 +1,19 @@
+{
+  "query": "approval store",
+  "limit": 3,
+  "symbolsFile": "src/approval.ts",
+  "files": [
+    {
+      "path": "src/approval.ts",
+      "content": "import { Store } from './store'\\nexport interface ApprovalRequest { id: string }\\nexport function createApproval(request: ApprovalRequest) { return new Store(request.id) }\\n"
+    },
+    {
+      "path": "src/store.ts",
+      "content": "export class Store {\\n  constructor(readonly id: string) {}\\n}\\n"
+    },
+    {
+      "path": "crates/demo/src/lib.rs",
+      "content": "pub struct LedgerEntry;\\npub fn append_entry() {}\\n"
+    }
+  ]
+}
