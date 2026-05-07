@@ -96,6 +96,10 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       if (timer) clearTimeout(timer)
     })
 
-    return { client: sdk, event: emitter, url: props.url }
+    // Expose the (possibly overridden) fetch so components can make raw requests
+    // through the same transport as sdk.client (worker RPC in local mode, native in server mode)
+    const sdkFetch: typeof fetch = props.fetch ?? globalThis.fetch
+
+    return { client: sdk, event: emitter, url: props.url, fetch: sdkFetch }
   },
 })

@@ -14,7 +14,7 @@ export function RuntimePane() {
   const sdk = useSDK()
 
   const [sandboxStatus] = createResource<SandboxStatusResponse>(async () => {
-    const res = await fetch(`${sdk.url}/sandbox/status`)
+    const res = await sdk.fetch(`${sdk.url}/sandbox/status`)
     if (!res.ok) throw new Error(`sandbox/status ${res.status}`)
     return res.json() as Promise<SandboxStatusResponse>
   })
