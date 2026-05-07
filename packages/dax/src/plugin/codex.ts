@@ -350,19 +350,38 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
 
 const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 
-function isCodexModel(id: string): boolean {
-  return /codex/i.test(id)
+// Models available via ChatGPT Pro/Plus subscription (union of codex-branded
+// models and the newer gpt-5.4+ generation that dropped the "codex" suffix).
+const SUBSCRIPTION_FALLBACKS: ReadonlyArray<{ id: string; release_date: string }> = [
+  { id: "gpt-5.1-codex", release_date: "2026-01-01" },
+  { id: "gpt-5.1-codex-max", release_date: "2026-01-01" },
+  { id: "gpt-5.1-codex-mini", release_date: "2026-01-01" },
+  { id: "gpt-5.2", release_date: "2026-01-01" },
+  { id: "gpt-5.2-codex", release_date: "2026-01-01" },
+  { id: "gpt-5.3-codex", release_date: "2026-02-05" },
+  { id: "gpt-5.4", release_date: "2026-03-05" },
+  { id: "gpt-5.4-pro", release_date: "2026-03-05" },
+  { id: "gpt-5.4-mini", release_date: "2026-03-17" },
+  { id: "gpt-5.4-nano", release_date: "2026-03-17" },
+  { id: "gpt-5.5", release_date: "2026-04-23" },
+  { id: "gpt-5.5-pro", release_date: "2026-04-23" },
+]
+
+const SUBSCRIPTION_IDS = new Set(SUBSCRIPTION_FALLBACKS.map((m) => m.id))
+
+function isSubscriptionModel(id: string): boolean {
+  return SUBSCRIPTION_IDS.has(id) || /codex/i.test(id)
 }
 
-function buildCodexModel(id: string) {
-  // "gpt-5.3-codex" → "GPT-5.3 Codex", "gpt-5.4-codex-mini" → "GPT-5.4 Codex Mini"
+function buildCodexModel(id: string, release_date = "2026-01-01") {
+  // "gpt-5.3-codex" → "GPT-5.3 Codex", "gpt-5.4-pro" → "GPT-5.4 Pro", "gpt-5.4" → "GPT-5.4"
   const parts = id.split("-")
   const version = parts[1] ?? ""
   const suffix = parts
     .slice(2)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(" ")
-  const name = version ? `GPT-${version} ${suffix}` : id
+  const name = (version ? `GPT-${version} ${suffix}` : id).trim()
 
   const model = {
     id,
@@ -383,7 +402,7 @@ function buildCodexModel(id: string) {
     status: "active" as const,
     options: {},
     headers: {},
-    release_date: "2026-01-01",
+    release_date,
     variants: {} as Record<string, Record<string, any>>,
     family: "gpt-codex",
   }
@@ -399,9 +418,9 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
         const auth = await getAuth()
         if (auth.type !== "oauth") return {}
 
-        // Keep only Codex-family models from the provider registry
+        // Keep only ChatGPT-subscription models from the provider registry
         for (const modelId of Object.keys(provider.models)) {
-          if (!isCodexModel(modelId)) {
+          if (!isSubscriptionModel(modelId)) {
             delete provider.models[modelId]
           }
         }
@@ -417,7 +436,7 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (res.ok) {
               const data = (await res.json()) as { data: Array<{ id: string }> }
               for (const { id } of data.data) {
-                if (!isCodexModel(id)) continue
+                if (!isSubscriptionModel(id)) continue
                 if (!provider.models[id]) {
                   provider.models[id] = buildCodexModel(id)
                 }
@@ -428,9 +447,12 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
           }
         }
 
-        // Ensure at least gpt-5.3-codex is present as a known-good fallback
-        if (!provider.models["gpt-5.3-codex"]) {
-          provider.models["gpt-5.3-codex"] = buildCodexModel("gpt-5.3-codex")
+        // Ensure every known subscription model is present regardless of
+        // whether the provider registry or live discovery returned it.
+        for (const { id, release_date } of SUBSCRIPTION_FALLBACKS) {
+          if (!provider.models[id]) {
+            provider.models[id] = buildCodexModel(id, release_date)
+          }
         }
 
         // Zero out costs — Codex is included with the ChatGPT subscription
