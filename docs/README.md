@@ -106,6 +106,7 @@ The internal models and decision records that power DAX's governed runtime contr
 - [**Execution Model**](./architecture/DAX_EXECUTION_MODEL.md) - How tasks move from intent to result.
 - [**Trust Model**](./architecture/DAX_TRUST_MODEL.md) - Evaluating evidence and safety.
 - [**Skills Model**](./architecture/DAX_SKILLS_MODEL.md) - Capability discovery and routing.
+- [**SDLC Verification**](./architecture/SDLC_VERIFICATION.md) - Repository readiness checks and evidence receipts.
 
 ### Strategic Plans
 
