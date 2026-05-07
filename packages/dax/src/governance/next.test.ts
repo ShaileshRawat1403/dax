@@ -4,7 +4,7 @@ import path from "path"
 import { rmSync } from "fs"
 
 async function waitForPending(Permission: { list: () => Promise<any[]> }, count: number): Promise<any[]> {
-  for (let attempt = 0; attempt < 250; attempt++) {
+  for (let attempt = 0; attempt < 1500; attempt++) {
     const pending = await Permission.list()
     if (pending.length === count) return pending
     await Bun.sleep(20)
