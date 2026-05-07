@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { evaluatePolicyWithRust, DaxPolicyError } from "./policy"
+import { classifyPathsWithRust, evaluatePolicyWithRust, DaxPolicyError } from "./policy"
 
 const DEFAULT_BUDGET = {
   total_allowed: 8,
@@ -11,6 +11,19 @@ const DEFAULT_BUDGET = {
 }
 
 describe("dax-policy Rust adapter", () => {
+  it(
+    "classifies path zones through the Rust sidecar",
+    async () => {
+      const results = await classifyPathsWithRust({
+        paths: ["/project/src/main.rs", "/project/.env.production", "/project/.env.example", "/etc/shadow"],
+      })
+
+      expect(results.map((result) => result.zone)).toEqual(["repo_safe", "sensitive", "repo_safe", "forbidden"])
+      expect(results[1]?.reason).toContain(".env")
+    },
+    120_000,
+  )
+
   it(
     "allows read_file on a safe repo path",
     async () => {

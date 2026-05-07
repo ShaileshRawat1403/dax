@@ -3,6 +3,15 @@ import os from "os"
 import path from "path"
 import { rmSync } from "fs"
 
+async function waitForPending(Permission: { list: () => Promise<any[]> }, count: number): Promise<any[]> {
+  for (let attempt = 0; attempt < 250; attempt++) {
+    const pending = await Permission.list()
+    if (pending.length === count) return pending
+    await Bun.sleep(20)
+  }
+  return Permission.list()
+}
+
 describe("permission approvals", () => {
   test(
     "supports one-time and persisted approvals with replay",
@@ -34,7 +43,7 @@ describe("permission approvals", () => {
             } as any),
           })
 
-          const pending = await Permission.list()
+          const pending = await waitForPending(Permission, 1)
           expect(pending.length).toBe(1)
           expect(pending[0]?.permission).toBe("shell")
 
@@ -56,7 +65,7 @@ describe("permission approvals", () => {
             } as any),
           })
 
-          const secondPending = await Permission.list()
+          const secondPending = await waitForPending(Permission, 1)
           expect(secondPending.length).toBe(1)
 
           await Permission.reply({
@@ -124,7 +133,7 @@ describe("permission approvals", () => {
             ruleset: Permission.fromConfig({ shell: "ask" } as any),
           })
 
-          const pending = await Permission.list()
+          const pending = await waitForPending(Permission, 2)
           expect(pending.length).toBe(2)
 
           await Permission.reply({
@@ -144,5 +153,102 @@ describe("permission approvals", () => {
       }
     },
     40000,
+  )
+
+  test(
+    "rust policy flag upgrades sensitive path allow rules to approval requests",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-test-home-${Date.now().toString(36)}-rust-policy`)
+      const previousHome = process.env.DAX_TEST_HOME
+      const previousRustPolicy = process.env.DAX_RUST_POLICY
+      process.env.DAX_TEST_HOME = testHome
+      process.env.DAX_RUST_POLICY = "1"
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { Permission } = await import("./next")
+        const { Storage } = await import("@/storage/storage")
+        const { Instance } = await import("@/project/instance")
+        const repoRoot = path.resolve(import.meta.dir, "../../../..")
+
+        await bootstrap(repoRoot, async () => {
+          await Storage.remove(["permission", Instance.project.id])
+
+          const approval = Permission.ask({
+            sessionID: "session_rust_policy",
+            permission: "read",
+            patterns: ["/project/.env.production"],
+            always: ["/project/.env.production"],
+            metadata: {},
+            ruleset: Permission.fromConfig({
+              read: "allow",
+            } as any),
+          })
+
+          const pending = await waitForPending(Permission, 1)
+          expect(pending.length).toBe(1)
+          expect(pending[0]?.metadata.description).toContain("sensitive path")
+
+          await Permission.reply({
+            requestID: pending[0]!.id,
+            reply: "once",
+          })
+
+          await approval
+        })
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        if (previousRustPolicy === undefined) delete process.env.DAX_RUST_POLICY
+        else process.env.DAX_RUST_POLICY = previousRustPolicy
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    120000,
+  )
+
+  test(
+    "rust policy flag keeps env example templates on the normal ruleset path",
+    async () => {
+      const testHome = path.join(os.tmpdir(), `dax-test-home-${Date.now().toString(36)}-rust-policy-env-example`)
+      const previousHome = process.env.DAX_TEST_HOME
+      const previousRustPolicy = process.env.DAX_RUST_POLICY
+      process.env.DAX_TEST_HOME = testHome
+      process.env.DAX_RUST_POLICY = "1"
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { Permission } = await import("./next")
+        const { Storage } = await import("@/storage/storage")
+        const { Instance } = await import("@/project/instance")
+        const repoRoot = path.resolve(import.meta.dir, "../../../..")
+
+        await bootstrap(repoRoot, async () => {
+          await Storage.remove(["permission", Instance.project.id])
+
+          await expect(
+            Permission.ask({
+              sessionID: "session_rust_policy_env_example",
+              permission: "read",
+              patterns: ["/project/.env.example"],
+              always: ["/project/.env.example"],
+              metadata: {},
+              ruleset: Permission.fromConfig({
+                read: "allow",
+              } as any),
+            }),
+          ).resolves.toBeUndefined()
+
+          expect(await Permission.list()).toHaveLength(0)
+        })
+      } finally {
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        if (previousRustPolicy === undefined) delete process.env.DAX_RUST_POLICY
+        else process.env.DAX_RUST_POLICY = previousRustPolicy
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    120000,
   )
 })

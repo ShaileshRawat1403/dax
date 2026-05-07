@@ -8,7 +8,7 @@ DAX uses Rust only for deterministic proof surfaces around stochastic model exec
 | `dax-policy` | Evaluates proposed actions against policy context into `allow / ask / deny` decisions |
 | `dax-audit` | Evaluates trust posture from six structured run signals |
 | `dax-core-bin` | JSON stdio boundary for `dax-core` (commands: `replay`, `proof`, `version`) |
-| `dax-policy-bin` | JSON stdio boundary for `dax-policy` (commands: `evaluate`, `version`) |
+| `dax-policy-bin` | JSON stdio boundary for `dax-policy` (commands: `evaluate`, `classify`, `version`) |
 | `dax-audit-bin` | JSON stdio boundary for `dax-audit` (commands: `evaluate`, `version`) |
 
 TypeScript orchestrates. Rust decides deterministic facts.

@@ -7,4 +7,5 @@ pub mod tool;
 
 pub use decision::PolicyDecision;
 pub use engine::evaluate;
+pub use path::{classify_path, classify_path_zone, PathClassification, PathZone};
 pub use request::PolicyRequest;

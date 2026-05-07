@@ -3,7 +3,7 @@ import { resolveRustBinary } from "./resolve-binary"
 
 const REPO_ROOT = path.resolve(import.meta.dir, "../../../..")
 
-export type DaxPolicyCommand = "evaluate" | "version"
+export type DaxPolicyCommand = "evaluate" | "classify" | "version"
 
 export type DaxPolicyProfile = "strict" | "standard" | "permissive"
 
@@ -52,6 +52,24 @@ export type DaxPolicyResult = {
   gate?: string
 }
 
+export type PathZone = "forbidden" | "sensitive" | "lab" | "artifact_or_temp" | "repo_safe"
+
+export type PathClassification = {
+  path: string
+  zone: PathZone
+  reason?: string
+}
+
+export type PathClassifyRequest = {
+  paths: string[]
+  forbidden?: string[]
+  sensitive_paths?: string[]
+}
+
+export type PathClassifyResponse = {
+  results: PathClassification[]
+}
+
 export class DaxPolicyError extends Error {
   readonly command: DaxPolicyCommand
   readonly exitCode: number | null
@@ -74,6 +92,8 @@ export type DaxPolicyOptions = {
   binary?: string[]
   cwd?: string
 }
+
+const classifyCache = new Map<string, PathClassification[]>()
 
 function defaultCmd(command: DaxPolicyCommand): string[] {
   return [...resolveRustBinary("dax-policy", "dax-policy"), command]
@@ -112,4 +132,29 @@ export async function evaluatePolicyWithRust(
   options?: DaxPolicyOptions,
 ): Promise<DaxPolicyResult> {
   return runDaxPolicyJson<DaxPolicyResult>("evaluate", request, options)
+}
+
+export async function classifyPathsWithRust(
+  request: PathClassifyRequest,
+  options?: DaxPolicyOptions,
+): Promise<PathClassification[]> {
+  if (request.paths.length === 0) return []
+
+  const normalized: PathClassifyRequest = {
+    paths: [...request.paths],
+    forbidden: request.forbidden?.length ? [...request.forbidden] : undefined,
+    sensitive_paths: request.sensitive_paths?.length ? [...request.sensitive_paths] : undefined,
+  }
+  const cacheKey = JSON.stringify({
+    paths: [...normalized.paths].sort(),
+    forbidden: [...(normalized.forbidden ?? [])].sort(),
+    sensitive_paths: [...(normalized.sensitive_paths ?? [])].sort(),
+  })
+
+  const cached = classifyCache.get(cacheKey)
+  if (cached) return cached
+
+  const response = await runDaxPolicyJson<PathClassifyResponse>("classify", normalized, options)
+  classifyCache.set(cacheKey, response.results)
+  return response.results
 }

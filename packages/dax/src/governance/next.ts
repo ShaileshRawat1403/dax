@@ -7,6 +7,7 @@ import { fn } from "@/util/fn"
 import { Log } from "@/util/log"
 import { Wildcard } from "@/util/wildcard"
 import { RAOLedger } from "@/rao"
+import { classifyPathsWithRust, type PathClassification } from "@/rust/policy"
 import { PolicyEngine } from "./policy-engine"
 import z from "zod"
 
@@ -109,12 +110,62 @@ export namespace Permission {
     }
   })
 
+  function rustPolicyEnabled() {
+    return process.env.DAX_RUST_POLICY === "1" || process.env.DAX_RUST_POLICY === "true"
+  }
+
+  async function classifyPatternsWithRust(patterns: string[]): Promise<Map<string, PathClassification>> {
+    const paths = patterns.filter(Boolean)
+    if (!rustPolicyEnabled() || paths.length === 0) return new Map()
+
+    try {
+      const classifications = await classifyPathsWithRust({ paths })
+      return new Map(classifications.map((classification) => [classification.path, classification]))
+    } catch (error) {
+      log.warn("rust policy classification unavailable; using TypeScript rules only", { error })
+      return new Map()
+    }
+  }
+
+  function minimumActionFor(classification: PathClassification | undefined): Action | undefined {
+    if (classification?.zone === "forbidden") return "deny"
+    if (classification?.zone === "sensitive") return "ask"
+    return undefined
+  }
+
+  function clampAction(action: Action, minimum: Action | undefined): Action {
+    if (minimum === "deny") return "deny"
+    if (minimum === "ask" && action === "allow") return "ask"
+    return action
+  }
+
+  function classificationDescription(classification: PathClassification | undefined): string | undefined {
+    if (!classification) return undefined
+    if (classification.zone === "forbidden") {
+      return `DAX policy denied this forbidden path${classification.reason ? `: ${classification.reason}` : "."}`
+    }
+    if (classification.zone === "sensitive") {
+      return `DAX policy requires approval for this sensitive path${classification.reason ? `: ${classification.reason}` : "."}`
+    }
+    return undefined
+  }
+
   export const ask = fn(AskInput, async (input) => {
       const s = await state()
       const { ruleset, ...request } = input
+      const classifications = await classifyPatternsWithRust(request.patterns ?? [])
+      const forbidden = Array.from(classifications.values()).find((classification) => classification.zone === "forbidden")
+      if (forbidden) {
+        throw new DeniedError(
+          ruleset.filter((r) => Wildcard.match(request.permission, r.permission)),
+          classificationDescription(forbidden),
+        )
+      }
       for (const pattern of request.patterns ?? []) {
         const rule = evaluate(request.permission, pattern, ruleset, s.approved)
-        log.info("evaluated", { permission: request.permission, pattern, action: rule })
+        const classification = classifications.get(pattern)
+        const action = clampAction(rule.action, minimumActionFor(classification))
+        log.info("evaluated", { permission: request.permission, pattern, action, rule, rustPolicy: classification })
         void RAOLedger.record({
           project_id: Instance.project.id,
           event_type: "audit",
@@ -123,19 +174,32 @@ export namespace Permission {
           payload: {
             permission: request.permission,
             pattern,
-            action: rule.action,
+            action,
+            rule_action: rule.action,
+            rust_policy: classification ?? null,
             call_id: request.tool?.callID ?? null,
           },
         }).catch(() => undefined)
-        if (rule.action === "deny")
-          throw new DeniedError(ruleset.filter((r) => Wildcard.match(request.permission, r.permission)))
-        if (rule.action === "ask") {
+        if (action === "deny")
+          throw new DeniedError(
+            ruleset.filter((r) => Wildcard.match(request.permission, r.permission)),
+            classificationDescription(classification),
+          )
+        if (action === "ask") {
           const id = input.id ?? Identifier.ascending("permission")
           return new Promise<void>((resolve, reject) => {
+            const description = classificationDescription(classification)
             const info: Request = {
               id,
               createdAt: input.createdAt ?? Date.now(),
               ...request,
+              metadata: description
+                ? {
+                    ...request.metadata,
+                    description: request.metadata.description ?? description,
+                    rustPolicy: classification,
+                  }
+                : request.metadata,
             }
             s.pending[id] = {
               info,
@@ -145,7 +209,7 @@ export namespace Permission {
             Bus.publish(Event.Asked, info)
           })
         }
-        if (rule.action === "allow") continue
+        if (action === "allow") continue
       }
     },
   )
@@ -256,9 +320,10 @@ export namespace Permission {
 
   /** Auto-rejected by config rule - halts execution */
   export class DeniedError extends Error {
-    constructor(public readonly ruleset: Ruleset) {
+    constructor(public readonly ruleset: Ruleset, reason?: string) {
       super(
-        `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules ${JSON.stringify(ruleset)}`,
+        reason ??
+          `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules ${JSON.stringify(ruleset)}`,
       )
     }
   }
