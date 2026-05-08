@@ -4,6 +4,7 @@ import z from "zod"
 import { Provider } from "../provider/provider"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
+import { getRelevantFiles } from "@/rust/indexer"
 
 const INTENT_REFINEMENT_TIMEOUT_MS = 8000
 
@@ -78,6 +79,8 @@ type ContractDraft = {
 type PromptHints = {
   fileHints: string[]
   commandHints: string[]
+  indexerFiles?: string[]
+  indexerUnavailable?: string
 }
 
 function unique(values: string[]) {
@@ -107,6 +110,34 @@ function extractPromptHints(prompt: string): PromptHints {
   )
 
   return { fileHints, commandHints }
+}
+
+function indexerEnabled() {
+  return process.env.DAX_INDEXER === "1" || process.env.DAX_INDEXER === "true"
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+async function buildPromptHints(prompt: string, context: IntentContext): Promise<PromptHints> {
+  const hints = extractPromptHints(prompt)
+  if (!indexerEnabled()) return hints
+
+  try {
+    const hits = await getRelevantFiles({ repoRoot: context.cwd, query: prompt, limit: 4 })
+    const indexerFiles = hits.map((hit) => hit.path)
+    return {
+      ...hints,
+      fileHints: unique([...hints.fileHints, ...indexerFiles]).slice(0, 5),
+      indexerFiles,
+    }
+  } catch (error) {
+    return {
+      ...hints,
+      indexerUnavailable: errorMessage(error),
+    }
+  }
 }
 
 function defaultValidationCommands(commandHint?: string) {
@@ -257,7 +288,7 @@ function buildContractDelta(input: {
       input.riskLevel === "high" ? "Elevated the execution posture because the request looks high risk." : "",
     ].filter(Boolean),
   )
-  const targets = input.hints.fileHints.map((item) => `Likely target inferred from prompt: ${item}`)
+  const targets = input.hints.fileHints.map((item) => `Likely target inferred from prompt or indexer: ${item}`)
   const addedValidation = (input.validationCommands ?? []).map((item) => `Validation added: ${item}`)
   const unresolvedUnknowns = (input.unknowns ?? []).map((item) => `Operator assumption: ${item}`)
   return {
@@ -438,7 +469,7 @@ export function formatStructuredExecutionContract(contract: ContractDraft) {
   ].join("\n")
 }
 
-function buildRefinementPrompt(prompt: string, context: IntentContext) {
+function buildRefinementPrompt(prompt: string, context: IntentContext, hints: PromptHints) {
   const lines = [
     "You are an expert software engineer and AI task planner.",
     'Your objective is to translate the user\'s prompt into a rigorous "Structured Execution Contract". This contract will guide an autonomous AI agent.',
@@ -457,6 +488,8 @@ function buildRefinementPrompt(prompt: string, context: IntentContext) {
   if ((context.pending_approvals ?? 0) > 0) lines.push(`PENDING APPROVALS: ${context.pending_approvals}`)
   if ((context.pending_questions ?? 0) > 0) lines.push(`PENDING QUESTIONS: ${context.pending_questions}`)
   if (context.audit_status) lines.push(`AUDIT STATUS: ${context.audit_status}`)
+  if (hints.indexerFiles?.length) lines.push(`INDEXER RELEVANT FILES: ${hints.indexerFiles.join(", ")}`)
+  if (hints.indexerUnavailable) lines.push(`INDEXER STATUS: unavailable (${hints.indexerUnavailable})`)
 
   lines.push(
     "",
@@ -472,7 +505,8 @@ function buildRefinementPrompt(prompt: string, context: IntentContext) {
     "9. Unknowns: Capture only real assumptions or missing facts that could materially change execution.",
     "10. Operator Watchouts: Include only important approvals, governance concerns, or validation cautions.",
     "11. Rollback & Recovery: Add short, practical recovery steps when this work could misfire.",
-    "12. Formatting: Use markdown to communicate clearly. Use headings (##) for sections. Use bullets (-) for lists. Use blockquotes (>) for key findings or warnings. Use tables for structured comparisons or data. This terminal renderer displays markdown with color-coded syntax.",
+    "12. Indexer Hints: If indexer relevant files are present, use them as advisory likely targets unless the user gave a more specific path.",
+    "13. Formatting: Use markdown to communicate clearly. Use headings (##) for sections. Use bullets (-) for lists. Use blockquotes (>) for key findings or warnings. Use tables for structured comparisons or data. This terminal renderer displays markdown with color-coded syntax.",
     "",
     "Ensure your response perfectly aligns with the requested JSON schema.",
   )
@@ -486,6 +520,7 @@ function buildRefinementPrompt(prompt: string, context: IntentContext) {
  */
 export async function refineIntent(prompt: string, context: IntentContext): Promise<IntentEnvelope["contract"]> {
   const lowerPrompt = prompt.toLowerCase()
+  const hints = await buildPromptHints(prompt, context)
 
   // Try to get the model
   let languageModel = null
@@ -568,7 +603,7 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
               .describe("0-3 short recovery steps the operator can use if the execution goes wrong.")
               .default([]),
           }),
-          prompt: buildRefinementPrompt(prompt, context),
+          prompt: buildRefinementPrompt(prompt, context, hints),
         })
 
         const {
@@ -587,15 +622,18 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
           operatorWatchouts,
           rollbackPlan,
         } = result.object
-        const hints = extractPromptHints(prompt)
         const draft = attachDerivedContractSections(
           {
             goal,
             executionMode,
             riskLevel,
-            targetFiles,
+            targetFiles: unique([...targetFiles, ...hints.fileHints]).slice(0, 5),
             likelyWrites,
-            contextSignals: sessionContext,
+            contextSignals: unique([
+              ...sessionContext,
+              ...(hints.indexerFiles?.length ? [`Indexer relevant files: ${hints.indexerFiles.join(", ")}`] : []),
+              ...(hints.indexerUnavailable ? [`Indexer unavailable: ${hints.indexerUnavailable}`] : []),
+            ]),
             plan,
             successCriteria,
             validationCommands,
@@ -640,7 +678,7 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
   }
 
   // Enhanced fallback when LLM fails
-  const enhancedFallback = generateEnhancedFallback(prompt, lowerPrompt, context)
+  const enhancedFallback = generateEnhancedFallback(prompt, lowerPrompt, context, hints)
   const formattedFallback = formatStructuredExecutionContract(enhancedFallback)
 
   return {
@@ -667,13 +705,23 @@ export async function refineIntent(prompt: string, context: IntentContext): Prom
   } as any
 }
 
-function generateEnhancedFallback(prompt: string, lowerPrompt: string, context: IntentContext): ContractDraft {
-  const hints = extractPromptHints(prompt)
+function generateEnhancedFallback(
+  prompt: string,
+  lowerPrompt: string,
+  context: IntentContext,
+  hints: PromptHints,
+): ContractDraft {
   const target = summarizeTarget(prompt)
   const targetFiles = hints.fileHints.length > 0 ? hints.fileHints.join(", ") : undefined
   const targetCommand = hints.commandHints[0]
   const repoConstraint = `Stay within the active repository at ${context.cwd}`
   const contextSignals = buildContextSignals(context)
+  if (hints.indexerFiles?.length) {
+    contextSignals.push(`Indexer relevant files: ${hints.indexerFiles.join(", ")}`)
+  }
+  if (hints.indexerUnavailable) {
+    contextSignals.push(`Indexer unavailable: ${hints.indexerUnavailable}`)
+  }
   const operatorWatchouts = buildOperatorWatchouts(context)
   const riskLevel = deriveRiskLevel(lowerPrompt, context)
   const executionMode = deriveExecutionMode(riskLevel, context)

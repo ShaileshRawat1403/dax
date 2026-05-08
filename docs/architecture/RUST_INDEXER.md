@@ -158,15 +158,15 @@ export async function getRelevantFiles(request: {
 }): Promise<RelevanceHit[]>
 ```
 
-The high-level `getRelevantFiles` is what DAX can use before choosing specific read/search operations. Lower-level functions are for tools, MCP integrations, and future Soothsayer surfaces.
+The high-level `getRelevantFiles` is what DAX uses to enrich likely target files before choosing specific read/search operations. Lower-level functions are for tools, MCP integrations, and future Soothsayer surfaces.
 
-Runtime integration into DAX's live context-selection loop should remain behind an explicit flag, for example:
+Runtime integration into DAX's intent context-selection loop remains behind an explicit flag:
 
 ```typescript
-const INDEXER_ENABLED = process.env.DAX_INDEXER === "1"
+const INDEXER_ENABLED = process.env.DAX_INDEXER === "1" || process.env.DAX_INDEXER === "true"
 ```
 
-The adapter itself is implemented and tested. When live integration is added and the flag is off, DAX should keep using the current ripgrep, LSP, and MCP paths. When the flag is on and the sidecar is missing or the cache cannot be built, DAX should fail that indexer call with a clear diagnostic and fall back only through an intentional caller decision.
+When the flag is off, DAX keeps using the current prompt-hint, ripgrep, LSP, and MCP paths. When the flag is on, `refineIntent` calls `getRelevantFiles`, merges structural hits into `targetFiles`, and records indexer availability in `contextSignals`. If the sidecar is missing or the cache cannot be built, DAX records a clear indexer-unavailable signal and continues with the non-indexer planning path.
 
 ## Test strategy
 
@@ -174,6 +174,7 @@ The adapter itself is implemented and tested. When live integration is added and
 | --- | --- |
 | Rust unit (`cargo test -p dax-indexer`) | Fixture mini-repo spanning TS and Rust; build, relevance, save/load |
 | TS bridge (`packages/dax/src/rust/indexer.test.ts`) | End-to-end build + query round-trip on the fixture repo |
+| Intent integration (`packages/dax/src/intent/interpret.test.ts`) | `DAX_INDEXER=1` enriches likely targets from structural relevance |
 | Eval scenario (`evals/scenarios/indexer_extracts_symbols.json`) | Smoke suite: fixture repo, expect symbol set per file |
 | Eval scenario (`evals/scenarios/indexer_relevance_top_3.json`) | Smoke suite: known query, expect specific top-3 file ranking |
 
@@ -182,7 +183,8 @@ The adapter itself is implemented and tested. When live integration is added and
 | Phase | Scope | Shippable signal |
 | --- | --- | --- |
 | 1 | TypeScript/TSX, JavaScript/JSX, and Rust support. File tree + exports + imports. Cache layer. CLI commands. TS bridge. Two eval scenarios in CI. | Implemented. `dax-indexer build/query/symbols/imports/dump` work through Rust and TS tests. |
-| 2 | Add Python and Go. Improve relevance: import-graph distance, recency boost from `touched_files`. Wire `getRelevantFiles` into DAX's local repo context-selection path. | Agent visibly reads fewer irrelevant files per task; token usage on cold-start tasks drops. |
+| 2 | Wire `getRelevantFiles` into DAX's local repo context-selection path behind `DAX_INDEXER=1`. | Implemented. Intent refinement can merge structural relevance hits into likely targets. |
+| 2b | Add Python and Go. Improve relevance: import-graph distance, recency boost from `touched_files`. | Agent visibly reads fewer irrelevant files per task; token usage on cold-start tasks drops. |
 | 3 | Incremental indexing on file change (via existing `@parcel/watcher` integration). Live updates without full rebuild. | Index stays warm across edits; rebuild cost amortizes to per-changed-file. |
 
 Phase 1 is the minimum shippable cut and the most leverage per line of code.

@@ -1,4 +1,7 @@
 import { describe, it, expect } from "bun:test"
+import fs from "fs"
+import os from "os"
+import path from "path"
 import { formatStructuredExecutionContract, refineIntent, interpretIntent, type IntentContext } from "./interpret"
 
 describe("Intent Interpreter", () => {
@@ -90,6 +93,38 @@ describe("Intent Interpreter", () => {
         "Existing pending approvals may need resolution before this run can continue smoothly.",
       )
     })
+
+    it(
+      "uses the Rust indexer for likely targets when enabled",
+      async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "dax-intent-indexer-"))
+        fs.mkdirSync(path.join(root, "src"), { recursive: true })
+        fs.writeFileSync(
+          path.join(root, "src", "approval.ts"),
+          `export function createApproval() { return "approved" }\n`,
+        )
+        fs.writeFileSync(path.join(root, "src", "unrelated.ts"), `export function renderToast() {}\n`)
+
+        const previousIndexer = process.env.DAX_INDEXER
+        const previousHome = process.env.DAX_TEST_HOME
+        process.env.DAX_INDEXER = "1"
+        process.env.DAX_TEST_HOME = path.join(root, ".dax-test-home")
+
+        try {
+          const result = await refineIntent("Fix the approval flow", { cwd: root })
+          expect(result!.targetFiles).toContain("src/approval.ts")
+          expect(result!.contextSignals).toContain("Indexer relevant files: src/approval.ts")
+          expect(result!.formattedPrompt).toContain("src/approval.ts")
+        } finally {
+          if (previousIndexer === undefined) delete process.env.DAX_INDEXER
+          else process.env.DAX_INDEXER = previousIndexer
+          if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+          else process.env.DAX_TEST_HOME = previousHome
+          fs.rmSync(root, { recursive: true, force: true })
+        }
+      },
+      60_000,
+    )
   })
 
   describe("interpretIntent", () => {
