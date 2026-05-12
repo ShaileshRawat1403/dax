@@ -64,9 +64,10 @@ export function Header(props: {
     return chipColorForState(state, theme)
   })
 
-  const showProjectionChip = createMemo(
-    () => !!props.headerProjection && props.emphasis !== "muted",
-  )
+  // The projection chip is the single source of state truth for the Header.
+  // It must remain visible regardless of emphasis; muted only affects styling.
+  // See Contract Section 1: Header always answers "what state is DAX in?".
+  const showProjectionChip = createMemo(() => !!props.headerProjection)
 
   // Spinner shows only when the caller says we're busy AND the projection
   // indicates an active, in-flight run state. Spinner is presentational

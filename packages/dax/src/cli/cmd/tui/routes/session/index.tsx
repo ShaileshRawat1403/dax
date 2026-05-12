@@ -378,7 +378,7 @@ export function Session() {
 
     if (projectedRun()) {
       const projectedQuestions = (projectedRun()?.approvals ?? [])
-        .filter((a) => a.type === "question")
+        .filter((a) => a.type === "question" && a.status === "pending")
         .map((a) => ({
           id: a.approvalId,
           sessionID: a.runId,
