@@ -11,6 +11,7 @@ import {
   Show,
   ErrorBoundary,
   Switch,
+  untrack,
   useContext,
 } from "solid-js"
 import {
@@ -101,6 +102,8 @@ import {
 } from "@/dax/presentation/pane"
 import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
+import { resolveWorkstationUIState } from "@/dax/presentation/ui-state-container"
+import type { ResolvedUISurface } from "@/dax/presentation/ui-state-resolver"
 import { buildEvidenceLedger } from "@/dax/presentation/evidence-ledger"
 import {
   deriveAuditHistory,
@@ -852,6 +855,46 @@ export function Session() {
     })
   })
 
+  // DAX UI Interaction Contract v0.1 — single resolver call site for this
+  // route. Header is a dumb consumer of uiSurface().header. See
+  // docs/dax/ui-interaction-contract.md.
+  //
+  // `uiNow` is the resolver's time input. Polled at 250ms so complete-state
+  // decay (3s window) is visibly observable. Time stays outside the
+  // resolver, which preserves the contract's purity rule.
+  const [uiNow, setUiNow] = createSignal(Date.now())
+  onMount(() => {
+    const timer = setInterval(() => setUiNow(Date.now()), 250)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  // `previousUISurface` holds the prior frame so the resolver can anchor
+  // complete-decay timestamps across frames. Read via untrack to avoid a
+  // reactive loop: the memo subscribes only to its real inputs, and the
+  // effect below stores the latest snapshot for next time.
+  const [previousUISurface, setPreviousUISurface] = createSignal<ResolvedUISurface | null>(null)
+
+  const uiSurface = createMemo(() =>
+    resolveWorkstationUIState({
+      workstation: workstationState(),
+      // permissions() and questions() are the same producer-side signals that
+      // fed deriveWorkstationState. Passing them split here preserves the
+      // approval/question distinction that WorkstationState aggregates away.
+      actionableApprovals: permissions().length,
+      questions: questions().length,
+      // Environment, safety, and focus producers land in later PRs.
+      environment: { provider: "healthy", mcp: "healthy", lsp: "healthy" },
+      safety: [],
+      focus: "none",
+      now: uiNow(),
+      previous: untrack(() => previousUISurface()),
+    }),
+  )
+
+  createEffect(() => {
+    setPreviousUISurface(uiSurface())
+  })
+
   const hasLivePaneContext = createMemo(() => {
     if (activeInterventions().length > 0) return true
     if (proposedChanges().length > 0) return true
@@ -1527,18 +1570,9 @@ export function Session() {
     >
       <box id="session-root" height="100%" flexDirection="column" backgroundColor={theme.background}>
         <Header
+          headerProjection={uiSurface().header}
           persona={activePersona()}
           onCyclePersona={cyclePersona}
-          sessionLabel={session()?.title}
-          lifecycle={workstationState().lifecycle}
-          lifecycleLabel={workstationState().lifecycleLabel}
-          decisionState={stageLabel()}
-          trustLabel={workstationState().trustLabel}
-          trustPosture={workstationState().trustPosture}
-          pendingApprovals={workstationState().approvalSummary.pendingCount}
-          verificationStatus={
-            workstationState().completionProof?.ready ? "PASS" : workstationState().completionProof ? "FAIL" : undefined
-          }
           emphasis={showPane() ? "muted" : "normal"}
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
           contextPercent={sessionTelemetry().contextPercent ?? undefined}

@@ -1,11 +1,12 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
-import { useTheme, tint } from "@tui/context/theme"
-import { TextAttributes } from "@opentui/core"
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { useTheme } from "@tui/context/theme"
+import { TextAttributes, type RGBA } from "@opentui/core"
 import { useKV } from "../../context/kv"
 import { DAX_SETTING } from "@/dax/settings"
 import { isEli12Mode } from "@/dax/intent"
 import type { PersonaPack } from "@/dax/presentation/persona"
 import { nextDisplayMode, type DisplayMode } from "@/dax/presentation/session-display"
+import type { HeaderProjection, HeaderState } from "@/dax/presentation/ui-state-resolver"
 import { Spinner } from "@tui/component/spinner"
 
 type HeaderAction = {
@@ -14,17 +15,12 @@ type HeaderAction = {
   primary?: boolean
 }
 
+// DAX UI Interaction Contract v0.1 — Header is a dumb consumer of
+// HeaderProjection. It does not own lifecycle, decision, trust, or approval
+// display decisions. See docs/dax/ui-interaction-contract.md Section 1.
 export function Header(props: {
-  sessionLabel?: string
-  lifecycle?: string
-  lifecycleLabel?: string
-  decisionState?: string
+  headerProjection?: HeaderProjection
   persona?: PersonaPack
-  currentStep?: string
-  trustLabel?: string
-  trustPosture?: string
-  pendingApprovals?: number
-  verificationStatus?: string
   emphasis?: "normal" | "muted"
   actions?: HeaderAction[]
   busy?: boolean
@@ -35,8 +31,8 @@ export function Header(props: {
   const { theme } = useTheme()
 
   const [displayMode, setDisplayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
-  const explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
-  const cycleDisplayMode = () => {
+  const _explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
+  const _cycleDisplayMode = () => {
     setDisplayMode(() => nextDisplayMode(displayMode()))
   }
 
@@ -54,60 +50,32 @@ export function Header(props: {
   }
   const letterWeight = (index: number) => ((tick() + index) % 5 === 0 ? TextAttributes.BOLD : undefined)
 
-  const lifecycleColor = createMemo(() => {
-    const label = props.lifecycleLabel ?? ""
-    if (/approval/i.test(label)) return theme.warning
-    if (/blocked|failed/i.test(label)) return theme.error
-    if (/completed|ready/i.test(label)) return theme.success
-    return theme.accent
+  // Color mapping for the single projection-driven chip. Palette is
+  // explicitly a contract non-goal, but mapping by state class produces
+  // consistent perception across surfaces:
+  //   error  = cannot proceed / failure
+  //   warning = waiting / delayed / operator attention
+  //   success = completed
+  //   accent  = active work
+  //   muted   = idle
+  const projectionColor = createMemo(() => {
+    const state = props.headerProjection?.state
+    if (!state) return theme.textMuted
+    return chipColorForState(state, theme)
   })
-  const showLifecycleChip = createMemo(
-    () => !!props.lifecycleLabel && props.lifecycleLabel.toLowerCase() !== "idle" && props.emphasis === "normal",
+
+  const showProjectionChip = createMemo(
+    () => !!props.headerProjection && props.emphasis !== "muted",
   )
-  const showDecisionChip = createMemo(() => {
-    if (!props.decisionState || props.emphasis === "muted") return false
-    const lifecycle = (props.lifecycleLabel ?? "").toLowerCase().trim()
-    const decision = props.decisionState.toLowerCase().trim()
-    if (!decision) return false
-    if (lifecycle && lifecycle === decision) return false
-    // Lifecycle chip already communicates terminal outcomes — decision chip adds nothing
-    if (lifecycle === "completed" || lifecycle === "failed") return false
-    // Suppress when the decision label is the phase-tactical alias for the same lifecycle stage
-    const phaseAliases: Record<string, string> = {
-      intel: "understanding",
-      briefing: "planning",
-      engaged: "executing",
-      debrief: "verifying",
-      hold: "waiting",
-      complete: "completed",
-    }
-    if (lifecycle && phaseAliases[decision] === lifecycle) return false
-    return true
-  })
 
-  const baseDecisionColor = createMemo(() => {
-    const state = props.decisionState?.toLowerCase() ?? ""
-    if (state === "critiquing" || state === "interpreting") return theme.accent
-    if (state === "verifying") return theme.secondary
-    if (state === "executing") return theme.primary
-    if (state === "recovering") return theme.warning
-    return theme.textMuted
-  })
-
-  // Pulse the decision label briefly when state changes
-  const [pulsing, setPulsing] = createSignal(false)
-  createEffect(() => {
-    const _ = props.decisionState
-    setPulsing(true)
-    const t = setTimeout(() => setPulsing(false), 800)
-    onCleanup(() => clearTimeout(t))
-  })
-  const decisionColor = createMemo(() => (pulsing() ? theme.text : baseDecisionColor()))
-
-  const personaLabel = createMemo(() => {
-    if (!props.persona || !props.decisionState) return props.decisionState
-    const state = props.decisionState.toLowerCase().split(" ")[0]!
-    return props.persona.ui.statusLabels[state] ?? props.decisionState
+  // Spinner shows only when the caller says we're busy AND the projection
+  // indicates an active, in-flight run state. Spinner is presentational
+  // motion, not display truth — it is intentionally NOT derived from the
+  // resolver. See Contract Section 6.
+  const showSpinner = createMemo(() => {
+    if (!props.busy) return false
+    const state = props.headerProjection?.state
+    return state === "working" || state === "compacting" || state === "resuming"
   })
 
   return (
@@ -122,7 +90,7 @@ export function Header(props: {
         gap={0}
       >
         <box flexDirection="row" justifyContent="space-between" alignItems="center">
-          {/* Left: persona/logo + lifecycle chip + decision chip with spinner */}
+          {/* Left: persona/logo + single projection chip */}
           <box flexDirection="row" gap={1} alignItems="center">
             <Show
               when={props.persona}
@@ -155,34 +123,24 @@ export function Header(props: {
               </box>
             </Show>
 
-            <Show when={showLifecycleChip()}>
-              <box
-                backgroundColor={theme.backgroundElement}
-                border={["round"]}
-                borderColor={theme.borderSubtle}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={lifecycleColor()}>{props.lifecycleLabel?.toUpperCase()}</text>
-              </box>
-            </Show>
-
-            <Show when={showDecisionChip()}>
+            <Show when={showProjectionChip()}>
               <box
                 flexDirection="row"
                 alignItems="center"
                 gap={1}
                 backgroundColor={theme.backgroundElement}
                 border={["round"]}
-                borderColor={pulsing() ? theme.borderActive : theme.borderSubtle}
+                borderColor={
+                  props.headerProjection!.requiresAction ? projectionColor() : theme.borderSubtle
+                }
                 paddingLeft={1}
                 paddingRight={1}
               >
-                <Show when={props.busy}>
-                  <Spinner color={baseDecisionColor()} />
+                <Show when={showSpinner()}>
+                  <Spinner color={projectionColor()} />
                 </Show>
-                <text fg={decisionColor()} attributes={TextAttributes.BOLD}>
-                  {personaLabel()?.toUpperCase()}
+                <text fg={projectionColor()} attributes={TextAttributes.BOLD}>
+                  {props.headerProjection!.label}
                 </text>
               </box>
             </Show>
@@ -224,80 +182,37 @@ export function Header(props: {
             </Show>
           </box>
         </box>
-
-        {/* Trust / approvals / verification row */}
-        <Show when={props.trustPosture !== undefined || props.pendingApprovals !== undefined}>
-          <box flexDirection="row" alignItems="center" gap={1} marginTop={0} marginBottom={0}>
-            <Show when={props.trustPosture}>
-              <box
-                flexDirection="row"
-                gap={1}
-                backgroundColor={theme.backgroundElement}
-                border={["round"]}
-                borderColor={
-                  props.trustPosture === "blocked"
-                    ? theme.error
-                    : props.trustPosture === "review_needed"
-                      ? theme.warning
-                      : theme.success
-                }
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={theme.textMuted}>Trust:</text>
-                <text
-                  fg={
-                    props.trustPosture === "blocked"
-                      ? theme.error
-                      : props.trustPosture === "review_needed"
-                        ? theme.warning
-                        : theme.success
-                  }
-                  attributes={TextAttributes.BOLD}
-                >
-                  {props.trustPosture === "blocked"
-                    ? "BLOCKED"
-                    : props.trustPosture === "review_needed"
-                      ? "REVIEW"
-                      : "CLEAR"}
-                </text>
-              </box>
-            </Show>
-            <Show when={props.pendingApprovals !== undefined && props.pendingApprovals > 0}>
-              <box
-                flexDirection="row"
-                gap={1}
-                backgroundColor={tint(theme.background, theme.warning, 0.15)}
-                border={["round"]}
-                borderColor={theme.warning}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={theme.warning} attributes={TextAttributes.BOLD}>
-                  {props.pendingApprovals!} APPROVAL
-                  {props.pendingApprovals! > 1 ? "S" : ""} PENDING
-                </text>
-              </box>
-            </Show>
-            <Show when={props.verificationStatus}>
-              <box
-                flexDirection="row"
-                gap={1}
-                backgroundColor={theme.backgroundElement}
-                border={["round"]}
-                borderColor={theme.borderSubtle}
-                paddingLeft={1}
-                paddingRight={1}
-              >
-                <text fg={theme.textMuted}>Verification:</text>
-                <text fg={theme.secondary} attributes={TextAttributes.BOLD}>
-                  {props.verificationStatus?.toUpperCase()}
-                </text>
-              </box>
-            </Show>
-          </box>
-        </Show>
       </box>
     </box>
   )
+}
+
+type ChipPalette = {
+  error: RGBA
+  warning: RGBA
+  success: RGBA
+  accent: RGBA
+  textMuted: RGBA
+}
+
+export function chipColorForState(state: HeaderState, theme: ChipPalette): RGBA {
+  switch (state) {
+    case "policy_blocked":
+    case "auth_required":
+    case "failed":
+      return theme.error
+    case "waiting_for_approval":
+    case "waiting_for_answer":
+    case "cooling_down":
+    case "provider_delayed":
+      return theme.warning
+    case "complete":
+      return theme.success
+    case "working":
+    case "compacting":
+    case "resuming":
+      return theme.accent
+    case "ready":
+      return theme.textMuted
+  }
 }
