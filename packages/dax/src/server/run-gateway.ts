@@ -132,6 +132,27 @@ function extractTerminalReason(events: RunEvent[]): WorkflowTerminalReason | und
   return undefined
 }
 
+// Bridge between the bus event enum (bus/lifecycle.ts:InterventionRequired)
+// and the run-contract enum (run-contract.ts:InterventionKind). These diverged
+// historically; producers publish bus values and consumers read contract
+// values, so the gateway is the right place to translate.
+function mapBusInterventionKind(value: string | undefined): "approval" | "ambiguity" | "recovery" | "policy_violation" | "risk_escalation" {
+  switch (value) {
+    case "approval":
+    case "ambiguity":
+    case "recovery":
+    case "policy_violation":
+    case "risk_escalation":
+      return value
+    case "hitl_task":
+      return "approval"
+    case "error_recovery":
+      return "recovery"
+    default:
+      return "ambiguity"
+  }
+}
+
 function iso(timestamp: number | undefined) {
   return typeof timestamp === "number" ? new Date(timestamp).toISOString() : undefined
 }
@@ -760,7 +781,7 @@ async function handleBusEvent(event: any) {
         payload: {
           interventionId: event.properties.interventionId || `int_${event.properties.runId}_${Date.now()}`,
           reason: event.properties.reason,
-          kind: event.properties.kind || event.properties.type || "ambiguity",
+          kind: mapBusInterventionKind(event.properties.kind ?? event.properties.type),
           approvalId: event.properties.approvalId,
           metadata: event.properties.metadata,
         },

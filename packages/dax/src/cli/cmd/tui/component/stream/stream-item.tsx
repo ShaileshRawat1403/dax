@@ -13,7 +13,6 @@ export function StreamItem(props: {
   index: number
   previousItem?: RenderableStreamItem
   allItems?: RenderableStreamItem[]
-  onNavigateToApprovals?: () => void
   MessageComponent: typeof MessagePlaceholder
 }) {
   const suppressHeader = () => {
@@ -51,7 +50,7 @@ export function StreamItem(props: {
       </Match>
 
       <Match when={props.item.kind === "alert.inline"}>
-        <AlertInline item={props.item} onNavigateToApprovals={props.onNavigateToApprovals} isLast={props.isLast} reviewKeyHint="press r" />
+        <AlertInline item={props.item} isLast={props.isLast} reviewKeyHint="press r" />
       </Match>
 
       <Match when={props.item.kind === "compaction.marker"}>

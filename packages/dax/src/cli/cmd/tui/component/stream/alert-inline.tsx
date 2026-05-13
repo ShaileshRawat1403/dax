@@ -26,7 +26,6 @@ function getResolutionReason(metadata?: Record<string, any>): string {
 
 export function AlertInline(props: {
   item: RenderableStreamItem
-  onNavigateToApprovals?: () => void
   isLast?: boolean
   reviewKeyHint?: string
 }) {
@@ -73,6 +72,9 @@ export function AlertInline(props: {
     )
   }
 
+  // DAX UI Interaction Contract v0.1 Section 5: transcript is narration only.
+  // No controls live here. Approve/deny is in the Inspector. The keyboard
+  // shortcut (default `r`) still routes to the approval pane.
   return (
     <box
       flexDirection="column"
@@ -82,11 +84,6 @@ export function AlertInline(props: {
       paddingLeft={2}
       paddingRight={2}
       marginTop={1}
-      onMouseUp={() => {
-        if (isActionable() && props.onNavigateToApprovals) {
-          props.onNavigateToApprovals()
-        }
-      }}
     >
       {/* Header row */}
       <box flexDirection="row" gap={1} alignItems="center">
@@ -114,9 +111,9 @@ export function AlertInline(props: {
         <Show when={isActionable()}>
           <box flexDirection="row" gap={1} alignItems="center" paddingTop={0}>
             <text fg={theme.borderSubtle}>╰─</text>
-            <text fg={theme.warning} attributes={TextAttributes.BOLD}>[ Review ]</text>
             <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-              {props.reviewKeyHint ? `${props.reviewKeyHint} or click` : "click"} to open review queue
+              Open the review pane to respond
+              {props.reviewKeyHint ? ` (press ${props.reviewKeyHint})` : ""}.
             </text>
           </box>
         </Show>

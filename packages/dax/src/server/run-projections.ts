@@ -12,7 +12,7 @@ import {
   RunSummary,
 } from "./run-contract"
 
-function interventionKindTitle(kind: InterventionKind): string {
+function interventionKindTitle(kind: InterventionKind | string | undefined): string {
   switch (kind) {
     case "approval":
       return "Approval review"
@@ -24,6 +24,12 @@ function interventionKindTitle(kind: InterventionKind): string {
       return "Policy blocked"
     case "risk_escalation":
       return "Risk escalated"
+    default:
+      // Defensive: the bus enum (hitl_task / error_recovery) and the contract
+      // enum diverged historically. The gateway maps bus values to contract
+      // values at appendEvent time, but if a new producer leaks a non-contract
+      // value here, fall back to a generic label instead of "undefined: ...".
+      return "Intervention"
   }
 }
 
