@@ -1,13 +1,11 @@
 import { createMemo, Show } from "solid-js"
-import { tint, useTheme } from "../../context/theme"
-import { useSync } from "../../context/sync"
+import { useTheme } from "../../context/theme"
 import { useDirectory } from "../../context/directory"
-import { useRoute } from "../../context/route"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type RGBA } from "@opentui/core"
 import { useCommandDialog } from "../../component/dialog-command"
 import { useDialog } from "../../ui/dialog"
-import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
+import type { FooterProjection, FooterHealth } from "@/dax/presentation/ui-state-resolver"
 
 function KeyHint(props: { key: string; label: string }) {
   const { theme } = useTheme()
@@ -38,51 +36,52 @@ function KeyHint(props: { key: string; label: string }) {
   )
 }
 
-function StatusIndicator(props: { label: string; attention?: boolean; blocked?: boolean }) {
-  const { theme } = useTheme()
-  const color = createMemo(() => {
-    if (props.attention) return props.blocked ? theme.error : theme.warning
-    return theme.textMuted
-  })
-  return (
-    <box
-      backgroundColor={
-        props.attention
-          ? tint(theme.backgroundElement, props.blocked ? theme.error : theme.warning, 0.08)
-          : theme.backgroundElement
-      }
-      border={["round"]}
-      borderColor={props.attention ? (props.blocked ? theme.warning : theme.error) : theme.borderSubtle}
-      paddingLeft={1}
-      paddingRight={1}
-    >
-      <text fg={color()}>{props.label}</text>
-    </box>
-  )
+type FooterPalette = {
+  textMuted: RGBA
+  warning: RGBA
+  error: RGBA
+  borderSubtle: RGBA
 }
 
-export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string; onCycleWorkflowMode?: () => void }) {
+// Footer chip palette mapped by FooterHealth class.
+// Footer stays passive unless there is a problem:
+//   healthy     = muted (no attention)
+//   degraded    = warning (operator-relevant but not blocking)
+//   unavailable = error (operator must act)
+export function envChipColorForHealth(health: FooterHealth, theme: FooterPalette): RGBA {
+  switch (health) {
+    case "healthy":
+      return theme.textMuted
+    case "degraded":
+      return theme.warning
+    case "unavailable":
+      return theme.error
+  }
+}
+
+// DAX UI Interaction Contract v0.1 — Footer is a dumb consumer of
+// FooterProjection. It does not read sync.data, does not interpret MCP/LSP/
+// provider statuses, and does not render run lifecycle. See Section 8.
+export function Footer(props?: {
+  footerProjection?: FooterProjection
+  workflowMode?: string
+  onCycleWorkflowMode?: () => void
+}) {
   const { theme } = useTheme()
-  const sync = useSync()
-  const route = useRoute()
   const command = useCommandDialog()
   const dialog = useDialog()
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
-  const mcpTotal = createMemo(() => Object.keys(sync.data.mcp).length)
-  const mcp = createMemo(() => Object.values(sync.data.mcp).filter((x) => x.status === "connected").length)
-  const mcpAttention = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusAttention(x as any)))
-  const mcpBlocked = createMemo(() => Object.values(sync.data.mcp).some((x) => isMcpStatusBlocked(x as any)))
-  const lsp = createMemo(() => Object.keys(sync.data.lsp))
   const directory = useDirectory()
 
   const width = createMemo(() => dimensions().width)
   const tiny = createMemo(() => width() < 70)
   const small = createMemo(() => width() < 95)
 
-  const mode = createMemo(() => {
-    if (route.data.type !== "session") return "READY"
-    return (props?.lifecycleLabel ?? "READY").toUpperCase()
+  const envColor = createMemo(() => {
+    const health = props?.footerProjection?.health
+    if (!health) return theme.textMuted
+    return envChipColorForHealth(health, theme)
   })
 
   const looksLikeHelpKey = (evt: any) =>
@@ -117,19 +116,8 @@ export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string;
       border={["top"]}
       borderColor={theme.borderSubtle}
     >
-      {/* Left: mode + workflow + directory */}
+      {/* Left: workflow mode + directory */}
       <box flexDirection="row" gap={1} alignItems="center">
-        <box
-          backgroundColor={theme.primary}
-          border={["round"]}
-          borderColor={theme.borderActive}
-          paddingLeft={1}
-          paddingRight={1}
-        >
-          <text fg={theme.background} attributes={TextAttributes.BOLD}>
-            {mode()}
-          </text>
-        </box>
         <Show when={props?.workflowMode}>
           <box
             onMouseUp={() => props?.onCycleWorkflowMode?.()}
@@ -155,27 +143,27 @@ export function Footer(props?: { lifecycleLabel?: string; workflowMode?: string;
         </Show>
       </box>
 
-      {/* Right: status indicators + actions */}
+      {/* Right: environment chip + actions/help */}
       <box gap={1} flexDirection="row" flexShrink={0} alignItems="center">
-        {/* MCP status */}
-        <Show when={mcpTotal() > 0 && !tiny()}>
-          <StatusIndicator label={`MCP ${mcp()}/${mcpTotal()}`} attention={mcpAttention()} blocked={mcpBlocked()} />
+        <Show when={props?.footerProjection && !tiny()}>
+          <box
+            backgroundColor={theme.backgroundElement}
+            border={["round"]}
+            borderColor={
+              props!.footerProjection!.health === "healthy" ? theme.borderSubtle : envColor()
+            }
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <text fg={envColor()}>{props!.footerProjection!.label}</text>
+          </box>
         </Show>
 
-        {/* LSP status */}
-        <Show when={lsp().length > 0 && !tiny()}>
-          <StatusIndicator label={`LSP ${lsp().length}`} />
-        </Show>
-
-        {/* Separator */}
         <Show when={!tiny()}>
           <text fg={theme.borderSubtle}>|</text>
         </Show>
 
-        {/* Actions */}
         <KeyHint key="/" label={small() ? "" : "Actions"} />
-
-        {/* Help */}
         <KeyHint key="?" label={small() ? "" : "Help"} />
       </box>
     </box>

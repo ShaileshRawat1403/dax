@@ -104,6 +104,7 @@ import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { resolveWorkstationUIState } from "@/dax/presentation/ui-state-container"
 import type { ResolvedUISurface } from "@/dax/presentation/ui-state-resolver"
+import { deriveEnvironmentHealth } from "@/dax/presentation/environment-health"
 import { buildEvidenceLedger } from "@/dax/presentation/evidence-ledger"
 import {
   deriveAuditHistory,
@@ -882,8 +883,13 @@ export function Session() {
       // approval/question distinction that WorkstationState aggregates away.
       actionableApprovals: permissions().length,
       questions: questions().length,
-      // Environment, safety, and focus producers land in later PRs.
-      environment: { provider: "healthy", mcp: "healthy", lsp: "healthy" },
+      // Environment health is derived from sync data via the producer.
+      // Safety and focus producers land in later PRs.
+      environment: deriveEnvironmentHealth({
+        providers: sync.data.provider,
+        mcp: sync.data.mcp,
+        lsp: sync.data.lsp,
+      }),
       safety: [],
       focus: "none",
       now: uiNow(),
@@ -2043,7 +2049,7 @@ export function Session() {
           />
         </box>
         <Footer
-          lifecycleLabel={workstationState().lifecycleLabel}
+          footerProjection={uiSurface().footer}
           workflowMode={workflowMode()}
           onCycleWorkflowMode={() => {
             const modes: WorkflowMode[] = ["plan", "build", "explore", "docs"]
