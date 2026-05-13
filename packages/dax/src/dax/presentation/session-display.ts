@@ -57,13 +57,16 @@ export function shouldShowWorkstationPane(input: {
   if (input.paneVisibility === "hidden") return false
   if (input.paneVisibility === "pinned") return true
 
-  // Auto mode: show only if there is an active need.
-  // Refine need only auto-opens in inspect mode; operator mode stays clean.
+  // Auto mode: secondary attention (audit, refine, memory) only auto-opens
+  // in inspect mode. Operator mode stays calm by default — the pane opens
+  // only for critical intervention (resolver-driven, see PR-5) or when the
+  // user has explicitly pinned it. See Contract Section 6: audit findings,
+  // diff review, and selected evidence are user-initiated, not auto-open.
   if (input.displayMode === "inspect") {
     return input.hasAuditNeed || input.hasRefineNeed
   }
 
-  return input.hasAuditNeed
+  return false
 }
 
 export function hasMemoryContext(input: {

@@ -128,7 +128,10 @@ describe("session-display", () => {
     ).toBe(true)
   })
 
-  test("auto mode opens the rail for audit need but hidden mode still respects the user choice", () => {
+  test("operator auto mode stays closed for audit need (contract: audit is user-initiated)", () => {
+    // DAX UI Interaction Contract v0.1 Section 6: audit findings are
+    // user-initiated, not auto-open. Operator mode stays calm by default;
+    // only critical intervention or an explicit user pin opens the pane.
     expect(
       shouldShowWorkstationPane({
         displayMode: "operator",
@@ -137,7 +140,7 @@ describe("session-display", () => {
         hasAuditNeed: true,
         hasRefineNeed: false,
       }),
-    ).toBe(true)
+    ).toBe(false)
 
     // hidden mode respects user choice for non-critical context
     expect(
@@ -149,6 +152,64 @@ describe("session-display", () => {
         hasRefineNeed: true,
       }),
     ).toBe(false)
+  })
+
+  test("inspect auto mode still opens the pane for audit and refine needs", () => {
+    // Inspect mode is the operator explicitly asking for deeper inspection,
+    // so secondary attention signals are allowed to auto-open the pane.
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "inspect",
+        paneVisibility: "auto",
+        hasCriticalIntervention: false,
+        hasAuditNeed: true,
+        hasRefineNeed: false,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "inspect",
+        paneVisibility: "auto",
+        hasCriticalIntervention: false,
+        hasAuditNeed: false,
+        hasRefineNeed: true,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "inspect",
+        paneVisibility: "auto",
+        hasCriticalIntervention: false,
+        hasAuditNeed: false,
+        hasRefineNeed: false,
+      }),
+    ).toBe(false)
+  })
+
+  test("pinned visibility opens the pane in operator mode even without attention", () => {
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "pinned",
+        hasCriticalIntervention: false,
+        hasAuditNeed: false,
+        hasRefineNeed: false,
+      }),
+    ).toBe(true)
+  })
+
+  test("critical intervention always opens the pane, including operator auto mode", () => {
+    expect(
+      shouldShowWorkstationPane({
+        displayMode: "operator",
+        paneVisibility: "auto",
+        hasCriticalIntervention: true,
+        hasAuditNeed: false,
+        hasRefineNeed: false,
+      }),
+    ).toBe(true)
   })
 
   test("critical interventions override hidden visibility so pending approvals are never silently buried", () => {
