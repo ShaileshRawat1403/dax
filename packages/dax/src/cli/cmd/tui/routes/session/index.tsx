@@ -86,7 +86,7 @@ import { OperatorPane } from "../../component/prompt/operator-pane"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
-import { labelStage, type StreamStage } from "@/dax/workflow/stage"
+import type { StreamStage } from "@/dax/workflow/stage"
 import { PM } from "@/pm"
 import { formatPMList, formatPMRules, parsePMList, parsePMRules } from "@/pm/format"
 import {
@@ -158,8 +158,6 @@ import {
 } from "@/dax/session-metrics"
 import { isGeminiSubscriptionLane } from "@/provider/gemini-subscription"
 import { formatSessionExitMessage } from "./exit-message"
-import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
-import { deriveGitHubCINudge } from "@/dax/presentation/ci-guard"
 
 addDefaultParsers(parsers.parsers)
 
@@ -167,8 +165,6 @@ type PMTab = "note" | "list" | "rules"
 type WorkflowMode = "build" | "plan" | "explore" | "docs"
 const WORKFLOW_MODES: WorkflowMode[] = ["plan", "build", "explore", "docs"]
 const WORKFLOW_AGENT_MODES = new Set<WorkflowMode>(["plan", "build", "explore", "docs"])
-const MUTATION_INTENT_RE =
-  /\b(create|add|edit|update|change|fix|delete|remove|rename|move|install|run|execute|patch|write|commit|push|release|publish)\b/i
 const LIVE_FOLLOW_FRAMES = ["●", "◉", "●", "◎"]
 const STAGE_VERBS: Record<string, string[]> = {
   thinking: ["Brooding", "Thinking", "Scrying", "Sketching"],
@@ -211,11 +207,6 @@ function use() {
   const ctx = useContext(context)
   if (!ctx) throw new Error("useContext must be used within a Session component")
   return ctx
-}
-
-function isLikelyMutationRequest(text: string | undefined) {
-  if (!text) return false
-  return MUTATION_INTENT_RE.test(text)
 }
 
 export function Session() {
@@ -642,7 +633,6 @@ export function Session() {
     setStageLastChangedAt(Date.now())
   })
 
-  const stageLabel = createMemo(() => labelStage(displayStageState().stage, explainMode()))
   const liveNarrativeStatus = createMemo(() =>
     deriveLiveNarrativeStatus({
       pendingID: pending(),
@@ -986,204 +976,6 @@ export function Session() {
       }
     }
     return items.slice(-20).reverse()
-  })
-
-  const sessionSafeguards = createMemo(() => {
-    const ciNudge = deriveGitHubCINudge({
-      recentTools: recentTools(),
-      branch: sync.data.vcs?.branch,
-    })
-    const branchNudge = deriveFeatureBranchNudge({
-      branch: sync.data.vcs?.branch,
-      workflowMode: workflowMode(),
-      hasConcreteChanges: hasDiffNeed(),
-    })
-    return { ciNudge, branchNudge }
-  })
-
-  const voice = (text: string) => {
-    try {
-      return applyPersonaVoice(text, activePersona())
-    } catch {
-      return text
-    }
-  }
-
-  const operatorNextMove = createMemo(() => {
-    const fallback = {
-      tone: "muted" as const,
-      title: "Standing by",
-      detail: voice("Ready for your next direction."),
-    }
-    try {
-      const stageState = displayStageState()
-      const stage = stageState?.stage ?? "ready"
-      const mode = workstationState().lifecycle
-      const current = workstationState()
-      const ciNudge = deriveGitHubCINudge({
-        recentTools: recentTools(),
-        branch: sync.data.vcs?.branch,
-      })
-      const branchNudge = deriveFeatureBranchNudge({
-        branch: sync.data.vcs?.branch,
-        workflowMode: workflowMode(),
-        hasConcreteChanges: hasDiffNeed(),
-      })
-      const latestUserMessage = [...messages()].reverse().find((msg) => msg.role === "user")
-      const latestUserText = latestUserMessage
-        ? (sync.data.part[latestUserMessage.id] ?? [])
-            .filter((part) => part.type === "text")
-            .map((part: any) => String(part.text ?? ""))
-            .join(" ")
-            .trim()
-        : ""
-      const liveNext = liveNarrativeStatus().next
-
-      if (mode === "awaiting_approval") {
-        return {
-          tone: "warning" as const,
-          title: "Review required",
-          detail: voice(current.approvalSummary.topReason ?? "Review the pending request to proceed."),
-        }
-      }
-
-      if (mode === "blocked") {
-        return {
-          tone: "error" as const,
-          title: "Execution blocked",
-          detail: voice("A policy or error is preventing progress. Check the details below."),
-        }
-      }
-
-      if (workflowMode() !== "build" && isLikelyMutationRequest(latestUserText)) {
-        const currentMode = workflowMode().toUpperCase()
-        return {
-          tone: "warning" as const,
-          title: "Promote to Build mode",
-          detail: voice(
-            `${currentMode} mode is read-first. Switch to Build for file edits or command execution, then approve any risky action.`,
-          ),
-        }
-      }
-
-      if (current.completionProof && !current.completionProof.ready) {
-        return {
-          tone: "warning" as const,
-          title: "Completion evidence missing",
-          detail: voice(
-            `Resolve: ${current.completionProof.missing.slice(0, 2).join(", ") || "verification evidence"}.`,
-          ),
-        }
-      }
-
-      if (current.planQuality?.decision === "pause") {
-        return {
-          tone: "warning" as const,
-          title: "Refine execution contract",
-          detail: voice(
-            "Plan quality is paused. Use refine to add scope, validation, and rollback detail before edits.",
-          ),
-        }
-      }
-
-      if (ciNudge) {
-        return {
-          tone: ciNudge.tone,
-          title: ciNudge.title,
-          detail: voice(ciNudge.detail),
-        }
-      }
-
-      if (branchNudge && (workflowMode() === "build" || hasDiffNeed())) {
-        return {
-          tone: branchNudge.tone,
-          title: branchNudge.title,
-          detail: voice(branchNudge.detail),
-        }
-      }
-
-      if (stage === "verifying" && hasAuditNeed()) {
-        return {
-          tone: "accent" as const,
-          title: "Inspect validation findings",
-          detail: voice("Review the audit pane before treating this run as complete."),
-        }
-      }
-
-      if ((stage === "verifying" || stage === "done") && hasDiffNeed()) {
-        return {
-          tone: "primary" as const,
-          title: "Review concrete changes",
-          detail: voice("Open changes to inspect the diff and confirm workspace outcome."),
-        }
-      }
-
-      if (mode === "completed") {
-        return {
-          tone: "success" as const,
-          title: "Run finished",
-          detail: voice("The execution goal has been reached. Review results or start a new task."),
-        }
-      }
-
-      if (pending() && liveNext) {
-        return {
-          tone: stage === "executing" ? ("accent" as const) : ("primary" as const),
-          title:
-            stage === "planning"
-              ? "Planning next move"
-              : stage === "verifying"
-                ? "Carrying verification forward"
-                : "Following live step",
-          detail: voice(liveNext),
-        }
-      }
-
-      if (stage === "thinking" || stage === "exploring") {
-        return {
-          tone: "primary" as const,
-          title: "Analyzing request",
-          detail: voice(current.currentStep ?? "Collecting context for the next governed step."),
-        }
-      }
-
-      if (stage === "planning") {
-        return {
-          tone: "primary" as const,
-          title: "Drafting plan",
-          detail: voice(current.currentStep ?? "Structuring the next step with scope and verification."),
-        }
-      }
-
-      if (stage === "executing") {
-        return {
-          tone: "accent" as const,
-          title: "Applying changes",
-          detail: voice(current.currentStep ?? "Running the current tool action in scoped mode."),
-        }
-      }
-
-      if (stage === "verifying") {
-        return {
-          tone: "success" as const,
-          title: "Verifying result",
-          detail: voice(current.currentStep ?? "Collecting verification evidence before completion."),
-        }
-      }
-      return fallback
-    } catch {
-      return fallback
-    }
-  })
-
-  const operatorNextMoveSafe = createMemo(() => {
-    const nextMove = operatorNextMove()
-    if (nextMove?.title) return nextMove
-    return {
-      tone: "muted" as const,
-      title: "Standing by",
-      detail: voice("Ready for your next direction."),
-    }
   })
 
   function cyclePaneVisibility() {
@@ -1544,43 +1336,6 @@ export function Session() {
     const ext = path.extname(change.filePath).toLowerCase()
     return LANGUAGE_EXTENSIONS[ext] ?? "text"
   })
-
-  const refineStatus = createMemo(() => {
-    const quality = workstationState().planQuality
-    if (!quality) return undefined
-    if (quality.decision === "pause") {
-      return {
-        tone: "warning" as const,
-        label: `${quality.score}/100`,
-        reason: voice("The execution plan needs more detail before I can safely mutate the workspace."),
-      }
-    }
-    return {
-      tone: "success" as const,
-      label: `${quality.score}/100`,
-      reason: voice("The plan is concrete and ready for execution."),
-    }
-  })
-
-  const todoSummary = createMemo(() => {
-    const steps = workstationState().planSummary.steps
-    return {
-      total: steps.length,
-      completed: steps.filter((step) => step.status === "done").length,
-      active: steps.filter((step) => step.status === "active").length,
-      pending: steps.filter((step) => step.status === "pending").length,
-    }
-  })
-
-  const trustSurface = createMemo(() => ({
-    label: workstationState().trustLabel.toLowerCase(),
-    color:
-      workstationState().trustPosture === "blocked"
-        ? theme.error
-        : workstationState().trustPosture === "review_needed"
-          ? theme.warning
-          : theme.success,
-  }))
 
   return (
     <context.Provider
