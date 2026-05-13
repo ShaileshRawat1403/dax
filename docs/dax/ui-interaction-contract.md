@@ -315,3 +315,26 @@ This contract does not govern:
 - Provider setup flows
 - MCP setup flows
 - LSP setup flows
+
+---
+
+## Migration Record
+
+The DAX UI Interaction Contract became load-bearing through the following migration sequence.
+
+| Step | Commit | Surface / Layer | Outcome |
+|---|---|---|---|
+| PR-1 | `5868bb0` | Contract + resolver | Added `ui-interaction-contract.md`, `resolveUIState`, resolver tests, and invariant checks. |
+| PR-2 | `f670e8e` | Mapper + debug overlay | Added `workstationToActiveUIState` and debug overlay formatting. Mapped producer lifecycle into resolver input without inventing safety state. |
+| PR-3 | `1a55d6b` | Header | Header became a consumer of `HeaderProjection`. Lifecycle, decision, trust, approval, and verification chips were replaced by one resolver-driven state chip. |
+| PR-3.1 | `4b18a07` | Header correction | Kept the Header projection visible in muted mode and filtered projected questions to pending-only. |
+| PR-4 | `b11381f` | Footer | Footer became a consumer of `FooterProjection`. Environment health moved into a pure producer. Footer stopped reading MCP/LSP/provider state directly. |
+| PR-5 | `a15f1ca` | Inspector | Required Inspector auto-open and required pane mode became resolver-driven for approval, question, safety, and auth states. |
+| PR-6 | `421010a` | Operator mode | Operator mode stopped auto-opening the pane for audit needs. The pane now opens only for required attention or explicit user pinning. |
+
+Current contract state:
+
+- Header answers current DAX state.
+- Footer answers environment health.
+- Inspector answers required operator attention.
+- Operator mode stays calm by default.
