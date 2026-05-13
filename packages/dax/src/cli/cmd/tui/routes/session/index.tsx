@@ -105,6 +105,10 @@ import { deriveWorkstationState, type WorkstationState } from "@/dax/presentatio
 import { resolveWorkstationUIState } from "@/dax/presentation/ui-state-container"
 import type { ResolvedUISurface } from "@/dax/presentation/ui-state-resolver"
 import { deriveEnvironmentHealth } from "@/dax/presentation/environment-health"
+import {
+  isInspectorAutoOpenRequired,
+  requiredPaneModeForInspector,
+} from "@/dax/presentation/inspector-projection"
 import { buildEvidenceLedger } from "@/dax/presentation/evidence-ledger"
 import {
   deriveAuditHistory,
@@ -1427,11 +1431,25 @@ export function Session() {
     setFollowing(false)
   }
 
+  // DAX UI Interaction Contract v0.1 — Inspector auto-open and required
+  // pane mode are resolver-driven for the states the resolver covers
+  // (approval, question, safety, auth). Legacy audit/refine/memory/runtime/
+  // operator behavior remains unchanged in PR-5 as a compatibility path.
+  // See docs/dax/ui-interaction-contract.md Section 6.
+  const hasProjectionRequiredInspector = createMemo(() =>
+    isInspectorAutoOpenRequired(uiSurface().inspector),
+  )
+  const projectionRequiredPaneMode = createMemo(() =>
+    requiredPaneModeForInspector(uiSurface().inspector),
+  )
+
   const showPane = createMemo(() => {
     return shouldShowWorkstationPane({
       displayMode: displayMode(),
       paneVisibility: paneVisibility(),
-      hasCriticalIntervention: hasApprovalsNeed(),
+      // Resolver-driven required attention takes priority; legacy intervention
+      // path remains as fallback until a future PR retires it.
+      hasCriticalIntervention: hasProjectionRequiredInspector() || hasApprovalsNeed(),
       hasAuditNeed: hasAuditNeed(),
       hasRefineNeed: hasRefineNeed(),
     })
@@ -1443,8 +1461,13 @@ export function Session() {
     return "refine"
   })
 
-  const activePaneMode = createMemo<PaneMode>(() =>
-    deriveActivePaneMode({
+  const activePaneMode = createMemo<PaneMode>(() => {
+    // When InspectorProjection demands a specific pane, surface code cannot
+    // override it. Falls back to the legacy derivation otherwise.
+    const required = projectionRequiredPaneMode()
+    if (required) return required
+
+    return deriveActivePaneMode({
       hasApprovals: hasApprovalsNeed(),
       hasRefineDraft: hasRefineNeed(),
       hasAuditAttention: hasAuditNeed(),
@@ -1458,8 +1481,8 @@ export function Session() {
       paneVisibility: paneVisibility(),
       paneFollowMode: paneFollowMode(),
       following: following(),
-    }),
-  )
+    })
+  })
 
   const refreshMemorySnapshot = async () => {
     try {
