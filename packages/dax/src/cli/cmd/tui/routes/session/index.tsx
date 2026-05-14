@@ -92,13 +92,11 @@ import { formatPMList, formatPMRules, parsePMList, parsePMRules } from "@/pm/for
 import {
   PANE_MODE,
   deriveActivePaneMode,
-  deriveAutoPaneMode,
   paneCompactLabel,
   type PaneFollowMode,
   type PaneMode,
   type PaneVisibility,
   paneLabel as daxPaneLabel,
-  paneTitle as daxPaneTitle,
 } from "@/dax/presentation/pane"
 import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
@@ -127,7 +125,6 @@ import type { ProposedChange as ProjectedProposedChange, RunEvent } from "@/serv
 import { VerificationReceipt } from "../../component/receipt"
 import {
   buildStreamItems,
-  deriveLiveNarrativeStatus,
   deriveToolNarrativeDescriptor,
   stripInlineMarkdown,
   getCurrentPhase,
@@ -528,7 +525,6 @@ export function Session() {
   })
 
   const paneLabel = (mode: PaneMode) => daxPaneLabel(mode, explainMode())
-  const paneTitle = (mode: PaneMode) => daxPaneTitle(mode, explainMode())
   const selectedProposedChange = createMemo(() => {
     const changes = proposedChanges()
     const selected = selectedProposedChangeId()
@@ -633,12 +629,6 @@ export function Session() {
     setStageLastChangedAt(Date.now())
   })
 
-  const liveNarrativeStatus = createMemo(() =>
-    deriveLiveNarrativeStatus({
-      pendingID: pending(),
-      partsForMessage: (messageID) => sync.data.part[messageID] ?? [],
-    }),
-  )
   const [following, setFollowing] = createSignal(true)
   const [motionTick, setMotionTick] = createSignal(0)
   const [verbTick, setVerbTick] = createSignal(0)
@@ -942,41 +932,9 @@ export function Session() {
     return undefined
   })
 
-  const hasDiffNeed = createMemo(() => proposedChanges().length > 0 || workstationState().artifactSummary.count > 0)
   const hasApprovalsNeed = createMemo(() => activeInterventions().length > 0 || approvalQueueCount() > 0)
   const hasAuditNeed = createMemo(() => workstationState().auditSummary.posture !== "clear")
   const hasRefineNeed = createMemo(() => workstationState().planQuality?.decision === "pause")
-
-  const recentTools = createMemo(() => {
-    const items: Array<{ tool: string; status: string; label: string; command?: string; output?: string }> = []
-    for (const msg of messages().slice(-5)) {
-      if (msg.role !== "assistant") continue
-      const parts = sync.data.part[msg.id] ?? []
-      for (const part of parts) {
-        if (part.type !== "tool") continue
-        const trace = deriveOperatorTraceLine(part)
-        const metadata =
-          "metadata" in part.state
-            ? ((part.state.metadata ?? {}) as Record<string, unknown>)
-            : ({} as Record<string, unknown>)
-        const input = (part.state.input ?? {}) as Record<string, unknown>
-        const output =
-          typeof metadata.output === "string"
-            ? metadata.output
-            : typeof metadata.result === "string"
-              ? metadata.result
-              : undefined
-        items.push({
-          tool: part.tool,
-          status: part.state.status,
-          label: trace?.summary ?? part.tool,
-          command: typeof input.command === "string" ? input.command : undefined,
-          output,
-        })
-      }
-    }
-    return items.slice(-20).reverse()
-  })
 
   function cyclePaneVisibility() {
     const next = paneVisibility() === "auto" ? "pinned" : paneVisibility() === "pinned" ? "hidden" : "auto"
