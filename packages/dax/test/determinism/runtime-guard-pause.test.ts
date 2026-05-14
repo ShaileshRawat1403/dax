@@ -190,6 +190,44 @@ describe("runtime-guard pause-and-await", () => {
       },
     })
   })
+
+  test("timeout marks the approval expired so it stops surfacing as pending", async () => {
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const session = await setupGuardedSession({
+          cwd: process.cwd(),
+          targetFiles: [".env"],
+        })
+
+        process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS = "0"
+
+        await expect(
+          enforceRuntimeGuard({
+            sessionID: session.id,
+            agent: "build",
+            toolID: "write",
+            callID: "call_pause_timeout_state_1",
+            req: {
+              permission: "edit",
+              patterns: [".env"],
+              always: ["*"],
+              metadata: {
+                filepath: path.join(process.cwd(), ".env"),
+                diff: "@@",
+              },
+            },
+          }),
+        ).rejects.toBeDefined()
+
+        const approvals = await ApprovalStore.getApprovals(session.id)
+        expect(approvals.length).toBeGreaterThan(0)
+        const latest = approvals[approvals.length - 1]
+        expect(latest.status).toBe("expired")
+        expect(latest.status).not.toBe("pending")
+      },
+    })
+  })
 })
 
 async function waitForApprovalCreation(runId: string, timeoutMs: number) {

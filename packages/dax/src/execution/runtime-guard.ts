@@ -1,7 +1,7 @@
 import { Session } from "@/session"
 import type { SessionV2 } from "@/session/model"
 import { ContractGuardian } from "./contract-guardian"
-import { createAndPersistApproval } from "@/approval/approval-transitions"
+import { createAndPersistApproval, expireApproval, ApprovalAlreadyResolvedError } from "@/approval/approval-transitions"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
 import { Instance } from "@/project/instance"
@@ -308,29 +308,47 @@ function runtimeGuardApprovalTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS
 }
 
+type ApprovalDecisionResult =
+  | { decision: "approve"; source: "operator" }
+  | { decision: "deny"; source: "operator" }
+  | { decision: "deny"; source: "timeout" }
+
 /**
  * Awaits operator decision on a runtime-guard approval card.
- * Resolves on Lifecycle.ApprovalResolved matching the approvalId.
- *   - decision "approve" → resolves with "approve" (caller continues)
- *   - decision "deny" → resolves with "deny" (caller throws)
- * If no decision arrives before the timeout, resolves with "deny".
+ * Resolves on Lifecycle.ApprovalResolved matching the approvalId, or after
+ * the configured timeout. The listener is unsubscribed in all paths so
+ * timed-out waits do not leak Bus subscribers.
+ *
+ *   - operator approve → { decision: "approve", source: "operator" }
+ *   - operator deny    → { decision: "deny",    source: "operator" }
+ *   - timeout          → { decision: "deny",    source: "timeout"  }
  */
-async function awaitApprovalDecision(approvalId: string, runId: string): Promise<"approve" | "deny"> {
+async function awaitApprovalDecision(
+  approvalId: string,
+  runId: string,
+): Promise<ApprovalDecisionResult> {
   return new Promise((resolve) => {
     let settled = false
-    const finish = (decision: "approve" | "deny") => {
+    let unsubscribe: (() => void) | undefined
+
+    const finish = (result: ApprovalDecisionResult) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      resolve(decision)
+      unsubscribe?.()
+      resolve(result)
     }
-    const timer = setTimeout(() => finish("deny"), runtimeGuardApprovalTimeoutMs())
-    Bus.once(Lifecycle.ApprovalResolved, (event) => {
-      if (event.properties.runId !== runId) return undefined
-      if (event.properties.approvalId !== approvalId) return undefined
+
+    const timer = setTimeout(
+      () => finish({ decision: "deny", source: "timeout" }),
+      runtimeGuardApprovalTimeoutMs(),
+    )
+
+    unsubscribe = Bus.subscribe(Lifecycle.ApprovalResolved, (event) => {
+      if (event.properties.runId !== runId) return
+      if (event.properties.approvalId !== approvalId) return
       const decision = event.properties.decision === "approve" ? "approve" : "deny"
-      finish(decision)
-      return "done"
+      finish({ decision, source: "operator" })
     })
   })
 }
@@ -422,9 +440,23 @@ async function blockViolation(
     throw new RuntimeGuardViolationError("loop_break", violation.reason)
   }
 
-  const decision = await awaitApprovalDecision(approval.approvalId, input.sessionID)
-  if (decision === "approve") {
+  const result = await awaitApprovalDecision(approval.approvalId, input.sessionID)
+  if (result.decision === "approve") {
     return
+  }
+  // On timeout the operator never decided. Mark the approval expired so the
+  // UI no longer shows it as pending and a late click cannot resolve a
+  // stale request. Wrap in try/catch for the race where the operator's
+  // decision lands at the exact same moment as the timer fires — in that
+  // case ApprovalAlreadyResolvedError is the expected, harmless outcome.
+  if (result.source === "timeout") {
+    try {
+      await expireApproval(input.sessionID, approval.approvalId)
+    } catch (err) {
+      if (!(err instanceof ApprovalAlreadyResolvedError)) {
+        throw err
+      }
+    }
   }
   throw new RuntimeGuardViolationError(violation.code, violation.reason)
 }
