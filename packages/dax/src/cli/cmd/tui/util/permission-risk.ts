@@ -77,6 +77,33 @@ export function classifyPermissionRisk(
 
   // ── Permission-type checks ──────────────────────────────────────────────────
 
+  // Runtime-guard and approval-store approvals carry a workflow_gate
+  // permission. These only surface when the guard has already classified
+  // the action as a policy hit — by definition critical.
+  if (permission === "workflow_gate" || permission === "policy_violation") {
+    const reason = request.patterns?.[0]
+    return risk(
+      "critical",
+      typeof reason === "string" && reason.length > 0
+        ? reason
+        : "DAX blocked this action under the active runtime policy. Approve to override or deny to stop.",
+      "Read the reason carefully before approving — this gate exists because the policy classified the action as risky.",
+    )
+  }
+
+  // Generic approval categories from the canonical approval store. Treat
+  // mutation-like ones as privacy-elevated so the operator sees a proper
+  // callout instead of a bare title.
+  if (permission === "file_write" || permission === "patch_apply") {
+    return elevatePrivacy("This will mutate workspace files. Review the target before approving.")
+  }
+  if (permission === "command_execute") {
+    return elevatePrivacy("This will run a shell command. Review the command before approving.")
+  }
+  if (permission === "tool_use") {
+    return elevatePrivacy("DAX is requesting permission to use a tool. Review before approving.")
+  }
+
   if (permission === "external_directory") {
     return elevatePrivacy("Outside-project directory access may expose local private files.")
   }

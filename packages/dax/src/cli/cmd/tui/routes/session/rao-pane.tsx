@@ -89,8 +89,8 @@ function sentPhaseMessage(d: DecisionEcho | null): string {
 }
 
 function permissionIcon(perm: string) {
-  if (perm === "shell") return "#"
-  if (perm === "edit" || perm === "apply_patch") return "✎"
+  if (perm === "shell" || perm === "command_execute") return "#"
+  if (perm === "edit" || perm === "apply_patch" || perm === "file_write" || perm === "patch_apply") return "✎"
   if (perm === "read") return "→"
   if (perm === "glob" || perm === "grep") return "✱"
   if (perm === "webfetch") return "%"
@@ -99,6 +99,8 @@ function permissionIcon(perm: string) {
   if (perm === "task") return "◉"
   if (perm === "external_directory") return "←"
   if (perm === "doom_loop") return "⟳"
+  if (perm === "workflow_gate" || perm === "policy_violation") return "△"
+  if (perm === "tool_use") return "◎"
   return "⚙"
 }
 
@@ -123,10 +125,23 @@ function permissionTitle(request: PermissionRequest, input: Record<string, unkno
     return `Access external dir: ${normalizePath(parent ?? filepath ?? derived)}`
   }
   if (perm === "doom_loop") return "Continue after repeated failures"
-  // Generic permission types (tool_use, command_execute, file_write,
-  // patch_apply, workflow_gate, etc.) — fall back to the policy gate's
-  // reason if available so the user actually knows what they're approving
-  // instead of seeing the bare permission slug.
+  // Runtime-guard categories: keep the title short so the reason flows
+  // into the risk callout instead of becoming a wall of text in the
+  // header. The full reason is rendered by classifyPermissionRisk.
+  if (perm === "workflow_gate") return "Runtime policy gate"
+  if (perm === "policy_violation") return "Policy violation"
+  if (perm === "tool_use") return "Tool use approval"
+  if (perm === "command_execute") {
+    const command = i.command
+    if (typeof command === "string" && command.length > 0) return `Run command: ${command.slice(0, 60)}`
+    return "Run command"
+  }
+  if (perm === "file_write" || perm === "patch_apply") {
+    const target = request.metadata?.filepath
+    if (typeof target === "string" && target.length > 0) return `Write ${normalizePath(target)}`
+    return "Write file"
+  }
+  // Generic fallback for any other future permission type.
   const fallback = request.patterns?.[0]
   if (typeof fallback === "string" && fallback.length > 0) {
     return `${humanizePermission(perm)}: ${fallback}`

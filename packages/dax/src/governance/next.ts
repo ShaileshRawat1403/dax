@@ -214,6 +214,62 @@ export namespace Permission {
     },
   )
 
+  // Resolves a canonical approval record (one created via
+  // ApprovalTransitions.create / createAndPersistApproval rather than
+  // Permission.ask). This is the bridge for surfaces that route every
+  // approval through `permission.reply`: when the requestID corresponds
+  // to a canonical approval record, we look it up in ApprovalStore and
+  // resolve through ApprovalTransitions so the approve/deny event chain
+  // fires correctly.
+  //
+  // No-op if the requestID does not match a pending canonical approval
+  // (e.g., already-resolved, expired, or never existed).
+  async function resolveCanonicalApproval(
+    requestID: string,
+    reply: z.infer<typeof Reply>,
+    message: string | undefined,
+  ) {
+    const { ApprovalStore } = await import("@/approval/approval-store")
+    const { ApprovalTransitions, ApprovalAlreadyResolvedError } = await import(
+      "@/approval/approval-transitions"
+    )
+
+    // The UI passes the approvalId as requestID but doesn't include the
+    // runId. ApprovalStore is keyed by (runId, approvalId), so we scan the
+    // approvals storage prefix to find the run that owns this id.
+    // Approvals live at ["approvals", projectId, runId], one file per run.
+    const projectId = Instance.project.id
+    const paths = await Storage.list(["approvals", projectId])
+    let approval: Awaited<ReturnType<typeof ApprovalStore.get>> | null = null
+    const seenRuns = new Set<string>()
+    for (const segments of paths) {
+      const runId = segments[2]
+      if (!runId || seenRuns.has(runId)) continue
+      seenRuns.add(runId)
+      const candidate = await ApprovalStore.get(runId, requestID).catch(() => null)
+      if (candidate) {
+        approval = candidate
+        break
+      }
+    }
+    if (!approval) return
+
+    const comment = message ?? `Resolved via permission.reply (${reply})`
+    try {
+      if (reply === "reject") {
+        await ApprovalTransitions.deny(approval.runId, approval.approvalId, "operator", comment)
+      } else {
+        await ApprovalTransitions.approve(approval.runId, approval.approvalId, "operator", comment)
+      }
+    } catch (err) {
+      if (!(err instanceof ApprovalAlreadyResolvedError)) {
+        throw err
+      }
+      // Already resolved race: harmless. The listener has already seen
+      // the decision.
+    }
+  }
+
   export const reply = fn(
     z.object({
       requestID: Identifier.schema("permission"),
@@ -223,7 +279,16 @@ export namespace Permission {
     async (input) => {
       const s = await state()
       const existing = s.pending[input.requestID]
-      if (!existing) return
+      if (!existing) {
+        // Fallback: the request ID may correspond to a canonical approval
+        // record (e.g., a runtime-guard workflow_gate) rather than an
+        // in-memory Permission.ask request. Resolve via ApprovalTransitions
+        // so the corresponding Lifecycle.ApprovalResolved event fires.
+        // Listeners that paused on the approval (runtime guard, replay
+        // verifiers) will see the decision and either resume or throw.
+        await resolveCanonicalApproval(input.requestID, input.reply, input.message)
+        return
+      }
       delete s.pending[input.requestID]
       Bus.publish(Event.Replied, {
         sessionID: existing.info.sessionID,

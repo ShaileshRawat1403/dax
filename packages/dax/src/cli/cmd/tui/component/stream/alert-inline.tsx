@@ -4,11 +4,29 @@ import { type RenderableStreamItem, stripInlineMarkdown } from "@/dax/presentati
 import { useTheme } from "@tui/context/theme"
 import type { RunNarrativeItem } from "@/server/run-contract"
 
-function getAlertTypeLabel(type: string): string {
+type ResolutionDecision = "approve" | "deny" | "expired" | "cancelled" | "unknown"
+
+function getResolutionDecision(metadata?: Record<string, any>): ResolutionDecision {
+  if (!metadata) return "unknown"
+  const decision = String(metadata.decision ?? metadata.status ?? "").toLowerCase()
+  if (decision === "approve" || decision === "approved") return "approve"
+  if (decision === "deny" || decision === "denied" || decision === "reject") return "deny"
+  if (decision === "expired") return "expired"
+  if (decision === "cancelled") return "cancelled"
+  return "unknown"
+}
+
+function getAlertTypeLabel(type: string, decision: ResolutionDecision): string {
   if (type === "intervention.required") return "INTERVENTION REQUIRED"
   if (type === "approval.requested") return "APPROVAL REQUIRED"
   if (type === "intervention.resolved") return "Resolved"
-  if (type === "approval.resolved") return "Approved"
+  if (type === "approval.resolved") {
+    if (decision === "approve") return "Approved"
+    if (decision === "deny") return "Denied"
+    if (decision === "expired") return "Expired"
+    if (decision === "cancelled") return "Cancelled"
+    return "Resolved"
+  }
   return "ALERT"
 }
 
@@ -31,7 +49,8 @@ export function AlertInline(props: {
 }) {
   const { theme } = useTheme()
   const narrativeItem = props.item.data as RunNarrativeItem
-  const typeLabel = () => getAlertTypeLabel(props.item.type ?? "")
+  const decision = () => getResolutionDecision(narrativeItem?.metadata)
+  const typeLabel = () => getAlertTypeLabel(props.item.type ?? "", decision())
   const riskLabel = () => getRiskLabel(narrativeItem?.metadata)
   const resolutionReason = () => getResolutionReason(narrativeItem?.metadata)
   const isPending = () => props.item.status === "pending"
@@ -41,13 +60,41 @@ export function AlertInline(props: {
 
   const baseTextColor = () => (props.isLast ? theme.text : theme.textMuted)
 
+  const resolvedTone = () => {
+    const d = decision()
+    if (d === "approve") return theme.success
+    if (d === "deny") return theme.error
+    if (d === "expired" || d === "cancelled") return theme.warning
+    return theme.textMuted
+  }
+
+  const resolvedGlyph = () => {
+    const d = decision()
+    if (d === "approve") return "✓"
+    if (d === "deny") return "✗"
+    if (d === "expired") return "◷"
+    if (d === "cancelled") return "⊘"
+    return "·"
+  }
+
+  const resolvedHeadline = () => {
+    const d = decision()
+    if (d === "approve") return "Approved · DAX is continuing"
+    if (d === "deny") return "Denied · DAX stopped this action"
+    if (d === "expired") return "Expired · No decision in time"
+    if (d === "cancelled") return "Cancelled"
+    return "Resolved"
+  }
+
   const borderColor = () => {
-    if (isResolved()) return theme.success
+    if (isResolved()) return resolvedTone()
     if (isPending()) return theme.warning
     return theme.borderSubtle
   }
 
-  // Resolved state: compact single-line acknowledgement, no extra chrome
+  // Resolved state: compact single-line acknowledgement, no extra chrome.
+  // The glyph + headline communicate the outcome (approve/deny/expired)
+  // explicitly so the operator never has to infer from absence of activity.
   if (isResolved()) {
     return (
       <box
@@ -59,8 +106,10 @@ export function AlertInline(props: {
         paddingBottom={0}
         marginTop={0}
       >
-        <text fg={theme.success}>✓</text>
-        <text fg={theme.success} attributes={TextAttributes.BOLD}>Approval received</text>
+        <text fg={resolvedTone()}>{resolvedGlyph()}</text>
+        <text fg={resolvedTone()} attributes={TextAttributes.BOLD}>
+          {resolvedHeadline()}
+        </text>
         <text fg={theme.textMuted} attributes={TextAttributes.DIM}>· {typeLabel()}</text>
         <Show when={resolutionReason()}>
           <text fg={theme.textMuted} attributes={TextAttributes.DIM}>— {resolutionReason()}</text>
