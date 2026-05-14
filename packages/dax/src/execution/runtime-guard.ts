@@ -281,7 +281,7 @@ async function ensureIntervention(input: {
     notes?: string[]
   }
 }) {
-  await createAndPersistApproval({
+  const approval = await createAndPersistApproval({
     runId: input.sessionID,
     type: "workflow_gate",
     risk: input.risk,
@@ -289,6 +289,49 @@ async function ensureIntervention(input: {
     reason: input.reason,
     context: input.context,
     source: "system",
+  })
+  return approval
+}
+
+// Default wait for operator decision on a runtime-guard approval card.
+// After this, treat absent decision as denial so the tool call returns an
+// error to the model instead of hanging the session indefinitely.
+//
+// Overridable via env var so unit tests (and headless CI) can short-circuit
+// the wait without driving the approval bus. Default 10 minutes mirrors
+// Permission.ask's typical operator turnaround budget.
+const DEFAULT_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS = 10 * 60 * 1_000
+function runtimeGuardApprovalTimeoutMs(): number {
+  const raw = process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS
+  if (raw === undefined) return DEFAULT_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS
+}
+
+/**
+ * Awaits operator decision on a runtime-guard approval card.
+ * Resolves on Lifecycle.ApprovalResolved matching the approvalId.
+ *   - decision "approve" → resolves with "approve" (caller continues)
+ *   - decision "deny" → resolves with "deny" (caller throws)
+ * If no decision arrives before the timeout, resolves with "deny".
+ */
+async function awaitApprovalDecision(approvalId: string, runId: string): Promise<"approve" | "deny"> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (decision: "approve" | "deny") => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(decision)
+    }
+    const timer = setTimeout(() => finish("deny"), runtimeGuardApprovalTimeoutMs())
+    Bus.once(Lifecycle.ApprovalResolved, (event) => {
+      if (event.properties.runId !== runId) return undefined
+      if (event.properties.approvalId !== approvalId) return undefined
+      const decision = event.properties.decision === "approve" ? "approve" : "deny"
+      finish(decision)
+      return "done"
+    })
   })
 }
 
@@ -351,7 +394,7 @@ async function blockViolation(
 
   const failure = await registerViolation(input, violation.code)
   const escalated = failure.exceeded
-  await ensureIntervention({
+  const approval = await ensureIntervention({
     sessionID: input.sessionID,
     title: escalated ? `Repeated blocked attempt: ${violation.title}` : violation.title,
     reason: escalated
@@ -366,7 +409,24 @@ async function blockViolation(
       ],
     },
   })
-  throw new RuntimeGuardViolationError(escalated ? "loop_break" : violation.code, violation.reason)
+
+  // Pause-and-ask: surface the approval card and await the operator's
+  // decision. On approve, the tool call proceeds normally. On deny (or
+  // timeout), the tool call throws and the model sees the failure with the
+  // operator's intent attached.
+  //
+  // Loop-break (escalated) violations bypass this gate because they indicate
+  // the model is repeatedly retrying the same blocked pattern — the operator
+  // shouldn't be asked to override the same thing forever.
+  if (escalated) {
+    throw new RuntimeGuardViolationError("loop_break", violation.reason)
+  }
+
+  const decision = await awaitApprovalDecision(approval.approvalId, input.sessionID)
+  if (decision === "approve") {
+    return
+  }
+  throw new RuntimeGuardViolationError(violation.code, violation.reason)
 }
 
 async function updateRuntimeGuardState(sessionID: string, updater: (state: RuntimeGuardState) => RuntimeGuardState) {
