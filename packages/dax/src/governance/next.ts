@@ -272,7 +272,12 @@ export namespace Permission {
 
   export const reply = fn(
     z.object({
-      requestID: Identifier.schema("permission"),
+      // Accepts both legacy Permission.ask IDs (per_*) and canonical approval
+      // record IDs (apr_*). The function body routes appropriately: in-memory
+      // pending for per_*, ApprovalStore fallback for apr_*. The previous
+      // strict per_-only schema rejected canonical IDs at validation time,
+      // which made the deny button silently no-op for runtime-guard cards.
+      requestID: z.string().min(1),
       reply: Reply,
       message: z.string().optional(),
     }),
