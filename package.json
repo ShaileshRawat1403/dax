@@ -85,7 +85,7 @@
   "devDependencies": {
     "@stryker-mutator/core": "^8.7.1",
     "@tsconfig/bun": "catalog:",
-    "esbuild": "^0.27.4",
+    "esbuild": "^0.27.7",
     "prettier": "3.6.2",
     "turbo": "2.5.6"
   },
@@ -93,6 +93,28 @@
     "blessed": "^0.1.81",
     "quansync": "^1.0.0",
     "typescript": "catalog:"
+  },
+  "overrides": {
+    "protobufjs": "^7.5.8",
+    "hono": "^4.12.18",
+    "@hono/node-server": "^1.19.10",
+    "axios": "^1.15.2",
+    "seroval": "^1.5.4",
+    "minimatch": "^10.2.1",
+    "path-to-regexp": "^8.4.2",
+    "fast-uri": "^3.1.2",
+    "picomatch": "^4.0.4",
+    "undici": "^6.23.0",
+    "flatted": "^3.4.2",
+    "lodash": "^4.17.24",
+    "defu": "^6.1.7",
+    "fast-xml-builder": "^1.1.9",
+    "fast-xml-parser": "^5.7.3",
+    "brace-expansion": "^2.0.3",
+    "follow-redirects": "^1.16.0",
+    "tmp": "^0.2.5",
+    "diff": "^8.0.4",
+    "ajv": "^8.18.0"
   },
   "repository": {
     "type": "git",

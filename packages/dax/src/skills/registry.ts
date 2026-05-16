@@ -1,12 +1,14 @@
+import { Log } from "../util/log"
 import type { SkillManifest } from "./types"
+
+const log = Log.create({ service: "skill-registry" })
 
 class SkillRegistry {
   private skills: Map<string, SkillManifest> = new Map()
 
   register(manifest: SkillManifest) {
     if (this.skills.has(manifest.id)) {
-      // In the future, we might handle versioning here
-      console.warn(`Skill "${manifest.id}" is already registered. Overwriting.`)
+      log.warn("skill already registered, overwriting", { id: manifest.id })
     }
     this.skills.set(manifest.id, manifest)
   }

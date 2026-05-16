@@ -11,6 +11,9 @@ export { onGeminiThrottle }
 import { Global } from "@/global"
 import path from "path"
 import { iife } from "../util/iife"
+import { Log } from "../util/log"
+
+const geminiLog = Log.create({ service: "gemini-plugin" })
 
 const GEMINI_OAUTH_DOC = "https://ai.google.dev/gemini-api/docs/oauth"
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -963,7 +966,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                           })
                           .catch((err) => {
                             if (err.message === "chunk_timeout") {
-                              console.error("[Gemini] stream chunk timeout, closing stream", {
+                              geminiLog.warn("stream chunk timeout, closing stream", {
                                 timeoutMs: CHUNK_TIMEOUT_MS,
                               })
                               if (buffer.length > 0) {
@@ -1002,7 +1005,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                             return
                           }
                         } catch (e) {
-                          console.error("[Gemini] SSE JSON parse error — passing raw line downstream", {
+                          geminiLog.warn("SSE JSON parse error, passing raw line downstream", {
                             error: (e as Error).message,
                             line: jsonText.slice(0, 120),
                           })

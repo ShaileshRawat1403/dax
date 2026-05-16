@@ -1,7 +1,10 @@
 import * as fs from "fs/promises"
 import path from "path"
+import { Log } from "../util/log"
 import type { SessionSnapshot, GraphStatus } from "./snapshot-types"
 import type { SessionState } from "./state-types"
+
+const log = Log.create({ service: "session-persist" })
 
 const SESSION_DIR = ".dax/sessions"
 const writes = new Map<string, Promise<void>>()
@@ -54,7 +57,10 @@ export async function loadSnapshot(sessionId: string, cwd = process.cwd()): Prom
     return snapshot
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null
-    console.error(`Failed to load snapshot for session ${sessionId}:`, error)
+    log.error("failed to load snapshot", {
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return null
   }
 }
