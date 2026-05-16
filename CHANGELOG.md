@@ -54,6 +54,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TUI**: approvals pane stable; 401 surfaces a re-auth path.
 - **dax-ui**: intervention label corrected; transcript is now narration-only; orphaned state-display calculations removed.
 
+### Developer Experience
+
+- **Skill roster expanded from 7 to 19**. New audit-and-review skills covering CI/CD, infra/release operations, and agentic-AI surfaces:
+  - **CI/CD family**: `ci-cd-audit`, `release-pipeline-audit`, `gh-actions-security`
+  - **DevOps family**: `deploy-readiness`, `observability-audit`, `incident-runbook`, `db-migration-review`
+  - **Agentic/AI family**: `prompt-audit`, `agent-config-audit`, `tool-use-review`, `agentic-loop-audit`, `eval-suite-audit`
+- **Shared skill output contract** (`docs/skills/OUTPUT_CONTRACT.md`): impact-ordered finding tables with a five-level severity ladder. All new skills reference it from their own `Output contract` section, so updates propagate centrally.
+- **Branch-hygiene enforcement, three layers**:
+  - Written rule in `AGENTS.md` + a new `CLAUDE.md` entry point — agent-agnostic, committed
+  - Portable git `pre-commit` hook in `.githooks/pre-commit` — refuses commits on `main`/`master`; opt-in per clone via `git config core.hooksPath .githooks`; `DAX_ALLOW_MAIN_COMMIT=1` bypass for already-reviewed release merges
+  - Personal Claude Code `PreToolUse` hook (in the gitignored `.claude/settings.local.json`) that blocks `Edit`/`Write` on protected branches
+
 ### Known Limitations
 
 - **Tree-sitter HTML injections** are not currently active (query parser incompatibility). Highlights work; embedded `<script>`/`<style>` blocks are not re-tokenized.
