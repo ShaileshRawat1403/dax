@@ -26,3 +26,19 @@ Read this file first when working in `/Users/Shared/MYAIAGENTS/dax`.
 
 - Before major product, architecture, or cross-repo work, read [docs/STACK_OPERATING_MODEL.md](./docs/STACK_OPERATING_MODEL.md).
 - If the task involves Picobot or Soothsayer, also consult the copy-ready repo guidance in [docs/repo-agents](./docs/repo-agents).
+
+## Branch hygiene
+
+- Never commit, push, or apply edits directly on `main` or `master`.
+- Before making any change-bearing tool call (Edit, Write, file generation, package install), confirm the current branch with `git branch --show-current`.
+- If the current branch is `main` or `master`:
+  - Stop and create a feature branch first: `git checkout -b <type>/<short-desc>` where `<type>` is `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, or `release`.
+  - If the change scope is unclear, ask the user for the branch name before continuing.
+- Pull requests are not used in this repo. Push the feature branch when ready; the maintainer merges directly.
+- After a feature branch is merged, delete it (`git branch -d` and `git push origin --delete`).
+- A committed git pre-commit hook in `.githooks/pre-commit` enforces this for any contributor who runs `git config core.hooksPath .githooks` once.
+
+## Skill output contract
+
+- All findings/audit output from skills follows [docs/skills/OUTPUT_CONTRACT.md](./docs/skills/OUTPUT_CONTRACT.md).
+- New skills must reference that file from their own `Output contract` section instead of inlining the rules.

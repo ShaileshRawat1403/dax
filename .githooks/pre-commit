@@ -1,0 +1,32 @@
+#!/bin/sh
+# Block commits on protected branches.
+#
+# Enable with:  git config core.hooksPath .githooks
+# Bypass with:  DAX_ALLOW_MAIN_COMMIT=1 git commit ...   (use sparingly, e.g. release merges)
+
+set -eu
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+case "$branch" in
+  main|master)
+    if [ "${DAX_ALLOW_MAIN_COMMIT:-0}" = "1" ]; then
+      exit 0
+    fi
+    cat >&2 <<MSG
+[dax pre-commit] refusing to commit on '$branch'.
+
+Create a feature branch first:
+  git checkout -b <type>/<short-desc>     # feat / fix / chore / docs / refactor / test / release
+
+If you genuinely need to commit on '$branch' (e.g. merging a release branch
+that has already been reviewed), bypass once with:
+  DAX_ALLOW_MAIN_COMMIT=1 git commit ...
+
+See AGENTS.md → "Branch hygiene".
+MSG
+    exit 1
+    ;;
+esac
+
+exit 0
