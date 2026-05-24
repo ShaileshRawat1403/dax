@@ -71,6 +71,7 @@
     "@ai-sdk/xai": "2.0.51",
     "@clack/prompts": "1.0.0-alpha.1",
     "@dax-ai/plugin": "workspace:*",
+    "@dax-ai/provider": "workspace:*",
     "@dax-ai/script": "workspace:*",
     "@dax-ai/sdk": "workspace:*",
     "@dax-ai/util": "workspace:*",

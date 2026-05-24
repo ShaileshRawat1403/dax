@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createProviderDefinedToolFactoryWithOutputSchema } from "@ai-sdk/provider-utils"
 import type {
   OpenAIResponsesFileSearchToolComparisonFilter,

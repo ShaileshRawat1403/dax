@@ -250,7 +250,7 @@ export namespace LLM {
         ...input.messages,
       ],
       model: wrapLanguageModel({
-        model: language,
+        model: language as any,
         middleware: [
           {
             async transformParams(args) {

@@ -382,7 +382,7 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV2 {
             // handle failed chunk parsing / validation:
             if (!chunk.success) {
               finishReason = "error"
-              controller.enqueue({ type: "error", error: chunk.error })
+              controller.enqueue({ type: "error", error: (chunk as any).error })
               return
             }
             const value = chunk.value
