@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import os from "os"
 import path from "path"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
@@ -9,6 +10,23 @@ import { enforceRuntimeGuard, RuntimeGuardViolationError } from "../../src/execu
 import { RunStore } from "../../src/state/run-store"
 import { Transitions, RunCompletionBlockedError } from "../../src/state/transitions"
 import { ApprovalStore } from "../../src/approval/approval-store"
+
+let previousTestHome: string | undefined
+
+beforeEach(async () => {
+  previousTestHome = process.env.DAX_TEST_HOME
+  process.env.DAX_TEST_HOME = path.join(
+    os.tmpdir(),
+    `dax-runtime-hardening-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+  )
+  await Instance.disposeAll()
+})
+
+afterEach(async () => {
+  await Instance.disposeAll()
+  if (previousTestHome === undefined) delete process.env.DAX_TEST_HOME
+  else process.env.DAX_TEST_HOME = previousTestHome
+})
 
 function buildIntentContract(targetFiles: string[], avoidAreas: string[] = []) {
   return {

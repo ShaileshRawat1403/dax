@@ -212,7 +212,12 @@ function classifyPathZone(relativePath: string) {
   ) {
     return "forbidden" as const
   }
-  if (lower.startsWith(".dax/lab/")) {
+  if (
+    lower === ".dax/lab" ||
+    lower.startsWith(".dax/lab/") ||
+    lower.endsWith("/.dax/lab") ||
+    lower.includes("/.dax/lab/")
+  ) {
     return "lab" as const
   }
   if (
