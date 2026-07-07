@@ -4,8 +4,8 @@ Read this file first when working in the DAX repo.
 
 ## Identity
 
-- DAX is the core standalone product in this stack.
-- DAX is the governed AI and execution authority.
+- DAX is the standalone governed coding runtime in this stack.
+- DAX is the execution authority for governed DAX runs.
 - DAX is not a companion-app dependency pretending to be a product.
 
 ## Product boundaries
@@ -18,13 +18,13 @@ Read this file first when working in the DAX repo.
 
 - Do not let DAX become “just the backend” in product framing or architecture decisions.
 - Do not add companion-specific shortcuts that weaken DAX's governance model by default.
-- Do not reframe DAX as provider-first if its product identity is governed execution.
+- Do not reframe DAX as a generic workflow product; its product identity is governed coding execution.
 
 ## Cross-repo context
 
 - Read `docs/STACK_OPERATING_MODEL.md`.
 - Remember the stack model:
-  - `DAX = core product`
+  - `DAX = standalone governed coding runtime`
   - `Picobot = ingress`
   - `Soothsayer = operator plane`
 

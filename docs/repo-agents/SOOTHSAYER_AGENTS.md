@@ -4,19 +4,19 @@ Read this file first when working in the Soothsayer repo.
 
 ## Identity
 
-- Soothsayer is the operator and control plane for DAX.
+- Soothsayer is the operator cockpit and control plane for DAX runs.
 - Soothsayer is not the owner of execution truth.
 - Soothsayer should help humans observe, govern, approve, recover, and understand DAX work.
 
 ## Product boundaries
 
 - DAX should remain the authority for governed runs, approvals, recovery, and execution truth.
-- If Soothsayer offers assistant chat, the intended default should align with DAX when the stack is DAX-first.
-- Direct providers may exist as fallback or advanced overrides, but should not quietly become the main product story unless explicitly chosen.
+- Soothsayer chat may use direct providers for ordinary inline assistance.
+- DAX mode is the explicit switch into governed coding execution.
 
 ## Anti-drift rules
 
-- Do not let Soothsayer drift back into a provider-first chat app if the intended product is DAX-first.
+- Do not let direct provider chat silently perform governed coding actions.
 - Do not duplicate DAX lifecycle truth locally and then treat the copy as canonical.
 - Do not bundle destructive maintenance tasks into feature releases just to make release automation look cleaner.
 
@@ -24,7 +24,7 @@ Read this file first when working in the Soothsayer repo.
 
 - Read `docs/STACK_OPERATING_MODEL.md` from the DAX repo.
 - Remember the stack model:
-  - `DAX = core product`
+  - `DAX = standalone governed coding runtime`
   - `Picobot = ingress`
   - `Soothsayer = operator plane`
 

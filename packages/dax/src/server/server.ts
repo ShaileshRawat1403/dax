@@ -593,15 +593,23 @@ export namespace Server {
       fetch: App().fetch,
       websocket: websocket,
     } as const
+    let lastListenError: unknown
     const tryServe = (port: number) => {
       try {
         return Bun.serve({ ...args, port })
-      } catch {
+      } catch (error) {
+        lastListenError = error
         return undefined
       }
     }
     const server = opts.port === 0 ? (tryServe(4096) ?? tryServe(0)) : tryServe(opts.port)
-    if (!server) throw new Error(`Failed to start server on port ${opts.port}`)
+    if (!server) {
+      const detail =
+        lastListenError instanceof Error
+          ? `${lastListenError.name}: ${lastListenError.message}`
+          : String(lastListenError)
+      throw new Error(`Failed to start server on port ${opts.port}${detail ? ` (${detail})` : ""}`)
+    }
 
     _url = server.url
 
