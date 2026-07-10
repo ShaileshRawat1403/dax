@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto"
 import type {
   ApprovalRecord,
   ArtifactRecord,
@@ -8,6 +7,7 @@ import type {
 } from "@/server/run-contract"
 import type { CapabilityApproval, CapabilityArtifactRef, CapabilityFailureCode, CapabilityRunReceipt } from "./capability-contract"
 import { CAPABILITY_CONTRACT_VERSION } from "./capability-contract"
+import { buildEvidenceRecords, computeBundleDigest } from "./evidence-export"
 
 export function mapCapabilityFailureCode(input: {
   status: RunSnapshot["status"]
@@ -68,40 +68,12 @@ export function computeEvidenceDigest(input: {
   approvals: ApprovalRecord[]
   artifacts: ArtifactRecord[]
   events: RunEvent[]
+  invocationId?: string
 }): string {
-  const evidenceBundle = {
-    contract: "dax.flowright.evidence.v0",
-    snapshot: {
-      runId: input.snapshot.runId,
-      authority: input.snapshot.authority,
-      status: input.snapshot.status,
-      workflow: input.snapshot.workflow,
-      terminalReason: input.snapshot.terminalReason,
-      lastEvent: input.snapshot.lastEvent,
-    },
-    approvals: input.approvals.map((approval) => ({
-      approvalId: approval.approvalId,
-      status: approval.status,
-      risk: approval.risk,
-      title: approval.title,
-      updatedAt: approval.updatedAt,
-    })),
-    artifacts: input.artifacts.map((artifact) => ({
-      artifactId: artifact.artifactId,
-      type: artifact.type,
-      title: artifact.title,
-      path: artifact.path,
-      createdAt: artifact.createdAt,
-    })),
-    eventTail: input.events.slice(-25).map((event) => ({
-      eventId: event.eventId,
-      sequence: event.sequence,
-      type: event.type,
-      timestamp: event.timestamp,
-    })),
-  }
-
-  return `sha256:${createHash("sha256").update(JSON.stringify(evidenceBundle)).digest("hex")}`
+  // runledger.evidence.v0 bundle digest: sha256 over the canonical array of
+  // the exported records' body digests. Recomputable by any caller that
+  // fetches the evidence export — the receipt digest stops being opaque.
+  return computeBundleDigest(buildEvidenceRecords(input))
 }
 
 export function buildCapabilityReceipt(input: {
@@ -141,7 +113,7 @@ export function buildCapabilityReceipt(input: {
     terminalState,
     startedAt: input.snapshot.startedAt ?? input.snapshot.createdAt,
     completedAt: input.timeoutReason ? new Date().toISOString() : input.snapshot.completedAt,
-    evidenceDigest: computeEvidenceDigest(input),
+    evidenceDigest: computeEvidenceDigest({ ...input, invocationId: input.invocationId }),
     artifacts: toCapabilityArtifacts(input.artifacts),
     approvals: toCapabilityApprovals(input.approvals),
     failure,
