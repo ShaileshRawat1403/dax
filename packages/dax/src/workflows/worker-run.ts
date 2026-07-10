@@ -3,12 +3,14 @@ import { HybridTransitions } from "@/state/hybrid-transitions"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { Identifier } from "@/id/id"
+import { mkdir } from "node:fs/promises"
+import path from "node:path"
 import {
   ExternalWorkerId,
   WorkerContract,
-  WorkerInvocation,
   buildWorkerInvocation,
 } from "@/worker/worker-adapter"
+import type { WorkerInvocation } from "@/worker/worker-adapter"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -44,8 +46,10 @@ export type WorkerRunEffectsShape = {
 
 const defaultEffects: WorkerRunEffectsShape = {
   async createCheckout(repoPath, runId) {
-    const path = `${repoPath}/.dax/worker-checkouts/${runId}`
-    const add = Bun.spawn(["git", "-C", repoPath, "worktree", "add", "--detach", path, "HEAD"], {
+    const root = path.join(repoPath, ".dax", "worker-checkouts")
+    const checkoutPath = path.join(root, runId)
+    await mkdir(root, { recursive: true })
+    const add = Bun.spawn(["git", "-C", repoPath, "worktree", "add", "--detach", checkoutPath, "HEAD"], {
       stdout: "pipe",
       stderr: "pipe",
     })
@@ -53,9 +57,9 @@ const defaultEffects: WorkerRunEffectsShape = {
       throw new Error(`git worktree add failed: ${await new Response(add.stderr).text()}`)
     }
     return {
-      path,
+      path: checkoutPath,
       async cleanup() {
-        const rm = Bun.spawn(["git", "-C", repoPath, "worktree", "remove", "--force", path], {
+        const rm = Bun.spawn(["git", "-C", repoPath, "worktree", "remove", "--force", checkoutPath], {
           stdout: "pipe",
           stderr: "pipe",
         })
@@ -194,7 +198,16 @@ export class WorkerRunWorkflow {
       await HybridTransitions.completeStep(this.runId, stepId, [`draft:patch`, `worker:${workerId}`])
 
       log.info("run_worker completed", { runId: this.runId, workerId, diffBytes: diff.length })
-      return { stepId, success: true, outputs: [{ workerId, diffBytes: diff.length }] }
+      return {
+        stepId,
+        success: true,
+        outputs: [
+          {
+            type: "summary",
+            content: `External worker ${workerId} produced a kernel-computed patch (${diff.length} bytes).`,
+          },
+        ],
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       log.error("run_worker failed", { runId: this.runId, workerId, error: message })

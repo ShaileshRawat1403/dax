@@ -190,7 +190,7 @@ function deriveApprovalPolicy(
   }
 
   const baseMode =
-    workflowClass === "draft_and_approve" || workflowClass === "review_and_signoff"
+    workflowClass === "draft_and_approve" || workflowClass === "review_and_signoff" || workflowClass === "worker_run"
       ? "approval_gated"
       : riskLevel === "low"
         ? "auto"
@@ -227,6 +227,11 @@ function deriveExpectedOutputs(
     outputs.push({ type: "diff", description: "Changes to be committed" })
   }
 
+  if (workflowClass === "worker_run") {
+    outputs.push({ type: "patch", description: "Kernel-computed patch produced by governed external worker" })
+    outputs.push({ type: "diff", description: "Reviewable diff before approval" })
+  }
+
   if (outputs.length === 0) {
     outputs.push({ type: "summary", description: "Execution summary" })
   }
@@ -246,7 +251,7 @@ export function compile(input: CompileInput): CompileResult {
   let workflowHintAccepted: boolean | undefined = undefined
 
   if (hintedWorkflow) {
-    if (isValidWorkflowHint(hintedWorkflow, intent)) {
+    if (isValidWorkflowHint(hintedWorkflow, intent, request.personaPreset?.providerHint)) {
       workflowClass = hintedWorkflow
       workflowHintAccepted = true
       if (hintedWorkflow !== classifiedWorkflow && classifiedWorkflow !== "generic") {
@@ -328,7 +333,7 @@ export function compile(input: CompileInput): CompileResult {
   }
 }
 
-function isValidWorkflowHint(hint: string, intent: string): boolean {
+function isValidWorkflowHint(hint: string, intent: string, providerHint?: string): boolean {
   const lowerIntent = intent.toLowerCase()
 
   if (hint === "draft_and_approve") {
@@ -341,6 +346,10 @@ function isValidWorkflowHint(hint: string, intent: string): boolean {
 
   if (hint === "review_and_signoff") {
     return /review|pr.*review|pull.*request|check.*code|audit|assess/i.test(lowerIntent)
+  }
+
+  if (hint === "worker_run") {
+    return /^worker:(claude|codex|gemini)$/.test(providerHint ?? "")
   }
 
   return false
