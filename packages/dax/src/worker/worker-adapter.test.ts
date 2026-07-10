@@ -72,6 +72,12 @@ describe("worker adapter", () => {
     expect(invocation.timeoutMs).toBe(DEFAULT_WORKER_TIMEOUT_MS)
   })
 
+  test("codex worker gets write access inside DAX's disposable checkout", () => {
+    const invocation = buildWorkerInvocation({ workerId: "codex", contract })
+    expect(invocation.command).toContain("--sandbox")
+    expect(invocation.command).toContain("workspace-write")
+  })
+
   test("unknown workers and empty tasks are rejected", () => {
     expect(() => buildWorkerInvocation({ workerId: "copilot" as ExternalWorkerId, contract })).toThrow()
     expect(() => WorkerContract.parse({ ...contract, task: "" })).toThrow()

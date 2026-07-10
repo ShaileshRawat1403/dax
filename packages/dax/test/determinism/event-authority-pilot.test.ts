@@ -16,6 +16,7 @@ import {
   getEventAuthorityState,
 } from "../../src/state/events/event-transitions"
 import { readRunEvents, getRunAuthority } from "../../src/state/events/run-event-store"
+import { isEventAuthorityPilot } from "../../src/execution/run-factory"
 
 const CONTRACT_ID = "pilot-contract-001"
 
@@ -41,6 +42,12 @@ describe("event-authority pilot: draft_and_approve", () => {
     try {
       rmSync(testHome, { recursive: true, force: true })
     } catch (e) {}
+  })
+
+  test("worker_run uses event authority so generated patch drafts survive checkout cleanup", () => {
+    expect(isEventAuthorityPilot("draft_and_approve")).toBe(true)
+    expect(isEventAuthorityPilot("worker_run")).toBe(true)
+    expect(isEventAuthorityPilot("repo_analyze")).toBe(false)
   })
 
   describe("Test 1: create event-authority run", () => {

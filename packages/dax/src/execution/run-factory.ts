@@ -29,10 +29,10 @@ import {
   appendEventOnly,
 } from "@/state/events/event-transitions"
 
-const EVENT_AUTHORITY_PILOT_WORKFLOWS = ["draft_and_approve"] as const
+const EVENT_AUTHORITY_PILOT_WORKFLOWS = ["draft_and_approve", "worker_run"] as const
 type EventAuthorityPilotWorkflow = (typeof EVENT_AUTHORITY_PILOT_WORKFLOWS)[number]
 
-function isEventAuthorityPilot(workflowClass: string): workflowClass is EventAuthorityPilotWorkflow {
+export function isEventAuthorityPilot(workflowClass: string): workflowClass is EventAuthorityPilotWorkflow {
   return (EVENT_AUTHORITY_PILOT_WORKFLOWS as readonly string[]).includes(workflowClass)
 }
 

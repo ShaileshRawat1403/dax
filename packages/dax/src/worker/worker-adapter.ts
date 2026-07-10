@@ -74,7 +74,7 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   },
   codex: {
     binary: "codex",
-    args: (prompt) => ["exec", prompt],
+    args: (prompt) => ["exec", "--sandbox", "workspace-write", prompt],
     envAllowlist: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_HOME"],
   },
   gemini: {
