@@ -13,6 +13,8 @@ export type RunEventType =
   | "trust_updated"
   | "run_failed"
   | "run_completed"
+  | "workflow_completed"
+  | "approval_denied"
   | "provider_pressure_updated"
 
 export type RunEventPayload =
@@ -49,6 +51,8 @@ export type RunEventPayload =
     }
   | { type: "run_failed"; payload: { error: { code: string; message: string; retryable: boolean } } }
   | { type: "run_completed"; payload: Record<string, never> }
+  | { type: "workflow_completed"; payload: Record<string, never> }
+  | { type: "approval_denied"; payload: Record<string, never> }
   | {
       type: "provider_pressure_updated"
       payload: { lane?: string; throttles: number; inFlight: number; queueLength: number }

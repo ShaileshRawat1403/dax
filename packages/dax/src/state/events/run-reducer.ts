@@ -343,6 +343,20 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         break
       }
 
+      case "approval_denied": {
+        if (!isTerminalStatus(state.status)) {
+          state.status = "failed"
+          state.error = {
+            code: "approval_rejected",
+            message: "Approval was denied",
+            retryable: false,
+          }
+          state.currentStepId = null
+          state.completedAt = event.occurredAt
+        }
+        break
+      }
+
       case "run_failed": {
         if (!isTerminalStatus(state.status)) {
           const payload = event.payload as { error: { code: string; message: string; retryable: boolean } }
@@ -354,6 +368,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         break
       }
 
+      case "workflow_completed":
       case "run_completed": {
         if (!isTerminalStatus(state.status)) {
           if (state.pendingApprovalIds.length > 0) {
