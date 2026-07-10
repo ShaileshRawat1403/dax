@@ -1,0 +1,79 @@
+import { describe, expect, test } from "bun:test"
+import {
+  DEFAULT_WORKER_TIMEOUT_MS,
+  ExternalWorkerId,
+  WorkerContract,
+  buildWorkerEnv,
+  buildWorkerInvocation,
+  renderWorkerPrompt,
+} from "./worker-adapter"
+
+const contract: WorkerContract = WorkerContract.parse({
+  task: "Add an isEven helper to src/math.ts with tests.",
+  writeScope: ["src/**", "test/**"],
+  forbiddenPaths: [".github/**", "package.json"],
+  verification: ["bun test"],
+  runId: "run_worker_1",
+  invocationId: "inv_worker_1",
+})
+
+describe("worker adapter", () => {
+  test("each worker gets a non-interactive invocation carrying the contract prompt", () => {
+    for (const workerId of ExternalWorkerId.options) {
+      const invocation = buildWorkerInvocation({ workerId, contract })
+      expect(invocation.command[0]).toBe(workerId)
+      const prompt = invocation.command.find((arg) => arg.includes("TASK:"))
+      expect(prompt).toBeDefined()
+      expect(prompt).toContain("Add an isEven helper")
+      expect(prompt).toContain("src/**")
+      expect(prompt).toContain("Never touch: .github/**")
+      expect(prompt).toContain("bun test")
+    }
+  })
+
+  test("the contract prompt states governance honestly (kernel authority, human review)", () => {
+    const prompt = renderWorkerPrompt(contract)
+    expect(prompt).toContain("DAX computes the authoritative diff")
+    expect(prompt).toContain("human approval")
+    expect(prompt).toContain("Do not commit, push")
+  })
+
+  test("env passthrough is allowlist-only — worker credentials in, nothing else", () => {
+    const hostEnv = {
+      ANTHROPIC_API_KEY: "sk-ant-xxx",
+      OPENAI_API_KEY: "sk-oai-xxx",
+      GEMINI_API_KEY: "gm-xxx",
+      AWS_SECRET_ACCESS_KEY: "leak-me-not",
+      HOME: "/Users/operator",
+      GITHUB_TOKEN: "ghp-leak-me-not",
+    }
+    const claudeEnv = buildWorkerEnv("claude", hostEnv, contract)
+    expect(claudeEnv.ANTHROPIC_API_KEY).toBe("sk-ant-xxx")
+    expect(claudeEnv.OPENAI_API_KEY).toBeUndefined()
+    expect(claudeEnv.AWS_SECRET_ACCESS_KEY).toBeUndefined()
+    expect(claudeEnv.GITHUB_TOKEN).toBeUndefined()
+    expect(claudeEnv.HOME).toBeUndefined()
+
+    const codexEnv = buildWorkerEnv("codex", hostEnv, contract)
+    expect(codexEnv.OPENAI_API_KEY).toBe("sk-oai-xxx")
+    expect(codexEnv.ANTHROPIC_API_KEY).toBeUndefined()
+  })
+
+  test("contract metadata rides the env for worker-side traceability", () => {
+    const env = buildWorkerEnv("gemini", {}, contract)
+    expect(env.DAX_RUN_ID).toBe("run_worker_1")
+    expect(env.DAX_INVOCATION_ID).toBe("inv_worker_1")
+    expect(env.DAX_GOVERNED_WORKER).toBe("1")
+  })
+
+  test("network is full (provider APIs) with filesystem still sandbox-confined", () => {
+    const invocation = buildWorkerInvocation({ workerId: "claude", contract })
+    expect(invocation.network).toBe("full")
+    expect(invocation.timeoutMs).toBe(DEFAULT_WORKER_TIMEOUT_MS)
+  })
+
+  test("unknown workers and empty tasks are rejected", () => {
+    expect(() => buildWorkerInvocation({ workerId: "copilot" as ExternalWorkerId, contract })).toThrow()
+    expect(() => WorkerContract.parse({ ...contract, task: "" })).toThrow()
+  })
+})
