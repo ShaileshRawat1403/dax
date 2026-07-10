@@ -83,39 +83,6 @@ async function classifyApproval(
   }
 }
 
-export const ApprovalsCommand = cmd({
-  command: "approvals",
-  describe: "inspect pending approvals awaiting operator decision",
-  builder: (yargs: Argv) =>
-    yargs
-      .option("format", {
-        describe: "output format",
-        type: "string",
-        choices: ["table", "json"],
-        default: "table",
-      })
-      .option("session", {
-        describe: "filter approvals for a related session id",
-        type: "string",
-      }),
-  handler: async (args) => {
-    await bootstrap(process.cwd(), async () => {
-      const approvals = await Permission.list()
-      const rows = approvals
-        .filter((item) => !args.session || item.sessionID === args.session)
-        .map(toApprovalRow)
-        .sort((a, b) => a.created_at - b.created_at)
-
-      if (args.format === "json") {
-        console.log(JSON.stringify(rows, null, 2))
-        return
-      }
-
-      console.log(formatApprovalTable(rows))
-    })
-  },
-})
-
 export function toApprovalRow(input: Permission.Request): ApprovalRow {
   const patterns = input.patterns.length > 0 ? input.patterns.join(", ") : "*"
   const reason = (() => {
@@ -156,6 +123,59 @@ export function formatApprovalTable(rows: ApprovalRow[]): string {
     ]),
   )
 }
+
+export const ApprovalsResolveCommand = cmd({
+  command: "resolve <approval-id>",
+  describe: "approve or deny a pending run approval",
+  builder: (yargs: Argv) =>
+    yargs
+      .positional("approval-id", {
+        describe: "approval id to resolve",
+        type: "string",
+        demandOption: true,
+      })
+      .option("run", {
+        describe: "run/session id that owns the approval",
+        type: "string",
+        demandOption: true,
+      })
+      .option("decision", {
+        describe: "operator decision",
+        type: "string",
+        choices: ["approve", "deny"],
+        demandOption: true,
+      })
+      .option("actor", {
+        describe: "operator actor id recorded in the approval resolution",
+        type: "string",
+        default: "cli-operator",
+      })
+      .option("comment", {
+        describe: "optional decision comment",
+        type: "string",
+      }),
+  handler: async (args) => {
+    await bootstrap(process.cwd(), async () => {
+      const approvalId = String(args.approvalId)
+      const runId = String(args.run)
+      const decision = args.decision === "deny" ? "deny" : "approve"
+      const resolved = await RunGateway.resolveApproval(runId, approvalId, {
+        decision,
+        actorId: String(args.actor ?? "cli-operator"),
+        source: "dax",
+        comment: typeof args.comment === "string" ? args.comment : undefined,
+      })
+
+      console.log(
+        [
+          `Approval ${resolved.approvalId} ${resolved.status}.`,
+          `Decision: ${resolved.resolution.decision}`,
+          `Run: ${runId}`,
+        ].join(EOL),
+      )
+    })
+  },
+})
 
 export const ApprovalsPruneCommand = cmd({
   command: "prune",
@@ -304,6 +324,41 @@ export const ApprovalsPruneCommand = cmd({
       if (candidates.length === 0) {
         console.log("No pending approvals found.")
       }
+    })
+  },
+})
+
+export const ApprovalsCommand = cmd({
+  command: "approvals",
+  describe: "inspect pending approvals awaiting operator decision",
+  builder: (yargs: Argv) =>
+    yargs
+      .command(ApprovalsResolveCommand)
+      .command(ApprovalsPruneCommand)
+      .option("format", {
+        describe: "output format",
+        type: "string",
+        choices: ["table", "json"],
+        default: "table",
+      })
+      .option("session", {
+        describe: "filter approvals for a related session id",
+        type: "string",
+      }),
+  handler: async (args) => {
+    await bootstrap(process.cwd(), async () => {
+      const approvals = await Permission.list()
+      const rows = approvals
+        .filter((item) => !args.session || item.sessionID === args.session)
+        .map(toApprovalRow)
+        .sort((a, b) => a.created_at - b.created_at)
+
+      if (args.format === "json") {
+        console.log(JSON.stringify(rows, null, 2))
+        return
+      }
+
+      console.log(formatApprovalTable(rows))
     })
   },
 })

@@ -40,7 +40,7 @@ export const WorkerCommand = cmd({
               type: "string",
             }),
         async (args) => {
-          await bootstrap({ cwd: process.cwd() }, async () => {
+          await bootstrap(process.cwd(), async () => {
             const agent = ExternalWorkerId.parse(args.agent)
             const taskParts = [...((args.task as string[]) ?? []), ...((args["--"] as string[]) ?? [])]
             const task = taskParts.join(" ").trim()
@@ -91,9 +91,20 @@ export const WorkerCommand = cmd({
             for (;;) {
               const snapshot = await RunGateway.getSnapshot(created.runId)
               if (snapshot.status === "waiting_approval" || snapshot.pendingApprovalCount > 0) {
+                const approvals = await RunGateway.getApprovals(created.runId)
+                const approval = approvals.find((item) => item.status === "pending")
                 UI.println(`${EOL}Kernel diff is ready for review.`)
-                UI.println(`Approve or deny with: dax approvals resolve --run ${created.runId}`)
-                UI.println(`Inspect the run:      dax run status ${created.runId}`)
+                if (approval) {
+                  UI.println(
+                    `Approve with: dax approvals resolve ${approval.approvalId} --run ${created.runId} --decision approve`,
+                  )
+                  UI.println(
+                    `Deny with:    dax approvals resolve ${approval.approvalId} --run ${created.runId} --decision deny`,
+                  )
+                } else {
+                  UI.println(`List approvals: dax approvals --session ${created.runId}`)
+                }
+                UI.println(`Inspect the run: dax session show ${created.runId}`)
                 return
               }
               if (["completed", "failed", "cancelled"].includes(snapshot.status)) {
@@ -103,7 +114,7 @@ export const WorkerCommand = cmd({
                 return
               }
               if (Date.now() > deadline) {
-                UI.error(`timed out waiting for run ${created.runId}; check dax run status ${created.runId}`)
+                UI.error(`timed out waiting for run ${created.runId}; check dax session show ${created.runId}`)
                 process.exitCode = 1
                 return
               }
