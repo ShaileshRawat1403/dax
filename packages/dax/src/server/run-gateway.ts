@@ -17,6 +17,7 @@ import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
 import { Tracer } from "@/runtime/telemetry"
 import { Transitions } from "@/state/transitions"
 import { replayRunState } from "@/state/replay"
+import { getEventAuthorityState } from "@/state/events/event-transitions"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
 import { natsTransport } from "./transport/nats-transport"
 import { getSecrets } from "@/secrets/secrets-loader"
@@ -130,6 +131,19 @@ function extractTerminalReason(events: RunEvent[]): WorkflowTerminalReason | und
     }
   }
   return undefined
+}
+
+function terminalReasonFromRunState(
+  runState: { status: string; error?: { code?: string } | null } | null | undefined,
+): WorkflowTerminalReason | undefined {
+  if (!runState) return undefined
+  if (runState.status === "completed") return "workflow_completed"
+  if (runState.status === "cancelled") return "workflow_cancelled"
+  if (runState.status !== "failed") return undefined
+  if (runState.error?.code === "approval_rejected") return "workflow_rejected"
+  if (runState.error?.code === "permission_denied") return "permission_denied"
+  if (runState.error?.code === "timeout") return "timeout"
+  return "execution_error"
 }
 
 // Bridge between the bus event enum (bus/lifecycle.ts:InterventionRequired)
@@ -980,15 +994,16 @@ export namespace RunGateway {
 
   export async function getSnapshot(runId: string): Promise<RunSnapshot> {
     initialize()
-    const [session, messages, meta, events, storedRunState] = await Promise.all([
+    const [session, messages, meta, events, storedRunState, eventRunState] = await Promise.all([
       Session.get(runId),
       Session.messages({ sessionID: runId }),
       readRunMeta(runId),
       readEvents(runId),
       RunStore.get(runId),
+      getEventAuthorityState(runId).catch(() => null),
     ])
 
-    let runState = storedRunState
+    let runState = eventRunState ?? storedRunState
     if (!runState && events.length > 0) {
       try {
         runState = replayRunState(events).state
@@ -1070,7 +1085,9 @@ export namespace RunGateway {
       })()
     }
 
-    const artifacts = session.state_v2?.artifacts ?? []
+    const sessionArtifacts = session.state_v2?.artifacts ?? []
+    const stateArtifactIds = runState?.artifactIds ?? []
+    const artifacts = sessionArtifacts
     const byType = artifacts.reduce<Record<string, number>>((acc, artifact) => {
       const kind = artifactType(artifact.kind)
       acc[kind] = (acc[kind] ?? 0) + 1
@@ -1107,12 +1124,14 @@ export namespace RunGateway {
       pendingApprovalCount: pending.length,
       trust,
       artifactSummary: {
-        total: artifacts.length,
+        total: artifacts.length || stateArtifactIds.length,
         byType,
-        latestArtifactIds: artifacts.slice(-3).map((artifact) => String(artifact.id)),
+        latestArtifactIds: artifacts.length
+          ? artifacts.slice(-3).map((artifact) => String(artifact.id))
+          : stateArtifactIds.slice(-3),
       },
       workflow: buildWorkflowSummary(meta?.workflowClass, runState),
-      terminalReason: extractTerminalReason(events),
+      terminalReason: extractTerminalReason(events) ?? terminalReasonFromRunState(runState),
       metadata: meta as Record<string, any>,
       lastEvent:
         events.at(-1) !== undefined
