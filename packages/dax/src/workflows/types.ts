@@ -12,6 +12,7 @@ export const WorkflowStepTypeSchema = z.enum([
   "produce_review",
   "request_signoff",
   "finalize_outcome",
+  "run_worker",
   "generic",
 ])
 export type WorkflowStepType = z.infer<typeof WorkflowStepTypeSchema>
@@ -188,8 +189,34 @@ export const REVIEW_AND_SIGNOFF_STEPS: WorkflowStep[] = [
   },
 ]
 
+export const WORKER_RUN_STEPS: WorkflowStep[] = [
+  {
+    stepId: "run_worker",
+    type: "run_worker",
+    title: "Run Governed Worker",
+    description: "Execute the external coding agent inside a disposable checkout; DAX computes the diff.",
+    required: true,
+  },
+  {
+    stepId: "request_approval",
+    type: "request_approval",
+    title: "Request Approval",
+    description: "Human reviews the kernel-computed diff before anything is applied.",
+    required: true,
+  },
+  {
+    stepId: "finalize_outcome",
+    type: "finalize_outcome",
+    title: "Finalize Outcome",
+    description: "Record the approved patch artifact and complete the run.",
+    required: true,
+  },
+]
+
 export function getStepsForWorkflow(workflowClass: WorkflowClass): WorkflowStep[] {
   switch (workflowClass) {
+    case "worker_run":
+      return WORKER_RUN_STEPS
     case "draft_and_approve":
       return FIXED_STEPS
     case "repo_analyze":
@@ -204,6 +231,9 @@ export function getStepsForWorkflow(workflowClass: WorkflowClass): WorkflowStep[
 
 export function isFixedWorkflow(workflowClass: WorkflowClass): boolean {
   return (
-    workflowClass === "draft_and_approve" || workflowClass === "repo_analyze" || workflowClass === "review_and_signoff"
+    workflowClass === "draft_and_approve" ||
+    workflowClass === "repo_analyze" ||
+    workflowClass === "review_and_signoff" ||
+    workflowClass === "worker_run"
   )
 }

@@ -24,6 +24,11 @@ export const WORKFLOW_LABELS: Record<string, { label: string; description: strin
     description: "General-purpose workflow execution",
     icon: "workflow",
   },
+  worker_run: {
+    label: "Governed Worker",
+    description: "External coding agent executing under DAX governance",
+    icon: "shield",
+  },
 }
 
 export const STEP_LABELS: Record<string, { label: string; description: string }> = {
@@ -38,6 +43,7 @@ export const STEP_LABELS: Record<string, { label: string; description: string }>
     description: "Generate structured review with findings and recommendations",
   },
   request_signoff: { label: "Request Signoff", description: "Create signoff request and await human decision" },
+  run_worker: { label: "Run Governed Worker", description: "External agent works in a disposable checkout; DAX computes the diff" },
   finalize_outcome: {
     label: "Finalize Outcome",
     description: "Record final decision and produce signed outcome artifact",

@@ -34,6 +34,9 @@ const WORKFLOW_KEYWORDS: Record<WorkflowClass, RegExp[]> = {
   ],
   repo_analyze: [/analyze/i, /explore/i, /understand/i, /survey/i, /map.*code/i, /inspect/i],
   review_and_signoff: [/review/i, /pr.*review/i, /pull.*request/i, /check.*code/i, /audit/i, /assess/i],
+  // worker_run is never keyword-inferred: governing an external agent is an
+  // explicit operator choice (providerHint worker:<id>), not a guess.
+  worker_run: [],
 }
 
 const RISK_INDICATORS: Array<{ pattern: RegExp; level: RiskLevel }> = [
