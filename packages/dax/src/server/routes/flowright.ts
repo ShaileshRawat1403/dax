@@ -10,6 +10,7 @@ import {
   CapabilityRunReceipt,
 } from "@/flowright/capability-contract"
 import { FlowrightCapabilityService } from "@/flowright/capability-service"
+import { EvidenceExportResponse } from "@/flowright/evidence-export"
 
 export const FlowrightRoutes = lazy(() =>
   new Hono()
@@ -58,6 +59,28 @@ export const FlowrightRoutes = lazy(() =>
       }),
       validator("param", z.object({ invocationId: z.string() })),
       async (c) => c.json(await FlowrightCapabilityService.getReceipt(c.req.valid("param").invocationId)),
+    )
+    .get(
+      "/capabilities/invocations/:invocationId/evidence",
+      describeRoute({
+        summary: "Export runledger.evidence.v0 records",
+        description:
+          "Ordered evidence records for a capability invocation. The bundle digest over these records equals the receipt's evidenceDigest, so verification is recomputable by the caller.",
+        operationId: "flowright.capability.evidence",
+        responses: {
+          200: {
+            description: "Evidence export (runledger.evidence.v0)",
+            content: {
+              "application/json": {
+                schema: resolver(EvidenceExportResponse),
+              },
+            },
+          },
+          ...errors(404),
+        },
+      }),
+      validator("param", z.object({ invocationId: z.string() })),
+      async (c) => c.json(await FlowrightCapabilityService.exportEvidence(c.req.valid("param").invocationId)),
     )
     .post(
       "/capabilities/invocations/:invocationId/approvals/:gateId",

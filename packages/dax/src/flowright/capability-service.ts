@@ -6,6 +6,7 @@ import { Identifier } from "@/id/id"
 import { RunFactory } from "@/execution/run-factory"
 import { DraftApproveExecuteWorkflow } from "@/workflows/draft-approve-execute"
 import { buildCapabilityReceipt } from "./capability-adapter"
+import { buildEvidenceExport, type EvidenceExportResponse } from "./evidence-export"
 import type {
   CapabilityApprovalDecisionRequest,
   CapabilityInvokeRequest,
@@ -147,6 +148,17 @@ export namespace FlowrightCapabilityService {
       externalRunId: create.runId,
       receipt,
     }
+  }
+
+  export async function exportEvidence(invocationId: string): Promise<EvidenceExportResponse> {
+    const record = await readInvocation(invocationId)
+    const [snapshot, approvals, artifacts, events] = await Promise.all([
+      RunGateway.getSnapshot(record.externalRunId),
+      RunGateway.getApprovals(record.externalRunId),
+      RunGateway.listArtifacts(record.externalRunId),
+      RunGateway.replayEvents(record.externalRunId),
+    ])
+    return buildEvidenceExport({ snapshot, approvals, artifacts, events, invocationId: record.invocationId })
   }
 
   export async function getReceipt(invocationId: string): Promise<CapabilityRunReceipt> {
