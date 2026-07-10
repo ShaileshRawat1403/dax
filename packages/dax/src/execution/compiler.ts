@@ -34,6 +34,9 @@ const WORKFLOW_KEYWORDS: Record<WorkflowClass, RegExp[]> = {
   ],
   repo_analyze: [/analyze/i, /explore/i, /understand/i, /survey/i, /map.*code/i, /inspect/i],
   review_and_signoff: [/review/i, /pr.*review/i, /pull.*request/i, /check.*code/i, /audit/i, /assess/i],
+  // worker_run is never keyword-inferred: governing an external agent is an
+  // explicit operator choice (providerHint worker:<id>), not a guess.
+  worker_run: [],
 }
 
 const RISK_INDICATORS: Array<{ pattern: RegExp; level: RiskLevel }> = [
@@ -187,7 +190,7 @@ function deriveApprovalPolicy(
   }
 
   const baseMode =
-    workflowClass === "draft_and_approve" || workflowClass === "review_and_signoff"
+    workflowClass === "draft_and_approve" || workflowClass === "review_and_signoff" || workflowClass === "worker_run"
       ? "approval_gated"
       : riskLevel === "low"
         ? "auto"
@@ -224,6 +227,11 @@ function deriveExpectedOutputs(
     outputs.push({ type: "diff", description: "Changes to be committed" })
   }
 
+  if (workflowClass === "worker_run") {
+    outputs.push({ type: "patch", description: "Kernel-computed patch produced by governed external worker" })
+    outputs.push({ type: "diff", description: "Reviewable diff before approval" })
+  }
+
   if (outputs.length === 0) {
     outputs.push({ type: "summary", description: "Execution summary" })
   }
@@ -243,7 +251,7 @@ export function compile(input: CompileInput): CompileResult {
   let workflowHintAccepted: boolean | undefined = undefined
 
   if (hintedWorkflow) {
-    if (isValidWorkflowHint(hintedWorkflow, intent)) {
+    if (isValidWorkflowHint(hintedWorkflow, intent, request.personaPreset?.providerHint)) {
       workflowClass = hintedWorkflow
       workflowHintAccepted = true
       if (hintedWorkflow !== classifiedWorkflow && classifiedWorkflow !== "generic") {
@@ -325,7 +333,7 @@ export function compile(input: CompileInput): CompileResult {
   }
 }
 
-function isValidWorkflowHint(hint: string, intent: string): boolean {
+function isValidWorkflowHint(hint: string, intent: string, providerHint?: string): boolean {
   const lowerIntent = intent.toLowerCase()
 
   if (hint === "draft_and_approve") {
@@ -338,6 +346,10 @@ function isValidWorkflowHint(hint: string, intent: string): boolean {
 
   if (hint === "review_and_signoff") {
     return /review|pr.*review|pull.*request|check.*code|audit|assess/i.test(lowerIntent)
+  }
+
+  if (hint === "worker_run") {
+    return /^worker:(claude|codex|gemini)$/.test(providerHint ?? "")
   }
 
   return false

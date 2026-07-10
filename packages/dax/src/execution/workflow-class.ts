@@ -1,6 +1,6 @@
 import z from "zod"
 
-export const WorkflowClassSchema = z.enum(["generic", "draft_and_approve", "repo_analyze", "review_and_signoff"])
+export const WorkflowClassSchema = z.enum(["generic", "draft_and_approve", "repo_analyze", "review_and_signoff", "worker_run"])
 export type WorkflowClass = z.infer<typeof WorkflowClassSchema>
 
 export const WORKFLOW_CLASSES = WorkflowClassSchema.options
@@ -22,6 +22,10 @@ export const WorkflowClassInfo: Record<WorkflowClass, { description: string; app
     description: "Review code, PR, or document and provide signoff",
     approval_mode: "strict",
   },
+  worker_run: {
+    description: "Govern an external coding agent as a capability worker: checkout, kernel diff, approval gate",
+    approval_mode: "required",
+  },
 }
 
 export const ExecutionModeSchema = z.enum(["auto", "approval_gated", "manual"])
@@ -32,6 +36,7 @@ export const EXECUTION_MODE_DEFAULTS: Record<WorkflowClass, ExecutionMode> = {
   draft_and_approve: "approval_gated",
   repo_analyze: "auto",
   review_and_signoff: "approval_gated",
+  worker_run: "approval_gated",
 }
 
 export const RiskLevelSchema = z.enum(["low", "medium", "high", "critical"])

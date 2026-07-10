@@ -6,7 +6,7 @@ export type SchemaVersion = z.infer<typeof SchemaVersion>
 export const SourceSystem = z.enum(["soothsayer", "dax", "cli", "api"])
 export type SourceSystem = z.infer<typeof SourceSystem>
 
-export const WorkflowClass = z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff", "generic"])
+export const WorkflowClass = z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff", "worker_run", "generic"])
 export type WorkflowClass = z.infer<typeof WorkflowClass>
 
 export const WorkflowTrustPosture = z.enum(["high", "medium", "low", "minimal"])
@@ -252,7 +252,7 @@ export const CreateRunRequest = z
   .object({
     intent: RunIntent,
     personaPreset: PersonaPreset.optional(),
-    workflowHint: z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff"]).optional(),
+    workflowHint: WorkflowClass.optional(),
     metadata: z
       .object({
         initiatedBy: z.string().optional(),
