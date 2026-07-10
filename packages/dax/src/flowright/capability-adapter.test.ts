@@ -130,14 +130,43 @@ describe("Flowright capability receipt adapter", () => {
   })
 
   test("evidence digest changes when DAX-owned evidence changes", () => {
-    const first = computeEvidenceDigest({ snapshot: snapshot(), approvals: [], artifacts: [artifact], events: [event] })
-    const second = computeEvidenceDigest({
-      snapshot: snapshot({ status: "failed", terminalReason: "execution_error" }),
+    // Under runledger.evidence.v0 the digest covers evidence RECORDS, not the
+    // raw snapshot: run status alone is not evidence (state transitions come
+    // from run.state_changed events). Vary evidence-visible inputs.
+    const stateChanged: RunEvent = {
+      ...event,
+      eventId: "evt_2",
+      sequence: 2,
+      cursor: "evt_2",
+      type: "run.state_changed",
+      payload: { previousStatus: "running", currentStatus: "completed" },
+    } as RunEvent
+
+    const first = computeEvidenceDigest({ snapshot: snapshot(), approvals: [], artifacts: [artifact], events: [stateChanged] })
+    const withoutTransition = computeEvidenceDigest({
+      snapshot: snapshot(),
       approvals: [],
       artifacts: [artifact],
       events: [],
     })
+    const differentArtifact = computeEvidenceDigest({
+      snapshot: snapshot(),
+      approvals: [],
+      artifacts: [{ ...artifact, title: "Different Report" }],
+      events: [stateChanged],
+    })
 
-    expect(first).not.toBe(second)
+    expect(first).not.toBe(withoutTransition)
+    expect(first).not.toBe(differentArtifact)
+
+    // Run status alone (no evidence-record change) does NOT move the digest —
+    // the receipt's terminalState covers status; evidence covers evidence.
+    const statusOnly = computeEvidenceDigest({
+      snapshot: snapshot({ status: "failed", terminalReason: "execution_error" }),
+      approvals: [],
+      artifacts: [artifact],
+      events: [stateChanged],
+    })
+    expect(statusOnly).toBe(first)
   })
 })
