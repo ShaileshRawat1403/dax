@@ -44,6 +44,7 @@ import { Installation } from "../installation"
 import { RunRoutes } from "./routes/run"
 import { RaoRoutes } from "./routes/rao"
 import { SoothsayerRoutes } from "./routes/soothsayer"
+import { FlowrightRoutes } from "./routes/flowright"
 import { SubstrateRoutes } from "./routes/substrate"
 import { SandboxRoutes } from "./routes/sandbox"
 import { getSecrets } from "@/secrets/secrets-loader"
@@ -235,6 +236,7 @@ export namespace Server {
         .route("/runs", RunRoutes())
         .route("/rao", RaoRoutes())
         .route("/soothsayer", SoothsayerRoutes())
+        .route("/flowright", FlowrightRoutes())
         .route("/permission", PermissionRoutes())
         .route("/question", QuestionRoutes())
         .route("/provider", ProviderRoutes())

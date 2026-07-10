@@ -1,0 +1,54 @@
+import { describe, expect, test } from "bun:test"
+import os from "os"
+import path from "path"
+import { rmSync } from "fs"
+
+describe("Flowright capability service", () => {
+  test("invokes dax.repo_analyze and returns a valid DAX-owned receipt", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-flowright-capability-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const { FlowrightCapabilityService } = await import("./capability-service")
+      const { CapabilityRunReceipt } = await import("./capability-contract")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const response = await FlowrightCapabilityService.invoke("dax.repo_analyze", {
+          invocationId: "cap_repo_analyze_test",
+          input: {
+            prompt: "Analyze this repository structure and produce a read-only report.",
+            repoPath: repoRoot,
+          },
+          flowright: {
+            runId: "flowright-run-1",
+            stepId: "analyze_repo",
+            attemptNumber: 1,
+          },
+          timeoutMs: 3000,
+        })
+
+        expect(response.invocationId).toBe("cap_repo_analyze_test")
+        expect(response.externalRunId).toBe(response.receipt.externalRunId)
+        expect(CapabilityRunReceipt.parse(response.receipt)).toEqual(response.receipt)
+        expect(response.receipt.capability).toBe("dax.repo_analyze")
+        expect(response.receipt.authority).toBe("dax")
+        expect(response.receipt.terminalState).toBe("succeeded")
+        expect(response.receipt.evidenceDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
+        expect(response.receipt.approvals).toEqual([])
+        expect(response.receipt.deepLink).toBe(`/runs/${response.externalRunId}`)
+
+        const fetched = await FlowrightCapabilityService.getReceipt("cap_repo_analyze_test")
+        expect(fetched.invocationId).toBe(response.invocationId)
+        expect(fetched.externalRunId).toBe(response.externalRunId)
+        expect(fetched.evidenceDigest).toBe(response.receipt.evidenceDigest)
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
+})
