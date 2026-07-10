@@ -15,6 +15,10 @@ describe("Workflow Types", () => {
     expect(isFixedWorkflow("review_and_signoff")).toBe(true)
   })
 
+  test("isFixedWorkflow returns true for worker_run", () => {
+    expect(isFixedWorkflow("worker_run")).toBe(true)
+  })
+
   test("isFixedWorkflow returns false for other workflows", () => {
     expect(isFixedWorkflow("generic")).toBe(false)
   })
@@ -44,6 +48,14 @@ describe("Workflow Types", () => {
     expect(steps[3].type).toBe("finalize_outcome")
   })
 
+  test("getStepsForWorkflow returns fixed steps for worker_run", () => {
+    const steps = getStepsForWorkflow("worker_run")
+    expect(steps).toHaveLength(3)
+    expect(steps[0].type).toBe("run_worker")
+    expect(steps[1].type).toBe("request_approval")
+    expect(steps[2].type).toBe("finalize_outcome")
+  })
+
   test("getStepsForWorkflow returns empty for other workflows", () => {
     expect(getStepsForWorkflow("generic")).toHaveLength(0)
   })
@@ -70,16 +82,21 @@ describe("Workflow Registry", () => {
     expect(isWorkflowAvailable("review_and_signoff")).toBe(true)
   })
 
+  test("isWorkflowAvailable for worker_run", () => {
+    expect(isWorkflowAvailable("worker_run")).toBe(true)
+  })
+
   test("isWorkflowAvailable for unsupported workflows", () => {
     expect(isWorkflowAvailable("generic")).toBe(false)
   })
 
-  test("listAvailableWorkflows returns all three fixed workflows", () => {
+  test("listAvailableWorkflows returns all available fixed workflows", () => {
     const workflows = listAvailableWorkflows()
-    expect(workflows).toHaveLength(3)
+    expect(workflows).toHaveLength(4)
     expect(workflows).toContain("draft_and_approve")
     expect(workflows).toContain("repo_analyze")
     expect(workflows).toContain("review_and_signoff")
+    expect(workflows).toContain("worker_run")
   })
 
   test("WorkflowRegistry.get returns constructor for draft_and_approve", () => {
@@ -97,6 +114,11 @@ describe("Workflow Registry", () => {
     expect(constructor).not.toBeNull()
   })
 
+  test("WorkflowRegistry.get returns constructor for worker_run", () => {
+    const constructor = WorkflowRegistry.get("worker_run")
+    expect(constructor).not.toBeNull()
+  })
+
   test("WorkflowRegistry.get returns null for unsupported workflows", () => {
     expect(WorkflowRegistry.get("generic")).toBeNull()
   })
@@ -105,6 +127,7 @@ describe("Workflow Registry", () => {
     expect(WorkflowRegistry.isAvailable("draft_and_approve")).toBe(true)
     expect(WorkflowRegistry.isAvailable("repo_analyze")).toBe(true)
     expect(WorkflowRegistry.isAvailable("review_and_signoff")).toBe(true)
+    expect(WorkflowRegistry.isAvailable("worker_run")).toBe(true)
     expect(WorkflowRegistry.isAvailable("generic")).toBe(false)
   })
 })
