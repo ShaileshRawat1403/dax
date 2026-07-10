@@ -134,7 +134,6 @@ describe("receipt <-> evidence export meeting point", () => {
     const input = baseInput()
     const receipt = buildCapabilityReceipt({
       capability: "dax.repo_analyze",
-      invocationId: "inv-1",
       ...input,
     })
     const exported = buildEvidenceExport(input)
