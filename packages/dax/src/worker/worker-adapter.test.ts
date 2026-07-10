@@ -78,6 +78,13 @@ describe("worker adapter", () => {
     expect(invocation.command).toContain("workspace-write")
   })
 
+  test("claude worker gets headless edit permission without skipping all gates", () => {
+    const invocation = buildWorkerInvocation({ workerId: "claude", contract })
+    expect(invocation.command).toContain("--permission-mode")
+    expect(invocation.command).toContain("acceptEdits")
+    expect(invocation.command).not.toContain("--dangerously-skip-permissions")
+  })
+
   test("unknown workers and empty tasks are rejected", () => {
     expect(() => buildWorkerInvocation({ workerId: "copilot" as ExternalWorkerId, contract })).toThrow()
     expect(() => WorkerContract.parse({ ...contract, task: "" })).toThrow()

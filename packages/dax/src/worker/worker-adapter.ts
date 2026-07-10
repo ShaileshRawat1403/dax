@@ -69,7 +69,12 @@ type WorkerProfile = {
 const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   claude: {
     binary: "claude",
-    args: (prompt) => ["-p", prompt, "--output-format", "text"],
+    // acceptEdits: headless claude denies write tools by default (no human
+    // to answer its prompts). Inside DAX's disposable checkout with DAX's
+    // approval gate downstream, Claude's own interactive gate is a redundant
+    // double gate — file edits flow, the kernel diff and human review remain
+    // the authority. Deliberately NOT --dangerously-skip-permissions.
+    args: (prompt) => ["-p", prompt, "--output-format", "text", "--permission-mode", "acceptEdits"],
     envAllowlist: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"],
   },
   codex: {
