@@ -3,6 +3,8 @@ import { Storage } from "@/storage/storage"
 import { RunGateway } from "@/server/run-gateway"
 import type { CreateRunRequest } from "@/server/run-contract"
 import { Identifier } from "@/id/id"
+import { RunFactory } from "@/execution/run-factory"
+import { DraftApproveExecuteWorkflow } from "@/workflows/draft-approve-execute"
 import { buildCapabilityReceipt } from "./capability-adapter"
 import type {
   CapabilityApprovalDecisionRequest,
@@ -84,6 +86,17 @@ async function buildReceipt(record: InvocationRecord, options?: { timeoutReason?
   })
 }
 
+async function resumeDelegatedApproval(record: InvocationRecord, gateId: string, decision: "approve" | "deny"): Promise<void> {
+  if (record.capability !== "dax.draft_and_approve") return
+  const contract = await RunFactory.getContract(record.externalRunId)
+  if (!contract || contract.workflowClass !== "draft_and_approve") return
+  const workflow = new DraftApproveExecuteWorkflow({
+    runId: record.externalRunId,
+    contract,
+  })
+  await workflow.resumeAfterApproval(gateId, decision === "approve" ? "approved" : "denied")
+}
+
 function buildCreateRunRequest(capability: CapabilityName, input: CapabilityInvokeRequest): CreateRunRequest {
   const workflowHint = CAPABILITY_WORKFLOWS[capability]
   const prompt = input.input.prompt?.trim() || `Run ${capability}`
@@ -152,6 +165,7 @@ export namespace FlowrightCapabilityService {
       source: "api",
       comment: input.comment,
     })
+    await resumeDelegatedApproval(record, gateId, input.decision)
     return buildReceipt(record)
   }
 }

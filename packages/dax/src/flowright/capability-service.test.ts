@@ -51,4 +51,43 @@ describe("Flowright capability service", () => {
       rmSync(testHome, { recursive: true, force: true })
     }
   }, 40000)
+
+  test("forwards dax.draft_and_approve approvals into terminal receipts", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-flowright-approval-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const { FlowrightCapabilityService } = await import("./capability-service")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      await bootstrap(repoRoot, async () => {
+        const response = await FlowrightCapabilityService.invoke("dax.draft_and_approve", {
+          invocationId: "cap_draft_approve_test",
+          input: {
+            prompt: "Draft a release note and wait for approval.",
+          },
+          timeoutMs: 3000,
+        })
+
+        expect(response.receipt.terminalState).toBe("needs_approval")
+        const gate = response.receipt.approvals.find((approval) => approval.status === "pending")
+        expect(gate).toBeDefined()
+
+        const approved = await FlowrightCapabilityService.decideApproval("cap_draft_approve_test", gate!.gateId, {
+          decision: "approve",
+          actorId: "flowright-test",
+        })
+
+        expect(approved.terminalState).toBe("succeeded")
+        expect(approved.evidenceDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
+        expect(approved.completedAt).toBeDefined()
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
 })
