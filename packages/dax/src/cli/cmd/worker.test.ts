@@ -8,6 +8,7 @@ const base = {
   writeScope: ["src/**", "test/**"],
   forbiddenPaths: ["package.json"],
   verification: ["bun test"],
+  isolation: "seatbelt; checkout-only writes; provider network",
   sources: {
     writeScope: "inferred" as const,
     forbiddenPaths: "operator-authored" as const,
@@ -76,6 +77,7 @@ describe("renderVetoCard — Job 2: pre-run confirmation", () => {
     expect(card).toContain("src/**")
     expect(card).toContain("package.json")
     expect(card).toContain("bun test")
+    expect(card).toContain("seatbelt")
   })
 
   test("per-field provenance tags are shown correctly", () => {

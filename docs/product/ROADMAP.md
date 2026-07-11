@@ -19,7 +19,7 @@ That means the next releases should focus on:
 flowchart LR
     A[v1.0.9<br/>Production readiness] --> B[v1.0.10<br/>Refine operator contract]
     B --> C[v1.1.x<br/>Approval inbox and richer governance]
-    C --> D[v1.2.x<br/>Remote operator workflows and continuity]
+    C --> D[v1.2.x<br/>Govern external coding workers]
     style A fill:#2f936e,stroke:#1f6148,color:#fff
     style B fill:#2b6f9b,stroke:#1a4764,color:#fff
     style C fill:#3a7ca5,stroke:#234c66,color:#fff
@@ -82,18 +82,22 @@ Likely priorities:
 - improved review and sign-off workflows
 - more durable release and handoff operations
 
-## `v1.2.x` — Remote Operator Continuity
+## `v1.2.x` — Govern External Coding Workers
 
 Theme:
 
-> DAX expands from a strong local workstation into a broader governance system.
+> Bring your own coding agent; keep DAX governance.
 
-Likely priorities:
+Priorities:
 
-- Soothsayer-backed approval resolution
-- remote operator inbox and review
-- notifications for approvals and interventions
-- stronger continuity between local DAX, PM memory, and shared governance layers
+- disposable worker checkouts with kernel-computed diffs
+- operator-authored or confirmed scope and verification contracts
+- DAX-owned verification receipts before review
+- OS isolation that fails closed when unavailable
+- Flowright capability receipts without duplicate run authority
+
+Remote operator continuity remains a later suite concern. It does not belong
+inside the DAX worker proof and should not widen this release.
 
 ## What Not To Do Too Early
 

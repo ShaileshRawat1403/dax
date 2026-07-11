@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { buildWorkerVerificationChecks, verifyWorkerPatch } from "./worker-verification"
 import type { CheckResult } from "@/sdlc/check-types"
+import { createEvidenceReceipt } from "@/sdlc/evidence-receipt"
 
 function result(check: { id: string; command: string; cwd: string }, status: CheckResult["status"]): CheckResult {
   const now = new Date().toISOString()
@@ -69,5 +70,19 @@ describe("worker verification", () => {
     expect(verification.passed).toBeFalse()
     expect(verification.checks[0]).toMatchObject({ status: "error", stderrPreview: "runner unavailable" })
     expect(verification.receipts[0]).toMatchObject({ runId: "run_1", status: "error", source: "dax" })
+  })
+
+  test("attests raw results while persisting only redacted previews", async () => {
+    const raw = result({ id: "worker-verification-1", command: "bun", cwd: "/repo" }, "failed")
+    raw.stderrPreview = "token=private-verification-token"
+    const verification = await verifyWorkerPatch({
+      runId: "run_1",
+      cwd: "/repo",
+      commands: ["bun test"],
+      run: async () => raw,
+    })
+
+    expect(verification.checks[0]?.stderrPreview).toBe("token=[REDACTED]")
+    expect(verification.receipts[0]?.digest).toBe(createEvidenceReceipt("run_1", raw).digest)
   })
 })

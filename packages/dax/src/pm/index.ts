@@ -13,6 +13,10 @@ export namespace PM {
     const file = path.join(Global.Path.state, "pm.sqlite")
     fs.mkdirSync(path.dirname(file), { recursive: true })
     const db = new Database(file, { create: true })
+    // DAX commonly has a TUI and operator commands open together. Apply the
+    // wait policy before WAL/schema setup so concurrent process startup does
+    // not surface SQLITE_BUSY_RECOVERY to the operator.
+    db.exec("pragma busy_timeout = 5000;")
     db.exec(
       [
         "pragma journal_mode = wal;",

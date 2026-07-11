@@ -2,6 +2,7 @@ import { createEvidenceReceipt, type EvidenceReceipt } from "@/sdlc/evidence-rec
 import { runCheck } from "@/sdlc/check-runner"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { isWhitelistedVerificationCommand, parseCommandExecutable } from "@/tool/shell-whitelist"
+import { redactCheckResult } from "./evidence-redaction"
 
 export type WorkerVerificationResult = {
   checks: CheckResult[]
@@ -122,10 +123,12 @@ export async function verifyWorkerPatch(input: {
 
   const passed = checks.length > 0 && checks.every((check) => check.status === "passed")
   const failures = checks.filter((check) => check.status !== "passed")
+  // Receipts attest the exact result; durable previews are separately redacted.
+  const receipts = checks.map((check) => createEvidenceReceipt(input.runId, check))
 
   return {
-    checks,
-    receipts: checks.map((check) => createEvidenceReceipt(input.runId, check)),
+    checks: checks.map((check) => redactCheckResult(check)),
+    receipts,
     passed,
     failureSummary:
       failures.length > 0 ? failures.map((check) => `${check.command}: ${check.status}`).join(", ") : undefined,

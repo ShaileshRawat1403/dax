@@ -135,12 +135,27 @@ DAX replaces free-running autonomy with the **RAO** (Run-Audit-Override) model:
 - **Multi-Provider Substrate**: Seamless integration with OpenAI, Google Gemini, Anthropic, Ollama, and custom MCP servers.
 - **Built-In Skills**: Ships first-party workflow skills such as `repo-explore`, `git-review`, `release-readiness`, and `artifact-audit`.
 - **Project Memory (PM)**: Durable, cross-session operational memory stored in a local SQLite engine.
+- **Governed External Workers**: Run Claude Code, Codex CLI, or Gemini CLI in a disposable checkout while DAX owns scope enforcement, verification, evidence, and approval.
 - **ELI12 Mode**: Real-time response translation for non-technical stakeholders without losing technical precision.
 - **Professional Tooling**:
   - `dax explore`: Structured repository analysis and shape detection.
   - `dax audit`: Real-time trust posture assessment.
   - `dax verify`: Evidence-based session validation.
   - `dax plan`: Inspect and refine task graphs before execution.
+  - `dax worker run`: Govern an external coding agent instead of trusting its self-report.
+
+### Govern an external coding agent
+
+```bash
+dax doctor
+dax worker run codex --write-scope "src/**" --forbid package.json --verify "bun test" -- \
+  "add an isEven helper with tests"
+```
+
+DAX shows the exact contract before launch, runs the worker in a disposable
+checkout, computes the Git diff itself, executes verification without network,
+and pauses for a human decision. Governed external workers require macOS
+Seatbelt or Linux bubblewrap; Windows support is not included in the v1.2 beta.
 
 ## How DAX Differs
 

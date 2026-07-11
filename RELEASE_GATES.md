@@ -1,44 +1,60 @@
-# DAX Release Gates & Non-Goals
+# DAX Release Gates and Non-Goals
 
-## Status: Frozen for Production Release
-This repository and its sub-packages are now under **Release Freeze** for the initial production-ready version. No new features, modes, or providers will be added until the production-ready criteria are met.
+## Candidate
 
----
+`v1.2.0-beta.1` validates governed external coding workers without expanding DAX into another general-purpose coding agent.
 
-## Non-Goals (v1.0.0)
-The initial production release of DAX explicitly **excludes** the following:
-*   **Chat-only assistant behavior:** DAX is an execution-first engine, not a general-purpose chat interface.
-*   **Hidden side-effects:** Any mutation *must* be reflected in the event stream and, where policy requires, approved.
-*   **Multi-tenant state sharing:** Each session is isolated; cross-session or multi-user state synchronization is out of scope.
-*   **Arbitrary provider expansion:** We are focusing on stabilizing the core `@ai-sdk/*` providers we have, not adding more at this time.
-*   **GCP/Vertex work:** While integrated, the current push is for the core DAX execution layer, not GCP-specific extensions.
+## Non-Goals
 
----
+- Competing with frontier coding agents on raw model quality.
+- Silent mutation, publish, deploy, recovery, or approval from free text.
+- Claiming that governance makes stochastic model output deterministic.
+- Claiming enterprise readiness before real-repository recovery and operator receipts exist.
+- Shipping Windows external-worker isolation in this beta.
 
-## Production Gate Checklist
-The following criteria must be met and verified for the release:
+## Required Gates
 
-### 1. Trust & Determinism
-- [ ] No false claims: All reported outcomes must be grounded in tool outputs.
-- [ ] Immutable event stream: Replay of a run must result in the same projected state.
-- [ ] Contract Match: Execution logic must strictly follow the `workspace-mcp` kernel contract.
+### Trust and authority
 
-### 2. Execution Safety (RAO)
-- [ ] Mutation Budgets: Hard limit on number of file/shell mutations per session.
-- [ ] Loop Breaker: Detect and stop repeated tool calls with identical arguments.
-- [ ] Sensitive Path Guards: Block access to `.env`, `.git/`, and credentials.
-- [ ] Rollback Anchors: System must create a state marker/snapshot before first mutation.
+- [x] Illegal run transitions cannot mutate canonical state.
+- [x] DAX computes worker diffs instead of trusting worker self-reports.
+- [x] Scope and forbidden-path rules are enforced against Git-derived paths.
+- [x] Verification runs before human review and fails closed.
+- [x] Approval remains an explicit operator decision.
+- [x] Evidence previews are redacted; exact-result digests remain in receipts.
 
-### 3. Mode Integrity
-- [ ] `Explore`, `Docs`, and `Plan` modes cannot mutate the workspace.
-- [ ] Promotion path: Promotion from `Plan` to `Run` must be explicit and audited.
+### Isolation and compatibility
 
-### 4. TUI Stability & Reliability
-- [ ] No visual regressions or race conditions in TUI state projection.
-- [ ] Successful E2E run on macOS, Linux, and Windows CI.
+- [x] Worker launch requires a successful OS-isolation probe.
+- [x] macOS Seatbelt and Linux bubblewrap plans have focused tests.
+- [x] Unsupported worker platforms fail closed with an actionable message.
+- [x] Built-in DAX workflows remain usable when worker isolation is unavailable.
+- [ ] A real repository worker run produces an approve or deny receipt.
 
----
+### Release quality
+
+- [x] `bun run check:repo`
+- [x] `bun run --cwd packages/dax lint`
+- [x] `bun run typecheck:dax`
+- [x] `bun run test --coverage` (1,119 pass across 133 files)
+- [x] `bun run eval:smoke` (5/5 scenarios)
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo clippy --workspace --all-targets -- -D warnings`
+- [x] `cargo test --workspace`
+- [x] `bun audit` has zero high-severity findings
+- [x] Canonical release build produces all 11 target archives, manifest, installer, and verified checksums
+- [ ] GitHub CI is green on Ubuntu, macOS, and Windows for the release PR
+
+## Known Beta Boundaries
+
+- Worker provider calls use full network access; hostname allowlisting is future hardening.
+- Worker profiles permit host reads and confine writes; use a container or VM for stronger confidentiality.
+- Windows external workers are unavailable.
+- The residual dependency advisories require major upstream migrations and are documented in the changelog.
 
 ## References
-- [Production Readiness Plan](./docs/releases/v1.0.14-production-readiness-plan.md)
-- [Architecture Guide](./docs/architecture/ARCHITECTURE.md)
+
+- [v1.2.0-beta.1 release notes](./docs/releases/v1.2.0-beta.1.md)
+- [BYOA strategy](./docs/dax/byoa-strategy.md)
+- [Transparency and limitations](./docs/product/TRANSPARENCY_AND_LIMITATIONS.md)
+- [Architecture guide](./docs/architecture/ARCHITECTURE.md)

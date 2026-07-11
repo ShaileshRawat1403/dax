@@ -23,9 +23,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: |
-          bun install --os="*" --cpu="*" @opentui/core @parcel/watcher
-          bun install
+        run: bun install
 
       - name: Verify release inputs
         run: bun run release:check
@@ -34,7 +32,7 @@ jobs:
         run: bun run build
         working-directory: packages/dax
         env:
-          DAX_CHANNEL: "latest"
+          DAX_CHANNEL: ${{ contains(github.ref_name, '-beta.') && 'beta' || 'latest' }}
 
       - name: List release assets
         run: find packages/dax/dist/release -maxdepth 1 -type f | sort
@@ -47,7 +45,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub release assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             packages/dax/dist/release/*.tar.gz
@@ -56,5 +54,7 @@ jobs:
             packages/dax/dist/release/SHA256SUMS
             packages/dax/dist/release/install.sh
           fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-beta.') }}
+          make_latest: ${{ contains(github.ref_name, '-beta.') && 'false' || 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

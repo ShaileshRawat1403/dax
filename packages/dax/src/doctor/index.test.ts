@@ -1,6 +1,24 @@
 import { describe, expect, test } from "bun:test"
 import type { Config } from "@/config/config"
-import { classifyMcpReadiness, doctorExitCode, formatDoctorSection } from "./index"
+import {
+  authSectionFromReports,
+  classifyMcpReadiness,
+  doctorExitCode,
+  formatDoctorSection,
+  workerSectionFromCheck,
+} from "./index"
+import type { AuthDiagnostics } from "@/provider/auth-preflight"
+
+function authReport(providerID: string, ok: boolean): AuthDiagnostics {
+  return {
+    providerID,
+    mode: ok ? "openai-oauth" : "missing",
+    ok,
+    requiredEnv: [],
+    missingEnv: ok ? [] : ["PROVIDER_TOKEN"],
+    details: [],
+  }
+}
 
 describe("doctor readiness", () => {
   test("treats missing local MCP executables as degraded instead of blocked", () => {
@@ -54,5 +72,42 @@ describe("doctor readiness", () => {
 
     expect(output).toContain("MCP: Degraded")
     expect(output).toContain("operational state: Waiting")
+  })
+
+  test("keeps DAX usable when one configured provider lane is ready", () => {
+    const result = authSectionFromReports([authReport("openai", true), authReport("google-vertex", false)])
+
+    expect(result.readiness).toBe("degraded")
+    expect(result.state).toBe("waiting")
+    expect(result.summary).toContain("1/2 provider lanes ready")
+  })
+
+  test("blocks when no configured provider lane is usable", () => {
+    const unconfigured = authSectionFromReports([])
+    expect(unconfigured.readiness).toBe("blocked")
+    expect(unconfigured.next[0]).toContain("dax auth login")
+    expect(authSectionFromReports([authReport("openai", false)]).readiness).toBe("blocked")
+  })
+
+  test("strict provider checks block on the requested lane", () => {
+    const result = authSectionFromReports([authReport("openai", true), authReport("google-vertex", false)], true)
+    expect(result.readiness).toBe("blocked")
+  })
+
+  test("reports unavailable optional worker isolation without blocking DAX", () => {
+    const result = workerSectionFromCheck({ available: false, reason: "bubblewrap is unavailable" })
+    expect(result.readiness).toBe("degraded")
+    expect(result.state).toBe("waiting")
+    expect(result.summary).toContain("isolation is unavailable")
+  })
+
+  test("reports governed workers ready only after a successful probe", () => {
+    const result = workerSectionFromCheck({
+      available: true,
+      provider: "seatbelt",
+      summary: "seatbelt; checkout-only writes; network denied",
+    })
+    expect(result.readiness).toBe("ready")
+    expect(result.detail.join("\n")).toContain("network denied")
   })
 })
