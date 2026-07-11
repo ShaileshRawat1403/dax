@@ -13,8 +13,11 @@ import z from "zod"
  * diffing, approval, and evidence stay with the run machinery.
  *
  * Trust rules encoded here:
- * - env is allowlist-only per worker: the worker gets its own credentials
- *   and nothing else from the operator's environment.
+ * - env is allowlist-only: every worker gets the shared BASE_ENV_ALLOWLIST
+ *   (session identity — HOME, USER, LOGNAME, TMPDIR — needed to resolve
+ *   keychain/OAuth tokens) plus its own credential vars, and nothing else
+ *   from the operator's environment. Identity ≠ secrets: the credential
+ *   boundary remains per-worker.
  * - the contract prompt states write scope, forbidden operations, and
  *   verification expectations in plain language; enforcement does NOT rely
  *   on the worker honoring it — the kernel-computed diff and path guards
@@ -91,6 +94,10 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
 
 export const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000
 
+/** Session identity every worker needs to resolve its own auth/config.
+ *  Identity, not secrets — the credential boundary stays per-worker. */
+const BASE_ENV_ALLOWLIST = ["HOME", "USER", "LOGNAME", "TMPDIR"]
+
 /**
  * The execution contract, rendered as the worker's prompt envelope. Plain
  * language, no tool-specific syntax — every worker gets the same contract.
@@ -120,14 +127,14 @@ export function renderWorkerPrompt(contract: WorkerContract): string {
   return lines.join("\n")
 }
 
-/** Allowlist-only env passthrough: worker credentials in, nothing else. */
+/** Allowlist-only env passthrough: session identity + worker credentials in, nothing else. */
 export function buildWorkerEnv(
   workerId: ExternalWorkerId,
   hostEnv: Record<string, string | undefined>,
   contract: WorkerContract,
 ): Record<string, string> {
   const env: Record<string, string> = {}
-  for (const name of WORKER_PROFILES[workerId].envAllowlist) {
+  for (const name of [...BASE_ENV_ALLOWLIST, ...WORKER_PROFILES[workerId].envAllowlist]) {
     const value = hostEnv[name]
     if (value) env[name] = value
   }

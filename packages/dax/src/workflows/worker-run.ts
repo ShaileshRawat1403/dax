@@ -71,8 +71,9 @@ const defaultEffects: WorkerRunEffectsShape = {
     const proc = Bun.spawn(invocation.command, {
       cwd,
       // Allowlist-only env from the adapter; the operator's shell env never
-      // reaches the worker. PATH/HOME come through minimally for binaries.
-      env: { ...invocation.env, PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" },
+      // reaches the worker. PATH added here for binary resolution; identity
+      // vars (HOME, USER, LOGNAME, TMPDIR) come through BASE_ENV_ALLOWLIST.
+      env: { ...invocation.env, PATH: process.env.PATH ?? "" },
       stdout: "pipe",
       stderr: "pipe",
     })
