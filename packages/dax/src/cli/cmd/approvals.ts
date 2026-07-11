@@ -103,6 +103,18 @@ export function toApprovalRow(input: Permission.Request): ApprovalRow {
   }
 }
 
+/** Map canonical run approvals so a fresh CLI process can review worker gates. */
+export function toRunApprovalRow(input: Awaited<ReturnType<typeof RunGateway.getApprovals>>[number]): ApprovalRow {
+  return {
+    id: input.approvalId,
+    status: "awaiting_operator_decision",
+    session_id: input.runId,
+    requested_action: input.type.replaceAll("_", " "),
+    reason: input.reason,
+    created_at: Date.parse(input.createdAt),
+  }
+}
+
 export function formatApprovalTable(rows: ApprovalRow[]): string {
   if (rows.length === 0) return "No pending approvals."
 
@@ -348,9 +360,11 @@ export const ApprovalsCommand = cmd({
   handler: async (args) => {
     await bootstrap(process.cwd(), async () => {
       const approvals = await Permission.list()
-      const rows = approvals
-        .filter((item) => !args.session || item.sessionID === args.session)
-        .map(toApprovalRow)
+      const canonicalApprovals = args.session ? await RunGateway.getApprovals(String(args.session)) : []
+      const rows = (canonicalApprovals.length > 0
+        ? canonicalApprovals.map(toRunApprovalRow)
+        : approvals.filter((item) => !args.session || item.sessionID === args.session).map(toApprovalRow)
+      )
         .sort((a, b) => a.created_at - b.created_at)
 
       if (args.format === "json") {

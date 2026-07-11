@@ -563,6 +563,44 @@ describe("session timeline helpers", () => {
     expect(rendered).toContain("6")
   })
 
+  test("prefers event-authority truth for governed worker runs", () => {
+    const rendered = formatSessionShowSummary({
+      id: "ses_worker_1",
+      title: "Governed worker change",
+      project_id: "project_1",
+      directory: "/repo",
+      created: 1_000,
+      updated: 2_000,
+      outcome: "active",
+      lifecycle_state: "created",
+      lifecycle_terminal: false,
+      lifecycle_requires_reconciliation: false,
+      trust_posture: "review_needed",
+      verification_result: "verification_incomplete",
+      write_outcome: "none",
+      write_governance_status: "none",
+      stage: "review",
+      artifact_count: 0,
+      approval_count: 0,
+      override_count: 0,
+      timeline_count: 0,
+      audit_posture: "review_needed",
+      governed_run: {
+        status: "failed",
+        verification: "passed",
+        receipt_count: 1,
+        pending_approval_ids: [],
+        draft: { type: "patch", content: "diff --git a/file b/file" },
+      },
+    })
+
+    expect(rendered).toContain("Governed run")
+    expect(rendered).toContain("Failed")
+    expect(rendered).toContain("passed (1 receipt)")
+    expect(rendered).toContain("diff --git a/file b/file")
+    expect(rendered).not.toContain("Session record")
+  })
+
   test("derives a review stage when governance or audit review is still active", () => {
     expect(
       deriveSessionStage({

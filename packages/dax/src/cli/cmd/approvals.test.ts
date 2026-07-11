@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import os from "os"
 import path from "path"
 import { rmSync } from "fs"
-import { formatApprovalTable, toApprovalRow } from "./approvals"
+import { formatApprovalTable, toApprovalRow, toRunApprovalRow } from "./approvals"
 
 async function waitForPending(Permission: { list: () => Promise<any[]> }, count: number): Promise<any[]> {
   for (let attempt = 0; attempt < 250; attempt++) {
@@ -37,6 +37,27 @@ describe("approvals command", () => {
     expect(row.requested_action).toBe("shell npm run build")
     expect(row.reason).toBe("Run build before packaging")
     expect(row.session_id).toBe("session_123")
+  })
+
+  test("maps canonical run approvals for fresh-process worker review", () => {
+    const row = toRunApprovalRow({
+      approvalId: "apr_worker_1",
+      runId: "ses_worker_1",
+      type: "patch_apply",
+      status: "pending",
+      risk: "medium",
+      title: "Approve governed Claude Code changes",
+      reason: "A kernel-computed diff needs an operator decision.",
+      context: {},
+      createdAt: "2026-07-11T10:00:00.000Z",
+      updatedAt: "2026-07-11T10:00:00.000Z",
+    })
+
+    expect(row).toMatchObject({
+      id: "apr_worker_1",
+      session_id: "ses_worker_1",
+      requested_action: "patch apply",
+    })
   })
 
   test(
