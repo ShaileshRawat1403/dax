@@ -45,6 +45,9 @@ describe("worker adapter", () => {
       GEMINI_API_KEY: "gm-xxx",
       AWS_SECRET_ACCESS_KEY: "leak-me-not",
       HOME: "/Users/operator",
+      USER: "operator",
+      LOGNAME: "operator",
+      TMPDIR: "/tmp/operator",
       GITHUB_TOKEN: "ghp-leak-me-not",
     }
     const claudeEnv = buildWorkerEnv("claude", hostEnv, contract)
@@ -52,11 +55,30 @@ describe("worker adapter", () => {
     expect(claudeEnv.OPENAI_API_KEY).toBeUndefined()
     expect(claudeEnv.AWS_SECRET_ACCESS_KEY).toBeUndefined()
     expect(claudeEnv.GITHUB_TOKEN).toBeUndefined()
-    expect(claudeEnv.HOME).toBeUndefined()
 
     const codexEnv = buildWorkerEnv("codex", hostEnv, contract)
     expect(codexEnv.OPENAI_API_KEY).toBe("sk-oai-xxx")
     expect(codexEnv.ANTHROPIC_API_KEY).toBeUndefined()
+  })
+
+  test("base session identity (HOME/USER/LOGNAME/TMPDIR) passes through for all workers", () => {
+    const hostEnv = {
+      HOME: "/Users/operator",
+      USER: "operator",
+      LOGNAME: "operator",
+      TMPDIR: "/tmp/operator",
+      AWS_SECRET_ACCESS_KEY: "never",
+      GITHUB_TOKEN: "never",
+    }
+    for (const workerId of ExternalWorkerId.options) {
+      const env = buildWorkerEnv(workerId, hostEnv, contract)
+      expect(env.HOME).toBe("/Users/operator")
+      expect(env.USER).toBe("operator")
+      expect(env.LOGNAME).toBe("operator")
+      expect(env.TMPDIR).toBe("/tmp/operator")
+      expect(env.AWS_SECRET_ACCESS_KEY).toBeUndefined()
+      expect(env.GITHUB_TOKEN).toBeUndefined()
+    }
   })
 
   test("contract metadata rides the env for worker-side traceability", () => {
