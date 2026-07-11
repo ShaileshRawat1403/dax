@@ -43,7 +43,7 @@
 - [x] `cargo test --workspace`
 - [x] `bun audit` has zero high-severity findings
 - [x] Canonical release build produces all 11 target archives, manifest, installer, and verified checksums
-- [ ] GitHub CI is green on Ubuntu, macOS, and Windows for the release PR
+- [x] GitHub CI is green on Ubuntu, macOS, and Windows for release PR #13 (run 29149162194)
 
 ## Known Beta Boundaries
 
