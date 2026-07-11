@@ -59,6 +59,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck:dax
 
+      - name: Lint
+        run: bun run --cwd packages/dax lint
+
       - name: Test
         run: bun run test --coverage
 

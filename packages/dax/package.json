@@ -12,7 +12,8 @@
     "test": "bun test",
     "build": "bun run script/build.ts",
     "dev": "bun run --conditions=browser ./src/index.ts",
-    "lint": "eslint src/ --ext .ts,.tsx,.js,.jsx"
+    "lint": "eslint src/ --ext .ts,.tsx,.js,.jsx --suppressions-location eslint-suppressions.json",
+    "lint:baseline": "eslint src/ --ext .ts,.tsx,.js,.jsx --suppressions-location eslint-suppressions.json --suppress-all"
   },
   "bin": {
     "dax": "./bin/dax",
