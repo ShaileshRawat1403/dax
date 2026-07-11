@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { renderVetoCard } from "./worker"
+import { renderVetoCard, resolveFieldProvenance } from "./worker"
 
 const base = {
   agent: "claude" as const,
@@ -14,6 +14,28 @@ const base = {
     verification: "inferred" as const,
   },
 }
+
+describe("resolveFieldProvenance — eight input combinations", () => {
+  // operator-authored always wins regardless of card state
+  test("operator-authored, card shown, accepted → operator-authored", () =>
+    expect(resolveFieldProvenance("operator-authored", true, true)).toBe("operator-authored"))
+  test("operator-authored, card shown, rejected → operator-authored", () =>
+    expect(resolveFieldProvenance("operator-authored", true, false)).toBe("operator-authored"))
+  test("operator-authored, card not shown, accepted → operator-authored", () =>
+    expect(resolveFieldProvenance("operator-authored", false, true)).toBe("operator-authored"))
+  test("operator-authored, card not shown, not accepted → operator-authored", () =>
+    expect(resolveFieldProvenance("operator-authored", false, false)).toBe("operator-authored"))
+
+  // inferred: outcome depends on card interaction
+  test("inferred, card shown, accepted → operator-confirmed", () =>
+    expect(resolveFieldProvenance("inferred", true, true)).toBe("operator-confirmed"))
+  test("inferred, card shown, not accepted → inferred-unreviewed (abort path; never reaches event)", () =>
+    expect(resolveFieldProvenance("inferred", true, false)).toBe("inferred-unreviewed"))
+  test("inferred, card not shown (--yes), not accepted → inferred-unreviewed", () =>
+    expect(resolveFieldProvenance("inferred", false, false)).toBe("inferred-unreviewed"))
+  test("inferred, card not shown (--yes), accepted flag ignored → inferred-unreviewed", () =>
+    expect(resolveFieldProvenance("inferred", false, true)).toBe("inferred-unreviewed"))
+})
 
 describe("renderVetoCard — Job 2: pre-run confirmation", () => {
   test("card contains all key fields", () => {

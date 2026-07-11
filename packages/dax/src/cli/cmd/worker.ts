@@ -8,10 +8,11 @@ import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
 import { ExternalWorkerId } from "../../worker/worker-adapter"
 
-type FieldSource = "operator-authored" | "inferred"
+export type FieldSource = "operator-authored" | "inferred"
 
-/** Determine final provenance after card interaction. */
-function resolveFieldProvenance(
+/** Determine final provenance after card interaction.
+ *  authorship (CLI flag) beats confirmation (card + Enter) beats unreviewed (--yes). */
+export function resolveFieldProvenance(
   source: FieldSource,
   cardShown: boolean,
   cardAccepted: boolean,
