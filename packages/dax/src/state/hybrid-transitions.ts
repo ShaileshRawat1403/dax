@@ -66,9 +66,9 @@ export class HybridTransitions {
     return Transitions.resolveApproval(runId, approvalId)
   }
 
-  static async transition(runId: string, newStatus: RunStatus, eventType: string): Promise<RunState> {
+  static async transition(runId: string, newStatus: RunStatus, eventType: string, payload: unknown = {}): Promise<RunState> {
     if (await isEventAuthorityRun(runId)) {
-      return transitionEventAuthority(runId, newStatus, eventType, {})
+      return transitionEventAuthority(runId, newStatus, eventType, payload)
     }
     return Transitions.transition(runId, newStatus, eventType)
   }

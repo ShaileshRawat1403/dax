@@ -13,6 +13,9 @@ import {
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
+import { verifyWorkerPatch } from "@/worker/worker-verification"
+import { runCheck } from "@/sdlc/check-runner"
+import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -50,6 +53,8 @@ export type WorkerRunEffectsShape = {
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
   /** Kernel-owned diff and changed paths (including untracked files). */
   computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
+  /** DAX-owned verification command runner; injectable for workflow tests. */
+  runVerification: (check: CheckDefinition) => Promise<CheckResult>
 }
 
 const defaultEffects: WorkerRunEffectsShape = {
@@ -121,6 +126,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     ])
     return { content, changedPaths }
   },
+  runVerification: runCheck,
 }
 
 /** Test seam: swap effects, always restore. */
@@ -227,12 +233,13 @@ export class WorkerRunWorkflow {
     const workerId = workerIdFromProviderHint(this.contract.providerHint)
     if (!workerId) {
       const error = `worker_run requires providerHint "worker:<claude|codex|gemini>", got "${this.contract.providerHint ?? "none"}"`
-      await HybridTransitions.transition(this.runId, "failed", "invalid_worker")
+      await this.failRun("invalid_worker", error)
       return { success: false, stepResults, error }
     }
     if (!this.contract.repoPath) {
-      await HybridTransitions.transition(this.runId, "failed", "missing_repo_path")
-      return { success: false, stepResults, error: "worker_run requires contract.repoPath" }
+      const error = "worker_run requires contract.repoPath"
+      await this.failRun("missing_repo_path", error)
+      return { success: false, stepResults, error }
     }
 
     const workerResult = await this.executeRunWorker(workerId, this.contract.repoPath)
@@ -266,10 +273,9 @@ export class WorkerRunWorkflow {
         this.contract.runtimePolicy,
       )
 
-      // Record scope provenance in the event chain so operator-authored, operator-confirmed,
-      // and inferred-unreviewed fields are distinguishable in the audit trail.
-      // Non-fatal: a recording failure must not block the governed run.
-      appendEventOnly(this.runId, "contract_refined", {
+      // Scope provenance is part of the receipt. Event ordering is mandatory:
+      // an unrecorded contract must never race later evidence or review state.
+      await appendEventOnly(this.runId, "contract_refined", {
         writeScope: contract.writeScope,
         forbiddenPaths: contract.forbiddenPaths,
         verification: contract.verification,
@@ -278,8 +284,6 @@ export class WorkerRunWorkflow {
           forbiddenPaths: "inferred-unreviewed",
           verification: "inferred-unreviewed",
         },
-      }).catch((err) => {
-        log.warn("contract_refined event not recorded", { runId: this.runId, error: String(err) })
       })
 
       const invocation = buildWorkerInvocation({
@@ -307,9 +311,15 @@ export class WorkerRunWorkflow {
       }
       this.diffContent = patch.content
 
+      await HybridTransitions.completeStep(this.runId, stepId, [`worker:${workerId}`, `diff:${patch.changedPaths.length}`])
+
+      const verification = await this.executeVerifyWorkerPatch(checkout.path, contract)
+      if (!verification.success) {
+        return verification
+      }
+
       const draftId = `draft_${Identifier.create("session", false)}`
       await HybridTransitions.createDraft(this.runId, draftId, "patch", patch.content, undefined)
-      await HybridTransitions.completeStep(this.runId, stepId, [`draft:patch`, `worker:${workerId}`])
 
       log.info("run_worker completed", { runId: this.runId, workerId, diffBytes: patch.content.length })
       return {
@@ -326,11 +336,71 @@ export class WorkerRunWorkflow {
       const message = error instanceof Error ? error.message : String(error)
       log.error("run_worker failed", { runId: this.runId, workerId, error: message })
       await HybridTransitions.failStep(this.runId, stepId, { code: "worker_failed", message })
-      await HybridTransitions.transition(this.runId, "failed", "execution_error")
+      await this.failRun("execution_error", message)
       return { stepId, success: false, outputs: [], error: message }
     } finally {
       await checkout?.cleanup().catch(() => {})
     }
+  }
+
+  private async executeVerifyWorkerPatch(checkoutPath: string, contract: WorkerContract): Promise<WorkflowStepResult> {
+    const stepId = `step_${Identifier.create("part", false)}`
+    try {
+      await HybridTransitions.addStep(this.runId, stepId, "Verify worker patch", "executed")
+      await HybridTransitions.startStep(this.runId, stepId)
+
+      const verification = await verifyWorkerPatch({
+        runId: this.runId,
+        cwd: checkoutPath,
+        commands: contract.verification,
+        run: WorkerRunEffects.current.runVerification,
+      })
+      const artifactId = `verification_${Identifier.create("session", false)}`
+
+      // The event log retains the exact DAX-run check results and receipt digests.
+      // It is required evidence: a run must not reach human review without it.
+      await appendEventOnly(this.runId, "verification_recorded", {
+        status: verification.passed ? "passed" : "failed",
+        receipts: verification.receipts,
+        checks: verification.checks,
+      })
+      await appendEventOnly(this.runId, "artifact_created", {
+        artifactId,
+        artifactType: "verification_report",
+      })
+
+      const receiptIds = verification.receipts.map((receipt) => receipt.receiptId)
+      if (!verification.passed) {
+        const message = verification.failureSummary ?? "DAX verification failed"
+        await HybridTransitions.failStep(this.runId, stepId, { code: "verification_failed", message })
+        await this.failRun("verification_failed", message)
+        return { stepId, success: false, outputs: [], error: message }
+      }
+
+      await HybridTransitions.completeStep(this.runId, stepId, [artifactId, ...receiptIds])
+      return {
+        stepId,
+        success: true,
+        outputs: [
+          {
+            type: "report",
+            artifactId,
+            content: `DAX verification passed: ${verification.checks.map((check) => check.command).join(", ")}.`,
+          },
+        ],
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await HybridTransitions.failStep(this.runId, stepId, { code: "verification_error", message })
+      await this.failRun("verification_error", message)
+      return { stepId, success: false, outputs: [], error: message }
+    }
+  }
+
+  private async failRun(code: string, message: string): Promise<void> {
+    await HybridTransitions.transition(this.runId, "failed", "run_failed", {
+      error: { code, message, retryable: false },
+    })
   }
 
   private async executeRequestApproval(workerId: ExternalWorkerId): Promise<WorkflowStepResult> {

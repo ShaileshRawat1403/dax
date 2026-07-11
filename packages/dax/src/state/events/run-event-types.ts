@@ -16,6 +16,7 @@ export type RunEventType =
   | "workflow_completed"
   | "approval_denied"
   | "provider_pressure_updated"
+  | "verification_recorded"
 
 export type RunEventPayload =
   | { type: "contract_compiled"; payload: { contractId: string } }
@@ -56,6 +57,14 @@ export type RunEventPayload =
   | {
       type: "provider_pressure_updated"
       payload: { lane?: string; throttles: number; inFlight: number; queueLength: number }
+    }
+  | {
+      type: "verification_recorded"
+      payload: {
+        status: "passed" | "failed"
+        receipts: Array<{ receiptId: string }>
+        checks: unknown[]
+      }
     }
 
 export type RunEventEnvelope = {

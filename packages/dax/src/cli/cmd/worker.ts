@@ -7,8 +7,33 @@ import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
 import { ExternalWorkerId } from "../../worker/worker-adapter"
+import { detectChecks } from "../../sdlc/check-catalog"
+import type { CheckDefinition } from "../../sdlc/check-types"
+import { isWhitelistedVerificationCommand } from "../../tool/shell-whitelist"
 
 export type FieldSource = "operator-authored" | "inferred"
+
+function checkCommand(check: CheckDefinition): string {
+  return [check.command, ...check.args].join(" ")
+}
+
+/**
+ * Resolve verification before the veto card so the operator sees the exact
+ * DAX-owned commands that will run. CLI intent wins, then safe intent
+ * inference, then repository-native check detection.
+ */
+export function resolveWorkerVerificationCommands(input: {
+  cli: string[]
+  inferred: string[]
+  detected: CheckDefinition[]
+}): string[] {
+  if (input.cli.length > 0) return input.cli
+
+  const inferred = input.inferred.filter(isWhitelistedVerificationCommand)
+  if (inferred.length > 0) return inferred
+
+  return input.detected.map(checkCommand).filter(isWhitelistedVerificationCommand)
+}
 
 /** Determine final provenance after card interaction.
  *  authorship (CLI flag) beats confirmation (card + Enter) beats unreviewed (--yes). */
@@ -138,7 +163,13 @@ export const WorkerCommand = cmd({
             const cliWriteScope: string[] = (args["write-scope"] as string[] | undefined) ?? []
             const cliForbiddenPaths: string[] = (args.forbid as string[] | undefined) ?? []
             const cliVerification: string[] = (args.verify as string[] | undefined) ?? []
-            const hasCliConstraints = cliWriteScope.length > 0 || cliForbiddenPaths.length > 0 || cliVerification.length > 0
+
+            const unsafeVerification = cliVerification.find((command) => !isWhitelistedVerificationCommand(command))
+            if (unsafeVerification) {
+              UI.error(`Verification command is not approved by DAX: ${unsafeVerification}`)
+              process.exitCode = 1
+              return
+            }
 
             let inferredWriteScope: string[] = []
             let inferredForbiddenPaths: string[] = []
@@ -158,7 +189,17 @@ export const WorkerCommand = cmd({
 
             const writeScope = cliWriteScope.length > 0 ? cliWriteScope : inferredWriteScope
             const forbiddenPaths = cliForbiddenPaths.length > 0 ? cliForbiddenPaths : inferredForbiddenPaths
-            const verification = cliVerification.length > 0 ? cliVerification : inferredVerification
+            const verification = resolveWorkerVerificationCommands({
+              cli: cliVerification,
+              inferred: inferredVerification,
+              detected: detectChecks(repoPath),
+            })
+
+            if (verification.length === 0) {
+              UI.error("No safe verification command was supplied or detected. Add --verify, for example: --verify \"bun test\".")
+              process.exitCode = 1
+              return
+            }
 
             const sources = {
               writeScope: (cliWriteScope.length > 0 ? "operator-authored" : "inferred") as FieldSource,
@@ -236,6 +277,7 @@ export const WorkerCommand = cmd({
                 const approvals = await RunGateway.getApprovals(created.runId)
                 const approval = approvals.find((item) => item.status === "pending")
                 UI.println(`${EOL}Kernel diff is ready for review.`)
+                UI.println("DAX verification receipts were recorded before this review gate.")
                 if (approval) {
                   UI.println(
                     `Approve with: dax approvals resolve ${approval.approvalId} --run ${created.runId} --decision approve`,

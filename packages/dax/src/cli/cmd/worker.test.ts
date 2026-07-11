@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { renderVetoCard, resolveFieldProvenance } from "./worker"
+import { renderVetoCard, resolveFieldProvenance, resolveWorkerVerificationCommands } from "./worker"
 
 const base = {
   agent: "claude" as const,
@@ -35,6 +35,36 @@ describe("resolveFieldProvenance — eight input combinations", () => {
     expect(resolveFieldProvenance("inferred", false, false)).toBe("inferred-unreviewed"))
   test("inferred, card not shown (--yes), accepted flag ignored → inferred-unreviewed", () =>
     expect(resolveFieldProvenance("inferred", false, true)).toBe("inferred-unreviewed"))
+})
+
+describe("resolveWorkerVerificationCommands", () => {
+  const detected = [
+    {
+      id: "js-test",
+      kind: "test" as const,
+      label: "Tests",
+      command: "bun",
+      args: ["run", "test"],
+      cwd: "/repo",
+      required: true,
+      timeoutMs: 240_000,
+      risk: "medium" as const,
+    },
+  ]
+
+  test("keeps an operator command exactly as authored", () => {
+    expect(resolveWorkerVerificationCommands({ cli: ["bun test test/math.test.ts"], inferred: ["bun test"], detected })).toEqual([
+      "bun test test/math.test.ts",
+    ])
+  })
+
+  test("uses safe inferred commands before repository detection", () => {
+    expect(resolveWorkerVerificationCommands({ cli: [], inferred: ["tsc --noEmit"], detected })).toEqual(["tsc --noEmit"])
+  })
+
+  test("replaces vague inferred text with safe repository-native checks", () => {
+    expect(resolveWorkerVerificationCommands({ cli: [], inferred: ["run relevant tests"], detected })).toEqual(["bun run test"])
+  })
 })
 
 describe("renderVetoCard — Job 2: pre-run confirmation", () => {
