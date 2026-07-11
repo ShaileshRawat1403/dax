@@ -1,11 +1,55 @@
 import type { Argv } from "yargs"
 import path from "path"
 import { EOL } from "os"
+import readline from "readline"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
 import { ExternalWorkerId } from "../../worker/worker-adapter"
+
+/** Compact pre-run summary shown before creating the governed run. */
+export function renderVetoCard(opts: {
+  agent: string
+  task: string
+  riskLevel: string
+  writeScope: string[]
+  forbiddenPaths: string[]
+  verification: string[]
+  scopeProvenance: "inferred" | "operator-confirmed"
+}): string {
+  const sep = "─".repeat(60)
+  const tag = `[${opts.scopeProvenance}]`
+  const lines: string[] = [
+    sep,
+    `Agent:        ${opts.agent}`,
+    `Task:         ${opts.task.length > 72 ? opts.task.slice(0, 72) + "…" : opts.task}`,
+    `Risk:         ${opts.riskLevel}`,
+  ]
+  if (opts.writeScope.length > 0)
+    lines.push(`Write scope:  ${opts.writeScope.join(", ")}  ${tag}`)
+  if (opts.forbiddenPaths.length > 0)
+    lines.push(`Forbidden:    ${opts.forbiddenPaths.join(", ")}  ${tag}`)
+  if (opts.verification.length > 0)
+    lines.push(`Verify:       ${opts.verification.join(", ")}  ${tag}`)
+  lines.push(sep, "Press Enter to start the run, Ctrl-C to abort.")
+  return lines.join(EOL)
+}
+
+/** Resolves true on Enter/any key, false on Ctrl-C. */
+async function waitForConfirmation(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+    rl.question("", () => {
+      rl.close()
+      resolve(true)
+    })
+    rl.on("SIGINT", () => {
+      rl.close()
+      resolve(false)
+    })
+  })
+}
 
 /**
  * dax worker run <claude|codex|gemini> -- <task>
@@ -38,6 +82,27 @@ export const WorkerCommand = cmd({
             .option("repo", {
               describe: "repository path (defaults to current directory)",
               type: "string",
+            })
+            .option("write-scope", {
+              describe: "glob patterns the worker may write to (overrides inferred scope)",
+              type: "string",
+              array: true,
+            })
+            .option("forbid", {
+              describe: "paths or globs the worker must not touch",
+              type: "string",
+              array: true,
+            })
+            .option("verify", {
+              describe: "validation commands DAX runs to verify the diff",
+              type: "string",
+              array: true,
+            })
+            .option("yes", {
+              alias: "y",
+              describe: "skip the pre-run confirmation card (for scripting)",
+              type: "boolean",
+              default: false,
             }),
         async (args) => {
           await bootstrap(process.cwd(), async () => {
@@ -50,6 +115,54 @@ export const WorkerCommand = cmd({
               return
             }
             const repoPath = path.resolve((args.repo as string) ?? process.cwd())
+
+            // Infer scope from the task via refineIntent (LLM-backed, falls back gracefully).
+            // CLI flags always win; refineIntent fills the gap when none are provided.
+            const cliWriteScope: string[] = (args["write-scope"] as string[] | undefined) ?? []
+            const cliForbiddenPaths: string[] = (args.forbid as string[] | undefined) ?? []
+            const cliVerification: string[] = (args.verify as string[] | undefined) ?? []
+            const hasCliConstraints = cliWriteScope.length > 0 || cliForbiddenPaths.length > 0 || cliVerification.length > 0
+
+            let inferredWriteScope: string[] = []
+            let inferredForbiddenPaths: string[] = []
+            let inferredVerification: string[] = []
+            let inferredRiskLevel: string = "medium"
+
+            try {
+              const { refineIntent } = await import("../../intent/interpret")
+              const refined = await refineIntent(task, { cwd: repoPath })
+              inferredWriteScope = refined?.likelyWrites ?? []
+              inferredForbiddenPaths = refined?.repoImpact?.avoidAreas ?? []
+              inferredVerification = refined?.validationCommands ?? []
+              inferredRiskLevel = refined?.riskLevel ?? "medium"
+            } catch {
+              // Non-fatal — empty scope is safe; kernel diff and approval gate remain the authority.
+            }
+
+            const writeScope = cliWriteScope.length > 0 ? cliWriteScope : inferredWriteScope
+            const forbiddenPaths = cliForbiddenPaths.length > 0 ? cliForbiddenPaths : inferredForbiddenPaths
+            const verification = cliVerification.length > 0 ? cliVerification : inferredVerification
+            const scopeProvenance = hasCliConstraints ? "operator-confirmed" as const : "inferred" as const
+
+            // Veto card: compact pre-run summary. --yes skips for scripting.
+            if (!args.yes) {
+              const card = renderVetoCard({
+                agent,
+                task,
+                riskLevel: inferredRiskLevel,
+                writeScope,
+                forbiddenPaths,
+                verification,
+                scopeProvenance,
+              })
+              UI.println(card)
+              const confirmed = await waitForConfirmation()
+              if (!confirmed) {
+                UI.println("Aborted.")
+                process.exitCode = 1
+                return
+              }
+            }
 
             UI.println(`Governed worker run: ${agent}`)
             UI.println(`Repo: ${repoPath}`)
@@ -65,6 +178,12 @@ export const WorkerCommand = cmd({
               personaPreset: {
                 personaId: "governed-worker",
                 providerHint: `worker:${agent}`,
+              },
+              workerConstraints: {
+                writeScope: writeScope.length > 0 ? writeScope : undefined,
+                forbiddenPaths: forbiddenPaths.length > 0 ? forbiddenPaths : undefined,
+                verification: verification.length > 0 ? verification : undefined,
+                scopeProvenance,
               },
               metadata: {
                 source: "cli",

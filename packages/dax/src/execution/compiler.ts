@@ -84,7 +84,7 @@ function deriveRuntimePolicy(
     riskLevel !== "low" ||
     /verify|test|check|release|ship|fix|edit|write|change|patch/i.test(request.intent.input)
 
-  return {
+  const basePolicy: RuntimePolicy = {
     scope: {
       targetFiles,
       targetSubsystems: [],
@@ -115,6 +115,31 @@ function deriveRuntimePolicy(
       ],
       forbiddenPatterns: ["../*", "~/.z*", "/etc/*"],
     },
+  }
+
+  // For worker_run: operator/inferred constraints override base text-extracted values.
+  // CLI flags always win; refineIntent inference is the fallback when no flags given.
+  const wc = workflowClass === "worker_run" ? request.workerConstraints : undefined
+  if (!wc) return basePolicy
+
+  return {
+    ...basePolicy,
+    scope: {
+      ...basePolicy.scope,
+      targetFiles: wc.writeScope ?? basePolicy.scope.targetFiles,
+    },
+    postconditions: {
+      ...basePolicy.postconditions,
+      validationCommands: wc.verification ?? basePolicy.postconditions.validationCommands,
+    },
+    sensitivity: {
+      ...basePolicy.sensitivity,
+      forbiddenPatterns: unique([
+        ...basePolicy.sensitivity.forbiddenPatterns,
+        ...(wc.forbiddenPaths ?? []),
+      ]),
+    },
+    scopeProvenance: wc.scopeProvenance,
   }
 }
 

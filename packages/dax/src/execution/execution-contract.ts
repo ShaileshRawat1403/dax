@@ -71,6 +71,8 @@ export const RuntimePolicy = z.object({
   budgets: MutationBudgetPolicy,
   postconditions: PostconditionPolicy,
   sensitivity: SensitivityPolicy,
+  /** "inferred" = from refineIntent; "operator-confirmed" = operator-supplied via CLI flags. */
+  scopeProvenance: z.enum(["inferred", "operator-confirmed"]).optional(),
 })
 export type RuntimePolicy = z.infer<typeof RuntimePolicy>
 

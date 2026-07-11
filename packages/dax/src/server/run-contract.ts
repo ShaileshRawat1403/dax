@@ -248,11 +248,27 @@ export const PersonaPreset = z
   .meta({ ref: "PersonaPresetV1" })
 export type PersonaPreset = z.infer<typeof PersonaPreset>
 
+export const WorkerConstraints = z
+  .object({
+    /** Glob patterns the worker may write to. CLI flags win over inferred. */
+    writeScope: z.array(z.string()).optional(),
+    /** Paths/globs the worker must not touch. */
+    forbiddenPaths: z.array(z.string()).optional(),
+    /** Commands DAX runs to verify the result. */
+    verification: z.array(z.string()).optional(),
+    /** "inferred" = from refineIntent; "operator-confirmed" = CLI flags used. */
+    scopeProvenance: z.enum(["inferred", "operator-confirmed"]).optional(),
+  })
+  .meta({ ref: "WorkerConstraintsV1" })
+export type WorkerConstraints = z.infer<typeof WorkerConstraints>
+
 export const CreateRunRequest = z
   .object({
     intent: RunIntent,
     personaPreset: PersonaPreset.optional(),
     workflowHint: WorkflowClass.optional(),
+    /** Scope constraints for worker_run. Operator-supplied or refineIntent-inferred. */
+    workerConstraints: WorkerConstraints.optional(),
     metadata: z
       .object({
         initiatedBy: z.string().optional(),

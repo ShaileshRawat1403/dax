@@ -1,6 +1,7 @@
 import { Log } from "@/util/log"
 import { HybridTransitions } from "@/state/hybrid-transitions"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
+import { appendEventOnly } from "@/state/events/event-transitions"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { Identifier } from "@/id/id"
 import { mkdir } from "node:fs/promises"
@@ -11,6 +12,7 @@ import {
   buildWorkerInvocation,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
+import type { RuntimePolicy } from "@/execution/execution-contract"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -112,6 +114,25 @@ export const WorkerRunEffects = {
   },
 }
 
+/**
+ * Build a WorkerContract from the compiled ExecutionContract's runtimePolicy.
+ * writeScope/forbiddenPaths/verification are empty when runtimePolicy is absent —
+ * the kernel diff and approval gate remain the authority regardless.
+ */
+export function workerContractFromPolicy(
+  intent: string,
+  runId: string,
+  runtimePolicy?: RuntimePolicy,
+): WorkerContract {
+  return WorkerContract.parse({
+    task: intent,
+    writeScope: runtimePolicy?.scope.targetFiles ?? [],
+    forbiddenPaths: runtimePolicy?.sensitivity.forbiddenPatterns ?? [],
+    verification: runtimePolicy?.postconditions.validationCommands ?? [],
+    runId,
+  })
+}
+
 export function workerIdFromProviderHint(providerHint: string | undefined): ExternalWorkerId | null {
   if (!providerHint?.startsWith("worker:")) return null
   const parsed = ExternalWorkerId.safeParse(providerHint.slice("worker:".length))
@@ -166,13 +187,23 @@ export class WorkerRunWorkflow {
 
     let checkout: WorkerCheckout | null = null
     try {
-      const contract: WorkerContract = WorkerContract.parse({
-        task: this.contract.intent,
-        writeScope: [],
-        forbiddenPaths: [],
-        verification: [],
-        runId: this.runId,
+      const contract = workerContractFromPolicy(
+        this.contract.intent,
+        this.runId,
+        this.contract.runtimePolicy,
+      )
+
+      // Record scope provenance in the event chain so inferred vs confirmed is auditable.
+      // Non-fatal: a recording failure must not block the governed run.
+      appendEventOnly(this.runId, "contract_refined", {
+        writeScope: contract.writeScope,
+        forbiddenPaths: contract.forbiddenPaths,
+        verification: contract.verification,
+        scopeProvenance: this.contract.runtimePolicy?.scopeProvenance ?? "inferred",
+      }).catch((err) => {
+        log.warn("contract_refined event not recorded", { runId: this.runId, error: String(err) })
       })
+
       const invocation = buildWorkerInvocation({
         workerId,
         contract,
