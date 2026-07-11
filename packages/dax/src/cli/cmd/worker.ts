@@ -8,6 +8,19 @@ import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
 import { ExternalWorkerId } from "../../worker/worker-adapter"
 
+type FieldSource = "operator-authored" | "inferred"
+
+/** Determine final provenance after card interaction. */
+function resolveFieldProvenance(
+  source: FieldSource,
+  cardShown: boolean,
+  cardAccepted: boolean,
+): "operator-authored" | "operator-confirmed" | "inferred-unreviewed" {
+  if (source === "operator-authored") return "operator-authored"
+  if (cardShown && cardAccepted) return "operator-confirmed"
+  return "inferred-unreviewed"
+}
+
 /** Compact pre-run summary shown before creating the governed run. */
 export function renderVetoCard(opts: {
   agent: string
@@ -16,10 +29,13 @@ export function renderVetoCard(opts: {
   writeScope: string[]
   forbiddenPaths: string[]
   verification: string[]
-  scopeProvenance: "inferred" | "operator-confirmed"
+  sources: {
+    writeScope: FieldSource
+    forbiddenPaths: FieldSource
+    verification: FieldSource
+  }
 }): string {
   const sep = "─".repeat(60)
-  const tag = `[${opts.scopeProvenance}]`
   const lines: string[] = [
     sep,
     `Agent:        ${opts.agent}`,
@@ -27,11 +43,11 @@ export function renderVetoCard(opts: {
     `Risk:         ${opts.riskLevel}`,
   ]
   if (opts.writeScope.length > 0)
-    lines.push(`Write scope:  ${opts.writeScope.join(", ")}  ${tag}`)
+    lines.push(`Write scope:  ${opts.writeScope.join(", ")}  [${opts.sources.writeScope}]`)
   if (opts.forbiddenPaths.length > 0)
-    lines.push(`Forbidden:    ${opts.forbiddenPaths.join(", ")}  ${tag}`)
+    lines.push(`Forbidden:    ${opts.forbiddenPaths.join(", ")}  [${opts.sources.forbiddenPaths}]`)
   if (opts.verification.length > 0)
-    lines.push(`Verify:       ${opts.verification.join(", ")}  ${tag}`)
+    lines.push(`Verify:       ${opts.verification.join(", ")}  [${opts.sources.verification}]`)
   lines.push(sep, "Press Enter to start the run, Ctrl-C to abort.")
   return lines.join(EOL)
 }
@@ -142,26 +158,35 @@ export const WorkerCommand = cmd({
             const writeScope = cliWriteScope.length > 0 ? cliWriteScope : inferredWriteScope
             const forbiddenPaths = cliForbiddenPaths.length > 0 ? cliForbiddenPaths : inferredForbiddenPaths
             const verification = cliVerification.length > 0 ? cliVerification : inferredVerification
-            const scopeProvenance = hasCliConstraints ? "operator-confirmed" as const : "inferred" as const
+
+            const sources = {
+              writeScope: (cliWriteScope.length > 0 ? "operator-authored" : "inferred") as FieldSource,
+              forbiddenPaths: (cliForbiddenPaths.length > 0 ? "operator-authored" : "inferred") as FieldSource,
+              verification: (cliVerification.length > 0 ? "operator-authored" : "inferred") as FieldSource,
+            }
 
             // Veto card: compact pre-run summary. --yes skips for scripting.
+            // Pressing Enter upgrades inferred → operator-confirmed in the evidence record.
+            // --yes sets inferred → inferred-unreviewed (operator never saw the scope).
+            let cardAccepted = false
             if (!args.yes) {
               const card = renderVetoCard({
-                agent,
-                task,
-                riskLevel: inferredRiskLevel,
-                writeScope,
-                forbiddenPaths,
-                verification,
-                scopeProvenance,
+                agent, task, riskLevel: inferredRiskLevel,
+                writeScope, forbiddenPaths, verification, sources,
               })
               UI.println(card)
-              const confirmed = await waitForConfirmation()
-              if (!confirmed) {
+              cardAccepted = await waitForConfirmation()
+              if (!cardAccepted) {
                 UI.println("Aborted.")
                 process.exitCode = 1
                 return
               }
+            }
+
+            const provenance = {
+              writeScope: resolveFieldProvenance(sources.writeScope, !args.yes, cardAccepted),
+              forbiddenPaths: resolveFieldProvenance(sources.forbiddenPaths, !args.yes, cardAccepted),
+              verification: resolveFieldProvenance(sources.verification, !args.yes, cardAccepted),
             }
 
             UI.println(`Governed worker run: ${agent}`)
@@ -179,12 +204,9 @@ export const WorkerCommand = cmd({
                 personaId: "governed-worker",
                 providerHint: `worker:${agent}`,
               },
-              workerConstraints: {
-                writeScope: writeScope.length > 0 ? writeScope : undefined,
-                forbiddenPaths: forbiddenPaths.length > 0 ? forbiddenPaths : undefined,
-                verification: verification.length > 0 ? verification : undefined,
-                scopeProvenance,
-              },
+              // Always send all three arrays so what the operator saw on the card is exactly
+              // what binds — explicit [] is authoritative, not a fallback trigger.
+              workerConstraints: { writeScope, forbiddenPaths, verification, provenance },
               metadata: {
                 source: "cli",
                 initiatedBy: "dax-worker-run",

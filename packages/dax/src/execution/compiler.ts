@@ -122,15 +122,18 @@ function deriveRuntimePolicy(
   const wc = workflowClass === "worker_run" ? request.workerConstraints : undefined
   if (!wc) return basePolicy
 
+  // When workerConstraints is present, the CLI sends exactly what the operator saw on the
+  // veto card — explicit [] means "no scope stated," NOT "fall back to text extraction."
+  // System-default forbidden patterns (../* etc.) are still prepended for safety.
   return {
     ...basePolicy,
     scope: {
       ...basePolicy.scope,
-      targetFiles: wc.writeScope ?? basePolicy.scope.targetFiles,
+      targetFiles: wc.writeScope ?? [],
     },
     postconditions: {
       ...basePolicy.postconditions,
-      validationCommands: wc.verification ?? basePolicy.postconditions.validationCommands,
+      validationCommands: wc.verification ?? [],
     },
     sensitivity: {
       ...basePolicy.sensitivity,
@@ -139,7 +142,7 @@ function deriveRuntimePolicy(
         ...(wc.forbiddenPaths ?? []),
       ]),
     },
-    scopeProvenance: wc.scopeProvenance,
+    provenance: wc.provenance,
   }
 }
 

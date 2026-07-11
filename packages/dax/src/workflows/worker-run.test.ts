@@ -53,30 +53,55 @@ describe("workerContractFromPolicy — Job 1: binding scope", () => {
   })
 })
 
-describe("contract_refined evidence payload — Job 3: provenance", () => {
-  test("scopeProvenance distinguishes inferred from operator-confirmed", () => {
-    const inferredPayload = {
-      writeScope: ["src/**"],
-      forbiddenPaths: [],
-      verification: ["bun test"],
-      scopeProvenance: "inferred" as const,
-    }
-    expect(inferredPayload.scopeProvenance).toBe("inferred")
-
-    const confirmedPayload = { ...inferredPayload, scopeProvenance: "operator-confirmed" as const }
-    expect(confirmedPayload.scopeProvenance).toBe("operator-confirmed")
-    expect(confirmedPayload.scopeProvenance).not.toBe(inferredPayload.scopeProvenance)
+describe("contract_refined evidence payload — Job 3: three-state per-field provenance", () => {
+  test("all three provenance states are distinct", () => {
+    const states = ["operator-authored", "operator-confirmed", "inferred-unreviewed"] as const
+    expect(new Set(states).size).toBe(3)
   })
 
-  test("undefined runtimePolicy scopeProvenance defaults to inferred", () => {
+  test("per-field provenance payload shape is correct", () => {
+    const payload = {
+      writeScope: ["src/**"],
+      forbiddenPaths: ["package.json"],
+      verification: ["bun test"],
+      provenance: {
+        writeScope: "operator-confirmed" as const,
+        forbiddenPaths: "operator-authored" as const,
+        verification: "inferred-unreviewed" as const,
+      },
+    }
+    expect(payload.provenance.writeScope).toBe("operator-confirmed")
+    expect(payload.provenance.forbiddenPaths).toBe("operator-authored")
+    expect(payload.provenance.verification).toBe("inferred-unreviewed")
+  })
+
+  test("absent runtimePolicy provenance defaults to inferred-unreviewed for all fields", () => {
     const policy: RuntimePolicy = {
       scope: { targetFiles: [], targetSubsystems: [], avoidAreas: [] },
       budgets: { maxFilesTouched: 8, maxMutatingCommands: 6, maxApprovalRequests: 4, maxRepeatedFailures: 3 },
       postconditions: { verificationRequired: false, validationPlan: [], validationCommands: [] },
       sensitivity: { sensitivePatterns: [], forbiddenPatterns: [] },
     }
-    // scopeProvenance is undefined → workflow falls back to "inferred"
-    expect(policy.scopeProvenance ?? "inferred").toBe("inferred")
+    const fallback = policy.provenance ?? {
+      writeScope: "inferred-unreviewed",
+      forbiddenPaths: "inferred-unreviewed",
+      verification: "inferred-unreviewed",
+    }
+    expect(fallback.writeScope).toBe("inferred-unreviewed")
+    expect(fallback.forbiddenPaths).toBe("inferred-unreviewed")
+    expect(fallback.verification).toBe("inferred-unreviewed")
+  })
+
+  test("CLI-authored field stays operator-authored regardless of card interaction", () => {
+    // Simulate: --forbid was set, writeScope and verify were inferred + card accepted
+    const provenance = {
+      writeScope: "operator-confirmed" as const,   // inferred + Enter
+      forbiddenPaths: "operator-authored" as const, // CLI flag
+      verification: "operator-confirmed" as const,  // inferred + Enter
+    }
+    expect(provenance.forbiddenPaths).toBe("operator-authored")
+    expect(provenance.writeScope).not.toBe("operator-authored")
+    expect(provenance.verification).not.toBe("operator-authored")
   })
 })
 

@@ -1,17 +1,21 @@
 import { describe, expect, test } from "bun:test"
 import { renderVetoCard } from "./worker"
 
-describe("renderVetoCard — Job 2: pre-run confirmation", () => {
-  const base = {
-    agent: "claude" as const,
-    task: "add an isEven helper to shared/util.ts with tests",
-    riskLevel: "low",
-    writeScope: ["src/**", "test/**"],
-    forbiddenPaths: ["package.json"],
-    verification: ["bun test"],
-    scopeProvenance: "inferred" as const,
-  }
+const base = {
+  agent: "claude" as const,
+  task: "add an isEven helper to shared/util.ts with tests",
+  riskLevel: "low",
+  writeScope: ["src/**", "test/**"],
+  forbiddenPaths: ["package.json"],
+  verification: ["bun test"],
+  sources: {
+    writeScope: "inferred" as const,
+    forbiddenPaths: "operator-authored" as const,
+    verification: "inferred" as const,
+  },
+}
 
+describe("renderVetoCard — Job 2: pre-run confirmation", () => {
   test("card contains all key fields", () => {
     const card = renderVetoCard(base)
     expect(card).toContain("claude")
@@ -22,16 +26,18 @@ describe("renderVetoCard — Job 2: pre-run confirmation", () => {
     expect(card).toContain("bun test")
   })
 
-  test("provenance tag is shown for inferred scope", () => {
-    const card = renderVetoCard({ ...base, scopeProvenance: "inferred" })
+  test("per-field provenance tags are shown correctly", () => {
+    const card = renderVetoCard(base)
     expect(card).toContain("[inferred]")
-    expect(card).not.toContain("[operator-confirmed]")
+    expect(card).toContain("[operator-authored]")
   })
 
-  test("provenance tag is shown for operator-confirmed scope", () => {
-    const card = renderVetoCard({ ...base, scopeProvenance: "operator-confirmed" })
-    expect(card).toContain("[operator-confirmed]")
-    expect(card).not.toContain("[inferred]")
+  test("operator-authored and inferred fields can appear in the same card", () => {
+    const card = renderVetoCard(base)
+    const writeScopeLine = card.split("\n").find((l) => l.startsWith("Write scope:")) ?? ""
+    const forbiddenLine = card.split("\n").find((l) => l.startsWith("Forbidden:")) ?? ""
+    expect(writeScopeLine).toContain("[inferred]")
+    expect(forbiddenLine).toContain("[operator-authored]")
   })
 
   test("omits write-scope line when empty", () => {

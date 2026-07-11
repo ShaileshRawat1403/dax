@@ -193,13 +193,18 @@ export class WorkerRunWorkflow {
         this.contract.runtimePolicy,
       )
 
-      // Record scope provenance in the event chain so inferred vs confirmed is auditable.
+      // Record scope provenance in the event chain so operator-authored, operator-confirmed,
+      // and inferred-unreviewed fields are distinguishable in the audit trail.
       // Non-fatal: a recording failure must not block the governed run.
       appendEventOnly(this.runId, "contract_refined", {
         writeScope: contract.writeScope,
         forbiddenPaths: contract.forbiddenPaths,
         verification: contract.verification,
-        scopeProvenance: this.contract.runtimePolicy?.scopeProvenance ?? "inferred",
+        provenance: this.contract.runtimePolicy?.provenance ?? {
+          writeScope: "inferred-unreviewed",
+          forbiddenPaths: "inferred-unreviewed",
+          verification: "inferred-unreviewed",
+        },
       }).catch((err) => {
         log.warn("contract_refined event not recorded", { runId: this.runId, error: String(err) })
       })
