@@ -88,7 +88,7 @@ describe("worker adapter", () => {
     expect(env.DAX_GOVERNED_WORKER).toBe("1")
   })
 
-  test("network is full (provider APIs) with filesystem still sandbox-confined", () => {
+  test("network is full for provider APIs while workflow confinement owns writes", () => {
     const invocation = buildWorkerInvocation({ workerId: "claude", contract })
     expect(invocation.network).toBe("full")
     expect(invocation.timeoutMs).toBe(DEFAULT_WORKER_TIMEOUT_MS)

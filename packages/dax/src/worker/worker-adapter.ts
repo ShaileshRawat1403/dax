@@ -23,7 +23,7 @@ import z from "zod"
  *   on the worker honoring it — the kernel-computed diff and path guards
  *   remain the authority. The prompt reduces waste, not risk.
  * - network: external workers must reach their provider APIs, so v0 runs
- *   with sandbox network "full" (filesystem still confined). Per-host
+ *   with sandbox network "full" (writes remain checkout-confined). Per-host
  *   proxy allowlists are the documented hardening step; the field exists
  *   so the tightening is a config change, not a redesign.
  */
@@ -159,8 +159,8 @@ export function buildWorkerInvocation(input: {
     workerId,
     command: [profile.binary, ...profile.args(prompt)],
     env: buildWorkerEnv(workerId, input.hostEnv ?? {}, contract),
-    // External workers must reach their provider APIs. Filesystem stays
-    // sandbox-confined; per-host egress allowlisting is the hardening step.
+    // External workers must reach their provider APIs. The workflow wraps
+    // this invocation in the platform sandbox before execution.
     network: "full",
     timeoutMs: input.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
   }

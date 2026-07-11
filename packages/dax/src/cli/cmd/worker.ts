@@ -10,6 +10,8 @@ import { ExternalWorkerId } from "../../worker/worker-adapter"
 import { detectChecks } from "../../sdlc/check-catalog"
 import type { CheckDefinition } from "../../sdlc/check-types"
 import { isWhitelistedVerificationCommand } from "../../tool/shell-whitelist"
+import { checkWorkerSandbox } from "../../worker/worker-sandbox"
+import * as prompts from "@clack/prompts"
 
 export type FieldSource = "operator-authored" | "inferred"
 
@@ -55,6 +57,7 @@ export function renderVetoCard(opts: {
   writeScope: string[]
   forbiddenPaths: string[]
   verification: string[]
+  isolation: string
   sources: {
     writeScope: FieldSource
     forbiddenPaths: FieldSource
@@ -67,6 +70,7 @@ export function renderVetoCard(opts: {
     `Agent:        ${opts.agent}`,
     `Task:         ${opts.task.length > 72 ? opts.task.slice(0, 72) + "…" : opts.task}`,
     `Risk:         ${opts.riskLevel}`,
+    `Isolation:    ${opts.isolation}`,
   ]
   if (opts.writeScope.length > 0)
     lines.push(`Write scope:  ${opts.writeScope.join(", ")}  [${opts.sources.writeScope}]`)
@@ -157,6 +161,13 @@ export const WorkerCommand = cmd({
               return
             }
             const repoPath = path.resolve((args.repo as string) ?? process.cwd())
+            const sandbox = checkWorkerSandbox()
+            if (!sandbox.available) {
+              UI.error(sandbox.reason)
+              UI.println("Governed workers fail closed when OS isolation is unavailable.")
+              process.exitCode = 1
+              return
+            }
 
             // Infer scope from the task via refineIntent (LLM-backed, falls back gracefully).
             // CLI flags always win; refineIntent fills the gap when none are provided.
@@ -214,7 +225,7 @@ export const WorkerCommand = cmd({
             if (!args.yes) {
               const card = renderVetoCard({
                 agent, task, riskLevel: inferredRiskLevel,
-                writeScope, forbiddenPaths, verification, sources,
+                writeScope, forbiddenPaths, verification, isolation: sandbox.summary, sources,
               })
               UI.println(card)
               cardAccepted = await waitForConfirmation()
@@ -234,6 +245,7 @@ export const WorkerCommand = cmd({
             UI.println(`Governed worker run: ${agent}`)
             UI.println(`Repo: ${repoPath}`)
             UI.println(`Task: ${task}${EOL}`)
+            UI.println(`Isolation: ${sandbox.summary}${EOL}`)
 
             const created = await RunGateway.createRun({
               intent: {
@@ -271,9 +283,19 @@ export const WorkerCommand = cmd({
 
             // Poll until the run reaches the approval gate or a terminal state.
             const deadline = Date.now() + 20 * 60 * 1000
+            const spinner = prompts.spinner()
+            let progress = "Starting governed worker..."
+            spinner.start(progress)
             for (;;) {
               const snapshot = await RunGateway.getSnapshot(created.runId)
+              const nextProgress = snapshot.currentStep?.title ?? `Run ${snapshot.status.replaceAll("_", " ")}`
+              if (nextProgress !== progress && snapshot.status !== "waiting_approval") {
+                spinner.stop(progress)
+                progress = nextProgress
+                spinner.start(progress)
+              }
               if (snapshot.status === "waiting_approval" || snapshot.pendingApprovalCount > 0) {
+                spinner.stop("Worker finished and DAX verification completed")
                 const approvals = await RunGateway.getApprovals(created.runId)
                 const approval = approvals.find((item) => item.status === "pending")
                 UI.println(`${EOL}Kernel diff is ready for review.`)
@@ -293,11 +315,13 @@ export const WorkerCommand = cmd({
               }
               if (["completed", "failed", "cancelled"].includes(snapshot.status)) {
                 const reason = snapshot.terminalReason ? ` (${snapshot.terminalReason})` : ""
+                spinner.stop(`Run ${snapshot.status}${reason}`, snapshot.status === "completed" ? 0 : 1)
                 UI.println(`${EOL}Run ${snapshot.status}${reason}.`)
                 if (snapshot.status !== "completed") process.exitCode = 1
                 return
               }
               if (Date.now() > deadline) {
+                spinner.stop("Run is still active", 1)
                 UI.error(`timed out waiting for run ${created.runId}; check dax session show ${created.runId}`)
                 process.exitCode = 1
                 return

@@ -39,7 +39,7 @@ NOT enterprise-first. Enterprise is the eventual market, earned only after
 the receipt chain, recovery, and approval loop survive real repo work in
 individual hands. Framing enterprise before that proof is hype.
 
-## The defining proof (next concrete work)
+## The defining proof (implemented in v1.2 beta)
 
 One demo defines the category:
 
@@ -48,26 +48,38 @@ dax worker run claude|codex|gemini -- "<task>"
 ```
 
 1. Operator invokes an external agent as a worker with a task.
-2. DAX creates a clean worktree/capsule. **Egress is the load-bearing
-   detail:** external agents need network to their own provider APIs, so the
-   capsule egress gateway runs with an exact per-worker host allowlist
-   (api.anthropic.com for Claude, etc.) — governed workers phone home;
-   they do not reach anywhere else.
+2. DAX creates a clean worktree and wraps the worker in a host OS sandbox.
+   macOS Seatbelt or Linux bubblewrap confines writes to that checkout.
+   Provider network is currently open during worker execution; exact
+   per-worker host allowlists remain a hardening target, not a shipped claim.
 3. DAX passes an execution contract to the worker (task, write scope,
    verification expectations) in the worker's non-interactive mode.
 4. The worker produces changes inside the capsule.
 5. DAX computes the diff itself (kernel-owned, never worker-reported).
-6. DAX pauses at the approval gate.
-7. DAX writes the evidence receipt (runledger.evidence.v0 records; the
+6. DAX executes the declared verification commands with network denied.
+7. DAX pauses at the approval gate only when verification passes.
+8. DAX writes the evidence receipt (runledger.evidence.v0 records; the
    worker's identity and version recorded as provenance, its output as
    attested generation — never gate-satisfying by itself).
-8. Flowright can invoke the whole thing through the capability contract
+9. Flowright can invoke the whole thing through the capability contract
    (flowright.capability.v0), receipt and all.
 
-Implementation note: `dax worker run` is largely sugar over the existing
-workflow `step.worker.command` capsule mechanism. The new work is the worker
-adapter layer (per-agent non-interactive invocation + contract handoff), the
-per-worker egress profiles, and the CLI surface.
+Implementation note: `dax worker run` is a first-class `worker_run` workflow,
+not a free-running subprocess wrapper. Its adapter selects the agent's
+non-interactive invocation, while the workflow owns checkout creation, scope
+enforcement, verification, evidence, and approval.
+
+### Current isolation boundary
+
+- macOS requires a successful Seatbelt (`sandbox-exec`) probe.
+- Linux requires bubblewrap (`bwrap`) and a successful probe.
+- Windows external workers fail closed in this beta; built-in DAX workflows
+  remain available.
+- Workers can read host files allowed by the OS profile but can write only to
+  the disposable checkout and temporary directories.
+- Worker execution has provider network access. Verification has no network.
+- Verification output previews are redacted before persistence; receipts
+  retain a digest of the exact original result.
 
 ## Robustness before features
 

@@ -16,6 +16,7 @@ export type RunEventType =
   | "workflow_completed"
   | "approval_denied"
   | "provider_pressure_updated"
+  | "worker_sandbox_recorded"
   | "verification_recorded"
 
 export type RunEventPayload =
@@ -57,6 +58,14 @@ export type RunEventPayload =
   | {
       type: "provider_pressure_updated"
       payload: { lane?: string; throttles: number; inFlight: number; queueLength: number }
+    }
+  | {
+      type: "worker_sandbox_recorded"
+      payload: {
+        provider: string
+        filesystem: "checkout-write-only"
+        network: "full" | "localhost-only" | "none"
+      }
     }
   | {
       type: "verification_recorded"

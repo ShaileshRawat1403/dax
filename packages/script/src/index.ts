@@ -22,14 +22,29 @@ const readEnv = (key: string) => {
   return undefined
 }
 
+export function releaseChannelForVersion(version: string | undefined): "latest" | "beta" | undefined {
+  if (!version || !/^\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(version)) return undefined
+  return version.includes("-beta.") ? "beta" : "latest"
+}
+
+export function packageVersionForChannel(version: string | undefined, channel: string): string | undefined {
+  return releaseChannelForVersion(version) && (channel === "latest" || channel === "beta") ? version : undefined
+}
+
 const env = {
   CHANNEL: readEnv("CHANNEL"),
   BUMP: readEnv("BUMP"),
   VERSION: readEnv("VERSION"),
   RELEASE: readEnv("RELEASE"),
 }
+
+const daxPkgPath = path.resolve(import.meta.dir, "../../dax/package.json")
+const daxPkg = await Bun.file(daxPkgPath).json()
+const PACKAGE_RELEASE_VERSION = packageVersionForChannel(daxPkg.version, releaseChannelForVersion(daxPkg.version) ?? "")
+
 const CHANNEL = await (async () => {
   if (env.CHANNEL) return env.CHANNEL
+  if (releaseChannelForVersion(PACKAGE_RELEASE_VERSION) === "beta") return "beta"
   if (env.RELEASE) return "latest"
   if (env.BUMP) return "latest"
   if (env.VERSION && !env.VERSION.startsWith("0.0.0-")) return "latest"
@@ -37,16 +52,14 @@ const CHANNEL = await (async () => {
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
 
-const daxPkgPath = path.resolve(import.meta.dir, "../../dax/package.json")
-const daxPkg = await Bun.file(daxPkgPath).json()
-
 const VERSION = await (async () => {
   if (env.VERSION) return env.VERSION
+  if (PACKAGE_RELEASE_VERSION && (CHANNEL === "latest" || CHANNEL === "beta")) return PACKAGE_RELEASE_VERSION
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
   
   // Use package.json version if it's set and valid
-  if (daxPkg.version && !daxPkg.version.startsWith("0.0.0-")) {
-    return daxPkg.version
+  if (PACKAGE_RELEASE_VERSION) {
+    return PACKAGE_RELEASE_VERSION
   }
 
   const version = await fetch("https://registry.npmjs.org/dax-ai/latest")

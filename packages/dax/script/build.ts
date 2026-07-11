@@ -99,19 +99,14 @@ const pkgDeps = pkg.dependencies as Record<string, string>
 const pkgDevDeps = (pkg.devDependencies ?? {}) as Record<string, string>
 const watcherVersion = pkgDeps["@parcel/watcher"] ?? pkgDevDeps["@parcel/watcher"]
 const parserWorkerPath = path.resolve(dir, "./node_modules/@opentui/core/parser.worker.js")
-const watcherPackagePath = path.resolve(dir, "./node_modules/@parcel/watcher/package.json")
 if (!skipInstall) {
   if (!watcherVersion) {
     throw new Error("Missing @parcel/watcher version in package.json")
   }
 
-  const hasBuildDeps = fs.existsSync(parserWorkerPath) && fs.existsSync(watcherPackagePath)
-  if (!hasBuildDeps) {
-    await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
-    await $`bun install --os="*" --cpu="*" @parcel/watcher@${watcherVersion}`
-  } else {
-    console.log("build.ts: using existing @opentui/core and @parcel/watcher dependencies")
-  }
+  console.log("build.ts: resolving cross-platform OpenTUI and watcher dependencies")
+  await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
+  await $`bun install --os="*" --cpu="*" @parcel/watcher@${watcherVersion}`
 }
 
 function isHostTarget(item: (typeof allTargets)[number]): boolean {

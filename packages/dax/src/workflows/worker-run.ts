@@ -14,8 +14,8 @@ import {
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
 import { verifyWorkerPatch } from "@/worker/worker-verification"
-import { runCheck } from "@/sdlc/check-runner"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
+import { runSandboxedCommand, runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -50,7 +50,7 @@ export type WorkerRunEffectsShape = {
   runWorker: (
     invocation: WorkerInvocation,
     cwd: string,
-  ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
+  ) => Promise<{ exitCode: number; stdout: string; stderr: string; timedOut?: boolean; sandboxProvider?: string }>
   /** Kernel-owned diff and changed paths (including untracked files). */
   computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
   /** DAX-owned verification command runner; injectable for workflow tests. */
@@ -81,23 +81,13 @@ const defaultEffects: WorkerRunEffectsShape = {
     }
   },
   async runWorker(invocation, cwd) {
-    const proc = Bun.spawn(invocation.command, {
+    return runSandboxedCommand({
+      command: invocation.command,
       cwd,
-      // Allowlist-only env from the adapter; the operator's shell env never
-      // reaches the worker. PATH added here for binary resolution; identity
-      // vars (HOME, USER, LOGNAME, TMPDIR) come through BASE_ENV_ALLOWLIST.
       env: { ...invocation.env, PATH: process.env.PATH ?? "" },
-      stdout: "pipe",
-      stderr: "pipe",
+      timeoutMs: invocation.timeoutMs,
+      network: invocation.network === "none" ? "none" : "full",
     })
-    const timeout = setTimeout(() => proc.kill(), invocation.timeoutMs)
-    const exitCode = await proc.exited
-    clearTimeout(timeout)
-    return {
-      exitCode,
-      stdout: await new Response(proc.stdout).text(),
-      stderr: await new Response(proc.stderr).text(),
-    }
   },
   async computeDiff(checkoutPath) {
     // Stage everything (disposable checkout) so untracked files appear in
@@ -126,7 +116,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     ])
     return { content, changedPaths }
   },
-  runVerification: runCheck,
+  runVerification: runSandboxedWorkerCheck,
 }
 
 /** Test seam: swap effects, always restore. */
@@ -295,8 +285,18 @@ export class WorkerRunWorkflow {
 
       checkout = await WorkerRunEffects.current.createCheckout(repoPath, this.runId)
       const result = await WorkerRunEffects.current.runWorker(invocation, checkout.path)
+      if (result.timedOut) {
+        throw new Error(`worker ${workerId} timed out after ${invocation.timeoutMs}ms`)
+      }
       if (result.exitCode !== 0) {
         throw new Error(`worker ${workerId} exited ${result.exitCode}: ${result.stderr.slice(0, 2000)}`)
+      }
+      if (result.sandboxProvider) {
+        await appendEventOnly(this.runId, "worker_sandbox_recorded", {
+          provider: result.sandboxProvider,
+          filesystem: "checkout-write-only",
+          network: invocation.network,
+        })
       }
 
       // Kernel-owned diff: the worker's own account of its changes is never
@@ -311,7 +311,11 @@ export class WorkerRunWorkflow {
       }
       this.diffContent = patch.content
 
-      await HybridTransitions.completeStep(this.runId, stepId, [`worker:${workerId}`, `diff:${patch.changedPaths.length}`])
+      await HybridTransitions.completeStep(this.runId, stepId, [
+        `worker:${workerId}`,
+        `diff:${patch.changedPaths.length}`,
+        ...(result.sandboxProvider ? [`sandbox:${result.sandboxProvider}`] : []),
+      ])
 
       const verification = await this.executeVerifyWorkerPatch(checkout.path, contract)
       if (!verification.success) {

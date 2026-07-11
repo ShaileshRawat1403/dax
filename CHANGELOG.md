@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-beta.1] - 2026-07-11
+
+### Added
+
+- **Governed external workers (BYOA)**: `dax worker run` can invoke Claude Code, Codex CLI, or Gemini CLI through an explicit `worker_run` workflow. DAX owns the disposable checkout, Git-derived diff, scope enforcement, verification, evidence, and approval gate.
+- **Pre-run veto card**: operators see task, risk, write scope, forbidden paths, verification commands, field provenance, and active isolation before a run is created.
+- **DAX-owned worker verification**: declared checks execute before review with network denied. Failed, missing, unsafe, or crashed checks block the run and emit verification receipts.
+- **Flowright capability contract**: DAX exposes invoke, receipt, and delegated-approval surfaces for governed capability calls without duplicating run authority.
+- **RunLedger evidence export**: DAX run evidence can be exported through the versioned `runledger.evidence.v0` boundary.
+
+### Changed
+
+- `dax doctor` checks configured provider lanes instead of unrelated optional providers and reports governed-worker isolation readiness separately.
+- Worker CLI polling now shows live phase progress and finishes with executable approval, denial, and inspection commands.
+- Release packaging owns cross-platform optional dependency installation, so local and GitHub release builds follow the same path.
+- Project-memory SQLite connections use a busy timeout, preventing concurrent DAX processes from failing during WAL recovery.
+
+### Security
+
+- Governed workers fail closed unless macOS Seatbelt or Linux bubblewrap passes a live isolation probe. Worker writes are confined to the disposable checkout and temporary storage.
+- Verification preview output is redacted before persistence; evidence receipts retain a digest of the exact original check result.
+- Dependency updates remove all known high-severity advisories present at the start of this release pass. Five transitive advisories remain (three moderate, two low) and are documented below.
+
+### Known Limitations
+
+- Governed external workers are unavailable on Windows in this beta. Built-in DAX workflows and the standard CLI remain cross-platform.
+- Worker execution needs provider network access and does not yet enforce per-provider hostname allowlists. Verification runs with network denied.
+- Worker profiles confine writes but permit host reads needed by coding agents. Use a container or VM for a stronger confidentiality boundary.
+- Remaining dependency advisories are transitive through OpenTUI, Stryker/ESLint, AI SDK utilities, and documentation/OpenAPI tooling. None are high severity; major dependency migrations are deferred until compatibility work is complete.
+
 ## [1.1.2] - 2026-05-16
 
 ### Security

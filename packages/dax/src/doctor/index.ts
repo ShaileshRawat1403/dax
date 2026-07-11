@@ -10,11 +10,12 @@ import { providerFailureNextStep, providerLaneLabel } from "@/provider/diagnosti
 import { Project } from "@/project/project"
 import { Vcs } from "@/project/vcs"
 import { detectPythonEnvironment } from "@/cli/cmd/tui/util/environment"
+import { checkWorkerSandbox, type WorkerSandboxCheck } from "@/worker/worker-sandbox"
 
 export type DoctorReadiness = "ready" | "degraded" | "blocked"
 
 export type DoctorSection = {
-  id: "auth" | "mcp" | "lsp" | "env" | "project"
+  id: "auth" | "mcp" | "lsp" | "env" | "project" | "worker"
   title: string
   state: ProductState
   readiness: DoctorReadiness
@@ -160,13 +161,19 @@ export function classifyMcpReadiness(
   }
 }
 
-function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
+export function authSectionFromReports(reports: AuthDiagnostics[], strict = false): DoctorSection {
   const failing = reports.filter((item) => !item.ok)
-  const state: ProductState = failing.length > 0 ? "blocked" : "connected"
+  const passing = reports.filter((item) => item.ok)
+  const state: ProductState =
+    reports.length === 0 || passing.length === 0 ? "blocked" : failing.length > 0 && strict ? "blocked" : failing.length > 0 ? "waiting" : "connected"
   const readiness = readinessFromProductState(state)
   const summary =
-    failing.length > 0
-      ? `${failing.length} provider authentication check${failing.length === 1 ? "" : "s"} need attention`
+    reports.length === 0
+      ? "No model provider is configured"
+      : failing.length > 0 && passing.length > 0
+        ? `${passing.length}/${reports.length} provider lane${reports.length === 1 ? "" : "s"} ready; ${failing.length} optional lane${failing.length === 1 ? "" : "s"} need attention`
+        : failing.length > 0
+          ? `${failing.length} provider authentication check${failing.length === 1 ? "" : "s"} need attention`
       : `${reports.length} provider authentication check${reports.length === 1 ? "" : "s"} passed`
 
   const detail = reports.flatMap((report) => {
@@ -187,7 +194,9 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
   })
 
   const next =
-    failing.length > 0
+    reports.length === 0
+      ? ["Run `dax auth login` to configure at least one model provider."]
+      : failing.length > 0
       ? Array.from(
           new Set([
             "Run `dax auth login` for the provider you want to use first.",
@@ -209,13 +218,6 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
         )
       : ["Authentication is ready for the checked providers."]
 
-  const audiences = reports.some((report) => report.providerID.startsWith("google"))
-    ? Array.from(new Set(expectedGoogleOauthClientIds()))
-    : []
-  if (audiences.length > 0) {
-    detail.push(`Google OAuth client ids in play: ${audiences.join(", ")}`)
-  }
-
   return {
     id: "auth",
     title: "Authentication",
@@ -228,9 +230,19 @@ function authSectionFromReports(reports: AuthDiagnostics[]): DoctorSection {
 }
 
 export async function authSection(model?: string): Promise<DoctorSection> {
-  const checks = model ? [model.split("/")[0] ?? model] : ["google", "google-vertex", "google-vertex-anthropic"]
+  const config = await Config.get()
+  const configuredAuth = await Auth.all()
+  const selectedProvider = model ?? config.model
+  const checks = selectedProvider
+    ? [selectedProvider.split("/")[0] ?? selectedProvider]
+    : Array.from(new Set(Object.keys(configuredAuth))).sort()
   const reports = await Promise.all(checks.map((providerID) => diagnoseProviderAuth(providerID)))
-  return authSectionFromReports(reports)
+  const section = authSectionFromReports(reports, Boolean(model))
+  if (reports.some((report) => report.providerID.startsWith("google"))) {
+    const audiences = Array.from(new Set(expectedGoogleOauthClientIds()))
+    if (audiences.length > 0) section.detail.push(`Google OAuth client ids in play: ${audiences.join(", ")}`)
+  }
+  return section
 }
 
 export async function mcpSection(): Promise<DoctorSection> {
@@ -402,8 +414,46 @@ export async function projectSection(cwd: string = process.cwd()): Promise<Docto
   }
 }
 
+export function workerSectionFromCheck(check: WorkerSandboxCheck): DoctorSection {
+  if (check.available) {
+    return {
+      id: "worker",
+      title: "Governed workers",
+      state: "connected",
+      readiness: "ready",
+      summary: `${check.provider} isolation probe passed`,
+      detail: [check.summary, "External-worker verification runs with network denied."],
+      next: ["Run `dax worker run <agent> -- <task>` to start a governed external worker."],
+    }
+  }
+  return {
+    id: "worker",
+    title: "Governed workers",
+    state: "waiting",
+    readiness: "degraded",
+    summary: "External-worker isolation is unavailable",
+    detail: [check.reason, "DAX's built-in execution and non-worker workflows remain available."],
+    next: [
+      process.platform === "linux"
+        ? "Install bubblewrap (`bwrap`) and rerun `dax doctor`."
+        : "Use a supported macOS or Linux host whose isolation probe succeeds.",
+    ],
+  }
+}
+
+export function workerSection(): DoctorSection {
+  return workerSectionFromCheck(checkWorkerSandbox())
+}
+
 export async function aggregateDoctorReport(cwd: string = process.cwd(), model?: string): Promise<DoctorReport> {
-  const sections = await Promise.all([authSection(model), mcpSection(), lspSection(), envSection(cwd), projectSection(cwd)])
+  const sections = await Promise.all([
+    authSection(model),
+    mcpSection(),
+    lspSection(),
+    envSection(cwd),
+    projectSection(cwd),
+    Promise.resolve(workerSection()),
+  ])
   return {
     generatedAt: new Date().toISOString(),
     state: aggregateProductState(sections.map((item) => item.state)),

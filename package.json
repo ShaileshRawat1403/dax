@@ -62,7 +62,7 @@
     "diff": "8.0.2",
     "dompurify": "3.3.1",
     "ai": "5.0.124",
-    "hono": "4.10.7",
+    "hono": "4.12.29",
     "hono-openapi": "1.1.2",
     "fuzzysort": "3.1.0",
     "luxon": "3.6.1",
@@ -85,9 +85,9 @@
   "devDependencies": {
     "@stryker-mutator/core": "^8.7.1",
     "@tsconfig/bun": "catalog:",
-    "esbuild": "^0.27.7",
+    "esbuild": "^0.28.1",
     "prettier": "3.6.2",
-    "turbo": "2.5.6"
+    "turbo": "2.10.4"
   },
   "dependencies": {
     "blessed": "^0.1.81",
@@ -95,23 +95,26 @@
     "typescript": "catalog:"
   },
   "overrides": {
-    "protobufjs": "^7.5.8",
-    "hono": "^4.12.18",
+    "protobufjs": "^7.6.5",
+    "hono": "^4.12.29",
     "@hono/node-server": "^1.19.10",
+    "@grpc/grpc-js": "^1.14.4",
     "axios": "^1.15.2",
     "seroval": "^1.5.4",
     "minimatch": "^10.2.1",
     "path-to-regexp": "^8.4.2",
     "fast-uri": "^3.1.2",
     "picomatch": "^4.0.4",
-    "undici": "^6.23.0",
+    "undici": "^6.27.0",
+    "form-data": "^4.0.6",
+    "qs": "^6.15.3",
     "flatted": "^3.4.2",
     "lodash": "^4.17.24",
     "defu": "^6.1.7",
     "fast-xml-builder": "^1.1.9",
     "fast-xml-parser": "^5.7.3",
     "follow-redirects": "^1.16.0",
-    "tmp": "^0.2.5",
+    "tmp": "^0.2.7",
     "diff": "^8.0.4"
   },
   "repository": {

@@ -100,15 +100,30 @@ DAX depends on external model providers (OpenAI, Google, Anthropic). Provider/au
 
 DAX mitigates this with multi-provider support and graceful degradation, but it cannot run without at least one working provider.
 
-### 4. Not a security boundary
+### 4. Layered isolation, not a universal security boundary
 
-DAX provides governance, not sandboxing. An approved action can still:
+DAX's normal agent and tool execution is a governance boundary, not a
+universal host-security boundary. An approved action can still:
 
 - access files outside the project (if the contract allows it)
 - run arbitrary shell commands (if approved)
 - consume resources without limit (unless you set limits)
 
-Use containerization (Docker, VMs) for true isolation. DAX is a control layer, not a sandbox.
+The `dax worker run` path adds a narrower OS isolation boundary: macOS
+Seatbelt or Linux bubblewrap confines worker writes to a disposable checkout,
+and DAX verification runs with network denied. This does **not** mean the
+entire DAX process is sandboxed. In the current beta:
+
+- Windows external workers are unavailable and fail closed.
+- worker execution needs provider network access and is not yet restricted to
+  a per-provider hostname allowlist.
+- the worker profile permits host reads required by coding agents, so secrets
+  stored in readable files remain part of the host threat model.
+- a successful provider probe proves that the local isolation mechanism can
+  apply its policy; it does not prove the external agent is correct.
+
+Use a container or VM as an additional boundary for untrusted repositories,
+secrets-heavy hosts, or stronger tenant isolation.
 
 ## Why Approvals Matter
 
