@@ -66,11 +66,19 @@ export const SensitivityPolicy = z.object({
 })
 export type SensitivityPolicy = z.infer<typeof SensitivityPolicy>
 
+const FieldProvenanceEnum = z.enum(["operator-authored", "operator-confirmed", "inferred-unreviewed"])
+
 export const RuntimePolicy = z.object({
   scope: ScopePolicy,
   budgets: MutationBudgetPolicy,
   postconditions: PostconditionPolicy,
   sensitivity: SensitivityPolicy,
+  /** Per-field provenance for worker_run scope (see WorkerConstraints.ScopeProvenance). */
+  provenance: z.object({
+    writeScope: FieldProvenanceEnum,
+    forbiddenPaths: FieldProvenanceEnum,
+    verification: FieldProvenanceEnum,
+  }).optional(),
 })
 export type RuntimePolicy = z.infer<typeof RuntimePolicy>
 

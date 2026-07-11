@@ -17,6 +17,8 @@ import {
 } from "../../src/state/events/event-transitions"
 import { readRunEvents, getRunAuthority } from "../../src/state/events/run-event-store"
 import { isEventAuthorityPilot } from "../../src/execution/run-factory"
+import { compile } from "../../src/execution/compiler"
+import { WorkerRunEffects, WorkerRunWorkflow } from "../../src/workflows/worker-run"
 
 const CONTRACT_ID = "pilot-contract-001"
 
@@ -34,6 +36,7 @@ describe("event-authority pilot: draft_and_approve", () => {
   })
 
   afterEach(() => {
+    WorkerRunEffects.reset()
     if (previousHome) {
       process.env.DAX_TEST_HOME = previousHome
     } else {
@@ -48,6 +51,75 @@ describe("event-authority pilot: draft_and_approve", () => {
     expect(isEventAuthorityPilot("draft_and_approve")).toBe(true)
     expect(isEventAuthorityPilot("worker_run")).toBe(true)
     expect(isEventAuthorityPilot("repo_analyze")).toBe(false)
+  })
+
+  test("worker verification failure is evidenced and blocks the draft and approval gate", async () => {
+    const runId = makeRunId(11)
+    const { bootstrap } = await import("../../src/cli/bootstrap")
+    await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+      const { contract } = compile({
+        request: {
+          intent: { input: "Add a small helper with tests", repoPath: "/repo" },
+          workflowHint: "worker_run",
+          personaPreset: { personaId: "governed-worker", providerHint: "worker:claude" },
+          workerConstraints: {
+            writeScope: ["src/**", "test/**"],
+            forbiddenPaths: ["package.json"],
+            verification: ["bun test"],
+          },
+        },
+      })
+      contract.runId = runId
+      contract.contractId = "worker-verification-contract"
+
+      await createEventAuthorityRun(runId, contract.contractId)
+      await transitionEventAuthority(runId, "queued", "execution_queued", {})
+      await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+      WorkerRunEffects.set({
+        async createCheckout() {
+          return { path: "/tmp/worker-verification-checkout", cleanup: async () => {} }
+        },
+        async runWorker() {
+          return { exitCode: 0, stdout: "done", stderr: "" }
+        },
+        async computeDiff() {
+          return { content: "diff --git a/src/math.ts b/src/math.ts\n+export const isEven = () => true", changedPaths: ["src/math.ts"] }
+        },
+        async runVerification(check) {
+          const now = new Date().toISOString()
+          return {
+            id: check.id,
+            kind: "test",
+            label: check.label,
+            command: check.command,
+            cwd: check.cwd,
+            required: true,
+            risk: "medium",
+            exitCode: 1,
+            status: "failed",
+            startedAt: now,
+            finishedAt: now,
+            durationMs: 1,
+            stdoutPreview: "",
+            stderrPreview: "expected failure",
+          }
+        },
+      })
+
+      const workflow = new WorkerRunWorkflow({ runId, contract })
+      const result = await workflow.execute()
+      const state = await getEventAuthorityState(runId)
+      const events = await readRunEvents(runId)
+
+      expect(result.success).toBeFalse()
+      expect(state?.status).toBe("failed")
+      expect(state?.draft).toBeNull()
+      expect(state?.pendingApprovalIds).toEqual([])
+      expect(state?.governance.verification).toMatchObject({ required: true, satisfied: false })
+      expect(state?.steps.some((step) => step.title === "Verify worker patch" && step.status === "failed")).toBeTrue()
+      expect(events.some((event) => event.type === "verification_recorded")).toBeTrue()
+    })
   })
 
   describe("Test 1: create event-authority run", () => {

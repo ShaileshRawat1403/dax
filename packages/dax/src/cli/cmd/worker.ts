@@ -1,11 +1,97 @@
 import type { Argv } from "yargs"
 import path from "path"
 import { EOL } from "os"
+import readline from "readline"
 import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
 import { ExternalWorkerId } from "../../worker/worker-adapter"
+import { detectChecks } from "../../sdlc/check-catalog"
+import type { CheckDefinition } from "../../sdlc/check-types"
+import { isWhitelistedVerificationCommand } from "../../tool/shell-whitelist"
+
+export type FieldSource = "operator-authored" | "inferred"
+
+function checkCommand(check: CheckDefinition): string {
+  return [check.command, ...check.args].join(" ")
+}
+
+/**
+ * Resolve verification before the veto card so the operator sees the exact
+ * DAX-owned commands that will run. CLI intent wins, then safe intent
+ * inference, then repository-native check detection.
+ */
+export function resolveWorkerVerificationCommands(input: {
+  cli: string[]
+  inferred: string[]
+  detected: CheckDefinition[]
+}): string[] {
+  if (input.cli.length > 0) return input.cli
+
+  const inferred = input.inferred.filter(isWhitelistedVerificationCommand)
+  if (inferred.length > 0) return inferred
+
+  return input.detected.map(checkCommand).filter(isWhitelistedVerificationCommand)
+}
+
+/** Determine final provenance after card interaction.
+ *  authorship (CLI flag) beats confirmation (card + Enter) beats unreviewed (--yes). */
+export function resolveFieldProvenance(
+  source: FieldSource,
+  cardShown: boolean,
+  cardAccepted: boolean,
+): "operator-authored" | "operator-confirmed" | "inferred-unreviewed" {
+  if (source === "operator-authored") return "operator-authored"
+  if (cardShown && cardAccepted) return "operator-confirmed"
+  return "inferred-unreviewed"
+}
+
+/** Compact pre-run summary shown before creating the governed run. */
+export function renderVetoCard(opts: {
+  agent: string
+  task: string
+  riskLevel: string
+  writeScope: string[]
+  forbiddenPaths: string[]
+  verification: string[]
+  sources: {
+    writeScope: FieldSource
+    forbiddenPaths: FieldSource
+    verification: FieldSource
+  }
+}): string {
+  const sep = "─".repeat(60)
+  const lines: string[] = [
+    sep,
+    `Agent:        ${opts.agent}`,
+    `Task:         ${opts.task.length > 72 ? opts.task.slice(0, 72) + "…" : opts.task}`,
+    `Risk:         ${opts.riskLevel}`,
+  ]
+  if (opts.writeScope.length > 0)
+    lines.push(`Write scope:  ${opts.writeScope.join(", ")}  [${opts.sources.writeScope}]`)
+  if (opts.forbiddenPaths.length > 0)
+    lines.push(`Forbidden:    ${opts.forbiddenPaths.join(", ")}  [${opts.sources.forbiddenPaths}]`)
+  if (opts.verification.length > 0)
+    lines.push(`Verify:       ${opts.verification.join(", ")}  [${opts.sources.verification}]`)
+  lines.push(sep, "Press Enter to start the run, Ctrl-C to abort.")
+  return lines.join(EOL)
+}
+
+/** Resolves true on Enter/any key, false on Ctrl-C. */
+async function waitForConfirmation(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+    rl.question("", () => {
+      rl.close()
+      resolve(true)
+    })
+    rl.on("SIGINT", () => {
+      rl.close()
+      resolve(false)
+    })
+  })
+}
 
 /**
  * dax worker run <claude|codex|gemini> -- <task>
@@ -38,6 +124,27 @@ export const WorkerCommand = cmd({
             .option("repo", {
               describe: "repository path (defaults to current directory)",
               type: "string",
+            })
+            .option("write-scope", {
+              describe: "glob patterns the worker may write to (overrides inferred scope)",
+              type: "string",
+              array: true,
+            })
+            .option("forbid", {
+              describe: "paths or globs the worker must not touch",
+              type: "string",
+              array: true,
+            })
+            .option("verify", {
+              describe: "validation commands DAX runs to verify the diff",
+              type: "string",
+              array: true,
+            })
+            .option("yes", {
+              alias: "y",
+              describe: "skip the pre-run confirmation card (for scripting)",
+              type: "boolean",
+              default: false,
             }),
         async (args) => {
           await bootstrap(process.cwd(), async () => {
@@ -50,6 +157,79 @@ export const WorkerCommand = cmd({
               return
             }
             const repoPath = path.resolve((args.repo as string) ?? process.cwd())
+
+            // Infer scope from the task via refineIntent (LLM-backed, falls back gracefully).
+            // CLI flags always win; refineIntent fills the gap when none are provided.
+            const cliWriteScope: string[] = (args["write-scope"] as string[] | undefined) ?? []
+            const cliForbiddenPaths: string[] = (args.forbid as string[] | undefined) ?? []
+            const cliVerification: string[] = (args.verify as string[] | undefined) ?? []
+
+            const unsafeVerification = cliVerification.find((command) => !isWhitelistedVerificationCommand(command))
+            if (unsafeVerification) {
+              UI.error(`Verification command is not approved by DAX: ${unsafeVerification}`)
+              process.exitCode = 1
+              return
+            }
+
+            let inferredWriteScope: string[] = []
+            let inferredForbiddenPaths: string[] = []
+            let inferredVerification: string[] = []
+            let inferredRiskLevel: string = "medium"
+
+            try {
+              const { refineIntent } = await import("../../intent/interpret")
+              const refined = await refineIntent(task, { cwd: repoPath })
+              inferredWriteScope = refined?.likelyWrites ?? []
+              inferredForbiddenPaths = refined?.repoImpact?.avoidAreas ?? []
+              inferredVerification = refined?.validationCommands ?? []
+              inferredRiskLevel = refined?.riskLevel ?? "medium"
+            } catch {
+              // Non-fatal — empty scope is safe; kernel diff and approval gate remain the authority.
+            }
+
+            const writeScope = cliWriteScope.length > 0 ? cliWriteScope : inferredWriteScope
+            const forbiddenPaths = cliForbiddenPaths.length > 0 ? cliForbiddenPaths : inferredForbiddenPaths
+            const verification = resolveWorkerVerificationCommands({
+              cli: cliVerification,
+              inferred: inferredVerification,
+              detected: detectChecks(repoPath),
+            })
+
+            if (verification.length === 0) {
+              UI.error("No safe verification command was supplied or detected. Add --verify, for example: --verify \"bun test\".")
+              process.exitCode = 1
+              return
+            }
+
+            const sources = {
+              writeScope: (cliWriteScope.length > 0 ? "operator-authored" : "inferred") as FieldSource,
+              forbiddenPaths: (cliForbiddenPaths.length > 0 ? "operator-authored" : "inferred") as FieldSource,
+              verification: (cliVerification.length > 0 ? "operator-authored" : "inferred") as FieldSource,
+            }
+
+            // Veto card: compact pre-run summary. --yes skips for scripting.
+            // Pressing Enter upgrades inferred → operator-confirmed in the evidence record.
+            // --yes sets inferred → inferred-unreviewed (operator never saw the scope).
+            let cardAccepted = false
+            if (!args.yes) {
+              const card = renderVetoCard({
+                agent, task, riskLevel: inferredRiskLevel,
+                writeScope, forbiddenPaths, verification, sources,
+              })
+              UI.println(card)
+              cardAccepted = await waitForConfirmation()
+              if (!cardAccepted) {
+                UI.println("Aborted.")
+                process.exitCode = 1
+                return
+              }
+            }
+
+            const provenance = {
+              writeScope: resolveFieldProvenance(sources.writeScope, !args.yes, cardAccepted),
+              forbiddenPaths: resolveFieldProvenance(sources.forbiddenPaths, !args.yes, cardAccepted),
+              verification: resolveFieldProvenance(sources.verification, !args.yes, cardAccepted),
+            }
 
             UI.println(`Governed worker run: ${agent}`)
             UI.println(`Repo: ${repoPath}`)
@@ -66,6 +246,9 @@ export const WorkerCommand = cmd({
                 personaId: "governed-worker",
                 providerHint: `worker:${agent}`,
               },
+              // Always send all three arrays so what the operator saw on the card is exactly
+              // what binds — explicit [] is authoritative, not a fallback trigger.
+              workerConstraints: { writeScope, forbiddenPaths, verification, provenance },
               metadata: {
                 source: "cli",
                 initiatedBy: "dax-worker-run",
@@ -94,6 +277,7 @@ export const WorkerCommand = cmd({
                 const approvals = await RunGateway.getApprovals(created.runId)
                 const approval = approvals.find((item) => item.status === "pending")
                 UI.println(`${EOL}Kernel diff is ready for review.`)
+                UI.println("DAX verification receipts were recorded before this review gate.")
                 if (approval) {
                   UI.println(
                     `Approve with: dax approvals resolve ${approval.approvalId} --run ${created.runId} --decision approve`,

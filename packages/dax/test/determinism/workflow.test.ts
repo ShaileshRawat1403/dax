@@ -50,10 +50,11 @@ describe("Workflow Types", () => {
 
   test("getStepsForWorkflow returns fixed steps for worker_run", () => {
     const steps = getStepsForWorkflow("worker_run")
-    expect(steps).toHaveLength(3)
+    expect(steps).toHaveLength(4)
     expect(steps[0].type).toBe("run_worker")
-    expect(steps[1].type).toBe("request_approval")
-    expect(steps[2].type).toBe("finalize_outcome")
+    expect(steps[1].type).toBe("verify_worker_patch")
+    expect(steps[2].type).toBe("request_approval")
+    expect(steps[3].type).toBe("finalize_outcome")
   })
 
   test("getStepsForWorkflow returns empty for other workflows", () => {

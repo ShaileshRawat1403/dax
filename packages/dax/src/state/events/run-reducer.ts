@@ -315,12 +315,17 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         const payload = event.payload as { artifactId: string; artifactType?: string }
         if (!state.artifactIds.includes(payload.artifactId)) {
           state.artifactIds.push(payload.artifactId)
-          if (/verification/i.test(payload.artifactType ?? "") || /verification/i.test(payload.artifactId)) {
-            state.governance.verification.required = true
-            state.governance.verification.satisfied = true
-            if (!state.governance.verification.receiptIds.includes(payload.artifactId)) {
-              state.governance.verification.receiptIds.push(payload.artifactId)
-            }
+        }
+        break
+      }
+
+      case "verification_recorded": {
+        const payload = event.payload as { status: "passed" | "failed"; receipts: Array<{ receiptId: string }> }
+        state.governance.verification.required = true
+        state.governance.verification.satisfied = payload.status === "passed"
+        for (const receipt of payload.receipts) {
+          if (!state.governance.verification.receiptIds.includes(receipt.receiptId)) {
+            state.governance.verification.receiptIds.push(receipt.receiptId)
           }
         }
         break

@@ -248,11 +248,43 @@ export const PersonaPreset = z
   .meta({ ref: "PersonaPresetV1" })
 export type PersonaPreset = z.infer<typeof PersonaPreset>
 
+/**
+ * Per-field provenance for worker_run scope:
+ * - operator-authored   — field set via CLI flag; operator owns the value
+ * - operator-confirmed  — inferred by refineIntent; operator saw card and pressed Enter
+ * - inferred-unreviewed — inferred by refineIntent; operator used --yes and skipped the card
+ */
+export const FieldProvenance = z.enum(["operator-authored", "operator-confirmed", "inferred-unreviewed"])
+export type FieldProvenance = z.infer<typeof FieldProvenance>
+
+export const ScopeProvenance = z.object({
+  writeScope: FieldProvenance,
+  forbiddenPaths: FieldProvenance,
+  verification: FieldProvenance,
+})
+export type ScopeProvenance = z.infer<typeof ScopeProvenance>
+
+export const WorkerConstraints = z
+  .object({
+    /** Glob patterns the worker may write to. CLI flags win over inferred. */
+    writeScope: z.array(z.string()).optional(),
+    /** Paths/globs the worker must not touch. */
+    forbiddenPaths: z.array(z.string()).optional(),
+    /** Commands DAX runs to verify the result. */
+    verification: z.array(z.string()).optional(),
+    /** Per-field provenance — which source each scope field came from. */
+    provenance: ScopeProvenance.optional(),
+  })
+  .meta({ ref: "WorkerConstraintsV1" })
+export type WorkerConstraints = z.infer<typeof WorkerConstraints>
+
 export const CreateRunRequest = z
   .object({
     intent: RunIntent,
     personaPreset: PersonaPreset.optional(),
     workflowHint: WorkflowClass.optional(),
+    /** Scope constraints for worker_run. Operator-supplied or refineIntent-inferred. */
+    workerConstraints: WorkerConstraints.optional(),
     metadata: z
       .object({
         initiatedBy: z.string().optional(),

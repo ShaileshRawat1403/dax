@@ -13,6 +13,7 @@ export const WorkflowStepTypeSchema = z.enum([
   "request_signoff",
   "finalize_outcome",
   "run_worker",
+  "verify_worker_patch",
   "generic",
 ])
 export type WorkflowStepType = z.infer<typeof WorkflowStepTypeSchema>
@@ -195,6 +196,13 @@ export const WORKER_RUN_STEPS: WorkflowStep[] = [
     type: "run_worker",
     title: "Run Governed Worker",
     description: "Execute the external coding agent inside a disposable checkout; DAX computes the diff.",
+    required: true,
+  },
+  {
+    stepId: "verify_worker_patch",
+    type: "verify_worker_patch",
+    title: "Verify Worker Patch",
+    description: "DAX runs the approved verification commands and records receipts before review.",
     required: true,
   },
   {

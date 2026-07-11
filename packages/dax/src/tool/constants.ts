@@ -61,10 +61,10 @@ export type VerificationCommand = {
 }
 
 export const VERIFICATION_SHELL_WHITELIST: VerificationCommand[] = [
-  { executable: "npm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"], allowNestedExec: true },
-  { executable: "pnpm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"], allowNestedExec: true },
-  { executable: "bun", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"] },
-  { executable: "yarn", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"] },
+  { executable: "npm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"], allowPathTargets: true, allowNestedExec: true },
+  { executable: "pnpm", allowedSubcommands: ["test", "run", "exec"], allowedFlags: ["--silent", "--run"], allowPathTargets: true, allowNestedExec: true },
+  { executable: "bun", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"], allowPathTargets: true },
+  { executable: "yarn", allowedSubcommands: ["test", "run"], allowedFlags: ["--silent"], allowPathTargets: true },
   { executable: "pytest", allowedSubcommands: [], allowedFlags: ["-v", "-x", "--collect-only", "--tb=short"], allowPathTargets: true },
   { executable: "python", allowedSubcommands: ["-m", "pytest"], allowedFlags: ["-v", "-x"], allowPathTargets: true },
   {
