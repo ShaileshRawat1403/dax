@@ -327,7 +327,7 @@ describe("reduceRunState", () => {
       expect(state?.artifactIds).toContain("artifact_001")
     })
 
-    test("verification artifacts satisfy verification evidence", () => {
+    test("verification artifacts do not satisfy verification evidence without a recorded receipt", () => {
       const events: RunEventEnvelope[] = [
         makeEnvelope("contract_compiled", 0, { contractId: CONTRACT_ID }),
         makeEnvelope("execution_queued", 1, {}),
@@ -340,8 +340,8 @@ describe("reduceRunState", () => {
 
       const state = reduceRunState(events)
 
-      expect(state?.governance.verification.satisfied).toBe(true)
-      expect(state?.governance.verification.receiptIds).toContain("verification_report_001")
+      expect(state?.governance.verification.satisfied).toBe(false)
+      expect(state?.governance.verification.receiptIds).toEqual([])
     })
 
     test("duplicate artifact IDs are deduplicated", () => {

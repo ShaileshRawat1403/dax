@@ -47,15 +47,24 @@ export function isWhitelistedVerificationCommand(command: string): boolean {
         return isWhitelistedVerificationCommand(nestedArgs.join(" "))
       }
 
+      // Script runners may receive safe path/script targets only after their
+      // verification subcommand. Otherwise `npm install` would be mistaken
+      // for a harmless target named "install".
+      let subcommandAccepted = entry.allowedSubcommands.length === 0
       for (const arg of args) {
         const token = arg.split("=")[0]!
         const allowedTokens = new Set(
           [...entry.allowedFlags, ...entry.allowedSubcommands].map((item) => item.toLowerCase()),
         )
 
-        if (allowedTokens.has(token)) continue
+        if (allowedTokens.has(token)) {
+          if (entry.allowedSubcommands.some((subcommand) => subcommand.toLowerCase() === token)) {
+            subcommandAccepted = true
+          }
+          continue
+        }
 
-        if (entry.allowPathTargets && isSafeVerificationTarget(arg)) {
+        if (entry.allowPathTargets && subcommandAccepted && isSafeVerificationTarget(arg)) {
           continue
         }
 
