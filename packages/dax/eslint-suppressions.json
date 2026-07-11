@@ -1,0 +1,1712 @@
+{
+  "src/acp/adapter.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/acp/agent.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-case-declarations": {
+      "count": 6
+    }
+  },
+  "src/agent/agent.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 2
+    }
+  },
+  "src/agent/sensitive-paths.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/approval/approval-adapter.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "src/approval/approval-store.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/approval/approval-transitions.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/auth/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/bun/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/bun/registry.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/bus/bus-event.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/bus/global.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/bus/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/bus/lifecycle.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/bus/lifecycle.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/approvals.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/approvals.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/artifacts.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/audit.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/auth.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/debug/agent.ts": {
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/docs.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/doctor.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/export.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/generate.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/github.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/github.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-constant-condition": {
+      "count": 1
+    },
+    "preserve-caught-error": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/mcp.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/plan.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/provider-auth.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/run.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/session.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 14
+    }
+  },
+  "src/cli/cmd/skills.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/app.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "no-async-promise-executor": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/dialog-mcp.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/dialog-model.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/dialog-session-list.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/component/dialog-status.tsx": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/dialog-theme-list.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/autocomplete.tsx": {
+    "@typescript-eslint/no-unused-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/index.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/operator-pane.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/prompt-dialogs.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/prompt-handlers.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-empty": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/prompt-state.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "src/cli/cmd/tui/component/prompt/refine.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/component/stream/alert-inline.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/tui/component/stream/stream-item.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/component/tips.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/context/helper.tsx": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/context/kv.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/tui/context/local.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/context/route.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/context/sync.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/tui/event.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/jsx.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 31
+    }
+  },
+  "src/cli/cmd/tui/routes/home.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 6
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/routes/session/dialog-timeline.tsx": {
+    "no-unassigned-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/routes/session/footer.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/routes/session/index.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 35
+    },
+    "@typescript-eslint/no-unused-expressions": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 76
+    },
+    "no-unassigned-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/routes/session/permission.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/routes/session/rao-pane.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/thread.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/ui/dialog-export-options.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/ui/dialog-marketplace.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/ui/dialog-select.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/cli/cmd/tui/ui/dialog.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/ui/toast.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/tui/util/clipboard.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/util/editor.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/util/session-visibility.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/cli/cmd/tui/util/terminal.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-control-regex": {
+      "count": 3
+    }
+  },
+  "src/cli/cmd/tui/util/transcript.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "src/cli/cmd/tui/worker.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/workflow.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/network.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/cli/ui.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    }
+  },
+  "src/command/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-async-promise-executor": {
+      "count": 1
+    }
+  },
+  "src/config/config.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/config/markdown.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/context/build-context-pack.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 5
+    }
+  },
+  "src/dax/presentation/pane.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/dax/presentation/persona.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/dax/presentation/session-stream.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 46
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/dax/presentation/session-stream.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 32
+    }
+  },
+  "src/dax/presentation/session-surface.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 13
+    }
+  },
+  "src/dax/presentation/session-surface.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/dax/presentation/workstation.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/dax/user-profile.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/dax/user-profile.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/docops/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "src/doctor/index.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/env/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/execution/action-semantics.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/execution/compiler.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/execution/contract-guardian.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/execution/run-factory.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 5
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/execution/run-graph.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/execution/runtime-guard.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/execution/shadow-auditor.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/explore/dependency-graph.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/file/ignore.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/file/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/file/ripgrep.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/file/time.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/file/watcher.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    }
+  },
+  "src/flag/flag.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/flowright/capability-service.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/format/formatter.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/format/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/global/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/governance/arity.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/governance/audit.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/governance/audit.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/governance/evaluate.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/governance/next.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "src/governance/next.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/governance/policy-engine.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/governance/policy-engine.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/governance/rook-bridge-types.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/governance/trust-verification.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 6
+    }
+  },
+  "src/id/id.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/ide/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/index.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/installation/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/intent/interpret.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/lsp/client.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/lsp/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 2
+    }
+  },
+  "src/lsp/server.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/mcp/auth.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/mcp/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/mcp/oauth-callback.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/mcp/registry.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/operators/artifact.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/operators/base.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/operators/explore.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/operators/git.ts": {
+    "no-case-declarations": {
+      "count": 6
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/operators/release.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/operators/verify.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/patch/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-case-declarations": {
+      "count": 7
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/planner/task-graph.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/plugin/anthropic.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/plugin/claude-code.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/plugin/codex.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/plugin/copilot.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "src/plugin/gemini-rate-limit.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/plugin/gemini-scheduler.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "no-empty": {
+      "count": 1
+    }
+  },
+  "src/plugin/gemini.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 6
+    },
+    "no-empty": {
+      "count": 2
+    },
+    "preserve-caught-error": {
+      "count": 2
+    }
+  },
+  "src/plugin/index.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/pm/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/project/instance.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/project/project.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/project/state.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/project/vcs.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/provider/auth-preflight.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/provider/auth.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/provider/models.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/provider/provider.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 26
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/chat/openai-compatible-chat-language-model.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/openai-error.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/openai-responses-language-model.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-this-alias": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/tool/file-search.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/tool/image-generation.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/tool/local-shell.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/tool/web-search-preview.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    }
+  },
+  "src/provider/sdk/copilot/responses/tool/web-search.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    }
+  },
+  "src/provider/transform.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 15
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-case-declarations": {
+      "count": 4
+    },
+    "no-fallthrough": {
+      "count": 6
+    }
+  },
+  "src/pty/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/question/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/rao/adapters.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/rao/evidence.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/rao/ledger.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/rao/schema.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/runtime/compat/lifecycle-reconciler.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/runtime/compat/permission-adapter.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/runtime/compat/session-adapter.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/runtime/migration/report.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/runtime/otel/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/runtime/telemetry/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 2
+    }
+  },
+  "src/scheduler/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/server/fastmcp-substrate.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/server/mdns.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/server/open-source-stack.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/server/routes/experimental.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/server/routes/global.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/server/routes/run.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/server/routes/soothsayer.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/server/routes/tui.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/server/run-gateway.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/server/run-gateway.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 3
+    },
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/server/server.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/server/transport/nats-transport.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/session/compaction.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/explore-command.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/session/index.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/instruction.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/lifecycle.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/session/llm.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/message-v2.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-case-declarations": {
+      "count": 2
+    }
+  },
+  "src/session/message.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/model.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/session/processor.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "src/session/processor.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "no-case-declarations": {
+      "count": 2
+    }
+  },
+  "src/session/prompt.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-case-declarations": {
+      "count": 3
+    },
+    "no-useless-escape": {
+      "count": 4
+    }
+  },
+  "src/session/retry.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/revert.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/session/status.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/summarize-state.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/session/summary.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/system.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-constant-condition": {
+      "count": 1
+    }
+  },
+  "src/session/todo.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/session/update-state.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/share/share-next.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/share/share.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/shell/sandbox/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 5
+    }
+  },
+  "src/shell/sandbox/landlock.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/shell/sandbox/seatbelt.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/shell/shell.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/skill/discovery.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/skill/skill.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/skills/types.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/snapshot/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/soothsayer/soothsayer-api.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/state/events/event-transitions.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/state/recovery.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/state/replay.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/state/run-store.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/state/transitions.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/storage/storage.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/tool/apply_patch.ts": {
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "preserve-caught-error": {
+      "count": 2
+    }
+  },
+  "src/tool/codesearch.ts": {
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/tool/edit.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/tool/git_branch.ts": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "src/tool/registry.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/tool/shell-whitelist.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/tool/task.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/tool/tool.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/tool/truncation.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/tool/webfetch.ts": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/tool/websearch.ts": {
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/util/archive.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/color.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/context.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/defer.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/util/filesystem.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/keybind.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/locale.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/lock.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/log.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 24
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/rpc.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/signal.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/util/token.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/util/wildcard.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "src/verify/replay.ts": {
+    "preserve-caught-error": {
+      "count": 1
+    }
+  },
+  "src/workflows/draft-approve-execute.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/workflows/registry.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/workflows/repo-analyze.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/worktree/index.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  }
+}
