@@ -36,14 +36,20 @@ const log = Log.create({ service: "worker-run-workflow" })
 
 export type WorkerCheckout = { path: string; cleanup: () => Promise<void> }
 
+export type WorkerPatch = {
+  content: string
+  /** Repository-relative paths computed by Git after staging the worker's changes. */
+  changedPaths: string[]
+}
+
 export type WorkerRunEffectsShape = {
   createCheckout: (repoPath: string, runId: string) => Promise<WorkerCheckout>
   runWorker: (
     invocation: WorkerInvocation,
     cwd: string,
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
-  /** Kernel-owned diff of everything the worker changed (incl. untracked). */
-  computeDiff: (checkoutPath: string) => Promise<string>
+  /** Kernel-owned diff and changed paths (including untracked files). */
+  computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
 }
 
 const defaultEffects: WorkerRunEffectsShape = {
@@ -96,10 +102,24 @@ const defaultEffects: WorkerRunEffectsShape = {
       throw new Error(`git add failed: ${await new Response(add.stderr).text()}`)
     }
     const diff = Bun.spawn(["git", "-C", checkoutPath, "diff", "--cached"], { stdout: "pipe", stderr: "pipe" })
-    if ((await diff.exited) !== 0) {
+    const paths = Bun.spawn(["git", "-C", checkoutPath, "diff", "--cached", "--name-only", "-z"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [diffExit, pathsExit] = await Promise.all([diff.exited, paths.exited])
+    if (diffExit !== 0) {
       throw new Error(`git diff failed: ${await new Response(diff.stderr).text()}`)
     }
-    return await new Response(diff.stdout).text()
+    if (pathsExit !== 0) {
+      throw new Error(`git diff --name-only failed: ${await new Response(paths.stderr).text()}`)
+    }
+    const [content, changedPaths] = await Promise.all([
+      new Response(diff.stdout).text(),
+      new Response(paths.stdout)
+        .text()
+        .then((output) => output.split("\0").filter(Boolean)),
+    ])
+    return { content, changedPaths }
   },
 }
 
@@ -137,6 +157,59 @@ export function workerIdFromProviderHint(providerHint: string | undefined): Exte
   if (!providerHint?.startsWith("worker:")) return null
   const parsed = ExternalWorkerId.safeParse(providerHint.slice("worker:".length))
   return parsed.success ? parsed.data : null
+}
+
+export type WorkerScopeViolation = {
+  path: string
+  kind: "forbidden" | "outside_write_scope"
+  patterns: string[]
+}
+
+function normalizeRepoPath(value: string): string {
+  return value.replaceAll("\\", "/").replace(/^\.\//, "")
+}
+
+function pathMatchesPattern(path: string, pattern: string): boolean {
+  const normalizedPath = normalizeRepoPath(path)
+  const normalizedPattern = normalizeRepoPath(pattern)
+  return (
+    normalizedPath === normalizedPattern ||
+    normalizedPath.startsWith(`${normalizedPattern.replace(/\/$/, "")}/`) ||
+    new Bun.Glob(normalizedPattern).match(normalizedPath)
+  )
+}
+
+/**
+ * Enforce the operator-visible contract against DAX's own Git-derived paths.
+ * Empty write scope is intentionally unrestricted; forbidden paths always win.
+ */
+export function validateWorkerPatchScope(paths: string[], contract: WorkerContract): WorkerScopeViolation[] {
+  const violations: WorkerScopeViolation[] = []
+  for (const path of paths) {
+    const forbidden = contract.forbiddenPaths.filter((pattern) => pathMatchesPattern(path, pattern))
+    if (forbidden.length > 0) {
+      violations.push({ path, kind: "forbidden", patterns: forbidden })
+      continue
+    }
+
+    if (
+      contract.writeScope.length > 0 &&
+      !contract.writeScope.some((pattern) => pathMatchesPattern(path, pattern))
+    ) {
+      violations.push({ path, kind: "outside_write_scope", patterns: contract.writeScope })
+    }
+  }
+  return violations
+}
+
+function formatScopeViolations(violations: WorkerScopeViolation[]): string {
+  return violations
+    .map((violation) =>
+      violation.kind === "forbidden"
+        ? `forbidden path ${violation.path} (matched ${violation.patterns.join(", ")})`
+        : `out-of-scope path ${violation.path} (allowed: ${violation.patterns.join(", ")})`,
+    )
+    .join("; ")
 }
 
 export class WorkerRunWorkflow {
@@ -224,24 +297,28 @@ export class WorkerRunWorkflow {
 
       // Kernel-owned diff: the worker's own account of its changes is never
       // consulted.
-      const diff = await WorkerRunEffects.current.computeDiff(checkout.path)
-      if (!diff.trim()) {
+      const patch = await WorkerRunEffects.current.computeDiff(checkout.path)
+      if (!patch.content.trim()) {
         throw new Error(`worker ${workerId} produced no changes — nothing to review`)
       }
-      this.diffContent = diff
+      const scopeViolations = validateWorkerPatchScope(patch.changedPaths, contract)
+      if (scopeViolations.length > 0) {
+        throw new Error(`worker ${workerId} violated its governed scope: ${formatScopeViolations(scopeViolations)}`)
+      }
+      this.diffContent = patch.content
 
       const draftId = `draft_${Identifier.create("session", false)}`
-      await HybridTransitions.createDraft(this.runId, draftId, "patch", diff, undefined)
+      await HybridTransitions.createDraft(this.runId, draftId, "patch", patch.content, undefined)
       await HybridTransitions.completeStep(this.runId, stepId, [`draft:patch`, `worker:${workerId}`])
 
-      log.info("run_worker completed", { runId: this.runId, workerId, diffBytes: diff.length })
+      log.info("run_worker completed", { runId: this.runId, workerId, diffBytes: patch.content.length })
       return {
         stepId,
         success: true,
         outputs: [
           {
             type: "summary",
-            content: `External worker ${workerId} produced a kernel-computed patch (${diff.length} bytes).`,
+            content: `External worker ${workerId} produced a kernel-computed patch (${patch.content.length} bytes).`,
           },
         ],
       }

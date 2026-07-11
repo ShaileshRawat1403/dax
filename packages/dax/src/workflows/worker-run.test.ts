@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { WorkerRunEffects, workerIdFromProviderHint, workerContractFromPolicy } from "./worker-run"
+import { WorkerRunEffects, validateWorkerPatchScope, workerIdFromProviderHint, workerContractFromPolicy } from "./worker-run"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
 
@@ -105,6 +105,44 @@ describe("contract_refined evidence payload — Job 3: three-state per-field pro
   })
 })
 
+describe("validateWorkerPatchScope", () => {
+  const contract = workerContractFromPolicy("add isEven helper", "run_scope", {
+    scope: { targetFiles: ["src/**", "test/**"], targetSubsystems: [], avoidAreas: [] },
+    budgets: { maxFilesTouched: 8, maxMutatingCommands: 6, maxApprovalRequests: 4, maxRepeatedFailures: 3 },
+    postconditions: { verificationRequired: true, validationPlan: [], validationCommands: ["bun test"] },
+    sensitivity: { sensitivePatterns: [], forbiddenPatterns: ["package.json", ".github/**"] },
+  })
+
+  test("allows Git-derived paths inside the write scope", () => {
+    expect(validateWorkerPatchScope(["src/math.ts", "test/math.test.ts"], contract)).toEqual([])
+  })
+
+  test("fails closed when a worker changes an explicitly forbidden path", () => {
+    expect(validateWorkerPatchScope(["src/math.ts", "package.json"], contract)).toEqual([
+      { path: "package.json", kind: "forbidden", patterns: ["package.json"] },
+    ])
+  })
+
+  test("fails closed when a worker changes a path outside the approved write scope", () => {
+    expect(validateWorkerPatchScope(["scripts/release.ts"], contract)).toEqual([
+      { path: "scripts/release.ts", kind: "outside_write_scope", patterns: ["src/**", "test/**"] },
+    ])
+  })
+
+  test("treats an empty write scope as unrestricted while preserving forbidden paths", () => {
+    const unrestricted = workerContractFromPolicy("task", "run_unrestricted", {
+      scope: { targetFiles: [], targetSubsystems: [], avoidAreas: [] },
+      budgets: { maxFilesTouched: 8, maxMutatingCommands: 6, maxApprovalRequests: 4, maxRepeatedFailures: 3 },
+      postconditions: { verificationRequired: false, validationPlan: [], validationCommands: [] },
+      sensitivity: { sensitivePatterns: [], forbiddenPatterns: ["package.json"] },
+    })
+    expect(validateWorkerPatchScope(["src/math.ts"], unrestricted)).toEqual([])
+    expect(validateWorkerPatchScope(["package.json"], unrestricted)).toEqual([
+      { path: "package.json", kind: "forbidden", patterns: ["package.json"] },
+    ])
+  })
+})
+
 describe("WorkerRunEffects seam", () => {
   test("effects can be swapped for tests and restored", async () => {
     const calls: string[] = []
@@ -119,7 +157,7 @@ describe("WorkerRunEffects seam", () => {
       },
       async computeDiff() {
         calls.push("diff")
-        return "diff --git a/src/x.ts b/src/x.ts\n+added"
+        return { content: "diff --git a/src/x.ts b/src/x.ts\n+added", changedPaths: ["src/x.ts"] }
       },
     })
 
@@ -128,11 +166,12 @@ describe("WorkerRunEffects seam", () => {
       { workerId: "claude", command: ["claude", "-p", "x"], env: {}, network: "full", timeoutMs: 1000 },
       checkout.path,
     )
-    const diff = await WorkerRunEffects.current.computeDiff(checkout.path)
+    const patch = await WorkerRunEffects.current.computeDiff(checkout.path)
     await checkout.cleanup()
 
     expect(result.exitCode).toBe(0)
-    expect(diff).toContain("+added")
+    expect(patch.content).toContain("+added")
+    expect(patch.changedPaths).toEqual(["src/x.ts"])
     expect(calls).toEqual(["checkout:/repo:run_1", "run:claude:/tmp/fake-checkout", "diff", "cleanup"])
 
     WorkerRunEffects.reset()
