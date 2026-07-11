@@ -110,11 +110,9 @@
     "defu": "^6.1.7",
     "fast-xml-builder": "^1.1.9",
     "fast-xml-parser": "^5.7.3",
-    "brace-expansion": "^2.0.3",
     "follow-redirects": "^1.16.0",
     "tmp": "^0.2.5",
-    "diff": "^8.0.4",
-    "ajv": "^8.18.0"
+    "diff": "^8.0.4"
   },
   "repository": {
     "type": "git",
