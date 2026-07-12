@@ -2,7 +2,7 @@
 
 ## Candidate
 
-`v1.2.0-beta.1` validates governed external coding workers without expanding DAX into another general-purpose coding agent.
+`v1.2.0` ships governed external coding workers without expanding DAX into another general-purpose coding agent.
 
 ## Non-Goals
 
@@ -10,7 +10,8 @@
 - Silent mutation, publish, deploy, recovery, or approval from free text.
 - Claiming that governance makes stochastic model output deterministic.
 - Claiming enterprise readiness before real-repository recovery and operator receipts exist.
-- Shipping Windows external-worker isolation in this beta.
+- Claiming Windows external-worker isolation before the platform has a
+  supported isolation boundary.
 
 ## Required Gates
 
@@ -29,7 +30,7 @@
 - [x] macOS Seatbelt and Linux bubblewrap plans have focused tests.
 - [x] Unsupported worker platforms fail closed with an actionable message.
 - [x] Built-in DAX workflows remain usable when worker isolation is unavailable.
-- [ ] A real repository worker run produces an approve or deny receipt.
+- [x] A real repository worker run produces an approve or deny receipt.
 
 ### Release quality
 
@@ -43,9 +44,9 @@
 - [x] `cargo test --workspace`
 - [x] `bun audit` has zero high-severity findings
 - [x] Canonical release build produces all 11 target archives, manifest, installer, and verified checksums
-- [x] GitHub CI is green on Ubuntu, macOS, and Windows for release PR #13 (run 29149162194)
+- [x] GitHub CI is green on Ubuntu, macOS, and Windows for `main` (run 29174772587).
 
-## Known Beta Boundaries
+## Known Operational Limits
 
 - Worker provider calls use full network access; hostname allowlisting is future hardening.
 - Worker profiles permit host reads and confine writes; use a container or VM for stronger confidentiality.
@@ -54,7 +55,7 @@
 
 ## References
 
-- [v1.2.0-beta.1 release notes](./docs/releases/v1.2.0-beta.1.md)
+- [v1.2.0 release notes](./docs/releases/v1.2.0.md)
 - [BYOA strategy](./docs/dax/byoa-strategy.md)
 - [Transparency and limitations](./docs/product/TRANSPARENCY_AND_LIMITATIONS.md)
 - [Architecture guide](./docs/architecture/ARCHITECTURE.md)

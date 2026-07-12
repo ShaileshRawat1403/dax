@@ -38,15 +38,24 @@ Run this guide before:
 Run these from the repository root.
 
 ```bash
+# Choose any configured provider/model lane that reports ready. This is an
+# example only; do not assume a Vertex lane is configured.
+export DAX_RELEASE_MODEL="openai/gpt-5.5"
+
 bun run --cwd packages/dax src/index.ts --help
 bun run release:check
 bun run --cwd packages/dax src/index.ts doctor auth --json
+bun run --cwd packages/dax src/index.ts doctor auth "$DAX_RELEASE_MODEL" --json
 bun run --cwd packages/dax src/index.ts doctor --json
 bun run --cwd packages/dax src/index.ts doctor lsp --json
 bun run --cwd packages/dax src/index.ts debug lsp status
-bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash guide Release Readiness
-bun run --cwd packages/dax src/index.ts run --command docs -m google-vertex/gemini-2.5-flash qa strict
+bun run --cwd packages/dax src/index.ts run --command docs -m "$DAX_RELEASE_MODEL" guide Release Readiness
+bun run --cwd packages/dax src/index.ts run --command docs -m "$DAX_RELEASE_MODEL" qa strict
 ```
+
+Use a lane that the targeted `doctor auth` command reports as ready. Provider-
+specific prerequisites, such as a Google Cloud project for Vertex, are not
+assumed by this release guide.
 
 ## Expected Results
 
