@@ -158,7 +158,8 @@ Release provenance must prove the cut is coherent:
 
 ### Prerelease Flag Behavior
 
-Stable X.Y.Z releases must NOT be marked as prerelease on GitHub. This ensures:
+Stable X.Y.Z releases are marked as latest by default and must NOT be marked
+as prerelease on GitHub. This ensures:
 
 - `curl | sh` installers resolve to the correct latest artifact
 - GitHub's `releases/latest` API returns the stable release
