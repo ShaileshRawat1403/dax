@@ -8,6 +8,7 @@ import { Storage } from "@/storage/storage"
 import { Log } from "@/util/log"
 import { deriveSessionLifecycleFromMessages } from "@/session/lifecycle"
 import { RunFactory } from "@/execution/run-factory"
+import { WorkerRunWorkflow } from "@/workflows/worker-run"
 import { RunStore } from "@/state/run-store"
 import { LifecycleReconciler } from "@/runtime/compat/lifecycle-reconciler"
 import { ApprovalStore } from "@/approval/approval-store"
@@ -77,6 +78,25 @@ const appendEventTailByRun = new Map<string, Promise<void>>()
 const runGatewayState = Instance.state(() => ({
   initialized: false,
 }))
+
+/** Resume workflows whose human gate is owned by DAX's canonical approval store. */
+async function resumeCanonicalWorkflowApproval(
+  runId: string,
+  approvalId: string,
+  decision: "approve" | "deny",
+): Promise<void> {
+  const contract = await RunFactory.getContract(runId)
+  if (contract?.workflowClass !== "worker_run") return
+
+  // A repeated CLI request may be the recovery path after the approval store
+  // was updated but the prior process exited before it could finalize the run.
+  // Never append a second terminal decision to an already finished event log.
+  const state = await getEventAuthorityState(runId)
+  if (state && ["completed", "failed", "cancelled"].includes(state.status)) return
+
+  const workflow = new WorkerRunWorkflow({ runId, contract })
+  await workflow.resumeAfterApproval(approvalId, decision === "approve" ? "approved" : "denied")
+}
 
 function buildWorkflowSummary(
   workflowClass: string | undefined,
@@ -1189,10 +1209,17 @@ export namespace RunGateway {
     const canonicalApproval = await ApprovalStore.get(runId, approvalId)
 
     if (canonicalApproval) {
-      if (input.decision === "approve") {
-        await ApprovalTransitions.approve(runId, approvalId, input.actorId, input.comment)
-      } else {
-        await ApprovalTransitions.deny(runId, approvalId, input.actorId, input.comment)
+      const decision = canonicalApproval.status === "pending" ? input.decision : canonicalApproval.resolution?.decision
+      if (!decision) {
+        throw new ApprovalAlreadyResolvedError(approvalId, canonicalApproval.status)
+      }
+
+      if (canonicalApproval.status === "pending") {
+        if (decision === "approve") {
+          await ApprovalTransitions.approve(runId, approvalId, input.actorId, input.comment)
+        } else {
+          await ApprovalTransitions.deny(runId, approvalId, input.actorId, input.comment)
+        }
       }
 
       const originalPermissionId = canonicalApproval.context?.originalPermissionId
@@ -1203,18 +1230,23 @@ export namespace RunGateway {
         if (livePermission) {
           await Permission.reply({
             requestID: originalPermissionId,
-            reply: input.decision === "approve" ? "once" : "reject",
+            reply: decision === "approve" ? "once" : "reject",
             message: input.comment,
           })
         }
       }
 
+      // A CLI or remote operator may resolve this in a later process. Rebuild
+      // the workflow from its immutable contract so the state machine owns
+      // the terminal transition instead of a transient callback.
+      await resumeCanonicalWorkflowApproval(runId, approvalId, decision)
+
       const updated = await ApprovalStore.get(runId, approvalId)
       return {
         approvalId,
-        status: updated?.status ?? (input.decision === "approve" ? "approved" : "denied"),
+        status: updated?.status ?? (decision === "approve" ? "approved" : "denied"),
         resolution: updated?.resolution ?? {
-          decision: input.decision,
+          decision,
           actorId: input.actorId,
           source: input.source || "system",
           comment: input.comment,

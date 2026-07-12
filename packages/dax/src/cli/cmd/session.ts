@@ -22,8 +22,10 @@ import {
   type VerificationTrustPosture,
 } from "@/governance"
 import type { WriteGovernanceStatus, WriteOutcome, WriteRiskBucket } from "@/governance"
-import { buildAuditSummary, type AuditPosture } from "./audit"
+import { buildAuditSummary, type AuditPosture, type AuditSummary } from "./audit"
 import { renderTable } from "@/util/table"
+import { getProjectedRunState } from "@/state/events/run-event-store"
+import { RunGateway } from "@/server/run-gateway"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -97,6 +99,17 @@ export type SessionShowSummary = {
   timeline_count: number
   audit_posture: AuditPosture
   latest_activity_at?: number
+  governed_run?: {
+    status: string
+    current_step?: string
+    verification: "passed" | "failed" | "incomplete"
+    receipt_count: number
+    pending_approval_ids: string[]
+    draft?: {
+      type: string
+      content: string
+    }
+  }
 }
 
 export type SessionInspectSummary = {
@@ -455,7 +468,9 @@ export async function collectSessionTimeline(sessionID: string) {
       RAOLedger.list({
         project_id: Instance.project.id,
         limit: 200,
-      }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+      })
+        .then((rows) => rows.filter((row) => row.session_id === sessionID))
+        .catch(() => []),
     ])
 
     const artifacts = buildArtifactsForSession(session, messages, diffs)
@@ -480,17 +495,21 @@ export async function collectSessionTimeline(sessionID: string) {
 export async function collectSessionShowSummary(sessionID: string): Promise<SessionShowSummary> {
   return withLockedRetry(async () => {
     const session = await Session.get(sessionID)
-    const [messages, diffs, timeline, verification, auditSummary, pendingApprovals, events] = await Promise.all([
+    const [messages, diffs, timeline, verification, auditSummary, pendingApprovals, events, governedState, snapshot] = await Promise.all([
       Session.messages({ sessionID }),
       Session.diff(sessionID),
       collectSessionTimeline(sessionID),
       collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
-      buildAuditSummary({ sessionID }),
+      buildAuditSummary({ sessionID }).catch(() => fallbackAuditSummary(sessionID)),
       listTimelineApprovals(sessionID),
       RAOLedger.list({
         project_id: Instance.project.id,
         limit: 200,
-      }).then((rows) => rows.filter((row) => row.session_id === sessionID)),
+      })
+        .then((rows) => rows.filter((row) => row.session_id === sessionID))
+        .catch(() => []),
+      getProjectedRunState(sessionID).catch(() => null),
+      RunGateway.getSnapshot(sessionID).catch(() => undefined),
     ])
 
     const artifacts = buildArtifactsForSession(session, messages, diffs)
@@ -537,6 +556,27 @@ export async function collectSessionShowSummary(sessionID: string): Promise<Sess
       timeline_count: timeline.length,
       audit_posture: auditSummary.posture,
       latest_activity_at: verification.latest_activity_at ?? auditSummary.latest_activity_at,
+      governed_run: governedState
+        ? {
+            status: snapshot?.status ?? governedState.status,
+            current_step: snapshot?.currentStep?.title,
+            verification: governedState.governance.verification.required
+              ? governedState.governance.verification.satisfied
+                ? "passed"
+                : "failed"
+              : "incomplete",
+            receipt_count: governedState.governance.verification.receiptIds.length,
+            pending_approval_ids: governedState.pendingApprovalIds,
+            ...(governedState.draft
+              ? {
+                  draft: {
+                    type: governedState.draft.type,
+                    content: governedState.draft.content,
+                  },
+                }
+              : {}),
+          }
+        : undefined,
     }
   })
 }
@@ -549,7 +589,7 @@ export async function collectSessionInspectSummary(sessionID: string): Promise<S
       Session.diff(sessionID),
       collectSessionTimeline(sessionID),
       collectSessionVerification(sessionID).catch(() => fallbackVerification(sessionID)),
-      buildAuditSummary({ sessionID }),
+      buildAuditSummary({ sessionID }).catch(() => fallbackAuditSummary(sessionID)),
       collectSessionShowSummary(sessionID),
     ])
 
@@ -741,6 +781,43 @@ export function formatSessionTimeline(rows: SessionTimelineRow[]) {
 }
 
 export function formatSessionShowSummary(summary: SessionShowSummary) {
+  const governedRun = summary.governed_run
+  if (governedRun) {
+    const outcome =
+      governedRun.status === "completed"
+        ? "Completed"
+        : governedRun.status === "failed" || governedRun.status === "cancelled"
+          ? "Failed"
+          : governedRun.status === "waiting_approval"
+            ? "Blocked"
+            : "Active"
+    const identityRows: string[][] = [
+      ["Session", summary.id],
+      ["Title", summary.title],
+      ["Project", summary.project_id],
+      ["Directory", summary.directory],
+      ["Created", Locale.todayTimeOrDateTime(summary.created)],
+      ["Updated", Locale.todayTimeOrDateTime(summary.updated)],
+      ...(summary.latest_activity_at
+        ? [["Latest activity", Locale.todayTimeOrDateTime(summary.latest_activity_at)]]
+        : []),
+    ]
+    const kvCols = [{ header: "Field", minWidth: 18 }, { header: "Value", minWidth: 20, maxWidth: 70 }]
+
+    return [
+      renderTable(kvCols, identityRows),
+      "",
+      "Governed run",
+      renderTable(kvCols, [
+        ["Outcome", outcome],
+        ["Lifecycle", governedRun.status.replaceAll("_", " ")],
+        ["Verification", `${governedRun.verification} (${governedRun.receipt_count} receipt${governedRun.receipt_count === 1 ? "" : "s"})`],
+        ["Pending approvals", governedRun.pending_approval_ids.join(", ") || "none"],
+      ]),
+      ...(governedRun.draft ? ["", `Draft (${governedRun.draft.type})`, governedRun.draft.content] : []),
+    ].join(EOL)
+  }
+
   const lifecycleValue =
     formatSessionLifecycleState(summary.lifecycle_state) +
     (summary.lifecycle_requires_reconciliation ? " (needs reconciliation)" : "")
@@ -1077,6 +1154,24 @@ function fallbackVerification(sessionID: string): SessionVerification {
     missing_evidence: [],
     passing_signals: [],
     degrading_factors: [],
+  }
+}
+
+function fallbackAuditSummary(sessionID: string): AuditSummary {
+  return {
+    type: "audit_summary",
+    project_id: Instance.project.id,
+    session_id: sessionID,
+    posture: "review_needed",
+    approvals: { requested: 0, overrides: 0 },
+    evidence: {
+      diff_present: false,
+      artifacts_present: false,
+      sessions_with_diffs: 0,
+      artifact_count: 0,
+    },
+    findings: { status: "warn", blocker_count: 0, warning_count: 0, info_count: 0 },
+    next_actions: ["Audit evidence could not be collected; retry before relying on this session record."],
   }
 }
 

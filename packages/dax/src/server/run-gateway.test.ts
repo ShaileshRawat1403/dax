@@ -1045,4 +1045,66 @@ describe("run gateway v1 contract", () => {
       rmSync(testHome, { recursive: true, force: true })
     }
   }, 40000)
+
+  test("finishes a worker run from an approval receipt persisted by an earlier process", async () => {
+    const testHome = path.join(os.tmpdir(), `dax-worker-approval-resume-${Date.now().toString(36)}`)
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+
+    try {
+      const { bootstrap } = await import("@/cli/bootstrap")
+      const { ApprovalStore } = await import("@/approval/approval-store")
+      const RunFactoryModule = await import("@/execution/run-factory")
+      const WorkerRunModule = await import("@/workflows/worker-run")
+      const { RunGateway } = await import("./run-gateway")
+      const repoRoot = path.resolve(import.meta.dir, "../../..")
+      const runId = "ses_worker_resume"
+      const approvalId = "apr_worker_resume"
+      const resolvedAt = "2026-07-11T00:00:00.000Z"
+
+      await bootstrap(repoRoot, async () => {
+        await ApprovalStore.add(runId, {
+          approvalId,
+          runId,
+          stepId: "step_review",
+          type: "patch_apply",
+          risk: "medium",
+          title: "Approve governed worker changes",
+          reason: "A kernel-computed patch requires operator review.",
+          status: "approved",
+          requestedAt: resolvedAt,
+          resolvedAt,
+          actor: "operator",
+          source: "workflow",
+          resolution: { decision: "approve", actorId: "operator", resolvedAt },
+        })
+
+        const contractMock = spyOn(RunFactoryModule.RunFactory, "getContract").mockResolvedValue({
+          workflowClass: "worker_run",
+        } as never)
+        const resumeMock = spyOn(WorkerRunModule.WorkerRunWorkflow.prototype, "resumeAfterApproval").mockResolvedValue({
+          success: true,
+          stepResults: [],
+        })
+
+        try {
+          const resolved = await RunGateway.resolveApproval(runId, approvalId, {
+            decision: "deny",
+            actorId: "recovery-operator",
+            source: "dax",
+          })
+
+          expect(resolved.status).toBe("approved")
+          expect(resumeMock).toHaveBeenCalledWith(approvalId, "approved")
+        } finally {
+          contractMock.mockRestore()
+          resumeMock.mockRestore()
+        }
+      })
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      rmSync(testHome, { recursive: true, force: true })
+    }
+  }, 40000)
 })
