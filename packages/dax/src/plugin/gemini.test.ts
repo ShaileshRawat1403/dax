@@ -1,5 +1,18 @@
 import { describe, expect, test } from "bun:test"
-import { cliImportCredSignature, isCliImportReady, waitForCliImportCreds } from "./gemini"
+import { cliImportCredSignature, cloudCodeProjectID, isCliImportReady, waitForCliImportCreds } from "./gemini"
+
+describe("Google Code Assist project resolution", () => {
+  test("normalizes the companion project id returned by Code Assist", () => {
+    expect(cloudCodeProjectID("companion-project")).toBe("companion-project")
+    expect(cloudCodeProjectID({ id: "companion-project" })).toBe("companion-project")
+  })
+
+  test("rejects malformed companion project values instead of using a default project", () => {
+    expect(cloudCodeProjectID({ id: "" })).toBeUndefined()
+    expect(cloudCodeProjectID({ project: "default" })).toBeUndefined()
+    expect(cloudCodeProjectID(undefined)).toBeUndefined()
+  })
+})
 
 describe("gemini CLI import readiness", () => {
   test("stale baseline credentials are not considered ready", () => {

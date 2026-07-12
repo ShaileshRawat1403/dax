@@ -39,6 +39,16 @@ const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? B
 
 let cachedCloudCodeProjectId: string | undefined = undefined
 
+/** Code Assist returns the companion project as either an id or an object. */
+export function cloudCodeProjectID(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim()
+  if (typeof value === "object" && value !== null && "id" in value) {
+    const id = (value as { id?: unknown }).id
+    if (typeof id === "string" && id.trim()) return id.trim()
+  }
+  return undefined
+}
+
 async function resolveCloudCodeProject(accessToken: string, refreshToken?: string): Promise<string> {
   if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
 
@@ -63,9 +73,10 @@ async function resolveCloudCodeProject(accessToken: string, refreshToken?: strin
 
   if (loadRes?.ok) {
     const data = await loadRes.json().catch(() => ({}))
-    if (data.cloudaicompanionProject) {
-      cachedCloudCodeProjectId = data.cloudaicompanionProject
-      return cachedCloudCodeProjectId as string
+    const project = cloudCodeProjectID(data.cloudaicompanionProject)
+    if (project) {
+      cachedCloudCodeProjectId = project
+      return project
     }
   }
 
@@ -81,9 +92,10 @@ async function resolveCloudCodeProject(accessToken: string, refreshToken?: strin
 
     if (loadRes?.ok) {
       const data = await loadRes.json().catch(() => ({}))
-      if (data.cloudaicompanionProject) {
-        cachedCloudCodeProjectId = data.cloudaicompanionProject
-        return cachedCloudCodeProjectId as string
+      const project = cloudCodeProjectID(data.cloudaicompanionProject)
+      if (project) {
+        cachedCloudCodeProjectId = project
+        return project
       }
     }
   }
@@ -100,9 +112,10 @@ async function resolveCloudCodeProject(accessToken: string, refreshToken?: strin
 
       if (loadRes?.ok) {
         const data = await loadRes.json().catch(() => ({}))
-        if (data.cloudaicompanionProject) {
-          cachedCloudCodeProjectId = data.cloudaicompanionProject
-          return cachedCloudCodeProjectId as string
+        const project = cloudCodeProjectID(data.cloudaicompanionProject)
+        if (project) {
+          cachedCloudCodeProjectId = project
+          return project
         }
       }
     }
@@ -117,17 +130,16 @@ async function resolveCloudCodeProject(accessToken: string, refreshToken?: strin
 
   if (onboardRes?.ok) {
     const data = await onboardRes.json().catch(() => ({}))
-    if (data.cloudaicompanionProject?.id) {
-      cachedCloudCodeProjectId = data.cloudaicompanionProject.id
-      return cachedCloudCodeProjectId as string
-    } else if (typeof data.cloudaicompanionProject === "string" && data.cloudaicompanionProject) {
-      cachedCloudCodeProjectId = data.cloudaicompanionProject
-      return cachedCloudCodeProjectId as string
+    const project = cloudCodeProjectID(data.cloudaicompanionProject)
+    if (project) {
+      cachedCloudCodeProjectId = project
+      return project
     }
   }
 
-  cachedCloudCodeProjectId = "default"
-  return cachedCloudCodeProjectId
+  throw new Error(
+    "Google Code Assist could not resolve a companion project for this account. Re-run `dax auth login` for Google, then retry the chat.",
+  )
 }
 
 const credsPaths = () =>
