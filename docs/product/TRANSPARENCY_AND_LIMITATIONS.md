@@ -112,7 +112,7 @@ universal host-security boundary. An approved action can still:
 The `dax worker run` path adds a narrower OS isolation boundary: macOS
 Seatbelt or Linux bubblewrap confines worker writes to a disposable checkout,
 and DAX verification runs with network denied. This does **not** mean the
-entire DAX process is sandboxed. In the current beta:
+entire DAX process is sandboxed. In the current v1.2 release:
 
 - Windows external workers are unavailable and fail closed.
 - worker execution needs provider network access and is not yet restricted to

@@ -39,7 +39,7 @@ NOT enterprise-first. Enterprise is the eventual market, earned only after
 the receipt chain, recovery, and approval loop survive real repo work in
 individual hands. Framing enterprise before that proof is hype.
 
-## The defining proof (implemented in v1.2 beta)
+## The defining proof (implemented in v1.2)
 
 One demo defines the category:
 
@@ -73,7 +73,7 @@ enforcement, verification, evidence, and approval.
 
 - macOS requires a successful Seatbelt (`sandbox-exec`) probe.
 - Linux requires bubblewrap (`bwrap`) and a successful probe.
-- Windows external workers fail closed in this beta; built-in DAX workflows
+- Windows external workers fail closed; built-in DAX workflows
   remain available.
 - Workers can read host files allowed by the OS profile but can write only to
   the disposable checkout and temporary directories.

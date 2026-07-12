@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0-beta.1] - 2026-07-11
+## [1.2.0] - 2026-07-12
 
 ### Added
 
@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Worker CLI polling now shows live phase progress and finishes with executable approval, denial, and inspection commands.
 - Release packaging owns cross-platform optional dependency installation, so local and GitHub release builds follow the same path.
 - Project-memory SQLite connections use a busy timeout, preventing concurrent DAX processes from failing during WAL recovery.
+- Approval commands and session inspection recover the canonical approval state
+  across CLI process restarts instead of presenting conflicting legacy counts.
+- Google Code Assist auth rejects an unresolved companion project with an
+  actionable reauthentication error instead of issuing requests as `default`.
 
 ### Security
 
@@ -32,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Limitations
 
-- Governed external workers are unavailable on Windows in this beta. Built-in DAX workflows and the standard CLI remain cross-platform.
+- Governed external workers are unavailable on Windows. Built-in DAX workflows and the standard CLI remain cross-platform.
 - Worker execution needs provider network access and does not yet enforce per-provider hostname allowlists. Verification runs with network denied.
 - Worker profiles confine writes but permit host reads needed by coding agents. Use a container or VM for a stronger confidentiality boundary.
 - Remaining dependency advisories are transitive through OpenTUI, Stryker/ESLint, AI SDK utilities, and documentation/OpenAPI tooling. None are high severity; major dependency migrations are deferred until compatibility work is complete.
