@@ -18,6 +18,25 @@ execution engines inside DAX's contract. And DAX's own agent loop remains the
 reference worker and fallback — the worker contract cannot be validated
 without a worker we fully control.
 
+## Provider boundary (decided)
+
+The worker runtime belongs in **DAX**, not in Soothsayer. DAX owns isolated
+checkouts, tool constraints, verification, evidence, and the authority-side
+receipt. It exposes reviewed provider adapters through
+`packages/dax/src/worker/worker-adapter.ts`; current adapters are external
+CLIs, and a DAX Native adapter must meet the same execution, verification, and
+receipt obligations before it is advertised as a worker.
+
+Soothsayer owns the operator-facing worker registry: connection status,
+workspace policy, recommendation, and explanation. It does not invoke a
+worker directly. Flowright remains the cross-product boundary: it dispatches
+declared capabilities and persists only a validated
+`flowright.capability.v0` receipt.
+
+This keeps OpenClaw, Hermes, and future agent platforms optional adapters. A
+provider may disappear without changing the DAX run model or Flowright's
+authority; a replacement merely has to satisfy the same worker contract.
+
 ## Why this lane
 
 The raw coding-agent lane is owned by tools attached to frontier labs, and it

@@ -31,6 +31,26 @@ import z from "zod"
 export const ExternalWorkerId = z.enum(["claude", "codex", "gemini"])
 export type ExternalWorkerId = z.infer<typeof ExternalWorkerId>
 
+/**
+ * Portable work that a provider can offer DAX. These are deliberately jobs,
+ * not vendor names: Flowright and Soothsayer select a governed capability,
+ * while DAX selects an approved provider to carry it out.
+ */
+export const WorkerCapability = z.enum(["analyze_repository", "prepare_code_change"])
+export type WorkerCapability = z.infer<typeof WorkerCapability>
+
+export const WorkerProviderKind = z.enum(["external_cli", "native", "remote"])
+export type WorkerProviderKind = z.infer<typeof WorkerProviderKind>
+
+export type WorkerProviderDescriptor = {
+  id: string
+  label: string
+  kind: WorkerProviderKind
+  capabilities: WorkerCapability[]
+  /** DAX, not the provider, owns the isolated checkout and review gate. */
+  requiresIsolatedCheckout: boolean
+}
+
 export const WorkerContract = z.object({
   task: z.string().min(1),
   /** Globs the worker is expected to confine writes to (kernel-enforced). */
@@ -45,7 +65,13 @@ export const WorkerContract = z.object({
 export type WorkerContract = z.infer<typeof WorkerContract>
 
 export type WorkerInvocation = {
-  workerId: ExternalWorkerId
+  /** Provider identity recorded with the invocation and later evidence. */
+  providerId: string
+  /**
+   * Legacy external-CLI identity. Retained while existing workflow effects
+   * and consumers migrate to providerId; native/remote providers omit it.
+   */
+  workerId?: ExternalWorkerId
   /** argv, first element is the binary. */
   command: string[]
   /** Allowlist-filtered environment (plus contract metadata). */
@@ -55,7 +81,47 @@ export type WorkerInvocation = {
   timeoutMs: number
 }
 
+/**
+ * A DAX worker provider is an invocation adapter, never a second run
+ * authority. Native and remote providers will implement this same boundary;
+ * Flowright continues to see only DAX's capability receipt.
+ */
+export interface WorkerProvider {
+  descriptor: WorkerProviderDescriptor
+  buildInvocation(input: {
+    contract: WorkerContract
+    hostEnv: Record<string, string | undefined>
+    timeoutMs?: number
+  }): WorkerInvocation
+}
+
+/**
+ * Local registry for DAX-owned adapters. It intentionally has no dynamic
+ * plugin loading yet: adding a provider is reviewed code plus contract tests,
+ * not an untrusted configuration toggle.
+ */
+export class WorkerProviderRegistry {
+  private readonly providers = new Map<string, WorkerProvider>()
+
+  register(provider: WorkerProvider): this {
+    const id = provider.descriptor.id.trim()
+    if (!id) throw new Error("worker provider id is required")
+    if (this.providers.has(id)) throw new Error(`worker provider '${id}' is already registered`)
+    this.providers.set(id, provider)
+    return this
+  }
+
+  get(id: string): WorkerProvider | undefined {
+    return this.providers.get(id)
+  }
+
+  list(): WorkerProviderDescriptor[] {
+    return [...this.providers.values()].map((provider) => provider.descriptor)
+  }
+}
+
 type WorkerProfile = {
+  label: string
   binary: string
   /** Build argv given the rendered contract prompt. */
   args: (prompt: string) => string[]
@@ -71,6 +137,7 @@ type WorkerProfile = {
  */
 const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   claude: {
+    label: "Claude Code",
     binary: "claude",
     // acceptEdits: headless claude denies write tools by default (no human
     // to answer its prompts). Inside DAX's disposable checkout with DAX's
@@ -81,11 +148,13 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     envAllowlist: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"],
   },
   codex: {
+    label: "Codex",
     binary: "codex",
     args: (prompt) => ["exec", "--sandbox", "workspace-write", prompt],
     envAllowlist: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_HOME"],
   },
   gemini: {
+    label: "Gemini CLI",
     binary: "gemini",
     args: (prompt) => ["-p", prompt],
     envAllowlist: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"],
@@ -150,18 +219,64 @@ export function buildWorkerInvocation(input: {
   hostEnv?: Record<string, string | undefined>
   timeoutMs?: number
 }): WorkerInvocation {
-  const workerId = ExternalWorkerId.parse(input.workerId)
-  const contract = WorkerContract.parse(input.contract)
-  const profile = WORKER_PROFILES[workerId]
-  const prompt = renderWorkerPrompt(contract)
+  return buildProviderInvocation({
+    providerId: ExternalWorkerId.parse(input.workerId),
+    contract: input.contract,
+    hostEnv: input.hostEnv,
+    timeoutMs: input.timeoutMs,
+  })
+}
 
+/** Build an invocation through a registered provider adapter. */
+export function buildProviderInvocation(input: {
+  providerId: string
+  contract: WorkerContract
+  hostEnv?: Record<string, string | undefined>
+  timeoutMs?: number
+  registry?: WorkerProviderRegistry
+}): WorkerInvocation {
+  const contract = WorkerContract.parse(input.contract)
+  const provider = (input.registry ?? DefaultWorkerProviderRegistry).get(input.providerId)
+  if (!provider) throw new Error(`unknown worker provider '${input.providerId}'`)
+  return provider.buildInvocation({
+    contract,
+    hostEnv: input.hostEnv ?? {},
+    timeoutMs: input.timeoutMs,
+  })
+}
+
+function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProvider {
+  const profile = WORKER_PROFILES[workerId]
   return {
-    workerId,
-    command: [profile.binary, ...profile.args(prompt)],
-    env: buildWorkerEnv(workerId, input.hostEnv ?? {}, contract),
-    // External workers must reach their provider APIs. The workflow wraps
-    // this invocation in the platform sandbox before execution.
-    network: "full",
-    timeoutMs: input.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+    descriptor: {
+      id: workerId,
+      label: profile.label,
+      kind: "external_cli",
+      capabilities: ["analyze_repository", "prepare_code_change"],
+      requiresIsolatedCheckout: true,
+    },
+    buildInvocation({ contract, hostEnv, timeoutMs }) {
+      const prompt = renderWorkerPrompt(contract)
+      return {
+        providerId: workerId,
+        workerId,
+        command: [profile.binary, ...profile.args(prompt)],
+        env: buildWorkerEnv(workerId, hostEnv, contract),
+        // External workers must reach their provider APIs. The workflow wraps
+        // this invocation in the platform sandbox before execution.
+        network: "full",
+        timeoutMs: timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+      }
+    },
   }
+}
+
+/**
+ * Current production adapters. A future DAX Native provider must register
+ * here only after it can execute inside the same checkout, verification, and
+ * receipt path. A UI label is not proof of a governed worker.
+ */
+export const DefaultWorkerProviderRegistry = new WorkerProviderRegistry()
+for (const workerId of ExternalWorkerId.options) {
+  DefaultWorkerProviderRegistry.register(createExternalCliWorkerProvider(workerId))
 }
