@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import {
   DEFAULT_WORKER_TIMEOUT_MS,
+  DefaultWorkerProviderRegistry,
   ExternalWorkerId,
   WorkerContract,
+  WorkerProviderRegistry,
   buildWorkerEnv,
   buildWorkerInvocation,
+  buildProviderInvocation,
   renderWorkerPrompt,
 } from "./worker-adapter"
 
@@ -21,6 +24,7 @@ describe("worker adapter", () => {
   test("each worker gets a non-interactive invocation carrying the contract prompt", () => {
     for (const workerId of ExternalWorkerId.options) {
       const invocation = buildWorkerInvocation({ workerId, contract })
+      expect(invocation.providerId).toBe(workerId)
       expect(invocation.command[0]).toBe(workerId)
       const prompt = invocation.command.find((arg) => arg.includes("TASK:"))
       expect(prompt).toBeDefined()
@@ -110,5 +114,25 @@ describe("worker adapter", () => {
   test("unknown workers and empty tasks are rejected", () => {
     expect(() => buildWorkerInvocation({ workerId: "copilot" as ExternalWorkerId, contract })).toThrow()
     expect(() => WorkerContract.parse({ ...contract, task: "" })).toThrow()
+  })
+
+  test("the default registry exposes jobs rather than vendor-specific workflow names", () => {
+    const providers = DefaultWorkerProviderRegistry.list()
+    expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex", "gemini"])
+    for (const provider of providers) {
+      expect(provider.kind).toBe("external_cli")
+      expect(provider.capabilities).toEqual(["analyze_repository", "prepare_code_change"])
+      expect(provider.requiresIsolatedCheckout).toBe(true)
+    }
+  })
+
+  test("provider lookup fails closed and duplicate registration is rejected", () => {
+    expect(() => buildProviderInvocation({ providerId: "unknown", contract })).toThrow("unknown worker provider")
+
+    const registry = new WorkerProviderRegistry()
+    const provider = DefaultWorkerProviderRegistry.get("claude")
+    expect(provider).toBeDefined()
+    registry.register(provider!)
+    expect(() => registry.register(provider!)).toThrow("already registered")
   })
 })
