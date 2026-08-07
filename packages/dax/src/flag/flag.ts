@@ -82,6 +82,7 @@ export namespace Flag {
   export const DAX_MODELS_PATH = readEnv("DAX_MODELS_PATH")
   export const DAX_TRUST_GUARD_MODE = readEnv("DAX_TRUST_GUARD_MODE")
   export const DAX_PRODUCTION = truthy("DAX_PRODUCTION")
+  export declare const DAX_DISABLE_SHADOW_AUDIT: boolean
 
   function number(key: string) {
     const value = readEnv(key)
@@ -108,6 +109,18 @@ Object.defineProperty(Flag, "DAX_DISABLE_PROJECT_CONFIG", {
 Object.defineProperty(Flag, "DAX_CONFIG_DIR", {
   get() {
     return readEnv("DAX_CONFIG_DIR")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+// Dynamic getter for DAX_DISABLE_SHADOW_AUDIT
+// Evaluated at access time so the guard can be toggled per run, and so the
+// "must not reach a provider when disabled" invariant stays unit-testable
+// inside a single process.
+Object.defineProperty(Flag, "DAX_DISABLE_SHADOW_AUDIT", {
+  get() {
+    return truthy("DAX_DISABLE_SHADOW_AUDIT")
   },
   enumerable: true,
   configurable: false,

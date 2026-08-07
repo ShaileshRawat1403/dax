@@ -4,12 +4,22 @@ import { Session } from "@/session"
 import { Instance } from "@/project/instance"
 import { SessionV2 } from "@/session/model"
 import { ExecutionContract } from "./execution-contract"
+import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
 
 const log = Log.create({ service: "shadow-auditor" })
 
 export namespace ShadowAuditor {
+  /**
+   * Estimate the blast radius of a compiled contract before any tool runs.
+   *
+   * Fire-and-forget by design, so it must never reach a provider in an
+   * environment that has not opted into live model calls. Test runs set
+   * `DAX_DISABLE_SHADOW_AUDIT`, which is why a suite with no provider
+   * credentials no longer logs an auth failure inside an otherwise green run.
+   */
   export async function analyze(sessionID: string, prompt: string, contract: ExecutionContract) {
+    if (Flag.DAX_DISABLE_SHADOW_AUDIT) return
     try {
       const defaultModel = await Provider.defaultModel()
       if (!defaultModel) return

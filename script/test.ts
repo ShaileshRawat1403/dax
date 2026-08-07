@@ -11,6 +11,9 @@ const proc = Bun.spawn(["bun", "test", "packages", "--max-concurrency", "1", ...
     DAX_DISABLE_MODELS_FETCH: process.env.DAX_DISABLE_MODELS_FETCH ?? "1",
     DAX_EXPERIMENTAL_DISABLE_FILEWATCHER: process.env.DAX_EXPERIMENTAL_DISABLE_FILEWATCHER ?? "1",
     DAX_DISABLE_CONFIG_AUTO_INSTALL: process.env.DAX_DISABLE_CONFIG_AUTO_INSTALL ?? "1",
+    // The shadow auditor is fire-and-forget and calls a live provider. Left on,
+    // it fails auth mid-suite and logs an error inside an otherwise green run.
+    DAX_DISABLE_SHADOW_AUDIT: process.env.DAX_DISABLE_SHADOW_AUDIT ?? "1",
   },
 })
 
