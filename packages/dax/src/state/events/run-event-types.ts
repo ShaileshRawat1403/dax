@@ -62,7 +62,14 @@ export type RunEventPayload =
   | {
       type: "worker_sandbox_recorded"
       payload: {
+        /** Isolation mechanism DAX applied (seatbelt, bwrap). */
         provider: string
+        /**
+         * Which worker provider actually did the work. Answers "who produced
+         * this patch" in the receipt, which the sandbox provider does not.
+         * Optional so events written before the registry still replay.
+         */
+        providerId?: string
         filesystem: "checkout-write-only"
         network: "full" | "localhost-only" | "none"
         /**

@@ -9,7 +9,7 @@ import path from "node:path"
 import {
   ExternalWorkerId,
   WorkerContract,
-  buildWorkerInvocation,
+  buildProviderInvocation,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
@@ -284,8 +284,11 @@ export class WorkerRunWorkflow {
         },
       })
 
-      const invocation = buildWorkerInvocation({
-        workerId,
+      // Routed through the registry rather than the legacy external-CLI
+      // helper, so the run path resolves an approved provider adapter and the
+      // identity it reports is the one recorded as evidence below.
+      const invocation = buildProviderInvocation({
+        providerId: workerId,
         contract,
         hostEnv: process.env,
         timeoutMs: this.contract.timeoutMs,
@@ -299,6 +302,7 @@ export class WorkerRunWorkflow {
       if (result.sandboxProvider) {
         await appendEventOnly(this.runId, "worker_sandbox_recorded", {
           provider: result.sandboxProvider,
+          providerId: invocation.providerId,
           filesystem: "checkout-write-only",
           network: invocation.network,
           reapedDescendants: result.reapedDescendants ?? false,
