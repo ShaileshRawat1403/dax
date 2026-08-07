@@ -3,8 +3,26 @@ import {
   buildWorkerSandboxPlan,
   checkWorkerSandbox,
   readBoundedOutput,
+  runSupervisedProcess,
   sandboxedCheckStatus,
 } from "./worker-sandbox"
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const supervise = (script: string, timeoutMs = 5_000) =>
+  runSupervisedProcess({
+    command: ["sh", "-c", script],
+    cwd: process.cwd(),
+    env: { PATH: process.env.PATH },
+    timeoutMs,
+  })
 
 const found = (binary: string) => `/usr/bin/${binary}`
 
@@ -114,5 +132,52 @@ describe("worker sandbox", () => {
       },
     })
     expect(await readBoundedOutput(stream, 5)).toBe("abcde")
+  })
+
+  // P0.0 gate 5: no worker descendant may survive the call, on any exit path.
+
+  test("kills a descendant the worker leaves behind after exiting cleanly", async () => {
+    // P0.0 T5. The worker exits zero while a kernel it started keeps running.
+    // Signalling only the direct child misses it.
+    const result = await supervise("sleep 60 >/dev/null 2>&1 & echo $!; exit 0")
+    const descendant = Number(result.stdout.trim())
+
+    expect(result.exitCode).toBe(0)
+    expect(result.reapedDescendants).toBe(true)
+    expect(alive(descendant)).toBe(false)
+  })
+
+  test("does not hang when a timed-out worker ignores SIGTERM", async () => {
+    // P0.0 T4, the case that stayed open: SIGTERM alone left descendants alive
+    // for minutes. Escalation cannot wait on the process, because the process
+    // is what is refusing to exit. Returning at all is the assertion.
+    const started = Date.now()
+    const result = await supervise("trap '' TERM; sleep 60", 300)
+
+    expect(result.timedOut).toBe(true)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  test("returns captured output even when a descendant holds the pipes open", async () => {
+    // An orphan inherits stdout, so the stream stays open while it lives.
+    // Reaping has to happen before the output is awaited or this blocks until
+    // the timeout.
+    const started = Date.now()
+    const result = await supervise("sleep 60 & echo parent-done; exit 0", 30_000)
+
+    expect(result.stdout).toContain("parent-done")
+    expect(result.timedOut).toBe(false)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  test("reports no reaping when the worker leaves nothing behind", async () => {
+    // Guards the evidence signal against false positives: a clean run must not
+    // claim descendants were killed.
+    const result = await supervise("echo clean; exit 0")
+
+    expect(result.stdout).toContain("clean")
+    expect(result.exitCode).toBe(0)
+    expect(result.timedOut).toBe(false)
+    expect(result.reapedDescendants).toBe(false)
   })
 })

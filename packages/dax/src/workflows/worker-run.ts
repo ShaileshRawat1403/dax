@@ -50,7 +50,15 @@ export type WorkerRunEffectsShape = {
   runWorker: (
     invocation: WorkerInvocation,
     cwd: string,
-  ) => Promise<{ exitCode: number; stdout: string; stderr: string; timedOut?: boolean; sandboxProvider?: string }>
+  ) => Promise<{
+    exitCode: number
+    stdout: string
+    stderr: string
+    timedOut?: boolean
+    sandboxProvider?: string
+    /** True when DAX had to kill descendants the worker left behind. */
+    reapedDescendants?: boolean
+  }>
   /** Kernel-owned diff and changed paths (including untracked files). */
   computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
   /** DAX-owned verification command runner; injectable for workflow tests. */
@@ -285,18 +293,22 @@ export class WorkerRunWorkflow {
 
       checkout = await WorkerRunEffects.current.createCheckout(repoPath, this.runId)
       const result = await WorkerRunEffects.current.runWorker(invocation, checkout.path)
-      if (result.timedOut) {
-        throw new Error(`worker ${workerId} timed out after ${invocation.timeoutMs}ms`)
-      }
-      if (result.exitCode !== 0) {
-        throw new Error(`worker ${workerId} exited ${result.exitCode}: ${result.stderr.slice(0, 2000)}`)
-      }
+      // Recorded before the failure throws below. Isolation and process
+      // ownership held regardless of how the worker exited, and a timeout is
+      // precisely when the operator needs to see that nothing was left behind.
       if (result.sandboxProvider) {
         await appendEventOnly(this.runId, "worker_sandbox_recorded", {
           provider: result.sandboxProvider,
           filesystem: "checkout-write-only",
           network: invocation.network,
+          reapedDescendants: result.reapedDescendants ?? false,
         })
+      }
+      if (result.timedOut) {
+        throw new Error(`worker ${workerId} timed out after ${invocation.timeoutMs}ms`)
+      }
+      if (result.exitCode !== 0) {
+        throw new Error(`worker ${workerId} exited ${result.exitCode}: ${result.stderr.slice(0, 2000)}`)
       }
 
       // Kernel-owned diff: the worker's own account of its changes is never

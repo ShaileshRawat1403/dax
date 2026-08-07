@@ -1,4 +1,5 @@
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
+import { Shell } from "@/shell/shell"
 
 export type WorkerSandboxProvider = "seatbelt" | "bwrap"
 export type WorkerSandboxNetwork = "full" | "none"
@@ -127,6 +128,105 @@ export function checkWorkerSandbox(
   }
 }
 
+/**
+ * True while any process in the group still exists. `kill(-pgid, 0)` delivers
+ * no signal; it only asks the kernel whether the group is still addressable.
+ */
+export function processGroupAlive(pgid: number): boolean {
+  try {
+    process.kill(-pgid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Terminate anything still alive in a worker's process group.
+ *
+ * Workers spawn descendants DAX never handles directly: an agent's own
+ * runtime, a language kernel, a retry loop mid-flight. Signalling the direct
+ * child leaves those running. On darwin this is the entire containment story,
+ * since `sandbox-exec` has no equivalent of bubblewrap's `--die-with-parent`;
+ * on linux it backs up the PID namespace rather than replacing it.
+ *
+ * Delegates to `Shell.killTree` so DAX keeps exactly one process-tree kill
+ * path, including its Windows `taskkill /t` branch and its direct-child
+ * fallback for when the group signal is refused.
+ *
+ * Returns whether anything actually needed reaping.
+ */
+async function reapWorkerGroup(proc: Bun.Subprocess): Promise<boolean> {
+  const pgid = proc.pid
+  if (!processGroupAlive(pgid)) return false
+  await Shell.killTree(proc, { exited: () => !processGroupAlive(pgid) })
+  return true
+}
+
+/**
+ * Spawn a command as its own process-group leader and supervise it to a
+ * terminal state, guaranteeing the group is empty before returning.
+ *
+ * This is where P0.0 gate 5 is asserted: no worker descendant may survive the
+ * call, on clean exit, on timeout, or on a throw. It is kept separate from
+ * sandbox planning so that guarantee stays testable on a host with no
+ * platform sandbox installed.
+ */
+export async function runSupervisedProcess(input: {
+  command: string[]
+  cwd: string
+  env: Record<string, string | undefined>
+  timeoutMs: number
+}): Promise<{
+  exitCode: number
+  stdout: string
+  stderr: string
+  timedOut: boolean
+  reapedDescendants: boolean
+}> {
+  const proc = Bun.spawn(input.command, {
+    cwd: input.cwd,
+    env: input.env,
+    stdout: "pipe",
+    stderr: "pipe",
+    // setsid(): the worker leads its own process group and session, so DAX can
+    // signal the whole tree rather than only the wrapper it spawned directly.
+    detached: true,
+  })
+  const stdout = readBoundedOutput(proc.stdout, 20_000)
+  const stderr = readBoundedOutput(proc.stderr, 20_000)
+  let timedOut = false
+  // Escalation runs on its own timer and is deliberately not gated on
+  // `proc.exited`: a child that ignores SIGTERM is precisely the case where
+  // that promise never settles, so a timeout that waits on it hangs forever.
+  const timeout = setTimeout(() => {
+    timedOut = true
+    void reapWorkerGroup(proc)
+  }, input.timeoutMs)
+
+  try {
+    const exitCode = await proc.exited
+    // Runs after clean completion too: a worker can exit zero and still leave
+    // behind a kernel it started.
+    //
+    // Order matters. This must stay before the stdout/stderr awaits: an
+    // orphaned descendant inherits the pipes, so those streams do not close
+    // while it lives and awaiting them first would block until the timeout.
+    const reapedDescendants = await reapWorkerGroup(proc)
+    return {
+      exitCode,
+      stdout: await stdout,
+      stderr: await stderr,
+      timedOut,
+      reapedDescendants,
+    }
+  } finally {
+    clearTimeout(timeout)
+    // Nothing may outlive this call, including when the awaits above throw.
+    await reapWorkerGroup(proc)
+  }
+}
+
 export async function runSandboxedCommand(input: {
   command: string[]
   cwd: string
@@ -138,31 +238,17 @@ export async function runSandboxedCommand(input: {
   stdout: string
   stderr: string
   timedOut: boolean
+  reapedDescendants: boolean
   sandboxProvider: WorkerSandboxProvider
 }> {
   const plan = buildWorkerSandboxPlan(input)
-  const proc = Bun.spawn(plan.command, {
+  const result = await runSupervisedProcess({
+    command: plan.command,
     cwd: input.cwd,
     env: input.env,
-    stdout: "pipe",
-    stderr: "pipe",
+    timeoutMs: input.timeoutMs,
   })
-  const stdout = readBoundedOutput(proc.stdout, 20_000)
-  const stderr = readBoundedOutput(proc.stderr, 20_000)
-  let timedOut = false
-  const timeout = setTimeout(() => {
-    timedOut = true
-    proc.kill()
-  }, input.timeoutMs)
-  const exitCode = await proc.exited
-  clearTimeout(timeout)
-  return {
-    exitCode,
-    stdout: await stdout,
-    stderr: await stderr,
-    timedOut,
-    sandboxProvider: plan.provider,
-  }
+  return { ...result, sandboxProvider: plan.provider }
 }
 
 export async function readBoundedOutput(stream: ReadableStream<Uint8Array>, max: number): Promise<string> {

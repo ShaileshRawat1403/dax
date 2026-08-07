@@ -1,12 +1,32 @@
 import { Flag } from "@/flag/flag"
 import { lazy } from "@/util/lazy"
 import path from "path"
-import { spawn, type ChildProcess } from "child_process"
+import { spawn } from "child_process"
 
 const SIGKILL_TIMEOUT_MS = 200
 
 export namespace Shell {
-  export async function killTree(proc: ChildProcess, opts?: { exited?: () => boolean }): Promise<void> {
+  /**
+   * A spawned process DAX can signal.
+   *
+   * Structural on purpose: Node's `ChildProcess` and Bun's `Subprocess` both
+   * satisfy it, so the shell tool and the governed worker sandbox share one
+   * process-tree kill path instead of growing two that drift apart.
+   */
+  export type Killable = {
+    pid?: number | undefined
+    kill(signal?: number | NodeJS.Signals): unknown
+  }
+
+  /**
+   * Terminate a process and everything it left behind.
+   *
+   * Assumes the caller spawned `proc` detached, so `proc.pid` is also the
+   * process-group id. Escalates to SIGKILL on a fixed timer rather than
+   * waiting on the process, because a child that ignores SIGTERM is exactly
+   * the case where waiting never returns.
+   */
+  export async function killTree(proc: Killable, opts?: { exited?: () => boolean }): Promise<void> {
     const pid = proc.pid
     if (!pid || opts?.exited?.()) return
 

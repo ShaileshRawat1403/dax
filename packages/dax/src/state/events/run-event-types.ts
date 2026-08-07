@@ -65,6 +65,11 @@ export type RunEventPayload =
         provider: string
         filesystem: "checkout-write-only"
         network: "full" | "localhost-only" | "none"
+        /**
+         * Whether DAX had to kill descendants the worker left behind. Optional
+         * so events written before process ownership was enforced still replay.
+         */
+        reapedDescendants?: boolean
       }
     }
   | {
