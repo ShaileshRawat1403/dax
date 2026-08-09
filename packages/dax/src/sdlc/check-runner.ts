@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { Shell } from "@/shell/shell"
 import type { CheckDefinition, CheckResult } from "./check-types"
 
 function preview(value: string, max = 4_000): string {
@@ -46,6 +47,11 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
       cwd: check.cwd,
       shell: false,
       env: process.env,
+      // setsid(): the check leads its own process group so a timeout can reap
+      // the whole tree (a check's own child can ignore SIGTERM and survive the
+      // direct-child kill). On win32, Shell.killTree uses `taskkill /t`, which
+      // needs only the pid.
+      detached: process.platform !== "win32",
     })
 
     const finish = (result: Pick<CheckResult, "exitCode" | "status" | "stdoutPreview" | "stderrPreview">) => {
@@ -58,13 +64,16 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
       })
     }
 
+    // Kill the process group, not just the direct child, and report only after
+    // the group is empty so a timed-out check cannot leave descendants behind.
     const timer = setTimeout(() => {
-      child.kill("SIGTERM")
-      finish({
-        exitCode: null,
-        status: "timed_out",
-        stdoutPreview: preview(stdout),
-        stderrPreview: preview(stderr || "check timed out"),
+      void Shell.killTree(child).finally(() => {
+        finish({
+          exitCode: null,
+          status: "timed_out",
+          stdoutPreview: preview(stdout),
+          stderrPreview: preview(stderr || "check timed out"),
+        })
       })
     }, check.timeoutMs)
 
