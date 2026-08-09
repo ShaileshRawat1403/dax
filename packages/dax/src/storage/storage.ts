@@ -167,6 +167,10 @@ export namespace Storage {
     })
   }
 
+  export async function dir(): Promise<string> {
+    return state().then((x) => x.dir)
+  }
+
   export async function read<T>(key: string[]) {
     const dir = await state().then((x) => x.dir)
     const target = path.join(dir, ...key) + ".json"
