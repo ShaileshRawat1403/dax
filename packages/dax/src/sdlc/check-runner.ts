@@ -1,6 +1,29 @@
-import { spawn } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 import { Shell } from "@/shell/shell"
 import type { CheckDefinition, CheckResult } from "./check-types"
+
+/** True while any process in the group still exists. Delivers no signal. */
+function groupAlive(pgid: number): boolean {
+  try {
+    process.kill(-pgid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Clear anything the check left behind after it exited.
+ *
+ * Skips the work entirely when the group is already empty, which is the
+ * common case, so a clean check pays one syscall rather than a kill timeout.
+ */
+async function reapAfterExit(child: ChildProcess): Promise<void> {
+  const pid = child.pid
+  if (!pid || process.platform === "win32") return
+  if (!groupAlive(pid)) return
+  await Shell.killTree(child, { exited: () => !groupAlive(pid) })
+}
 
 function preview(value: string, max = 4_000): string {
   if (value.length <= max) return value
@@ -95,11 +118,17 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
     })
 
     child.on("close", (code) => {
-      finish({
-        exitCode: code,
-        status: code === 0 ? "passed" : "failed",
-        stdoutPreview: preview(stdout),
-        stderrPreview: preview(stderr),
+      // Reap on the clean path too. A check can exit zero having started a
+      // watcher, a dev server or a language kernel that outlives it, and
+      // signalling only on timeout leaves those running. Same guarantee
+      // runSupervisedProcess makes for governed workers.
+      void reapAfterExit(child).finally(() => {
+        finish({
+          exitCode: code,
+          status: code === 0 ? "passed" : "failed",
+          stdoutPreview: preview(stdout),
+          stderrPreview: preview(stderr),
+        })
       })
     })
   })

@@ -48,6 +48,26 @@ Return a concise reason and a list of affected areas.`,
       })
     } catch (error) {
       log.error("ShadowAuditor analysis failed", { error, sessionID })
+      // Record the gap on the run. Swallowing this into a log line left the
+      // operator with no blast radius and nothing saying why, which reads as
+      // "no risk found" rather than "risk was never assessed".
+      await recordUnavailable(sessionID, error)
+    }
+  }
+
+  async function recordUnavailable(sessionID: string, error: unknown): Promise<void> {
+    try {
+      await Session.update(sessionID, (draft) => {
+        if (!draft.state_v2) return
+        draft.state_v2.blast_radius = {
+          level: "unknown",
+          reason: `Blast radius was not assessed: ${error instanceof Error ? error.message : String(error)}`,
+          affected_areas: [],
+          analyzedAt: new Date().toISOString(),
+        }
+      })
+    } catch (updateError) {
+      log.error("ShadowAuditor could not record its own failure", { error: updateError, sessionID })
     }
   }
 }

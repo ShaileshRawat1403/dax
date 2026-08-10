@@ -239,7 +239,13 @@ export namespace SessionV2 {
   export type CompletionProofState = z.infer<typeof CompletionProofState>
 
   export const BlastRadiusState = z.object({
-    level: z.enum(["low", "medium", "high", "critical"]),
+    /**
+     * "unknown" means the assessment did not run, which is distinct from an
+     * absent blast_radius (not attempted yet). A governance check that fails
+     * has to be as visible as one that fails you, or the operator reads
+     * silence as safety.
+     */
+    level: z.enum(["low", "medium", "high", "critical", "unknown"]),
     reason: z.string(),
     affected_areas: z.string().array().default([]),
     analyzedAt: z.string(),

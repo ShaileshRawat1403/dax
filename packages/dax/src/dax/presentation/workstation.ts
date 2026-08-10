@@ -69,7 +69,8 @@ export type WorkstationState = {
     missing: string[]
   }
   blastRadius?: {
-    level: "low" | "medium" | "high" | "critical"
+    /** "unknown" means the assessment did not run, not that risk is low. */
+    level: "low" | "medium" | "high" | "critical" | "unknown"
     reason: string
     affected_areas: string[]
   }
@@ -121,7 +122,8 @@ export function deriveWorkstationState(input: {
     missing: string[]
   }
   blastRadius?: {
-    level: "low" | "medium" | "high" | "critical"
+    /** "unknown" means the assessment did not run, not that risk is low. */
+    level: "low" | "medium" | "high" | "critical" | "unknown"
     reason: string
     affected_areas: string[]
   }

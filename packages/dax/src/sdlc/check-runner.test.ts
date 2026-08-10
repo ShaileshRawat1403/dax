@@ -83,4 +83,47 @@ describe("SDLC check runner", () => {
 
     rmSync(dir, { recursive: true, force: true })
   })
+
+  test("kills a descendant the check leaves behind after exiting cleanly", async () => {
+    // The leak the timeout path did not cover: a check exits zero having
+    // started a watcher or kernel that outlives it. Reaping only on timeout
+    // means a passing check quietly leaks.
+    const dir = mkdtempSync(path.join(os.tmpdir(), "dax-check-clean-reap-"))
+    const marker = path.join(dir, "descendant.pid")
+    const script = `sleep 300 >/dev/null 2>&1 & echo $! > "${marker}"; exit 0`
+
+    const check: CheckDefinition = {
+      id: "clean-exit-reap",
+      kind: "test",
+      label: "Clean exit reaps descendants",
+      command: "sh",
+      args: ["-c", script],
+      cwd: dir,
+      required: true,
+      timeoutMs: 30_000,
+      risk: "medium",
+    }
+
+    const result = await runCheck(check)
+    expect(result.status).toBe("passed")
+    expect(result.exitCode).toBe(0)
+
+    const descendantPid = Number.parseInt(readFileSync(marker, "utf8").trim(), 10)
+    expect(Number.isInteger(descendantPid)).toBe(true)
+
+    let gone = false
+    const deadline = Date.now() + 5_000
+    while (Date.now() < deadline) {
+      try {
+        process.kill(descendantPid, 0)
+      } catch {
+        gone = true
+        break
+      }
+      await Bun.sleep(50)
+    }
+    expect(gone).toBe(true)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
 })
