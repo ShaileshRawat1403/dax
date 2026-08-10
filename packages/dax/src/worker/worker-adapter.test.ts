@@ -116,13 +116,11 @@ describe("worker adapter", () => {
     expect(() => WorkerContract.parse({ ...contract, task: "" })).toThrow()
   })
 
-  test("the default registry exposes jobs rather than vendor-specific workflow names", () => {
+  test("the default registry lists every approved provider as an external CLI", () => {
     const providers = DefaultWorkerProviderRegistry.list()
     expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex", "gemini"])
     for (const provider of providers) {
       expect(provider.kind).toBe("external_cli")
-      expect(provider.capabilities).toEqual(["analyze_repository", "prepare_code_change"])
-      expect(provider.requiresIsolatedCheckout).toBe(true)
     }
   })
 

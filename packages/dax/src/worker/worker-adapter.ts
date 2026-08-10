@@ -31,24 +31,27 @@ import z from "zod"
 export const ExternalWorkerId = z.enum(["claude", "codex", "gemini"])
 export type ExternalWorkerId = z.infer<typeof ExternalWorkerId>
 
-/**
- * Portable work that a provider can offer DAX. These are deliberately jobs,
- * not vendor names: Flowright and Soothsayer select a governed capability,
- * while DAX selects an approved provider to carry it out.
- */
-export const WorkerCapability = z.enum(["analyze_repository", "prepare_code_change"])
-export type WorkerCapability = z.infer<typeof WorkerCapability>
-
 export const WorkerProviderKind = z.enum(["external_cli", "native", "remote"])
 export type WorkerProviderKind = z.infer<typeof WorkerProviderKind>
 
+/**
+ * What DAX knows about an approved provider.
+ *
+ * Deliberately descriptive, not contractual. A `capabilities` list and a
+ * `requiresIsolatedCheckout` flag used to live here; both were written
+ * identically by every provider and read by nothing, so they promised a
+ * negotiation that does not happen. Isolation is not per-provider: the
+ * worker_run workflow always creates a disposable checkout and always computes
+ * the diff itself, for every provider, and that is what makes the guarantee
+ * rather than a boolean anyone could set to false.
+ *
+ * Reintroduce capability declarations when a provider appears that genuinely
+ * cannot do what another can, and enforce them at the same time.
+ */
 export type WorkerProviderDescriptor = {
   id: string
   label: string
   kind: WorkerProviderKind
-  capabilities: WorkerCapability[]
-  /** DAX, not the provider, owns the isolated checkout and review gate. */
-  requiresIsolatedCheckout: boolean
 }
 
 export const WorkerContract = z.object({
@@ -252,8 +255,6 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
       id: workerId,
       label: profile.label,
       kind: "external_cli",
-      capabilities: ["analyze_repository", "prepare_code_change"],
-      requiresIsolatedCheckout: true,
     },
     buildInvocation({ contract, hostEnv, timeoutMs }) {
       const prompt = renderWorkerPrompt(contract)

@@ -1,6 +1,3 @@
-import os from "os"
-import { DAX_SETTING } from "./settings"
-
 function normalizeName(value?: string | null) {
   if (!value) return undefined
   const trimmed = value.trim().replace(/\s+/g, " ")
@@ -8,40 +5,16 @@ function normalizeName(value?: string | null) {
   return trimmed
 }
 
-export function sessionPreferredNameKey(sessionID: string) {
-  return `${DAX_SETTING.session_preferred_name_prefix}:${sessionID}`
-}
-
-/** Reads a stored preferred name. The only values this cares about are names. */
-export type PreferredNameLookup = (key: string, defaultValue?: string) => string | undefined
-
 /**
- * Resolve the name to address the operator by: session override, then global
- * default, then the config username when it is not just the OS account name.
+ * The system-prompt line asking the model to use the operator's preferred name.
  *
- * NOTE: currently unreferenced outside tests. `buildPreferredNamePrompt` is
- * wired into session/prompt.ts, but nothing resolves a session-scoped name, so
- * the session override tier is not reachable in production yet.
+ * A `resolvePreferredName` and `sessionPreferredNameKey` pair lived here too,
+ * resolving a session override then a global default then the config username.
+ * Nothing ever called them: no caller wrote a session-scoped name, so the
+ * override tier was unreachable and the whole resolver was tested but dead.
+ * Removed rather than finished, because a per-session preferred name is worth
+ * designing fresh if it is ever wanted, not resurrecting from a stub.
  */
-export function resolvePreferredName(input: {
-  sessionID?: string
-  configUsername?: string
-  kvGet: PreferredNameLookup
-}) {
-  const sessionName = normalizeName(
-    input.sessionID ? input.kvGet(sessionPreferredNameKey(input.sessionID), undefined) : undefined,
-  )
-  if (sessionName) return sessionName
-
-  const globalName = normalizeName(input.kvGet(DAX_SETTING.preferred_name_default, undefined))
-  if (globalName) return globalName
-
-  const configName = normalizeName(input.configUsername)
-  if (configName && configName !== os.userInfo().username) return configName
-
-  return undefined
-}
-
 export function buildPreferredNamePrompt(name?: string) {
   const normalized = normalizeName(name)
   if (!normalized) return undefined
