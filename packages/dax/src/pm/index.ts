@@ -3,12 +3,23 @@ import { Global } from "@/global"
 import { fn } from "@/util/fn"
 import { Log } from "@/util/log"
 import path from "path"
-import { ulid } from "ulid"
+import { monotonicFactory } from "ulid"
 import z from "zod"
 import fs from "fs"
 
 export namespace PM {
   const log = Log.create({ service: "pm" })
+
+  /**
+   * Monotonic so that ids sort by insertion order even within a millisecond.
+   *
+   * Every list here orders by created_at, which has millisecond resolution, so
+   * rows written in the same tick came back in whatever order SQLite chose.
+   * For an audit trail that is a real problem: the RAO event list is the
+   * record of what happened in what order. A plain ulid() shares the timestamp
+   * prefix but randomises the suffix, so it cannot break the tie either.
+   */
+  const ulid = monotonicFactory()
   const db = (() => {
     const file = path.join(Global.Path.state, "pm.sqlite")
     fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -124,7 +135,17 @@ export namespace PM {
     }
   }
 
-  function touch(project_id: string, risk_mode?: z.infer<typeof RiskMode>) {
+  /**
+   * Mark a project's memory as seen, and optionally as changed.
+   *
+   * `pm_rev` is stamped onto every RAO event so a reader can tell which
+   * revision of project memory was in force when it was recorded. It was never
+   * incremented: every event in every database carried pm_rev 1 regardless of
+   * how many constraints or preferences had changed since, which made it a
+   * provenance field that recorded nothing. It now advances whenever memory
+   * that can influence a decision is written, and stays put on reads.
+   */
+  function touch(project_id: string, risk_mode?: z.infer<typeof RiskMode>, mutated = false) {
     const now = Date.now()
     const current = readState(project_id)
     if (!current) {
@@ -134,13 +155,18 @@ export namespace PM {
       ).run(project_id, 1, risk_mode ?? "balanced", now, now)
       return defaultState(project_id, now, risk_mode)
     }
-    db.prepare("update pm_state set risk_mode = ?, updated_at = ? where project_id = ?").run(
+    // A risk-mode change is itself a change to decision-relevant memory.
+    const changed = mutated || (risk_mode !== undefined && risk_mode !== current.risk_mode)
+    const pm_rev = changed ? current.pm_rev + 1 : current.pm_rev
+    db.prepare("update pm_state set risk_mode = ?, pm_rev = ?, updated_at = ? where project_id = ?").run(
       risk_mode ?? current.risk_mode,
+      pm_rev,
       now,
       project_id,
     )
     return {
       ...current,
+      pm_rev,
       risk_mode: risk_mode ?? current.risk_mode,
       updated_at: now,
     }
@@ -164,7 +190,7 @@ export namespace PM {
       pref_value: z.string(),
     }),
     async (input) => {
-      touch(input.project_id)
+      touch(input.project_id, undefined, true)
       const now = Date.now()
       db.prepare(
         `insert into pm_preferences (project_id, pref_key, pref_value, updated_at)
@@ -201,7 +227,7 @@ export namespace PM {
       source: RuleSource.default("user"),
     }),
     async (input) => {
-      touch(input.project_id)
+      touch(input.project_id, undefined, true)
       const row = {
         id: ulid(),
         created_at: Date.now(),
@@ -226,7 +252,7 @@ export namespace PM {
           `select id, project_id, rule_type, pattern, action, source, created_at
            from pm_constraints
            where project_id = ?
-           order by created_at desc
+           order by created_at desc, id desc
            limit ?`,
         )
         .all(input.project_id, input.limit) as Array<{
@@ -253,7 +279,7 @@ export namespace PM {
   })
 
   export const save_dsr = fn(SaveDSRInput, async (input) => {
-    touch(input.project_id)
+    touch(input.project_id, undefined, true)
     const now = Date.now()
     const day = input.day ?? new Date(now).toISOString().slice(0, 10)
     const id = ulid()
@@ -290,14 +316,14 @@ export namespace PM {
             `select id, project_id, day, title, note, tags, author, session_id, source, created_at
              from pm_dsr
              where project_id = ? and day = ?
-             order by created_at desc
+             order by created_at desc, id desc
              limit ?`,
           )
         : db.prepare(
             `select id, project_id, day, title, note, tags, author, session_id, source, created_at
              from pm_dsr
              where project_id = ?
-             order by created_at desc
+             order by created_at desc, id desc
              limit ?`,
           )
       const rows = (
@@ -366,7 +392,7 @@ export namespace PM {
               `select id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at
                from pm_rao_event
                where project_id = ? and event_type = ?
-               order by created_at desc
+               order by created_at desc, id desc
                limit ?`,
             )
             .all(input.project_id, input.event_type, input.limit) as Array<{
@@ -386,7 +412,7 @@ export namespace PM {
               `select id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at
                from pm_rao_event
                where project_id = ?
-               order by created_at desc
+               order by created_at desc, id desc
                limit ?`,
             )
             .all(input.project_id, input.limit) as Array<{
@@ -433,7 +459,7 @@ export namespace PM {
   })
 
   export const save_memory = fn(SaveMemoryInput, async (input) => {
-    touch(input.project_id)
+    touch(input.project_id, undefined, true)
     const now = Date.now()
     const id = ulid()
     db.prepare(
@@ -470,7 +496,7 @@ export namespace PM {
             `select id, project_id, session_id, category, title, content, tags, source, created_at
              from pm_memory
              where project_id = ? and category = ?
-             order by created_at desc
+             order by created_at desc, id desc
              limit ?`,
           )
           .all(input.project_id, input.category, input.limit) as Array<{
@@ -489,7 +515,7 @@ export namespace PM {
             `select id, project_id, session_id, category, title, content, tags, source, created_at
              from pm_memory
              where project_id = ?
-             order by created_at desc
+             order by created_at desc, id desc
              limit ?`,
           )
           .all(input.project_id, input.limit) as Array<{
