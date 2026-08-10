@@ -1,4 +1,5 @@
 import { Log } from "@/util/log"
+import { generateText } from "ai"
 import { HybridTransitions } from "@/state/hybrid-transitions"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import type { ExecutionContract } from "@/execution/execution-contract"
@@ -8,6 +9,88 @@ import { Identifier } from "@/id/id"
 import { getEventAuthorityState } from "@/state/events/event-transitions"
 
 const log = Log.create({ service: "draft-approve-execute" })
+
+export type DraftRequest = {
+  intent: string
+  /** The output the contract promised, which the draft has to be. */
+  output: { type: string; description: string; pathHint?: string }
+  /** Paths the draft must confine itself to, when the contract declares them. */
+  writeScope: string[]
+  forbiddenPaths: string[]
+  providerHint?: string
+  modelHint?: string
+}
+
+export type DraftApproveExecuteEffectsShape = {
+  /** Produce the content an operator is being asked to approve. */
+  generateDraft: (request: DraftRequest) => Promise<string>
+}
+
+/**
+ * Render the contract as the instruction the drafting model receives.
+ *
+ * Exported for tests: the prompt is the whole interface between the contract
+ * and the draft, so it is worth asserting that scope and forbidden paths
+ * actually reach the model rather than being silently dropped.
+ */
+export function renderDraftPrompt(request: DraftRequest): string {
+  const lines = [
+    `INTENT: ${request.intent}`,
+    ``,
+    `EXPECTED OUTPUT: ${request.output.type}`,
+    `DESCRIPTION: ${request.output.description}`,
+  ]
+  if (request.output.pathHint) lines.push(`TARGET PATH: ${request.output.pathHint}`)
+  if (request.writeScope.length > 0) lines.push(``, `CONFINE CHANGES TO: ${request.writeScope.join(", ")}`)
+  if (request.forbiddenPaths.length > 0) lines.push(`NEVER TOUCH: ${request.forbiddenPaths.join(", ")}`)
+  lines.push(
+    ``,
+    `Produce only the ${request.output.type} content itself. No preamble, no`,
+    `explanation, no code fences around the whole response. A human operator`,
+    `reviews this verbatim before it is applied.`,
+  )
+  return lines.join("\n")
+}
+
+const defaultEffects: DraftApproveExecuteEffectsShape = {
+  async generateDraft(request) {
+    // Imported at call time, not module load. The provider graph reaches the
+    // workflow registry, which constructs this workflow, so a top-level import
+    // is a cycle that fails as a TDZ error the moment a test loads this module
+    // directly.
+    const { Provider } = await import("@/provider/provider")
+    const selected =
+      request.providerHint && request.modelHint
+        ? { providerID: request.providerHint, modelID: request.modelHint }
+        : await Provider.defaultModel()
+    if (!selected) {
+      throw new Error("no model available to draft with")
+    }
+    const model = await Provider.getModel(selected.providerID, selected.modelID)
+    const result = await generateText({
+      model: await Provider.getLanguage(model),
+      system: [
+        "You are DAX's drafting step. You produce the artifact a human operator",
+        "will approve or reject. You never apply anything yourself.",
+        "Stay inside the declared scope. If the intent is too ambiguous to draft",
+        "responsibly, say so plainly instead of inventing requirements.",
+      ].join(" "),
+      prompt: renderDraftPrompt(request),
+    })
+    return result.text
+  },
+}
+
+/** Test seam: swap effects, always restore. */
+export const DraftApproveExecuteEffects = {
+  current: defaultEffects,
+  set(effects: Partial<DraftApproveExecuteEffectsShape>) {
+    DraftApproveExecuteEffects.current = { ...defaultEffects, ...effects }
+  },
+  reset() {
+    DraftApproveExecuteEffects.current = defaultEffects
+  },
+}
 
 export class DraftApproveExecuteWorkflow {
   private runId: string
@@ -62,13 +145,35 @@ export class DraftApproveExecuteWorkflow {
       await HybridTransitions.startStep(this.runId, stepId)
 
       const expectedOutputs = this.contract.expectedOutputs
-      const draftType = expectedOutputs.find((o) => o.type === "file" || o.type === "patch")?.type ?? "file"
+      const promised = expectedOutputs.find((o) => o.type === "file" || o.type === "patch") ?? expectedOutputs[0]
+      const draftType = (promised?.type === "patch" ? "patch" : "file") satisfies DraftArtifact["type"]
+      const targetPath = expectedOutputs.find((o) => o.pathHint)?.pathHint
 
-      const draftArtifact: DraftArtifact = {
-        type: draftType as DraftArtifact["type"],
-        content: this.buildDraftContent(),
-        targetPath: this.contract.expectedOutputs.find((o) => o.pathHint)?.pathHint,
+      const content = await DraftApproveExecuteEffects.current.generateDraft({
+        intent: this.contract.intent,
+        output: {
+          type: draftType,
+          description: promised?.description ?? this.contract.intent,
+          pathHint: targetPath,
+        },
+        writeScope: this.contract.runtimePolicy?.scope.targetFiles ?? [],
+        forbiddenPaths: this.contract.runtimePolicy?.sensitivity.forbiddenPatterns ?? [],
+        providerHint: this.contract.providerHint,
+        modelHint: this.contract.modelHint,
+      })
+
+      // Fail closed on an empty draft. The step's only product is the thing a
+      // human is asked to approve, so shipping a placeholder to an approval
+      // gate is worse than failing: it invites a real approval of nothing.
+      if (!content.trim()) {
+        throw new Error("draft step produced no content — nothing to approve")
       }
+
+      const draftArtifact: DraftArtifact = DraftArtifactSchema.parse({
+        type: draftType,
+        content,
+        targetPath,
+      })
 
       this.draftArtifact = draftArtifact
 
@@ -106,11 +211,6 @@ export class DraftApproveExecuteWorkflow {
         error: errorMessage,
       }
     }
-  }
-
-  private buildDraftContent(): string {
-    const intent = this.contract.intent
-    return `## Draft Artifact\n\nBased on intent: ${intent}\n\nThis is a placeholder draft. The actual implementation should generate relevant content based on the intent.\n`
   }
 
   private async executeRequestApproval(drafts: DraftArtifact[]): Promise<WorkflowStepResult> {

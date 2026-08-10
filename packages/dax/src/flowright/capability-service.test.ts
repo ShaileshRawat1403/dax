@@ -60,7 +60,12 @@ describe("Flowright capability service", () => {
     try {
       const { bootstrap } = await import("@/cli/bootstrap")
       const { FlowrightCapabilityService } = await import("./capability-service")
+      const { DraftApproveExecuteEffects } = await import("@/workflows/draft-approve-execute")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
+
+      // Drafting reaches a provider now. This test is about approval
+      // forwarding and receipt terminality, not draft content.
+      DraftApproveExecuteEffects.set({ generateDraft: async () => "Release note draft.\n" })
 
       await bootstrap(repoRoot, async () => {
         const response = await FlowrightCapabilityService.invoke("dax.draft_and_approve", {
@@ -85,6 +90,8 @@ describe("Flowright capability service", () => {
         expect(approved.completedAt).toBeDefined()
       })
     } finally {
+      const { DraftApproveExecuteEffects } = await import("@/workflows/draft-approve-execute")
+      DraftApproveExecuteEffects.reset()
       if (previousHome === undefined) delete process.env.DAX_TEST_HOME
       else process.env.DAX_TEST_HOME = previousHome
       rmSync(testHome, { recursive: true, force: true })

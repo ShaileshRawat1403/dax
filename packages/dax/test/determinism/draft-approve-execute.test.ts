@@ -8,7 +8,7 @@ import { Instance } from "../../src/project/instance"
 import { RunStore } from "../../src/state/run-store"
 import { compile } from "../../src/execution/compiler"
 import { Transitions } from "../../src/state/transitions"
-import { DraftApproveExecuteWorkflow } from "../../src/workflows/draft-approve-execute"
+import { DraftApproveExecuteEffects, DraftApproveExecuteWorkflow } from "../../src/workflows/draft-approve-execute"
 
 describe("draft_and_approve workflow halting", () => {
   const testHome = path.join(os.tmpdir(), `dax-draft-approve-${Date.now().toString(36)}`)
@@ -17,9 +17,15 @@ describe("draft_and_approve workflow halting", () => {
   beforeEach(async () => {
     process.env.DAX_TEST_HOME = testHome
     mkdirSync(testHome, { recursive: true })
+    // Drafting reaches a provider now. This test is about halting at the
+    // approval gate, not about draft content, so the model call is stubbed.
+    DraftApproveExecuteEffects.set({
+      generateDraft: async () => "test content for test.txt\n",
+    })
   })
 
   afterEach(() => {
+    DraftApproveExecuteEffects.reset()
     if (previousHome) {
       process.env.DAX_TEST_HOME = previousHome
     } else {
