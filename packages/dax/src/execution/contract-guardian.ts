@@ -3,7 +3,6 @@ import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { RunStore } from "@/state/run-store"
-import { isTerminalStatus } from "@/state/run-state"
 
 const log = Log.create({ service: "contract-guardian" })
 

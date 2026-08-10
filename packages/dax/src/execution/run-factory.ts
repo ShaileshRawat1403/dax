@@ -3,8 +3,8 @@ import { SessionPrompt } from "@/session/prompt"
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
-import { Identifier } from "@/id/id"
 import { Permission } from "@/governance"
+import type { Config } from "@/config/config"
 import type { CreateRunRequest, CreateRunResponse } from "@/server/run-contract"
 import { compileWithRunId } from "./compiler"
 import type { ExecutionContract } from "./execution-contract"
@@ -23,10 +23,7 @@ import { ShadowAuditor } from "./shadow-auditor"
 import { ContractGuardian } from "./contract-guardian"
 import {
   createEventAuthorityRun,
-  isEventAuthorityRun,
-  getEventAuthorityState,
   transitionEventAuthority,
-  appendEventOnly,
 } from "@/state/events/event-transitions"
 
 const EVENT_AUTHORITY_PILOT_WORKFLOWS = ["draft_and_approve", "worker_run"] as const
@@ -74,20 +71,6 @@ async function readContract(runId: string): Promise<ExecutionContract | undefine
   return contract || undefined
 }
 
-async function buildRunMeta(request: CreateRunRequest, runId: string): Promise<RunMeta> {
-  return {
-    sourceSystem: request.metadata?.source ?? "api",
-    initiatedBy: request.metadata?.initiatedBy,
-    workspaceId: request.metadata?.workspaceId,
-    projectId: request.metadata?.projectId,
-    chatId: request.metadata?.chatId,
-    workflowId: request.metadata?.workflowId,
-    targeting: request.metadata?.targeting,
-    contractId: `ctr_${Identifier.create("session", false)}`,
-    workflowClass: "generic",
-  }
-}
-
 async function writeRunMeta(runId: string, meta: RunMeta): Promise<void> {
   await Storage.write(["run_meta", Instance.project.id, runId], meta)
 }
@@ -100,7 +83,9 @@ function sessionPermissionFromPreset(input: CreateRunRequest): Permission.Rulese
     return undefined
   }
 
-  const permission: Record<string, "allow" | "deny" | "ask"> = {}
+  // Typed as the config shape fromConfig actually consumes, so the object
+  // built below is checked against it instead of cast at the call.
+  const permission: Config.Permission = {}
 
   if (approvalMode === "strict") {
     permission.edit = "ask"
@@ -119,7 +104,7 @@ function sessionPermissionFromPreset(input: CreateRunRequest): Permission.Rulese
     permission.shell = "ask"
   }
 
-  return Object.keys(permission).length > 0 ? Permission.fromConfig(permission as any) : undefined
+  return Object.keys(permission).length > 0 ? Permission.fromConfig(permission) : undefined
 }
 
 function buildPromptContext(contract: ExecutionContract): string {
@@ -206,7 +191,11 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 
   const isEventPilot = isEventAuthorityPilot(contract.workflowClass)
 
-  let finalStatus: CreateRunResponse["status"] = "created"
+  // Deliberately uninitialised. Every branch below assigns it before the
+  // response is built, and the status reaches the API caller, so a future
+  // branch that forgets should be a compile error rather than a silent
+  // "created" for a run that is already executing.
+  let finalStatus: CreateRunResponse["status"]
 
   if (isEventPilot) {
     await createEventAuthorityRun(session.id, contract.contractId)

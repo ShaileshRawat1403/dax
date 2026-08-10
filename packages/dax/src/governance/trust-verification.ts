@@ -5,7 +5,6 @@ import { RAOLedger } from "../rao"
 import { Session } from "../session"
 import { MessageV2 } from "../session/message-v2"
 import { deriveSessionLifecycleFromMessages, type SessionLifecycleState } from "../session/lifecycle"
-import { Instance } from "../project/instance"
 import { Locale } from "../util/locale"
 import { withLockedRetry } from "../util/locked-retry"
 import { buildArtifactsForSession } from "../cli/cmd/artifacts"
@@ -13,16 +12,11 @@ import {
   deriveWriteGovernanceClassification,
   deriveWriteOutcome,
   deriveWriteGovernanceStatus,
-  type WriteGovernanceExpectation,
-  type WriteOutcome,
-  type WriteGovernanceStatus,
-  type WriteRiskBucket,
 } from "./governance-writer"
 import type {
   VerificationResult,
   VerificationTrustPosture,
   VerificationCheckStatus,
-  VerificationCheckID,
   VerificationCheck,
   SessionVerificationSignals,
   SessionVerification,
@@ -64,14 +58,14 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
       terminal: lifecycle.terminal,
       requires_reconciliation: lifecycle.requires_reconciliation,
     },
+    // Always absent until the audit signal is wired; see resolveAuditState.
+    // The severity tallies stay here so the shape does not change when it is.
     audit: {
       present: !!audit,
       status: audit?.status,
-      blocker_count: audit?.findings.filter((f: AuditFinding) => f.severity === "critical").length ?? 0,
-      warning_count:
-        audit?.findings.filter((f: AuditFinding) => f.severity === "high" || f.severity === "medium").length ?? 0,
-      info_count:
-        audit?.findings.filter((f: AuditFinding) => f.severity === "low" || f.severity === "info").length ?? 0,
+      blocker_count: audit?.findings.filter((f) => f.severity === "critical").length ?? 0,
+      warning_count: audit?.findings.filter((f) => f.severity === "high" || f.severity === "medium").length ?? 0,
+      info_count: audit?.findings.filter((f) => f.severity === "low" || f.severity === "info").length ?? 0,
     },
     approvals: {
       pending_count: approvals.length,
@@ -108,24 +102,36 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
       artifact_count: artifacts.length,
     },
     trace: {
-      assistant_message_count: messages.filter((m: any) => {
-        const role = m?.role ?? m?.info?.role
-        return role === "assistant"
-      }).length,
+      assistant_message_count: messages.filter((m) => m.info.role === "assistant").length,
       latest_activity_at: messages.length > 0 ? messages[messages.length - 1].info.time.created : undefined,
     },
   }
 }
 
-async function resolveAuditState(sessionID: string) {
-  const stateFn = (Audit as any)?.state
-  if (typeof stateFn !== "function") return undefined
-  try {
-    const state = await stateFn()
-    return state?.[sessionID]
-  } catch {
-    return undefined
-  }
+/**
+ * The per-session audit signal is not wired, and has never been.
+ *
+ * This read through `(Audit as any)?.state` for a member the Audit namespace
+ * does not export, so the typeof guard was always false and the function always
+ * returned undefined. Every session therefore reported `audit.present: false`
+ * and `policy_evaluated: false`, and evaluateAuditCheck always answered "No
+ * audit has been performed for this session", whether or not one had been. The
+ * `as any` is what let a reference to a non-existent member compile.
+ *
+ * It is left unwired deliberately rather than pointed at the nearest available
+ * source. Audit results are recorded as project-scoped PM events carrying no
+ * session id (see Audit.run), so reading them here would report an audit from
+ * a different session as this one's. On a governance signal, a false "audit
+ * present" is worse than the honest absence this returns.
+ *
+ * Wiring it needs a decision first: whether the audit signal is per-session, in
+ * which case Audit.run has to record the session it ran for, or per-project, in
+ * which case this check should say so rather than implying session scope.
+ */
+type SessionAuditState = { status: Audit.Status; findings: AuditFinding[] }
+
+async function resolveAuditState(_sessionID: string): Promise<SessionAuditState | undefined> {
+  return undefined
 }
 
 export function evaluateSessionVerification(signals: SessionVerificationSignals): SessionVerification {

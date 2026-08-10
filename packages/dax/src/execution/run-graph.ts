@@ -1,15 +1,43 @@
-import { type TaskGraph, type PlannedTask, getRunnableTasks } from "../planner/task-graph"
+import { type TaskGraph, type TaskStatus, getRunnableTasks } from "../planner/task-graph"
 import { OperatorRouter, defaultRouter } from "../operators/router"
 import type { OperatorContext } from "../operators/base"
-import type { ApprovalRequest } from "../governance/approval"
-import type { ArtifactRecord } from "../governance/artifact"
-import type { TrustDelta } from "../governance/trust"
 import { SessionStateManager } from "../session/update-state"
 import { saveSnapshot } from "../session/persist-state"
 import type { GraphStatus } from "../session/snapshot-types"
 import { buildContextPack, OPERATOR_TYPES, type OperatorType } from "../context/build-context-pack"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
+import type { RunStatus } from "@/server/run-contract"
+
+/**
+ * Project a task-graph status onto the run status the lifecycle bus expects.
+ *
+ * These are two different state machines. TaskStatus carries "pending" and
+ * "blocked", which are not RunStatus values at all, and both were being cast
+ * through `as any` into run.state_changed. Bus.publish does not validate, so
+ * those invalid values reached subscribers and the RunStateChangedPayload
+ * schema on the server boundary unchecked.
+ *
+ * The switch is exhaustive on purpose: a new TaskStatus becomes a compile
+ * error here rather than another silent cast.
+ */
+export function runStatusForGraphStatus(status: TaskStatus): RunStatus {
+  switch (status) {
+    case "pending":
+      return "created"
+    case "running":
+      return "running"
+    // run-graph marks the graph blocked when a task raises an approval request
+    // or hits a human checkpoint, which is waiting_approval at the run level.
+    case "blocked":
+    case "awaiting_approval":
+      return "waiting_approval"
+    case "completed":
+      return "completed"
+    case "failed":
+      return "failed"
+  }
+}
 
 function isOperatorType(value: string): value is OperatorType {
   return (OPERATOR_TYPES as readonly string[]).includes(value)
@@ -42,31 +70,19 @@ export async function runGraph(
   stateManager?: SessionStateManager,
   options?: {
     skipTaskIds?: string[]
-    initialSessionState?: any
   },
 ): Promise<GraphRunResult> {
   const blockedTasks: string[] = []
   const failedTasks: string[] = []
-  const recordedArtifacts: ArtifactRecord[] = []
-  const trustDeltas: TrustDelta[] = []
-  const pendingApprovals: ApprovalRequest[] = []
   const warnings: string[] = []
   const skipTaskIds = new Set(options?.skipTaskIds || [])
-
-  // Restore initial session state if provided (for resume)
-  if (options?.initialSessionState && stateManager) {
-    // We need a way to set the state directly, or just use it as the base
-    // For now, we'll assume the stateManager is initialized with this state
-    // or we pass it to the operators
-    // State restore is handled by the stateManager initializer; nothing to do here yet.
-  }
 
   const previousGraphStatus = graph.status
   graph.status = "running"
   
   await Bus.publish(Lifecycle.RunStateChanged, {
     runId: ctx.sessionId,
-    previousStatus: previousGraphStatus as any,
+    previousStatus: runStatusForGraphStatus(previousGraphStatus),
     currentStatus: "running",
   })
 
@@ -189,7 +205,6 @@ export async function runGraph(
             status: "blocked",
           })
           blockedTasks.push(task.id)
-          pendingApprovals.push(result.approvalRequest)
           if (ctx.reportApprovalRequest) {
             await ctx.reportApprovalRequest(result.approvalRequest)
           }
@@ -287,8 +302,8 @@ export async function runGraph(
   if (finalPreviousStatus !== graph.status) {
     await Bus.publish(Lifecycle.RunStateChanged, {
       runId: ctx.sessionId,
-      previousStatus: finalPreviousStatus as any,
-      currentStatus: graph.status as any,
+      previousStatus: runStatusForGraphStatus(finalPreviousStatus),
+      currentStatus: runStatusForGraphStatus(graph.status),
     })
   }
 

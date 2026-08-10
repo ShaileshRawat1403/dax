@@ -40,7 +40,7 @@ export class RuntimeGuardViolationError extends Error {
 type GuardRequest = {
   permission: string
   patterns: string[]
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   always: string[]
 }
 
@@ -51,8 +51,6 @@ type RuntimeGuardInput = {
   req: GuardRequest
   callID?: string
 }
-
-type RuntimeContract = NonNullable<SessionV2.Intent["contract"]>
 
 type RuntimeGuardState = NonNullable<SessionV2.State["runtime_guard"]>
 
@@ -92,7 +90,9 @@ function normalizeRelative(filePath: string) {
   if (!filePath) return filePath
   const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(Instance.directory, filePath)
 
-  let resolvedAbsolute = absolute
+  // Assigned by both branches below; a default here would mask a future
+  // path that forgets to resolve.
+  let resolvedAbsolute: string
   try {
     // Follow symlinks and resolve '..' to get canonical path
     resolvedAbsolute = fs.realpathSync(absolute)
@@ -490,14 +490,16 @@ async function updateRuntimeGuardState(sessionID: string, updater: (state: Runti
 /**
  * Creates a stable JSON string representation for hashing/comparison.
  * Handles any object shape recursively to ensure consistent output.
- * Using 'any' since this function must handle arbitrary object structures
- * from various runtime sources (contracts, metadata, state).
+ * Takes unknown rather than any: the input genuinely is arbitrary, but every
+ * branch below narrows before touching it, so the caller gets no licence to
+ * skip that.
  */
-function stableStringify(obj: any): string {
+function stableStringify(obj: unknown): string {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj)
   if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(",")}]`
-  const keys = Object.keys(obj).sort()
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`
+  const record = obj as Record<string, unknown>
+  const keys = Object.keys(record).sort()
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`).join(",")}}`
 }
 
 export async function enforceRuntimeGuard(input: RuntimeGuardInput) {

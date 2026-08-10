@@ -556,49 +556,18 @@
       "count": 1
     }
   },
-  "src/execution/compiler.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    }
-  },
   "src/execution/contract-guardian.ts": {
     "@typescript-eslint/no-namespace": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
       "count": 1
     }
   },
   "src/execution/run-factory.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
     "@typescript-eslint/no-namespace": {
       "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 5
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "src/execution/run-graph.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 3
     }
   },
   "src/execution/runtime-guard.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
-    "no-useless-assignment": {
       "count": 1
     },
     "prefer-const": {
@@ -729,14 +698,6 @@
   "src/governance/rook-bridge-types.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
-    }
-  },
-  "src/governance/trust-verification.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 6
     }
   },
   "src/id/id.ts": {

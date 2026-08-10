@@ -1,7 +1,6 @@
 import { Identifier } from "@/id/id"
 import * as crypto from "crypto"
 import type { WorkflowClass, RiskLevel } from "./workflow-class"
-import { WorkflowClassSchema, RiskLevelSchema } from "./workflow-class"
 import { ExecutionContract, ApprovalPolicy, deriveExecutionMode, type RuntimePolicy } from "./execution-contract"
 import type { CreateRunRequest } from "@/server/run-contract"
 import z from "zod"
