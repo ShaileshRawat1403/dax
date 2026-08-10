@@ -118,30 +118,52 @@ function stripQuotes(value: string | undefined) {
   return value.replace(/^['"]|['"]$/g, "")
 }
 
-function extractTarget(part: any): string {
-  const input = part?.state?.input ?? {}
-  const metadata = part?.state?.metadata ?? {}
-  const tool = String(part?.tool ?? "").toLowerCase()
-  if (tool === "shell") return summarizeValue(input.command, 56) ?? "shell command"
-  if (tool === "reflection") return summarizeValue(input.goal, 56) ?? "execution reflection"
+type ToolPart = Extract<Part, { type: "tool" }>
+
+/**
+ * Tool inputs and metadata are open records, so every read out of them is
+ * narrowed rather than trusted. These helpers previously took `any`, which let
+ * a non-string value reach `summarizeValue` and throw on `.replace` — a
+ * presentation crash triggered by whatever a tool happened to put in its input.
+ */
+const asString = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined)
+const asNumber = (value: unknown): number | undefined => (typeof value === "number" ? value : undefined)
+
+const firstString = (...values: unknown[]): string | undefined => values.map(asString).find(Boolean)
+
+function toolInput(part: ToolPart): Record<string, unknown> {
+  return part.state.input ?? {}
+}
+
+/** Only some tool states carry metadata, and on those it is still optional. */
+function toolMetadata(part: ToolPart): Record<string, unknown> {
+  return "metadata" in part.state ? (part.state.metadata ?? {}) : {}
+}
+
+function extractTarget(part: ToolPart): string {
+  const input = toolInput(part)
+  const metadata = toolMetadata(part)
+  const tool = part.tool.toLowerCase()
+  if (tool === "shell") return summarizeValue(asString(input.command), 56) ?? "shell command"
+  if (tool === "reflection") return summarizeValue(asString(input.goal), 56) ?? "execution reflection"
   if (tool === "read" || tool === "write" || tool === "edit") {
-    return normalizePathLike(input.filePath ?? input.path) ?? "workspace file"
+    return normalizePathLike(firstString(input.filePath, input.path)) ?? "workspace file"
   }
   if (tool === "apply_patch") {
-    return normalizePathLike(metadata.filePath ?? input.filePath) ?? "workspace patch"
+    return normalizePathLike(firstString(metadata.filePath, input.filePath)) ?? "workspace patch"
   }
   if (tool === "grep" || tool === "codesearch" || tool === "websearch") {
-    return summarizeValue(stripQuotes(input.pattern ?? input.query), 56) ?? "search query"
+    return summarizeValue(stripQuotes(firstString(input.pattern, input.query)), 56) ?? "search query"
   }
   if (tool === "glob" || tool === "list") {
-    return summarizeValue(input.pattern ?? input.path, 56) ?? "workspace listing"
+    return summarizeValue(firstString(input.pattern, input.path), 56) ?? "workspace listing"
   }
-  if (tool === "webfetch") return summarizeValue(input.url, 56) ?? "external URL"
+  if (tool === "webfetch") return summarizeValue(asString(input.url), 56) ?? "external URL"
   if (tool === "task" || tool === "question" || tool === "skill") {
-    return summarizeValue(input.description ?? input.prompt ?? input.name, 56) ?? "operator step"
+    return summarizeValue(firstString(input.description, input.prompt, input.name), 56) ?? "operator step"
   }
   return (
-    summarizeValue(input.filePath ?? input.path ?? input.query ?? input.pattern ?? input.command, 56) ??
+    summarizeValue(firstString(input.filePath, input.path, input.query, input.pattern, input.command), 56) ??
     "runtime target"
   )
 }
@@ -173,20 +195,21 @@ function deriveWhy(tool: string) {
   }
 }
 
-function deriveResult(part: any) {
-  const status = String(part?.state?.status ?? "pending").toLowerCase()
-  const metadata = part?.state?.metadata ?? {}
+function deriveResult(part: ToolPart): string {
+  const status = part.state.status.toLowerCase()
+  const metadata = toolMetadata(part)
   if (status === "pending" || status === "running") return "in flight"
   if (status === "error" || status === "failed") return "hit issue"
   if (status !== "completed") return status
 
-  if (typeof metadata?.exitCode === "number") return metadata.exitCode === 0 ? "clean" : `exit ${metadata.exitCode}`
-  if (typeof metadata?.matchCount === "number")
-    return `${metadata.matchCount} match${metadata.matchCount === 1 ? "" : "es"}`
-  if (Array.isArray(metadata?.matches)) return `${metadata.matches.length} found`
-  if (Array.isArray(metadata?.paths)) return `${metadata.paths.length} resolved`
-  if (metadata?.written === true) return "updated"
-  if (metadata?.read === true) return "loaded"
+  const exitCode = asNumber(metadata.exitCode)
+  if (exitCode !== undefined) return exitCode === 0 ? "clean" : `exit ${exitCode}`
+  const matchCount = asNumber(metadata.matchCount)
+  if (matchCount !== undefined) return `${matchCount} match${matchCount === 1 ? "" : "es"}`
+  if (Array.isArray(metadata.matches)) return `${metadata.matches.length} found`
+  if (Array.isArray(metadata.paths)) return `${metadata.paths.length} resolved`
+  if (metadata.written === true) return "updated"
+  if (metadata.read === true) return "loaded"
   return "done"
 }
 

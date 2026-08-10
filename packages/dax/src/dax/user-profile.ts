@@ -12,10 +12,21 @@ export function sessionPreferredNameKey(sessionID: string) {
   return `${DAX_SETTING.session_preferred_name_prefix}:${sessionID}`
 }
 
+/** Reads a stored preferred name. The only values this cares about are names. */
+export type PreferredNameLookup = (key: string, defaultValue?: string) => string | undefined
+
+/**
+ * Resolve the name to address the operator by: session override, then global
+ * default, then the config username when it is not just the OS account name.
+ *
+ * NOTE: currently unreferenced outside tests. `buildPreferredNamePrompt` is
+ * wired into session/prompt.ts, but nothing resolves a session-scoped name, so
+ * the session override tier is not reachable in production yet.
+ */
 export function resolvePreferredName(input: {
   sessionID?: string
   configUsername?: string
-  kvGet: (key: string, defaultValue?: any) => any
+  kvGet: PreferredNameLookup
 }) {
   const sessionName = normalizeName(
     input.sessionID ? input.kvGet(sessionPreferredNameKey(input.sessionID), undefined) : undefined,

@@ -538,26 +538,6 @@
       "count": 13
     }
   },
-  "src/dax/presentation/session-surface.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
-  "src/dax/presentation/workstation.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
-  "src/dax/user-profile.test.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
-  "src/dax/user-profile.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
   "src/docops/index.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1

@@ -79,6 +79,18 @@ export type WorkstationState = {
   }
 }
 
+/**
+ * An alert at level "none" is not an alert, so it is dropped rather than
+ * rendered. Narrowing in a named function keeps the discriminant out of the
+ * object literal, where the spread widened it back and invited a cast.
+ */
+function toAlertSummary(
+  alert?: { level: "info" | "warning" | "error" | "none"; message: string },
+): WorkstationState["alertSummary"] {
+  if (!alert || alert.level === "none") return undefined
+  return { level: alert.level, message: alert.message }
+}
+
 export function deriveWorkstationState(input: {
   sessionID: string
   stage: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
@@ -212,8 +224,7 @@ export function deriveWorkstationState(input: {
     planQuality: input.planQuality,
     completionProof: input.completionProof,
     blastRadius: input.blastRadius,
-    alertSummary:
-      input.alert && input.alert.level !== "none" ? { ...input.alert, level: input.alert.level as any } : undefined,
+    alertSummary: toAlertSummary(input.alert),
   }
 }
 
