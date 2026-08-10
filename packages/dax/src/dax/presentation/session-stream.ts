@@ -1,4 +1,5 @@
 import type { Part, AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
+import { asString, extractToolTarget, toolInput } from "./tool-target"
 import type { ProjectedRun, RunNarrativeItem } from "@/server/run-contract"
 import type { MessageV2 } from "@/session/message-v2"
 
@@ -91,24 +92,6 @@ function getPhaseLabel(phase: RunPhase): string {
   }[phase]
 }
 
-function summarizeValue(value: string | undefined, max = 72) {
-  if (!value) return undefined
-  const normalized = value.replace(/\s+/g, " ").trim()
-  if (!normalized) return undefined
-  if (normalized.length <= max) return normalized
-  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`
-}
-
-function normalizePathLike(value: string | undefined) {
-  if (!value) return undefined
-  return summarizeValue(value.replace(/\\/g, "/"), 64)
-}
-
-function stripQuotes(value: string | undefined) {
-  if (!value) return value
-  return value.replace(/^['"]|['"]$/g, "")
-}
-
 function trimPunctuation(value: string | undefined) {
   if (!value) return undefined
   return value.replace(/[.:]+$/g, "").trim()
@@ -175,51 +158,6 @@ function describeToolProgress(tool: string) {
   }
 }
 
-function extractToolTarget(part: Part): string {
-  if (part.type !== "tool") return "runtime target"
-  const input = part.state.input ?? {}
-  const metadata = ("metadata" in part.state ? (part.state.metadata ?? {}) : {}) as Record<string, unknown>
-  const tool = String(part.tool ?? "").toLowerCase()
-  if (tool === "shell") return summarizeValue(String((input as any).command ?? ""), 56) ?? "shell command"
-  if (tool === "reflection") return summarizeValue(String((input as any).goal ?? ""), 56) ?? "execution reflection"
-  if (tool === "read" || tool === "write" || tool === "edit") {
-    return normalizePathLike(String((input as any).filePath ?? (input as any).path ?? "")) ?? "workspace file"
-  }
-  if (tool === "apply_patch") {
-    return (
-      normalizePathLike(String((metadata.filePath as string | undefined) ?? (input as any).filePath ?? "")) ??
-      "workspace patch"
-    )
-  }
-  if (tool === "grep" || tool === "codesearch" || tool === "websearch") {
-    return (
-      summarizeValue(stripQuotes(String((input as any).pattern ?? (input as any).query ?? "")), 56) ?? "search query"
-    )
-  }
-  if (tool === "glob" || tool === "list") {
-    return summarizeValue(String((input as any).pattern ?? (input as any).path ?? ""), 56) ?? "workspace listing"
-  }
-  if (tool === "webfetch") return summarizeValue(String((input as any).url ?? ""), 56) ?? "external URL"
-  if (tool === "task" || tool === "question" || tool === "skill") {
-    return (
-      summarizeValue(String((input as any).description ?? (input as any).prompt ?? (input as any).name ?? ""), 56) ??
-      "operator step"
-    )
-  }
-  return (
-    summarizeValue(
-      String(
-        (input as any).filePath ??
-          (input as any).path ??
-          (input as any).query ??
-          (input as any).pattern ??
-          (input as any).command ??
-          "",
-      ),
-      56,
-    ) ?? "runtime target"
-  )
-}
 
 function deriveToolEvidence(part: Part): string | undefined {
   if (part.type !== "tool") return undefined
@@ -275,7 +213,7 @@ export function deriveToolNarrativeDescriptor(part: Part): StreamNarrativeDescri
           ? `Fetched ${targetText}.`
           : `Fetching ${targetText}.`
       case "shell": {
-        const rawCmd = String(((part.state as any).input as any)?.command ?? "").trim()
+        const rawCmd = (asString(toolInput(part).command) ?? "").trim()
         const c = rawCmd.toLowerCase()
         if (/^git\s+status/.test(c)) return status === "completed" ? "Working tree checked." : "Checking working tree status."
         if (/^git\s+log/.test(c)) return status === "completed" ? "Commit history read." : "Reading commit history."

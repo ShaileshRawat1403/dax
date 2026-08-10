@@ -530,7 +530,7 @@
   },
   "src/dax/presentation/session-stream.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 32
+      "count": 12
     }
   },
   "src/dax/presentation/session-surface.test.ts": {

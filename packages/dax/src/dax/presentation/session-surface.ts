@@ -1,6 +1,7 @@
 import type { Part } from "@dax-ai/sdk/v2"
 import type { StreamStage } from "@/dax/workflow/stage"
 import { deriveLiveNarrativeStatus } from "./session-stream"
+import { asNumber, extractToolTarget, toolMetadata, type ToolPart } from "./tool-target"
 
 const EXPLORE_TOOLS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "codesearch"])
 const PLAN_TOOLS = new Set(["task", "todowrite", "question", "skill"])
@@ -100,74 +101,6 @@ export type OperatorTraceLine = {
   summary: string
 }
 
-function summarizeValue(value: string | undefined, max = 72) {
-  if (!value) return undefined
-  const normalized = value.replace(/\s+/g, " ").trim()
-  if (!normalized) return undefined
-  if (normalized.length <= max) return normalized
-  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`
-}
-
-function normalizePathLike(value: string | undefined) {
-  if (!value) return undefined
-  return summarizeValue(value.replace(/\\/g, "/"), 64)
-}
-
-function stripQuotes(value: string | undefined) {
-  if (!value) return value
-  return value.replace(/^['"]|['"]$/g, "")
-}
-
-type ToolPart = Extract<Part, { type: "tool" }>
-
-/**
- * Tool inputs and metadata are open records, so every read out of them is
- * narrowed rather than trusted. These helpers previously took `any`, which let
- * a non-string value reach `summarizeValue` and throw on `.replace` — a
- * presentation crash triggered by whatever a tool happened to put in its input.
- */
-const asString = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined)
-const asNumber = (value: unknown): number | undefined => (typeof value === "number" ? value : undefined)
-
-const firstString = (...values: unknown[]): string | undefined => values.map(asString).find(Boolean)
-
-function toolInput(part: ToolPart): Record<string, unknown> {
-  return part.state.input ?? {}
-}
-
-/** Only some tool states carry metadata, and on those it is still optional. */
-function toolMetadata(part: ToolPart): Record<string, unknown> {
-  return "metadata" in part.state ? (part.state.metadata ?? {}) : {}
-}
-
-function extractTarget(part: ToolPart): string {
-  const input = toolInput(part)
-  const metadata = toolMetadata(part)
-  const tool = part.tool.toLowerCase()
-  if (tool === "shell") return summarizeValue(asString(input.command), 56) ?? "shell command"
-  if (tool === "reflection") return summarizeValue(asString(input.goal), 56) ?? "execution reflection"
-  if (tool === "read" || tool === "write" || tool === "edit") {
-    return normalizePathLike(firstString(input.filePath, input.path)) ?? "workspace file"
-  }
-  if (tool === "apply_patch") {
-    return normalizePathLike(firstString(metadata.filePath, input.filePath)) ?? "workspace patch"
-  }
-  if (tool === "grep" || tool === "codesearch" || tool === "websearch") {
-    return summarizeValue(stripQuotes(firstString(input.pattern, input.query)), 56) ?? "search query"
-  }
-  if (tool === "glob" || tool === "list") {
-    return summarizeValue(firstString(input.pattern, input.path), 56) ?? "workspace listing"
-  }
-  if (tool === "webfetch") return summarizeValue(asString(input.url), 56) ?? "external URL"
-  if (tool === "task" || tool === "question" || tool === "skill") {
-    return summarizeValue(firstString(input.description, input.prompt, input.name), 56) ?? "operator step"
-  }
-  return (
-    summarizeValue(firstString(input.filePath, input.path, input.query, input.pattern, input.command), 56) ??
-    "runtime target"
-  )
-}
-
 function deriveWhy(tool: string) {
   switch (tool) {
     case "read":
@@ -250,9 +183,9 @@ function normalizeAction(tool: string) {
 
 export function deriveOperatorTraceLine(part: Part): OperatorTraceLine | undefined {
   if (part.type !== "tool") return
-  const tool = String(part.tool ?? "").toLowerCase()
+  const tool = part.tool.toLowerCase()
   const action = normalizeAction(tool)
-  const target = extractTarget(part)
+  const target = extractToolTarget(part)
   const why = deriveWhy(tool)
   const result = deriveResult(part)
   const next = deriveNext(tool, result)
