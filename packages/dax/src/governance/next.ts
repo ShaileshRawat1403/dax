@@ -114,16 +114,48 @@ export namespace Permission {
     return process.env.DAX_RUST_POLICY === "1" || process.env.DAX_RUST_POLICY === "true"
   }
 
+  export type PolicyEffectsShape = {
+    classifyPaths: typeof classifyPathsWithRust
+  }
+
+  /**
+   * Test seam, matching WorkerRunEffects. The sidecar's absence is the case
+   * worth asserting and it cannot be provoked on a machine that has the Rust
+   * toolchain installed, so the classifier is injectable rather than the test
+   * depending on what happens to be on PATH.
+   */
+  export const PolicyEffects = {
+    current: { classifyPaths: classifyPathsWithRust } as PolicyEffectsShape,
+    set(effects: Partial<PolicyEffectsShape>) {
+      PolicyEffects.current = { classifyPaths: classifyPathsWithRust, ...effects }
+    },
+    reset() {
+      PolicyEffects.current = { classifyPaths: classifyPathsWithRust }
+    },
+  }
+
+  /**
+   * Classify paths through the Rust policy engine when the operator has asked
+   * for it.
+   *
+   * Fails closed. This previously logged a warning and returned an empty map,
+   * which reads as "no path is forbidden and none is sensitive": forbidden
+   * paths stopped being denied and sensitive paths stopped being escalated from
+   * allow to ask. Someone who sets DAX_RUST_POLICY has chosen the stricter
+   * classification, so silently applying the weaker ruleset removes a gate they
+   * asked for and leaves only a log line behind. A permission decision is the
+   * last place that should degrade quietly.
+   */
   async function classifyPatternsWithRust(patterns: string[]): Promise<Map<string, PathClassification>> {
     const paths = patterns.filter(Boolean)
     if (!rustPolicyEnabled() || paths.length === 0) return new Map()
 
     try {
-      const classifications = await classifyPathsWithRust({ paths })
+      const classifications = await PolicyEffects.current.classifyPaths({ paths })
       return new Map(classifications.map((classification) => [classification.path, classification]))
     } catch (error) {
-      log.warn("rust policy classification unavailable; using TypeScript rules only", { error })
-      return new Map()
+      log.error("rust policy classification unavailable; refusing to fall back", { error })
+      throw new PolicyUnavailableError(error)
     }
   }
 
@@ -389,6 +421,26 @@ export namespace Permission {
   }
 
   /** Auto-rejected by config rule - halts execution */
+  /**
+   * Raised when Rust path classification was requested but could not run.
+   *
+   * Distinct from DeniedError: nothing was denied, DAX simply cannot tell
+   * whether it should be. The message is the operator's remedy, because the
+   * two ways out are opposites and DAX must not pick one for them.
+   */
+  export class PolicyUnavailableError extends Error {
+    constructor(public readonly reason: unknown) {
+      super(
+        "DAX_RUST_POLICY is enabled but the Rust policy engine could not run, so forbidden and sensitive " +
+          "paths cannot be classified. DAX will not fall back to the weaker ruleset for a permission decision. " +
+          "Either make the sidecar available (install the Rust toolchain, or point DAX_RUST_BIN_DIR at prebuilt " +
+          "binaries), or unset DAX_RUST_POLICY to run with TypeScript rules deliberately. " +
+          `Underlying error: ${reason instanceof Error ? reason.message : String(reason)}`,
+      )
+      this.name = "PolicyUnavailableError"
+    }
+  }
+
   export class DeniedError extends Error {
     constructor(public readonly ruleset: Ruleset, reason?: string) {
       super(

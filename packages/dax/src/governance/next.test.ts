@@ -171,6 +171,15 @@ describe("permission approvals", () => {
         const { Instance } = await import("@/project/instance")
         const repoRoot = path.resolve(import.meta.dir, "../../../..")
 
+        // Stubbed so this asserts the clamping rule rather than whether a Rust
+        // toolchain happens to be installed. policy.parity.test.ts covers the
+        // real sidecar.
+        Permission.PolicyEffects.set({
+          classifyPaths: async () => [
+            { path: "/project/.env.production", zone: "sensitive", reason: "production secrets" },
+          ],
+        })
+
         await bootstrap(repoRoot, async () => {
           await Storage.remove(["permission", Instance.project.id])
 
@@ -197,6 +206,8 @@ describe("permission approvals", () => {
           await approval
         })
       } finally {
+        const { Permission: P } = await import("./next")
+        P.PolicyEffects.reset()
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME
         else process.env.DAX_TEST_HOME = previousHome
         if (previousRustPolicy === undefined) delete process.env.DAX_RUST_POLICY
@@ -223,6 +234,11 @@ describe("permission approvals", () => {
         const { Instance } = await import("@/project/instance")
         const repoRoot = path.resolve(import.meta.dir, "../../../..")
 
+        // A safe-zone classification must not escalate anything.
+        Permission.PolicyEffects.set({
+          classifyPaths: async () => [{ path: "/project/.env.example", zone: "repo_safe" }],
+        })
+
         await bootstrap(repoRoot, async () => {
           await Storage.remove(["permission", Instance.project.id])
 
@@ -242,6 +258,8 @@ describe("permission approvals", () => {
           expect(await Permission.list()).toHaveLength(0)
         })
       } finally {
+        const { Permission: P } = await import("./next")
+        P.PolicyEffects.reset()
         if (previousHome === undefined) delete process.env.DAX_TEST_HOME
         else process.env.DAX_TEST_HOME = previousHome
         if (previousRustPolicy === undefined) delete process.env.DAX_RUST_POLICY
@@ -251,4 +269,64 @@ describe("permission approvals", () => {
     },
     120000,
   )
+  test(
+    "fails closed when rust policy is requested but the engine cannot run",
+    async () => {
+      // Regression: this path returned an empty classification map behind a
+      // log.warn, which reads downstream as "nothing is forbidden and nothing
+      // is sensitive". Forbidden paths stopped being denied and sensitive paths
+      // stopped being escalated from allow to ask, so an operator who opted
+      // into stricter classification silently got the weaker ruleset.
+      const testHome = path.join(os.tmpdir(), `dax-test-home-${Date.now().toString(36)}-rust-policy-closed`)
+      const previousHome = process.env.DAX_TEST_HOME
+      const previousRustPolicy = process.env.DAX_RUST_POLICY
+      process.env.DAX_TEST_HOME = testHome
+      process.env.DAX_RUST_POLICY = "1"
+
+      try {
+        const { bootstrap } = await import("@/cli/bootstrap")
+        const { Permission } = await import("./next")
+        const { Storage } = await import("@/storage/storage")
+        const { Instance } = await import("@/project/instance")
+        const repoRoot = path.resolve(import.meta.dir, "../../../..")
+
+        Permission.PolicyEffects.set({
+          classifyPaths: async () => {
+            throw new Error("Executable not found in $PATH: \"cargo\"")
+          },
+        })
+
+        await bootstrap(repoRoot, async () => {
+          await Storage.remove(["permission", Instance.project.id])
+
+          const attempt = Permission.ask({
+            sessionID: "session_rust_policy_closed",
+            permission: "read",
+            patterns: ["/project/.env.production"],
+            always: [],
+            metadata: {},
+            ruleset: Permission.fromConfig({ read: "allow" }),
+          })
+
+          await expect(attempt).rejects.toBeInstanceOf(Permission.PolicyUnavailableError)
+        })
+
+        // The message is the operator's remedy: the two ways out are opposites
+        // and DAX must not choose one for them.
+        const error = new Permission.PolicyUnavailableError(new Error("cargo missing"))
+        expect(error.message).toContain("DAX_RUST_BIN_DIR")
+        expect(error.message).toContain("unset DAX_RUST_POLICY")
+      } finally {
+        const { Permission } = await import("./next")
+        Permission.PolicyEffects.reset()
+        if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+        else process.env.DAX_TEST_HOME = previousHome
+        if (previousRustPolicy === undefined) delete process.env.DAX_RUST_POLICY
+        else process.env.DAX_RUST_POLICY = previousRustPolicy
+        rmSync(testHome, { recursive: true, force: true })
+      }
+    },
+    40000,
+  )
+
 })
