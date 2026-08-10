@@ -1,4 +1,17 @@
 import type { RunEventEnvelope } from "./run-event-types"
+/**
+ * The state machine is defined once, in run-state.ts.
+ *
+ * This file used to carry its own copy of the transition table and its own
+ * terminal-status check. Two independently maintained copies of the same rules
+ * is a poor arrangement anywhere; here it is worse, because one governs the
+ * live transition path and this one governs event replay. DAX's claim is that
+ * replaying the log reproduces the run. Edit one table and not the other and
+ * the two disagree, while the TypeScript-to-Rust parity tests keep passing,
+ * since they compare this reducer against Rust rather than against the live
+ * path.
+ */
+import { isLegalTransition, isTerminalStatus } from "@/state/run-state"
 
 export type RunState = {
   runId: string
@@ -115,23 +128,7 @@ export type RunError = {
   retryable: boolean
 }
 
-function isTerminalStatus(status: RunStatus): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled"
-}
 
-function isLegalTransition(from: RunStatus, to: RunStatus): boolean {
-  const transitions: Record<RunStatus, RunStatus[]> = {
-    created: ["compiled", "cancelled"],
-    compiled: ["queued", "cancelled"],
-    queued: ["running", "cancelled"],
-    running: ["waiting_approval", "completed", "failed", "cancelled"],
-    waiting_approval: ["running", "cancelled", "failed"],
-    completed: [],
-    failed: [],
-    cancelled: [],
-  }
-  return transitions[from]?.includes(to) ?? false
-}
 
 export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
   if (events.length === 0) {
