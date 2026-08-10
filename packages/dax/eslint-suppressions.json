@@ -510,14 +510,6 @@
       "count": 1
     }
   },
-  "src/context/build-context-pack.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 5
-    }
-  },
   "src/dax/presentation/pane.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -613,7 +605,7 @@
   },
   "src/execution/run-graph.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 3

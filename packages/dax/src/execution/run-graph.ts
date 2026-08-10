@@ -7,9 +7,13 @@ import type { TrustDelta } from "../governance/trust"
 import { SessionStateManager } from "../session/update-state"
 import { saveSnapshot } from "../session/persist-state"
 import type { GraphStatus } from "../session/snapshot-types"
-import { buildContextPack } from "../context/build-context-pack"
+import { buildContextPack, OPERATOR_TYPES, type OperatorType } from "../context/build-context-pack"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
+
+function isOperatorType(value: string): value is OperatorType {
+  return (OPERATOR_TYPES as readonly string[]).includes(value)
+}
 
 export interface GraphRunResult {
   success: boolean
@@ -89,10 +93,13 @@ export async function runGraph(
       try {
         const operator = await router.route(task)
 
-        // Build context pack if state manager exists
-        const contextPack = stateManager
-          ? buildContextPack(stateManager.getState(), task.id, operator.type as any)
-          : undefined
+        // Build context pack if state manager exists. Narrowed rather than
+        // cast: an unrecognised operator must not silently receive a pack
+        // assembled for no one.
+        const contextPack =
+          stateManager && isOperatorType(operator.type)
+            ? buildContextPack(stateManager.getState(), task.id, operator.type)
+            : undefined
 
         const result = await operator.execute(task, {
           ...ctx,
