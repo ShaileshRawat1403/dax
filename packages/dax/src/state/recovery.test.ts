@@ -70,6 +70,35 @@ describe("stranded runs", () => {
     })
   })
 
+  test("a stranded run is found even behind more than a page of older runs", async () => {
+    return inRepo(async () => {
+      // Regression, measured: RunStore.list defaults to the first 100 keys and
+      // Storage.list sorts lexicographically, so with ULID-prefixed ids that is
+      // the oldest 100. Inheriting that default meant a project with more than
+      // a hundred runs reported nothing stranded no matter what was stranded.
+      // The feature worked in testing and quietly stopped working in use, which
+      // on a governance signal reads as a clean bill of health.
+      const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const RunStore = await store()
+
+      for (let i = 0; i < 120; i++) {
+        const id = `run_aaa_${String(i).padStart(4, "0")}`
+        const state = await RunStore.create(id, "ctr_filler")
+        await RunStore.save(id, { ...state, status: "completed", updatedAt: new Date().toISOString() })
+      }
+
+      const buriedId = "run_zzz_buried"
+      const buried = await RunStore.create(buriedId, "ctr_buried")
+      await RunStore.save(buriedId, {
+        ...buried,
+        status: "running",
+        updatedAt: new Date(Date.now() - INTERRUPTED_RUN_THRESHOLD_MS * 2).toISOString(),
+      })
+
+      expect((await listInterruptedRuns()).map((run) => run.runId)).toContain(buriedId)
+    })
+  })
+
   test("every non-terminal status can strand, not just running", async () => {
     return inRepo(async () => {
     // A run can die waiting for an approval that will never be answered, or

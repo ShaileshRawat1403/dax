@@ -100,7 +100,14 @@ export const INTERRUPTED_RUN_THRESHOLD_MS = 10 * 60 * 1000
  * reflects what happened, that is the record lying.
  */
 export async function listInterruptedRuns(now = Date.now()): Promise<RunState[]> {
-  const states = await RunStore.list().catch(() => [] as RunState[])
+  // Deliberately unbounded. RunStore.list defaults to the first 100 keys, and
+  // Storage.list sorts lexicographically, so with ULID-prefixed run ids that is
+  // the *oldest* 100. Taking the default meant that once a project accumulated
+  // more than a hundred runs, a run stranded yesterday was never looked at and
+  // this returned "nothing stranded" — a clean bill of health that got less
+  // true the longer DAX was used. Measured at roughly 15ms per hundred runs,
+  // which is the right trade for a scan whose whole job is to not miss one.
+  const states = await RunStore.list(Number.MAX_SAFE_INTEGER).catch(() => [] as RunState[])
   return states.filter((state) => {
     if (isTerminalStatus(state.status)) return false
     return now - new Date(state.updatedAt).getTime() > INTERRUPTED_RUN_THRESHOLD_MS
