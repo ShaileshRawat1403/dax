@@ -1,5 +1,28 @@
 import { describe, expect, test } from "bun:test"
 import { evaluateSessionVerification, formatSessionVerification } from "./trust-verification"
+import type { SessionVerificationSignals } from "./types"
+
+/** A complete, clean set of signals for tests that vary one thing. */
+function baseSignals(): SessionVerificationSignals {
+  return {
+    session_id: "session_base",
+    project_id: "p1",
+    lifecycle: { state: "completed", terminal: true, requires_reconciliation: false },
+    project_audit: { present: true, status: "pass", blocker_count: 0, warning_count: 0, info_count: 0 },
+    session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
+    approvals: { pending_count: 0 },
+    write_governance: {
+      status: "governed",
+      outcome: "governed_completed",
+      workspace_write_artifact_count: 1,
+      risk_bucket: "governed_project_write",
+      governance_expectation: "expected",
+    },
+    overrides: { count: 0 },
+    evidence: { diff_present: true, artifacts_present: true, artifact_count: 2 },
+    trace: { assistant_message_count: 4, latest_activity_at: Date.now() },
+  }
+}
 
 describe("session verification evaluator", () => {
   test("returns verification_passed when trust signals are complete and clean", () => {
@@ -25,13 +48,14 @@ describe("session verification evaluator", () => {
         artifacts_present: true,
         artifact_count: 2,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "pass",
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 2,
         latest_activity_at: 1_700_000_000_000,
@@ -64,13 +88,14 @@ describe("session verification evaluator", () => {
         artifacts_present: true,
         artifact_count: 1,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "fail",
         blocker_count: 1,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 2,
         latest_activity_at: 1_700_000_000_000,
@@ -79,7 +104,7 @@ describe("session verification evaluator", () => {
 
     expect(summary.verification_result).toBe("verification_failed")
     expect(summary.trust_posture).toBe("review_needed")
-    expect(summary.blocking_factors).toContain("1 critical policy blockers were identified.")
+    expect(summary.blocking_factors).toContain("The project's last audit found 1 critical blockers.")
   })
 
   test("treats failed lifecycle as a verification failure", () => {
@@ -103,13 +128,14 @@ describe("session verification evaluator", () => {
         artifacts_present: false,
         artifact_count: 0,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "pass",
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 1,
         latest_activity_at: 1_700_000_000_000,
@@ -142,12 +168,13 @@ describe("session verification evaluator", () => {
         artifacts_present: false,
         artifact_count: 0,
       },
-      audit: {
+      project_audit: {
         present: false,
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 0,
       },
@@ -180,13 +207,14 @@ describe("session verification evaluator", () => {
         artifacts_present: true,
         artifact_count: 2,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "warn",
         blocker_count: 0,
         warning_count: 2,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 1,
         latest_activity_at: 1_700_000_000_000,
@@ -222,13 +250,14 @@ describe("session verification evaluator", () => {
           artifacts_present: true,
           artifact_count: 2,
         },
-        audit: {
+        project_audit: {
           present: true,
           status: "pass",
           blocker_count: 0,
           warning_count: 0,
           info_count: 0,
         },
+        session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
         trace: {
           assistant_message_count: 1,
           latest_activity_at: 1_700_000_000_000,
@@ -267,13 +296,14 @@ describe("session verification evaluator", () => {
         artifacts_present: true,
         artifact_count: 2,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "pass",
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 1,
         latest_activity_at: 1_700_000_000_000,
@@ -308,13 +338,14 @@ describe("session verification evaluator", () => {
         artifacts_present: true,
         artifact_count: 1,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "pass",
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 1,
         latest_activity_at: 1_700_000_000_000,
@@ -348,13 +379,14 @@ describe("session verification evaluator", () => {
         artifacts_present: true,
         artifact_count: 2,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "pass",
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 1,
         latest_activity_at: 1_700_000_000_000,
@@ -386,13 +418,14 @@ describe("session verification evaluator", () => {
         artifacts_present: false,
         artifact_count: 0,
       },
-      audit: {
+      project_audit: {
         present: true,
         status: "pass",
         blocker_count: 0,
         warning_count: 0,
         info_count: 0,
       },
+      session_policy: { evaluated: true, decision_count: 3, override_count: 0 },
       trace: {
         assistant_message_count: 1,
         latest_activity_at: 1_700_000_000_000,
@@ -402,4 +435,41 @@ describe("session verification evaluator", () => {
     expect(summary.verification_result).toBe("verification_passed")
     expect(summary.trust_posture).toBe("verified")
   })
+  test("a clean project audit does not vouch for an ungoverned session", () => {
+    // The bug this replaces: a repository release audit was answering "was this
+    // session's work checked". A green project could therefore make an
+    // unexamined session look verified.
+    const signals = baseSignals()
+    signals.project_audit = { present: true, status: "pass", blocker_count: 0, warning_count: 0, info_count: 0 }
+    signals.session_policy = { evaluated: false, decision_count: 0, override_count: 0 }
+
+    const result = evaluateSessionVerification(signals)
+
+    expect(result.verification_result).toBe("verification_incomplete")
+    expect(result.missing_evidence.join(" ")).toContain("No policy decisions were recorded for this session")
+  })
+
+  test("a governed session is not condemned by an unaudited project", () => {
+    // And the reverse: the project's release posture is not this session's
+    // fault. It should surface, but as its own incomplete check.
+    const signals = baseSignals()
+    signals.project_audit = { present: false, blocker_count: 0, warning_count: 0, info_count: 0 }
+    signals.session_policy = { evaluated: true, decision_count: 4, override_count: 0 }
+
+    const result = evaluateSessionVerification(signals)
+
+    expect(result.passing_signals.join(" ")).toContain("4 governed decisions recorded for this session")
+    expect(result.missing_evidence.join(" ")).toContain("No audit has been run for this project")
+  })
+
+  test("overrides in a session degrade its policy check without failing it", () => {
+    const signals = baseSignals()
+    signals.session_policy = { evaluated: true, decision_count: 5, override_count: 2 }
+
+    const result = evaluateSessionVerification(signals)
+
+    expect(result.verification_result).not.toBe("verification_failed")
+    expect(result.degrading_factors.join(" ")).toContain("2 policy decisions were overridden in this session")
+  })
+
 })

@@ -1,6 +1,5 @@
 import { EOL } from "os"
 import { Audit } from "./audit"
-import { AuditFinding } from "./audit-types"
 import { RAOLedger } from "../rao"
 import { Session } from "../session"
 import { MessageV2 } from "../session/message-v2"
@@ -30,7 +29,8 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
 export async function collectVerificationSignals(sessionID: string): Promise<SessionVerificationSignals> {
   const session = await withLockedRetry(() => Session.get(sessionID))
   const messages = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
-  const audit = await resolveAuditState(sessionID)
+  const projectAudit = await resolveProjectAudit(session.projectID)
+  const sessionPolicy = await resolveSessionPolicy(session.projectID, sessionID)
   const approvals = await listPendingApprovals(sessionID)
   const diffs = await Session.diff(sessionID)
   const artifacts = buildArtifactsForSession(session, messages, diffs)
@@ -58,15 +58,14 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
       terminal: lifecycle.terminal,
       requires_reconciliation: lifecycle.requires_reconciliation,
     },
-    // Always absent until the audit signal is wired; see resolveAuditState.
-    // The severity tallies stay here so the shape does not change when it is.
-    audit: {
-      present: !!audit,
-      status: audit?.status,
-      blocker_count: audit?.findings.filter((f) => f.severity === "critical").length ?? 0,
-      warning_count: audit?.findings.filter((f) => f.severity === "high" || f.severity === "medium").length ?? 0,
-      info_count: audit?.findings.filter((f) => f.severity === "low" || f.severity === "info").length ?? 0,
+    project_audit: {
+      present: !!projectAudit,
+      status: projectAudit?.status,
+      blocker_count: projectAudit?.blocker_count ?? 0,
+      warning_count: projectAudit?.warning_count ?? 0,
+      info_count: projectAudit?.info_count ?? 0,
     },
+    session_policy: sessionPolicy,
     approvals: {
       pending_count: approvals.length,
     },
@@ -76,7 +75,7 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
         pending_approval_count: approvals.length,
         workspace_write_artifact_count: writeGovernanceClassification?.workspaceWriteCount ?? 0,
         override_count: overrides.length,
-        policy_evaluated: !!audit,
+        policy_evaluated: sessionPolicy.evaluated,
         lifecycle_terminal: lifecycle.terminal,
         lifecycle_requires_reconciliation: lifecycle.requires_reconciliation,
       }),
@@ -87,7 +86,7 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
         pending_approval_count: approvals.length,
         write_intent_detected: !!writeGovernanceClassification,
         override_count: overrides.length,
-        policy_evaluated: !!audit,
+        policy_evaluated: sessionPolicy.evaluated,
       }),
       workspace_write_artifact_count: writeGovernanceClassification?.workspaceWriteCount ?? 0,
       risk_bucket: writeGovernanceClassification?.bucket,
@@ -109,29 +108,57 @@ export async function collectVerificationSignals(sessionID: string): Promise<Ses
 }
 
 /**
- * The per-session audit signal is not wired, and has never been.
+ * The project's last release audit.
  *
- * This read through `(Audit as any)?.state` for a member the Audit namespace
- * does not export, so the typeof guard was always false and the function always
- * returned undefined. Every session therefore reported `audit.present: false`
- * and `policy_evaluated: false`, and evaluateAuditCheck always answered "No
- * audit has been performed for this session", whether or not one had been. The
- * `as any` is what let a reference to a non-existent member compile.
- *
- * It is left unwired deliberately rather than pointed at the nearest available
- * source. Audit results are recorded as project-scoped PM events carrying no
- * session id (see Audit.run), so reading them here would report an audit from
- * a different session as this one's. On a governance signal, a false "audit
- * present" is worse than the honest absence this returns.
- *
- * Wiring it needs a decision first: whether the audit signal is per-session, in
- * which case Audit.run has to record the session it ran for, or per-project, in
- * which case this check should say so rather than implying session scope.
+ * Deliberately project-scoped, because Audit.run is: it inspects the repository
+ * for required release files, documentation, integration and policy, and takes
+ * no session at all. This previously reached through `(Audit as any)?.state` for
+ * a member the namespace does not export, so it always returned undefined and
+ * every session reported no audit whether or not one had run. The `as any` is
+ * what let a reference to a non-existent member compile.
  */
-type SessionAuditState = { status: Audit.Status; findings: AuditFinding[] }
+async function resolveProjectAudit(projectID: string): Promise<ProjectAuditState | undefined> {
+  const events = await RAOLedger.list({ project_id: projectID, limit: 1, event_type: "audit" })
+  const latest = events[0]
+  if (!latest) return undefined
+  // list_events already parses the payload.
+  const payload = latest.payload as {
+    status?: Audit.Status
+    blockers?: number
+    warnings?: number
+    info?: number
+  }
+  return {
+    status: payload.status,
+    blocker_count: payload.blockers ?? 0,
+    warning_count: payload.warnings ?? 0,
+    info_count: payload.info ?? 0,
+  }
+}
 
-async function resolveAuditState(_sessionID: string): Promise<SessionAuditState | undefined> {
-  return undefined
+type ProjectAuditState = {
+  status?: Audit.Status
+  blocker_count: number
+  warning_count: number
+  info_count: number
+}
+
+/**
+ * Whether this session's work actually passed through policy evaluation.
+ *
+ * This is the question the write-governance checks were asking when they read
+ * `policy_evaluated`, and a repository release audit could never answer it. RAO
+ * entries carry the session they belong to, so they can.
+ */
+async function resolveSessionPolicy(projectID: string, sessionID: string) {
+  const events = await RAOLedger.list({ project_id: projectID, limit: 500 })
+  const forSession = events.filter((event) => event.session_id === sessionID)
+  const overrides = forSession.filter((event) => event.event_type === "override")
+  return {
+    evaluated: forSession.length > 0,
+    decision_count: forSession.length,
+    override_count: overrides.length,
+  }
 }
 
 export function evaluateSessionVerification(signals: SessionVerificationSignals): SessionVerification {
@@ -139,7 +166,8 @@ export function evaluateSessionVerification(signals: SessionVerificationSignals)
     evaluateLifecycleCheck(signals.lifecycle),
     evaluateApprovalsCheck(signals.approvals),
     evaluateWriteGovernanceCheck(signals.write_governance),
-    evaluateAuditCheck(signals.audit),
+    evaluateProjectAuditCheck(signals.project_audit),
+    evaluateSessionPolicyCheck(signals.session_policy),
     evaluateTraceCheck(signals.trace),
   ]
 
@@ -262,36 +290,70 @@ function evaluateWriteGovernanceCheck(write: SessionVerificationSignals["write_g
   }
 }
 
-function evaluateAuditCheck(audit: SessionVerificationSignals["audit"]): VerificationCheck {
+/**
+ * The project's release-audit posture. Worded for project scope: it is true of
+ * the repository, not of anything this session did.
+ */
+function evaluateProjectAuditCheck(audit: SessionVerificationSignals["project_audit"]): VerificationCheck {
   if (!audit.present) {
     return {
-      id: "policy_compliance",
-      label: "Policy Compliance",
+      id: "project_audit",
+      label: "Project Audit",
       status: "incomplete",
-      summary: "No audit has been performed for this session.",
+      summary: "No audit has been run for this project.",
     }
   }
   if (audit.blocker_count > 0) {
     return {
-      id: "policy_compliance",
-      label: "Policy Compliance",
+      id: "project_audit",
+      label: "Project Audit",
       status: "fail",
-      summary: `${audit.blocker_count} critical policy blockers were identified.`,
+      summary: `The project's last audit found ${audit.blocker_count} critical blockers.`,
     }
   }
   if (audit.warning_count > 0) {
     return {
+      id: "project_audit",
+      label: "Project Audit",
+      status: "warn",
+      summary: `The project's last audit raised ${audit.warning_count} warnings to review.`,
+    }
+  }
+  return {
+    id: "project_audit",
+    label: "Project Audit",
+    status: "pass",
+    summary: "The project's last audit was clean.",
+  }
+}
+
+/**
+ * Whether this session's own work was governed. This is the check that used to
+ * be answered with a repository audit, which is why it could never fail for the
+ * right reason.
+ */
+function evaluateSessionPolicyCheck(policy: SessionVerificationSignals["session_policy"]): VerificationCheck {
+  if (!policy.evaluated) {
+    return {
+      id: "policy_compliance",
+      label: "Policy Compliance",
+      status: "incomplete",
+      summary: "No policy decisions were recorded for this session.",
+    }
+  }
+  if (policy.override_count > 0) {
+    return {
       id: "policy_compliance",
       label: "Policy Compliance",
       status: "warn",
-      summary: `${audit.warning_count} policy warnings should be reviewed.`,
+      summary: `${policy.override_count} policy ${policy.override_count === 1 ? "decision was" : "decisions were"} overridden in this session.`,
     }
   }
   return {
     id: "policy_compliance",
     label: "Policy Compliance",
     status: "pass",
-    summary: "Session is compliant with current policies.",
+    summary: `${policy.decision_count} governed ${policy.decision_count === 1 ? "decision" : "decisions"} recorded for this session.`,
   }
 }
 

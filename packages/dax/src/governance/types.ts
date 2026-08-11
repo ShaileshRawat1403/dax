@@ -22,6 +22,7 @@ export type VerificationCheckID =
   | "approvals"
   | "write_governance"
   | "policy_compliance"
+  | "project_audit"
   | "artifacts_present"
   | "evidence_completeness"
   | "findings_resolution"
@@ -43,12 +44,27 @@ export type SessionVerificationSignals = {
     terminal: boolean
     requires_reconciliation: boolean
   }
-  audit: {
+  /**
+   * The project's last release audit. Named for its scope on purpose: Audit.run
+   * inspects the repository (required release files, docs, integration, policy)
+   * and takes no session, so this says nothing about what a given session did.
+   */
+  project_audit: {
     present: boolean
     status?: Audit.Status
     blocker_count: number
     warning_count: number
     info_count: number
+  }
+  /**
+   * Whether this session's activity actually passed through policy evaluation.
+   * Derived from RAO ledger entries carrying this session's id, which is the
+   * only source that knows about the session.
+   */
+  session_policy: {
+    evaluated: boolean
+    decision_count: number
+    override_count: number
   }
   approvals: {
     pending_count: number
