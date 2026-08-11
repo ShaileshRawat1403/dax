@@ -1273,7 +1273,7 @@
   },
   "src/session/processor.test.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 8
+      "count": 15
     }
   },
   "src/session/processor.ts": {
