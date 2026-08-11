@@ -46,6 +46,7 @@ const { VerifyCommand } = await import("./cli/cmd/verify")
 const { ReleaseCommand } = await import("./cli/cmd/release")
 const { ExploreCommand } = await import("./cli/cmd/explore")
 const { WorkflowCommand } = await import("./cli/cmd/workflow")
+const { RecoverCommand } = await import("./cli/cmd/recover")
 const { HELP_GROUPS } = await import("./cli/help")
 
 process.on("unhandledRejection", (e) => {
@@ -133,6 +134,7 @@ const cli = yargs(hideBin(process.argv))
   .command(GithubCommand)
   .command(PrCommand)
   .command(SessionCommand)
+  .command(RecoverCommand)
   .fail((msg, err) => {
     if (
       msg?.startsWith("Unknown argument") ||
