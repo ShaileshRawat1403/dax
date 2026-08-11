@@ -14,6 +14,10 @@ const proc = Bun.spawn(["bun", "test", "packages", "--max-concurrency", "1", ...
     // The shadow auditor is fire-and-forget and calls a live provider. Left on,
     // it fails auth mid-suite and logs an error inside an otherwise green run.
     DAX_DISABLE_SHADOW_AUDIT: process.env.DAX_DISABLE_SHADOW_AUDIT ?? "1",
+    // The stranded-run notice reads shared test storage, which accumulates
+    // run states from every other test's bootstrap() call. Left on, it prints
+    // "N runs stranded" noise into an otherwise readable suite.
+    DAX_DISABLE_RUN_NOTICE: process.env.DAX_DISABLE_RUN_NOTICE ?? "1",
   },
 })
 

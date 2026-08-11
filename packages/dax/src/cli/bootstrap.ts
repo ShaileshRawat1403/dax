@@ -4,6 +4,7 @@ import { listInterruptedRuns } from "../state/recovery"
 import { UI } from "./ui"
 
 async function noticeInterruptedRuns() {
+  if (process.env.DAX_DISABLE_RUN_NOTICE === "1") return
   try {
     const stranded = await listInterruptedRuns()
     if (stranded.length === 0) return
