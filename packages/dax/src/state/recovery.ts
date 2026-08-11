@@ -80,6 +80,52 @@ async function recoverFromEvents(runId: string): Promise<RecoveryResult> {
 }
 
 /**
+ * How long a non-terminal run may sit untouched before DAX treats it as
+ * stranded rather than slow.
+ *
+ * Deliberately short. DAX is a local tool, and a run whose process is gone
+ * stops updating immediately; the previous 24 hour window meant a crashed run
+ * read as healthy for a full day.
+ */
+export const INTERRUPTED_RUN_THRESHOLD_MS = 10 * 60 * 1000
+
+/**
+ * Runs the ledger still calls live, whose process is evidently gone.
+ *
+ * Nothing else in DAX could answer this. recoverRun replays the event log and
+ * returns what it says, reconcileRunState compares and reports mismatches, and
+ * needsRecovery answers for one run at a time. All three are read-only, so a
+ * run whose process died mid-flight stayed `running` in the ledger forever with
+ * no error and no completion. For a product whose claim is that the record
+ * reflects what happened, that is the record lying.
+ */
+export async function listInterruptedRuns(now = Date.now()): Promise<RunState[]> {
+  const states = await RunStore.list().catch(() => [] as RunState[])
+  return states.filter((state) => {
+    if (isTerminalStatus(state.status)) return false
+    return now - new Date(state.updatedAt).getTime() > INTERRUPTED_RUN_THRESHOLD_MS
+  })
+}
+
+/**
+ * Close out a stranded run honestly.
+ *
+ * Marked `failed`, not `cancelled`. Cancellation implies somebody decided to
+ * stop; a process that died decided nothing. `retryable` is true because the
+ * work itself was never rejected, only interrupted.
+ */
+export async function markRunInterrupted(runId: string): Promise<RunState | undefined> {
+  const state = await RunStore.get(runId).catch(() => null)
+  if (!state || isTerminalStatus(state.status)) return undefined
+  const { Transitions } = await import("./transitions")
+  return Transitions.fail(runId, {
+    code: "run_interrupted",
+    message: `Run stopped without completing while in "${state.status}". Its process is gone.`,
+    retryable: true,
+  })
+}
+
+/**
  * Checks if a run appears interrupted and might need recovery.
  */
 export async function needsRecovery(runId: string): Promise<boolean> {
@@ -88,12 +134,10 @@ export async function needsRecovery(runId: string): Promise<boolean> {
 
   // Non-terminal state without recent activity might need recovery
   if (!isTerminalStatus(state.status)) {
-    const lastUpdate = new Date(state.updatedAt)
-    const now = new Date()
-    const hoursSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60)
-
-    if (hoursSinceUpdate > 24) {
-      return true // Likely interrupted
+    // Same threshold listInterruptedRuns uses; two different staleness rules
+    // in one file is how they drift apart.
+    if (Date.now() - new Date(state.updatedAt).getTime() > INTERRUPTED_RUN_THRESHOLD_MS) {
+      return true
     }
   }
 
