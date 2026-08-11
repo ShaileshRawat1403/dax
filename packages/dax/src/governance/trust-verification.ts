@@ -151,8 +151,12 @@ type ProjectAuditState = {
  * entries carry the session they belong to, so they can.
  */
 async function resolveSessionPolicy(projectID: string, sessionID: string) {
-  const events = await RAOLedger.list({ project_id: projectID, limit: 500 })
-  const forSession = events.filter((event) => event.session_id === sessionID)
+  // Scoped at the query. Reading the project's newest events and filtering here
+  // spent the limit on other sessions, so on a busy project this returned none
+  // of the session it was asked about and reported it ungoverned. A false
+  // "no policy was evaluated" downgrades trust for a session that was in fact
+  // fully gated.
+  const forSession = await RAOLedger.list({ project_id: projectID, session_id: sessionID, limit: 500 })
   const overrides = forSession.filter((event) => event.event_type === "override")
   return {
     evaluated: forSession.length > 0,

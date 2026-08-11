@@ -200,6 +200,46 @@ describe("rao events", () => {
     expect(audits).toHaveLength(1)
   })
 
+  test("a session's events are found behind a wall of other sessions' events", async () => {
+    // Regression: the caller used to read the project's newest events and
+    // filter by session in memory, so the limit was spent on other sessions.
+    // On a busy project that returned nothing for the session asked about, and
+    // trust verification read that as "no policy was evaluated here".
+    const PM = await pm()
+    const id = project()
+    const mine = "ses_mine"
+
+    await PM.append_event({ project_id: id, event_type: "run", session_id: mine, payload: { first: true } })
+    for (let i = 0; i < 150; i++) {
+      await PM.append_event({ project_id: id, event_type: "run", session_id: `ses_other_${i}`, payload: { i } })
+    }
+
+    const scoped = await PM.list_events({ project_id: id, session_id: mine, limit: 100 })
+
+    expect(scoped).toHaveLength(1)
+    expect(scoped[0]?.session_id).toBe(mine)
+  })
+
+  test("session and type filters compose", async () => {
+    const PM = await pm()
+    const id = project()
+    const mine = "ses_compose"
+
+    await PM.append_event({ project_id: id, event_type: "run", session_id: mine, payload: {} })
+    await PM.append_event({ project_id: id, event_type: "override", session_id: mine, payload: {} })
+    await PM.append_event({ project_id: id, event_type: "override", session_id: "ses_other", payload: {} })
+
+    const mineOverrides = await PM.list_events({
+      project_id: id,
+      session_id: mine,
+      event_type: "override",
+      limit: 100,
+    })
+
+    expect(mineOverrides).toHaveLength(1)
+    expect(mineOverrides[0]?.session_id).toBe(mine)
+  })
+
   test("schema setup is idempotent across repeated opens", async () => {
     // `create table if not exists` runs on every import. A second open of the
     // same file must not throw or lose rows.

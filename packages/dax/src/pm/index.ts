@@ -82,6 +82,7 @@ export namespace PM {
           created_at integer not null
         );`,
         "create index if not exists idx_pm_rao_project_time on pm_rao_event(project_id, created_at desc);",
+        "create index if not exists idx_pm_rao_session on pm_rao_event(project_id, session_id, created_at desc);",
         `create table if not exists pm_memory (
           id text primary key,
           project_id text not null,
@@ -383,65 +384,56 @@ export namespace PM {
     z.object({
       project_id: z.string(),
       event_type: EventType.optional(),
+      /**
+       * Scope to one session. Filtering in the caller instead means the limit
+       * is spent on other sessions' events, so a busy project can return none
+       * of the session you asked about while reporting success.
+       */
+      session_id: z.string().optional(),
       limit: z.number().int().positive().max(500).default(100),
     }),
     async (input) => {
-      const rows = input.event_type
-        ? (db
-            .prepare(
-              `select id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at
-               from pm_rao_event
-               where project_id = ? and event_type = ?
-               order by created_at desc, id desc
-               limit ?`,
-            )
-            .all(input.project_id, input.event_type, input.limit) as Array<{
-            id: string
-            project_id: string
-            session_id: string | null
-            message_id: string | null
-            event_type: z.infer<typeof EventType>
-            payload: string
-            policy_hash: string | null
-            contract_hash: string | null
-            pm_rev: number
-            created_at: number
-          }>)
-        : (db
-            .prepare(
-              `select id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at
-               from pm_rao_event
-               where project_id = ?
-               order by created_at desc, id desc
-               limit ?`,
-            )
-            .all(input.project_id, input.limit) as Array<{
-            id: string
-            project_id: string
-            session_id: string | null
-            message_id: string | null
-            event_type: z.infer<typeof EventType>
-            payload: string
-            policy_hash: string | null
-            contract_hash: string | null
-            pm_rev: number
-            created_at: number
-          }>)
-      return rows.map((x) => ({
-        ...x,
-        payload: JSON.parse(x.payload as string) as Record<string, unknown>,
-      })) as Array<{
+      type EventRow = {
         id: string
         project_id: string
         session_id: string | null
         message_id: string | null
         event_type: z.infer<typeof EventType>
-        payload: Record<string, unknown>
+        payload: string
         policy_hash: string | null
         contract_hash: string | null
         pm_rev: number
         created_at: number
-      }>
+      }
+
+      // Built once rather than branched per filter combination; the previous
+      // two-branch form duplicated the whole select and would have become four.
+      const where = ["project_id = ?"]
+      const params: Array<string | number> = [input.project_id]
+      if (input.event_type) {
+        where.push("event_type = ?")
+        params.push(input.event_type)
+      }
+      if (input.session_id) {
+        where.push("session_id = ?")
+        params.push(input.session_id)
+      }
+      params.push(input.limit)
+
+      const rows = db
+        .prepare(
+          `select id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at
+           from pm_rao_event
+           where ${where.join(" and ")}
+           order by created_at desc, id desc
+           limit ?`,
+        )
+        .all(...params) as EventRow[]
+
+      return rows.map((x) => ({
+        ...x,
+        payload: JSON.parse(x.payload) as Record<string, unknown>,
+      }))
     },
   )
 

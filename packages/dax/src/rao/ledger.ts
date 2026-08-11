@@ -32,12 +32,15 @@ export namespace RAOLedger {
     z.object({
       project_id: z.string(),
       event_type: EventType.optional(),
+      /** Scope to one session at the query, not in the caller. */
+      session_id: z.string().optional(),
       limit: z.number().int().positive().max(500).default(100),
     }),
     async (input) =>
       PM.list_events({
         project_id: input.project_id,
         event_type: input.event_type,
+        session_id: input.session_id,
         limit: input.limit,
       }),
   )
