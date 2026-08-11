@@ -278,14 +278,20 @@ describe("reduceRunState", () => {
         makeEnvelope("workflow_started", 2, {}),
       ]
 
-      const run1Events = [
-        ...baseEvents,
-        makeEnvelope("approval_requested", 3, { approvalId: "apr_draft_001", approvalType: "tool", risk: "medium" }),
-      ]
-      const run2Events = [
-        ...baseEvents,
-        makeEnvelope("approval_requested", 3, { approvalId: "apr_draft_001", approvalType: "tool", risk: "medium" }),
-      ]
+      // One event, reduced twice. Constructing it twice made the two "identical"
+      // runs differ: createEvent stamps occurredAt from the clock, so whenever
+      // the two constructions straddled a millisecond the reduced states carried
+      // different updatedAt and toStrictEqual failed. That made this test flaky
+      // under load and, worse, meaningless when it passed — it was asserting
+      // that two clock reads landed in the same millisecond, not that the
+      // reducer is deterministic.
+      const approvalRequested = makeEnvelope("approval_requested", 3, {
+        approvalId: "apr_draft_001",
+        approvalType: "tool",
+        risk: "medium",
+      })
+      const run1Events = [...baseEvents, approvalRequested]
+      const run2Events = [...baseEvents, approvalRequested]
 
       const state1 = reduceRunState(run1Events)
       const state2 = reduceRunState(run2Events)
