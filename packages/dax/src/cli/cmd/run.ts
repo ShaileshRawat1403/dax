@@ -341,6 +341,20 @@ export function buildExecutionPreview(input: {
   }
 }
 
+export function formatSessionError(error: { name: string; data?: unknown }): string {
+  if (error.name === "ProviderAuthError") {
+    const providerID =
+      error.data && typeof error.data === "object" && "providerID" in error.data
+        ? String((error.data as { providerID?: unknown }).providerID)
+        : undefined
+    return `Not authenticated${providerID ? ` for ${providerID}` : ""}. Run \`dax auth login\` to configure a provider.`
+  }
+  if (error.data && typeof error.data === "object" && "message" in error.data) {
+    return String((error.data as { message?: unknown }).message)
+  }
+  return String(error.name)
+}
+
 function renderExecutionPreview(preview: ExecutionPreview) {
   UI.empty()
   UI.println(UI.Style.TEXT_INFO_BOLD + "~", UI.Style.TEXT_NORMAL + preview.title)
@@ -590,10 +604,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
           if (event.type === "session.error") {
             const props = event.properties
             if (props.sessionID !== sessionID || !props.error) continue
-            let err = String(props.error.name)
-            if ("data" in props.error && props.error.data && "message" in props.error.data) {
-              err = String(props.error.data.message)
-            }
+            const err = formatSessionError(props.error)
             error = error ? error + EOL + err : err
             if (emit("error", { error: props.error })) continue
             UI.error(err)
@@ -730,6 +741,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
     }
 
     await loopPromise
+    if (error) process.exitCode = 1
   }
 
   if (args.attach) {
