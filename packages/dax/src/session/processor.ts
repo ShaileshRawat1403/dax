@@ -106,7 +106,11 @@ export namespace SessionProcessor {
                 }
 
                 const now = Date.now()
-                if (!pressureNotified && now - lastSlowMessageTime > SLOW_MESSAGE_COOLDOWN_MS) {
+                if (
+                  !pressureNotified &&
+                  now - lastSlowMessageTime > SLOW_MESSAGE_COOLDOWN_MS &&
+                  now - lastProgressAt >= PROVIDER_DELAY_THRESHOLD_MS
+                ) {
                   pressureNotified = true
                   lastSlowMessageTime = now
                   SessionStatus.set(input.sessionID, {
