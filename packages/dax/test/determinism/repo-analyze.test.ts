@@ -133,8 +133,10 @@ describe("repo_analyze workflow", () => {
 
     expect(result.contract.toolBlocklist).toContain("write")
     expect(result.contract.toolBlocklist).toContain("edit")
-    expect(result.contract.toolBlocklist).toContain("patch")
-    expect(result.contract.toolBlocklist).toContain("apply")
+    expect(result.contract.toolBlocklist).toContain("apply_patch")
+    expect(result.contract.toolBlocklist).toContain("multiedit")
+    // "patch"/"apply" were phantom ids; the blocklist now carries the real edit tools.
+    expect(result.contract.toolBlocklist).not.toContain("apply")
     expect(result.contract.toolBlocklist).toContain("bash")
     expect(result.contract.toolBlocklist).toContain("shell")
   })

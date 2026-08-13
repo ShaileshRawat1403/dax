@@ -3,6 +3,7 @@ import * as crypto from "crypto"
 import type { WorkflowClass, RiskLevel } from "./workflow-class"
 import { ExecutionContract, ApprovalPolicy, deriveExecutionMode, type RuntimePolicy } from "./execution-contract"
 import type { CreateRunRequest } from "@/server/run-contract"
+import { EDIT_TOOL_IDS, SHELL_TOOL_IDS, isEditTool, isMutatingTool } from "@/tool/tool-class"
 import z from "zod"
 
 export interface CompileInput {
@@ -17,8 +18,9 @@ export interface CompileResult {
 
 const DEFAULT_TOOLS = ["read", "write", "edit", "glob", "grep", "bash", "shell", "search", "browser", "todo", "task"]
 
-const EDIT_TOOLS = ["write", "edit", "patch", "apply"]
-const SHELL_TOOLS = ["bash", "shell", "exec", "run"]
+// Edit/shell tool classification comes from the single source of truth in
+// tool/tool-class.ts. DANGEROUS_TOOLS stays local: it is a compiler-specific
+// review-mode blocklist, not a tool identity taxonomy.
 const DANGEROUS_TOOLS = ["rm", "delete", "force", "drop"]
 
 const WORKFLOW_KEYWORDS: Record<WorkflowClass, RegExp[]> = {
@@ -174,11 +176,11 @@ function deriveToolAllowlist(intent: string, availableTools?: string[]): string[
   const tools = availableTools ?? DEFAULT_TOOLS
 
   if (/read.*only|analyze|explore|understand|survey/i.test(lowerIntent)) {
-    return tools.filter((t) => !EDIT_TOOLS.includes(t) && !SHELL_TOOLS.includes(t))
+    return tools.filter((t) => !isMutatingTool(t))
   }
 
   if (/review|pr|pull.*request|audit/i.test(lowerIntent)) {
-    return tools.filter((t) => !EDIT_TOOLS.includes(t) && !DANGEROUS_TOOLS.includes(t))
+    return tools.filter((t) => !isEditTool(t) && !DANGEROUS_TOOLS.includes(t))
   }
 
   return tools
@@ -188,7 +190,7 @@ function deriveToolBlocklist(intent: string, workflowClass: WorkflowClass): stri
   const blocklist: string[] = []
 
   if (workflowClass === "repo_analyze") {
-    blocklist.push(...EDIT_TOOLS, ...SHELL_TOOLS)
+    blocklist.push(...EDIT_TOOL_IDS, ...SHELL_TOOL_IDS)
   }
 
   if (workflowClass === "review_and_signoff") {

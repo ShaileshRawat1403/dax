@@ -1,5 +1,6 @@
 import { Config } from "@/config/config"
 import { Wildcard } from "@/util/wildcard"
+import { isEditTool } from "@/tool/tool-class"
 import os from "os"
 import z from "zod"
 
@@ -63,12 +64,10 @@ export namespace PolicyEngine {
     return match ?? { action: "ask", permission, pattern: "*" }
   }
 
-  const EDIT_TOOLS = ["edit", "write", "patch", "multiedit"]
-
   export function disabled(tools: string[], ruleset: Ruleset): Set<string> {
     const result = new Set<string>()
     for (const tool of tools) {
-      const permission = EDIT_TOOLS.includes(tool) ? "edit" : tool
+      const permission = isEditTool(tool) ? "edit" : tool
 
       const rule = ruleset.findLast((r) => Wildcard.match(permission, r.permission))
       if (!rule) continue

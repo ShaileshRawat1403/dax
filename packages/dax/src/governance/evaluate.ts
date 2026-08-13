@@ -1,26 +1,19 @@
 import { Permission } from "./next"
 import { PolicyEngine } from "./policy-engine"
 import { RookBridge } from "./rook-bridge-types"
+import { isEditTool, isReadTool } from "@/tool/tool-class"
 
 export namespace RookEvaluate {
-  /**
-   * Tool buckets — kept here rather than imported so this module stays
-   * cheap to load and easy to reason about. Mirrors the EDIT_TOOLS list
-   * in policy-engine.ts.
-   */
-  const EDIT_TOOLS = new Set(["edit", "write", "patch", "multiedit"])
-  const READ_TOOLS = new Set(["read", "list", "search", "glob", "grep", "ls"])
-
   /** Map a proposed action onto the (permission, pattern) pair PolicyEngine expects. */
   export function toPermissionPattern(action: RookBridge.ProposedAction): {
     permission: string
     pattern: string
   } {
     const tool = action.tool.toLowerCase()
-    if (EDIT_TOOLS.has(tool)) {
+    if (isEditTool(tool)) {
       return { permission: "edit", pattern: action.target ?? "*" }
     }
-    if (READ_TOOLS.has(tool)) {
+    if (isReadTool(tool)) {
       return { permission: "read", pattern: action.target ?? "*" }
     }
     return {
@@ -45,8 +38,8 @@ export namespace RookEvaluate {
    */
   function inferReversible(action: RookBridge.ProposedAction): boolean {
     const tool = action.tool.toLowerCase()
-    if (READ_TOOLS.has(tool)) return true
-    if (EDIT_TOOLS.has(tool)) return action.diffPreview !== undefined
+    if (isReadTool(tool)) return true
+    if (isEditTool(tool)) return action.diffPreview !== undefined
     return false
   }
 
