@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   buildWorkerSandboxPlan,
   checkWorkerSandbox,
+  isolationRemedy,
   readBoundedOutput,
   runSupervisedProcess,
   sandboxedCheckStatus,
@@ -70,16 +71,22 @@ describe("worker sandbox", () => {
     expect(plan.command.slice(-3)).toEqual(["codex", "exec", "task"])
   })
 
-  test("fails closed when the platform has no supported isolation", () => {
+  test("fails closed on Windows and points to WSL2", () => {
     const result = checkWorkerSandbox({ platform: "win32", which: found, probe: () => ({ exitCode: 0 }) })
     expect(result.available).toBeFalse()
-    if (!result.available) expect(result.reason).toContain("not available")
+    if (!result.available) {
+      expect(result.reason).toContain("not available")
+      expect(result.remedy).toContain("WSL2")
+    }
   })
 
-  test("fails closed when the required provider is missing", () => {
+  test("fails closed when the required provider is missing, with an install remedy", () => {
     const result = checkWorkerSandbox({ platform: "linux", which: () => null, probe: () => ({ exitCode: 0 }) })
     expect(result.available).toBeFalse()
-    if (!result.available) expect(result.reason).toContain("bubblewrap")
+    if (!result.available) {
+      expect(result.reason).toContain("bubblewrap")
+      expect(result.remedy).toContain("bwrap")
+    }
   })
 
   test("fails closed when an installed provider cannot apply isolation", () => {
@@ -90,6 +97,12 @@ describe("worker sandbox", () => {
     })
     expect(result.available).toBeFalse()
     if (!result.available) expect(result.reason).toContain("isolation probe failed")
+  })
+
+  test("isolationRemedy gives a platform-specific, actionable next step", () => {
+    expect(isolationRemedy("win32")).toContain("WSL2")
+    expect(isolationRemedy("linux")).toContain("bwrap")
+    expect(isolationRemedy("darwin")).toContain("sandbox-exec")
   })
 
   test("reports a provider only after its isolation probe succeeds", () => {

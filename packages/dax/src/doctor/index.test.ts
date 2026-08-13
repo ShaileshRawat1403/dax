@@ -95,10 +95,16 @@ describe("doctor readiness", () => {
   })
 
   test("reports unavailable optional worker isolation without blocking DAX", () => {
-    const result = workerSectionFromCheck({ available: false, reason: "bubblewrap is unavailable" })
+    const result = workerSectionFromCheck({
+      available: false,
+      reason: "bubblewrap is unavailable",
+      remedy: "Install bubblewrap (`bwrap`) and rerun `dax doctor`.",
+    })
     expect(result.readiness).toBe("degraded")
     expect(result.state).toBe("waiting")
     expect(result.summary).toContain("isolation is unavailable")
+    // The remedy comes from the isolation authority, not a hardcoded doctor switch.
+    expect(result.next[0]).toContain("bubblewrap")
   })
 
   test("reports governed workers ready only after a successful probe", () => {

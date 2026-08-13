@@ -164,6 +164,7 @@ export const WorkerCommand = cmd({
             const sandbox = checkWorkerSandbox()
             if (!sandbox.available) {
               UI.error(sandbox.reason)
+              UI.println(sandbox.remedy)
               UI.println("Governed workers fail closed when OS isolation is unavailable.")
               process.exitCode = 1
               return

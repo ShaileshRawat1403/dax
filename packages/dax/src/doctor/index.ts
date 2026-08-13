@@ -433,11 +433,7 @@ export function workerSectionFromCheck(check: WorkerSandboxCheck): DoctorSection
     readiness: "degraded",
     summary: "External-worker isolation is unavailable",
     detail: [check.reason, "DAX's built-in execution and non-worker workflows remain available."],
-    next: [
-      process.platform === "linux"
-        ? "Install bubblewrap (`bwrap`) and rerun `dax doctor`."
-        : "Use a supported macOS or Linux host whose isolation probe succeeds.",
-    ],
+    next: [check.remedy],
   }
 }
 
