@@ -17,6 +17,12 @@ export async function getSecrets(): Promise<ResolvedSecrets> {
   return loadPromise
 }
 
+/** Clear the process-wide secrets cache. For tests; production loads once and keeps it. */
+export function resetSecretsCache(): void {
+  cachedSecrets = null
+  loadPromise = null
+}
+
 export interface SecretEntry {
   secretName: string
   secretValue: string
@@ -165,8 +171,18 @@ async function loadFromFile(path: string): Promise<Uint8Array | undefined> {
   }
 }
 
-export async function loadSecrets(): Promise<ResolvedSecrets> {
-  const infisical = await infisicalClient.getAll()
+/**
+ * The remote-secrets dependency loadSecrets pulls from. InfisicalClient is the
+ * production implementation; tests inject a fake to exercise precedence and
+ * field population without a network or the module singleton.
+ */
+export interface SecretsProvider {
+  getAll(): Promise<SecretEntry[]>
+  readonly source: SecretsSource
+}
+
+export async function loadSecrets(client: SecretsProvider = infisicalClient): Promise<ResolvedSecrets> {
+  const infisical = await client.getAll()
   const infisicalMap = new Map<string, string>()
   for (const secret of infisical) {
     infisicalMap.set(secret.secretName, secret.secretValue)
@@ -185,7 +201,7 @@ export async function loadSecrets(): Promise<ResolvedSecrets> {
   }
 
   return {
-    source: infisicalClient.source,
+    source: client.source,
     substrateToken,
     natsCreds: natsCredsPath,
     natsCredsData,
