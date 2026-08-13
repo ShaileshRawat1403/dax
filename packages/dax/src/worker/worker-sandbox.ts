@@ -15,7 +15,7 @@ export type WorkerSandboxPlan = {
 
 export type WorkerSandboxCheck =
   | { available: true; provider: WorkerSandboxProvider; summary: string }
-  | { available: false; reason: string }
+  | { available: false; reason: string; remedy: string }
 
 type Platform = "darwin" | "linux" | "win32" | string
 type Which = (binary: string) => string | null
@@ -163,6 +163,29 @@ function probeSandbox(plan: WorkerSandboxPlan): { exitCode: number; stderr?: str
   return { exitCode: result.exitCode, stderr: result.stderr.toString() }
 }
 
+/**
+ * The actionable next step when governed-worker isolation is unavailable. Kept
+ * with the isolation authority (not in the doctor or the CLI) so every surface
+ * gives the same guidance.
+ *
+ * On Windows the honest answer is WSL2: inside a WSL2 distro `process.platform`
+ * is "linux", so DAX governs workers via bubblewrap there automatically. Native
+ * Windows isolation (an AppContainer/WSL dispatch provider) is a future addition
+ * behind this same capability contract.
+ */
+export function isolationRemedy(platform: Platform): string {
+  if (platform === "win32") {
+    return "Run DAX inside WSL2 (`wsl --install`), where governed workers are isolated with bubblewrap automatically. Native Windows isolation is not yet supported."
+  }
+  if (platform === "linux") {
+    return "Install bubblewrap (`bwrap`) and rerun `dax doctor`."
+  }
+  if (platform === "darwin") {
+    return "Ensure `sandbox-exec` is available (it ships with macOS) and rerun `dax doctor`."
+  }
+  return "Use a macOS or Linux host, or run inside WSL2 on Windows."
+}
+
 export function checkWorkerSandbox(
   input: { platform?: Platform; which?: Which; probe?: Probe } = {},
 ): WorkerSandboxCheck {
@@ -183,7 +206,11 @@ export function checkWorkerSandbox(
     }
     return { available: true, provider: plan.provider, summary: plan.summary }
   } catch (error) {
-    return { available: false, reason: error instanceof Error ? error.message : String(error) }
+    return {
+      available: false,
+      reason: error instanceof Error ? error.message : String(error),
+      remedy: isolationRemedy(input.platform ?? process.platform),
+    }
   }
 }
 
