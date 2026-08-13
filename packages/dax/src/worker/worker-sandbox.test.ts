@@ -5,6 +5,7 @@ import {
   readBoundedOutput,
   runSupervisedProcess,
   sandboxedCheckStatus,
+  sensitiveReadPaths,
 } from "./worker-sandbox"
 
 const alive = (pid: number): boolean => {
@@ -100,8 +101,64 @@ describe("worker sandbox", () => {
     expect(result).toEqual({
       available: true,
       provider: "bwrap",
-      summary: "bubblewrap; checkout-only writes; network denied",
+      summary: "bubblewrap; checkout-only writes; secrets masked; network denied",
     })
+  })
+
+  // C1: a governed worker can read the whole disk except known credential
+  // stores. These pin the deny-list so the confidentiality boundary cannot
+  // silently regress back to a fully readable home directory.
+
+  test("masks credential stores from macOS reads while leaving the checkout readable", () => {
+    const plan = buildWorkerSandboxPlan({
+      command: ["claude", "-p", "task"],
+      cwd: "/repo/checkout",
+      network: "full",
+      platform: "darwin",
+      which: found,
+      home: "/home/tester",
+    })
+    const profile = plan.command[2]
+    expect(profile).toContain('(deny file-read* (subpath "/home/tester/.ssh"))')
+    expect(profile).toContain('(deny file-read* (subpath "/home/tester/.aws"))')
+    expect(profile).toContain('(deny file-read* (subpath "/home/tester/.git-credentials"))')
+    // The worker's own config dirs stay readable, or provider auth breaks.
+    expect(profile).not.toContain("/home/tester/.codex")
+    expect(profile).not.toContain("/home/tester/.claude")
+    expect(profile).not.toContain("/home/tester/.gemini")
+    // The checkout is still readable and writable.
+    expect(profile).toContain('(allow file-write* (subpath "/repo/checkout"))')
+    expect(plan.summary).toContain("secrets masked")
+  })
+
+  test("masks credential stores from Linux reads with tmpfs and /dev/null binds", () => {
+    const plan = buildWorkerSandboxPlan({
+      command: ["codex", "exec", "task"],
+      cwd: "/repo/checkout",
+      network: "full",
+      platform: "linux",
+      which: found,
+      home: "/home/tester",
+    })
+    // Directory secret: shadowed by an empty tmpfs.
+    const sshIndex = plan.command.indexOf("/home/tester/.ssh")
+    expect(sshIndex).toBeGreaterThan(-1)
+    expect(plan.command[sshIndex - 1]).toBe("--tmpfs")
+    // File secret: shadowed by /dev/null via the tolerant -try bind.
+    expect(plan.command).toContain("--ro-bind-try")
+    expect(plan.command).toContain("/home/tester/.git-credentials")
+    // Worker config dirs remain readable through the host bind.
+    expect(plan.command).not.toContain("/home/tester/.codex")
+    // The checkout bind survives ahead of the chdir.
+    expect(plan.command).toContain("--bind")
+    expect(plan.command).toContain("/repo/checkout")
+  })
+
+  test("exposes the deny-list as a pure, injectable function", () => {
+    const paths = sensitiveReadPaths("/home/tester")
+    expect(paths).toContainEqual({ path: "/home/tester/.ssh", kind: "dir" })
+    expect(paths).toContainEqual({ path: "/home/tester/.git-credentials", kind: "file" })
+    expect(paths.every((p) => p.path.startsWith("/home/tester/"))).toBeTrue()
   })
 
   test("records timeouts distinctly from ordinary command failures", () => {

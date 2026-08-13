@@ -1,3 +1,5 @@
+import os from "node:os"
+import { join } from "node:path"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { Shell } from "@/shell/shell"
 
@@ -23,10 +25,56 @@ function escapeSeatbelt(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
 }
 
-function macProfile(cwd: string, network: WorkerSandboxNetwork): string {
+/**
+ * Credential and secret stores a governed worker never needs to read. Reads are
+ * otherwise allowed (a coding agent must see the toolchain and its own config),
+ * so this is a deny-list of the well-known exfiltration targets layered on top
+ * of the global read allow. Provider auth still works: the three external
+ * workers read their own home config (~/.codex, ~/.claude, ~/.gemini — not
+ * listed here) or credentials passed as allowlisted env vars.
+ *
+ * This is the pragmatic floor: it removes the obvious secret targets with no
+ * breakage. A future `--strict-reads` mode will invert this to deny-by-default
+ * (allow only the toolchain and the checkout) for high-sensitivity runs.
+ *
+ * Note: masking ~/.config/gcloud blocks Gemini's application-default-credentials
+ * path. Key-based auth (GEMINI_API_KEY / GOOGLE_API_KEY, both env-allowlisted)
+ * is unaffected; ADC-based runs should switch to a key.
+ */
+export type SensitiveReadPath = { path: string; kind: "dir" | "file" }
+
+export function sensitiveReadPaths(home: string = os.homedir()): SensitiveReadPath[] {
+  const dirs = [
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    ".docker",
+    ".kube",
+    ".config/gh",
+    ".config/gcloud",
+    ".config/google-chrome",
+    ".mozilla",
+    "Library/Keychains",
+    "Library/Application Support/Google/Chrome",
+    "Library/Application Support/Firefox",
+  ]
+  const files = [".netrc", ".git-credentials", ".npmrc", ".pypirc", ".cargo/credentials", ".cargo/credentials.toml"]
+  return [
+    ...dirs.map((p): SensitiveReadPath => ({ path: join(home, p), kind: "dir" })),
+    ...files.map((p): SensitiveReadPath => ({ path: join(home, p), kind: "file" })),
+  ]
+}
+
+function macProfile(cwd: string, network: WorkerSandboxNetwork, sensitive: SensitiveReadPath[]): string {
   const writable = [cwd, process.env.TMPDIR, "/tmp", "/private/tmp"]
     .filter((value): value is string => Boolean(value))
     .map((value) => `(allow file-write* (subpath "${escapeSeatbelt(value)}"))`)
+    .join("\n")
+
+  // Layered after the global read allow: last matching rule wins in SBPL, so
+  // these denies override the allow for the credential stores only.
+  const secretDenies = sensitive
+    .map((entry) => `(deny file-read* (subpath "${escapeSeatbelt(entry.path)}"))`)
     .join("\n")
 
   return [
@@ -36,6 +84,7 @@ function macProfile(cwd: string, network: WorkerSandboxNetwork): string {
     "(allow sysctl-read)",
     "(allow mach-lookup)",
     "(allow file-read*)",
+    secretDenies,
     writable,
     network === "full" ? "(allow network*)" : "(deny network*)",
   ].join("\n")
@@ -47,9 +96,12 @@ export function buildWorkerSandboxPlan(input: {
   network: WorkerSandboxNetwork
   platform?: Platform
   which?: Which
+  home?: string
+  sensitive?: SensitiveReadPath[]
 }): WorkerSandboxPlan {
   const platform = input.platform ?? process.platform
   const which = input.which ?? Bun.which
+  const sensitive = input.sensitive ?? sensitiveReadPaths(input.home)
 
   if (platform === "darwin") {
     const binary = which("sandbox-exec")
@@ -58,9 +110,9 @@ export function buildWorkerSandboxPlan(input: {
     }
     return {
       provider: "seatbelt",
-      command: [binary, "-p", macProfile(input.cwd, input.network), ...input.command],
+      command: [binary, "-p", macProfile(input.cwd, input.network, sensitive), ...input.command],
       network: input.network,
-      summary: `seatbelt; checkout-only writes; ${input.network === "full" ? "provider network" : "network denied"}`,
+      summary: `seatbelt; checkout-only writes; secrets masked; ${input.network === "full" ? "provider network" : "network denied"}`,
     }
   }
 
@@ -70,6 +122,12 @@ export function buildWorkerSandboxPlan(input: {
       throw new Error("DAX governed workers require bubblewrap (`bwrap`) on Linux.")
     }
     const networkArgs = input.network === "full" ? ["--share-net"] : []
+    // Mask credential stores after the read-only host bind. Dirs get an empty
+    // tmpfs; single-file secrets get /dev/null bound over them. The `-try`
+    // variant tolerates paths that do not exist on this host.
+    const secretMasks = sensitive.flatMap((entry) =>
+      entry.kind === "dir" ? ["--tmpfs", entry.path] : ["--ro-bind-try", "/dev/null", entry.path],
+    )
     return {
       provider: "bwrap",
       command: [
@@ -86,13 +144,14 @@ export function buildWorkerSandboxPlan(input: {
         input.cwd,
         "--tmpfs",
         "/tmp",
+        ...secretMasks,
         "--chdir",
         input.cwd,
         "--",
         ...input.command,
       ],
       network: input.network,
-      summary: `bubblewrap; checkout-only writes; ${input.network === "full" ? "provider network" : "network denied"}`,
+      summary: `bubblewrap; checkout-only writes; secrets masked; ${input.network === "full" ? "provider network" : "network denied"}`,
     }
   }
 
