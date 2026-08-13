@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Governed worker reads are now confined away from credential stores. Seatbelt `(deny file-read* ...)` rules and bubblewrap `--tmpfs` / `--ro-bind-try /dev/null` masks hide `~/.ssh`, cloud credentials (`~/.aws`, `~/.config/gcloud`, `~/.config/gh`), `~/.gnupg`, Docker/Kubernetes configs, keychains, and browser profiles, along with file secrets (`.netrc`, `.git-credentials`, `.npmrc`, `.pypirc`, cargo credentials). The worker's own config (`~/.codex`, `~/.claude`, `~/.gemini`) and the disposable checkout stay readable, so provider auth and the DAX-computed diff are unaffected. This supersedes the 1.2.0 limitation noting workers "permit host reads": general toolchain reads remain allowed, credential stores do not. Per-host network egress allowlisting remains the next hardening step.
+
 ## [1.2.0] - 2026-07-12
 
 ### Added
