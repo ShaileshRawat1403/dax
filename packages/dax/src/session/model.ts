@@ -2,7 +2,8 @@ import z from "zod"
 import { Identifier } from "../id/id"
 import { Snapshot } from "@/snapshot"
 import { AuditFinding } from "../governance/audit-types"
-import { Permission, type SessionVerification } from "@/governance"
+import { PermissionRequest } from "@/governance/permission-schema"
+import type { SessionVerification } from "@/governance/types"
 
 export namespace SessionV2 {
   export const Intent = z
@@ -257,7 +258,7 @@ export namespace SessionV2 {
       intent: Intent.optional(),
       plan: Plan.optional(),
       activity_timeline: TimelineEvent.array(),
-      approvals: Permission.Request.array(),
+      approvals: PermissionRequest.array(),
       artifacts: ArtifactRecord.array(),
       audit_findings: AuditFinding.array(),
       trust_posture: z.any().optional(),

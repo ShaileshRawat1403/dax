@@ -9,6 +9,7 @@ import { Wildcard } from "@/util/wildcard"
 import { RAOLedger } from "@/rao"
 import { classifyPathsWithRust, type PathClassification } from "@/rust/policy"
 import { PolicyEngine } from "./policy-engine"
+import { PermissionRequest } from "./permission-schema"
 import z from "zod"
 
 export namespace Permission {
@@ -26,25 +27,7 @@ export namespace Permission {
   export const fromConfig = PolicyEngine.fromConfig
   export const merge = PolicyEngine.merge
 
-  export const Request = z
-    .object({
-      id: Identifier.schema("permission"),
-      createdAt: z.number().int().nonnegative(),
-      sessionID: Identifier.schema("session"),
-      permission: z.string(),
-      patterns: z.string().array(),
-      metadata: z.record(z.string(), z.any()),
-      always: z.string().array(),
-      tool: z
-        .object({
-          messageID: z.string(),
-          callID: z.string(),
-        })
-        .optional(),
-    })
-    .meta({
-      ref: "PermissionRequest",
-    })
+  export const Request = PermissionRequest
 
   export type Request = z.infer<typeof Request>
 
