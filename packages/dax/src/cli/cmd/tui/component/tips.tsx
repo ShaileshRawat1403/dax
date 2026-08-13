@@ -40,7 +40,7 @@ export function Tips() {
         <text fg={theme.warning}>●</text>
         <text fg={theme.warning}> Tip </text>
       </box>
-      <box flexDirection="row" flexShrink={1}>
+      <box flexDirection="row" flexWrap="wrap" flexShrink={1}>
         <For each={parts}>
           {(part) => <text fg={part.highlight ? theme.text : theme.textMuted}>{part.text}</text>}
         </For>

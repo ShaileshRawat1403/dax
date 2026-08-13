@@ -404,6 +404,7 @@ export const RunListItem = z
     projectId: z.string().optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
+    terminalReason: WorkflowTerminalReason.optional(),
   })
   .meta({ ref: "RunListItemV1" })
 export type RunListItem = z.infer<typeof RunListItem>
