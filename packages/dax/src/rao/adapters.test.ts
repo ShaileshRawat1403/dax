@@ -67,12 +67,49 @@ describe("RAOAdapter.toRAORunState", () => {
     ).toBeUndefined()
   })
 
-  // Audit gap H2: evidence is currently hardcoded to []. This pending assertion
-  // fails today and flips green once the audit-system wiring lands, at which
-  // point the .todo should be removed.
-  test.todo("toRAORunState populates evidence from audit receipts (H2)", () => {
-    const out = RAOAdapter.toRAORunState(runState({ status: "completed" }))
+  // Audit gap H2: evidence is drawn from what the run recorded (completion
+  // proof, DAX-run verification, mutation ledger), not fabricated.
+  test("populates evidence from the run's recorded receipts (H2)", () => {
+    const base = createInitialRunState("run_1", "ctr_1")
+    const out = RAOAdapter.toRAORunState({
+      ...base,
+      status: "completed",
+      completedAt: "2026-01-01T00:00:00.000Z",
+      governance: {
+        ...base.governance,
+        verification: { required: true, satisfied: true, receiptIds: ["rcpt_verify_1"] },
+        mutationReceiptIds: ["rcpt_mut_1"],
+        completionProof: {
+          decision: "pass",
+          failedChecks: [],
+          verificationExecuted: true,
+          receiptIds: ["rcpt_verify_1"],
+          artifactChecks: true,
+          expectedOutputChecks: true,
+          expectedOutputTypesSatisfied: [],
+          expectedOutputTypesMissing: [],
+          scopeChecks: true,
+          sensitivePathApprovalChecks: true,
+          checkedAt: "2026-01-01T00:00:00.000Z",
+        },
+      },
+    })
     expect(out.evidence.length).toBeGreaterThan(0)
+    expect(() => RAOProtocol.RunState.parse(out)).not.toThrow()
+    const sources = out.evidence.map((e) => e.source)
+    expect(sources).toContain("dax_completion_proof")
+    expect(sources).toContain("dax_verification")
+    expect(sources).toContain("dax_mutation_ledger")
+    // Every receipt points back at the run and validates against the schema.
+    for (const receipt of out.evidence) {
+      expect(receipt.runId).toBe("run_1")
+      expect(() => RAOProtocol.EvidenceReceipt.parse(receipt)).not.toThrow()
+    }
+  })
+
+  test("emits no evidence when the run recorded nothing verifiable (honest empty, not theater)", () => {
+    const out = RAOAdapter.toRAORunState(runState({ status: "completed" }))
+    expect(out.evidence).toEqual([])
   })
 })
 

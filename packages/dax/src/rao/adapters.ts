@@ -45,8 +45,66 @@ export namespace RAOAdapter {
       runId: internal.runId,
       status,
       currentStep,
-      evidence: [], // Expected to be populated by the audit system
+      evidence: buildEvidence(internal),
     }
+  }
+
+  /**
+   * Evidence is drawn from what the run actually recorded, never invented. A run
+   * that recorded nothing verifiable yields an empty list rather than a
+   * placeholder receipt — an honest empty beats evidence theater. Each receipt
+   * references the real ledger receipt ids the run captured (completion proof,
+   * DAX-run verification, mutation ledger), so a consumer can resolve the full
+   * proof from the ledger by id.
+   */
+  function buildEvidence(internal: InternalRunState): RAOProtocol.EvidenceReceipt[] {
+    const receipts: RAOProtocol.EvidenceReceipt[] = []
+    const gov = internal.governance
+    const verifiedAt = internal.completedAt ?? internal.updatedAt ?? internal.createdAt
+
+    const proof = gov.completionProof
+    if (proof) {
+      receipts.push({
+        receiptId: `evd_completion_${internal.runId}`,
+        runId: internal.runId,
+        claim: `Completion proof ${proof.decision}`,
+        proof: JSON.stringify({
+          decision: proof.decision,
+          verificationExecuted: proof.verificationExecuted,
+          receiptIds: proof.receiptIds,
+          failedChecks: proof.failedChecks,
+        }),
+        source: "dax_completion_proof",
+        verifiedAt: proof.checkedAt,
+      })
+    }
+
+    if (gov.verification.receiptIds.length > 0) {
+      receipts.push({
+        receiptId: `evd_verification_${internal.runId}`,
+        runId: internal.runId,
+        claim: gov.verification.satisfied ? "Verification satisfied" : "Verification recorded",
+        proof: JSON.stringify({
+          satisfied: gov.verification.satisfied,
+          receiptIds: gov.verification.receiptIds,
+        }),
+        source: "dax_verification",
+        verifiedAt,
+      })
+    }
+
+    if (gov.mutationReceiptIds.length > 0) {
+      receipts.push({
+        receiptId: `evd_mutation_${internal.runId}`,
+        runId: internal.runId,
+        claim: `Mutations recorded (${gov.mutationReceiptIds.length})`,
+        proof: JSON.stringify({ receiptIds: gov.mutationReceiptIds }),
+        source: "dax_mutation_ledger",
+        verifiedAt,
+      })
+    }
+
+    return receipts
   }
 
   function mapStepStatus(status: StepRecord["status"]): RAOProtocol.Step["status"] {
