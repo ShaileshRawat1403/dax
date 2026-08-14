@@ -211,7 +211,17 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   codex: {
     label: "Codex",
     binary: "codex",
-    args: (prompt) => ["exec", "--sandbox", "workspace-write", prompt],
+    // DAX is the sandbox and the approval authority here. The worker already runs
+    // inside DAX's Seatbelt/bubblewrap profile (writes confined to the checkout,
+    // secrets masked, egress filtered) and its diff is reviewed at DAX's human
+    // gate. Codex's own `--sandbox workspace-write` adds a nested sandbox on top
+    // of DAX's; empirically that nesting (and worktree-root mis-detection) makes
+    // codex apply nothing — a governed run produced an empty diff while the same
+    // command run raw applied the edit. Bypassing codex's inner gates lets it
+    // write; DAX's outer isolation still bounds it to the checkout. This mirrors
+    // the claude `acceptEdits` choice above: the worker's own gate is a redundant
+    // double gate under DAX governance.
+    args: (prompt) => ["exec", "--dangerously-bypass-approvals-and-sandbox", prompt],
     envAllowlist: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_HOME"],
     // Codex writes runtime state (session + in-process app-server socket) here
     // at init and fails closed without write access. Verified on macOS Seatbelt:
