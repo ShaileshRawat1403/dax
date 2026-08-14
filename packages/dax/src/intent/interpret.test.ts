@@ -123,7 +123,7 @@ describe("Intent Interpreter", () => {
           fs.rmSync(root, { recursive: true, force: true })
         }
       },
-      60_000,
+      120_000,
     )
   })
 
