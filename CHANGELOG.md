@@ -7,9 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-14
+
+### Added
+
+- **Per-host network egress allowlisting for governed workers**: a governed worker's outbound network is confined to its provider's API host allowlist by a loopback forward proxy (HTTP CONNECT plus plain-HTTP). Filtering is on by default; the allowlist is the provider defaults (`api.anthropic.com`; `api.openai.com` and `chatgpt.com`; Google endpoints) plus any host named by the provider base-URL env and any `--allow-egress <host>` the operator adds. `--no-egress-filter` is the escape hatch and stamps the run `unconfined` in its receipt. Refused connections are recorded as `worker_egress_denied` evidence. Enforcement is cooperative: it binds a worker that honors the injected proxy env; a worker that opens a raw socket is not stopped, which needs kernel-level per-host filtering and is the documented residual. This fulfills the 1.2.0 "next hardening step".
+- **`dax start`**: a plain-language setup front door that turns `dax doctor` readiness into actionable next steps, aimed at non-developer onboarding.
+- **RAO evidence receipts**: `RAOAdapter.toRAORunState` populates `evidence` from what the run actually recorded — completion proof, DAX-run verification receipts, and mutation-ledger receipts — each referencing real ledger receipt ids. A run that recorded nothing verifiable returns an empty list rather than a placeholder receipt.
+
+### Fixed
+
+- Governed Codex runs on macOS. The worker sandbox now lets the CLI write its own provider-state dir (`$CODEX_HOME` or `~/.codex`; `~/.claude` and `~/.gemini` for the other workers), which the CLI needs at init; without it Codex could not initialize its app-server under Seatbelt. Repo writes stay confined to the checkout.
+- Governed Codex applies its edits. DAX runs the Codex worker under DAX's own isolation and approval only (`codex exec --dangerously-bypass-approvals-and-sandbox`) instead of letting Codex nest a second sandbox inside DAX's; the nested sandbox silently produced empty diffs. This mirrors the existing Claude Code `acceptEdits` decision — DAX owns isolation and the approval gate, so the worker's own gates are redundant.
+- TUI: recent-run tips wrap instead of overflowing, and a failed run shows why it ended (its terminal reason) on the home screen rather than only inside the evidence ledger.
+
 ### Security
 
-- Governed worker reads are now confined away from credential stores. Seatbelt `(deny file-read* ...)` rules and bubblewrap `--tmpfs` / `--ro-bind-try /dev/null` masks hide `~/.ssh`, cloud credentials (`~/.aws`, `~/.config/gcloud`, `~/.config/gh`), `~/.gnupg`, Docker/Kubernetes configs, keychains, and browser profiles, along with file secrets (`.netrc`, `.git-credentials`, `.npmrc`, `.pypirc`, cargo credentials). The worker's own config (`~/.codex`, `~/.claude`, `~/.gemini`) and the disposable checkout stay readable, so provider auth and the DAX-computed diff are unaffected. This supersedes the 1.2.0 limitation noting workers "permit host reads": general toolchain reads remain allowed, credential stores do not. Per-host network egress allowlisting remains the next hardening step.
+- Governed worker reads are confined away from credential stores. Seatbelt `(deny file-read* ...)` rules and bubblewrap `--tmpfs` / `--ro-bind-try /dev/null` masks hide `~/.ssh`, cloud credentials (`~/.aws`, `~/.config/gcloud`, `~/.config/gh`), `~/.gnupg`, Docker/Kubernetes configs, keychains, and browser profiles, along with file secrets (`.netrc`, `.git-credentials`, `.npmrc`, `.pypirc`, cargo credentials). The worker's own config (`~/.codex`, `~/.claude`, `~/.gemini`) and the disposable checkout stay readable, so provider auth and the DAX-computed diff are unaffected. This supersedes the 1.2.0 limitation noting workers "permit host reads": general toolchain reads remain allowed, credential stores do not.
+
+### Known Limitations
+
+- Egress filtering is cooperative: it confines a worker that honors the injected proxy env, not one that opens a raw socket. A stronger boundary needs kernel-level per-host filtering (or a container/VM) and is deferred.
+- Governed external workers remain unavailable on native Windows; run inside WSL2, where bubblewrap isolation applies. Built-in workflows and the standard CLI stay cross-platform.
+- Codex authenticating through a ChatGPT (non-API-key) account reaches `chatgpt.com`; content-heavy tasks may additionally need `--allow-egress` for OpenAI content-storage hosts, whose names are region-specific.
 
 ## [1.2.0] - 2026-07-12
 
