@@ -1,5 +1,5 @@
 import os from "node:os"
-import { join } from "node:path"
+import { posix } from "node:path"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { Shell } from "@/shell/shell"
 
@@ -66,8 +66,8 @@ export function sensitiveReadPaths(home: string = os.homedir()): SensitiveReadPa
   ]
   const files = [".netrc", ".git-credentials", ".npmrc", ".pypirc", ".cargo/credentials", ".cargo/credentials.toml"]
   return [
-    ...dirs.map((p): SensitiveReadPath => ({ path: join(home, p), kind: "dir" })),
-    ...files.map((p): SensitiveReadPath => ({ path: join(home, p), kind: "file" })),
+    ...dirs.map((p): SensitiveReadPath => ({ path: posix.join(home, p), kind: "dir" })),
+    ...files.map((p): SensitiveReadPath => ({ path: posix.join(home, p), kind: "file" })),
   ]
 }
 

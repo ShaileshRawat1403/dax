@@ -26,6 +26,10 @@ const supervise = (script: string, timeoutMs = 5_000) =>
     timeoutMs,
   })
 
+// Governed workers fail closed on native Windows; these exercise the POSIX
+// process-group supervisor used by the supported macOS and Linux providers.
+const posixProcessGroupTest = test.skipIf(process.platform === "win32")
+
 const found = (binary: string) => `/usr/bin/${binary}`
 
 describe("worker sandbox", () => {
@@ -252,7 +256,7 @@ describe("worker sandbox", () => {
 
   // P0.0 gate 5: no worker descendant may survive the call, on any exit path.
 
-  test("kills a descendant the worker leaves behind after exiting cleanly", async () => {
+  posixProcessGroupTest("kills a descendant the worker leaves behind after exiting cleanly", async () => {
     // P0.0 T5. The worker exits zero while a kernel it started keeps running.
     // Signalling only the direct child misses it.
     const result = await supervise("sleep 60 >/dev/null 2>&1 & echo $!; exit 0")
@@ -263,7 +267,7 @@ describe("worker sandbox", () => {
     expect(alive(descendant)).toBe(false)
   })
 
-  test("does not hang when a timed-out worker ignores SIGTERM", async () => {
+  posixProcessGroupTest("does not hang when a timed-out worker ignores SIGTERM", async () => {
     // P0.0 T4, the case that stayed open: SIGTERM alone left descendants alive
     // for minutes. Escalation cannot wait on the process, because the process
     // is what is refusing to exit. Returning at all is the assertion.
@@ -274,7 +278,7 @@ describe("worker sandbox", () => {
     expect(Date.now() - started).toBeLessThan(5_000)
   })
 
-  test("returns captured output even when a descendant holds the pipes open", async () => {
+  posixProcessGroupTest("returns captured output even when a descendant holds the pipes open", async () => {
     // An orphan inherits stdout, so the stream stays open while it lives.
     // Reaping has to happen before the output is awaited or this blocks until
     // the timeout.

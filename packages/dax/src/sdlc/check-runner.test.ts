@@ -5,6 +5,10 @@ import path from "path"
 import { runCheck } from "./check-runner"
 import type { CheckDefinition } from "./check-types"
 
+// Clean-exit reaping uses POSIX process groups; Windows timeout-tree cleanup
+// remains covered above through Shell.killTree's taskkill branch.
+const posixCleanExitReapingTest = test.skipIf(process.platform === "win32")
+
 describe("SDLC check runner", () => {
   test("skips missing optional tools", async () => {
     const check: CheckDefinition = {
@@ -84,7 +88,7 @@ describe("SDLC check runner", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test("kills a descendant the check leaves behind after exiting cleanly", async () => {
+  posixCleanExitReapingTest("kills a descendant the check leaves behind after exiting cleanly", async () => {
     // The leak the timeout path did not cover: a check exits zero having
     // started a watcher or kernel that outlives it. Reaping only on timeout
     // means a passing check quietly leaks.
