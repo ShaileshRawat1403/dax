@@ -9,6 +9,7 @@ const base = {
   forbiddenPaths: ["package.json"],
   verification: ["bun test"],
   isolation: "seatbelt; checkout-only writes; provider network",
+  egress: { mode: "filtered" as const, hosts: ["api.anthropic.com"] },
   sources: {
     writeScope: "inferred" as const,
     forbiddenPaths: "operator-authored" as const,
@@ -120,5 +121,18 @@ describe("renderVetoCard — Job 2: pre-run confirmation", () => {
   test("card ends with confirmation prompt", () => {
     const card = renderVetoCard(base)
     expect(card).toContain("Press Enter to start the run")
+  })
+
+  test("shows the egress allowlist when filtering is on", () => {
+    const card = renderVetoCard(base)
+    expect(card).toContain("Egress:")
+    expect(card).toContain("api.anthropic.com")
+    expect(card).toContain("[allowlist]")
+  })
+
+  test("marks egress as unconfined when the operator opted out", () => {
+    const card = renderVetoCard({ ...base, egress: { mode: "unconfined", hosts: [] } })
+    expect(card).toContain("unconfined")
+    expect(card).toContain("--no-egress-filter")
   })
 })

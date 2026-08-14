@@ -21,6 +21,7 @@ import { DAX_SETTING } from "@/dax/settings"
 import { useLocal } from "../context/local"
 import { useSDK } from "../context/sdk"
 import { isMcpStatusAttention, isMcpStatusBlocked } from "@/dax/status"
+import { humanTerminalReason } from "@/dax/presentation/run-terminal-reason"
 import { deriveHomeLayout } from "./home-layout"
 import { deriveFeatureBranchNudge } from "@/dax/presentation/vcs-guard"
 import { DAX_GUIDE_SESSION_FOOTER, DAX_GUIDE_SESSION_PROMPT, DAX_GUIDE_SESSION_TITLE } from "../util/guide-session"
@@ -484,6 +485,10 @@ export function Home() {
                         <RecentRunRow
                           title={r.title ?? r.runId.slice(0, 8)}
                           status={r.status}
+                          // The server sends terminalReason (RunListItem carries it), but the
+                          // generated SDK client type lags a broader stale-SDK resync tracked
+                          // separately, so read the field through a narrow local shape here.
+                          terminalReason={(r as { terminalReason?: string }).terminalReason}
                           ageMs={Date.now() - new Date(r.updatedAt).getTime()}
                           theme={theme}
                           onOpen={() => navigate({ type: "session", sessionID: r.runId })}
@@ -589,14 +594,33 @@ function SmartChip(props: {
   )
 }
 
-function RecentRunRow(props: { title: string; status: string; ageMs: number; theme: any; onOpen: () => void }) {
+function RecentRunRow(props: {
+  title: string
+  status: string
+  terminalReason?: string
+  ageMs: number
+  theme: any
+  onOpen: () => void
+}) {
+  // Surface why a run ended, but only when it did not end cleanly, so the "why"
+  // sits with the failure instead of only inside the session's evidence ledger.
+  const failedReason = () =>
+    props.status === "failed" || props.status === "cancelled" ? humanTerminalReason(props.terminalReason) : undefined
   return (
     <box onMouseUp={props.onOpen} paddingLeft={2} paddingRight={2} flexDirection="row" justifyContent="space-between">
-      <box flexDirection="row" gap={1}>
-        <text fg={props.theme.textMuted} dim>
-          ·
-        </text>
-        <text fg={props.theme.text}>{props.title}</text>
+      <box flexDirection="column" gap={0}>
+        <box flexDirection="row" gap={1}>
+          <text fg={props.theme.textMuted} dim>
+            ·
+          </text>
+          <text fg={props.theme.text}>{props.title}</text>
+        </box>
+        <Show when={failedReason()}>
+          <text fg={props.theme.error} dim>
+            {"  "}
+            {failedReason()}
+          </text>
+        </Show>
       </box>
       <box flexDirection="row" gap={1}>
         <text fg={props.theme.textMuted} dim>

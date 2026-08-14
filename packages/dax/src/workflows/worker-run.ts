@@ -16,6 +16,7 @@ import type { RuntimePolicy } from "@/execution/execution-contract"
 import { verifyWorkerPatch } from "@/worker/worker-verification"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { runSandboxedCommand, runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
+import { startEgressProxy } from "@/worker/egress-proxy"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -58,6 +59,8 @@ export type WorkerRunEffectsShape = {
     sandboxProvider?: string
     /** True when DAX had to kill descendants the worker left behind. */
     reapedDescendants?: boolean
+    /** Hosts the egress proxy refused during the run (evidence of attempts). */
+    deniedEgress?: string[]
   }>
   /** Kernel-owned diff and changed paths (including untracked files). */
   computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
@@ -89,13 +92,38 @@ const defaultEffects: WorkerRunEffectsShape = {
     }
   },
   async runWorker(invocation, cwd) {
-    return runSandboxedCommand({
-      command: invocation.command,
-      cwd,
-      env: { ...invocation.env, PATH: process.env.PATH ?? "" },
-      timeoutMs: invocation.timeoutMs,
-      network: invocation.network === "none" ? "none" : "full",
-    })
+    const network = invocation.network === "none" ? "none" : "full"
+    const baseEnv = { ...invocation.env, PATH: process.env.PATH ?? "" }
+    const writableStatePaths = invocation.writableStatePaths
+
+    // Unconfined (operator opted out) or no network: run without a proxy.
+    if (invocation.egress.mode !== "filtered" || network === "none") {
+      return runSandboxedCommand({
+        command: invocation.command,
+        cwd,
+        env: baseEnv,
+        timeoutMs: invocation.timeoutMs,
+        network,
+        writableStatePaths,
+      })
+    }
+
+    // Filtered: stand up the loopback egress proxy, inject its env, and tear it
+    // down whatever happens. Denied targets ride back as evidence.
+    const proxy = await startEgressProxy({ allowHosts: invocation.egress.allowHosts })
+    try {
+      const result = await runSandboxedCommand({
+        command: invocation.command,
+        cwd,
+        env: { ...baseEnv, ...proxy.proxyEnv },
+        timeoutMs: invocation.timeoutMs,
+        network,
+        writableStatePaths,
+      })
+      return { ...result, deniedEgress: proxy.deniedHosts() }
+    } finally {
+      await proxy.close()
+    }
   },
   async computeDiff(checkoutPath) {
     // Stage everything (disposable checkout) so untracked files appear in
@@ -292,6 +320,7 @@ export class WorkerRunWorkflow {
         contract,
         hostEnv: process.env,
         timeoutMs: this.contract.timeoutMs,
+        egress: this.contract.runtimePolicy?.egress,
       })
 
       checkout = await WorkerRunEffects.current.createCheckout(repoPath, this.runId)
@@ -306,6 +335,20 @@ export class WorkerRunWorkflow {
           filesystem: "checkout-write-only",
           network: invocation.network,
           reapedDescendants: result.reapedDescendants ?? false,
+          // Precise, not aspirational: "filtered" means a cooperative proxy
+          // narrowed egress to the allowlist; enforcement binds a worker that
+          // honors the proxy env, not one that opens a raw socket.
+          egress: invocation.egress.mode,
+          egressEnforcement: invocation.egress.mode === "filtered" ? "cooperative-proxy" : "none",
+          egressAllowHosts: invocation.egress.mode === "filtered" ? invocation.egress.allowHosts : [],
+        })
+      }
+      // A refused CONNECT is an attempted reach beyond the allowlist — evidence
+      // in its own right, recorded whether or not the run ultimately succeeds.
+      if (result.deniedEgress && result.deniedEgress.length > 0) {
+        await appendEventOnly(this.runId, "worker_egress_denied", {
+          providerId: invocation.providerId,
+          hosts: result.deniedEgress,
         })
       }
       if (result.timedOut) {

@@ -7,6 +7,7 @@ import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
 import { ExternalWorkerId } from "../../worker/worker-adapter"
+import { buildEgressAllowlist } from "../../worker/egress-allowlist"
 import { detectChecks } from "../../sdlc/check-catalog"
 import type { CheckDefinition } from "../../sdlc/check-types"
 import { isWhitelistedVerificationCommand } from "../../tool/shell-whitelist"
@@ -58,6 +59,7 @@ export function renderVetoCard(opts: {
   forbiddenPaths: string[]
   verification: string[]
   isolation: string
+  egress: { mode: "filtered" | "unconfined"; hosts: string[] }
   sources: {
     writeScope: FieldSource
     forbiddenPaths: FieldSource
@@ -71,6 +73,11 @@ export function renderVetoCard(opts: {
     `Task:         ${opts.task.length > 72 ? opts.task.slice(0, 72) + "…" : opts.task}`,
     `Risk:         ${opts.riskLevel}`,
     `Isolation:    ${opts.isolation}`,
+    `Egress:       ${
+      opts.egress.mode === "filtered"
+        ? `${opts.egress.hosts.join(", ")}  [allowlist]`
+        : "unconfined  [--no-egress-filter]"
+    }`,
   ]
   if (opts.writeScope.length > 0)
     lines.push(`Write scope:  ${opts.writeScope.join(", ")}  [${opts.sources.writeScope}]`)
@@ -141,6 +148,17 @@ export const WorkerCommand = cmd({
             })
             .option("verify", {
               describe: "validation commands DAX runs to verify the diff",
+              type: "string",
+              array: true,
+            })
+            .option("egress-filter", {
+              describe:
+                "confine worker network egress to the provider host allowlist (use --no-egress-filter to opt out)",
+              type: "boolean",
+              default: true,
+            })
+            .option("allow-egress", {
+              describe: "additional hosts the worker may reach beyond the provider defaults",
               type: "string",
               array: true,
             })
@@ -219,6 +237,18 @@ export const WorkerCommand = cmd({
               verification: (cliVerification.length > 0 ? "operator-authored" : "inferred") as FieldSource,
             }
 
+            // Egress confinement: on by default, narrowed to the provider host
+            // allowlist. The operator sees the exact hosts on the card and can
+            // widen (--allow-egress) or opt out (--no-egress-filter).
+            const egressFilter = (args["egress-filter"] as boolean | undefined) ?? true
+            const allowEgress = (args["allow-egress"] as string[] | undefined) ?? []
+            const egressForCard = {
+              mode: (egressFilter ? "filtered" : "unconfined") as "filtered" | "unconfined",
+              hosts: egressFilter
+                ? [...buildEgressAllowlist({ workerId: agent, hostEnv: process.env, allowHosts: allowEgress })]
+                : [],
+            }
+
             // Veto card: compact pre-run summary. --yes skips for scripting.
             // Pressing Enter upgrades inferred → operator-confirmed in the evidence record.
             // --yes sets inferred → inferred-unreviewed (operator never saw the scope).
@@ -226,7 +256,8 @@ export const WorkerCommand = cmd({
             if (!args.yes) {
               const card = renderVetoCard({
                 agent, task, riskLevel: inferredRiskLevel,
-                writeScope, forbiddenPaths, verification, isolation: sandbox.summary, sources,
+                writeScope, forbiddenPaths, verification, isolation: sandbox.summary,
+                egress: egressForCard, sources,
               })
               UI.println(card)
               cardAccepted = await waitForConfirmation()
@@ -261,7 +292,13 @@ export const WorkerCommand = cmd({
               },
               // Always send all three arrays so what the operator saw on the card is exactly
               // what binds — explicit [] is authoritative, not a fallback trigger.
-              workerConstraints: { writeScope, forbiddenPaths, verification, provenance },
+              workerConstraints: {
+                writeScope,
+                forbiddenPaths,
+                verification,
+                provenance,
+                egress: { filter: egressFilter, allowHosts: allowEgress },
+              },
               metadata: {
                 source: "cli",
                 initiatedBy: "dax-worker-run",

@@ -274,6 +274,17 @@ export const WorkerConstraints = z
     verification: z.array(z.string()).optional(),
     /** Per-field provenance — which source each scope field came from. */
     provenance: ScopeProvenance.optional(),
+    /**
+     * Network egress confinement for the governed worker. Omitted means the
+     * default: filter on with the provider host allowlist. `filter: false` is
+     * the operator escape hatch; `allowHosts` widens the allowlist.
+     */
+    egress: z
+      .object({
+        filter: z.boolean().optional(),
+        allowHosts: z.array(z.string()).optional(),
+      })
+      .optional(),
   })
   .meta({ ref: "WorkerConstraintsV1" })
 export type WorkerConstraints = z.infer<typeof WorkerConstraints>
@@ -404,6 +415,7 @@ export const RunListItem = z
     projectId: z.string().optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
+    terminalReason: WorkflowTerminalReason.optional(),
   })
   .meta({ ref: "RunListItemV1" })
 export type RunListItem = z.infer<typeof RunListItem>

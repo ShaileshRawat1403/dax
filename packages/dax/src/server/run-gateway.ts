@@ -453,6 +453,7 @@ async function toRunListItem(runId: string): Promise<RunListItem | undefined> {
     projectId: meta.projectId,
     chatId: meta.chatId,
     workflowId: meta.workflowId,
+    terminalReason: snapshot.terminalReason,
   }
 }
 

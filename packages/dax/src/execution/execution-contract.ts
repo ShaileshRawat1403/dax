@@ -79,6 +79,16 @@ export const RuntimePolicy = z.object({
     forbiddenPaths: FieldProvenanceEnum,
     verification: FieldProvenanceEnum,
   }).optional(),
+  /**
+   * Governed-worker network egress confinement (worker_run). Absent means the
+   * default: filter on with the provider host allowlist. `filter: false` is the
+   * operator escape hatch; `allowHosts` widens the allowlist. Enforced by the
+   * run's forward proxy (see worker/egress-allowlist.ts).
+   */
+  egress: z.object({
+    filter: z.boolean().default(true),
+    allowHosts: z.string().array().default([]),
+  }).optional(),
 })
 export type RuntimePolicy = z.infer<typeof RuntimePolicy>
 

@@ -98,10 +98,14 @@ describe("worker adapter", () => {
     expect(invocation.timeoutMs).toBe(DEFAULT_WORKER_TIMEOUT_MS)
   })
 
-  test("codex worker gets write access inside DAX's disposable checkout", () => {
+  test("codex worker bypasses its own nested sandbox so DAX's isolation is the single authority", () => {
+    // DAX already wraps the worker in its own sandbox + approval gate; codex's
+    // own `--sandbox workspace-write` nests a second sandbox that empirically
+    // makes it apply nothing. The worker runs under DAX's isolation instead.
     const invocation = buildWorkerInvocation({ workerId: "codex", contract })
-    expect(invocation.command).toContain("--sandbox")
-    expect(invocation.command).toContain("workspace-write")
+    expect(invocation.command).toContain("exec")
+    expect(invocation.command).toContain("--dangerously-bypass-approvals-and-sandbox")
+    expect(invocation.command).not.toContain("workspace-write")
   })
 
   test("claude worker gets headless edit permission without skipping all gates", () => {

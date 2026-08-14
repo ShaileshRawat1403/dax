@@ -25,6 +25,12 @@ function escapeSeatbelt(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
 }
 
+/** Human summary of the writable surface; accurate whether or not the worker
+ *  needs its own state dir writable. */
+function writeSummary(statePaths: string[]): string {
+  return statePaths.length > 0 ? "checkout + worker-state writes" : "checkout-only writes"
+}
+
 /**
  * Credential and secret stores a governed worker never needs to read. Reads are
  * otherwise allowed (a coding agent must see the toolchain and its own config),
@@ -65,8 +71,18 @@ export function sensitiveReadPaths(home: string = os.homedir()): SensitiveReadPa
   ]
 }
 
-function macProfile(cwd: string, network: WorkerSandboxNetwork, sensitive: SensitiveReadPath[]): string {
-  const writable = [cwd, process.env.TMPDIR, "/tmp", "/private/tmp"]
+function macProfile(
+  cwd: string,
+  network: WorkerSandboxNetwork,
+  sensitive: SensitiveReadPath[],
+  statePaths: string[],
+): string {
+  // Writable surface: the checkout (the worker's actual work), temp dirs, and
+  // the worker's own provider-state dirs (e.g. ~/.codex). The state dirs are
+  // required — the external CLIs write runtime state (session, app-server
+  // socket) there at init and fail closed without it. This does not widen the
+  // repo guarantee: the kernel diff is still computed only from the checkout.
+  const writable = [cwd, process.env.TMPDIR, "/tmp", "/private/tmp", ...statePaths]
     .filter((value): value is string => Boolean(value))
     .map((value) => `(allow file-write* (subpath "${escapeSeatbelt(value)}"))`)
     .join("\n")
@@ -98,10 +114,13 @@ export function buildWorkerSandboxPlan(input: {
   which?: Which
   home?: string
   sensitive?: SensitiveReadPath[]
+  /** Worker-owned state dirs (e.g. ~/.codex) that must be writable at init. */
+  writableStatePaths?: string[]
 }): WorkerSandboxPlan {
   const platform = input.platform ?? process.platform
   const which = input.which ?? Bun.which
   const sensitive = input.sensitive ?? sensitiveReadPaths(input.home)
+  const statePaths = input.writableStatePaths ?? []
 
   if (platform === "darwin") {
     const binary = which("sandbox-exec")
@@ -110,9 +129,9 @@ export function buildWorkerSandboxPlan(input: {
     }
     return {
       provider: "seatbelt",
-      command: [binary, "-p", macProfile(input.cwd, input.network, sensitive), ...input.command],
+      command: [binary, "-p", macProfile(input.cwd, input.network, sensitive, statePaths), ...input.command],
       network: input.network,
-      summary: `seatbelt; checkout-only writes; secrets masked; ${input.network === "full" ? "provider network" : "network denied"}`,
+      summary: `seatbelt; ${writeSummary(statePaths)}; secrets masked; ${input.network === "full" ? "provider network" : "network denied"}`,
     }
   }
 
@@ -128,6 +147,11 @@ export function buildWorkerSandboxPlan(input: {
     const secretMasks = sensitive.flatMap((entry) =>
       entry.kind === "dir" ? ["--tmpfs", entry.path] : ["--ro-bind-try", "/dev/null", entry.path],
     )
+    // Re-bind the worker's own state dirs read-write over the read-only root so
+    // the CLI can persist its runtime state. `-try` tolerates a dir that does
+    // not exist yet on this host. Placed after the secret masks so a state path
+    // is never left masked (they do not overlap the credential stores).
+    const stateBinds = statePaths.flatMap((path) => ["--bind-try", path, path])
     return {
       provider: "bwrap",
       command: [
@@ -145,13 +169,14 @@ export function buildWorkerSandboxPlan(input: {
         "--tmpfs",
         "/tmp",
         ...secretMasks,
+        ...stateBinds,
         "--chdir",
         input.cwd,
         "--",
         ...input.command,
       ],
       network: input.network,
-      summary: `bubblewrap; checkout-only writes; secrets masked; ${input.network === "full" ? "provider network" : "network denied"}`,
+      summary: `bubblewrap; ${writeSummary(statePaths)}; secrets masked; ${input.network === "full" ? "provider network" : "network denied"}`,
     }
   }
 
@@ -319,6 +344,8 @@ export async function runSandboxedCommand(input: {
   env: Record<string, string | undefined>
   timeoutMs: number
   network: WorkerSandboxNetwork
+  /** Worker-owned state dirs (e.g. ~/.codex) that must be writable at init. */
+  writableStatePaths?: string[]
 }): Promise<{
   exitCode: number
   stdout: string

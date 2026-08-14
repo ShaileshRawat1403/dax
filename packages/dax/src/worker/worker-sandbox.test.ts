@@ -167,6 +167,52 @@ describe("worker sandbox", () => {
     expect(plan.command).toContain("/repo/checkout")
   })
 
+  // C1 sequel: the worker's own state dir (e.g. ~/.codex) must be writable at
+  // init or the CLI fails closed. These pin that the allowance reaches the
+  // profile without re-opening the repo guarantee.
+
+  test("makes the worker state dir writable on macOS without widening the summary claim", () => {
+    const plan = buildWorkerSandboxPlan({
+      command: ["codex", "exec", "task"],
+      cwd: "/repo/checkout",
+      network: "full",
+      platform: "darwin",
+      which: found,
+      home: "/home/tester",
+      writableStatePaths: ["/home/tester/.codex"],
+    })
+    const profile = plan.command[2]
+    expect(profile).toContain('(allow file-write* (subpath "/home/tester/.codex"))')
+    expect(profile).toContain('(allow file-write* (subpath "/repo/checkout"))')
+    expect(plan.summary).toContain("worker-state writes")
+  })
+
+  test("binds the worker state dir read-write on Linux with a tolerant bind", () => {
+    const plan = buildWorkerSandboxPlan({
+      command: ["codex", "exec", "task"],
+      cwd: "/repo/checkout",
+      network: "full",
+      platform: "linux",
+      which: found,
+      home: "/home/tester",
+      writableStatePaths: ["/home/tester/.codex"],
+    })
+    const idx = plan.command.indexOf("/home/tester/.codex")
+    expect(idx).toBeGreaterThan(-1)
+    expect(plan.command[idx - 1]).toBe("--bind-try")
+  })
+
+  test("keeps the checkout-only summary when the worker needs no state dir", () => {
+    const plan = buildWorkerSandboxPlan({
+      command: ["claude", "-p", "task"],
+      cwd: "/repo/checkout",
+      network: "full",
+      platform: "darwin",
+      which: found,
+    })
+    expect(plan.summary).toContain("checkout-only writes")
+  })
+
   test("exposes the deny-list as a pure, injectable function", () => {
     const paths = sensitiveReadPaths("/home/tester")
     expect(paths).toContainEqual({ path: "/home/tester/.ssh", kind: "dir" })
