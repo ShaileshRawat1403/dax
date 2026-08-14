@@ -78,7 +78,7 @@ export async function startEgressProxy(input: {
     try {
       upstream = new URL(requestTarget)
     } catch {
-      upstream = null
+      // Not a valid absolute URL; upstream stays null and the request is refused below.
     }
     const hostForCheck = upstream?.host ?? req.headers.host ?? ""
 
