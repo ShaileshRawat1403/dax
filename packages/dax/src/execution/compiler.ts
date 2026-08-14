@@ -144,6 +144,11 @@ function deriveRuntimePolicy(
       ]),
     },
     provenance: wc.provenance,
+    // Egress confinement rides through to worker_run. Absent leaves the adapter
+    // default (filter on); an explicit block carries the operator's choice.
+    egress: wc.egress
+      ? { filter: wc.egress.filter ?? true, allowHosts: wc.egress.allowHosts ?? [] }
+      : undefined,
   }
 }
 

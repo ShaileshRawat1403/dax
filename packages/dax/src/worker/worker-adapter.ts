@@ -1,4 +1,6 @@
 import z from "zod"
+import { join } from "node:path"
+import { buildEgressAllowlist } from "./egress-allowlist"
 
 /**
  * External worker adapters — the BYOA layer (docs/dax/byoa-strategy.md).
@@ -22,14 +24,27 @@ import z from "zod"
  *   verification expectations in plain language; enforcement does NOT rely
  *   on the worker honoring it — the kernel-computed diff and path guards
  *   remain the authority. The prompt reduces waste, not risk.
- * - network: external workers must reach their provider APIs, so v0 runs
- *   with sandbox network "full" (writes remain checkout-confined). Per-host
- *   proxy allowlists are the documented hardening step; the field exists
- *   so the tightening is a config change, not a redesign.
+ * - network: external workers must reach their provider APIs, so the sandbox
+ *   runs with network "full" (writes remain checkout-confined). Egress is then
+ *   narrowed by a forward proxy to the provider host allowlist (see
+ *   egress-allowlist.ts). That confinement is cooperative — it binds a worker
+ *   that honors the injected proxy env, not one that opens a raw socket — so
+ *   the invocation carries the intended policy and the run records what
+ *   actually held.
  */
 
 export const ExternalWorkerId = z.enum(["claude", "codex", "gemini"])
 export type ExternalWorkerId = z.infer<typeof ExternalWorkerId>
+
+/**
+ * Egress confinement decided for an invocation. "filtered" carries the exact
+ * host allowlist the run's forward proxy will enforce; "unconfined" is the
+ * operator escape hatch (--no-egress-filter) and is recorded as such in the
+ * receipt so an unfiltered run is never mistaken for a filtered one.
+ */
+export type WorkerEgressPolicy =
+  | { mode: "filtered"; allowHosts: string[] }
+  | { mode: "unconfined" }
 
 export const WorkerProviderKind = z.enum(["external_cli", "native", "remote"])
 export type WorkerProviderKind = z.infer<typeof WorkerProviderKind>
@@ -81,7 +96,24 @@ export type WorkerInvocation = {
   env: Record<string, string>
   /** Sandbox network policy for this worker. */
   network: "full" | "localhost-only" | "none"
+  /** Egress confinement the run's forward proxy applies over that network. */
+  egress: WorkerEgressPolicy
+  /**
+   * Worker-owned state dirs (e.g. ~/.codex) the sandbox must let the CLI write
+   * at init. Not the repo: repo writes stay confined to the checkout and the
+   * diff is computed only from there. Absent/empty for providers that need no
+   * home-dir state.
+   */
+  writableStatePaths: string[]
   timeoutMs: number
+}
+
+/** Operator input that shapes egress confinement for an invocation. */
+export type WorkerEgressInput = {
+  /** Whether to run the egress allowlist proxy. Defaults on. */
+  filter?: boolean
+  /** Extra hosts the operator permits beyond the provider defaults. */
+  allowHosts?: readonly string[]
 }
 
 /**
@@ -95,6 +127,7 @@ export interface WorkerProvider {
     contract: WorkerContract
     hostEnv: Record<string, string | undefined>
     timeoutMs?: number
+    egress?: WorkerEgressInput
   }): WorkerInvocation
 }
 
@@ -130,6 +163,30 @@ type WorkerProfile = {
   args: (prompt: string) => string[]
   /** Env var names passed through from the host environment. */
   envAllowlist: string[]
+  /**
+   * Absolute state dirs the CLI must be able to write at init (its own config,
+   * session, and app-server socket live here — the sandbox fails the worker
+   * closed without them). Derived from the host env so a custom home is
+   * honored. Not the repo; repo writes stay checkout-confined.
+   */
+  stateDirs: (hostEnv: Record<string, string | undefined>) => string[]
+}
+
+/**
+ * Resolve worker state dirs to absolute paths, dropping anything non-absolute
+ * (a missing HOME must not turn into a bogus relative allow). Deduped.
+ */
+function homeStateDirs(
+  hostEnv: Record<string, string | undefined>,
+  homeRelative: string[],
+  explicit: (string | undefined)[] = [],
+): string[] {
+  const home = hostEnv.HOME
+  const fromHome = home ? homeRelative.map((name) => join(home, name)) : []
+  const all = [...explicit, ...fromHome].filter(
+    (path): path is string => typeof path === "string" && path.startsWith("/"),
+  )
+  return [...new Set(all)]
 }
 
 /**
@@ -149,18 +206,25 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     // the authority. Deliberately NOT --dangerously-skip-permissions.
     args: (prompt) => ["-p", prompt, "--output-format", "text", "--permission-mode", "acceptEdits"],
     envAllowlist: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"],
+    stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".claude"]),
   },
   codex: {
     label: "Codex",
     binary: "codex",
     args: (prompt) => ["exec", "--sandbox", "workspace-write", prompt],
     envAllowlist: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_HOME"],
+    // Codex writes runtime state (session + in-process app-server socket) here
+    // at init and fails closed without write access. Verified on macOS Seatbelt:
+    // ~/.codex is the necessary-and-sufficient writable subpath. CODEX_HOME wins
+    // when set.
+    stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".codex"], [hostEnv.CODEX_HOME]),
   },
   gemini: {
     label: "Gemini CLI",
     binary: "gemini",
     args: (prompt) => ["-p", prompt],
     envAllowlist: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"],
+    stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini"]),
   },
 }
 
@@ -221,12 +285,14 @@ export function buildWorkerInvocation(input: {
   contract: WorkerContract
   hostEnv?: Record<string, string | undefined>
   timeoutMs?: number
+  egress?: WorkerEgressInput
 }): WorkerInvocation {
   return buildProviderInvocation({
     providerId: ExternalWorkerId.parse(input.workerId),
     contract: input.contract,
     hostEnv: input.hostEnv,
     timeoutMs: input.timeoutMs,
+    egress: input.egress,
   })
 }
 
@@ -237,6 +303,7 @@ export function buildProviderInvocation(input: {
   hostEnv?: Record<string, string | undefined>
   timeoutMs?: number
   registry?: WorkerProviderRegistry
+  egress?: WorkerEgressInput
 }): WorkerInvocation {
   const contract = WorkerContract.parse(input.contract)
   const provider = (input.registry ?? DefaultWorkerProviderRegistry).get(input.providerId)
@@ -245,6 +312,7 @@ export function buildProviderInvocation(input: {
     contract,
     hostEnv: input.hostEnv ?? {},
     timeoutMs: input.timeoutMs,
+    egress: input.egress,
   })
 }
 
@@ -256,16 +324,30 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
       label: profile.label,
       kind: "external_cli",
     },
-    buildInvocation({ contract, hostEnv, timeoutMs }) {
+    buildInvocation({ contract, hostEnv, timeoutMs, egress }) {
       const prompt = renderWorkerPrompt(contract)
+      // Egress filtering is on unless the operator opted out. The allowlist is
+      // provider defaults plus any custom base-URL host plus operator extras.
+      const filterEnabled = egress?.filter ?? true
+      const egressPolicy: WorkerEgressPolicy = filterEnabled
+        ? {
+            mode: "filtered",
+            allowHosts: [...buildEgressAllowlist({ workerId, hostEnv, allowHosts: egress?.allowHosts })],
+          }
+        : { mode: "unconfined" }
       return {
         providerId: workerId,
         workerId,
         command: [profile.binary, ...profile.args(prompt)],
         env: buildWorkerEnv(workerId, hostEnv, contract),
         // External workers must reach their provider APIs. The workflow wraps
-        // this invocation in the platform sandbox before execution.
+        // this invocation in the platform sandbox before execution; egress
+        // within that network is narrowed to the allowlist above by the proxy.
         network: "full",
+        egress: egressPolicy,
+        // The CLI's own state dir must be writable at init (verified on
+        // Seatbelt). Repo writes stay checkout-confined regardless.
+        writableStatePaths: profile.stateDirs(hostEnv),
         timeoutMs: timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
       }
     },

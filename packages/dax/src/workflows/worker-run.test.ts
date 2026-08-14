@@ -163,7 +163,7 @@ describe("WorkerRunEffects seam", () => {
 
     const checkout = await WorkerRunEffects.current.createCheckout("/repo", "run_1")
     const result = await WorkerRunEffects.current.runWorker(
-      { providerId: "claude", workerId: "claude", command: ["claude", "-p", "x"], env: {}, network: "full", timeoutMs: 1000 },
+      { providerId: "claude", workerId: "claude", command: ["claude", "-p", "x"], env: {}, network: "full", egress: { mode: "unconfined" }, writableStatePaths: [], timeoutMs: 1000 },
       checkout.path,
     )
     const patch = await WorkerRunEffects.current.computeDiff(checkout.path)
