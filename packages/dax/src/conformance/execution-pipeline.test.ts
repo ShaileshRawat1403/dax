@@ -108,8 +108,37 @@ function scoreNativeSession(): PathScore {
   }
 }
 
+/**
+ * Scored from the workflow's own source, the same way as the others. These two
+ * were on the legacy lifecycle until H1b and emitted no run events at all; they
+ * are counted now because leaving them out flattered the meter — it measured
+ * three of five execution paths and called the result a score.
+ */
+function scoreWorkflow(path: string, file: string): PathScore {
+  const s = source(file)
+  return {
+    path,
+    points: {
+      contract_bound: s.includes('"contract_refined"'),
+      input_validated: false,
+      policy_emitted: /"policy_/.test(s),
+      approval_emitted: s.includes("addApproval"),
+      execution_emitted: s.includes("completeStep"),
+      output_validated: false,
+      verification_emitted: s.includes('"verification_recorded"'),
+      completion_projected: /"workflow_completed"|"workflow_signed_off"|"run_completed"/.test(s),
+    },
+  }
+}
+
 function scoreAll(): PathScore[] {
-  return [scoreNativeSession(), scoreWorkerRun(), scoreDraftApproveExecute()]
+  return [
+    scoreNativeSession(),
+    scoreWorkerRun(),
+    scoreDraftApproveExecute(),
+    scoreWorkflow("repo-analyze", "workflows/repo-analyze.ts"),
+    scoreWorkflow("review-and-signoff", "workflows/review-and-signoff.ts"),
+  ]
 }
 
 describe("invariant 3 — universal execution boundary", () => {
@@ -127,7 +156,7 @@ describe("invariant 3 — universal execution boundary", () => {
     const earned = scores.reduce((n, p) => n + POINTS.filter((pt) => p.points[pt]).length, 0)
     const total = scores.length * POINTS.length
 
-    // The progress number. Baseline: 9 / 24.
+    // The progress number. Five execution paths, eight points each.
     expect({ earned, total }).toEqual({ earned: total, total })
   })
 

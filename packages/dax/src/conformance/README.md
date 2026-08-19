@@ -32,9 +32,15 @@ Two of the tests are *meters*: they compute a conformance score and assert the
 target. They fail with a number, and that number is the progress metric.
 
 - `execution-pipeline.test.ts` scores each execution path against 8 conformance
-  points. Baseline at v1.3.0: **9 / 24** — native session 1/8, worker run 5/8,
-  draft-approve-execute 3/8. The spread matters as much as the total: an action's
-  governance currently depends on which door it came through.
+  points. **14 / 40** across five paths — native session 1/8, worker run 5/8,
+  draft-approve-execute 4/8, repo-analyze 2/8, review-and-signoff 2/8.
+
+  It scored 9/24 over three paths until H1b, which is worth recording: two of the
+  five execution paths were on a separate lifecycle and the meter simply did not
+  count them. A score that ignores the paths least likely to conform is not a
+  score. The spread matters as much as the total — an action's governance still
+  depends on which door it came through.
+
 - `event-authority.test.ts` scores 11 authoritative record classes for durable
   representation. Baseline at v1.3.0: **3 / 11** (approval, verification, completion).
 
