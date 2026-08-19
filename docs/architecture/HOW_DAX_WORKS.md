@@ -1,3 +1,17 @@
+---
+title: How DAX Works
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - overview
+last_reviewed: 2026-08-19
+---
+
 # How DAX Works
 
 A visual overview of DAX's internals. For deeper details, see the [full architecture docs](./ARCHITECTURE.md) and [execution model](./DAX_EXECUTION_MODEL.md).
@@ -123,13 +137,16 @@ stateDiagram-v2
 
 DAX uses **tools** to take real actions. Each tool is scoped and governed:
 
-| Tool     | What it does  | Risk   |
-| -------- | ------------- | ------ |
-| `read`   | Read a file   | Low    |
-| `search` | Search code   | Low    |
-| `edit`   | Modify a file | Medium |
-| `shell`  | Run a command | High   |
-| `web`    | Fetch a URL   | Medium |
+| Tool       | What it does  | Risk   |
+| ---------- | ------------- | ------ |
+| `read`     | Read a file   | Low    |
+| `glob`/`grep`/`codesearch` | Search code | Low |
+| `edit`/`write`/`apply_patch` | Modify a file | Medium |
+| `shell`    | Run a command | High   |
+| `webfetch`/`websearch` | Fetch a URL | Medium |
+
+> Tool ids are simplified here for a visual overview. The canonical classification is in
+> `packages/dax/src/tool/tool-class.ts:24-30` (`EDIT_TOOL_IDS`, `SHELL_TOOL_IDS`, `READ_TOOL_IDS`).
 
 ```mermaid
 graph LR

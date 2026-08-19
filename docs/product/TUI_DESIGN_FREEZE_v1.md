@@ -1,3 +1,16 @@
+---
+title: DAX TUI Design Freeze (v1)
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - tui
+---
+
 # DAX TUI Design Freeze (v1)
 
 This document is the canonical stream contract for the DAX session screen.
@@ -179,7 +192,7 @@ Rules:
 
 Examples:
 
-- "Next: I can turn this into a strict go/no-go checklist for `1.0.33`."
+- "Next: I can turn this into a strict go/no-go checklist for the next release."
 - "Next: decide whether Vertex readiness is in scope for this release."
 
 ---

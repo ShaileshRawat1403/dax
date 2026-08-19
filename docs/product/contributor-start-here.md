@@ -1,3 +1,17 @@
+---
+title: Contributor Start Here
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - contributing
+last_reviewed: 2026-08-19
+---
+
 # Contributor Start Here
 
 If you are new to DAX, start with these files in order:
@@ -20,15 +34,10 @@ The most important entry points are:
 - `packages/dax/src/provider/`: model/provider routing
 - `packages/dax/src/cli/`: user-facing CLI and TUI flows
 
-## Frozen Legacy Paths
+## Removed Legacy Roots
 
-These root-level paths are frozen and pending removal:
-
-- `cli/`
-- `core/`
-- `tui/`
-
-Do not add new files or behavior there.
+The root-level `cli/`, `core/`, and `tui/` directories were removed during the
+Phase 3 overhaul. All product and runtime code lives under `packages/dax`.
 
 ## Best Extension Paths
 
@@ -42,7 +51,8 @@ Use the public docs before reaching for internal runtime hooks.
 
 ## Current Branch Rule
 
-If you are working on `feature/dax-execution-control-plane`, treat the first merge target as:
+If you are working on the current feature branch, treat the first merge target
+as:
 
 - Explore operator flow
 - transcript-first TUI/session UX

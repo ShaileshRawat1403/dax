@@ -1,3 +1,16 @@
+---
+title: DAX Release Readiness Guide
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - release
+---
+
 # DAX Release Readiness Guide
 
 This guide explains how to validate DAX end to end before a release.

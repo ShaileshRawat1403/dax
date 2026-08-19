@@ -1,3 +1,17 @@
+---
+title: DAX In Simple Words
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - introduction
+last_reviewed: 2026-08-19
+---
+
 # DAX In Simple Words
 
 This guide explains DAX using everyday analogies. No technical background needed.
@@ -67,7 +81,7 @@ stateDiagram-v2
     WaitingApproval --> Running: Human approves
     Running --> Completed: All steps done
     Running --> Failed: Something broke
-    WaitingApproval --> Cancelled: Human denies
+    WaitingApproval --> Failed: Human denies
 ```
 
 At the end, you have a **full transcript** — like a flight recorder — that shows exactly what happened.

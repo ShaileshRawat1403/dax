@@ -1,3 +1,16 @@
+---
+title: DAX Start Here
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - quickstart
+---
+
 # DAX Start Here
 
 This is the fastest path to first success with DAX.

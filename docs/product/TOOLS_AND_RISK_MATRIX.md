@@ -1,3 +1,16 @@
+---
+title: DAX Tool Reference and Risk Matrix
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - tools
+---
+
 # DAX Tool Reference and Risk Matrix
 
 This guide explains the main tool categories DAX can use and the kinds of governance attention they typically deserve.

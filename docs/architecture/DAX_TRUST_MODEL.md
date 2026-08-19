@@ -1,3 +1,17 @@
+---
+title: DAX Trust Model
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - trust
+last_reviewed: 2026-08-19
+---
+
 # DAX Trust Model
 
 ## Purpose
@@ -130,6 +144,17 @@ By centralizing trust updates in a single event type, the projection layer can c
 ## Trust Posture Ladder
 
 Move beyond a flat label toward a session-level ladder.
+
+> **Status note**: the five-rung ladder below is a design recommendation, not a
+> single implemented enum. The values are split across distinct postures in
+> source: session trust `review_needed | policy_clean | verified`
+> (`packages/dax/src/governance/types.ts:16`), audit posture
+> `clear | review_needed | blocked` (`packages/dax/src/cli/cmd/audit.ts:16`),
+> release readiness `not_ready | review_ready | handoff_ready | release_ready`
+> (`packages/dax/src/release/check-session-release.ts:8-12`), and trust-event
+> payload posture `low | guarded | moderate | strong`
+> (`packages/dax/src/state/events/run-event-types.ts:47`). The `unknown` rung
+> appears nowhere in the tree.
 
 Recommended ladder:
 

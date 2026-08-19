@@ -1,3 +1,17 @@
+---
+title: Providers
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - providers
+last_reviewed: 2026-08-19
+---
+
 # Providers
 
 DAX can be configured via project/global config and environment variables.
@@ -139,7 +153,8 @@ If you prefer browser-based sign-in or need stronger control, use the Google OAu
 
 ### Security Notes
 
-- Your OAuth credentials are stored locally in `~/.dax/data/auth.json`
+- Your OAuth credentials are stored locally in `~/.local/share/dax/auth.json`
+  (`Global.Path.data`, `auth/index.ts:47`, `cli/cmd/auth.ts:228`)
 - Access and refresh tokens are stored securely
 - Each user should use their own keys, CLI login, or OAuth client
 - See [Security Policy](../../SECURITY.md) for more details

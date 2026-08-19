@@ -1,3 +1,16 @@
+---
+title: DAX Architecture
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+last_reviewed: 2026-08-19
+---
+
 # DAX Architecture
 
 ## Product Principle
@@ -96,7 +109,7 @@ DAX intentionally enforces this split to avoid token-type mismatch.
 ## Repo Boundary
 
 The canonical shipped DAX product lives in `packages/dax`.
-Older root-level scaffold paths such as `cli/`, `core/`, `tui/`, and `script/build.ts` are quarantined legacy material and are not the source of truth for new work.
+Older root-level scaffold paths (`cli/`, `core/`, `tui/`) were removed during the DAX overhaul; only `script/build.ts` remains at the root as a legacy build helper. The source of truth for new work is `packages/dax/src/**`.
 
 ## Non-Goals
 

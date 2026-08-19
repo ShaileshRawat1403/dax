@@ -1,4 +1,19 @@
+---
+title: Workflow Design — repo-audit
+archetype: feature
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - workflow
+---
+
 # Workflow Design: repo-audit
+
+> **Status note**: The repo-audit workflow was never built. Its goal ships today as the `dax audit` command (packages/dax/src/cli/cmd/audit.ts, subcommands run/gate/profile/explain/events) and the `repo-health` builtin workflow, whose tasks explore -> verify -> index-artifacts -> release-readiness cover the same ground with operators rather than the skill registry described below. Retained as design history.
 
 ## 1. Goal
 

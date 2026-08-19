@@ -1,3 +1,18 @@
+---
+title: Rust Indexer — dax-indexer
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - rust
+  - indexer
+last_reviewed: 2026-08-19
+---
+
 # Rust Indexer — `dax-indexer`
 
 **Status:** Phase 1 implemented.

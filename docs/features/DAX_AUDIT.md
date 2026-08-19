@@ -1,4 +1,23 @@
+---
+title: DAX Audit Design Pass
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - audit
+last_reviewed: 2026-08-19
+---
+
 # DAX Audit Design Pass
+
+> **Status note**: This design pass predates the shipped audit surface. It shipped
+> as the `dax audit` command with `run | gate | profile | explain | events`
+> subcommands (packages/dax/src/cli/cmd/audit.ts). The design intent below stays
+> valid; only section 8's `verify-ledger` donor reference is historical.
 
 ## 1. Purpose
 
@@ -122,13 +141,11 @@ The next pass should inspect canonical trust-related runtime behavior such as:
 
 It should also compare donor semantics such as:
 
-- `verify-ledger`
-- any legacy audit framing
+- any legacy audit framing from the pre-command design phase
 
 ## 9. Non-Goals
 
-- no command implementation yet
-- no lock-in to `verify-ledger` naming
+- no lock-in to a single `audit` subcommand shape (subcommands shipped as `run | gate | profile | explain | events`)
 - no raw-log browser
 - no trust scoring gimmicks
 - no artifact redesign

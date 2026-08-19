@@ -1,3 +1,16 @@
+---
+title: Shadow Auditor
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - audit
+---
+
 # Shadow Auditor
 
 The Shadow Auditor is a background agent that proactively evaluates execution contracts before tools run, providing blast radius analysis to help operators understand the scope and risk of planned changes.

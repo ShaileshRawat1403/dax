@@ -1,6 +1,25 @@
+---
+title: Runtime Execution Model
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - execution
+last_reviewed: 2026-08-19
+---
+
 # Runtime Execution Model
 
 ## 1. Overview
+
+> **Accuracy note**: the pipeline described in this document matches the real
+> runtime, but the interface sketches in section 3 are idealized design shapes,
+> not literal source types. Actual type names differ; see the notes next to each
+> sketch.
 
 This document defines the core runtime execution model for DAX. It describes the flow of execution from the moment a user provides an intent to the final delivery of artifacts, trust signals, and policy evaluations.
 
@@ -32,6 +51,10 @@ interface Intent {
   parameters?: Record<string, any>
 }
 ```
+
+> Actual type: `IntentType` in `packages/dax/src/intent/types.ts:1-9` is
+> `"explore_repo" | "git_review" | "verify_session" | "release_readiness" |
+> "artifact_inspect" | "docs_generate" | "code_change" | "general_query"`.
 
 ### 3.2. Workflow
 
@@ -78,6 +101,11 @@ interface GraphNode {
   outputArtifacts?: Artifact[]
 }
 ```
+
+> Actual type: `PlannedTask` in `packages/dax/src/planner/task-graph.ts:5-18`
+> carries only `operator_type` (a string), `status`, `dependencies`,
+> `context`, `verification_criteria`, and `is_hitl`. There is no
+> `workflow` or `policy_gate` node type.
 
 ### 3.4. Artifact
 

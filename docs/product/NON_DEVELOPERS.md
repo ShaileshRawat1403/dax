@@ -1,3 +1,16 @@
+---
+title: DAX for Non-Developers
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - introduction
+---
+
 # DAX for Non-Developers
 
 DAX is a guided AI workstation.

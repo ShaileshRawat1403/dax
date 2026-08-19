@@ -1,4 +1,23 @@
+---
+title: DAX Release Readiness
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - release
+last_reviewed: 2026-08-19
+---
+
 # DAX Release Readiness
+
+> **Status note**: This design shipped as the `release` operator and `dax release
+> check` (packages/dax/src/release/check-session-release.ts), producing
+> `not_ready | review_ready | handoff_ready | release_ready` — exactly the ladder
+> below.
 
 This document defines how DAX should model release readiness as a product judgment layer above session inspection and verification.
 

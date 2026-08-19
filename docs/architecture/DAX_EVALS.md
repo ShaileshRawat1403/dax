@@ -1,3 +1,18 @@
+---
+title: DAX Evals
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - evals
+  - rust
+last_reviewed: 2026-08-19
+---
+
 # DAX Evals
 
 ## Purpose
@@ -28,13 +43,15 @@ calls, no model calls, no dashboards.
 
 ## Current Scope
 
-The smoke suite covers three scenarios:
+The smoke suite covers five scenarios:
 
 | Scenario | Kind | What it tests |
 |----------|------|---------------|
 | `replay_valid_completed_run` | `core_proof` | Proof receipt: result, status, hashes |
 | `policy_deny_destructive_command` | `policy` | Policy gate: deny + critical risk |
 | `audit_verified_clean_run` | `audit` | Trust posture: verified + passed |
+| `indexer_extracts_symbols` | `indexer` | Indexer: expected symbol set per file |
+| `indexer_relevance_top_3` | `indexer` | Indexer: expected top-3 file ranking |
 
 ### Scenario contract
 
@@ -51,11 +68,13 @@ The smoke suite covers three scenarios:
 }
 ```
 
-Supported `kind` values: `core_proof`, `policy`, `audit`.
+Supported `kind` values: `core_proof`, `policy`, `audit`, `indexer`.
 
 The `suite` field may be either a single suite name or an array of suite
 names when a scenario belongs to more than one suite.
 
+All five scenarios currently declare `"suite": ["smoke", "proof"]`
+(`evals/scenarios/*.json`), so the smoke and proof suites run the same set.
 Paths in `input` are relative to `evals/scenarios/`.
 
 ### Prefix matching

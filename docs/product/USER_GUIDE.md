@@ -1,3 +1,16 @@
+---
+title: DAX User Guide
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - guide
+---
+
 # DAX User Guide
 
 This is the most practical guide to using DAX day to day.

@@ -1,3 +1,17 @@
+---
+title: DAX Explore Mode
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - explore
+last_reviewed: 2026-08-19
+---
+
 # DAX Explore Mode
 
 This document defines Explore mode as a structured repository-understanding mode.
@@ -90,7 +104,7 @@ Good:
 
 - `CLI entry point: packages/dax/src/index.ts`
 - `Session workstation route: packages/dax/src/cli/cmd/tui/routes/session/index.tsx`
-- `Trust evaluation path flows through trust/verify-session.ts`
+- `Trust evaluation path flows through sdlc/verify-session.ts`
 
 ## Stream Behavior
 

@@ -1,3 +1,16 @@
+---
+title: BYOA Acceptance Receipts
+archetype: repo-agents
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - repo-agents
+  - byoa
+---
+
 # BYOA Acceptance Receipts (2026-07-11)
 
 This handoff records the completed macOS acceptance proof for DAX's governed

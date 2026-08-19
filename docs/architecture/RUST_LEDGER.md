@@ -1,3 +1,18 @@
+---
+title: Rust Ledger
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - rust
+  - ledger
+last_reviewed: 2026-08-19
+---
+
 # Rust Ledger
 
 ## Status

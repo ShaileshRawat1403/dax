@@ -1,4 +1,19 @@
+---
+title: Workflow Design — architecture-map
+archetype: feature
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - workflow
+---
+
 # Workflow Design: architecture-map
+
+> **Status note**: The architecture-map workflow was never built. Boundary detection ships as the `explore-repo` builtin workflow's `task_detect_boundaries` (packages/dax/src/workflows/builtin-workflows.ts:52-66), implemented via the explore operator rather than the boundary-detection skill described below. Retained as design history.
 
 ## 1. Goal
 

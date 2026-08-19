@@ -1,3 +1,17 @@
+---
+title: DAX Sub-Agent Model
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - subagents
+last_reviewed: 2026-08-19
+---
+
 # DAX Sub-Agent Model
 
 This document defines sub-agents as specialist operators within DAX.
@@ -31,6 +45,16 @@ They provide:
 - reusable domain-specific task framing
 
 ## Initial Sub-Agent Set
+
+> **Status note**: the set below (Git, Explore, Verify, Release, Artifact)
+> describes DAX's **operator** layer
+> (`packages/dax/src/operators/{git,explore,verify,release,artifact}.ts`,
+> registered in `packages/dax/src/operators/router.ts:29-37`). Native
+> task-tool subagents (spawned via the `task` tool with a forked session,
+> `packages/dax/src/tool/task.ts:40`) are `general`, `agile`, `lean`, and
+> `ts-expert` (`packages/dax/src/agent/agent.ts:154-213`); `explore` is a
+> primary-mode agent (`agent/agent.ts:247`). This document's product model is
+> the operator layer.
 
 ### Git
 

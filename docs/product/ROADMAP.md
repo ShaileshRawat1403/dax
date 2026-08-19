@@ -1,4 +1,21 @@
+---
+title: DAX Roadmap
+archetype: product
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - roadmap
+---
+
 # DAX Roadmap
+
+> **Status note**: The releases tracked here (v1.0.9 through v1.2.x) have all
+> shipped; the current version is 1.3.0. Retained as a record of the phase-3
+> roadmap. See `WHAT_IS_DAX.md` "Where DAX Is Heading" for the shipped path.
 
 This roadmap explains the near-term product direction for DAX after the Phase 3 architecture work.
 

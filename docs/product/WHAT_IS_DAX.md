@@ -1,3 +1,17 @@
+---
+title: What Is DAX?
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - positioning
+last_reviewed: 2026-08-19
+---
+
 # What Is DAX?
 
 DAX is a governed execution control plane for AI-assisted software development. Its core promise is a **deterministic runtime contract around stochastic model execution**.
@@ -123,8 +137,12 @@ graph TB
 The product direction is becoming clearer:
 
 - **`1.0.12`** hardens mode truthfulness, provider-neutral reflection, and real operator controls so the workstation feels more stable and less decorative in live use.
-- **`1.1.x`** should deepen approvals and shared operator workflows.
-- **`1.2.x`** should expand remote governance and multi-surface continuity.
+- **`1.1.x`** deepens approvals and shared operator workflows.
+- **`1.2.x`** ships governed external coding workers (disposable checkouts, verification receipts, OS isolation).
+- **`1.3.0` (current)** ships worker egress confinement and secret masking.
+
+> These versions are illustrative of the shipped path; the canonical release
+> roadmap is superseded (see ROADMAP.md).
 
 ## Next Steps
 

@@ -1,3 +1,16 @@
+---
+title: DAX Distribution Channels
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - distribution
+---
+
 # DAX Distribution Channels
 
 This guide covers end-user install paths and maintainer publishing workflows for the DAX execution control plane.

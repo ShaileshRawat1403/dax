@@ -1,4 +1,26 @@
+---
+title: Project Memory and Daily Status Reports
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - memory
+last_reviewed: 2026-08-19
+---
+
 # Project Memory and Daily Status Reports
+
+> **Command surface note**: the in-session slash commands are `/pm note`,
+> `/pm list`, `/pm rules`, and `/pm rules add` (session/prompt.ts:2155-2158).
+> Architectural memory is written/read through the `save_memory` /
+> `list_memory` PM module functions (packages/dax/src/pm/index.ts:453,483),
+> surfaced in the TUI memory pane — not through a `/pm memory ...` slash
+> command. The `/pm memory` syntax below is illustrative of those functions,
+> not a shipped slash command.
 
 Project Memory, or `PM`, is DAX's local memory layer for durable project context.
 

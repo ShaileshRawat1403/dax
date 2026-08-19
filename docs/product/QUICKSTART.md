@@ -1,3 +1,16 @@
+---
+title: DAX Quickstart
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - quickstart
+---
+
 # DAX Quickstart
 
 Get DAX running on your machine in under 5 minutes.

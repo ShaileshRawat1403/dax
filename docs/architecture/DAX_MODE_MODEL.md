@@ -1,3 +1,17 @@
+---
+title: DAX Mode Model
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - modes
+last_reviewed: 2026-08-19
+---
+
 # DAX Mode Model
 
 This document defines the mode system for DAX.
@@ -149,8 +163,10 @@ ELI12 should support both:
 
 Examples:
 
-- `dax --eli12`
-- `dax inspect --eli12`
+- session-level: toggle the `explain_mode` setting to `eli12` (TUI `ctrl+e`,
+  `packages/dax/src/cli/cmd/tui/component/prompt/prompt-state.ts:132-135`)
+- command-level: `dax explore --eli12`
+  (`packages/dax/src/cli/cmd/explore.ts:34`)
 
 Explore should support:
 
@@ -160,7 +176,8 @@ Explore should support:
 Examples:
 
 - `dax explore`
-- `dax inspect --mode explore`
+- `dax explore --graph`
+- `dax explore --eli12`
 
 Operator mode is the default when no other mode is set.
 

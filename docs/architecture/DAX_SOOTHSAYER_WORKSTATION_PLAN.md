@@ -1,3 +1,16 @@
+---
+title: DAX x Soothsayer Workstation Plan
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - soothsayer
+---
+
 # DAX x Soothsayer Workstation Plan
 
 ## Purpose
@@ -83,6 +96,11 @@ Do not add replay, cross-run approval inboxes, or workflow-native DAX steps in
 this first slice.
 
 ## Soothsayer Backend Plan
+
+> **Note**: the `apps/api/src/modules/dax/` tree below is the Soothsayer-side
+> NestJS module and lives in the Soothsayer repo, not in this repository. The
+> DAX-side seams it calls are real: `packages/dax/src/server/routes/run.ts:47-249`
+> (HTTP) and `packages/dax/src/soothsayer/soothsayer-api.ts` (client adapter).
 
 Create a new Nest module:
 
