@@ -306,10 +306,33 @@ export class DraftApproveExecuteWorkflow {
       // it works. Until this ran, the step registered an artifact named
       // verification_<id> with no checks behind it and reported "verification
       // receipt recorded" — evidence in name only.
+      const postconditions = this.contract.runtimePolicy?.postconditions
+      const validationCommands = postconditions?.validationCommands ?? []
+
+      // A drafting run writes nothing — it produces an artifact for a human to
+      // approve. Where the contract grants no write authority it owes no
+      // verification, and the operator's approval is the terminal check.
+      // Demanding a test run on top of that would be theatre.
+      if (postconditions?.verificationRequired !== true) {
+        await HybridTransitions.completeStep(this.runId, stepId, [artifactId])
+        await HybridTransitions.transition(this.runId, "completed", "workflow_completed")
+
+        log.info("commit_execution completed without verification", {
+          runId: this.runId,
+          artifactId,
+          reason: "contract grants no write authority",
+        })
+
+        return {
+          stepId,
+          success: true,
+          outputs: [{ type: draft.type, content: draft.content, artifactId }],
+        }
+      }
+
       // A contract that demands evidence and names no checks is a contract defect,
       // not a verification failure. Saying so precisely matters: the two have
       // different owners — one is fixed in the compiler, the other in the change.
-      const validationCommands = this.contract.runtimePolicy?.postconditions?.validationCommands ?? []
       if (validationCommands.length === 0) {
         const message =
           "contract requires verification but names no validation commands; " +

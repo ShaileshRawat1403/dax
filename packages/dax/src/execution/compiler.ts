@@ -1,3 +1,4 @@
+import { deriveDefaultValidationCommands } from "./default-validation-commands"
 import { Identifier } from "@/id/id"
 import * as crypto from "crypto"
 import type { WorkflowClass, RiskLevel } from "./workflow-class"
@@ -57,6 +58,12 @@ function unique(items: Array<string | undefined | null>): string[] {
   return [...new Set(items.map((item) => item?.trim()).filter((item): item is string => Boolean(item)))]
 }
 
+/**
+ * Verbs that imply the run intends to change the tree. Only consulted for the
+ * `generic` class, where the workflow itself does not settle the question.
+ */
+const MUTATING_INTENT = /\b(fix|edit|write|change|patch|refactor|implement|add|remove|delete|rename|migrate|update)\b/i
+
 function extractLikelyTargets(intent: string): string[] {
   return unique(
     Array.from(intent.matchAll(/\b(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9_-]+\b/g)).map((match) => match[0]),
@@ -74,16 +81,43 @@ function deriveRuntimePolicy(
     /secret|credential|token/i.test(request.intent.input) ? "credentials" : undefined,
     /github action|workflow|release/i.test(request.intent.input) ? ".github/workflows" : undefined,
   ])
-  const validationCommands = unique([
-    /test|pytest|vitest|jest/i.test(request.intent.input) ? "run relevant tests" : undefined,
-    /lint|eslint|ruff/i.test(request.intent.input) ? "run relevant lint checks" : undefined,
-    /typecheck|tsc/i.test(request.intent.input) ? "run typecheck" : undefined,
+  // These were prose ("run relevant tests"), which the verification allowlist
+  // rejects — the field described an intention rather than a runnable check. They
+  // are now real commands detected from the repository, so a contract that
+  // requires evidence can actually produce some.
+  const requestedValidation = unique([
+    /test|pytest|vitest|jest/i.test(request.intent.input) ? "test" : undefined,
+    /lint|eslint|ruff/i.test(request.intent.input) ? "lint" : undefined,
+    /typecheck|tsc/i.test(request.intent.input) ? "typecheck" : undefined,
   ])
 
-  const verificationRequired =
-    workflowClass !== "repo_analyze" ||
-    riskLevel !== "low" ||
-    /verify|test|check|release|ship|fix|edit|write|change|patch/i.test(request.intent.input)
+  // Verification is owed when the run is granted authority to change the tree.
+  //
+  // This used to be keyword-matched against the intent text, which made a
+  // drafting run that applies nothing demand proof because the word "release"
+  // appeared in the prompt — and then fail, because the same heuristic named no
+  // commands to run. The requirement belongs to the authority granted, not to the
+  // wording of the request.
+  //
+  // draft_and_approve produces an artifact for a human to approve and writes
+  // nothing; repo_analyze and review_and_signoff only read. For those, the
+  // operator's decision is the terminal check. worker_run always produces a patch.
+  const grantsWriteAuthority =
+    workflowClass === "worker_run" ||
+    (workflowClass === "generic" && (targetFiles.length > 0 || MUTATING_INTENT.test(request.intent.input)))
+
+  const verificationRequired = grantsWriteAuthority
+
+  // Only detect checks for a run that owes evidence. A read-only run has nothing
+  // to prove, and touching the filesystem to find that out is wasted work.
+  const repoRoot = request.intent.repoPath ?? request.metadata?.targeting?.repoPath ?? process.cwd()
+  const detected = verificationRequired ? deriveDefaultValidationCommands(repoRoot) : []
+
+  // When the intent named particular kinds of check, honour that preference;
+  // otherwise take everything the repo offers. Either way the result is commands
+  // the allowlist accepts, or nothing.
+  const preferred = detected.filter((command) => requestedValidation.some((kind) => command.endsWith(` ${kind}`)))
+  const validationCommands = preferred.length > 0 ? preferred : detected
 
   const basePolicy: RuntimePolicy = {
     scope: {
