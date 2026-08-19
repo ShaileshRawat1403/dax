@@ -1,4 +1,23 @@
+---
+title: DAX Write Governance Implementation
+archetype: feature
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - governance
+---
+
 # DAX Write Governance Implementation
+
+> **Status note**: The write-governance slice described here shipped. Durable
+> project file outputs are retained as `workspace_file` artifacts
+> (packages/dax/src/cli/cmd/artifacts.ts:11), and release readiness checks
+> governed-path writes (packages/dax/src/release/check-session-release.ts).
+> This document is retained as the implementation bridge that produced that work.
 
 This document is the implementation bridge for the DAX Write Governance Model.
 

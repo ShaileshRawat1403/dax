@@ -1,4 +1,25 @@
+---
+title: DAX Workstation UI Blueprint
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - workstation
+  - tui
+last_reviewed: 2026-08-19
+---
+
 # DAX Workstation UI Blueprint
+
+> **Status note**: The workstation surfaced in the session route of the TUI
+> (packages/dax/src/cli/cmd/tui/routes/session/index.tsx). The shipped session
+> pane modes are `diff | audit | approvals | memory | refine | operator | runtime`
+> (packages/dax/src/cli/cmd/tui/component/prompt/index.tsx:24), which this
+> blueprint's mode list below is aligned to.
 
 ## Purpose
 
@@ -114,21 +135,26 @@ It should answer:
 - what is the current contract?
 - what happens next?
 
-It is composed of five session-native modes:
+It is composed of the session-native modes:
 
-- `changes`
+- `diff`
 - `audit`
 - `approvals`
-- `plan`
+- `memory`
 - `refine`
+- `operator`
+- `runtime`
 
 These modes should not feel like static tabs. The pane should follow the session:
 
 - approvals/questions -> `approvals`
 - active refine draft -> `refine`
-- active diff -> `changes`
+- active diff -> `diff`
 - audit warnings/blockers -> `audit`
-- otherwise -> `plan`
+- memory snapshot -> `memory`
+- operator logs -> `operator`
+- runtime state -> `runtime`
+- otherwise -> `refine`
 
 Manual pinning is allowed, but approvals remain the highest-priority interruption surface.
 
@@ -245,10 +271,12 @@ The ideal first workstation layout has five zones:
 ### Right Pane
 
 - approvals
-- changes
+- diff
 - audit
-- plan
+- memory
 - refine
+- operator
+- runtime
 
 ### Command Bar / Footer
 

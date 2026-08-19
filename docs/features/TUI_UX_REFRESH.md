@@ -1,4 +1,25 @@
+---
+title: TUI UX Refresh
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - tui
+last_reviewed: 2026-08-19
+---
+
 # TUI UX Refresh: Stream Presentation
+
+> **Status note**: This refresh landed in the session route of the TUI
+> (packages/dax/src/cli/cmd/tui/routes/session/index.tsx:2526-2554, 2634-2645,
+> 2651-2679). The `RunEventRow` chrome changes were rejected
+> (packages/dax/src/cli/cmd/tui/component/stream/run-event-row.tsx:88-89), so
+> that part of the implementation plan below is historical. The remaining mockups
+> reflect the shipped look.
 
 This document outlines the proposed UX improvements for the DAX TUI stream, bringing its visual language closer to the clean, minimal, and highly legible style of the Gemini CLI.
 

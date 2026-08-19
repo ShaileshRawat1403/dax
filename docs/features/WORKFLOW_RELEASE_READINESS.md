@@ -1,4 +1,19 @@
+---
+title: Workflow Design — release-readiness
+archetype: feature
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - workflow
+---
+
 # Workflow Design: release-readiness
+
+> **Status note**: The skill-registry workflow shape below was not built. Release readiness ships as the `release-readiness` builtin workflow (packages/dax/src/workflows/builtin-workflows.ts:67) and the `release` operator, whose task is `operator_type: "release"` and which drives `release check` (packages/dax/src/cli/cmd/release.ts, `check-session-release.ts`). Retained as design history.
 
 ## 1. Goal
 

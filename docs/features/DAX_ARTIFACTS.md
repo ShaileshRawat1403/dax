@@ -1,3 +1,17 @@
+---
+title: Artifacts
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - artifacts
+last_reviewed: 2026-08-19
+---
+
 # Artifacts
 
 Artifacts are retained execution outputs associated with DAX work.
@@ -7,6 +21,10 @@ In the canonical runtime, artifacts currently come from real retained-output sur
 - tool attachments
 - truncated tool output references
 - session diffs
+- workspace file outputs (durable project files retained as artifacts)
+
+> The `workspace_file` kind covers durable project files written during governed
+> execution (packages/dax/src/cli/cmd/artifacts.ts:11).
 
 Use:
 

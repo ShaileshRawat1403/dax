@@ -1,4 +1,24 @@
+---
+title: DAX Plan Design Pass
+archetype: feature
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - feature
+  - plan
+last_reviewed: 2026-08-19
+---
+
 # DAX Plan Design Pass
+
+> **Status note**: `dax plan` shipped as a real command
+> (packages/dax/src/cli/cmd/plan.ts). The shipped readiness states are
+> `ready | incomplete | blocked` (cli/cmd/plan.ts:20) with previews surfaced as
+> `plan_preview` JSON; the transitional `run --prompt` path referenced below was
+> never shipped (the run command takes a positional intent, `cli/cmd/run.ts:251-311`).
 
 ## 1. Command Purpose
 
@@ -56,6 +76,9 @@ dax plan "Review repo for governance gaps"
 dax plan --prompt "Generate release notes from recent changes"
 ```
 
+> Both forms are supported today: the intent arrives via positional argument or
+> `--prompt` (cli/cmd/plan.ts:72-100).
+
 Deferred inputs:
 
 - plan templates
@@ -93,9 +116,14 @@ There is no standalone `validate` command yet.
 
 Still, `dax plan` should surface a readiness state such as:
 
-- `draft`
-- `ready_for_review`
-- `needs_input`
+- `ready`
+- `incomplete`
+- `blocked`
+
+> These three states are what the shipped command produces
+> (`PlanReadiness = "ready" | "incomplete" | "blocked"`, cli/cmd/plan.ts:20):
+> `ready` when a canonical plan file exists, `incomplete` when only assistant
+> output was produced, `blocked` when planning failed or reached a checkpoint.
 
 This keeps validation implicit while still giving operators a useful pre-execution signal.
 
@@ -105,7 +133,7 @@ This should remain explicit:
 
 - `plan` creates or previews executable work
 - `run` executes prepared work
-- `run --prompt` remains a convenience path during the transition
+- `run` with a positional intent remains the prompt-driven convenience path
 
 Long-term direction:
 
@@ -147,7 +175,7 @@ Suggested V1 shape:
   "session_id": "session_123",
   "intent": "Review repo for governance gaps",
   "plan_path": ".dax/plans/1700000000000-governance-review.md",
-  "readiness": "ready_for_review",
+  "readiness": "ready",
   "summary": "Review governance surfaces and identify gaps before execution.",
   "steps": [
     "Inspect governance state and approval flows",
@@ -174,7 +202,7 @@ This is a contract direction, not an implementation commitment yet.
 - no template marketplace
 - no multi-plan orchestration
 - no artifact redesign
-- no forced migration away from `run --prompt` yet
+- no forced migration away from prompt-driven `run` yet
 
 ## 11. Deferred Questions
 
