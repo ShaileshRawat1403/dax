@@ -431,3 +431,62 @@ P7  Immutable final observations: results are frozen before publication.
 - [DAX Execution Model](./DAX_EXECUTION_MODEL.md)
 - [DAX Event-Driven Lifecycle](./DAX_EVENT_DRIVEN_LIFECYCLE.md)
 - [Rust Proof Ladder](./RUST_PROOF_LADDER.md)
+
+---
+
+## Addendum: what changed after H0
+
+This document is a dated record of DAX at `v1.3.0`, kept as written so the H0
+evidence stays intact. The trace below it describes a tree that no longer exists
+in several respects. Recorded here rather than edited in place, because a
+baseline that quietly tracks the present cannot be used to measure movement away
+from the past.
+
+### Claims that were wrong when written
+
+- **Finding 2 undercounted the out-of-union event types.** It named three; there
+  were four. `approval_required` and `approval_resumed` were also written through
+  the `as any` cast, reaching the log via the third argument of
+  `HybridTransitions.transition` — which was the event type, not a label. Missing
+  them meant the closed-vocabulary work was scoped one seam too narrow.
+
+- **"`run_completed` is refused without verification evidence" was too strong.**
+  `governance.verification.required` was set in exactly one place — inside the
+  `verification_recorded` reducer case — so the gate was circular. It constrained
+  runs that had already verified; a run that never verified was never required
+  to. The stated property was aspirational, not implemented.
+
+### Findings since closed
+
+| Finding | Status |
+|---|---|
+| Closed event vocabulary, `as any` bypass | Closed. `RUN_EVENT_TYPES` is the single source; the append path is generic over the payload union. |
+| Legacy vs event-log dual lifecycle | Closed. `hybrid-transitions.ts` and `transitions.ts` are gone; `RunLifecycle` is the only implementation and all five workflow classes are event-authority. |
+| Approval store authoritative, log derived | Closed for replay. The event carries what the operator was shown and who decided; the store is a projection. |
+| Worker evidence projecting nowhere | Closed. `contract_refined`, `worker_sandbox_recorded` and `worker_egress_denied` project into `RunState.evidence`. |
+| Circular completion gate | Closed. The requirement rides on `contract_compiled`, and mutation independently obliges evidence. |
+| Native sessions emit no run events per tool call | **Open.** This is the H2 block and the largest remaining gap. |
+
+### Findings the H0 trace did not reach
+
+Three governance defects surfaced only once the dual path was removed, and none
+were visible while both lifecycles coexisted:
+
+1. `HybridTransitions.transition` silently dropped its payload on the legacy
+   branch, so a failing transition reached `failed` with no reason attached.
+2. `RunStore.get` was not authority-aware while `getProjectedRunState` was and had
+   no callers — eight production readers would have returned `null` for
+   event-authority runs.
+3. `guardEnforcementMode` was persisted only on the legacy run row. Retiring that
+   row would have silently degraded enforcement to `warn` everywhere.
+
+The general lesson is worth keeping for H2: a comparative trace reads what the
+code says it does. It does not reveal what breaks when a redundant path is
+removed, because redundancy is exactly what hides the breakage.
+
+### Where the invariants live now
+
+The six invariants this baseline fed into are executable, not prose:
+`packages/dax/src/conformance/`. Open gaps are recorded in `known-gaps.ts` and
+wrapped so that CI is green while a gap is open and red when one closes
+unrecorded. Consult those over this document for current state.
