@@ -587,7 +587,6 @@ describe("run gateway v1 contract", () => {
     try {
       const { bootstrap } = await import("@/cli/bootstrap")
       const { RunGateway } = await import("./run-gateway")
-      const { RunLifecycle: Transitions } = await import("@/state/run-lifecycle")
       const { Identifier } = await import("@/id/id")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
@@ -637,13 +636,11 @@ describe("run gateway v1 contract", () => {
 
     try {
       const { bootstrap } = await import("@/cli/bootstrap")
-      const { Bus } = await import("@/bus")
       const { RunGateway } = await import("./run-gateway")
       const { Permission } = await import("@/governance")
       const { Session } = await import("@/session")
       const { Identifier } = await import("@/id/id")
       const { MessageV2 } = await import("@/session/message-v2")
-      const { RunLifecycle: Transitions } = await import("@/state/run-lifecycle")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
       await bootstrap(repoRoot, async () => {

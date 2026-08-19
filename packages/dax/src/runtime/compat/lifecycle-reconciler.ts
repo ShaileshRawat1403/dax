@@ -1,7 +1,5 @@
 import { Log } from "@/util/log"
 import { getProjectedRunState } from "@/state/events/run-event-store"
-import type { RunState } from "@/state/run-state"
-import { RunStore } from "@/state/run-store"
 import { deriveSessionLifecycleFromMessages } from "@/session/lifecycle"
 import type { MessageV2 } from "@/session/message-v2"
 import type { Session } from "@/session"

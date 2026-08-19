@@ -70,11 +70,12 @@ function extractLikelyTargets(intent: string): string[] {
   ).slice(0, 8)
 }
 
-function deriveRuntimePolicy(
-  request: CreateRunRequest,
-  workflowClass: WorkflowClass,
-  riskLevel: RiskLevel,
-): RuntimePolicy {
+/**
+ * `riskLevel` is deliberately not a parameter. Verification is owed when the run
+ * is granted write authority, not when its risk band is high — a low-risk run
+ * that may write still owes evidence, and a high-risk read-only one does not.
+ */
+function deriveRuntimePolicy(request: CreateRunRequest, workflowClass: WorkflowClass): RuntimePolicy {
   const targetFiles = extractLikelyTargets(request.intent.input)
   const avoidAreas = unique([
     /\.env/i.test(request.intent.input) ? ".env*" : undefined,
@@ -346,7 +347,7 @@ export function compile(input: CompileInput): CompileResult {
   const toolBlocklist = deriveToolBlocklist(intent, workflowClass)
   const approvalPolicy = deriveApprovalPolicy(workflowClass, riskLevel, request.personaPreset)
   const expectedOutputs = deriveExpectedOutputs(intent, workflowClass)
-  const runtimePolicy = deriveRuntimePolicy(request, workflowClass, riskLevel)
+  const runtimePolicy = deriveRuntimePolicy(request, workflowClass)
 
   if (toolAllowlist.length === 0) {
     warnings.push("Tool allowlist is empty - execution may be restricted")

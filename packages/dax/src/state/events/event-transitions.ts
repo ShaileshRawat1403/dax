@@ -7,7 +7,7 @@ import {
   setRunAuthority,
 } from "./run-event-store"
 import { reduceRunState, type RunState } from "./run-reducer"
-import { isRunEventType, type RunEventType, type RunEventPayload } from "./run-event-types"
+import { type RunEventType, type RunEventPayload } from "./run-event-types"
 import type { RunStatus } from "../run-state"
 
 const log = Log.create({ service: "event-transitions" })
