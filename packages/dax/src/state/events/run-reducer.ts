@@ -140,7 +140,8 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     throw new Error(`First event must be contract_compiled, got ${firstEvent.type}`)
   }
 
-  const contractId = (firstEvent.payload as { contractId: string }).contractId
+  const birth = firstEvent.payload as { contractId: string; verificationRequired?: boolean }
+  const contractId = birth.contractId
 
   const state: RunState = {
     runId: firstEvent.runId,
@@ -170,7 +171,11 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
       baselineCheckpoint: null,
       mutationReceiptIds: [],
       verification: {
-        required: false,
+        // Established at birth from the contract, so a run that never verifies
+        // is still held to the requirement. Deriving it from verification_recorded
+        // instead would make the completion gate circular: it would constrain
+        // only those runs that already verified.
+        required: birth.verificationRequired === true,
         satisfied: false,
         receiptIds: [],
       },

@@ -17,15 +17,19 @@ export async function isEventAuthorityRun(runId: string): Promise<boolean> {
   return authority === "event-log"
 }
 
-export async function createEventAuthorityRun(runId: string, contractId: string): Promise<void> {
+export async function createEventAuthorityRun(
+  runId: string,
+  contractId: string,
+  verificationRequired = false,
+): Promise<void> {
   await setRunAuthority(runId, "event-log")
 
   await appendRunEvent(runId, 0, {
     type: "contract_compiled",
-    payload: { contractId },
+    payload: { contractId, verificationRequired },
   })
 
-  log.info("created event-authority run", { runId, contractId })
+  log.info("created event-authority run", { runId, contractId, verificationRequired })
 }
 
 export async function transitionEventAuthority(

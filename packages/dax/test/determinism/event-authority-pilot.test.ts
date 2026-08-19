@@ -135,7 +135,7 @@ describe("event-authority pilot: draft_and_approve", () => {
         const events = await readRunEvents(runId)
         expect(events).toHaveLength(1)
         expect(events[0].type).toBe("contract_compiled")
-        expect(events[0].payload).toEqual({ contractId: CONTRACT_ID })
+        expect(events[0].payload).toEqual({ contractId: CONTRACT_ID, verificationRequired: false })
 
         const state = await getEventAuthorityState(runId)
         expect(state?.status).toBe("compiled")

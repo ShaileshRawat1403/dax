@@ -198,7 +198,11 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   let finalStatus: CreateRunResponse["status"]
 
   if (isEventPilot) {
-    await createEventAuthorityRun(session.id, contract.contractId)
+    await createEventAuthorityRun(
+      session.id,
+      contract.contractId,
+      contract.runtimePolicy?.postconditions?.verificationRequired === true,
+    )
   } else {
     await RunStore.create(session.id, contract.contractId)
     await Transitions.transition(session.id, "compiled", "contract_compiled")

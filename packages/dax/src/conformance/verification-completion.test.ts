@@ -19,13 +19,30 @@ import { reduceRunState } from "@/state/events/run-reducer"
 const RUN_ID = "run_completion_test"
 
 function log(...events: Array<{ type: RunEventType; payload: unknown }>): RunEventEnvelope[] {
-  const out = [createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_test" })]
+  return born({ verificationRequired: true }, ...events)
+}
+
+/** A run whose contract did not ask for verification. */
+function bornUnrequired(...events: Array<{ type: RunEventType; payload: unknown }>): RunEventEnvelope[] {
+  return born({ verificationRequired: false }, ...events)
+}
+
+function born(
+  birth: { verificationRequired: boolean },
+  ...events: Array<{ type: RunEventType; payload: unknown }>
+): RunEventEnvelope[] {
+  const out = [
+    createEvent(RUN_ID, 0, "contract_compiled", {
+      contractId: "ctr_test",
+      verificationRequired: birth.verificationRequired,
+    }),
+  ]
   events.forEach((e, i) => out.push(createEvent(RUN_ID, i + 1, e.type, e.payload)))
   return out
 }
 
 describe("invariant 6 — evidence-gated completion", () => {
-  test("a run that mutated the workspace cannot complete without verification evidence", () => {
+  test("a run whose contract requires verification cannot complete without it", () => {
     // The central case. This run started, produced an artifact, and completed.
     // It never verified anything.
     const mutatedButUnverified = log(
@@ -35,14 +52,10 @@ describe("invariant 6 — evidence-gated completion", () => {
       { type: "run_completed", payload: {} },
     )
 
-    // Baseline at v1.3.0: this does NOT throw. run-reducer.ts:379 gates completion
-    // on `governance.verification.required`, and `required` is set to true in
-    // exactly one place — inside the `verification_recorded` case itself (:321).
-    //
-    // The gate is therefore circular. It constrains runs that already verified; a
-    // run that never verifies is never required to. `draft-approve-execute` reaches
-    // `completed` through this hole today, recording a verification *artifact* and
-    // no verification *event*.
+    // Was circular at v1.3.0: `required` was set in exactly one place — inside the
+    // `verification_recorded` case itself — so the gate constrained only runs that
+    // had already verified. The requirement now originates at the run's birth,
+    // carried on contract_compiled from the contract's own postconditions.
     expect(() => reduceRunState(mutatedButUnverified)).toThrow(/verification/i)
   })
 
@@ -82,12 +95,34 @@ describe("invariant 6 — evidence-gated completion", () => {
     // it was granted — it belongs to the contract, and should be established when
     // the run is born.
     //
-    // Baseline: `contract_compiled` carries only { contractId }, so the reducer has
-    // no way to know a mutating run owes evidence until the evidence arrives.
-    const born = log({ type: "execution_queued", payload: {} })
-    const state = reduceRunState(born)
+    const seeded = log({ type: "execution_queued", payload: {} })
+    const state = reduceRunState(seeded)
 
     expect(state?.governance.verification.required).toBe(true)
+  })
+
+  test("a run that mutated owes evidence regardless of what its contract asked for", () => {
+    // The remaining hole, and it is the interesting one. Verification is now
+    // contract-derived, which is right — but a contract that does not ask for
+    // verification still permits a run to mutate the workspace and complete with
+    // no evidence at all.
+    //
+    // Closing it needs something the reducer does not currently have: a durable
+    // signal that mutation occurred. `governance.touchedFiles` and
+    // `governance.mutationReceiptIds` are declared and initialised in RunState and
+    // populated by no event, so the projection genuinely cannot tell a run that
+    // rewrote the tree from one that read it.
+    //
+    // That is invariant 1 resurfacing: `tool_result` is not a durable record class,
+    // so "did this run change anything?" is unanswerable from the log.
+    const mutatedWithoutRequirement = bornUnrequired(
+      { type: "execution_queued", payload: {} },
+      { type: "workflow_started", payload: {} },
+      { type: "artifact_created", payload: { artifactId: "art_1", artifactType: "patch" } },
+      { type: "run_completed", payload: {} },
+    )
+
+    expect(() => reduceRunState(mutatedWithoutRequirement)).toThrow(/verification/i)
   })
 
   test("completion records what evidence satisfied it", () => {

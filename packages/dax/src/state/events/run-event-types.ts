@@ -35,7 +35,24 @@ export function isRunEventType(type: string): type is RunEventType {
 }
 
 export type RunEventPayload =
-  | { type: "contract_compiled"; payload: { contractId: string } }
+  | {
+      type: "contract_compiled"
+      payload: {
+        contractId: string
+        /**
+         * Whether this run owes verification evidence before it may complete,
+         * derived from the contract at compile time
+         * (execution/compiler.ts, runtimePolicy.postconditions.verificationRequired).
+         *
+         * The requirement belongs here, at the run's birth, because it is a
+         * property of the authority granted — not of the evidence that later
+         * arrives. Optional so runs recorded before this field existed still
+         * replay; absent is read as "not required", which is the pre-existing
+         * behavior.
+         */
+        verificationRequired?: boolean
+      }
+    }
   | { type: "execution_queued"; payload: Record<string, never> }
   | { type: "workflow_started"; payload: Record<string, never> }
   | {
