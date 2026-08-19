@@ -1092,9 +1092,6 @@
   "src/runtime/compat/lifecycle-reconciler.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
     }
   },
   "src/runtime/compat/permission-adapter.ts": {
@@ -1179,9 +1176,6 @@
   "src/server/run-gateway.test.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 6
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
     }
   },
   "src/server/run-gateway.ts": {
@@ -1423,11 +1417,6 @@
       "count": 1
     }
   },
-  "src/state/events/event-transitions.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
   "src/state/recovery.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -1447,11 +1436,6 @@
   "src/state/run-store.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
-    }
-  },
-  "src/state/transitions.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 3
     }
   },
   "src/storage/storage.ts": {
