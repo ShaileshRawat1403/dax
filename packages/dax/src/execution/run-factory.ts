@@ -206,6 +206,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
       session.id,
       contract.contractId,
       contract.runtimePolicy?.postconditions?.verificationRequired === true,
+      guardMode,
     )
   }
 

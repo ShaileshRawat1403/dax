@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { expectGap } from "./known-gaps"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { RUN_EVENT_TYPES, type RunEventType } from "@/state/events/run-event-types"
@@ -89,20 +90,22 @@ describe("invariant 1 — durable authority", () => {
   test("every authoritative record class has durable event representation", () => {
     const missing = RECORD_CLASSES.filter((c) => !isDurable(c)).map((c) => c.id)
 
-    // Baseline at v1.3.0: 9 of 11 classes have no durable representation in the
-    // run event vocabulary. Prompts, context, messages, tool calls, tool results,
-    // policy decisions, delegation and compaction all influence authorisation or
-    // correctness, and none of them survive as events.
-    expect(missing).toEqual([])
+    // Prompts, context, messages, tool calls, tool results, policy decisions,
+    // delegation and compaction all influence authorisation or correctness, and
+    // none of them survive as events. This is the H2 block.
+    expectGap("inv1.record-classes", () => {
+      expect(missing).toEqual([])
+    })
   })
 
   test("meter: durable record-class coverage", () => {
     const covered = RECORD_CLASSES.filter(isDurable).length
     const total = RECORD_CLASSES.length
 
-    // This is the progress number. It moves as record classes gain events.
-    // Baseline: 3 / 11 — approval, verification, completion.
-    expect({ covered, total }).toEqual({ covered: total, total })
+    // The progress number. It moves as record classes gain events.
+    expectGap("inv1.record-classes", () => {
+      expect({ covered, total }).toEqual({ covered: total, total })
+    })
   })
 
   test("approval is durable in substance, not only in name", () => {

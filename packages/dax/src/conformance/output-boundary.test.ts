@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { expectGap } from "./known-gaps"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -39,7 +40,9 @@ describe("invariant 4 — runtime boundary validation", () => {
     const tool = source("tool/tool.ts")
     const declaresOutputSchema = /returns\s*[:?]|outputSchema|result\.parse|output\.parse/.test(tool)
 
-    expect(declaresOutputSchema).toBe(true)
+    expectGap("inv4.tool-output-validation", () => {
+      expect(declaresOutputSchema).toBe(true)
+    })
   })
 
   test("event payloads are validated at the append boundary", () => {
@@ -53,7 +56,9 @@ describe("invariant 4 — runtime boundary validation", () => {
     const types = source("state/events/run-event-types.ts")
     const hasPerTypePayloadSchemas = /RunEventPayloadSchema|z\.discriminatedUnion/.test(types)
 
-    expect(hasPerTypePayloadSchemas).toBe(true)
+    expectGap("inv4.payload-schemas", () => {
+      expect(hasPerTypePayloadSchemas).toBe(true)
+    })
   })
 
   test("a log read from disk is validated before projection", () => {

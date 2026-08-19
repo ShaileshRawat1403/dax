@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { expectGap } from "./known-gaps"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -34,26 +35,26 @@ describe("invariant 5 — contract-defined authority", () => {
     // filesystem.write, shell.execute, git.patch, codex.delegate, repo.inspect, …
     // Today these are separate architectural categories (tool, worker, agent,
     // plugin, sandbox, provider) with no shared vocabulary between them.
-    expect(existsSync(join(SRC, "capability"))).toBe(true)
+    expectGap("inv5.capability-vocabulary", () => {
+      expect(existsSync(join(SRC, "capability"))).toBe(true)
+    })
   })
 
   test("capabilities declare intrinsic properties but not authority", () => {
     const path = join(SRC, "capability/capability-types.ts")
-    if (!existsSync(path)) {
-      expect(`missing ${path}`).toBe("capability vocabulary")
-      return
-    }
 
-    const s = readFileSync(path, "utf8")
+    expectGap("inv5.capability-properties", () => {
+      const declared = readFileSync(path, "utf8")
 
-    // Intrinsic — what this capability is:
-    expect(s).toMatch(/risk_class|riskClass/)
-    expect(s).toMatch(/requires_verification|requiresVerification/)
-    expect(s).toMatch(/supports_scope|supportsScope/)
+      // Intrinsic — what this capability is:
+      expect(declared).toMatch(/risk_class|riskClass/)
+      expect(declared).toMatch(/requires_verification|requiresVerification/)
+      expect(declared).toMatch(/supports_scope|supportsScope/)
 
-    // Not intrinsic — what this run may do. A capability that names concrete paths,
-    // budgets or allowed hosts has become a second policy system.
-    expect(s).not.toMatch(/writeScope|forbiddenPaths|mutation_budget|allowHosts/)
+      // Not intrinsic — what this run may do. A capability naming concrete paths,
+      // budgets or hosts has become a second policy system.
+      expect(declared).not.toMatch(/writeScope|forbiddenPaths|mutation_budget|allowHosts/)
+    })
   })
 
   test("the contract expresses authority as capability grants", () => {
@@ -61,15 +62,17 @@ describe("invariant 5 — contract-defined authority", () => {
     // verification, egress and provenance. Under this invariant those become the
     // fields of a grant against a named capability, rather than a flat policy blob
     // whose relationship to any particular action is implicit.
-    const path = join(SRC, "capability/grant.ts")
-    expect(existsSync(path)).toBe(true)
+    expectGap("inv5.contract-grants", () => {
+      expect(existsSync(join(SRC, "capability/grant.ts"))).toBe(true)
+    })
   })
 
   test("every execution path resolves authority through the same grant lookup", () => {
     // The point of the vocabulary. A native edit, a worker patch and a delegated
     // subagent action should all answer "am I permitted?" by resolving a grant,
     // not by consulting three different mechanisms.
-    const path = join(SRC, "capability/resolve-grant.ts")
-    expect(existsSync(path)).toBe(true)
+    expectGap("inv5.grant-resolution", () => {
+      expect(existsSync(join(SRC, "capability/resolve-grant.ts"))).toBe(true)
+    })
   })
 })

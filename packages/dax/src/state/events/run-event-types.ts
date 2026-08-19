@@ -63,6 +63,14 @@ export type RunEventPayload =
          * behavior.
          */
         verificationRequired?: boolean
+        /**
+         * Whether guards enforce or only warn. Previously persisted on the legacy
+         * run row, which meant that after the legacy path was retired it was
+         * stored nowhere and enforcement silently degraded to "warn". It belongs
+         * with the run's birth record for the same reason the verification
+         * requirement does: it is a property of the authority granted.
+         */
+        guardEnforcementMode?: "warn" | "enforce"
       }
     }
   | { type: "execution_queued"; payload: Record<string, never> }
@@ -123,7 +131,17 @@ export type RunEventPayload =
       }
     }
   | { type: "run_failed"; payload: { error: { code: string; message: string; retryable: boolean } } }
-  | { type: "run_completed"; payload: Record<string, never> }
+  | {
+      type: "run_completed"
+      payload: {
+        /**
+         * The contract-aware judgement that permitted completion. Durable because
+         * it is the answer to "why was this accepted" — recomputing it later reads
+         * the tree as it is now, not as it was when the run was accepted.
+         */
+        completionProof?: unknown
+      }
+    }
   | { type: "workflow_completed"; payload: Record<string, never> }
   | { type: "approval_denied"; payload: Record<string, never> }
   | { type: "approval_required"; payload: Record<string, never> }

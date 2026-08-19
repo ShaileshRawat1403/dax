@@ -243,7 +243,11 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
 
   assertContiguous(events)
 
-  const birth = firstEvent.payload as { contractId: string; verificationRequired?: boolean }
+  const birth = firstEvent.payload as {
+    contractId: string
+    verificationRequired?: boolean
+    guardEnforcementMode?: "warn" | "enforce"
+  }
   const contractId = birth.contractId
 
   const state: RunState = {
@@ -258,7 +262,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     completion: null,
     artifactIds: [],
     governance: {
-      guardEnforcementMode: "warn",
+      guardEnforcementMode: birth.guardEnforcementMode ?? "warn",
       budget: {
         maxFilesTouched: 8,
         maxMutatingCommands: 6,
@@ -550,6 +554,10 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
           state.completedAt = event.occurredAt
           // Bind the acceptance to the evidence that stood at that moment, rather
           // than leaving a reviewer to infer it from event order.
+          const completedPayload = event.payload as { completionProof?: RunState["governance"]["completionProof"] }
+          if (completedPayload?.completionProof) {
+            state.governance.completionProof = completedPayload.completionProof
+          }
           state.completion = {
             completedAt: event.occurredAt,
             verificationReceiptIds: [...state.governance.verification.receiptIds],

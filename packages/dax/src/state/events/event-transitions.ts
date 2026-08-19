@@ -21,12 +21,13 @@ export async function createEventAuthorityRun(
   runId: string,
   contractId: string,
   verificationRequired = false,
+  guardEnforcementMode: "warn" | "enforce" = "warn",
 ): Promise<void> {
   await setRunAuthority(runId, "event-log")
 
   await appendRunEvent(runId, 0, {
     type: "contract_compiled",
-    payload: { contractId, verificationRequired },
+    payload: { contractId, verificationRequired, guardEnforcementMode },
   })
 
   log.info("created event-authority run", { runId, contractId, verificationRequired })

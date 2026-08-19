@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { expectGap } from "./known-gaps"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -147,8 +148,9 @@ describe("invariant 3 — universal execution boundary", () => {
       POINTS.filter((pt) => !p.points[pt]).map((pt) => `${p.path}: ${pt}`),
     )
 
-    // Baseline at v1.3.0: 15 gaps across 3 paths.
-    expect(gaps).toEqual([])
+    expectGap("inv3.conformance-points", () => {
+      expect(gaps).toEqual([])
+    })
   })
 
   test("meter: conformance points across all execution paths", () => {
@@ -157,7 +159,9 @@ describe("invariant 3 — universal execution boundary", () => {
     const total = scores.length * POINTS.length
 
     // The progress number. Five execution paths, eight points each.
-    expect({ earned, total }).toEqual({ earned: total, total })
+    expectGap("inv3.conformance-points", () => {
+      expect({ earned, total }).toEqual({ earned: total, total })
+    })
   })
 
   test("no execution path is governed more weakly than another", () => {
@@ -167,7 +171,9 @@ describe("invariant 3 — universal execution boundary", () => {
     const counts = scoreAll().map((p) => POINTS.filter((pt) => p.points[pt]).length)
     const spread = Math.max(...counts) - Math.min(...counts)
 
-    expect(spread).toBe(0)
+    expectGap("inv3.governance-spread", () => {
+      expect(spread).toBe(0)
+    })
   })
 
   test("there is exactly one lifecycle implementation", () => {

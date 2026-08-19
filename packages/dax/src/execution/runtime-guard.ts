@@ -1,4 +1,5 @@
 import { Session } from "@/session"
+import { getProjectedRunState } from "@/state/events/run-event-store"
 import type { SessionV2 } from "@/session/model"
 import { ContractGuardian } from "./contract-guardian"
 import { createAndPersistApproval, expireApproval, ApprovalAlreadyResolvedError } from "@/approval/approval-transitions"
@@ -763,6 +764,17 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   }
 
   if (runState) {
+    // Every run is event-authority now, so a run may have no legacy row at all.
+    // The guard's budget bookkeeping still lives on that row: seed it from the
+    // projection rather than dropping the accounting on the floor.
+    //
+    // This is the parallel-state seam, not a fix for it — governance belongs on
+    // the event spine, which is tracked as inv3.conformance-points.
+    if (!(await RunStore.exists(input.sessionID))) {
+      const projected = await getProjectedRunState(input.sessionID).catch(() => null)
+      if (projected) await RunStore.save(input.sessionID, projected)
+    }
+
     await RunStore.update(input.sessionID, (state) => {
       const next = { ...state }
       next.governance = {
