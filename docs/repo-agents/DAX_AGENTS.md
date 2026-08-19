@@ -1,3 +1,15 @@
+---
+title: DAX Repo Agent Rules
+archetype: repo-agents
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - repo-agents
+---
+
 # DAX Repo Agent Rules
 
 Read this file first when working in the DAX repo.
