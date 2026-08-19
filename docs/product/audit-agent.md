@@ -1,3 +1,16 @@
+---
+title: DAX Audit
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - audit
+---
+
 # DAX Audit
 
 DAX provides deterministic audit capabilities for release-readiness and governance checks, accessible via natural language, CLI, and CI.

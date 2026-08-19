@@ -1,3 +1,16 @@
+---
+title: DAX Deprecation Tracker
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - compatibility
+---
+
 # DAX Deprecation Tracker
 
 Last reviewed: 2026-04-28

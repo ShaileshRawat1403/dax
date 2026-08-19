@@ -1,3 +1,16 @@
+---
+title: DAX Non-Developer Quickstart
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - quickstart
+---
+
 # DAX Non-Developer Quickstart
 
 This guide is the lightweight stable-release entry point for operators, reviewers, and non-developer users.

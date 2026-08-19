@@ -1,3 +1,16 @@
+---
+title: Prompt Engineering and Intent Guide
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - guide
+---
+
 # Prompt Engineering and Intent Guide
 
 DAX works best when your request describes a goal clearly enough to be turned into a governed plan.

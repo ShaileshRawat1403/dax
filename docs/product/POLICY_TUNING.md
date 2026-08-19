@@ -1,3 +1,16 @@
+---
+title: Policy Customization and RAO Tuning
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - policy
+---
+
 # Policy Customization and RAO Tuning
 
 This guide explains how to think about DAX governance as something you can tune, not just tolerate.

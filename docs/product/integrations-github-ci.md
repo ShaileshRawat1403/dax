@@ -1,3 +1,16 @@
+---
+title: DAX Integrations — GitHub + CI
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - integrations
+---
+
 # DAX Integrations: GitHub + CI (Audit Lane)
 
 This guide covers the first integration lane for the `audit` agent.

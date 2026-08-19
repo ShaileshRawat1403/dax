@@ -1,4 +1,24 @@
+---
+title: DAX Official Workflows
+archetype: product
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - workflows
+---
+
 # DAX Official Workflows
+
+> **Status note**: The v0.2 milestone framing below predates the shipped
+> workflow layer. The real builtin workflows are `repo-health`, `explore-repo`,
+> and `release-readiness` (packages/dax/src/workflows/builtin-workflows.ts:3),
+> run via `dax workflow run`. The `repo-audit` and `architecture-map` workflows
+> below were never built (their design docs are marked superseded). Retained as
+> design history.
 
 This document lists the officially supported, end-to-end workflows available in DAX. Each workflow is a declarative execution graph that performs a specific, high-value engineering task.
 

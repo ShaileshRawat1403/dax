@@ -1,3 +1,17 @@
+---
+title: Transparency and Limitations
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - trust
+last_reviewed: 2026-08-19
+---
+
 # Transparency and Limitations
 
 DAX is designed for trust. This document explains what DAX can do, what it cannot guarantee, and why human oversight matters.
@@ -112,13 +126,16 @@ universal host-security boundary. An approved action can still:
 The `dax worker run` path adds a narrower OS isolation boundary: macOS
 Seatbelt or Linux bubblewrap confines worker writes to a disposable checkout,
 and DAX verification runs with network denied. This does **not** mean the
-entire DAX process is sandboxed. In the current v1.2 release:
+entire DAX process is sandboxed. In the current v1.3.0 release:
 
 - Windows external workers are unavailable and fail closed.
-- worker execution needs provider network access and is not yet restricted to
-  a per-provider hostname allowlist.
-- the worker profile permits host reads required by coding agents, so secrets
-  stored in readable files remain part of the host threat model.
+- worker network egress is confined to a provider host allowlist by default,
+  enforced by a forward proxy (`worker/egress-allowlist.ts`,
+  `worker/egress-proxy.ts`); operators can widen it (`--allow-egress`) or opt
+  out (`--no-egress-filter`).
+- the worker profile permits host reads required by coding agents, and secrets
+  in readable files are masked where the sandbox can reach them; readable-file
+  secrets remain part of the host threat model.
 - a successful provider probe proves that the local isolation mechanism can
   apply its policy; it does not prove the external agent is correct.
 

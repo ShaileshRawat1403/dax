@@ -1,3 +1,16 @@
+---
+title: Build On DAX
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - extension
+---
+
 # Build On DAX
 
 This guide explains how to fork and extend DAX for your own product/workflow.

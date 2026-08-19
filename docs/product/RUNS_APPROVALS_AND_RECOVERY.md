@@ -1,4 +1,27 @@
+---
+title: Runs, Approvals and Recovery
+archetype: product
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - product
+  - runs
+last_reviewed: 2026-08-19
+---
+
 # Runs, Approvals and Recovery
+
+> **Terminal reasons note**: the canonical terminal-reason enum is
+> `workflows/types.ts:21-33` (`workflow_completed`, `workflow_failed`,
+> `workflow_signed_off`, `workflow_rejected`, `workflow_expired`,
+> `workflow_cancelled`, `execution_error`, `permission_denied`, `timeout`,
+> `contract_mutation`). `server/run-contract.ts:15-26` declares the same enum
+> independently. An approval denial settles the run as `failed` with reason
+> `approval_rejected` (run-reducer.ts:348-360), not `cancelled`; operator
+> cancellation maps to `workflow_cancelled`.
 
 A practical guide to the core objects you'll encounter when using DAX.
 
@@ -16,14 +39,13 @@ stateDiagram-v2
     Queued --> Running: Execution starts
     Running --> WaitingApproval: Step needs approval
     WaitingApproval --> Running: Human approves
-    WaitingApproval --> Cancelled: Human denies
+    WaitingApproval --> Failed: Human denies
     Running --> Completed: All steps finished
     Running --> Failed: Error or mutation detected
 
     style WaitingApproval fill:#e8a838,stroke:#c07d1a,color:#fff
     style Completed fill:#5cb85c,stroke:#3d8b3d,color:#fff
     style Failed fill:#e85d5d,stroke:#a33,color:#fff
-    style Cancelled fill:#999,stroke:#666,color:#fff
 ```
 
 ### Terminal States
@@ -33,10 +55,14 @@ A run is **terminal** when it reaches one of:
 | Status      | Meaning                                               |
 | ----------- | ----------------------------------------------------- |
 | `completed` | All steps executed successfully                       |
-| `failed`    | An error occurred or a contract mutation was detected |
-| `cancelled` | A human denied an approval                            |
+| `failed`    | An error occurred, a contract mutation was detected, or an approval was denied |
+| `cancelled` | The operator cancelled the run                        |
 
 Terminal runs **cannot be recovered**. To retry, create a new run with the same intent.
+
+> The terminal *states* above are a readable grouping. The authoritative
+> terminal *reasons* are the enum in `workflows/types.ts:21-33`; see the
+> "Terminal Reasons" table below.
 
 ### Non-Terminal States
 
@@ -245,10 +271,17 @@ When a run fails, DAX records a **terminal reason**:
 | Reason              | Meaning                                       |
 | ------------------- | --------------------------------------------- |
 | `contract_mutation` | AI tried to do something outside the contract |
-| `permission_denied` | An approval was denied                        |
+| `permission_denied` | A permission gate was not satisfied           |
 | `timeout`           | A step or the run exceeded its time limit     |
-| `error`             | An internal error occurred                    |
-| `user_cancelled`    | The operator cancelled the run                |
+| `execution_error`   | An internal error occurred                    |
+| `workflow_cancelled`| The operator cancelled the run                |
+| `workflow_signed_off` | The run was signed off (accepted)          |
+| `workflow_rejected` | The run was rejected                          |
+| `workflow_expired`  | The run expired                               |
+
+> An approval denial settles the run as `failed` with reason `approval_rejected`
+> (run-reducer.ts:348-360). The full canonical enum is `workflows/types.ts:21-33`;
+> `server/run-contract.ts:15-26` declares the same enum independently.
 
 ## Trust Scoring
 
