@@ -3,7 +3,7 @@ title: DAX Harness Evolution Roadmap
 archetype: roadmap
 status: proposed
 owner: Shailesh Rawat
-maintainer: DAX Maintainers
+maintainer: Shailesh Rawat
 version: 0.1.0
 tags:
   - dax

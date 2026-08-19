@@ -3,7 +3,7 @@ title: DeepSeek Harness Comparative Study
 archetype: architecture-analysis
 status: active
 owner: Shailesh Rawat
-maintainer: DAX Maintainers
+maintainer: Shailesh Rawat
 version: 1.0.0
 tags:
   - dax
