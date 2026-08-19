@@ -149,6 +149,41 @@ export type RunError = {
 
 
 
+/**
+ * Refuse a log that cannot be replayed faithfully.
+ *
+ * `appendRunEvent` enforces `expectedSeq` on write, so a well-formed store never
+ * produces a gap. Nothing enforced it on read, which meant a truncated, merged or
+ * hand-edited events.json projected without complaint into a state that never
+ * existed — and every guarantee built on replay silently became a guess.
+ *
+ * Contiguity from 0 is the property that makes replay equivalence meaningful:
+ * seq is the log's identity, so `events[i].seq === i` is the whole contract.
+ * Refusing is correct rather than harsh — a partial projection of an audit record
+ * is worse than no projection, because it is indistinguishable from a complete one.
+ */
+function assertContiguous(events: RunEventEnvelope[]): void {
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+
+    if (event.seq !== i) {
+      throw new Error(
+        `Run event log is not contiguous: expected seq ${i} at position ${i}, got ${event.seq}` +
+          ` (type ${event.type}). Refusing to project a partial log.`,
+      )
+    }
+
+    // A log that mixes runs is corrupt in the same way and for the same reason:
+    // the resulting state belongs to no run that ever executed.
+    if (event.runId !== events[0].runId) {
+      throw new Error(
+        `Run event log mixes runs: seq ${event.seq} belongs to ${event.runId},` +
+          ` expected ${events[0].runId}. Refusing to project a merged log.`,
+      )
+    }
+  }
+}
+
 export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
   if (events.length === 0) {
     return null
@@ -158,6 +193,8 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
   if (firstEvent.type !== "contract_compiled") {
     throw new Error(`First event must be contract_compiled, got ${firstEvent.type}`)
   }
+
+  assertContiguous(events)
 
   const birth = firstEvent.payload as { contractId: string; verificationRequired?: boolean }
   const contractId = birth.contractId
