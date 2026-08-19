@@ -6,7 +6,10 @@ import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { DraftArtifactSchema, type DraftArtifact } from "./types"
 import { Identifier } from "@/id/id"
-import { getEventAuthorityState } from "@/state/events/event-transitions"
+import { appendEventOnly, getEventAuthorityState } from "@/state/events/event-transitions"
+import { verifyWorkerPatch } from "@/worker/worker-verification"
+import { runCheck } from "@/sdlc/check-runner"
+import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 
 const log = Log.create({ service: "draft-approve-execute" })
 
@@ -24,6 +27,12 @@ export type DraftRequest = {
 export type DraftApproveExecuteEffectsShape = {
   /** Produce the content an operator is being asked to approve. */
   generateDraft: (request: DraftRequest) => Promise<string>
+  /**
+   * Run one contract validation command and return its result. Separate from
+   * drafting because verification must not be answerable by the same model that
+   * produced the draft — that is the whole point of it.
+   */
+  runVerification: (check: CheckDefinition) => Promise<CheckResult>
 }
 
 /**
@@ -79,6 +88,7 @@ const defaultEffects: DraftApproveExecuteEffectsShape = {
     })
     return result.text
   },
+  runVerification: runCheck,
 }
 
 /** Test seam: swap effects, always restore. */
@@ -290,13 +300,62 @@ export class DraftApproveExecuteWorkflow {
       const verificationArtifactId = `verification_${Identifier.create("session", false)}`
 
       await HybridTransitions.addArtifact(this.runId, artifactId)
-      await HybridTransitions.addArtifact(this.runId, verificationArtifactId)
 
-      await HybridTransitions.completeStep(this.runId, stepId, [artifactId])
+      // Approval establishes authority; it does not establish correctness. The
+      // operator approved a draft, which says the change was permitted, not that
+      // it works. Until this ran, the step registered an artifact named
+      // verification_<id> with no checks behind it and reported "verification
+      // receipt recorded" — evidence in name only.
+      // A contract that demands evidence and names no checks is a contract defect,
+      // not a verification failure. Saying so precisely matters: the two have
+      // different owners — one is fixed in the compiler, the other in the change.
+      const validationCommands = this.contract.runtimePolicy?.postconditions?.validationCommands ?? []
+      if (validationCommands.length === 0) {
+        const message =
+          "contract requires verification but names no validation commands; " +
+          "nothing can be proven about this change"
+        await HybridTransitions.failStep(this.runId, stepId, { code: "verification_unspecified", message })
+        await HybridTransitions.transition(this.runId, "failed", "run_failed", {
+          error: { code: "verification_unspecified", message, retryable: false },
+        })
+        log.error("commit_execution has no verification to run", { runId: this.runId })
+        return { stepId, success: false, outputs: [], error: message }
+      }
+
+      const verification = await verifyWorkerPatch({
+        runId: this.runId,
+        cwd: process.cwd(),
+        commands: validationCommands,
+        run: DraftApproveExecuteEffects.current.runVerification,
+      })
+
+      await appendEventOnly(this.runId, "verification_recorded", {
+        status: verification.passed ? "passed" : "failed",
+        receipts: verification.receipts,
+        checks: verification.checks,
+      })
+      await appendEventOnly(this.runId, "artifact_created", {
+        artifactId: verificationArtifactId,
+        artifactType: "verification_report",
+      })
+
+      const receiptIds = verification.receipts.map((receipt) => receipt.receiptId)
+
+      if (!verification.passed) {
+        const message = verification.failureSummary ?? "DAX verification failed"
+        await HybridTransitions.failStep(this.runId, stepId, { code: "verification_failed", message })
+        await HybridTransitions.transition(this.runId, "failed", "run_failed", {
+          error: { code: "verification_failed", message, retryable: false },
+        })
+        log.error("commit_execution verification failed", { runId: this.runId, message })
+        return { stepId, success: false, outputs: [], error: message }
+      }
+
+      await HybridTransitions.completeStep(this.runId, stepId, [artifactId, ...receiptIds])
 
       await HybridTransitions.transition(this.runId, "completed", "workflow_completed")
 
-      log.info("commit_execution completed", { runId: this.runId, artifactId })
+      log.info("commit_execution completed", { runId: this.runId, artifactId, receipts: receiptIds.length })
 
       return {
         stepId,
@@ -305,7 +364,7 @@ export class DraftApproveExecuteWorkflow {
           { type: draft.type, content: draft.content, artifactId },
           {
             type: "report",
-            content: "Verification receipt recorded for approved draft execution.",
+            content: `Verification passed: ${verification.checks.length} check(s), ${receiptIds.length} receipt(s).`,
             artifactId: verificationArtifactId,
           },
         ],
