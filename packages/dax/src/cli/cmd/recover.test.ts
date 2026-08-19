@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test"
+import { createEventAuthorityRun } from "@/state/events/event-transitions"
+import { getProjectedRunState } from "@/state/events/run-event-store"
 import os from "os"
 import path from "path"
 import { rmSync } from "fs"
@@ -56,7 +58,8 @@ describe("recover command", () => {
 
         await bootstrap(repoRoot, async () => {
           const runId = `run_recover_cli_${Date.now().toString(36)}`
-          const created = await RunStore.create(runId, `ctr_${runId}`)
+          await createEventAuthorityRun(runId, `ctr_${runId}`)
+          const created = (await getProjectedRunState(runId))!
           await RunStore.save(runId, {
             ...created,
             status: "running",

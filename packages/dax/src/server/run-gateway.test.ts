@@ -326,7 +326,7 @@ describe("run gateway v1 contract", () => {
       const { Session } = await import("@/session")
       const { Identifier } = await import("@/id/id")
       const { MessageV2 } = await import("@/session/message-v2")
-      const TransitionsModule = await import("@/state/transitions")
+      const TransitionsModule = await import("@/state/run-lifecycle")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
       await bootstrap(repoRoot, async () => {
@@ -357,8 +357,8 @@ describe("run gateway v1 contract", () => {
         // External run creation now advances lifecycle to running.
 
         const stepId = Identifier.ascending("part")
-        await TransitionsModule.Transitions.addStep(create.runId, stepId, "apply_patch", "executed")
-        await TransitionsModule.Transitions.startStep(create.runId, stepId)
+        await TransitionsModule.RunLifecycle.addStep(create.runId, stepId, "apply_patch", "executed")
+        await TransitionsModule.RunLifecycle.startStep(create.runId, stepId)
 
         const userMessageId = Identifier.ascending("message")
         await Session.updateMessage({
@@ -419,11 +419,13 @@ describe("run gateway v1 contract", () => {
           },
         })
 
-        await TransitionsModule.Transitions.failStep(create.runId, stepId, {
+        await TransitionsModule.RunLifecycle.failStep(create.runId, stepId, {
           code: "permission_denied",
           message: "The user rejected permission to use this specific tool call.",
         })
-        await TransitionsModule.Transitions.transition(create.runId, "failed", "permission_denied")
+        await TransitionsModule.RunLifecycle.transition(create.runId, "failed", "run_failed", {
+          error: { code: "permission_denied", message: "Permission denied", retryable: false },
+        })
 
         await eventually(async () => {
           const snapshot = await RunGateway.getSnapshot(create.runId)
@@ -455,7 +457,7 @@ describe("run gateway v1 contract", () => {
       const { Session } = await import("@/session")
       const { Identifier } = await import("@/id/id")
       const { MessageV2 } = await import("@/session/message-v2")
-      const TransitionsModule = await import("@/state/transitions")
+      const TransitionsModule = await import("@/state/run-lifecycle")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
       await bootstrap(repoRoot, async () => {
@@ -486,8 +488,8 @@ describe("run gateway v1 contract", () => {
         // External run creation now advances lifecycle to running.
 
         const stepId = Identifier.ascending("part")
-        await TransitionsModule.Transitions.addStep(create.runId, stepId, "execute_workflow", "executed")
-        await TransitionsModule.Transitions.startStep(create.runId, stepId)
+        await TransitionsModule.RunLifecycle.addStep(create.runId, stepId, "execute_workflow", "executed")
+        await TransitionsModule.RunLifecycle.startStep(create.runId, stepId)
 
         const userMessageId = Identifier.ascending("message")
         await Session.updateMessage({
@@ -549,11 +551,13 @@ describe("run gateway v1 contract", () => {
           },
         })
 
-        await TransitionsModule.Transitions.failStep(create.runId, stepId, {
+        await TransitionsModule.RunLifecycle.failStep(create.runId, stepId, {
           code: "contract_mutation",
           message: "ExecutionContract is immutable after run initialization: cannot add step",
         })
-        await TransitionsModule.Transitions.transition(create.runId, "failed", "contract_mutation")
+        await TransitionsModule.RunLifecycle.transition(create.runId, "failed", "run_failed", {
+          error: { code: "contract_mutation", message: "Contract mutation", retryable: false },
+        })
 
         await eventually(async () => {
           const snapshot = await RunGateway.getSnapshot(create.runId)
@@ -583,7 +587,7 @@ describe("run gateway v1 contract", () => {
     try {
       const { bootstrap } = await import("@/cli/bootstrap")
       const { RunGateway } = await import("./run-gateway")
-      const { Transitions } = await import("@/state/transitions")
+      const { RunLifecycle: Transitions } = await import("@/state/run-lifecycle")
       const { Identifier } = await import("@/id/id")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
@@ -595,15 +599,18 @@ describe("run gateway v1 contract", () => {
 
         // External run creation now advances lifecycle to running.
 
+        const { RunLifecycle } = await import("@/state/run-lifecycle")
         const stepId = Identifier.ascending("part")
-        await Transitions.addStep(create.runId, stepId, "execute_workflow", "executed")
-        await Transitions.startStep(create.runId, stepId)
+        await RunLifecycle.addStep(create.runId, stepId, "execute_workflow", "executed")
+        await RunLifecycle.startStep(create.runId, stepId)
 
-        await Transitions.failStep(create.runId, stepId, {
+        await RunLifecycle.failStep(create.runId, stepId, {
           code: undefined as any,
           message: "ExecutionContract is immutable after run initialization",
         })
-        await Transitions.transition(create.runId, "failed", "contract_mutation")
+        await RunLifecycle.transition(create.runId, "failed", "run_failed", {
+          error: { code: "contract_mutation", message: "Contract mutation", retryable: false },
+        })
 
         await eventually(async () => {
           const snapshot = await RunGateway.getSnapshot(create.runId)
@@ -636,7 +643,7 @@ describe("run gateway v1 contract", () => {
       const { Session } = await import("@/session")
       const { Identifier } = await import("@/id/id")
       const { MessageV2 } = await import("@/session/message-v2")
-      const { Transitions } = await import("@/state/transitions")
+      const { RunLifecycle: Transitions } = await import("@/state/run-lifecycle")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
       await bootstrap(repoRoot, async () => {
@@ -758,13 +765,16 @@ describe("run gateway v1 contract", () => {
 
         // External run creation now advances lifecycle to running.
         const recentStepId = Identifier.ascending("part")
-        await Transitions.addStep(recent.runId, recentStepId, "apply_patch", "executed")
-        await Transitions.startStep(recent.runId, recentStepId)
-        await Transitions.failStep(recent.runId, recentStepId, {
+        const { RunLifecycle } = await import("@/state/run-lifecycle")
+        await RunLifecycle.addStep(recent.runId, recentStepId, "apply_patch", "executed")
+        await RunLifecycle.startStep(recent.runId, recentStepId)
+        await RunLifecycle.failStep(recent.runId, recentStepId, {
           code: "permission_denied",
           message: "The user rejected permission to use this specific tool call.",
         })
-        await Transitions.transition(recent.runId, "failed", "permission_denied")
+        await RunLifecycle.transition(recent.runId, "failed", "run_failed", {
+          error: { code: "permission_denied", message: "Permission denied", retryable: false },
+        })
 
         await eventually(async () => {
           const overview = await RunGateway.getOverview()

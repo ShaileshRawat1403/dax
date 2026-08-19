@@ -1,4 +1,5 @@
 import { Bus } from "@/bus"
+import { getProjectedRunState } from "@/state/events/run-event-store"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { Permission } from "@/governance"
@@ -16,7 +17,7 @@ import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { ApprovalAlreadyResolvedError, ApprovalNotFoundError } from "@/approval/approval-transitions"
 import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
 import { Tracer } from "@/runtime/telemetry"
-import { HybridTransitions } from "@/state/hybrid-transitions"
+import { RunLifecycle } from "@/state/run-lifecycle"
 import { replayRunState } from "@/state/replay"
 import { getEventAuthorityState } from "@/state/events/event-transitions"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
@@ -692,7 +693,7 @@ async function handleBusEvent(event: any) {
             },
           })
         } else if (snapshot.status === "failed" || snapshot.status === "cancelled") {
-          const runState = await RunStore.get(runId)
+          const runState = await getProjectedRunState(runId)
           const stepErrors = runState?.steps.filter((s) => s.status === "failed" && s.error).map((s) => s.error) ?? []
           const firstStepError = stepErrors[0]
           const runError = runState?.error
@@ -752,19 +753,19 @@ async function handleBusEvent(event: any) {
       const errorMessage = event.properties.error?.data?.message ?? event.properties.error?.message ?? "Session failed"
       const errorCode = event.properties.error?.name ?? "session_error"
 
-      const runState = await RunStore.get(event.properties.sessionID)
+      const runState = await getProjectedRunState(event.properties.sessionID)
       if (runState) {
         try {
           if (runState.status === "waiting_approval") {
-            await HybridTransitions.transition(event.properties.sessionID, "failed", "approval_denied")
+            await RunLifecycle.transition(event.properties.sessionID, "failed", "approval_denied")
           } else if (runState.status === "running") {
-            await HybridTransitions.transition(event.properties.sessionID, "failed", "run_failed", {
+            await RunLifecycle.transition(event.properties.sessionID, "failed", "run_failed", {
               error: { code: "execution_error", message: "Run failed during execution", retryable: false },
             })
           } else if (runState.status === "compiled" || runState.status === "queued") {
-            await HybridTransitions.transition(event.properties.sessionID, "queued", "execution_queued")
-            await HybridTransitions.transition(event.properties.sessionID, "running", "execution_started")
-            await HybridTransitions.transition(event.properties.sessionID, "failed", "run_failed", {
+            await RunLifecycle.transition(event.properties.sessionID, "queued", "execution_queued")
+            await RunLifecycle.transition(event.properties.sessionID, "running", "execution_started")
+            await RunLifecycle.transition(event.properties.sessionID, "failed", "run_failed", {
               error: { code: "execution_error", message: "Run failed during execution", retryable: false },
             })
           }
@@ -846,26 +847,26 @@ async function handleBusEvent(event: any) {
         },
       })
 
-      const runState = await RunStore.get(runId)
+      const runState = await getProjectedRunState(runId)
       if (runState) {
         if (runState.status === "running") {
           try {
-            await HybridTransitions.transition(runId, "waiting_approval", "approval_required")
+            await RunLifecycle.transition(runId, "waiting_approval", "approval_required")
           } catch (error) {
             log.warn("failed to transition to waiting_approval", { error, runId })
           }
         } else if (runState.status === "queued") {
           try {
-            await HybridTransitions.transition(runId, "running", "execution_started")
-            await HybridTransitions.transition(runId, "waiting_approval", "approval_required")
+            await RunLifecycle.transition(runId, "running", "execution_started")
+            await RunLifecycle.transition(runId, "waiting_approval", "approval_required")
           } catch (error) {
             log.warn("failed to transition through running to waiting_approval", { error, runId })
           }
         } else if (runState.status === "compiled") {
           try {
-            await HybridTransitions.transition(runId, "queued", "execution_queued")
-            await HybridTransitions.transition(runId, "running", "execution_started")
-            await HybridTransitions.transition(runId, "waiting_approval", "approval_required")
+            await RunLifecycle.transition(runId, "queued", "execution_queued")
+            await RunLifecycle.transition(runId, "running", "execution_started")
+            await RunLifecycle.transition(runId, "waiting_approval", "approval_required")
           } catch (error) {
             log.warn("failed to transition through queued/running to waiting_approval", {
               error,
@@ -1024,14 +1025,24 @@ export namespace RunGateway {
       Session.messages({ sessionID: runId }),
       readRunMeta(runId),
       readEvents(runId),
-      RunStore.get(runId),
+      getProjectedRunState(runId),
       getEventAuthorityState(runId).catch(() => null),
     ])
 
     let runState = eventRunState ?? storedRunState
     if (!runState && events.length > 0) {
       try {
-        runState = replayRunState(events).state
+        // Legacy replay predates the projection fields; it reconstructs from the
+        // older run.* vocabulary and cannot know about them. Filling explicit
+        // empties keeps the shape honest rather than asserting a cast.
+        const replayed = replayRunState(events).state
+        runState = {
+          ...replayed,
+          approvals: [],
+          evidence: { contract: null, sandbox: null, egressDenials: [] },
+          completion: null,
+          draft: null,
+        }
       } catch (err) {
         log.warn("failed to replay run state", { runId, error: String(err) })
       }
@@ -1314,7 +1325,7 @@ export namespace RunGateway {
     const [snapshot, events, runState, meta] = await Promise.all([
       getSnapshot(runId),
       readEvents(runId),
-      RunStore.get(runId),
+      getProjectedRunState(runId),
       readRunMeta(runId),
     ])
 

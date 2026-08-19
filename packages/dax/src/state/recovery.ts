@@ -1,4 +1,5 @@
 import { replayRunState } from "./replay"
+import { getProjectedRunState } from "./events/run-event-store"
 import type { ReplayResult } from "./replay"
 import { RunStore } from "./run-store"
 import type { RunState } from "./run-state"
@@ -32,7 +33,7 @@ export async function recoverRun(runId: string): Promise<RecoveryResult> {
   log.info("starting recovery", { runId })
 
   // Try to get persisted state
-  const persistedState = await RunStore.get(runId).catch(() => null)
+  const persistedState = await getProjectedRunState(runId).catch(() => null)
 
   if (persistedState && isTerminalStatus(persistedState.status)) {
     log.info("run already in terminal state", { runId, status: persistedState.status })
@@ -107,7 +108,23 @@ export async function listInterruptedRuns(now = Date.now()): Promise<RunState[]>
   // this returned "nothing stranded" — a clean bill of health that got less
   // true the longer DAX was used. Measured at roughly 15ms per hundred runs,
   // which is the right trade for a scan whose whole job is to not miss one.
-  const states = await RunStore.list(Number.MAX_SAFE_INTEGER).catch(() => [] as RunState[])
+  // RunStore.list still enumerates the runs on disk, but its stored status is no
+  // longer authoritative — the log is. Re-project each one so a run closed out
+  // through the event path stops being reported as stranded.
+  const listed = await RunStore.list(Number.MAX_SAFE_INTEGER).catch(() => [] as RunState[])
+  const states = (
+    await Promise.all(
+      listed.map(async (stored) => {
+        const projected = await getProjectedRunState(stored.runId).catch(() => null)
+        if (!projected) return stored
+        // Status comes from the log, which is authoritative. `updatedAt` comes
+        // from the stored row, which records when the run was last touched on
+        // disk — the projection's timestamp is the last event's, and a run whose
+        // process died stops producing events precisely when it strands.
+        return { ...projected, updatedAt: stored.updatedAt }
+      }),
+    )
+  ) as RunState[]
   return states.filter((state) => {
     if (isTerminalStatus(state.status)) return false
     return now - new Date(state.updatedAt).getTime() > INTERRUPTED_RUN_THRESHOLD_MS
@@ -122,13 +139,16 @@ export async function listInterruptedRuns(now = Date.now()): Promise<RunState[]>
  * work itself was never rejected, only interrupted.
  */
 export async function markRunInterrupted(runId: string): Promise<RunState | undefined> {
-  const state = await RunStore.get(runId).catch(() => null)
+  const state = await getProjectedRunState(runId).catch(() => null)
   if (!state || isTerminalStatus(state.status)) return undefined
-  const { Transitions } = await import("./transitions")
-  return Transitions.fail(runId, {
-    code: "run_interrupted",
-    message: `Run stopped without completing while in "${state.status}". Its process is gone.`,
-    retryable: true,
+
+  const { RunLifecycle } = await import("./run-lifecycle")
+  return RunLifecycle.transition(runId, "failed", "run_failed", {
+    error: {
+      code: "run_interrupted",
+      message: `Run stopped without completing while in "${state.status}". Its process is gone.`,
+      retryable: true,
+    },
   })
 }
 
@@ -136,7 +156,7 @@ export async function markRunInterrupted(runId: string): Promise<RunState | unde
  * Checks if a run appears interrupted and might need recovery.
  */
 export async function needsRecovery(runId: string): Promise<boolean> {
-  const state = await RunStore.get(runId).catch(() => null)
+  const state = await getProjectedRunState(runId).catch(() => null)
   if (!state) return true // No state = needs recovery
 
   // Non-terminal state without recent activity might need recovery
@@ -157,7 +177,7 @@ export async function getRecoverySummary(runId: string): Promise<{
   needsRecovery: boolean
   eventCount: number
 }> {
-  const state = await RunStore.get(runId).catch(() => null)
+  const state = await getProjectedRunState(runId).catch(() => null)
   const events = await RunGateway.replayEvents(runId)
 
   return {

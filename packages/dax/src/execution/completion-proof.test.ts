@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { evaluateCompletionProof } from "./completion-proof"
 import type { ExecutionContract } from "./execution-contract"
-import type { RunState } from "../state/run-state"
+import type { RunState } from "@/state/run-state"
 
 const mockContract: ExecutionContract = {
   contractId: "ctr_1",
@@ -45,6 +45,9 @@ const mockRunState = (overrides: Partial<RunState> = {}): RunState => ({
   runId: "run_1",
   contractId: "ctr_1",
   status: "running",
+  approvals: [],
+  evidence: { contract: null, sandbox: null, egressDenials: [] },
+  completion: null,
   currentStepId: null,
   steps: [],
   artifactIds: [],

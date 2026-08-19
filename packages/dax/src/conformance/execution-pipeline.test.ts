@@ -89,7 +89,7 @@ function scoreDraftApproveExecute(): PathScore {
 function scoreNativeSession(): PathScore {
   const processor = source("session/processor.ts")
   const tool = source("tool/tool.ts")
-  const emitsRunEvents = /appendEventOnly|HybridTransitions|appendRunEvent/.test(processor)
+  const emitsRunEvents = /appendEventOnly|RunLifecycle|appendRunEvent/.test(processor)
   return {
     path: "native session",
     points: {

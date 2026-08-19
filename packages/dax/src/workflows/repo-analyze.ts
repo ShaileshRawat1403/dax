@@ -1,5 +1,5 @@
 import { Log } from "@/util/log"
-import { HybridTransitions } from "@/state/hybrid-transitions"
+import { RunLifecycle } from "@/state/run-lifecycle"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { DraftArtifactSchema, type DraftArtifact } from "./types"
@@ -67,8 +67,8 @@ export class RepoAnalyzeWorkflow {
     }
 
     const finalArtifactId = `art_${Identifier.create("session", false)}`
-    await HybridTransitions.addArtifact(this.runId, finalArtifactId)
-    await HybridTransitions.transition(this.runId, "completed", "workflow_completed")
+    await RunLifecycle.addArtifact(this.runId, finalArtifactId)
+    await RunLifecycle.transition(this.runId, "completed", "workflow_completed")
 
     log.info("repo_analyze workflow completed", { runId: this.runId, finalArtifactId })
 
@@ -84,8 +84,8 @@ export class RepoAnalyzeWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Collect Context", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Collect Context", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const contextArtifact: DraftArtifact = {
         type: "summary",
@@ -93,7 +93,7 @@ export class RepoAnalyzeWorkflow {
       }
 
       this.analysisArtifacts.context = contextArtifact
-      await HybridTransitions.completeStep(this.runId, stepId, ["context:collected"])
+      await RunLifecycle.completeStep(this.runId, stepId, ["context:collected"])
 
       log.info("collect_context completed", { runId: this.runId })
 
@@ -112,8 +112,8 @@ export class RepoAnalyzeWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Analyze Repository", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Analyze Repository", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const findingsArtifact: DraftArtifact = {
         type: "report",
@@ -128,7 +128,7 @@ export class RepoAnalyzeWorkflow {
       this.analysisArtifacts.findings = findingsArtifact
       this.analysisArtifacts.recommendations = recommendationsArtifact
 
-      await HybridTransitions.completeStep(this.runId, stepId, ["findings:generated", "recommendations:generated"])
+      await RunLifecycle.completeStep(this.runId, stepId, ["findings:generated", "recommendations:generated"])
 
       log.info("analyze_repository completed", { runId: this.runId })
 
@@ -150,15 +150,15 @@ export class RepoAnalyzeWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Publish Report", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Publish Report", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const reportArtifact: DraftArtifact = {
         type: "report",
         content: this.buildReportContent(contextOutputs, analysisOutputs),
       }
 
-      await HybridTransitions.completeStep(this.runId, stepId, ["report:published"])
+      await RunLifecycle.completeStep(this.runId, stepId, ["report:published"])
 
       log.info("publish_report completed", { runId: this.runId })
 
@@ -285,14 +285,14 @@ Repository analysis completed successfully.
     log.error(`${stepName} failed`, { runId: this.runId, error: errorMessage })
 
     const stepId = `step_${Identifier.create("part", false)}`
-    HybridTransitions.addStep(
+    RunLifecycle.addStep(
       this.runId,
       stepId,
       stepName.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
       "executed",
     )
-      .then(() => HybridTransitions.startStep(this.runId, stepId))
-      .then(() => HybridTransitions.failStep(this.runId, stepId, { code: `${stepName}_failed`, message: errorMessage }))
+      .then(() => RunLifecycle.startStep(this.runId, stepId))
+      .then(() => RunLifecycle.failStep(this.runId, stepId, { code: `${stepName}_failed`, message: errorMessage }))
       .catch(() => {})
 
     return {
@@ -305,7 +305,7 @@ Repository analysis completed successfully.
 
   private async failWorkflow(reason: string): Promise<void> {
     try {
-      await HybridTransitions.transition(this.runId, "failed", "workflow_failed")
+      await RunLifecycle.transition(this.runId, "failed", "workflow_failed")
     } catch {
       // Transition might already be failed
     }

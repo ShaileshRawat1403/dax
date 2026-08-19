@@ -35,7 +35,7 @@ export async function createEventAuthorityRun(
 export async function transitionEventAuthority(
   runId: string,
   newStatus: RunStatus,
-  eventType: string,
+  eventType: RunEventType,
   payload: unknown,
 ): Promise<RunState> {
   const authority = await getRunAuthority(runId)
@@ -52,10 +52,6 @@ export async function transitionEventAuthority(
 
   if (currentState.status === newStatus) {
     return currentState
-  }
-
-  if (!isRunEventType(eventType)) {
-    throw new Error(`Unknown event type: ${eventType}`)
   }
 
   const seq = events.length

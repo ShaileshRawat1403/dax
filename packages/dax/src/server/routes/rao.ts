@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { getProjectedRunState } from "@/state/events/run-event-store"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { errors } from "../error"
@@ -32,7 +33,7 @@ export const RaoRoutes = lazy(() =>
       validator("param", z.object({ runID: z.string() })),
       async (c) => {
         const runId = c.req.valid("param").runID
-        const runState = await RunStore.get(runId)
+        const runState = await getProjectedRunState(runId)
         if (!runState) {
           throw new Storage.NotFoundError({ message: `Run not found: ${runId}` })
         }
