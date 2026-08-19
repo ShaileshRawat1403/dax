@@ -1,0 +1,128 @@
+import { describe, expect, test } from "bun:test"
+import { RUN_EVENT_TYPES, type RunEventType } from "@/state/events/run-event-types"
+
+/**
+ * Invariant 1 — Durable Authority.
+ *
+ * Any record required to reconstruct what the model knew, what authority it had,
+ * what occurred, or why the result was accepted must be durable.
+ *
+ * Decision procedure: would a reviewer reach a different conclusion about whether
+ * the work was authorised or correct if this record were absent? If yes, it is a
+ * durable event. If no, it is telemetry.
+ *
+ * "Model-visible" is necessary but not sufficient. Sandbox enforcement, path-policy
+ * rejection and verification receipts are never model-visible yet are decisive for
+ * authorisation and correctness.
+ */
+
+/**
+ * The authoritative record classes. Each one passes the reviewer test: absent it,
+ * a reviewer could reach a different conclusion about authorisation or correctness.
+ */
+const RECORD_CLASSES = [
+  {
+    id: "prompt_contribution",
+    why: "What the model was told to be. Changes what the output means.",
+    eventTypes: [] as string[],
+  },
+  {
+    id: "context_contribution",
+    why: "What the model could see. A reviewer cannot judge a decision without its inputs.",
+    eventTypes: [],
+  },
+  {
+    id: "assistant_message",
+    why: "What the model claimed. The claim is the thing verification is checked against.",
+    eventTypes: [],
+  },
+  {
+    id: "tool_invocation",
+    why: "What the model attempted, and with what arguments. The authorisation question is about this.",
+    eventTypes: [],
+  },
+  {
+    id: "tool_result",
+    why: "What actually happened. Distinguishes attempted from effected change.",
+    eventTypes: [],
+  },
+  {
+    id: "approval",
+    why: "Who permitted the action, on what basis, and what they were shown.",
+    eventTypes: ["approval_requested", "approval_resolved", "approval_denied"],
+  },
+  {
+    id: "policy_decision",
+    why: "Why an action was allowed or refused. A silent allow and a considered allow are not the same record.",
+    eventTypes: [],
+  },
+  {
+    id: "delegation",
+    why: "Which actor did the work, under whose authority, at what depth.",
+    eventTypes: [],
+  },
+  {
+    id: "compaction_replacement",
+    why: "Context that was removed or summarised. Without it, replay reconstructs a context the model never saw.",
+    eventTypes: [],
+  },
+  {
+    id: "verification",
+    why: "What was independently checked, and what the check returned.",
+    eventTypes: ["verification_recorded"],
+  },
+  {
+    id: "completion",
+    why: "Whether the objective was judged satisfied, and on what evidence.",
+    eventTypes: ["run_completed", "workflow_completed"],
+  },
+] as const
+
+function isDurable(cls: (typeof RECORD_CLASSES)[number]): boolean {
+  if (cls.eventTypes.length === 0) return false
+  return cls.eventTypes.every((t) => (RUN_EVENT_TYPES as readonly string[]).includes(t))
+}
+
+describe("invariant 1 — durable authority", () => {
+  test("every authoritative record class has durable event representation", () => {
+    const missing = RECORD_CLASSES.filter((c) => !isDurable(c)).map((c) => c.id)
+
+    // Baseline at v1.3.0: 9 of 11 classes have no durable representation in the
+    // run event vocabulary. Prompts, context, messages, tool calls, tool results,
+    // policy decisions, delegation and compaction all influence authorisation or
+    // correctness, and none of them survive as events.
+    expect(missing).toEqual([])
+  })
+
+  test("meter: durable record-class coverage", () => {
+    const covered = RECORD_CLASSES.filter(isDurable).length
+    const total = RECORD_CLASSES.length
+
+    // This is the progress number. It moves as record classes gain events.
+    // Baseline: 3 / 11 — approval, verification, completion.
+    expect({ covered, total }).toEqual({ covered: total, total })
+  })
+
+  test("approval is durable in name but not in substance", () => {
+    // approval_requested carries { approvalId, approvalType, risk } only
+    // (event-transitions.ts). The title, reason and expectedConsequence the
+    // operator actually read live in the ApprovalStore and nowhere else, so the
+    // log records that an approval happened but not what was approved.
+    //
+    // The reviewer test is decisive: a reviewer shown only the log cannot tell
+    // what the operator was asked to permit.
+    const approvalPayloadFields = ["approvalId", "approvalType", "risk"]
+    const fieldsAReviewerNeeds = ["approvalId", "approvalType", "risk", "title", "reason", "expectedConsequence"]
+
+    expect(approvalPayloadFields).toEqual(fieldsAReviewerNeeds)
+  })
+
+  test("the vocabulary is closed, so absence is detectable", () => {
+    // This one passes as of H1a (feat/h1a-closed-event-vocabulary) and is here to
+    // stay passing: a closed vocabulary is what makes the failures above legible
+    // rather than merely unobserved.
+    const types: readonly RunEventType[] = RUN_EVENT_TYPES
+    expect(types.length).toBeGreaterThan(0)
+    expect(new Set(types).size).toBe(types.length)
+  })
+})

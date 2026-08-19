@@ -1,0 +1,54 @@
+# DAX vNext Conformance Suite
+
+Six architectural invariants, expressed as tests rather than prose.
+
+A prose invariant drifts — this repository spent 2026-08-19 repairing 66 documents
+that had drifted from the code they described. An executable invariant cannot: it
+either passes against the tree in front of it or it does not.
+
+Several of these tests **fail against v1.3.0 by design**. A vNext architecture suite
+in which everything passes on day one is not specifying an overhaul. The set of
+failing tests *is* the overhaul boundary — it is discovered by running the suite,
+not settled by argument.
+
+## The six invariants
+
+| # | Invariant | Decision procedure | File |
+|---|---|---|---|
+| 1 | **Durable Authority** — any record needed to reconstruct what the model knew, what authority it had, what occurred, or why the result was accepted must be durable | Would a reviewer reach a different conclusion about whether the work was authorised or correct if this record were absent? If yes, it is a durable event. If no, it is telemetry. | `event-authority.test.ts` |
+| 2 | **Replay Equivalence** — authoritative runtime state must be reproducible from durable event history | Can the state be rebuilt from the log alone, with no access to any sibling store? | `replay-equivalence.test.ts` |
+| 3 | **Universal Execution Boundary** — every executable capability passes through the same contract-governed lifecycle | Does this execution path emit the same conformance points as every other? | `execution-pipeline.test.ts` |
+| 4 | **Runtime Boundary Validation** — inputs, outputs, observations and evidence are validated at runtime, not trusted because TypeScript says so | Does a malformed value get rejected at runtime, or does it enter state unchecked? | `output-boundary.test.ts` |
+| 5 | **Contract-Defined Authority** — capabilities describe what can exist; contracts determine what this run may exercise | Is authority expressed once, in the contract, or does the capability carry a second policy? | `contract-capability.test.ts` |
+| 6 | **Evidence-Gated Completion** — execution success cannot independently imply task completion | Can this run reach `completed` without evidence that the objective was satisfied? | `verification-completion.test.ts` |
+
+Plus one gate, which is a process rule rather than an architectural property:
+
+| **Minimality** — every new abstraction states what breaks in the tiny version | `minimality-gate.test.ts` |
+
+## Scoreboard
+
+Two of the tests are *meters*: they compute a conformance score and assert the
+target. They fail with a number, and that number is the progress metric.
+
+- `execution-pipeline.test.ts` scores each execution path against 8 conformance
+  points. Baseline at v1.3.0: **9 / 24** — native session 1/8, worker run 5/8,
+  draft-approve-execute 3/8. The spread matters as much as the total: an action's
+  governance currently depends on which door it came through.
+- `event-authority.test.ts` scores 11 authoritative record classes for durable
+  representation. Baseline at v1.3.0: **3 / 11** (approval, verification, completion).
+
+The record-class meter counts whether a class has *any* durable event type. It is
+deliberately generous: approval scores, yet a separate test shows the payload cannot
+reproduce what the operator was actually shown. Read the meter as an upper bound.
+
+Both must reach 100% for the overhaul to be complete. Neither should be gamed by
+emitting partial events — the points are specific for that reason.
+
+## What this suite is not
+
+It does not measure capability against other harnesses. A capability count is not
+an architectural property, and ten shallow capabilities do not equal one invariant.
+The question this suite answers is narrower and more useful:
+
+> In how many ways can DAX behave inconsistently?
