@@ -321,6 +321,29 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         break
       }
 
+      case "mutation_recorded": {
+        const payload = event.payload as { receiptIds: string[]; changedPaths: string[] }
+
+        for (const receiptId of payload.receiptIds) {
+          if (!state.governance.mutationReceiptIds.includes(receiptId)) {
+            state.governance.mutationReceiptIds.push(receiptId)
+          }
+        }
+        for (const path of payload.changedPaths) {
+          if (!state.governance.touchedFiles.includes(path)) {
+            state.governance.touchedFiles.push(path)
+          }
+        }
+
+        // Mutation implies evidence, whatever the contract asked for. A run that
+        // changed the tree and proved nothing about it must not reach completed
+        // just because its contract was compiled without a verification clause.
+        // execution/runtime-guard.ts:715-726 already applies this rule on its own
+        // state; this is the same rule where replay can see it.
+        state.governance.verification.required = true
+        break
+      }
+
       case "verification_recorded": {
         const payload = event.payload as { status: "passed" | "failed"; receipts: Array<{ receiptId: string }> }
         state.governance.verification.required = true

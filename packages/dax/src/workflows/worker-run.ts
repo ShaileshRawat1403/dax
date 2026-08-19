@@ -4,6 +4,7 @@ import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { appendEventOnly } from "@/state/events/event-transitions"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { Identifier } from "@/id/id"
+import { createMutationReceipt } from "@/sdlc/mutation-receipt"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import {
@@ -369,6 +370,20 @@ export class WorkerRunWorkflow {
         throw new Error(`worker ${workerId} violated its governed scope: ${formatScopeViolations(scopeViolations)}`)
       }
       this.diffContent = patch.content
+
+      // The change becomes durable here, before review and before verification.
+      // Recorded after the scope check so a patch that escaped its writeScope is
+      // refused rather than attested, and recorded from the kernel-computed diff
+      // rather than the worker's account of it.
+      const mutationReceipt = createMutationReceipt({
+        runId: this.runId,
+        changedPaths: patch.changedPaths,
+        diff: patch.content,
+      })
+      await appendEventOnly(this.runId, "mutation_recorded", {
+        receiptIds: [mutationReceipt.receiptId],
+        changedPaths: mutationReceipt.changedPaths,
+      })
 
       await HybridTransitions.completeStep(this.runId, stepId, [
         `worker:${workerId}`,

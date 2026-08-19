@@ -102,27 +102,41 @@ describe("invariant 6 — evidence-gated completion", () => {
   })
 
   test("a run that mutated owes evidence regardless of what its contract asked for", () => {
-    // The remaining hole, and it is the interesting one. Verification is now
-    // contract-derived, which is right — but a contract that does not ask for
-    // verification still permits a run to mutate the workspace and complete with
-    // no evidence at all.
+    // Mutation implies evidence independently of the contract. A contract compiled
+    // without a verification clause must not license a run to rewrite the tree and
+    // complete having proven nothing.
     //
-    // Closing it needs something the reducer does not currently have: a durable
-    // signal that mutation occurred. `governance.touchedFiles` and
-    // `governance.mutationReceiptIds` are declared and initialised in RunState and
-    // populated by no event, so the projection genuinely cannot tell a run that
-    // rewrote the tree from one that read it.
-    //
-    // That is invariant 1 resurfacing: `tool_result` is not a durable record class,
-    // so "did this run change anything?" is unanswerable from the log.
+    // This needs a durable signal that mutation occurred, which mutation_recorded
+    // now provides: the reducer sets verification.required on seeing it, the same
+    // rule execution/runtime-guard.ts:715-726 applies on its own state.
     const mutatedWithoutRequirement = bornUnrequired(
       { type: "execution_queued", payload: {} },
       { type: "workflow_started", payload: {} },
-      { type: "artifact_created", payload: { artifactId: "art_1", artifactType: "patch" } },
+      { type: "mutation_recorded", payload: { receiptIds: ["mut_1"], changedPaths: ["src/a.ts"] } },
       { type: "run_completed", payload: {} },
     )
 
     expect(() => reduceRunState(mutatedWithoutRequirement)).toThrow(/verification/i)
+  })
+
+  test("the mutation a run made is reproducible from the log", () => {
+    // The RAO ledger builds an operator-facing claim — "Mutations recorded (N)" —
+    // from governance.mutationReceiptIds (rao/adapters.ts:96-101). Until
+    // mutation_recorded existed, no event populated that array, so the ledger
+    // reported no mutations for runs that had mutated.
+    const mutated = bornUnrequired(
+      { type: "execution_queued", payload: {} },
+      { type: "workflow_started", payload: {} },
+      {
+        type: "mutation_recorded",
+        payload: { receiptIds: ["mut_1", "mut_2"], changedPaths: ["src/a.ts", "src/b.ts"] },
+      },
+    )
+
+    const state = reduceRunState(mutated)
+
+    expect(state?.governance.mutationReceiptIds).toEqual(["mut_1", "mut_2"])
+    expect(state?.governance.touchedFiles).toEqual(["src/a.ts", "src/b.ts"])
   })
 
   test("completion records what evidence satisfied it", () => {

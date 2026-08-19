@@ -25,6 +25,7 @@ export const RUN_EVENT_TYPES = [
   "contract_refined",
   "worker_sandbox_recorded",
   "worker_egress_denied",
+  "mutation_recorded",
   "verification_recorded",
 ] as const
 
@@ -143,6 +144,15 @@ export type RunEventPayload =
   | {
       type: "worker_egress_denied"
       payload: { providerId: string; hosts: string[] }
+    }
+  | {
+      type: "mutation_recorded"
+      payload: {
+        /** Receipts attesting the change, digested over the diff itself. */
+        receiptIds: string[]
+        /** Paths the kernel observed as changed. */
+        changedPaths: string[]
+      }
     }
   | {
       type: "verification_recorded"
