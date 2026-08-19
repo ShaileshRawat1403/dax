@@ -1,5 +1,6 @@
 import { Log } from "@/util/log"
 import { HybridTransitions } from "@/state/hybrid-transitions"
+import { getApproval } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { appendEventOnly } from "@/state/events/event-transitions"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
@@ -499,7 +500,14 @@ export class WorkerRunWorkflow {
         source: "workflow",
       })
 
-      await HybridTransitions.addApproval(this.runId, approval.approvalId)
+      await HybridTransitions.addApproval(this.runId, approval.approvalId, {
+        approvalType: approval.type,
+        risk: approval.risk,
+        title: approval.title,
+        reason: approval.reason,
+        expectedConsequence: approval.expectedConsequence,
+        stepId: approval.stepId,
+      })
       await HybridTransitions.transition(this.runId, "waiting_approval", "approval_required")
       await HybridTransitions.completeStep(this.runId, stepId, [approval.approvalId])
 
@@ -512,13 +520,18 @@ export class WorkerRunWorkflow {
   }
 
   async resumeAfterApproval(approvalId: string, decision: "approved" | "denied"): Promise<WorkflowExecutionResult> {
+    // Read the decider from the store and write it into the log. The store holds
+    // the decision as it was made; the log is what has to survive to be audited.
+    const decided = await getApproval(this.runId, approvalId)
+    const actor = decided?.resolution?.actorId ?? decided?.actor ?? null
+
     if (decision === "denied") {
-      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected")
+      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected", actor)
       await HybridTransitions.transition(this.runId, "failed", "approval_denied")
       return { success: false, stepResults: [], error: "Approval was denied" }
     }
 
-    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved")
+    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved", actor)
 
     const stepId = `step_${Identifier.create("part", false)}`
     await HybridTransitions.addStep(this.runId, stepId, "Finalize Outcome", "executed")

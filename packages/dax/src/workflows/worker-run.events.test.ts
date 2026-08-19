@@ -125,6 +125,39 @@ afterAll(async () => {
 })
 
 describe("worker_run evidence contract (event harness)", () => {
+  test("records what the operator was asked to permit, not just that they were asked", async () => {
+    const invocations: WorkerInvocation[] = []
+    WorkerRunEffects.set(successfulEffects(invocations))
+    const contract = makeContract({
+      providerHint: "worker:codex",
+      runtimePolicy: workerPolicy(["src/**"], ["package.json"], ["bun test"]),
+    })
+
+    const run = await runWorkflowAndCaptureEvents({
+      workflowClass: "worker_run",
+      contract,
+      directory: workspace,
+    })
+
+    const requested = firstEventByType(run.events, "approval_requested")
+    expect(requested).toBeDefined()
+
+    const payload = requested!.payload as {
+      approvalId: string
+      approvalType: string
+      risk: string
+      title?: string
+      reason?: string
+      expectedConsequence?: string
+    }
+
+    // A reviewer holding only this log must be able to say what was permitted.
+    expect(payload.title).toBeTruthy()
+    expect(payload.reason).toBeTruthy()
+    expect(payload.expectedConsequence).toBeTruthy()
+    expect(payload.approvalType).toBe("patch_apply")
+  })
+
   test("records the mutation it made, from the kernel-computed diff", async () => {
     const invocations: WorkerInvocation[] = []
     WorkerRunEffects.set(successfulEffects(invocations))

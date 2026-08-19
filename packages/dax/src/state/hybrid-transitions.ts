@@ -48,9 +48,20 @@ export class HybridTransitions {
     return Transitions.failStep(runId, stepId, error)
   }
 
-  static async addApproval(runId: string, approvalId: string): Promise<RunState> {
+  static async addApproval(
+    runId: string,
+    approvalId: string,
+    details?: {
+      approvalType?: string
+      risk?: string
+      title?: string
+      reason?: string
+      expectedConsequence?: string
+      stepId?: string | null
+    },
+  ): Promise<RunState> {
     if (await isEventAuthorityRun(runId)) {
-      return addApprovalEvent(runId, approvalId)
+      return addApprovalEvent(runId, approvalId, details)
     }
     return Transitions.addApproval(runId, approvalId)
   }
@@ -59,9 +70,10 @@ export class HybridTransitions {
     runId: string,
     approvalId: string,
     decision: "approved" | "rejected" = "approved",
+    actor?: string | null,
   ): Promise<RunState> {
     if (await isEventAuthorityRun(runId)) {
-      return resolveApprovalEvent(runId, approvalId, decision)
+      return resolveApprovalEvent(runId, approvalId, decision, actor)
     }
     return Transitions.resolveApproval(runId, approvalId)
   }

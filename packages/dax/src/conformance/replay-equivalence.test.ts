@@ -64,29 +64,85 @@ describe("invariant 2 — replay equivalence", () => {
   })
 
   test("the approval a reviewer saw is reproducible from the log", () => {
-    // Fails at v1.3.0. The event carries an id, a type and a risk band. The
-    // title, reason and expectedConsequence — the text the operator actually read
-    // before deciding — live only in the ApprovalStore.
-    //
-    // Replay can therefore reproduce that an approval was granted, but not what
-    // was approved. That is the ApprovalStore divergence, stated as a test.
+    // The question an audited approval has to answer is not "did someone approve"
+    // but "what were they shown, and what did they permit". Until the title,
+    // reason and expectedConsequence rode on the event, they lived only in the
+    // ApprovalStore — which made the store authoritative and the log decorative.
     const events = log(
       { type: "execution_queued", payload: {} },
       { type: "workflow_started", payload: {} },
       {
         type: "approval_requested",
-        payload: { approvalId: "apr_1", approvalType: "patch_apply", risk: "medium" },
+        payload: {
+          approvalId: "apr_1",
+          approvalType: "patch_apply",
+          risk: "medium",
+          title: "Approve governed codex changes",
+          reason: "External worker produced a kernel-computed diff requiring human approval.",
+          expectedConsequence: "The reviewed patch becomes an approved artifact.",
+          stepId: "step_1",
+        },
       },
     )
 
     const projected = reduceRunState(events)
-    const approvalEvent = events.find((e) => e.type === "approval_requested")
-    const payload = approvalEvent?.payload as Record<string, unknown>
+    const approval = projected?.approvals.find((a) => a.approvalId === "apr_1")
 
     expect(projected?.pendingApprovalIds).toEqual(["apr_1"])
-    expect(Object.keys(payload).sort()).toEqual(
-      ["approvalId", "approvalType", "expectedConsequence", "reason", "risk", "title"].sort(),
+    expect(approval).toMatchObject({
+      approvalType: "patch_apply",
+      risk: "medium",
+      title: "Approve governed codex changes",
+      reason: "External worker produced a kernel-computed diff requiring human approval.",
+      expectedConsequence: "The reviewed patch becomes an approved artifact.",
+      status: "pending",
+    })
+  })
+
+  test("who decided, and when, survives replay", () => {
+    // An unattributed decision is not an audit record. The resolution event now
+    // carries the actor, so replay can answer "on whose authority" without
+    // consulting a sibling store.
+    const events = log(
+      { type: "execution_queued", payload: {} },
+      { type: "workflow_started", payload: {} },
+      {
+        type: "approval_requested",
+        payload: { approvalId: "apr_1", approvalType: "patch_apply", risk: "high", title: "Apply patch" },
+      },
+      {
+        type: "approval_resolved",
+        payload: {
+          approvalId: "apr_1",
+          decision: "approved",
+          actor: "operator@example.com",
+          resolvedAt: "2026-08-19T12:00:00.000Z",
+        },
+      },
     )
+
+    const approval = reduceRunState(events)?.approvals.find((a) => a.approvalId === "apr_1")
+
+    expect(approval).toMatchObject({
+      status: "approved",
+      decidedBy: "operator@example.com",
+      decidedAt: "2026-08-19T12:00:00.000Z",
+    })
+  })
+
+  test("an approval recorded before the log carried its text still replays", () => {
+    // Backward compatibility is load-bearing here: real logs exist with the old
+    // three-field payload, and refusing them would trade one broken invariant for
+    // another.
+    const events = log(
+      { type: "execution_queued", payload: {} },
+      { type: "workflow_started", payload: {} },
+      { type: "approval_requested", payload: { approvalId: "apr_old", approvalType: "tool", risk: "medium" } },
+    )
+
+    const approval = reduceRunState(events)?.approvals.find((a) => a.approvalId === "apr_old")
+
+    expect(approval).toMatchObject({ approvalType: "tool", risk: "medium", title: null, reason: null })
   })
 
   test("worker evidence is reproducible, not merely recorded", () => {

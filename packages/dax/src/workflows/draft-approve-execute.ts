@@ -1,6 +1,7 @@
 import { Log } from "@/util/log"
 import { generateText } from "ai"
 import { HybridTransitions } from "@/state/hybrid-transitions"
+import { getApproval } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
@@ -249,7 +250,14 @@ export class DraftApproveExecuteWorkflow {
         source: "workflow",
       })
 
-      await HybridTransitions.addApproval(this.runId, approval.approvalId)
+      await HybridTransitions.addApproval(this.runId, approval.approvalId, {
+        approvalType: approval.type,
+        risk: approval.risk,
+        title: approval.title,
+        reason: approval.reason,
+        expectedConsequence: approval.expectedConsequence,
+        stepId: approval.stepId,
+      })
       await HybridTransitions.transition(this.runId, "waiting_approval", "approval_required")
 
       await HybridTransitions.completeStep(this.runId, stepId, [approval.approvalId])
@@ -413,8 +421,13 @@ export class DraftApproveExecuteWorkflow {
   async resumeAfterApproval(approvalId: string, decision: "approved" | "denied"): Promise<WorkflowExecutionResult> {
     log.info("resuming after approval", { runId: this.runId, approvalId, decision })
 
+    // Read the decider from the store and write it into the log. The store holds
+    // the decision as it was made; the log is what has to survive to be audited.
+    const decided = await getApproval(this.runId, approvalId)
+    const actor = decided?.resolution?.actorId ?? decided?.actor ?? null
+
     if (decision === "denied") {
-      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected")
+      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected", actor)
       await HybridTransitions.transition(this.runId, "failed", "approval_denied")
       return {
         success: false,
@@ -423,7 +436,7 @@ export class DraftApproveExecuteWorkflow {
       }
     }
 
-    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved")
+    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved", actor)
 
     const reconstructedDraft = await this.reconstructDraftArtifact()
     const executionResult = await this.executeCommitExecution(reconstructedDraft ? [reconstructedDraft] : [])

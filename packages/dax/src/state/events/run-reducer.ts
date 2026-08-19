@@ -20,6 +20,12 @@ export type RunState = {
   currentStepId: string | null
   steps: StepRecord[]
   pendingApprovalIds: string[]
+  /**
+   * The approvals this run requested, as the operator saw them. Distinct from
+   * pendingApprovalIds, which answers "is anything blocked" but not "what was
+   * permitted, by whom, on what basis".
+   */
+  approvals: ApprovalRecord[]
   artifactIds: string[]
   governance: {
     guardEnforcementMode: "warn" | "enforce"
@@ -91,6 +97,19 @@ export type RunStatus =
   | "failed"
   | "cancelled"
 
+export type ApprovalRecord = {
+  approvalId: string
+  approvalType: string
+  risk: string
+  title: string | null
+  reason: string | null
+  expectedConsequence: string | null
+  stepId: string | null
+  status: "pending" | "approved" | "rejected"
+  decidedBy: string | null
+  decidedAt: string | null
+}
+
 export type StepRecord = {
   stepId: string
   title: string
@@ -150,6 +169,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     currentStepId: null,
     steps: [],
     pendingApprovalIds: [],
+    approvals: [],
     artifactIds: [],
     governance: {
       guardEnforcementMode: "warn",
@@ -222,18 +242,50 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
           if (state.status !== "waiting_approval") {
             state.status = "waiting_approval"
           }
-          const payload = event.payload as { approvalId: string }
+          const payload = event.payload as {
+            approvalId: string
+            approvalType?: string
+            risk?: string
+            title?: string
+            reason?: string
+            expectedConsequence?: string
+            stepId?: string | null
+          }
           if (!state.pendingApprovalIds.includes(payload.approvalId)) {
             state.pendingApprovalIds.push(payload.approvalId)
             state.governance.budget.approvalsRequested += 1
+            state.approvals.push({
+              approvalId: payload.approvalId,
+              approvalType: payload.approvalType ?? "tool",
+              risk: payload.risk ?? "medium",
+              title: payload.title ?? null,
+              reason: payload.reason ?? null,
+              expectedConsequence: payload.expectedConsequence ?? null,
+              stepId: payload.stepId ?? null,
+              status: "pending",
+              decidedBy: null,
+              decidedAt: null,
+            })
           }
         }
         break
       }
 
       case "approval_resolved": {
-        const payload = event.payload as { approvalId: string; decision: "approved" | "rejected" }
+        const payload = event.payload as {
+          approvalId: string
+          decision: "approved" | "rejected"
+          actor?: string | null
+          resolvedAt?: string
+        }
         state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== payload.approvalId)
+
+        const record = state.approvals.find((approval) => approval.approvalId === payload.approvalId)
+        if (record) {
+          record.status = payload.decision
+          record.decidedBy = payload.actor ?? null
+          record.decidedAt = payload.resolvedAt ?? event.occurredAt
+        }
 
         if (state.pendingApprovalIds.length === 0) {
           if (!isLegalTransition(state.status, "running")) {

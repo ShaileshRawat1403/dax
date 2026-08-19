@@ -140,18 +140,56 @@ export async function failStepEvent(
   return appendEventOnly(runId, "step_failed", { stepId, error }, commandId)
 }
 
-export async function addApprovalEvent(runId: string, approvalId: string): Promise<RunState> {
+export async function addApprovalEvent(
+  runId: string,
+  approvalId: string,
+  details?: {
+    approvalType?: string
+    risk?: string
+    title?: string
+    reason?: string
+    expectedConsequence?: string
+    stepId?: string | null
+  },
+): Promise<RunState> {
   const commandId = `cmd_approval_add_${approvalId}`
-  return appendEventOnly(runId, "approval_requested", { approvalId, approvalType: "tool", risk: "medium" }, commandId)
+  // The defaults are what this function assumed unconditionally before callers
+  // could describe the approval. They remain only so a caller with nothing to say
+  // still produces a well-formed event.
+  return appendEventOnly(
+    runId,
+    "approval_requested",
+    {
+      approvalId,
+      approvalType: details?.approvalType ?? "tool",
+      risk: details?.risk ?? "medium",
+      ...(details?.title ? { title: details.title } : {}),
+      ...(details?.reason ? { reason: details.reason } : {}),
+      ...(details?.expectedConsequence ? { expectedConsequence: details.expectedConsequence } : {}),
+      ...(details?.stepId !== undefined ? { stepId: details.stepId } : {}),
+    },
+    commandId,
+  )
 }
 
 export async function resolveApprovalEvent(
   runId: string,
   approvalId: string,
   decision: "approved" | "rejected",
+  actor?: string | null,
 ): Promise<RunState> {
   const commandId = `cmd_resolve_${approvalId}_${decision}`
-  return appendEventOnly(runId, "approval_resolved", { approvalId, decision }, commandId)
+  return appendEventOnly(
+    runId,
+    "approval_resolved",
+    {
+      approvalId,
+      decision,
+      ...(actor !== undefined ? { actor } : {}),
+      resolvedAt: new Date().toISOString(),
+    },
+    commandId,
+  )
 }
 
 export async function addArtifactEvent(runId: string, artifactId: string, artifactType: string): Promise<RunState> {

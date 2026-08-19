@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { RUN_EVENT_TYPES, type RunEventType } from "@/state/events/run-event-types"
 
 /**
@@ -103,18 +105,26 @@ describe("invariant 1 — durable authority", () => {
     expect({ covered, total }).toEqual({ covered: total, total })
   })
 
-  test("approval is durable in name but not in substance", () => {
-    // approval_requested carries { approvalId, approvalType, risk } only
-    // (event-transitions.ts). The title, reason and expectedConsequence the
-    // operator actually read live in the ApprovalStore and nowhere else, so the
-    // log records that an approval happened but not what was approved.
+  test("approval is durable in substance, not only in name", () => {
+    // The reviewer test is decisive here: someone shown only the log must be able
+    // to tell what the operator was asked to permit. approval_requested carried
+    // { approvalId, approvalType, risk } and nothing else, so the answer lived in
+    // the ApprovalStore and the log recorded only that an approval had happened.
     //
-    // The reviewer test is decisive: a reviewer shown only the log cannot tell
-    // what the operator was asked to permit.
-    const approvalPayloadFields = ["approvalId", "approvalType", "risk"]
-    const fieldsAReviewerNeeds = ["approvalId", "approvalType", "risk", "title", "reason", "expectedConsequence"]
+    // Asserted against the payload union rather than a sample event, so adding a
+    // field a reviewer needs cannot be satisfied by one well-formed emit site.
+    const declared = readFileSync(join(import.meta.dir, "..", "state/events/run-event-types.ts"), "utf8")
+    const approvalRequested = declared.slice(
+      declared.indexOf('type: "approval_requested"'),
+      declared.indexOf('type: "approval_resolved"'),
+    )
 
-    expect(approvalPayloadFields).toEqual(fieldsAReviewerNeeds)
+    for (const field of ["title", "reason", "expectedConsequence"]) {
+      expect(approvalRequested).toContain(field)
+    }
+
+    const approvalResolved = declared.slice(declared.indexOf('type: "approval_resolved"'))
+    expect(approvalResolved.slice(0, 400)).toContain("actor")
   })
 
   test("the vocabulary is closed, so absence is detectable", () => {

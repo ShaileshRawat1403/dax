@@ -58,9 +58,36 @@ export type RunEventPayload =
   | { type: "workflow_started"; payload: Record<string, never> }
   | {
       type: "approval_requested"
-      payload: { approvalId: string; approvalType: string; risk: string }
+      payload: {
+        approvalId: string
+        approvalType: string
+        risk: string
+        /**
+         * What the operator was actually shown before deciding.
+         *
+         * Without these the log proves an approval happened but not what was
+         * permitted, so replay cannot answer the only question that matters when
+         * an approval is audited. They were held solely in ApprovalStore, which
+         * made the store authoritative and the log decorative. Optional so
+         * approvals recorded before this field existed still replay.
+         */
+        title?: string
+        reason?: string
+        expectedConsequence?: string
+        stepId?: string | null
+      }
     }
-  | { type: "approval_resolved"; payload: { approvalId: string; decision: "approved" | "rejected" } }
+  | {
+      type: "approval_resolved"
+      payload: {
+        approvalId: string
+        decision: "approved" | "rejected"
+        /** Who decided, and when. An unattributed decision is not an audit record. */
+        actor?: string | null
+        comment?: string
+        resolvedAt?: string
+      }
+    }
   | {
       type: "step_added"
       payload: { stepId: string; title: string; stepType: "proposed" | "executed" | "approved" | "rejected" }
