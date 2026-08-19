@@ -171,8 +171,16 @@ evidence; each entry quotes the contradicting source).
 8. **`WORKFLOW_ARCHITECTURE_MAP.md:40-47`, `WORKFLOW_REPO_AUDIT.md:45-52`,
    `WORKFLOW_RELEASE_READINESS.md:43-53` — invented output blocks.** The real
    `dax workflow run` output is the `WORKFLOW RESULT` block in
-   `cli/cmd/workflow.ts:166-181` and `workflow-summary.json` (`workflow.ts:164`).
-   No "Trust Score" percentages exist.
+   `cli/cmd/workflow.ts:166-181` and `workflow-summary.json` (`workflow.ts:164`),
+   which prints no trust score.
+
+   Corrected on review: an earlier draft of this entry said no "Trust Score"
+   percentage exists anywhere. It does — `workflow.ts:241` prints
+   `Trust Score: ${Math.round(summary.trust_score * 100)}%`, but from the
+   `workflow inspect <session-id>` command, not from `workflow run`. What the
+   docs invent is the qualitative label: real output is a bare percentage, never
+   `Trust Score: Medium (75%)` or `High (95%)`. Both docs are marked superseded,
+   so no repair carried the error forward.
 
 9. **`DAX_EVALS.md:66,82` — stale eval inventory.** Doc says kinds
    `core_proof | policy | audit` and "the smoke suite covers three scenarios".
@@ -246,12 +254,20 @@ evidence; each entry quotes the contradicting source).
     (`governance/trust-verification.ts:37`, `dax/presentation/evidence-ledger.ts`).
 
 17. **`TUI_UX_REFRESH.md` — refresh landed elsewhere.** Plan item 1 put left-border
-    tool chrome in `RunEventRow`; instead `run-event-row.tsx:88-89` explicitly
-    rejects that ("Tool execution chrome belongs to ToolPart") and the chrome
-    landed in the session route (`routes/session/index.tsx:2526-2554` ToolLine,
-    `:2651-2679` Bash). Plan item 2's As-Is mockup (`──── ⟳ context compacted ────`)
-    is stale: `stream-item.tsx:79-108` already implements the borderless dim To-Be
-    state. Item 3 live-tail is implemented (`index.tsx:2634-2645`).
+    tool chrome in `RunEventRow`; instead
+    `cli/cmd/tui/component/stream/run-event-row.tsx:88-89` explicitly rejects that
+    ("Tool execution chrome belongs to ToolPart") and the chrome landed in the
+    session route (`routes/session/index.tsx:2526-2554` ToolLine, `:2651-2679`
+    Bash). Plan item 2's As-Is mockup (`──── ⟳ context compacted ────`) is stale:
+    `cli/cmd/tui/component/stream/stream-item.tsx:56` matches
+    `compaction.marker` and `:104` renders the borderless dim
+    `⟳  context compacted` To-Be state. Item 3 live-tail is implemented
+    (`index.tsx:2634-2645`).
+
+    Corrected on review: both TUI paths in an earlier draft of this entry omitted
+    the `stream/` directory segment, and the compaction citation pointed at
+    `stream-item.tsx:79-108`, which is `TurnSeparator`, not the compaction
+    marker.
 
 18. **`DAX_ARTIFACTS.md` — omits the 4th artifact kind.** Source has
     `session_diff | attachment | truncated_output | workspace_file`
