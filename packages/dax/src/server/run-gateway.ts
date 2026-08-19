@@ -16,7 +16,7 @@ import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { ApprovalAlreadyResolvedError, ApprovalNotFoundError } from "@/approval/approval-transitions"
 import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
 import { Tracer } from "@/runtime/telemetry"
-import { Transitions } from "@/state/transitions"
+import { HybridTransitions } from "@/state/hybrid-transitions"
 import { replayRunState } from "@/state/replay"
 import { getEventAuthorityState } from "@/state/events/event-transitions"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
@@ -756,13 +756,17 @@ async function handleBusEvent(event: any) {
       if (runState) {
         try {
           if (runState.status === "waiting_approval") {
-            await Transitions.transition(event.properties.sessionID, "failed", "approval_denied")
+            await HybridTransitions.transition(event.properties.sessionID, "failed", "approval_denied")
           } else if (runState.status === "running") {
-            await Transitions.transition(event.properties.sessionID, "failed", "execution_error")
+            await HybridTransitions.transition(event.properties.sessionID, "failed", "run_failed", {
+              error: { code: "execution_error", message: "Run failed during execution", retryable: false },
+            })
           } else if (runState.status === "compiled" || runState.status === "queued") {
-            await Transitions.transition(event.properties.sessionID, "queued", "execution_queued")
-            await Transitions.transition(event.properties.sessionID, "running", "execution_started")
-            await Transitions.transition(event.properties.sessionID, "failed", "execution_error")
+            await HybridTransitions.transition(event.properties.sessionID, "queued", "execution_queued")
+            await HybridTransitions.transition(event.properties.sessionID, "running", "execution_started")
+            await HybridTransitions.transition(event.properties.sessionID, "failed", "run_failed", {
+              error: { code: "execution_error", message: "Run failed during execution", retryable: false },
+            })
           }
         } catch (error) {
           log.warn("failed to transition to failed on session error", { error, runId: event.properties.sessionID })
@@ -846,22 +850,22 @@ async function handleBusEvent(event: any) {
       if (runState) {
         if (runState.status === "running") {
           try {
-            await Transitions.transition(runId, "waiting_approval", "approval_pending")
+            await HybridTransitions.transition(runId, "waiting_approval", "approval_required")
           } catch (error) {
             log.warn("failed to transition to waiting_approval", { error, runId })
           }
         } else if (runState.status === "queued") {
           try {
-            await Transitions.transition(runId, "running", "execution_started")
-            await Transitions.transition(runId, "waiting_approval", "approval_pending")
+            await HybridTransitions.transition(runId, "running", "execution_started")
+            await HybridTransitions.transition(runId, "waiting_approval", "approval_required")
           } catch (error) {
             log.warn("failed to transition through running to waiting_approval", { error, runId })
           }
         } else if (runState.status === "compiled") {
           try {
-            await Transitions.transition(runId, "queued", "execution_queued")
-            await Transitions.transition(runId, "running", "execution_started")
-            await Transitions.transition(runId, "waiting_approval", "approval_pending")
+            await HybridTransitions.transition(runId, "queued", "execution_queued")
+            await HybridTransitions.transition(runId, "running", "execution_started")
+            await HybridTransitions.transition(runId, "waiting_approval", "approval_required")
           } catch (error) {
             log.warn("failed to transition through queued/running to waiting_approval", {
               error,

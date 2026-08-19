@@ -29,6 +29,14 @@ export const RUN_EVENT_TYPES = [
   "worker_sandbox_recorded",
   "worker_egress_denied",
   "mutation_recorded",
+  "execution_started",
+  "plan_quality_gate",
+  "signoff_requested",
+  "signoff_received",
+  "workflow_signed_off",
+  "workflow_rejected",
+  "workflow_expired",
+  "workflow_failed",
   "verification_recorded",
 ] as const
 
@@ -175,6 +183,14 @@ export type RunEventPayload =
       type: "worker_egress_denied"
       payload: { providerId: string; hosts: string[] }
     }
+  | { type: "execution_started"; payload: Record<string, never> }
+  | { type: "plan_quality_gate"; payload: { reason?: string } }
+  | { type: "signoff_requested"; payload: Record<string, never> }
+  | { type: "signoff_received"; payload: { decision?: string } }
+  | { type: "workflow_signed_off"; payload: Record<string, never> }
+  | { type: "workflow_rejected"; payload: Record<string, never> }
+  | { type: "workflow_expired"; payload: Record<string, never> }
+  | { type: "workflow_failed"; payload: { error?: { code: string; message: string } } }
   | {
       type: "mutation_recorded"
       payload: {

@@ -1,5 +1,5 @@
 import { Log } from "@/util/log"
-import { Transitions } from "@/state/transitions"
+import { HybridTransitions } from "@/state/hybrid-transitions"
 import { RunStore } from "@/state/run-store"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult, DraftArtifact } from "./types"
@@ -87,15 +87,15 @@ export class ReviewAndSignoffWorkflow {
     }
 
     const finalArtifactId = `art_${Identifier.create("session", false)}`
-    await Transitions.addArtifact(this.runId, finalArtifactId)
+    await HybridTransitions.addArtifact(this.runId, finalArtifactId)
 
     const finalState = this.determineFinalState()
     if (finalState === "signed_off") {
-      await Transitions.transition(this.runId, "completed", "workflow_signed_off")
+      await HybridTransitions.transition(this.runId, "completed", "workflow_signed_off")
     } else if (finalState === "rejected") {
-      await Transitions.transition(this.runId, "completed", "workflow_rejected")
+      await HybridTransitions.transition(this.runId, "completed", "workflow_rejected")
     } else {
-      await Transitions.transition(this.runId, "completed", "workflow_expired")
+      await HybridTransitions.transition(this.runId, "completed", "workflow_expired")
     }
 
     log.info("review_and_signoff workflow completed", {
@@ -120,8 +120,8 @@ export class ReviewAndSignoffWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await Transitions.addStep(this.runId, stepId, "Collect Context", "executed")
-      await Transitions.startStep(this.runId, stepId)
+      await HybridTransitions.addStep(this.runId, stepId, "Collect Context", "executed")
+      await HybridTransitions.startStep(this.runId, stepId)
 
       const contextArtifact: DraftArtifact = {
         type: "summary",
@@ -129,7 +129,7 @@ export class ReviewAndSignoffWorkflow {
       }
 
       this.reviewArtifacts.context = contextArtifact
-      await Transitions.completeStep(this.runId, stepId, ["context:collected"])
+      await HybridTransitions.completeStep(this.runId, stepId, ["context:collected"])
 
       log.info("collect_context completed", { runId: this.runId })
 
@@ -148,8 +148,8 @@ export class ReviewAndSignoffWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await Transitions.addStep(this.runId, stepId, "Produce Review", "executed")
-      await Transitions.startStep(this.runId, stepId)
+      await HybridTransitions.addStep(this.runId, stepId, "Produce Review", "executed")
+      await HybridTransitions.startStep(this.runId, stepId)
 
       const reviewArtifact: DraftArtifact = {
         type: "report",
@@ -157,7 +157,7 @@ export class ReviewAndSignoffWorkflow {
       }
 
       this.reviewArtifacts.review = reviewArtifact
-      await Transitions.completeStep(this.runId, stepId, ["review:produced"])
+      await HybridTransitions.completeStep(this.runId, stepId, ["review:produced"])
 
       log.info("produce_review completed", { runId: this.runId })
 
@@ -176,20 +176,20 @@ export class ReviewAndSignoffWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await Transitions.addStep(this.runId, stepId, "Request Signoff", "executed")
-      await Transitions.startStep(this.runId, stepId)
+      await HybridTransitions.addStep(this.runId, stepId, "Request Signoff", "executed")
+      await HybridTransitions.startStep(this.runId, stepId)
 
       const timeoutMs = this.contract.timeoutMs ?? 3600000
       const deadline = Date.now() + timeoutMs
 
-      await Transitions.transition(this.runId, "waiting_approval", "signoff_requested")
+      await HybridTransitions.transition(this.runId, "waiting_approval", "signoff_requested")
 
       const decision = await this.waitForSignoff(deadline)
 
       this.signoffResult = decision
-      await Transitions.transition(this.runId, "running", "signoff_received")
+      await HybridTransitions.transition(this.runId, "running", "signoff_received")
 
-      await Transitions.completeStep(this.runId, stepId, [`signoff:${decision.decision}`])
+      await HybridTransitions.completeStep(this.runId, stepId, [`signoff:${decision.decision}`])
 
       log.info("request_signoff completed", { runId: this.runId, decision: decision.decision })
 
@@ -208,15 +208,15 @@ export class ReviewAndSignoffWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await Transitions.addStep(this.runId, stepId, "Finalize Outcome", "executed")
-      await Transitions.startStep(this.runId, stepId)
+      await HybridTransitions.addStep(this.runId, stepId, "Finalize Outcome", "executed")
+      await HybridTransitions.startStep(this.runId, stepId)
 
       const outcomeArtifact: DraftArtifact = {
         type: "message",
         content: this.buildOutcomeContent(),
       }
 
-      await Transitions.completeStep(this.runId, stepId, [`outcome:${this.determineFinalState()}`])
+      await HybridTransitions.completeStep(this.runId, stepId, [`outcome:${this.determineFinalState()}`])
 
       log.info("finalize_outcome completed", { runId: this.runId })
 
@@ -354,9 +354,8 @@ Recorded at: ${timestamp}`
 
   private async failWorkflow(reason: string): Promise<void> {
     log.error("review_and_signoff workflow failed", { runId: this.runId, reason })
-    await Transitions.fail(this.runId, {
-      code: "workflow_failed",
-      message: reason,
+    await HybridTransitions.transition(this.runId, "failed", "workflow_failed", {
+      error: { code: "workflow_failed", message: reason },
     })
   }
 

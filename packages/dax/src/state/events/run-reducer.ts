@@ -585,6 +585,80 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
       // Evidence events. They carry the worker_run receipt fields but project
       // into RunState only when the governance projection is added; for now
       // the event log is their store, so reduction is a no-op.
+      case "execution_started": {
+        if (!isTerminalStatus(state.status) && state.status !== "running") {
+          if (!isLegalTransition(state.status, "running")) {
+            throw new Error(`Illegal transition from ${state.status} to running`)
+          }
+          state.status = "running"
+          state.startedAt = state.startedAt ?? event.occurredAt
+        }
+        break
+      }
+
+      case "plan_quality_gate":
+      case "signoff_requested": {
+        // Both pause the run for a human: a plan that did not clear its quality
+        // bar, and a review awaiting signoff. Same shape as approval_requested
+        // without an approval object, since neither creates one.
+        if (!isTerminalStatus(state.status) && state.status !== "waiting_approval") {
+          if (!isLegalTransition(state.status, "waiting_approval")) {
+            throw new Error(`Illegal transition from ${state.status} to waiting_approval`)
+          }
+          state.status = "waiting_approval"
+        }
+        break
+      }
+
+      case "signoff_received": {
+        if (!isTerminalStatus(state.status) && state.status !== "running") {
+          if (!isLegalTransition(state.status, "running")) {
+            throw new Error(`Illegal transition from ${state.status} to running`)
+          }
+          state.status = "running"
+        }
+        break
+      }
+
+      case "workflow_signed_off": {
+        // review_and_signoff's accepted terminal. Distinct from run_completed
+        // because what satisfied it is a human decision, not verification
+        // evidence — so it must not be routed through the completion gate.
+        if (!isTerminalStatus(state.status)) {
+          state.status = "completed"
+          state.currentStepId = null
+          state.completedAt = event.occurredAt
+        }
+        break
+      }
+
+      case "workflow_rejected":
+      case "workflow_expired": {
+        // Terminal without being a failure of the run: the work was produced and
+        // a human declined it, or the window closed.
+        if (!isTerminalStatus(state.status)) {
+          state.status = "cancelled"
+          state.currentStepId = null
+          state.completedAt = event.occurredAt
+        }
+        break
+      }
+
+      case "workflow_failed": {
+        const payload = event.payload as { error?: { code: string; message: string } }
+        if (!isTerminalStatus(state.status)) {
+          state.status = "failed"
+          state.error = {
+            code: payload.error?.code ?? "workflow_failed",
+            message: payload.error?.message ?? "Workflow failed",
+            retryable: false,
+          }
+          state.currentStepId = null
+          state.completedAt = event.occurredAt
+        }
+        break
+      }
+
       case "contract_refined": {
         const payload = event.payload as {
           writeScope?: string[]
