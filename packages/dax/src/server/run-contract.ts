@@ -1,4 +1,7 @@
 import z from "zod"
+import { WorkflowTerminalReasonSchema } from "@/workflows/types"
+import type { WorkflowTerminalReason } from "@/workflows/types"
+export type { WorkflowTerminalReason }
 
 export const SchemaVersion = z.literal("v1")
 export type SchemaVersion = z.infer<typeof SchemaVersion>
@@ -12,20 +15,6 @@ export type WorkflowClass = z.infer<typeof WorkflowClass>
 export const WorkflowTrustPosture = z.enum(["high", "medium", "low", "minimal"])
 export type WorkflowTrustPosture = z.infer<typeof WorkflowTrustPosture>
 
-export const WorkflowTerminalReason = z.enum([
-  "workflow_completed",
-  "workflow_failed",
-  "workflow_signed_off",
-  "workflow_rejected",
-  "workflow_expired",
-  "workflow_cancelled",
-  "execution_error",
-  "permission_denied",
-  "timeout",
-  "contract_mutation",
-])
-export type WorkflowTerminalReason = z.infer<typeof WorkflowTerminalReason>
-
 export const WorkflowSummary = z
   .object({
     workflowClass: WorkflowClass,
@@ -33,7 +22,7 @@ export const WorkflowSummary = z
     currentStepIndex: z.number().optional(),
     totalSteps: z.number(),
     trustPosture: WorkflowTrustPosture,
-    terminalReason: WorkflowTerminalReason.optional(),
+    terminalReason: WorkflowTerminalReasonSchema.optional(),
   })
   .meta({ ref: "WorkflowSummaryV1" })
 export type WorkflowSummary = z.infer<typeof WorkflowSummary>
@@ -147,7 +136,7 @@ export const RunSnapshot = z
     trust: RunTrustState.optional(),
     artifactSummary: RunArtifactSummary.optional(),
     workflow: WorkflowSummary.optional(),
-    terminalReason: WorkflowTerminalReason.optional(),
+    terminalReason: WorkflowTerminalReasonSchema.optional(),
     metadata: z.record(z.string(), z.any()).optional(),
     lastEvent: z
       .object({
@@ -374,7 +363,7 @@ export const RunSummary = z
     artifactCount: z.number(),
     trust: RunTrustState.optional(),
     workflow: WorkflowSummary.optional(),
-    terminalReason: WorkflowTerminalReason.optional(),
+    terminalReason: WorkflowTerminalReasonSchema.optional(),
     outcome: z
       .object({
         summaryText: z.string().optional(),
@@ -415,7 +404,7 @@ export const RunListItem = z
     projectId: z.string().optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
-    terminalReason: WorkflowTerminalReason.optional(),
+    terminalReason: WorkflowTerminalReasonSchema.optional(),
   })
   .meta({ ref: "RunListItemV1" })
 export type RunListItem = z.infer<typeof RunListItem>

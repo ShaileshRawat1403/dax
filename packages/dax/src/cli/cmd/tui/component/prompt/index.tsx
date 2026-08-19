@@ -1,6 +1,7 @@
 import { BoxRenderable, TextareaRenderable } from "@opentui/core"
 import { createEffect, type JSX, onCleanup, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
+import type { PaneMode } from "@/dax/presentation/pane"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
 import { useSDK } from "@tui/context/sdk"
@@ -21,7 +22,7 @@ export type PromptProps = {
   visible?: boolean
   disabled?: boolean
   panePinned?: boolean
-  activePaneMode?: "diff" | "audit" | "approvals" | "memory" | "refine" | "operator" | "runtime"
+  activePaneMode?: PaneMode
   approvalAttentionCount?: number
   questionAttentionCount?: number
   onRefineReady?: (prompt: string) => void
