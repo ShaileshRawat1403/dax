@@ -15,6 +15,10 @@ const repoRoot = path.resolve(import.meta.dir, "../../..")
 
 /** RunStore needs an Instance context, same as the sibling state tests. */
 async function inRepo<T>(body: () => Promise<T>): Promise<T> {
+  // Re-asserted per test, not once at module load. Every test file that sets
+  // DAX_TEST_HOME does so at import time, so in a full run the last module
+  // loaded wins and this file's runs land in a home it does not read back.
+  process.env.DAX_TEST_HOME = testHome
   const { bootstrap } = await import("@/cli/bootstrap")
   let out: T
   await bootstrap(repoRoot, async () => {
@@ -23,6 +27,8 @@ async function inRepo<T>(body: () => Promise<T>): Promise<T> {
   return out!
 }
 
+/** Fixed ids collided across runs sharing a home; the ordering they encode (aaa before zzz) is what the paging case tests, so keep that and make the rest unique. */
+const uniq = Date.now().toString(36)
 let counter = 0
 const runId = () => `run_recovery_${Date.now().toString(36)}_${++counter}`
 
@@ -98,7 +104,7 @@ describe("stranded runs", () => {
       const RunStore = await store()
 
       for (let i = 0; i < 120; i++) {
-        const id = `run_aaa_${String(i).padStart(4, "0")}`
+        const id = `run_aaa_${uniq}_${String(i).padStart(4, "0")}`
         await createEventAuthorityRun(id, "ctr_filler")
         const { RunLifecycle } = await import("./run-lifecycle")
         await RunLifecycle.transition(id, "queued", "execution_queued")
@@ -108,7 +114,7 @@ describe("stranded runs", () => {
         await RunStore.save(id, { ...state, updatedAt: new Date().toISOString() })
       }
 
-      const buriedId = "run_zzz_buried"
+      const buriedId = `run_zzz_${uniq}_buried`
       await createEventAuthorityRun(buriedId, "ctr_buried")
       const { RunLifecycle: Lifecycle } = await import("./run-lifecycle")
       await Lifecycle.transition(buriedId, "queued", "execution_queued")
