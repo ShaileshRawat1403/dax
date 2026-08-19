@@ -17,9 +17,13 @@ last_reviewed: 2026-08-19
 
 > **Status note**: The workstation surfaced in the session route of the TUI
 > (packages/dax/src/cli/cmd/tui/routes/session/index.tsx). The shipped session
-> pane modes are `diff | audit | approvals | memory | refine | operator | runtime`
-> (packages/dax/src/cli/cmd/tui/component/prompt/index.tsx:24), which this
-> blueprint's mode list below is aligned to.
+> pane modes are `audit | approvals | memory | refine | operator | runtime`
+> — the canonical `PANE_MODE` const
+> (packages/dax/src/dax/presentation/pane.ts:1), which this blueprint's mode
+> list below is aligned to. Note that
+> packages/dax/src/cli/cmd/tui/component/prompt/index.tsx:24 declares a stale
+> inline union that additionally lists `diff`; no code path assigns it and
+> `diff` is not a `PaneMode`.
 
 ## Purpose
 
@@ -137,7 +141,6 @@ It should answer:
 
 It is composed of the session-native modes:
 
-- `diff`
 - `audit`
 - `approvals`
 - `memory`
@@ -148,13 +151,16 @@ It is composed of the session-native modes:
 These modes should not feel like static tabs. The pane should follow the session:
 
 - approvals/questions -> `approvals`
-- active refine draft -> `refine`
-- active diff -> `diff`
 - audit warnings/blockers -> `audit`
 - memory snapshot -> `memory`
-- operator logs -> `operator`
-- runtime state -> `runtime`
-- otherwise -> `refine`
+- active refine draft -> `refine`
+- otherwise -> the caller's `fallback` (the session route passes `refine`)
+
+Those five branches are the whole of `deriveAutoPaneMode`
+(packages/dax/src/dax/presentation/pane.ts), evaluated in that order.
+`operator` and `runtime` are reachable only by manual selection, never
+auto-derived. `deriveAutoPaneMode` also accepts `hasDiffContext`,
+`hasLiveContext` and `hasPlanContext` but branches on none of them.
 
 Manual pinning is allowed, but approvals remain the highest-priority interruption surface.
 

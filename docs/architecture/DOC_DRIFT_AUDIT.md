@@ -148,11 +148,25 @@ evidence; each entry quotes the contradicting source).
    (`plan.ts:22-33`) matches.
 
 7. **`DAX_WORKSTATION.md:117-123` — "five session-native modes".** Doc:
-   `changes/audit/approvals/plan/refine`. Actual: `diff | audit | approvals |
-   memory | refine | operator | runtime` (`dax/presentation/pane.ts:1`,
-   `cli/cmd/tui/component/prompt/index.tsx:24`). No `changes` (it is `diff`) and
-   no `plan` mode. Auto-pane fallback is `refine`, not `plan`
-   (`routes/session/index.tsx:1211`).
+   `changes/audit/approvals/plan/refine`. Actual: `audit | approvals | memory |
+   refine | operator | runtime` — six values, the canonical `PANE_MODE` const
+   (`dax/presentation/pane.ts:1`), consumed as the mode list by the session route
+   (`routes/session/index.tsx:211`) and as the `paneMode` signal type (`:414`).
+   No `changes` and no `plan` mode. Auto-pane fallback is `refine`, not `plan`.
+
+   Corrected on review: an earlier draft of this entry listed a seventh mode,
+   `diff`, on the strength of the inline prop union at
+   `cli/cmd/tui/component/prompt/index.tsx:24`. That union is stale — no code
+   path assigns `"diff"`, and it is not a member of `PaneMode`. Treat
+   `pane.ts:1` as the only source of truth here.
+
+   The auto-derivation rules were also overstated. `deriveAutoPaneMode`
+   (`pane.ts`) has exactly four positive branches, in order: `hasApprovals` →
+   `approvals`, `hasAuditAttention` → `audit`, `hasMemoryContext` → `memory`,
+   `hasRefineDraft` → `refine`; anything else returns the caller's `fallback`.
+   `operator` and `runtime` are never auto-derived. The function accepts
+   `hasDiffContext`, `hasLiveContext` and `hasPlanContext` and branches on none
+   of them — see the runtime follow-ups below.
 
 8. **`WORKFLOW_ARCHITECTURE_MAP.md:40-47`, `WORKFLOW_REPO_AUDIT.md:45-52`,
    `WORKFLOW_RELEASE_READINESS.md:43-53` — invented output blocks.** The real
