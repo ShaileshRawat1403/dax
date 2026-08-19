@@ -885,13 +885,6 @@ export function Session() {
     setPreviousUISurface(uiSurface())
   })
 
-  const hasLivePaneContext = createMemo(() => {
-    if (activeInterventions().length > 0) return true
-    if (proposedChanges().length > 0) return true
-    if (workstationState().planSummary.totalSteps > 0) return true
-    return false
-  })
-
   const memoryList = createMemo(() => parsePMList(memoryListText()))
   const memoryRules = createMemo(() => parsePMRules(memoryRulesText()))
   const memoryNote = createMemo(() => {
@@ -1221,10 +1214,7 @@ export function Session() {
       hasApprovals: hasApprovalsNeed(),
       hasRefineDraft: hasRefineNeed(),
       hasAuditAttention: hasAuditNeed(),
-      hasDiffContext: proposedChanges().length > 0,
-      hasLiveContext: hasLivePaneContext(),
       hasMemoryContext: memoryHasContext(),
-      hasPlanContext: workstationState().planSummary.totalSteps > 0,
       liveStage: displayStageState().stage,
       fallback: priorityPaneMode(),
       paneMode: normalizedPaneMode(),
