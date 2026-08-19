@@ -7,6 +7,7 @@ import {
   setRunAuthority,
 } from "./run-event-store"
 import { reduceRunState, type RunState } from "./run-reducer"
+import { isRunEventType, type RunEventType, type RunEventPayload } from "./run-event-types"
 import type { RunStatus } from "../run-state"
 
 const log = Log.create({ service: "event-transitions" })
@@ -16,21 +17,26 @@ export async function isEventAuthorityRun(runId: string): Promise<boolean> {
   return authority === "event-log"
 }
 
-export async function createEventAuthorityRun(runId: string, contractId: string): Promise<void> {
+export async function createEventAuthorityRun(
+  runId: string,
+  contractId: string,
+  verificationRequired = false,
+  guardEnforcementMode: "warn" | "enforce" = "warn",
+): Promise<void> {
   await setRunAuthority(runId, "event-log")
 
   await appendRunEvent(runId, 0, {
     type: "contract_compiled",
-    payload: { contractId },
+    payload: { contractId, verificationRequired, guardEnforcementMode },
   })
 
-  log.info("created event-authority run", { runId, contractId })
+  log.info("created event-authority run", { runId, contractId, verificationRequired })
 }
 
 export async function transitionEventAuthority(
   runId: string,
   newStatus: RunStatus,
-  eventType: string,
+  eventType: RunEventType,
   payload: unknown,
 ): Promise<RunState> {
   const authority = await getRunAuthority(runId)
@@ -51,7 +57,7 @@ export async function transitionEventAuthority(
 
   const seq = events.length
   await appendRunEvent(runId, seq, {
-    type: eventType as any,
+    type: eventType,
     payload,
   })
 
@@ -74,10 +80,10 @@ export async function getEventAuthorityState(runId: string): Promise<RunState | 
   return projectRunStateFromEvents(runId)
 }
 
-export async function appendEventOnly(
+export async function appendEventOnly<E extends RunEventType>(
   runId: string,
-  eventType: string,
-  payload: unknown,
+  eventType: E,
+  payload: Extract<RunEventPayload, { type: E }>["payload"],
   commandId?: string,
 ): Promise<RunState> {
   const authority = await getRunAuthority(runId)
@@ -89,7 +95,7 @@ export async function appendEventOnly(
   const seq = events.length
 
   await appendRunEvent(runId, seq, {
-    type: eventType as any,
+    type: eventType,
     payload,
     ...(commandId ? { commandId } : {}),
   })
@@ -102,7 +108,12 @@ export async function appendEventOnly(
   return updatedState
 }
 
-export async function addStepEvent(runId: string, stepId: string, title: string, stepType: string): Promise<RunState> {
+export async function addStepEvent(
+  runId: string,
+  stepId: string,
+  title: string,
+  stepType: "proposed" | "executed" | "approved" | "rejected",
+): Promise<RunState> {
   const commandId = `cmd_step_add_${stepId}`
   return appendEventOnly(runId, "step_added", { stepId, title, stepType }, commandId)
 }
@@ -126,18 +137,56 @@ export async function failStepEvent(
   return appendEventOnly(runId, "step_failed", { stepId, error }, commandId)
 }
 
-export async function addApprovalEvent(runId: string, approvalId: string): Promise<RunState> {
+export async function addApprovalEvent(
+  runId: string,
+  approvalId: string,
+  details?: {
+    approvalType?: string
+    risk?: string
+    title?: string
+    reason?: string
+    expectedConsequence?: string
+    stepId?: string | null
+  },
+): Promise<RunState> {
   const commandId = `cmd_approval_add_${approvalId}`
-  return appendEventOnly(runId, "approval_requested", { approvalId, approvalType: "tool", risk: "medium" }, commandId)
+  // The defaults are what this function assumed unconditionally before callers
+  // could describe the approval. They remain only so a caller with nothing to say
+  // still produces a well-formed event.
+  return appendEventOnly(
+    runId,
+    "approval_requested",
+    {
+      approvalId,
+      approvalType: details?.approvalType ?? "tool",
+      risk: details?.risk ?? "medium",
+      ...(details?.title ? { title: details.title } : {}),
+      ...(details?.reason ? { reason: details.reason } : {}),
+      ...(details?.expectedConsequence ? { expectedConsequence: details.expectedConsequence } : {}),
+      ...(details?.stepId !== undefined ? { stepId: details.stepId } : {}),
+    },
+    commandId,
+  )
 }
 
 export async function resolveApprovalEvent(
   runId: string,
   approvalId: string,
   decision: "approved" | "rejected",
+  actor?: string | null,
 ): Promise<RunState> {
   const commandId = `cmd_resolve_${approvalId}_${decision}`
-  return appendEventOnly(runId, "approval_resolved", { approvalId, decision }, commandId)
+  return appendEventOnly(
+    runId,
+    "approval_resolved",
+    {
+      approvalId,
+      decision,
+      ...(actor !== undefined ? { actor } : {}),
+      resolvedAt: new Date().toISOString(),
+    },
+    commandId,
+  )
 }
 
 export async function addArtifactEvent(runId: string, artifactId: string, artifactType: string): Promise<RunState> {

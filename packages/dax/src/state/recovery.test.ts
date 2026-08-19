@@ -1,4 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test"
+import { createEventAuthorityRun } from "@/state/events/event-transitions"
+import { getProjectedRunState } from "@/state/events/run-event-store"
 import os from "os"
 import path from "path"
 import { mkdtempSync, rmSync } from "fs"
@@ -13,6 +15,10 @@ const repoRoot = path.resolve(import.meta.dir, "../../..")
 
 /** RunStore needs an Instance context, same as the sibling state tests. */
 async function inRepo<T>(body: () => Promise<T>): Promise<T> {
+  // Re-asserted per test, not once at module load. Every test file that sets
+  // DAX_TEST_HOME does so at import time, so in a full run the last module
+  // loaded wins and this file's runs land in a home it does not read back.
+  process.env.DAX_TEST_HOME = testHome
   const { bootstrap } = await import("@/cli/bootstrap")
   let out: T
   await bootstrap(repoRoot, async () => {
@@ -21,19 +27,35 @@ async function inRepo<T>(body: () => Promise<T>): Promise<T> {
   return out!
 }
 
+/** Fixed ids collided across runs sharing a home; the ordering they encode (aaa before zzz) is what the paging case tests, so keep that and make the rest unique. */
+const uniq = Date.now().toString(36)
 let counter = 0
 const runId = () => `run_recovery_${Date.now().toString(36)}_${++counter}`
 
+/** Backdate a run so staleness checks see it as abandoned. */
+async function ageRun(id: string, agoMs: number) {
+  const RunStore = await store()
+  const state = (await getProjectedRunState(id))!
+  await RunStore.save(id, { ...state, updatedAt: new Date(Date.now() - agoMs).toISOString() })
+}
+
 /** A run parked in a non-terminal status, last touched `agoMs` ago. */
 async function strandedRun(status: "running" | "queued" | "waiting_approval", agoMs: number) {
-  const RunStore = await store()
   const id = runId()
-  const state = await RunStore.create(id, `ctr_${id}`)
-  await RunStore.save(id, {
-    ...state,
-    status,
-    updatedAt: new Date(Date.now() - agoMs).toISOString(),
-  })
+  await createEventAuthorityRun(id, `ctr_${id}`)
+
+  // Drive the run to the target status through its own lifecycle rather than
+  // writing state directly: the log is the state, so a hand-written status would
+  // describe a run whose events never happened.
+  const { RunLifecycle } = await import("./run-lifecycle")
+  await RunLifecycle.transition(id, "queued", "execution_queued")
+  if (status === "running") await RunLifecycle.transition(id, "running", "execution_started")
+  if (status === "waiting_approval") {
+    await RunLifecycle.transition(id, "running", "execution_started")
+    await RunLifecycle.transition(id, "waiting_approval", "approval_required")
+  }
+
+  await ageRun(id, agoMs)
   return id
 }
 
@@ -82,16 +104,24 @@ describe("stranded runs", () => {
       const RunStore = await store()
 
       for (let i = 0; i < 120; i++) {
-        const id = `run_aaa_${String(i).padStart(4, "0")}`
-        const state = await RunStore.create(id, "ctr_filler")
-        await RunStore.save(id, { ...state, status: "completed", updatedAt: new Date().toISOString() })
+        const id = `run_aaa_${uniq}_${String(i).padStart(4, "0")}`
+        await createEventAuthorityRun(id, "ctr_filler")
+        const { RunLifecycle } = await import("./run-lifecycle")
+        await RunLifecycle.transition(id, "queued", "execution_queued")
+        await RunLifecycle.transition(id, "running", "execution_started")
+        await RunLifecycle.transition(id, "completed", "run_completed")
+        const state = (await getProjectedRunState(id))!
+        await RunStore.save(id, { ...state, updatedAt: new Date().toISOString() })
       }
 
-      const buriedId = "run_zzz_buried"
-      const buried = await RunStore.create(buriedId, "ctr_buried")
+      const buriedId = `run_zzz_${uniq}_buried`
+      await createEventAuthorityRun(buriedId, "ctr_buried")
+      const { RunLifecycle: Lifecycle } = await import("./run-lifecycle")
+      await Lifecycle.transition(buriedId, "queued", "execution_queued")
+      await Lifecycle.transition(buriedId, "running", "execution_started")
+      const buried = (await getProjectedRunState(buriedId))!
       await RunStore.save(buriedId, {
         ...buried,
-        status: "running",
         updatedAt: new Date(Date.now() - INTERRUPTED_RUN_THRESHOLD_MS * 2).toISOString(),
       })
 
@@ -144,13 +174,16 @@ describe("closing out a stranded run", () => {
     // Marking a completed run as interrupted would be the ledger lying in the
     // other direction.
     const { markRunInterrupted } = await mod()
-    const RunStore = await store()
     const id = runId()
-    const state = await RunStore.create(id, `ctr_${id}`)
-    await RunStore.save(id, { ...state, status: "completed", completedAt: new Date().toISOString() })
+    await createEventAuthorityRun(id, `ctr_${id}`)
+
+    const { RunLifecycle } = await import("./run-lifecycle")
+    await RunLifecycle.transition(id, "queued", "execution_queued")
+    await RunLifecycle.transition(id, "running", "execution_started")
+    await RunLifecycle.transition(id, "completed", "run_completed")
 
     expect(await markRunInterrupted(id)).toBeUndefined()
-    expect((await RunStore.get(id))?.status).toBe("completed")
+    expect((await getProjectedRunState(id))?.status).toBe("completed")
     })
   })
 

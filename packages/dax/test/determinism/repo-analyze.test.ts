@@ -1,4 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
+import { createEventAuthorityRun } from "../../src/state/events/event-transitions"
+import { getProjectedRunState } from "../../src/state/events/run-event-store"
 import os from "os"
 import path from "path"
 import { rmSync, mkdirSync } from "fs"
@@ -6,7 +8,7 @@ import { Session } from "../../src/session"
 import { Storage } from "../../src/storage/storage"
 import { Instance } from "../../src/project/instance"
 import { RunStore } from "../../src/state/run-store"
-import { Transitions } from "../../src/state/transitions"
+import { RunLifecycle as Transitions } from "../../src/state/run-lifecycle"
 import { WorkflowRegistry } from "../../src/workflows/registry"
 import { compile } from "../../src/execution/compiler"
 import { isFixedWorkflow, getStepsForWorkflow, REPO_ANALYZE_STEPS } from "../../src/workflows/types"
@@ -170,7 +172,7 @@ describe("repo_analyze workflow", () => {
       const session = await Session.create({ title: "Test repo analyze" })
       const runId = session.id
 
-      await RunStore.create(runId, "test_contract_id")
+      await createEventAuthorityRun(runId, "test_contract_id")
       await Transitions.transition(runId, "compiled", "contract_compiled")
       await Transitions.transition(runId, "queued", "execution_queued")
       await Transitions.transition(runId, "running", "workflow_started")
@@ -203,7 +205,7 @@ describe("repo_analyze workflow", () => {
       expect(result.stepResults.every((r: { success: boolean }) => r.success)).toBe(true)
       expect(result.finalArtifactId).toBeDefined()
 
-      const runState = await RunStore.get(runId)
+      const runState = await getProjectedRunState(runId)
       expect(runState?.status).toBe("completed")
       expect(runState?.steps[0]?.title).toBe("Collect Context")
       expect(runState?.steps[1]?.title).toBe("Analyze Repository")
@@ -217,7 +219,7 @@ describe("repo_analyze workflow", () => {
       const session = await Session.create({ title: "Test repo analyze artifacts" })
       const runId = session.id
 
-      await RunStore.create(runId, "test_contract_id")
+      await createEventAuthorityRun(runId, "test_contract_id")
       await Transitions.transition(runId, "compiled", "contract_compiled")
       await Transitions.transition(runId, "queued", "execution_queued")
       await Transitions.transition(runId, "running", "workflow_started")
@@ -243,7 +245,7 @@ describe("repo_analyze workflow", () => {
 
       await workflow!.execute()
 
-      const runState = await RunStore.get(runId)
+      const runState = await getProjectedRunState(runId)
       expect(runState?.artifactIds.length).toBeGreaterThan(0)
     })
   })
@@ -254,7 +256,7 @@ describe("repo_analyze workflow", () => {
       const session = await Session.create({ title: "Test repo analyze steps" })
       const runId = session.id
 
-      await RunStore.create(runId, "test_contract_id")
+      await createEventAuthorityRun(runId, "test_contract_id")
       await Transitions.transition(runId, "compiled", "contract_compiled")
       await Transitions.transition(runId, "queued", "execution_queued")
       await Transitions.transition(runId, "running", "workflow_started")
@@ -280,7 +282,7 @@ describe("repo_analyze workflow", () => {
 
       await workflow!.execute()
 
-      const runState = await RunStore.get(runId)
+      const runState = await getProjectedRunState(runId)
       expect(runState?.steps).toHaveLength(3)
       expect(runState?.steps[0].title).toBe("Collect Context")
       expect(runState?.steps[1].title).toBe("Analyze Repository")
@@ -318,7 +320,7 @@ describe("repo_analyze workflow", () => {
       const session1 = await Session.create({ title: "Test repo analyze replay 1" })
       const runId1 = session1.id
 
-      await RunStore.create(runId1, "test_contract_id_1")
+      await createEventAuthorityRun(runId1, "test_contract_id_1")
       await Transitions.transition(runId1, "compiled", "contract_compiled")
       await Transitions.transition(runId1, "queued", "execution_queued")
       await Transitions.transition(runId1, "running", "workflow_started")
@@ -344,7 +346,7 @@ describe("repo_analyze workflow", () => {
 
       const result1 = await workflow1!.execute()
 
-      const runState1 = await RunStore.get(runId1)
+      const runState1 = await getProjectedRunState(runId1)
       const stepOrder1 = runState1!.steps.map((s: { stepId: string }) => s.stepId)
       const stepTitles1 = runState1!.steps.map((s: { title: string }) => s.title)
 
@@ -356,7 +358,7 @@ describe("repo_analyze workflow", () => {
       const session2 = await Session.create({ title: "Test repo analyze replay 2" })
       const runId2 = session2.id
 
-      await RunStore.create(runId2, "test_contract_id_2")
+      await createEventAuthorityRun(runId2, "test_contract_id_2")
       await Transitions.transition(runId2, "compiled", "contract_compiled")
       await Transitions.transition(runId2, "queued", "execution_queued")
       await Transitions.transition(runId2, "running", "workflow_started")
@@ -382,7 +384,7 @@ describe("repo_analyze workflow", () => {
 
       const result2 = await workflow2!.execute()
 
-      const runState2 = await RunStore.get(runId2)
+      const runState2 = await getProjectedRunState(runId2)
       const stepOrder2 = runState2!.steps.map((s: { stepId: string }) => s.stepId)
       const stepTitles2 = runState2!.steps.map((s: { title: string }) => s.title)
 

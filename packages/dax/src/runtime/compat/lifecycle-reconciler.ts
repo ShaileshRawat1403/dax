@@ -1,4 +1,5 @@
 import { Log } from "@/util/log"
+import { getProjectedRunState } from "@/state/events/run-event-store"
 import type { RunState } from "@/state/run-state"
 import { RunStore } from "@/state/run-store"
 import { deriveSessionLifecycleFromMessages } from "@/session/lifecycle"
@@ -88,7 +89,7 @@ export function toExternalStatus(internal: RunStatusInternal): RunStatusExternal
  * @returns Reconciliation result with status and mismatch info
  */
 export async function reconcileRunState(input: ReconciliationInput): Promise<ReconciliationResult> {
-  const state = await RunStore.get(input.runId)
+  const state = await getProjectedRunState(input.runId)
   const derivedStatus = deriveStatusFromLifecycle(input)
 
   if (!state) {

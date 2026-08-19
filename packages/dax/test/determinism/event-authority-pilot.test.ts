@@ -47,10 +47,19 @@ describe("event-authority pilot: draft_and_approve", () => {
     } catch (e) {}
   })
 
-  test("worker_run uses event authority so generated patch drafts survive checkout cleanup", () => {
-    expect(isEventAuthorityPilot("draft_and_approve")).toBe(true)
-    expect(isEventAuthorityPilot("worker_run")).toBe(true)
-    expect(isEventAuthorityPilot("repo_analyze")).toBe(false)
+  test("every workflow class uses event authority, not just the pilot two", () => {
+    // The pilot covered draft_and_approve and worker_run. The other three classes
+    // wrote no run events at all, so replay, recovery and audit saw half the
+    // runtime — and repo_analyze asserting false here was the shape of that gap.
+    for (const workflowClass of [
+      "draft_and_approve",
+      "worker_run",
+      "repo_analyze",
+      "review_and_signoff",
+      "generic",
+    ]) {
+      expect(isEventAuthorityPilot(workflowClass)).toBe(true)
+    }
   })
 
   test("worker verification failure is evidenced and blocks the draft and approval gate", async () => {
@@ -135,7 +144,11 @@ describe("event-authority pilot: draft_and_approve", () => {
         const events = await readRunEvents(runId)
         expect(events).toHaveLength(1)
         expect(events[0].type).toBe("contract_compiled")
-        expect(events[0].payload).toEqual({ contractId: CONTRACT_ID })
+        expect(events[0].payload).toEqual({
+          contractId: CONTRACT_ID,
+          verificationRequired: false,
+          guardEnforcementMode: "warn",
+        })
 
         const state = await getEventAuthorityState(runId)
         expect(state?.status).toBe("compiled")

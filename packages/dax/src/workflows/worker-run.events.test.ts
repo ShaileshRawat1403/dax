@@ -125,6 +125,66 @@ afterAll(async () => {
 })
 
 describe("worker_run evidence contract (event harness)", () => {
+  test("records what the operator was asked to permit, not just that they were asked", async () => {
+    const invocations: WorkerInvocation[] = []
+    WorkerRunEffects.set(successfulEffects(invocations))
+    const contract = makeContract({
+      providerHint: "worker:codex",
+      runtimePolicy: workerPolicy(["src/**"], ["package.json"], ["bun test"]),
+    })
+
+    const run = await runWorkflowAndCaptureEvents({
+      workflowClass: "worker_run",
+      contract,
+      directory: workspace,
+    })
+
+    const requested = firstEventByType(run.events, "approval_requested")
+    expect(requested).toBeDefined()
+
+    const payload = requested!.payload as {
+      approvalId: string
+      approvalType: string
+      risk: string
+      title?: string
+      reason?: string
+      expectedConsequence?: string
+    }
+
+    // A reviewer holding only this log must be able to say what was permitted.
+    expect(payload.title).toBeTruthy()
+    expect(payload.reason).toBeTruthy()
+    expect(payload.expectedConsequence).toBeTruthy()
+    expect(payload.approvalType).toBe("patch_apply")
+  })
+
+  test("records the mutation it made, from the kernel-computed diff", async () => {
+    const invocations: WorkerInvocation[] = []
+    WorkerRunEffects.set(successfulEffects(invocations))
+    const contract = makeContract({
+      providerHint: "worker:codex",
+      runtimePolicy: workerPolicy(["src/**"], ["package.json"], ["bun test"]),
+    })
+
+    const run = await runWorkflowAndCaptureEvents({
+      workflowClass: "worker_run",
+      contract,
+      directory: workspace,
+    })
+
+    const mutation = firstEventByType(run.events, "mutation_recorded")
+    expect(mutation).toBeDefined()
+
+    const payload = mutation!.payload as { receiptIds: string[]; changedPaths: string[] }
+    expect(payload.receiptIds.length).toBeGreaterThan(0)
+    expect(payload.changedPaths.length).toBeGreaterThan(0)
+
+    // The change is attested before review, so a run cannot reach an operator
+    // with its diff unaccounted for.
+    const sandboxSeq = firstEventByType(run.events, "worker_sandbox_recorded")?.seq ?? -1
+    expect(mutation!.seq).toBeGreaterThan(sandboxSeq)
+  })
+
   test("resolves the provider through the registry and records its identity as evidence", async () => {
     const invocations: WorkerInvocation[] = []
     WorkerRunEffects.set(successfulEffects(invocations))

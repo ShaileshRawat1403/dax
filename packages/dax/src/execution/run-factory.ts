@@ -8,8 +8,6 @@ import type { Config } from "@/config/config"
 import type { CreateRunRequest, CreateRunResponse } from "@/server/run-contract"
 import { compileWithRunId } from "./compiler"
 import type { ExecutionContract } from "./execution-contract"
-import { RunStore } from "@/state/run-store"
-import { Transitions } from "@/state/transitions"
 import { WorkflowRegistry } from "@/workflows/registry"
 import { isFixedWorkflow } from "@/workflows/types"
 import { Tracer } from "@/runtime/telemetry"
@@ -26,11 +24,17 @@ import {
   transitionEventAuthority,
 } from "@/state/events/event-transitions"
 
-const EVENT_AUTHORITY_PILOT_WORKFLOWS = ["draft_and_approve", "worker_run"] as const
-type EventAuthorityPilotWorkflow = (typeof EVENT_AUTHORITY_PILOT_WORKFLOWS)[number]
-
-export function isEventAuthorityPilot(workflowClass: string): workflowClass is EventAuthorityPilotWorkflow {
-  return (EVENT_AUTHORITY_PILOT_WORKFLOWS as readonly string[]).includes(workflowClass)
+/**
+ * Event authority used to cover draft_and_approve and worker_run only. The other
+ * three workflow classes wrote no run events at all, so half the runtime was
+ * invisible to replay, recovery and audit — and every conformance invariant had
+ * to be satisfied twice, once per lifecycle, with only one of them ever checked.
+ *
+ * Kept as a function rather than deleted outright so the intent stays legible:
+ * every run is event-authority, unconditionally.
+ */
+export function isEventAuthorityPilot(_workflowClass: string): true {
+  return true
 }
 
 type RunMeta = {
@@ -189,7 +193,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 
   await writeContract(session.id, contract)
 
-  const isEventPilot = isEventAuthorityPilot(contract.workflowClass)
+  const isEventPilot = true
 
   // Deliberately uninitialised. Every branch below assigns it before the
   // response is built, and the status reaches the API caller, so a future
@@ -198,18 +202,12 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   let finalStatus: CreateRunResponse["status"]
 
   if (isEventPilot) {
-    await createEventAuthorityRun(session.id, contract.contractId)
-  } else {
-    await RunStore.create(session.id, contract.contractId)
-    await Transitions.transition(session.id, "compiled", "contract_compiled")
-    await RunStore.update(session.id, (state) => ({
-      ...state,
-      governance: {
-        ...state.governance,
-        guardEnforcementMode: guardMode,
-        planQuality,
-      },
-    }))
+    await createEventAuthorityRun(
+      session.id,
+      contract.contractId,
+      contract.runtimePolicy?.postconditions?.verificationRequired === true,
+      guardMode,
+    )
   }
 
   await Session.update(session.id, (draft) => {
@@ -281,13 +279,8 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     })
 
     if (workflow && !requiresPauseForPlanQuality) {
-      if (isEventPilot) {
-        await transitionEventAuthority(session.id, "queued", "execution_queued", {})
-        await transitionEventAuthority(session.id, "running", "workflow_started", {})
-      } else {
-        await Transitions.transition(session.id, "queued", "execution_queued")
-        await Transitions.transition(session.id, "running", "workflow_started")
-      }
+      await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+      await transitionEventAuthority(session.id, "running", "workflow_started", {})
       finalStatus = "running"
       workflow.execute().catch((error) => {
         log.error("workflow execution failed", {
@@ -298,9 +291,9 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
       })
     } else {
       if (requiresPauseForPlanQuality) {
-        await Transitions.transition(session.id, "queued", "execution_queued")
-        await Transitions.transition(session.id, "running", "execution_started")
-        await Transitions.transition(session.id, "waiting_approval", "plan_quality_gate")
+        await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+        await transitionEventAuthority(session.id, "running", "execution_started", {})
+        await transitionEventAuthority(session.id, "waiting_approval", "plan_quality_gate", {})
         finalStatus = "waiting_approval"
       } else {
         finalStatus = "created"
@@ -308,15 +301,15 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     }
   } else {
     if (planQuality.decision === "pause" && guardMode === "enforce") {
-      await Transitions.transition(session.id, "queued", "execution_queued")
-      await Transitions.transition(session.id, "running", "execution_started")
-      await Transitions.transition(session.id, "waiting_approval", "plan_quality_gate")
+      await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+      await transitionEventAuthority(session.id, "running", "execution_started", {})
+      await transitionEventAuthority(session.id, "waiting_approval", "plan_quality_gate", {})
       finalStatus = "waiting_approval"
     } else {
       // Generic runs must advance lifecycle before prompt execution so server snapshots
       // do not remain stuck at "created/compiled" while the model is already running.
-      await Transitions.transition(session.id, "queued", "execution_queued")
-      await Transitions.transition(session.id, "running", "execution_started")
+      await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+      await transitionEventAuthority(session.id, "running", "execution_started", {})
       await startExecution(session.id, contract)
       finalStatus = "running"
     }

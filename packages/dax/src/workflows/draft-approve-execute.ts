@@ -1,12 +1,16 @@
 import { Log } from "@/util/log"
 import { generateText } from "ai"
-import { HybridTransitions } from "@/state/hybrid-transitions"
+import { RunLifecycle } from "@/state/run-lifecycle"
+import { getApproval } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { DraftArtifactSchema, type DraftArtifact } from "./types"
 import { Identifier } from "@/id/id"
-import { getEventAuthorityState } from "@/state/events/event-transitions"
+import { appendEventOnly, getEventAuthorityState } from "@/state/events/event-transitions"
+import { verifyWorkerPatch } from "@/worker/worker-verification"
+import { runCheck } from "@/sdlc/check-runner"
+import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 
 const log = Log.create({ service: "draft-approve-execute" })
 
@@ -24,6 +28,12 @@ export type DraftRequest = {
 export type DraftApproveExecuteEffectsShape = {
   /** Produce the content an operator is being asked to approve. */
   generateDraft: (request: DraftRequest) => Promise<string>
+  /**
+   * Run one contract validation command and return its result. Separate from
+   * drafting because verification must not be answerable by the same model that
+   * produced the draft — that is the whole point of it.
+   */
+  runVerification: (check: CheckDefinition) => Promise<CheckResult>
 }
 
 /**
@@ -79,6 +89,7 @@ const defaultEffects: DraftApproveExecuteEffectsShape = {
     })
     return result.text
   },
+  runVerification: runCheck,
 }
 
 /** Test seam: swap effects, always restore. */
@@ -141,8 +152,8 @@ export class DraftApproveExecuteWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Prepare Draft", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Prepare Draft", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const expectedOutputs = this.contract.expectedOutputs
       const promised = expectedOutputs.find((o) => o.type === "file" || o.type === "patch") ?? expectedOutputs[0]
@@ -178,7 +189,7 @@ export class DraftApproveExecuteWorkflow {
       this.draftArtifact = draftArtifact
 
       const draftId = `draft_${Identifier.create("session", false)}`
-      await HybridTransitions.createDraft(
+      await RunLifecycle.createDraft(
         this.runId,
         draftId,
         draftArtifact.type,
@@ -186,7 +197,7 @@ export class DraftApproveExecuteWorkflow {
         draftArtifact.targetPath,
       )
 
-      await HybridTransitions.completeStep(this.runId, stepId, [`draft:${draftArtifact.type}`])
+      await RunLifecycle.completeStep(this.runId, stepId, [`draft:${draftArtifact.type}`])
 
       log.info("prepare_draft completed", { runId: this.runId, artifactType: draftArtifact.type })
 
@@ -200,9 +211,9 @@ export class DraftApproveExecuteWorkflow {
       log.error("prepare_draft failed", { runId: this.runId, error: errorMessage })
 
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Prepare Draft", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
-      await HybridTransitions.failStep(this.runId, stepId, { code: "draft_failed", message: errorMessage })
+      await RunLifecycle.addStep(this.runId, stepId, "Prepare Draft", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
+      await RunLifecycle.failStep(this.runId, stepId, { code: "draft_failed", message: errorMessage })
 
       return {
         stepId,
@@ -218,8 +229,8 @@ export class DraftApproveExecuteWorkflow {
 
     try {
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Request Approval", "approved")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Request Approval", "approved")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const draft = drafts[0]
       const riskLevel = this.getApprovalRiskLevel(draft)
@@ -239,10 +250,17 @@ export class DraftApproveExecuteWorkflow {
         source: "workflow",
       })
 
-      await HybridTransitions.addApproval(this.runId, approval.approvalId)
-      await HybridTransitions.transition(this.runId, "waiting_approval", "approval_required")
+      await RunLifecycle.addApproval(this.runId, approval.approvalId, {
+        approvalType: approval.type,
+        risk: approval.risk,
+        title: approval.title,
+        reason: approval.reason,
+        expectedConsequence: approval.expectedConsequence,
+        stepId: approval.stepId,
+      })
+      await RunLifecycle.transition(this.runId, "waiting_approval", "approval_required")
 
-      await HybridTransitions.completeStep(this.runId, stepId, [approval.approvalId])
+      await RunLifecycle.completeStep(this.runId, stepId, [approval.approvalId])
 
       log.info("request_approval completed, waiting for resolution", {
         runId: this.runId,
@@ -279,24 +297,96 @@ export class DraftApproveExecuteWorkflow {
     log.info("executing commit_execution step", { runId: this.runId })
 
     try {
-      await HybridTransitions.transition(this.runId, "running", "approval_resumed")
+      await RunLifecycle.transition(this.runId, "running", "approval_resumed")
 
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Commit Execution", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Commit Execution", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const draft = drafts[0]
       const artifactId = `art_${Identifier.create("session", false)}`
       const verificationArtifactId = `verification_${Identifier.create("session", false)}`
 
-      await HybridTransitions.addArtifact(this.runId, artifactId)
-      await HybridTransitions.addArtifact(this.runId, verificationArtifactId)
+      await RunLifecycle.addArtifact(this.runId, artifactId)
 
-      await HybridTransitions.completeStep(this.runId, stepId, [artifactId])
+      // Approval establishes authority; it does not establish correctness. The
+      // operator approved a draft, which says the change was permitted, not that
+      // it works. Until this ran, the step registered an artifact named
+      // verification_<id> with no checks behind it and reported "verification
+      // receipt recorded" — evidence in name only.
+      const postconditions = this.contract.runtimePolicy?.postconditions
+      const validationCommands = postconditions?.validationCommands ?? []
 
-      await HybridTransitions.transition(this.runId, "completed", "workflow_completed")
+      // A drafting run writes nothing — it produces an artifact for a human to
+      // approve. Where the contract grants no write authority it owes no
+      // verification, and the operator's approval is the terminal check.
+      // Demanding a test run on top of that would be theatre.
+      if (postconditions?.verificationRequired !== true) {
+        await RunLifecycle.completeStep(this.runId, stepId, [artifactId])
+        await RunLifecycle.transition(this.runId, "completed", "workflow_completed")
 
-      log.info("commit_execution completed", { runId: this.runId, artifactId })
+        log.info("commit_execution completed without verification", {
+          runId: this.runId,
+          artifactId,
+          reason: "contract grants no write authority",
+        })
+
+        return {
+          stepId,
+          success: true,
+          outputs: [{ type: draft.type, content: draft.content, artifactId }],
+        }
+      }
+
+      // A contract that demands evidence and names no checks is a contract defect,
+      // not a verification failure. Saying so precisely matters: the two have
+      // different owners — one is fixed in the compiler, the other in the change.
+      if (validationCommands.length === 0) {
+        const message =
+          "contract requires verification but names no validation commands; " +
+          "nothing can be proven about this change"
+        await RunLifecycle.failStep(this.runId, stepId, { code: "verification_unspecified", message })
+        await RunLifecycle.transition(this.runId, "failed", "run_failed", {
+          error: { code: "verification_unspecified", message, retryable: false },
+        })
+        log.error("commit_execution has no verification to run", { runId: this.runId })
+        return { stepId, success: false, outputs: [], error: message }
+      }
+
+      const verification = await verifyWorkerPatch({
+        runId: this.runId,
+        cwd: process.cwd(),
+        commands: validationCommands,
+        run: DraftApproveExecuteEffects.current.runVerification,
+      })
+
+      await appendEventOnly(this.runId, "verification_recorded", {
+        status: verification.passed ? "passed" : "failed",
+        receipts: verification.receipts,
+        checks: verification.checks,
+      })
+      await appendEventOnly(this.runId, "artifact_created", {
+        artifactId: verificationArtifactId,
+        artifactType: "verification_report",
+      })
+
+      const receiptIds = verification.receipts.map((receipt) => receipt.receiptId)
+
+      if (!verification.passed) {
+        const message = verification.failureSummary ?? "DAX verification failed"
+        await RunLifecycle.failStep(this.runId, stepId, { code: "verification_failed", message })
+        await RunLifecycle.transition(this.runId, "failed", "run_failed", {
+          error: { code: "verification_failed", message, retryable: false },
+        })
+        log.error("commit_execution verification failed", { runId: this.runId, message })
+        return { stepId, success: false, outputs: [], error: message }
+      }
+
+      await RunLifecycle.completeStep(this.runId, stepId, [artifactId, ...receiptIds])
+
+      await RunLifecycle.transition(this.runId, "completed", "workflow_completed")
+
+      log.info("commit_execution completed", { runId: this.runId, artifactId, receipts: receiptIds.length })
 
       return {
         stepId,
@@ -305,7 +395,7 @@ export class DraftApproveExecuteWorkflow {
           { type: draft.type, content: draft.content, artifactId },
           {
             type: "report",
-            content: "Verification receipt recorded for approved draft execution.",
+            content: `Verification passed: ${verification.checks.length} check(s), ${receiptIds.length} receipt(s).`,
             artifactId: verificationArtifactId,
           },
         ],
@@ -315,9 +405,9 @@ export class DraftApproveExecuteWorkflow {
       log.error("commit_execution failed", { runId: this.runId, error: errorMessage })
 
       const stepId = `step_${Identifier.create("part", false)}`
-      await HybridTransitions.addStep(this.runId, stepId, "Commit Execution", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
-      await HybridTransitions.failStep(this.runId, stepId, { code: "execution_failed", message: errorMessage })
+      await RunLifecycle.addStep(this.runId, stepId, "Commit Execution", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
+      await RunLifecycle.failStep(this.runId, stepId, { code: "execution_failed", message: errorMessage })
 
       return {
         stepId,
@@ -331,9 +421,14 @@ export class DraftApproveExecuteWorkflow {
   async resumeAfterApproval(approvalId: string, decision: "approved" | "denied"): Promise<WorkflowExecutionResult> {
     log.info("resuming after approval", { runId: this.runId, approvalId, decision })
 
+    // Read the decider from the store and write it into the log. The store holds
+    // the decision as it was made; the log is what has to survive to be audited.
+    const decided = await getApproval(this.runId, approvalId)
+    const actor = decided?.resolution?.actorId ?? decided?.actor ?? null
+
     if (decision === "denied") {
-      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected")
-      await HybridTransitions.transition(this.runId, "failed", "approval_denied")
+      await RunLifecycle.resolveApproval(this.runId, approvalId, "rejected", actor)
+      await RunLifecycle.transition(this.runId, "failed", "approval_denied")
       return {
         success: false,
         error: "Approval was denied",
@@ -341,7 +436,7 @@ export class DraftApproveExecuteWorkflow {
       }
     }
 
-    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved")
+    await RunLifecycle.resolveApproval(this.runId, approvalId, "approved", actor)
 
     const reconstructedDraft = await this.reconstructDraftArtifact()
     const executionResult = await this.executeCommitExecution(reconstructedDraft ? [reconstructedDraft] : [])

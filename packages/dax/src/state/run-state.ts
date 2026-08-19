@@ -128,6 +128,59 @@ export const RunStateSchema = z.object({
   currentStepId: z.string().nullable(),
   steps: StepRecordSchema.array(),
   pendingApprovalIds: z.string().array(),
+  // Mirrors the reducer projection (state/events/run-reducer.ts). The two
+  // RunState declarations are a duplication in their own right; keeping them in
+  // step is the interim, collapsing them into one is follow-on work.
+  approvals: z
+    .object({
+      approvalId: z.string(),
+      approvalType: z.string(),
+      risk: z.string(),
+      title: z.string().nullable(),
+      reason: z.string().nullable(),
+      expectedConsequence: z.string().nullable(),
+      stepId: z.string().nullable(),
+      status: z.enum(["pending", "approved", "rejected"]),
+      decidedBy: z.string().nullable(),
+      decidedAt: z.string().nullable(),
+    })
+    .array()
+    .default([]),
+  evidence: z
+    .object({
+      contract: z
+        .object({
+          writeScope: z.string().array(),
+          forbiddenPaths: z.string().array(),
+          verification: z.string().array(),
+          provenance: z.record(z.string(), z.string()).nullable(),
+        })
+        .nullable(),
+      sandbox: z
+        .object({
+          provider: z.string(),
+          providerId: z.string().nullable(),
+          filesystem: z.string(),
+          network: z.string(),
+          reapedDescendants: z.boolean(),
+          egress: z.string().nullable(),
+          egressEnforcement: z.string().nullable(),
+          egressAllowHosts: z.string().array(),
+        })
+        .nullable(),
+      egressDenials: z
+        .object({ providerId: z.string().nullable(), hosts: z.string().array() })
+        .array(),
+    })
+    .default({ contract: null, sandbox: null, egressDenials: [] }),
+  completion: z
+    .object({
+      completedAt: z.string(),
+      verificationReceiptIds: z.string().array(),
+      mutationReceiptIds: z.string().array(),
+    })
+    .nullable()
+    .default(null),
   artifactIds: z.string().array(),
   governance: RuntimeGovernanceSchema.default({
     guardEnforcementMode: "warn",
@@ -191,6 +244,9 @@ export function createInitialRunState(runId: string, contractId: string): RunSta
     currentStepId: null,
     steps: [],
     pendingApprovalIds: [],
+    approvals: [],
+    evidence: { contract: null, sandbox: null, egressDenials: [] },
+    completion: null,
     artifactIds: [],
     governance: {
       guardEnforcementMode: "warn",

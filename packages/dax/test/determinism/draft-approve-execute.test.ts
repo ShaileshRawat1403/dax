@@ -1,4 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
+import { createEventAuthorityRun } from "../../src/state/events/event-transitions"
+import { getProjectedRunState } from "../../src/state/events/run-event-store"
 import os from "os"
 import path from "path"
 import { rmSync, mkdirSync } from "fs"
@@ -7,7 +9,7 @@ import { Storage } from "../../src/storage/storage"
 import { Instance } from "../../src/project/instance"
 import { RunStore } from "../../src/state/run-store"
 import { compile } from "../../src/execution/compiler"
-import { Transitions } from "../../src/state/transitions"
+import { RunLifecycle as Transitions } from "../../src/state/run-lifecycle"
 import { DraftApproveExecuteEffects, DraftApproveExecuteWorkflow } from "../../src/workflows/draft-approve-execute"
 
 describe("draft_and_approve workflow halting", () => {
@@ -49,7 +51,7 @@ describe("draft_and_approve workflow halting", () => {
       contract.runId = session.id
       contract.contractId = "test_contract_id"
 
-      await RunStore.create(session.id, contract.contractId)
+      await createEventAuthorityRun(session.id, contract.contractId)
       await Transitions.transition(session.id, "compiled", "contract_compiled")
       await Transitions.transition(session.id, "queued", "execution_queued")
       await Transitions.transition(session.id, "running", "workflow_started")
@@ -70,7 +72,7 @@ describe("draft_and_approve workflow halting", () => {
       expect(result.finalArtifactId).toBeUndefined()
 
       // The run state should be waiting_approval
-      const state = await RunStore.get(session.id)
+      const state = await getProjectedRunState(session.id)
       expect(state).not.toBeNull()
       expect(state!.status).toBe("waiting_approval")
 

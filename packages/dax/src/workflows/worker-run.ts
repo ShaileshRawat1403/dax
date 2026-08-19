@@ -1,9 +1,11 @@
 import { Log } from "@/util/log"
-import { HybridTransitions } from "@/state/hybrid-transitions"
+import { RunLifecycle } from "@/state/run-lifecycle"
+import { getApproval } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { appendEventOnly } from "@/state/events/event-transitions"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { Identifier } from "@/id/id"
+import { createMutationReceipt } from "@/sdlc/mutation-receipt"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
 import {
@@ -288,8 +290,8 @@ export class WorkerRunWorkflow {
 
   private async executeRunWorker(workerId: ExternalWorkerId, repoPath: string): Promise<WorkflowStepResult> {
     const stepId = `step_${Identifier.create("part", false)}`
-    await HybridTransitions.addStep(this.runId, stepId, `Run governed worker (${workerId})`, "executed")
-    await HybridTransitions.startStep(this.runId, stepId)
+    await RunLifecycle.addStep(this.runId, stepId, `Run governed worker (${workerId})`, "executed")
+    await RunLifecycle.startStep(this.runId, stepId)
 
     let checkout: WorkerCheckout | null = null
     try {
@@ -370,7 +372,21 @@ export class WorkerRunWorkflow {
       }
       this.diffContent = patch.content
 
-      await HybridTransitions.completeStep(this.runId, stepId, [
+      // The change becomes durable here, before review and before verification.
+      // Recorded after the scope check so a patch that escaped its writeScope is
+      // refused rather than attested, and recorded from the kernel-computed diff
+      // rather than the worker's account of it.
+      const mutationReceipt = createMutationReceipt({
+        runId: this.runId,
+        changedPaths: patch.changedPaths,
+        diff: patch.content,
+      })
+      await appendEventOnly(this.runId, "mutation_recorded", {
+        receiptIds: [mutationReceipt.receiptId],
+        changedPaths: mutationReceipt.changedPaths,
+      })
+
+      await RunLifecycle.completeStep(this.runId, stepId, [
         `worker:${workerId}`,
         `diff:${patch.changedPaths.length}`,
         ...(result.sandboxProvider ? [`sandbox:${result.sandboxProvider}`] : []),
@@ -382,7 +398,7 @@ export class WorkerRunWorkflow {
       }
 
       const draftId = `draft_${Identifier.create("session", false)}`
-      await HybridTransitions.createDraft(this.runId, draftId, "patch", patch.content, undefined)
+      await RunLifecycle.createDraft(this.runId, draftId, "patch", patch.content, undefined)
 
       log.info("run_worker completed", { runId: this.runId, workerId, diffBytes: patch.content.length })
       return {
@@ -398,7 +414,7 @@ export class WorkerRunWorkflow {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       log.error("run_worker failed", { runId: this.runId, workerId, error: message })
-      await HybridTransitions.failStep(this.runId, stepId, { code: "worker_failed", message })
+      await RunLifecycle.failStep(this.runId, stepId, { code: "worker_failed", message })
       await this.failRun("execution_error", message)
       return { stepId, success: false, outputs: [], error: message }
     } finally {
@@ -409,8 +425,8 @@ export class WorkerRunWorkflow {
   private async executeVerifyWorkerPatch(checkoutPath: string, contract: WorkerContract): Promise<WorkflowStepResult> {
     const stepId = `step_${Identifier.create("part", false)}`
     try {
-      await HybridTransitions.addStep(this.runId, stepId, "Verify worker patch", "executed")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Verify worker patch", "executed")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const verification = await verifyWorkerPatch({
         runId: this.runId,
@@ -435,12 +451,12 @@ export class WorkerRunWorkflow {
       const receiptIds = verification.receipts.map((receipt) => receipt.receiptId)
       if (!verification.passed) {
         const message = verification.failureSummary ?? "DAX verification failed"
-        await HybridTransitions.failStep(this.runId, stepId, { code: "verification_failed", message })
+        await RunLifecycle.failStep(this.runId, stepId, { code: "verification_failed", message })
         await this.failRun("verification_failed", message)
         return { stepId, success: false, outputs: [], error: message }
       }
 
-      await HybridTransitions.completeStep(this.runId, stepId, [artifactId, ...receiptIds])
+      await RunLifecycle.completeStep(this.runId, stepId, [artifactId, ...receiptIds])
       return {
         stepId,
         success: true,
@@ -454,14 +470,14 @@ export class WorkerRunWorkflow {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await HybridTransitions.failStep(this.runId, stepId, { code: "verification_error", message })
+      await RunLifecycle.failStep(this.runId, stepId, { code: "verification_error", message })
       await this.failRun("verification_error", message)
       return { stepId, success: false, outputs: [], error: message }
     }
   }
 
   private async failRun(code: string, message: string): Promise<void> {
-    await HybridTransitions.transition(this.runId, "failed", "run_failed", {
+    await RunLifecycle.transition(this.runId, "failed", "run_failed", {
       error: { code, message, retryable: false },
     })
   }
@@ -469,8 +485,8 @@ export class WorkerRunWorkflow {
   private async executeRequestApproval(workerId: ExternalWorkerId): Promise<WorkflowStepResult> {
     const stepId = `step_${Identifier.create("part", false)}`
     try {
-      await HybridTransitions.addStep(this.runId, stepId, "Request Approval", "approved")
-      await HybridTransitions.startStep(this.runId, stepId)
+      await RunLifecycle.addStep(this.runId, stepId, "Request Approval", "approved")
+      await RunLifecycle.startStep(this.runId, stepId)
 
       const approval = await ApprovalTransitions.create({
         runId: this.runId,
@@ -484,9 +500,16 @@ export class WorkerRunWorkflow {
         source: "workflow",
       })
 
-      await HybridTransitions.addApproval(this.runId, approval.approvalId)
-      await HybridTransitions.transition(this.runId, "waiting_approval", "approval_required")
-      await HybridTransitions.completeStep(this.runId, stepId, [approval.approvalId])
+      await RunLifecycle.addApproval(this.runId, approval.approvalId, {
+        approvalType: approval.type,
+        risk: approval.risk,
+        title: approval.title,
+        reason: approval.reason,
+        expectedConsequence: approval.expectedConsequence,
+        stepId: approval.stepId,
+      })
+      await RunLifecycle.transition(this.runId, "waiting_approval", "approval_required")
+      await RunLifecycle.completeStep(this.runId, stepId, [approval.approvalId])
 
       return { stepId, success: true, outputs: [] }
     } catch (error) {
@@ -497,19 +520,24 @@ export class WorkerRunWorkflow {
   }
 
   async resumeAfterApproval(approvalId: string, decision: "approved" | "denied"): Promise<WorkflowExecutionResult> {
+    // Read the decider from the store and write it into the log. The store holds
+    // the decision as it was made; the log is what has to survive to be audited.
+    const decided = await getApproval(this.runId, approvalId)
+    const actor = decided?.resolution?.actorId ?? decided?.actor ?? null
+
     if (decision === "denied") {
-      await HybridTransitions.resolveApproval(this.runId, approvalId, "rejected")
-      await HybridTransitions.transition(this.runId, "failed", "approval_denied")
+      await RunLifecycle.resolveApproval(this.runId, approvalId, "rejected", actor)
+      await RunLifecycle.transition(this.runId, "failed", "approval_denied")
       return { success: false, stepResults: [], error: "Approval was denied" }
     }
 
-    await HybridTransitions.resolveApproval(this.runId, approvalId, "approved")
+    await RunLifecycle.resolveApproval(this.runId, approvalId, "approved", actor)
 
     const stepId = `step_${Identifier.create("part", false)}`
-    await HybridTransitions.addStep(this.runId, stepId, "Finalize Outcome", "executed")
-    await HybridTransitions.startStep(this.runId, stepId)
-    await HybridTransitions.completeStep(this.runId, stepId, ["approved:patch"])
-    await HybridTransitions.transition(this.runId, "completed", "workflow_completed")
+    await RunLifecycle.addStep(this.runId, stepId, "Finalize Outcome", "executed")
+    await RunLifecycle.startStep(this.runId, stepId)
+    await RunLifecycle.completeStep(this.runId, stepId, ["approved:patch"])
+    await RunLifecycle.transition(this.runId, "completed", "workflow_completed")
 
     log.info("worker_run completed after approval", { runId: this.runId, approvalId })
     return { success: true, stepResults: [{ stepId, success: true, outputs: [] }] }

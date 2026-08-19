@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test"
+import { createEventAuthorityRun } from "../../src/state/events/event-transitions"
+import { getProjectedRunState } from "../../src/state/events/run-event-store"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
-import { Transitions } from "../../src/state/transitions"
+import { RunLifecycle, RunLifecycle as Transitions } from "../../src/state/run-lifecycle"
 import { enforceRuntimeGuard } from "../../src/execution/runtime-guard"
 import { RunStore } from "../../src/state/run-store"
 import { ApprovalStore } from "../../src/approval/approval-store"
@@ -57,7 +59,10 @@ async function setupE2ESession(mode: string, prompt: string) {
   }
 
   await ContractGuardian.create(session.id, testContract as any)
-  await RunStore.create(session.id, testContract.contractId)
+  await createEventAuthorityRun(session.id, testContract.contractId, false, "enforce")
+  // The guard's budget bookkeeping still lives on the legacy row; seed it from
+  // the projection so the row exists before the guard updates it.
+  await RunStore.save(session.id, (await getProjectedRunState(session.id))!)
   await RunStore.update(session.id, (state) => ({
     ...state,
     governance: {
@@ -107,9 +112,8 @@ async function setupE2ESession(mode: string, prompt: string) {
 }
 
 async function transitionToRunning(runId: string) {
-  await Transitions.transition(runId, "compiled")
-  await Transitions.transition(runId, "queued")
-  await Transitions.transition(runId, "running")
+  await Transitions.transition(runId, "queued", "execution_queued")
+  await Transitions.transition(runId, "running", "execution_started")
 }
 
 describe("Headless E2E Dummy Run", () => {
@@ -134,11 +138,19 @@ describe("Headless E2E Dummy Run", () => {
           }
         })
 
-        // 3. Record Artifact (required by completion proof for writes)
-        await RunStore.update(session.id, (state) => ({
-          ...state,
-          artifactIds: ["art_1"]
-        }))
+        // The run mutated a file, so the log has to say so: touchedFiles in the
+        // projection comes from mutation_recorded, and the completion proof reads
+        // the projection.
+        const { appendEventOnly: appendMutation } = await import("../../src/state/events/event-transitions")
+        await appendMutation(session.id, "mutation_recorded", {
+          receiptIds: ["mut_e2e_1"],
+          changedPaths: ["src/dummy.ts"],
+        })
+
+        // 3. Record Artifact (required by completion proof for writes).
+        // Through the log, not the legacy row: the projection is what the
+        // completion gate reads.
+        await RunLifecycle.addArtifact(session.id, "art_1")
         await Session.update(session.id, (draft) => {
           draft.state_v2 = {
             ...draft.state_v2,
@@ -156,7 +168,7 @@ describe("Headless E2E Dummy Run", () => {
         })
 
         // 4. Attempt Completion (should block due to missing verification)
-        await expect(Transitions.transition(session.id, "completed")).rejects.toThrow(/cannot complete without passing completion proof/)
+        await expect(Transitions.transition(session.id, "completed", "run_completed")).rejects.toThrow(/cannot complete without passing completion proof/)
         
         const approvals = await ApprovalStore.getApprovals(session.id)
         expect(approvals.some(a => a.type === "workflow_gate")).toBe(true)
@@ -174,8 +186,17 @@ describe("Headless E2E Dummy Run", () => {
           }
         })
 
+        // The guard records verification on its own state; the completion gate
+        // reads the projection, so the evidence has to reach the log.
+        const { appendEventOnly } = await import("../../src/state/events/event-transitions")
+        await appendEventOnly(session.id, "verification_recorded", {
+          status: "passed",
+          receipts: [{ receiptId: "rcp_e2e_1" }],
+          checks: [],
+        })
+
         // 6. Success Path (should now complete)
-        const finalState = await Transitions.transition(session.id, "completed")
+        const finalState = await Transitions.transition(session.id, "completed", "run_completed")
         expect(finalState.status).toBe("completed")
         expect(finalState.governance.completionProof?.decision).toBe("pass")
       }
@@ -202,8 +223,8 @@ describe("Headless E2E Dummy Run", () => {
         })
 
         // Stay blocked
-        await expect(Transitions.transition(session.id, "completed")).rejects.toThrow()
-        const state = await RunStore.get(session.id)
+        await expect(Transitions.transition(session.id, "completed", "run_completed")).rejects.toThrow()
+        const state = await getProjectedRunState(session.id)
         expect(state?.status).toBe("running") // Still running because transition failed
       }
     })

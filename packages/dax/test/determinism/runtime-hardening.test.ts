@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { createEventAuthorityRun } from "../../src/state/events/event-transitions"
+import { getProjectedRunState } from "../../src/state/events/run-event-store"
 import os from "os"
 import path from "path"
 import { Instance } from "../../src/project/instance"
@@ -8,7 +10,7 @@ import { compileWithRunId } from "../../src/execution/compiler"
 import { ContractGuardian } from "../../src/execution/contract-guardian"
 import { enforceRuntimeGuard, RuntimeGuardViolationError } from "../../src/execution/runtime-guard"
 import { RunStore } from "../../src/state/run-store"
-import { Transitions, RunCompletionBlockedError } from "../../src/state/transitions"
+import { RunLifecycle as Transitions, RunCompletionBlockedError } from "../../src/state/run-lifecycle"
 import { ApprovalStore } from "../../src/approval/approval-store"
 
 let previousTestHome: string | undefined
@@ -59,7 +61,10 @@ async function setupGuardedSession(input: {
   }
   const { contract } = compileWithRunId({ request }, session.id)
   await ContractGuardian.create(session.id, contract)
-  await RunStore.create(session.id, contract.contractId)
+  await createEventAuthorityRun(session.id, contract.contractId, false, "enforce")
+  // The guard's budget bookkeeping still lives on the legacy row; seed it from
+  // the projection so the row exists before the guard updates it.
+  await RunStore.save(session.id, (await getProjectedRunState(session.id))!)
   await RunStore.update(session.id, (state) => ({
     ...state,
     governance: {
