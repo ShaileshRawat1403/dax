@@ -1,3 +1,16 @@
+---
+title: Rust Proof Ladder
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - rust
+---
+
 # Rust Proof Ladder
 
 ## What This Is

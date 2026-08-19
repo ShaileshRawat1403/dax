@@ -1,3 +1,17 @@
+---
+title: Rust Storage — dax-storage
+archetype: architecture
+status: proposed
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - rust
+  - storage
+---
+
 # Rust Storage — `dax-storage`
 
 **Status:** candidate architecture. No code yet.

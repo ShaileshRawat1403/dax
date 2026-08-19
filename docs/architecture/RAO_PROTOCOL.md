@@ -1,3 +1,17 @@
+---
+title: DAX RAO Protocol Specification
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - protocol
+last_reviewed: 2026-08-19
+---
+
 # DAX RAO Protocol Specification
 
 ## Overview

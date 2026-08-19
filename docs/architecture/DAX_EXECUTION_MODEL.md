@@ -1,3 +1,16 @@
+---
+title: DAX Execution Model
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - execution
+---
+
 # DAX Execution Model
 
 ## Purpose

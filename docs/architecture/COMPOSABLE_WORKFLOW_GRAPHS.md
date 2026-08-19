@@ -1,4 +1,22 @@
+---
+title: Composable Workflow Graphs
+archetype: architecture
+status: proposed
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - workflows
+---
+
 # Architecture: Composable Workflow Graphs
+
+> **Status note**: The execution-graph surface described below does not exist in the
+> current tree. DAX's real workflow layer is `packages/dax/src/workflows/builtin-workflows.ts`
+> (`repo-health`, `explore-repo`, `release-readiness`) plus the `WorkflowClass` set in
+> `packages/dax/src/execution/workflow-class.ts`. This document is a retained design proposal.
 
 ## 1. Purpose
 

@@ -1,3 +1,16 @@
+---
+title: DAX Session State Schema [ARCHIVED]
+archetype: architecture
+status: superseded
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - sessions
+---
+
 # Architecture: DAX Session State Schema [ARCHIVED]
 
 > **⚠️ NOTE**: This document is preserved for historical context only. DAX has transitioned to a canonical **Event-Driven Lifecycle & Projection Model**. See [DAX_EVENT_DRIVEN_LIFECYCLE.md](./DAX_EVENT_DRIVEN_LIFECYCLE.md) for the current system of record and workstation state schema.

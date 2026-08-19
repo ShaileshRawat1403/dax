@@ -1,17 +1,26 @@
 ---
 title: Internal Module Inventory
 archetype: architecture
-status: draft
+status: active
 owner: Shailesh Rawat
 maintainer: Shailesh Rawat
 version: 0.1.0
-tags: [dax, architecture, inventory, consolidation]
-last_reviewed: 2026-03-13
+tags:
+  - dax
+  - architecture
+  - inventory
+  - consolidation
+last_reviewed: 2026-08-19
 ---
 
 # Purpose
 
 This document identifies the canonical, duplicated, partial, and legacy runtime modules in DAX so future work extends the correct surfaces and avoids rework.
+
+> **Status note**: this inventory was updated for the post-overhaul tree. The
+> consolidation rows marked `Done` below shipped in commit `f842ff1` ("feat:
+> complete DAX overhaul - Session Model V2, Governance consolidation, and
+> Workstation UX"). The legacy `core/`, `cli/`, and `tui/` roots no longer exist.
 
 # Classification Rules
 
@@ -28,14 +37,14 @@ This document identifies the canonical, duplicated, partial, and legacy runtime 
 | Path                                   | Status | Classification   | Notes                                    | Action                            |
 | -------------------------------------- | ------ | ---------------- | ---------------------------------------- | --------------------------------- |
 | `packages/dax/src/intent/interpret.ts` | Active | Canonical Keep   | The primary intent interpretation logic. | Extend with `IntentEnvelope`.     |
-| `core/dax/intent.ts`                   | Legacy | Legacy Reference | Older, duplicated implementation.        | Archive/Delete after full review. |
+| `core/dax/intent.ts`                   | Removed | —               | Deleted in `f842ff1`.                    | Done.                             |
 
 ## Planner
 
 | Path                            | Status | Classification   | Notes                                  | Action                                     |
 | ------------------------------- | ------ | ---------------- | -------------------------------------- | ------------------------------------------ |
 | `packages/dax/src/tool/plan.ts` | Active | Canonical Keep   | Current planner logic, used as a tool. | Evolve into a core graph planning service. |
-| `core/session/planner.ts`       | Legacy | Legacy Reference | Older, duplicated implementation.      | Archive/Delete after full review.          |
+| `core/session/planner.ts`       | Removed | —               | Deleted in `f842ff1`.                  | Done.                                      |
 
 ## Execution
 
@@ -43,7 +52,7 @@ This document identifies the canonical, duplicated, partial, and legacy runtime 
 | --------------------------------------- | ------ | ---------------- | ------------------------------------- | ----------------------------------------------------------------- |
 | `packages/dax/src/dax/orchestration.ts` | Active | Canonical Keep   | High-level control flow.              | Refactor to consume `IntentEnvelope` and use the Operator Router. |
 | `packages/dax/src/session/lifecycle.ts` | Active | Canonical Keep   | Core session and tool execution loop. | Integrate RAO objects (ApprovalRequest, ArtifactRecord, etc.).    |
-| `core/dax/execution.ts`                 | Legacy | Legacy Reference | Older, duplicated implementation.     | Archive/Delete after full review.                                 |
+| `core/dax/execution.ts`                 | Removed | —               | Deleted in `f842ff1`.                 | Done.                                                             |
 
 ## Operators
 
@@ -55,26 +64,28 @@ This document identifies the canonical, duplicated, partial, and legacy runtime 
 
 ## Trust / Governance
 
-| Path                       | Status | Classification   | Notes                                                   | Action                                                        |
-| -------------------------- | ------ | ---------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
-| `packages/dax/src/trust/`  | Active | Merge            | Contains `write-governance.ts` and `verify-session.ts`. | Consolidate into a new `packages/dax/src/governance/` module. |
-| `packages/dax/src/policy/` | Active | Merge            | Contains the policy engine.                             | Consolidate into `packages/dax/src/governance/`.              |
-| `packages/dax/src/audit/`  | Active | Merge            | Contains audit logic.                                   | Consolidate into `packages/dax/src/governance/`.              |
-| `core/governance/`         | Legacy | Legacy Reference | Older, duplicated implementation.                       | Archive/Delete after merging is complete.                     |
+| Path                                     | Status | Classification   | Notes                                                   | Action                                                            |
+| ---------------------------------------- | ------ | ---------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
+| `packages/dax/src/governance/`           | Active | Canonical Keep   | Consolidated governance module.                        | Contains `trust-verification.ts`, `policy-engine.ts`, `audit.ts`, `governance-writer.ts`. |
+| `packages/dax/src/sdlc/verify-session.ts` | Active | Canonical Keep   | Repo-SDLC verification (`deriveVerificationPosture`).  | The former `trust/verify-session.ts` home.                        |
+| `packages/dax/src/trust/`                | Removed | —               | Consolidated into `governance/` in `f842ff1`.          | Done.                                                             |
+| `packages/dax/src/policy/`               | Removed | —               | Consolidated into `governance/` in `f842ff1`.          | Done.                                                             |
+| `packages/dax/src/audit/`                | Removed | —               | Consolidated into `governance/` in `f842ff1`.          | Done.                                                             |
+| `core/governance/`                       | Removed | —               | Deleted in `f842ff1`.                                  | Done.                                                             |
 
 ## Session / Lifecycle
 
 | Path                        | Status | Classification   | Notes                              | Action                              |
 | --------------------------- | ------ | ---------------- | ---------------------------------- | ----------------------------------- |
 | `packages/dax/src/session/` | Active | Canonical Keep   | The core session management logic. | Continue to build upon this module. |
-| `core/session/`             | Legacy | Legacy Reference | Older, duplicated implementation.  | Archive/Delete after full review.   |
+| `core/session/`             | Removed | —               | Deleted in `f842ff1`.              | Done.                               |
 
 ## CLI Surfaces
 
 | Path                        | Status | Classification   | Notes                                         | Action                                                             |
 | --------------------------- | ------ | ---------------- | --------------------------------------------- | ------------------------------------------------------------------ |
 | `packages/dax/src/cli/cmd/` | Future | Canonical Keep   | The designated path for all new CLI commands. | Target for all new CLI work.                                       |
-| `cli/`                      | Legacy | Legacy Reference | The old set of CLI commands.                  | Freeze. Wire to new operators and skills, then plan for migration. |
+| `cli/`                      | Removed | —               | Deleted in `f842ff1`.                         | Done.                                                              |
 
 ## TUI / Presentation
 
@@ -82,7 +93,7 @@ This document identifies the canonical, duplicated, partial, and legacy runtime 
 | ------------------------------------ | ------ | ---------------- | --------------------------------------------------- | -------------------------------------------------------- |
 | `packages/dax/src/dax/presentation/` | Active | Canonical Keep   | Core workstation and presentation logic.            | Freeze. Only reliability/state-visibility fixes allowed. |
 | `packages/dax/src/cli/cmd/tui/`      | Active | Canonical Keep   | The canonical entry point and renderer for the TUI. | Freeze. Only reliability/state-visibility fixes allowed. |
-| `tui/`                               | Legacy | Legacy Reference | Older, separate TUI implementation.                 | Archive/Delete.                                          |
+| `tui/`                               | Removed | —               | Deleted in `f842ff1`.                              | Done.                                                    |
 
 # Canonical Future Surface
 

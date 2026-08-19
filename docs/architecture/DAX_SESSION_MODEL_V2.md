@@ -1,4 +1,25 @@
+---
+title: DAX Session Model V2
+archetype: architecture
+status: proposed
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - sessions
+last_reviewed: 2026-08-19
+---
+
 # DAX Session Model V2
+
+> **Status note**: this document is a design proposal. The durable-session
+> principles and the command grammar it describes are real, but the
+> "recommended lifecycle" vocabulary below is not the shipped enum. The
+> implemented `SessionStatus` is
+> `"active" | "paused" | "completed" | "abandoned" | "failed" | "blocked"`
+> (`packages/dax/src/session/state-types.ts:143`).
 
 ## Purpose
 

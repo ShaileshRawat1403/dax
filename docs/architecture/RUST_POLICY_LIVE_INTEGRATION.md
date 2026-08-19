@@ -1,3 +1,17 @@
+---
+title: Rust Policy Live Integration
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - rust
+  - policy
+---
+
 # Rust Policy Live Integration
 
 ## Status

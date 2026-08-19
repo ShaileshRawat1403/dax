@@ -1,3 +1,16 @@
+---
+title: DAX Skills Model
+archetype: architecture
+status: active
+owner: Shailesh Rawat
+maintainer: Shailesh Rawat
+version: 0.1.0
+tags:
+  - dax
+  - architecture
+  - skills
+---
+
 # DAX Skills Model
 
 This document defines skills as reusable capability packs.
