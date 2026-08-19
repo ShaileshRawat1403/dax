@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createEvent, type RunEventEnvelope } from "./run-event-types"
+import { createEvent, parseRunEventLog, type RunEventEnvelope } from "./run-event-types"
 import { reduceRunState } from "./run-reducer"
 
 /**
@@ -82,5 +82,61 @@ describe("run event log integrity", () => {
     const events = [createEvent(RUN_ID, 0, "execution_queued", {})]
 
     expect(() => reduceRunState(events)).toThrow(/must be contract_compiled/i)
+  })
+})
+
+describe("run event log validation at the storage boundary", () => {
+  test("a well-formed log parses", () => {
+    const events = [
+      createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      createEvent(RUN_ID, 1, "execution_queued", {}),
+    ]
+
+    expect(parseRunEventLog(RUN_ID, events)).toHaveLength(2)
+  })
+
+  test("a truncated event is refused, naming its position", () => {
+    // The half-written record: a crash during append leaves an object that is
+    // JSON but not an event.
+    const events = [createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }), { seq: 1 }]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/position 1/)
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/malformed/i)
+  })
+
+  test("an event type from a newer build is refused at read", () => {
+    // The forward-compatibility case. Reading it would project a partial state
+    // that looks complete; refusing points the operator at the raw artifact.
+    const events = [
+      createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      { ...createEvent(RUN_ID, 1, "execution_queued", {}), type: "some_future_event" },
+    ]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/malformed/i)
+  })
+
+  test("a wrong schemaVersion is refused rather than assumed", () => {
+    const events = [{ ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }), schemaVersion: "v2" }]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/malformed/i)
+  })
+
+  test("a negative or fractional seq is refused", () => {
+    // seq is the log's identity. A non-integer one cannot address a position.
+    const bad = [{ ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }), seq: -1 }]
+    const fractional = [{ ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }), seq: 0.5 }]
+
+    expect(() => parseRunEventLog(RUN_ID, bad)).toThrow(/malformed/i)
+    expect(() => parseRunEventLog(RUN_ID, fractional)).toThrow(/malformed/i)
+  })
+
+  test("payloads pass through unparsed, and the test says so plainly", () => {
+    // Envelope structure is checked; payload shape per event type is not. Asserted
+    // here so the limit of the guarantee is recorded rather than assumed.
+    const events = [
+      { ...createEvent(RUN_ID, 0, "contract_compiled", { nonsense: true }) },
+    ]
+
+    expect(parseRunEventLog(RUN_ID, events)).toHaveLength(1)
   })
 })

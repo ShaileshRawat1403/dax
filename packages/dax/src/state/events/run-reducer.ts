@@ -26,6 +26,21 @@ export type RunState = {
    * permitted, by whom, on what basis".
    */
   approvals: ApprovalRecord[]
+  evidence: RunEvidence
+  /**
+   * What evidence stood at the moment the run was accepted.
+   *
+   * Distinct from governance.completionProof, which is a contract-aware judgement
+   * computed outside the reducer (execution/completion-proof.ts). This is the
+   * narrower question replay can answer on its own: a reviewer asking "why was
+   * this accepted?" should be answered by the completion record rather than by
+   * correlating it against other events by hand.
+   */
+  completion: {
+    completedAt: string
+    verificationReceiptIds: string[]
+    mutationReceiptIds: string[]
+  } | null
   artifactIds: string[]
   governance: {
     guardEnforcementMode: "warn" | "enforce"
@@ -96,6 +111,38 @@ export type RunStatus =
   | "completed"
   | "failed"
   | "cancelled"
+
+/**
+ * What the run's governance actually did, as opposed to what it was configured to
+ * do. Answers the three questions a reviewer asks about a governed worker: what
+ * scope was granted, how was it isolated, and what did it try to reach.
+ *
+ * These events were recorded and projected nowhere, so after replay a run whose
+ * worker attempted a blocked host was indistinguishable from one that did not —
+ * exactly the record a reviewer needs.
+ */
+export type RunEvidence = {
+  /** The refined contract the worker actually executed under. */
+  contract: {
+    writeScope: string[]
+    forbiddenPaths: string[]
+    verification: string[]
+    provenance: Record<string, string> | null
+  } | null
+  /** The isolation DAX applied, as observed after the worker exited. */
+  sandbox: {
+    provider: string
+    providerId: string | null
+    filesystem: string
+    network: string
+    reapedDescendants: boolean
+    egress: string | null
+    egressEnforcement: string | null
+    egressAllowHosts: string[]
+  } | null
+  /** Hosts a worker attempted to reach and was refused. Evidence in its own right. */
+  egressDenials: Array<{ providerId: string | null; hosts: string[] }>
+}
 
 export type ApprovalRecord = {
   approvalId: string
@@ -207,6 +254,8 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
     steps: [],
     pendingApprovalIds: [],
     approvals: [],
+    evidence: { contract: null, sandbox: null, egressDenials: [] },
+    completion: null,
     artifactIds: [],
     governance: {
       guardEnforcementMode: "warn",
@@ -499,6 +548,13 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
           state.status = "completed"
           state.currentStepId = null
           state.completedAt = event.occurredAt
+          // Bind the acceptance to the evidence that stood at that moment, rather
+          // than leaving a reviewer to infer it from event order.
+          state.completion = {
+            completedAt: event.occurredAt,
+            verificationReceiptIds: [...state.governance.verification.receiptIds],
+            mutationReceiptIds: [...state.governance.mutationReceiptIds],
+          }
         }
         break
       }
@@ -529,9 +585,52 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
       // Evidence events. They carry the worker_run receipt fields but project
       // into RunState only when the governance projection is added; for now
       // the event log is their store, so reduction is a no-op.
-      case "contract_refined":
-      case "worker_sandbox_recorded":
+      case "contract_refined": {
+        const payload = event.payload as {
+          writeScope?: string[]
+          forbiddenPaths?: string[]
+          verification?: string[]
+          provenance?: Record<string, string>
+        }
+        state.evidence.contract = {
+          writeScope: payload.writeScope ?? [],
+          forbiddenPaths: payload.forbiddenPaths ?? [],
+          verification: payload.verification ?? [],
+          provenance: payload.provenance ?? null,
+        }
+        break
+      }
+
+      case "worker_sandbox_recorded": {
+        const payload = event.payload as {
+          provider: string
+          providerId?: string
+          filesystem: string
+          network: string
+          reapedDescendants?: boolean
+          egress?: string
+          egressEnforcement?: string
+          egressAllowHosts?: string[]
+        }
+        state.evidence.sandbox = {
+          provider: payload.provider,
+          providerId: payload.providerId ?? null,
+          filesystem: payload.filesystem,
+          network: payload.network,
+          reapedDescendants: payload.reapedDescendants === true,
+          egress: payload.egress ?? null,
+          egressEnforcement: payload.egressEnforcement ?? null,
+          egressAllowHosts: payload.egressAllowHosts ?? [],
+        }
+        break
+      }
+
       case "worker_egress_denied": {
+        const payload = event.payload as { providerId?: string; hosts: string[] }
+        state.evidence.egressDenials.push({
+          providerId: payload.providerId ?? null,
+          hosts: payload.hosts,
+        })
         break
       }
 

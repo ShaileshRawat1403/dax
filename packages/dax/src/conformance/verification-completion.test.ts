@@ -154,9 +154,37 @@ describe("invariant 6 — evidence-gated completion", () => {
 
     const state = reduceRunState(completed)
 
-    // Baseline: completionProof is null; the receipts live on
-    // governance.verification.receiptIds and nothing binds them to the completion
-    // decision.
-    expect(state?.governance.completionProof).not.toBeNull()
+    // The receipts existed on governance.verification.receiptIds, but nothing
+    // bound them to the acceptance — so "why was this accepted?" was answerable
+    // only by correlating events by hand.
+    expect(state?.completion).toMatchObject({ verificationReceiptIds: ["rcp_1"] })
+    expect(state?.completion?.completedAt).toBe(state?.completedAt as string)
+  })
+
+  test("completion binds the mutation evidence too, not only the checks", () => {
+    // A reviewer asks two questions of an accepted run: what changed, and what
+    // proved it. Both must be answerable from the completion record.
+    const completed = log(
+      { type: "execution_queued", payload: {} },
+      { type: "workflow_started", payload: {} },
+      { type: "mutation_recorded", payload: { receiptIds: ["mut_1"], changedPaths: ["src/a.ts"] } },
+      {
+        type: "verification_recorded",
+        payload: { status: "passed", receipts: [{ receiptId: "rcp_1" }], checks: [] },
+      },
+      { type: "run_completed", payload: {} },
+    )
+
+    expect(reduceRunState(completed)?.completion).toMatchObject({
+      verificationReceiptIds: ["rcp_1"],
+      mutationReceiptIds: ["mut_1"],
+    })
+  })
+
+  test("a run that never completed has no completion record", () => {
+    // Absence must stay distinguishable from an empty acceptance.
+    const running = log({ type: "execution_queued", payload: {} }, { type: "workflow_started", payload: {} })
+
+    expect(reduceRunState(running)?.completion).toBeNull()
   })
 })

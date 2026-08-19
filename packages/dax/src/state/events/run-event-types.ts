@@ -1,3 +1,6 @@
+import { z } from "zod"
+import type { CheckResult } from "@/sdlc/check-types"
+
 /**
  * The closed run event vocabulary, in one place. RunEventType is derived from
  * this array so the type and the runtime guard cannot drift.
@@ -186,7 +189,12 @@ export type RunEventPayload =
       payload: {
         status: "passed" | "failed"
         receipts: Array<{ receiptId: string }>
-        checks: unknown[]
+        /**
+         * Redacted check results. Typed because these decide whether a run may
+         * complete — the evidence gating completion should not be the least
+         * described thing in the vocabulary.
+         */
+        checks: CheckResult[]
       }
     }
 
@@ -215,4 +223,51 @@ export function createEvent(runId: string, seq: number, type: RunEventType, payl
     occurredAt: new Date().toISOString(),
     schemaVersion: "v1",
   }
+}
+
+/**
+ * Runtime validation for the envelope, applied where a log crosses back into the
+ * process from disk.
+ *
+ * The type annotation on `Storage.read<RunEventEnvelope[]>` is a claim about the
+ * file, not a check of it: a truncated write, a hand edit or a log from a newer
+ * build all satisfy TypeScript and none of them satisfy the contract. Structure
+ * is validated here; `reduceRunState` separately enforces contiguity, and the
+ * reducer's closed switch rejects any type outside the vocabulary.
+ *
+ * Payloads are deliberately passed through rather than parsed per type. A payload
+ * schema per event type is the stronger check and is worth having, but declaring
+ * it half-heartedly — a few types validated, the rest waved through — would
+ * report a guarantee the system does not provide.
+ */
+export const RunEventEnvelopeSchema = z.object({
+  eventId: z.string().min(1),
+  runId: z.string().min(1),
+  seq: z.number().int().nonnegative(),
+  type: z.enum(RUN_EVENT_TYPES),
+  payload: z.unknown(),
+  occurredAt: z.string().min(1),
+  schemaVersion: z.literal("v1"),
+  causationId: z.string().optional(),
+  correlationId: z.string().optional(),
+  commandId: z.string().optional(),
+})
+
+/**
+ * Validate a log read from storage, naming the position that failed so the raw
+ * artifact can be found. Refuses rather than repairs: a partially readable audit
+ * record is worse than an unreadable one, because it looks complete.
+ */
+export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+  return events.map((event, index) => {
+    const result = RunEventEnvelopeSchema.safeParse(event)
+    if (!result.success) {
+      throw new Error(
+        `Run ${runId} has a malformed event at position ${index}: ${result.error.issues
+          .map((issue) => `${issue.path.join(".") || "<root>"} ${issue.message}`)
+          .join("; ")}. Refusing to project an unreadable log.`,
+      )
+    }
+    return result.data as RunEventEnvelope
+  })
 }

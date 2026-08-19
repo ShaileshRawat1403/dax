@@ -43,25 +43,25 @@ describe("invariant 4 — runtime boundary validation", () => {
   })
 
   test("event payloads are validated at the append boundary", () => {
-    // Partially holds as of H1a. appendEventOnly is generic over RunEventPayload,
-    // so a wrong payload for a given event type is a compile error — but the store
-    // itself accepts whatever the caller passes at runtime, and a log read from
-    // disk is never re-validated against the payload union.
-    const store = source("state/events/run-event-store.ts")
-    const validatesOnAppend = /parse\(|safeParse\(|validatePayload/.test(store)
+    // Still open, and deliberately so. appendEventOnly is generic over
+    // RunEventPayload, so a wrong payload for a given event type is a compile
+    // error — but nothing parses the payload per type at runtime.
+    //
+    // Closing this needs a zod schema per event type mirroring the TS union.
+    // Doing a few and waving the rest through would report a guarantee the system
+    // does not provide, which is the failure mode this whole suite exists to catch.
+    const types = source("state/events/run-event-types.ts")
+    const hasPerTypePayloadSchemas = /RunEventPayloadSchema|z\.discriminatedUnion/.test(types)
 
-    expect(validatesOnAppend).toBe(true)
+    expect(hasPerTypePayloadSchemas).toBe(true)
   })
 
   test("a log read from disk is validated before projection", () => {
-    // Fails at v1.3.0. readRunEvents returns whatever JSON was on disk. H1a made the
-    // reducer refuse unknown event *types*; it does not check that a known type's
-    // payload matches its declared shape. A truncated or hand-edited events.json
-    // projects into state with no complaint.
+    // readRunEvents used to return whatever JSON was on disk under a TypeScript
+    // annotation that asserted its shape without checking it.
     const store = source("state/events/run-event-store.ts")
-    const validatesOnRead = /RunEventPayload|schema|parse\(/.test(store)
 
-    expect(validatesOnRead).toBe(true)
+    expect(store).toContain("parseRunEventLog")
   })
 
   test("evidence receipts are validated before they gate completion", () => {
@@ -69,8 +69,8 @@ describe("invariant 4 — runtime boundary validation", () => {
     // decide whether a run may complete are therefore the least-typed thing in the
     // system.
     const types = source("state/events/run-event-types.ts")
-    const checksAreTyped = !/checks:\s*unknown\[\]/.test(types)
 
-    expect(checksAreTyped).toBe(true)
+    expect(types).not.toMatch(/checks:\s*unknown\[\]/)
+    expect(types).toContain("checks: CheckResult[]")
   })
 })

@@ -1,4 +1,5 @@
 import { Storage } from "@/storage/storage"
+import { parseRunEventLog } from "./run-event-types"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { acquireRunLock } from "@/util/fs-lock"
@@ -107,8 +108,11 @@ export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> 
   const fullPath = [...path, "events.json"]
 
   try {
-    const events = await Storage.read<RunEventEnvelope[]>(fullPath)
-    return events ?? []
+    const events = await Storage.read<unknown[]>(fullPath)
+    // The read is where the log crosses back into the process. Validating here
+    // means every projection downstream is working from a log that has actually
+    // been checked, rather than one TypeScript was told to trust.
+    return events ? parseRunEventLog(runId, events) : []
   } catch (error) {
     if (Storage.NotFoundError.isInstance(error)) {
       return []

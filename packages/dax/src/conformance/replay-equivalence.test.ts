@@ -146,25 +146,45 @@ describe("invariant 2 — replay equivalence", () => {
   })
 
   test("worker evidence is reproducible, not merely recorded", () => {
-    // Fails at v1.3.0. H1a gave contract_refined, worker_sandbox_recorded and
-    // worker_egress_denied explicit reducer cases — but they are deliberate no-ops,
-    // so the events append and project nowhere.
-    //
-    // A run whose worker attempted to reach a blocked host is indistinguishable,
-    // after replay, from one that did not. That is exactly the record a reviewer
-    // needs.
+    // H1a gave contract_refined, worker_sandbox_recorded and worker_egress_denied
+    // explicit reducer cases to close the vocabulary, but they were deliberate
+    // no-ops — so a run whose worker attempted a blocked host was, after replay,
+    // indistinguishable from one that did not.
     const events = log(
       { type: "execution_queued", payload: {} },
       { type: "workflow_started", payload: {} },
+      {
+        type: "contract_refined",
+        payload: {
+          writeScope: ["src/**"],
+          forbiddenPaths: [".env"],
+          verification: ["bun test"],
+          provenance: { writeScope: "operator-reviewed" },
+        },
+      },
+      {
+        type: "worker_sandbox_recorded",
+        payload: {
+          provider: "seatbelt",
+          providerId: "codex",
+          filesystem: "checkout-write-only",
+          network: "localhost-only",
+          egress: "filtered",
+          egressAllowHosts: ["api.anthropic.com"],
+        },
+      },
       {
         type: "worker_egress_denied",
         payload: { providerId: "codex", hosts: ["exfil.example.com"] },
       },
     )
 
-    const state = reduceRunState(events) as unknown as { evidence?: unknown }
+    const evidence = reduceRunState(events)?.evidence
 
-    expect(state.evidence).toBeDefined()
+    // What scope was granted, how it was isolated, what it tried to reach.
+    expect(evidence?.contract).toMatchObject({ writeScope: ["src/**"], forbiddenPaths: [".env"] })
+    expect(evidence?.sandbox).toMatchObject({ provider: "seatbelt", network: "localhost-only" })
+    expect(evidence?.egressDenials).toEqual([{ providerId: "codex", hosts: ["exfil.example.com"] }])
   })
 
   test("an out-of-order log is refused rather than projected", () => {
