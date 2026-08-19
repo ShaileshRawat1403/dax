@@ -1,23 +1,38 @@
-export type RunEventType =
-  | "contract_compiled"
-  | "execution_queued"
-  | "workflow_started"
-  | "approval_requested"
-  | "approval_resolved"
-  | "step_added"
-  | "step_started"
-  | "step_completed"
-  | "step_failed"
-  | "artifact_created"
-  | "draft_created"
-  | "trust_updated"
-  | "run_failed"
-  | "run_completed"
-  | "workflow_completed"
-  | "approval_denied"
-  | "provider_pressure_updated"
-  | "worker_sandbox_recorded"
-  | "verification_recorded"
+/**
+ * The closed run event vocabulary, in one place. RunEventType is derived from
+ * this array so the type and the runtime guard cannot drift.
+ */
+export const RUN_EVENT_TYPES = [
+  "contract_compiled",
+  "execution_queued",
+  "workflow_started",
+  "approval_requested",
+  "approval_resolved",
+  "step_added",
+  "step_started",
+  "step_completed",
+  "step_failed",
+  "artifact_created",
+  "draft_created",
+  "trust_updated",
+  "run_failed",
+  "run_completed",
+  "workflow_completed",
+  "approval_denied",
+  "approval_required",
+  "approval_resumed",
+  "provider_pressure_updated",
+  "contract_refined",
+  "worker_sandbox_recorded",
+  "worker_egress_denied",
+  "verification_recorded",
+] as const
+
+export type RunEventType = (typeof RUN_EVENT_TYPES)[number]
+
+export function isRunEventType(type: string): type is RunEventType {
+  return (RUN_EVENT_TYPES as readonly string[]).includes(type)
+}
 
 export type RunEventPayload =
   | { type: "contract_compiled"; payload: { contractId: string } }
@@ -55,6 +70,8 @@ export type RunEventPayload =
   | { type: "run_completed"; payload: Record<string, never> }
   | { type: "workflow_completed"; payload: Record<string, never> }
   | { type: "approval_denied"; payload: Record<string, never> }
+  | { type: "approval_required"; payload: Record<string, never> }
+  | { type: "approval_resumed"; payload: Record<string, never> }
   | {
       type: "provider_pressure_updated"
       payload: { lane?: string; throttles: number; inFlight: number; queueLength: number }
@@ -77,7 +94,38 @@ export type RunEventPayload =
          * so events written before process ownership was enforced still replay.
          */
         reapedDescendants?: boolean
+        /**
+         * Egress confinement that actually held for this invocation: "filtered"
+         * means the forward proxy narrowed egress to the allowlist, "unconfined"
+         * is the operator escape hatch. Optional so events written before egress
+         * filtering was recorded still replay.
+         */
+        egress?: "filtered" | "unconfined"
+        /**
+         * How the recorded egress posture was enforced. "cooperative-proxy"
+         * binds a worker that honors the proxy env; "none" means no binding.
+         * Optional so events written before enforcement was recorded still replay.
+         */
+        egressEnforcement?: "cooperative-proxy" | "none"
+        /**
+         * Hosts the run's forward proxy allowed when egress was filtered.
+         * Optional so events written before the allowlist was recorded still replay.
+         */
+        egressAllowHosts?: string[]
       }
+    }
+  | {
+      type: "contract_refined"
+      payload: {
+        writeScope: string[]
+        forbiddenPaths: string[]
+        verification: string[]
+        provenance: { writeScope: string; forbiddenPaths: string; verification: string }
+      }
+    }
+  | {
+      type: "worker_egress_denied"
+      payload: { providerId: string; hosts: string[] }
     }
   | {
       type: "verification_recorded"

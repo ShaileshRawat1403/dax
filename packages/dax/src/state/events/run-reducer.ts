@@ -400,6 +400,27 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         }
         break
       }
+
+      // Legacy hybrid-transition status markers. The authoritative transitions
+      // are approval_requested / approval_resolved, which already moved the
+      // run status and the approval set; these only re-label the same moment.
+      case "approval_required":
+      case "approval_resumed": {
+        break
+      }
+
+      // Evidence events. They carry the worker_run receipt fields but project
+      // into RunState only when the governance projection is added; for now
+      // the event log is their store, so reduction is a no-op.
+      case "contract_refined":
+      case "worker_sandbox_recorded":
+      case "worker_egress_denied": {
+        break
+      }
+
+      default: {
+        throw new Error(`Unknown event type: ${event.type} (seq ${event.seq})`)
+      }
     }
   }
 

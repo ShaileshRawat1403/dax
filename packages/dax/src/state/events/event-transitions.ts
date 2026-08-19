@@ -7,6 +7,7 @@ import {
   setRunAuthority,
 } from "./run-event-store"
 import { reduceRunState, type RunState } from "./run-reducer"
+import { isRunEventType, type RunEventType, type RunEventPayload } from "./run-event-types"
 import type { RunStatus } from "../run-state"
 
 const log = Log.create({ service: "event-transitions" })
@@ -49,9 +50,13 @@ export async function transitionEventAuthority(
     return currentState
   }
 
+  if (!isRunEventType(eventType)) {
+    throw new Error(`Unknown event type: ${eventType}`)
+  }
+
   const seq = events.length
   await appendRunEvent(runId, seq, {
-    type: eventType as any,
+    type: eventType,
     payload,
   })
 
@@ -74,10 +79,10 @@ export async function getEventAuthorityState(runId: string): Promise<RunState | 
   return projectRunStateFromEvents(runId)
 }
 
-export async function appendEventOnly(
+export async function appendEventOnly<E extends RunEventType>(
   runId: string,
-  eventType: string,
-  payload: unknown,
+  eventType: E,
+  payload: Extract<RunEventPayload, { type: E }>["payload"],
   commandId?: string,
 ): Promise<RunState> {
   const authority = await getRunAuthority(runId)
@@ -89,7 +94,7 @@ export async function appendEventOnly(
   const seq = events.length
 
   await appendRunEvent(runId, seq, {
-    type: eventType as any,
+    type: eventType,
     payload,
     ...(commandId ? { commandId } : {}),
   })
@@ -102,7 +107,12 @@ export async function appendEventOnly(
   return updatedState
 }
 
-export async function addStepEvent(runId: string, stepId: string, title: string, stepType: string): Promise<RunState> {
+export async function addStepEvent(
+  runId: string,
+  stepId: string,
+  title: string,
+  stepType: "proposed" | "executed" | "approved" | "rejected",
+): Promise<RunState> {
   const commandId = `cmd_step_add_${stepId}`
   return appendEventOnly(runId, "step_added", { stepId, title, stepType }, commandId)
 }
