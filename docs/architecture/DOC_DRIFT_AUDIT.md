@@ -163,7 +163,7 @@ evidence; each entry quotes the contradicting source).
 9. **`DAX_EVALS.md:66,82` — stale eval inventory.** Doc says kinds
    `core_proof | policy | audit` and "the smoke suite covers three scenarios".
    Source: `ScenarioKind = "core_proof" | "policy" | "audit" | "indexer"`
-   (`packages/dax/src/evals/types.ts:1`); all 5 scenario files carry
+   (`evals/types.ts:1` at repo root, not `packages/dax/src/evals/types.ts`); all 5 scenario files carry
    `"suite": ["smoke", "proof"]` — smoke now runs 5 scenarios including two
    indexer ones (`evals/scenarios/indexer_extracts_symbols.json`,
    `indexer_relevance_top_3.json`). Scripts `eval:smoke`/`eval:proof`/`eval`
