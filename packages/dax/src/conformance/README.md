@@ -85,6 +85,26 @@ reproduce what the operator was actually shown. Read the meter as an upper bound
 Both must reach 100% for the overhaul to be complete. Neither should be gamed by
 emitting partial events — the points are specific for that reason.
 
+## Writing checks that prove what they claim
+
+An implementation check is not the architectural property it stands for:
+
+```
+grep match          ≠  production reachability
+non-test caller     ≠  reachable producer
+test passes         ≠  invariant satisfied
+```
+
+This is not hypothetical. The first version of the reachability gap check read its
+own source and searched it for `entryPoints|callGraph|reachableFrom` — strings the
+regex literal itself contains, so it always matched and reported the gap closed. A
+conformance check can be satisfied while never exercising the property it names,
+which is the same defect the suite exists to catch, one level up.
+
+Two habits follow. State the property in the invariant and let the check be an
+explicit approximation of it, recorded as a gap when the distance matters. And
+never let a check's evidence come from the file that makes the claim.
+
 ## What this suite is not
 
 It does not measure capability against other harnesses. A capability count is not
