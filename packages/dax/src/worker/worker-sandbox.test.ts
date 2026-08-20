@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { realpathSync } from "node:fs"
 import {
   buildWorkerSandboxPlan,
   checkWorkerSandbox,
@@ -45,9 +46,31 @@ describe("worker sandbox", () => {
     expect(plan.provider).toBe("seatbelt")
     expect(plan.command.slice(0, 2)).toEqual(["/usr/bin/sandbox-exec", "-p"])
     expect(plan.command[2]).toContain('(allow file-write* (subpath "/repo/checkout"))')
-    expect(plan.command[2]).not.toContain('(subpath "/private/var/folders")')
+    if (process.env.TMPDIR) {
+      // Seatbelt subpath matching is symlink-resolved: the raw /var/folders
+      // form never matches the kernel path (/private/var/folders), so the
+      // profile must carry the resolved form for tmp writes to work.
+      expect(plan.command[2]).toContain(`(subpath "${realpathSync(process.env.TMPDIR)}")`)
+    }
     expect(plan.command[2]).toContain("(allow network*)")
     expect(plan.command.slice(-3)).toEqual(["claude", "-p", "task"])
+  })
+
+  test("macOS profile carries symlink-resolved subpaths for not-yet-existing state dirs", () => {
+    const plan = buildWorkerSandboxPlan({
+      command: ["gemini", "--skip-trust", "-p", "task"],
+      cwd: "/repo/checkout",
+      network: "full",
+      platform: "darwin",
+      which: found,
+      // Simulates the gemini isolated home: under a symlinked root (/tmp),
+      // deeper than anything that exists yet.
+      writableStatePaths: ["/tmp/dax-test/state"],
+    })
+    const profile = plan.command[2]
+    // /tmp -> /private/tmp: the resolved form is what Seatbelt matches.
+    expect(profile).toContain('(subpath "/private/tmp/dax-test/state")')
+    expect(profile).toContain('(subpath "/repo/checkout")')
   })
 
   test("denies verification network on macOS", () => {
@@ -186,7 +209,10 @@ describe("worker sandbox", () => {
       writableStatePaths: ["/home/tester/.codex"],
     })
     const profile = plan.command[2]
-    expect(profile).toContain('(allow file-write* (subpath "/home/tester/.codex"))')
+    // The state dir appears as a writable subpath. Its exact prefix is the
+    // kernel-resolved realpath (symlinks AND firmlinks: /home lives on the APFS
+    // data volume here), so match on the tail, not a literal path.
+    expect(profile).toMatch(/\(allow file-write\* \(subpath "[^"]*\.codex"\)\)/)
     expect(profile).toContain('(allow file-write* (subpath "/repo/checkout"))')
     expect(plan.summary).toContain("worker-state writes")
   })

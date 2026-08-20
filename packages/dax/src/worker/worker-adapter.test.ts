@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { join } from "node:path"
 import {
   DEFAULT_WORKER_TIMEOUT_MS,
   DefaultWorkerProviderRegistry,
@@ -67,6 +68,49 @@ describe("worker adapter", () => {
     const codexEnv = buildWorkerEnv("codex", hostEnv, contract)
     expect(codexEnv.OPENAI_API_KEY).toBe("sk-oai-xxx")
     expect(codexEnv.ANTHROPIC_API_KEY).toBeUndefined()
+  })
+
+  test("gemini worker is an isolated, deterministic API-key lane", () => {
+    const hostEnv = {
+      GEMINI_API_KEY: "gm-xxx",
+      GOOGLE_API_KEY: "not-the-lane",
+      GOOGLE_GENAI_USE_GCA: "true",
+      GOOGLE_GENAI_USE_VERTEXAI: "true",
+      GOOGLE_APPLICATION_CREDENTIALS: "/ops/sa.json",
+      GOOGLE_CLOUD_PROJECT: "some-project",
+      HOME: "/Users/operator",
+      USER: "operator",
+      LOGNAME: "operator",
+      TMPDIR: "/tmp/operator",
+    }
+    const env = buildWorkerEnv("gemini", hostEnv, contract)
+    // The declared lane wins: GEMINI_API_KEY and only it.
+    expect(env.GEMINI_API_KEY).toBe("gm-xxx")
+    // Conflicting auth selectors never reach the worker even when set in the
+    // host env — gemini picks its lane in env precedence order, so an ambient
+    // Google var must not override the declared lane.
+    expect(env.GOOGLE_API_KEY).toBeUndefined()
+    expect(env.GOOGLE_GENAI_USE_GCA).toBeUndefined()
+    expect(env.GOOGLE_GENAI_USE_VERTEXAI).toBeUndefined()
+    expect(env.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined()
+    expect(env.GOOGLE_CLOUD_PROJECT).toBeUndefined()
+    // State is isolated from the operator's ~/.gemini (and antigravity's state
+    // beneath it): a run-scoped root under the worker's own TMPDIR, never HOME.
+    const isolatedHome = join("/tmp/operator", "dax-worker-state", "gemini", contract.runId)
+    expect(env.GEMINI_CLI_HOME).toBe(isolatedHome)
+    expect(env.GEMINI_CLI_HOME?.startsWith(hostEnv.HOME)).toBe(false)
+    const invocation = buildWorkerInvocation({ workerId: "gemini", contract, hostEnv })
+    expect(invocation.writableStatePaths).toContain(isolatedHome)
+    expect(invocation.writableStatePaths.some((p) => p.startsWith(hostEnv.HOME))).toBe(false)
+  })
+
+  test("gemini worker runs headless with DAX-controlled tool approval", () => {
+    const invocation = buildWorkerInvocation({ workerId: "gemini", contract })
+    expect(invocation.command).toContain("--skip-trust")
+    expect(invocation.command).toContain("--approval-mode=yolo")
+    expect(invocation.command).toContain("--output-format")
+    expect(invocation.command).toContain("text")
+    expect(invocation.command).toContain("-p")
   })
 
   test("base session identity (HOME/USER/LOGNAME/TMPDIR) passes through for all workers", () => {
