@@ -36,7 +36,9 @@ describe("known-gaps ledger", () => {
     // a known gap becomes folklore.
     for (const [id, description] of Object.entries(KNOWN_GAPS)) {
       expect(description.length).toBeGreaterThan(30)
-      expect(id).toMatch(/^inv[1-6]\./)
+      // Gaps are named for the invariant they block, or for the subsystem when
+      // the gap is a governance decision rather than a missing implementation.
+      expect(id).toMatch(/^(inv[1-6]|[a-z]+)\./)
     }
   })
 

@@ -34,6 +34,7 @@ export const KNOWN_GAPS = {
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",
   "inv5.capability-properties": "Capabilities do not declare intrinsic properties distinct from contract authority",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
+  "memory.no-producer": "Project memory is read by intent interpretation on every session but no production code writes it; what may be promoted into memory is an open governance decision",
   "inv5.grant-resolution": "Execution paths do not resolve authority through one shared grant lookup",
 } as const
 

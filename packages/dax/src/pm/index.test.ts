@@ -251,3 +251,32 @@ describe("rao events", () => {
     expect(await again.list_events({ project_id: id, limit: 100 })).toHaveLength(1)
   })
 })
+
+describe("memory health", () => {
+  test("distinguishes an uninitialised store from an empty result", async () => {
+    // The defect this exists to prevent: list_memory returns [] both when there is
+    // nothing worth remembering and when nothing has ever been able to write.
+    // A consumer folding [] into intent interpretation cannot tell which, so a
+    // feature with no producer reports as healthy indefinitely.
+    const PM = await pm()
+    const id = `proj_health_${Date.now().toString(36)}`
+
+    expect(await PM.memory_health({ project_id: id })).toEqual({
+      active_entries: 0,
+      status: "uninitialised",
+    })
+
+    await PM.save_memory({
+      project_id: id,
+      category: "decision",
+      title: "provider adapters fail closed without baseUrl",
+      content: "Established by a completed run and confirmed by the operator.",
+      source: "user",
+    })
+
+    expect(await PM.memory_health({ project_id: id })).toEqual({
+      active_entries: 1,
+      status: "populated",
+    })
+  })
+})

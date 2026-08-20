@@ -480,6 +480,36 @@ export namespace PM {
     limit: z.number().int().positive().max(200).default(20),
   })
 
+  /**
+   * Whether project memory is empty because nothing is worth remembering, or
+   * empty because nothing has ever been able to write it.
+   *
+   * Those are different facts and the caller cannot tell them apart from an empty
+   * array. `list_memory` is read on the first message of every session and folded
+   * into intent interpretation; while no production code calls `save_memory`, the
+   * answer is structurally empty rather than genuinely empty, and a consumer that
+   * cannot distinguish the two will report a healthy feature indefinitely.
+   */
+  export type MemoryHealth = {
+    /** Rows currently in the store. */
+    active_entries: number
+    /**
+     * "uninitialised" means the store has never held an entry. It is not a claim
+     * that the producer is broken — only that nothing has yet been promoted, which
+     * is the honest thing to say while promotion remains an open governance
+     * question.
+     */
+    status: "uninitialised" | "populated"
+  }
+
+  export const memory_health = fn(z.object({ project_id: z.string() }), async (input): Promise<MemoryHealth> => {
+    const row = db
+      .prepare(`select count(*) as n from pm_memory where project_id = ?`)
+      .get(input.project_id) as { n: number } | undefined
+    const active = row?.n ?? 0
+    return { active_entries: active, status: active > 0 ? "populated" : "uninitialised" }
+  })
+
   export const list_memory = fn(ListMemoryInput, async (input) => {
     touch(input.project_id)
     const rows = input.category
