@@ -107,7 +107,7 @@ Evidence: `agy-proxy-tests.txt`.
 
 ## Next Actions
 
-1. Phase 2 (pending approval): add provider enum id `antigravity`, binary `agy`; export `WORKER_PROFILES`; replace the `worker-adapter.test.ts:28` assertion with `expect(invocation.command[0]).toBe(WORKER_PROFILES[workerId].binary)`; update the :125 id list to `["claude","codex","gemini","antigravity"]`.
+1. Phase 2 (DONE, follow-up commit): provider enum id `antigravity`, binary `agy`, `WORKER_PROFILES` exported; `worker-adapter.test.ts` asserts `expect(invocation.command[0]).toBe(WORKER_PROFILES[workerId].binary)`; :125 id list is `["claude","codex","gemini","antigravity"]`; `worker:antigravity` providerHint accepted.
 2. Egress allowlist in `egress-allowlist.ts`: `daily-cloudcode-pa.googleapis.com`, `playwright.azureedge.net`, `playwright-akamai.azureedge.net`, `playwright-verizon.azureedge.net` (plus installer hosts `antigravity-cli-auto-updater-974169037036.us-central1.run.app`, `storage.googleapis.com`, and `accounts.google.com` only for unauthenticated flows).
 3. Sandbox provisioning: mount/copy `.gemini/antigravity-cli/antigravity-oauth-token` as auth material; treat the other `~/.gemini/antigravity-cli/*` dirs as ephemeral writable state.
 4. Optional: verify telemetry-off flag; test `--continue` across restarts before Phase 2 worker work.

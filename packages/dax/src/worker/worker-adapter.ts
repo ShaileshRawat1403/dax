@@ -5,10 +5,10 @@ import { buildEgressAllowlist } from "./egress-allowlist"
 /**
  * External worker adapters — the BYOA layer (docs/dax/byoa-strategy.md).
  *
- * DAX governs external coding agents (Claude Code, Codex CLI, Gemini CLI)
- * as capability workers: DAX owns the worktree, the sandbox, the diff, the
- * approval gate, and the receipt; the worker is a replaceable execution
- * engine invoked non-interactively inside DAX's contract.
+ * DAX governs external coding agents (Claude Code, Codex CLI, Gemini CLI,
+ * Antigravity CLI) as capability workers: DAX owns the worktree, the sandbox,
+ * the diff, the approval gate, and the receipt; the worker is a replaceable
+ * execution engine invoked non-interactively inside DAX's contract.
  *
  * This module is deliberately pure: it builds the invocation (argv, env,
  * network policy, contract prompt) and interprets nothing. Execution,
@@ -33,7 +33,7 @@ import { buildEgressAllowlist } from "./egress-allowlist"
  *   actually held.
  */
 
-export const ExternalWorkerId = z.enum(["claude", "codex", "gemini"])
+export const ExternalWorkerId = z.enum(["claude", "codex", "gemini", "antigravity"])
 export type ExternalWorkerId = z.infer<typeof ExternalWorkerId>
 
 /**
@@ -195,7 +195,7 @@ function homeStateDirs(
  * tests, not an architecture change. Verify against each tool's docs when
  * bumping.
  */
-const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
+export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   claude: {
     label: "Claude Code",
     binary: "claude",
@@ -235,6 +235,18 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     args: (prompt) => ["-p", prompt],
     envAllowlist: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"],
     stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini"]),
+  },
+  antigravity: {
+    label: "Antigravity CLI",
+    binary: "agy",
+    // agy authenticates headless via ~/.gemini/antigravity-cli/antigravity-oauth-token
+    // (or the shared macOS keychain) and runs with silent auth in -p mode. No
+    // API-key env lane was observed (AV_API_KEY/GOOGLE_API_KEY ignored, OAuth
+    // still demanded), so credentials come through HOME passthrough, not env.
+    // Verified live: agy -p runs exit 0 with only the token file present.
+    args: (prompt) => ["-p", prompt],
+    envAllowlist: [],
+    stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini/antigravity-cli", ".gemini/config"]),
   },
 }
 

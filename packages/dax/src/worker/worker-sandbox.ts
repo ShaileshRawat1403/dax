@@ -35,9 +35,10 @@ function writeSummary(statePaths: string[]): string {
  * Credential and secret stores a governed worker never needs to read. Reads are
  * otherwise allowed (a coding agent must see the toolchain and its own config),
  * so this is a deny-list of the well-known exfiltration targets layered on top
- * of the global read allow. Provider auth still works: the three external
- * workers read their own home config (~/.codex, ~/.claude, ~/.gemini — not
- * listed here) or credentials passed as allowlisted env vars.
+ * of the global read allow. Provider auth still works: the external workers
+ * read their own home config (~/.codex, ~/.claude, ~/.gemini and
+ * ~/.gemini/antigravity-cli — not listed here) or credentials passed as
+ * allowlisted env vars.
  *
  * This is the pragmatic floor: it removes the obvious secret targets with no
  * breakage. A future `--strict-reads` mode will invert this to deny-by-default

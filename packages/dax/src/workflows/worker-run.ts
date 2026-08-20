@@ -260,7 +260,7 @@ export class WorkerRunWorkflow {
 
     const workerId = workerIdFromProviderHint(this.contract.providerHint)
     if (!workerId) {
-      const error = `worker_run requires providerHint "worker:<claude|codex|gemini>", got "${this.contract.providerHint ?? "none"}"`
+      const error = `worker_run requires providerHint "worker:<claude|codex|gemini|antigravity>", got "${this.contract.providerHint ?? "none"}"`
       await this.failRun("invalid_worker", error)
       return { success: false, stepResults, error }
     }

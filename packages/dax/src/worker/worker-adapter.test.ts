@@ -3,6 +3,7 @@ import {
   DEFAULT_WORKER_TIMEOUT_MS,
   DefaultWorkerProviderRegistry,
   ExternalWorkerId,
+  WORKER_PROFILES,
   WorkerContract,
   WorkerProviderRegistry,
   buildWorkerEnv,
@@ -25,7 +26,10 @@ describe("worker adapter", () => {
     for (const workerId of ExternalWorkerId.options) {
       const invocation = buildWorkerInvocation({ workerId, contract })
       expect(invocation.providerId).toBe(workerId)
-      expect(invocation.command[0]).toBe(workerId)
+      // providerId is the durable id recorded in the event log; the binary is
+      // a vendor detail that drifts (gemini -> agy). Assert the profile binary,
+      // not the id.
+      expect(invocation.command[0]).toBe(WORKER_PROFILES[workerId].binary)
       const prompt = invocation.command.find((arg) => arg.includes("TASK:"))
       expect(prompt).toBeDefined()
       expect(prompt).toContain("Add an isEven helper")
@@ -122,7 +126,7 @@ describe("worker adapter", () => {
 
   test("the default registry lists every approved provider as an external CLI", () => {
     const providers = DefaultWorkerProviderRegistry.list()
-    expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex", "gemini"])
+    expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex", "gemini", "antigravity"])
     for (const provider of providers) {
       expect(provider.kind).toBe("external_cli")
     }

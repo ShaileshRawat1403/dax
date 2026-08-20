@@ -418,7 +418,7 @@ function isValidWorkflowHint(hint: string, intent: string, providerHint?: string
   }
 
   if (hint === "worker_run") {
-    return /^worker:(claude|codex|gemini)$/.test(providerHint ?? "")
+    return /^worker:(claude|codex|gemini|antigravity)$/.test(providerHint ?? "")
   }
 
   return false

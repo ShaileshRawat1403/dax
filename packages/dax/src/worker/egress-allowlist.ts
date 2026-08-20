@@ -38,6 +38,12 @@ export const PROVIDER_EGRESS_HOSTS: Record<ExternalWorkerId, readonly string[]> 
   // refused until chatgpt.com was allowlisted.
   codex: ["api.openai.com", "chatgpt.com"],
   gemini: ["generativelanguage.googleapis.com", "oauth2.googleapis.com"],
+  // daily-cloudcode-pa.googleapis.com is agy's model plane (observed live:
+  // loadCodeAssist, fetchAvailableModels, streamGenerateContent, telemetry).
+  // accounts.google.com serves the OAuth URL when no token is present;
+  // oauth2.googleapis.com is the standard refresh endpoint for the token
+  // file's refresh_token (inferred, not yet observed live).
+  antigravity: ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "accounts.google.com"],
 }
 
 /**
@@ -50,6 +56,7 @@ const PROVIDER_BASE_URL_ENV: Record<ExternalWorkerId, readonly string[]> = {
   claude: ["ANTHROPIC_BASE_URL"],
   codex: ["OPENAI_BASE_URL"],
   gemini: [],
+  antigravity: [],
 }
 
 /**

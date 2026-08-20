@@ -63,7 +63,7 @@ individual hands. Framing enterprise before that proof is hype.
 One demo defines the category:
 
 ```
-dax worker run claude|codex|gemini -- "<task>"
+dax worker run claude|codex|gemini|antigravity -- "<task>"
 ```
 
 1. Operator invokes an external agent as a worker with a task.
