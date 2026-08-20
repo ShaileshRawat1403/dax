@@ -1,0 +1,6 @@
+    "acct"<blob>="antigravity"
+    "cdat"<timedate>=0x32303236303532333130323735355A00  "20260523102755Z\000"
+    "mdat"<timedate>=0x32303236303832303034323032355A00  "20260820042025Z\000"
+    "svce"<blob>="gemini"
+--
+note: real home authenticates via keychain (no token file present); code-paste flow in temp home wrote only the token file (keychain mdat unchanged)

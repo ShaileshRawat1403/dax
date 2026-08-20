@@ -1,0 +1,6 @@
+/token: <obj>
+/token/access_token: <redacted>
+/token/token_type: <redacted>
+/token/refresh_token: <redacted>
+/token/expiry: <redacted>
+/auth_method: <redacted>
