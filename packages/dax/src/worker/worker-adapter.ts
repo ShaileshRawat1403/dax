@@ -164,6 +164,16 @@ type WorkerProfile = {
   /** Env var names passed through from the host environment. */
   envAllowlist: string[]
   /**
+   * Env vars the worker's auth lane requires before execution. A run must fail
+   * fast — before the worker is spawned — when a required var is missing: the
+   * worker's own auth failure would be noisy, possibly fall back to a different
+   * lane, and waste a disposable checkout. Readiness is a property of the
+   * profile so every worker surface (CLI pre-flight, workflow, future doctor)
+   * checks the same contract. Absent for workers whose auth rides config files
+   * or keychain state rather than env (claude/codex/antigravity).
+   */
+  requiredEnv?: readonly string[]
+  /**
    * Auth selectors that must never reach this worker, even if the host env
    * sets them. The worker profile defines its authentication contract: an
    * ambient variable that flips a vendor CLI onto a different auth lane must
@@ -296,6 +306,9 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     // --output-format text: stable machine-readable output for -p mode.
     args: (prompt) => ["--skip-trust", "--approval-mode=yolo", "--output-format", "text", "-p", prompt],
     envAllowlist: ["GEMINI_API_KEY"],
+    // The gemini lane is API-key-only: no GEMINI_API_KEY, no run. Fails fast
+    // before a checkout is created, let alone a worker spawned.
+    requiredEnv: ["GEMINI_API_KEY"],
     denyEnv: [
       "GOOGLE_API_KEY",
       "GOOGLE_GENAI_USE_GCA",
@@ -392,6 +405,20 @@ export function buildWorkerEnv(
   if (contract.invocationId) env.DAX_INVOCATION_ID = contract.invocationId
   env.DAX_GOVERNED_WORKER = "1"
   return env
+}
+
+/**
+ * Auth-lane readiness for a worker, before anything is spawned. Returns the
+ * profile-declared env vars that are missing from the host env; empty means
+ * the lane is ready. This is the single contract surface the CLI pre-flight,
+ * the workflow, and the future `dax worker doctor` all consult, so a worker
+ * whose auth lane needs an env var fails fast everywhere it can run.
+ */
+export function missingWorkerAuthEnv(
+  workerId: ExternalWorkerId,
+  hostEnv: Record<string, string | undefined>,
+): string[] {
+  return (WORKER_PROFILES[workerId].requiredEnv ?? []).filter((name) => !hostEnv[name])
 }
 
 export function buildWorkerInvocation(input: {

@@ -10,6 +10,7 @@ import {
   buildWorkerEnv,
   buildWorkerInvocation,
   buildProviderInvocation,
+  missingWorkerAuthEnv,
   renderWorkerPrompt,
 } from "./worker-adapter"
 
@@ -111,6 +112,20 @@ describe("worker adapter", () => {
     expect(invocation.command).toContain("--output-format")
     expect(invocation.command).toContain("text")
     expect(invocation.command).toContain("-p")
+  })
+
+  test("gemini fails fast when its required auth env is missing, and only then", () => {
+    // The API-key lane is declared: no GEMINI_API_KEY, no run. The same
+    // contract surface guards the CLI pre-flight, the workflow, and doctor.
+    expect(missingWorkerAuthEnv("gemini", {})).toEqual(["GEMINI_API_KEY"])
+    expect(missingWorkerAuthEnv("gemini", { GEMINI_API_KEY: "gm-xxx" })).toEqual([])
+    // An empty var counts as missing — the lane needs a real key.
+    expect(missingWorkerAuthEnv("gemini", { GEMINI_API_KEY: "" })).toEqual(["GEMINI_API_KEY"])
+    // Config/keychain-auth workers declare no required env: readiness is a
+    // property of the profile, not something each worker checks ad hoc.
+    for (const workerId of ["claude", "codex", "antigravity"] as const) {
+      expect(missingWorkerAuthEnv(workerId, {})).toEqual([])
+    }
   })
 
   test("base session identity (HOME/USER/LOGNAME/TMPDIR) passes through for all workers", () => {

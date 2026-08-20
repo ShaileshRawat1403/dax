@@ -12,6 +12,7 @@ import {
   ExternalWorkerId,
   WorkerContract,
   buildProviderInvocation,
+  missingWorkerAuthEnv,
   WORKSPACE_PLACEHOLDER,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
@@ -305,6 +306,18 @@ export class WorkerRunWorkflow {
         this.runId,
         this.contract.runtimePolicy,
       )
+
+      // Auth-lane readiness is enforced before any checkout is created or the
+      // worker is spawned: a missing required credential must fail the run
+      // fast rather than execute a worker that can only fail noisily or fall
+      // back to a different lane. Same contract surface as the CLI pre-flight
+      // and the future `dax worker doctor`.
+      const missingAuthEnv = missingWorkerAuthEnv(workerId, process.env)
+      if (missingAuthEnv.length > 0) {
+        throw new Error(
+          `worker ${workerId} is not ready: missing ${missingAuthEnv.join(", ")} — set it and retry`,
+        )
+      }
 
       // Scope provenance is part of the receipt. Event ordering is mandatory:
       // an unrecorded contract must never race later evidence or review state.
