@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { expectGap } from "./known-gaps"
 
@@ -21,9 +21,22 @@ import { expectGap } from "./known-gaps"
  * indistinguishable to the caller. That is what makes this class of defect
  * survive: it never produces an error, only a quietly weaker answer.
  *
- * So the pairing is asserted directly. A consumer declared here must have a
- * producer reachable from production code — not from tests, which is precisely
- * how all three of these looked healthy.
+ * So the pairing is asserted directly. The invariant is:
+ *
+ *   **An authoritative consumer must have a production-reachable producer path.**
+ *
+ *       production entry point → producer → authoritative state → consumer
+ *
+ * Tests, dead helpers, fixtures, migrations and unused exports do not satisfy it.
+ * A test caller proves the API is executable, not that anything executes it —
+ * which is exactly how all three defects above looked healthy.
+ *
+ * The checks below approximate that property by pattern-matching producer call
+ * sites in non-test source. That is weaker than the invariant: a helper outside a
+ * test file which is itself unreachable from any entry point would pass. The
+ * approximation is recorded as `producer.reachability-approximated` so the
+ * implementation does not quietly become the definition — the property above is
+ * what must hold, and a call-graph check is what would prove it.
  */
 
 const SRC = join(import.meta.dir, "..")
@@ -116,6 +129,17 @@ describe("producer/consumer symmetry", () => {
       .map((file) => file.slice(SRC.length + 1))
 
     expect(offenders).toEqual([])
+  })
+
+  test("producer detection proves reachability, not merely existence", () => {
+    // The gap between the stated invariant and its current implementation. Closing
+    // it needs reachability from a production entry point — a CLI command, a
+    // server route, a workflow step — rather than "appears in a non-test file".
+    // Asserted against a helper module rather than this file's own text: a test
+    // that greps itself for the words it contains will always find them.
+    expectGap("producer.reachability-approximated", () => {
+      expect(existsSync(join(import.meta.dir, "reachability.ts"))).toBe(true)
+    })
   })
 
   test("every declared pairing states its failure mode", () => {

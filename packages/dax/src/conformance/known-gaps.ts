@@ -37,6 +37,7 @@ export const KNOWN_GAPS = {
   "scope.journal-primitive": "The journal machinery (append, sequence validation, locking, envelope validation, replay) is not generic over scope, so a second scope would copy it rather than instantiate it",
   "scope.aware-envelope": "The event envelope carries runId only, so an event cannot state which scope owns it or cite provenance across scopes",
   "scope.project-journal": "No project-scoped journal exists, so facts that outlive their run — promoted memory, project conventions — have no authoritative owner",
+  "producer.reachability-approximated": "Producer detection pattern-matches non-test call sites rather than proving reachability from a production entry point, so a dead helper calling the producer would pass",
   "memory.no-producer": "Project memory is read by intent interpretation on every session but no production code writes it; what may be promoted into memory is an open governance decision",
   "inv5.grant-resolution": "Execution paths do not resolve authority through one shared grant lookup",
 } as const
