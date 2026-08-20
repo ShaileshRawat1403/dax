@@ -21,10 +21,44 @@ not settled by argument.
 | 4 | **Runtime Boundary Validation** — inputs, outputs, observations and evidence are validated at runtime, not trusted because TypeScript says so | Does a malformed value get rejected at runtime, or does it enter state unchecked? | `output-boundary.test.ts` |
 | 5 | **Contract-Defined Authority** — capabilities describe what can exist; contracts determine what this run may exercise | Is authority expressed once, in the contract, or does the capability carry a second policy? | `contract-capability.test.ts` |
 | 6 | **Evidence-Gated Completion** — execution success cannot independently imply task completion | Can this run reach `completed` without evidence that the objective was satisfied? | `verification-completion.test.ts` |
+| 7 | **Scope Authority** — every durable state transition has exactly one authoritative scope and is reconstructable from that scope's journal | If the originating run disappeared, should this fact still govern future behaviour? Yes → project-scoped. No → run-scoped. Doesn't govern behaviour → not authoritative state at all. | `scope-authority.test.ts` |
 
 Plus one gate, which is a process rule rather than an architectural property:
 
 | **Minimality** — every new abstraction states what breaks in the tiny version | `minimality-gate.test.ts` |
+
+## On "one durable truth"
+
+Invariant 7 exists because that phrase was imprecise, and the imprecision only
+surfaced when something with a genuinely different lifetime turned up.
+
+Read as *one log*, it forces project memory — which governs sessions unrelated to
+the run that discovered it — into a run-scoped journal that dies when the run is
+pruned. Read as *one owner per fact, determined by lifetime and scope*, the
+principle survives.
+
+So DAX has one event **system** with scope-owned journals, not two event spines:
+
+```
+Event journal contract
+  ├── run scope      → run vocabulary,     run reducer,     run state
+  └── project scope  → project vocabulary, project reducer, project state
+```
+
+Run journals stay independently replayable — a run is born at seq 0 with
+`contract_compiled`, contiguous, terminating with the run. One project-wide log
+with runs as partitions was considered and rejected: unrelated concurrent runs
+would contend on a single sequence, today's replay would depend on every
+historical run in the project, and retention would couple across runs that have
+nothing to do with each other.
+
+Cross-scope relationships are **provenance references, never duplicated
+authority**. A project fact caused by run evidence cites that evidence; it does
+not write the transition into both journals. Two authoritative copies is the
+parallel-state defect wearing different clothes.
+
+Further scopes — workspace, user, organisation — are deliberately not
+generalised. Run and project are what exist.
 
 ## Scoreboard
 
