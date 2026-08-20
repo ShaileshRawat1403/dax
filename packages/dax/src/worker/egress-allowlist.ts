@@ -42,8 +42,20 @@ export const PROVIDER_EGRESS_HOSTS: Record<ExternalWorkerId, readonly string[]> 
   // loadCodeAssist, fetchAvailableModels, streamGenerateContent, telemetry).
   // accounts.google.com serves the OAuth URL when no token is present;
   // oauth2.googleapis.com is the standard refresh endpoint for the token
-  // file's refresh_token (inferred, not yet observed live).
-  antigravity: ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "accounts.google.com"],
+  // file's refresh_token; www.googleapis.com/oauth2/v2/userinfo is the
+  // eligibility user check and lh3.googleusercontent.com serves the profile
+  // picture it also fetches (missing either fails the eligibility check);
+  // antigravity-unleash.goog (feature flags) and play.googleapis.com were
+  // observed reach attempts in the same controlled run. All observed live.
+  antigravity: [
+    "daily-cloudcode-pa.googleapis.com",
+    "oauth2.googleapis.com",
+    "accounts.google.com",
+    "www.googleapis.com",
+    "lh3.googleusercontent.com",
+    "antigravity-unleash.goog",
+    "play.googleapis.com",
+  ],
 }
 
 /**

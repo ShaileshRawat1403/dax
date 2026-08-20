@@ -12,6 +12,7 @@ import {
   ExternalWorkerId,
   WorkerContract,
   buildProviderInvocation,
+  WORKSPACE_PLACEHOLDER,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
@@ -97,11 +98,15 @@ const defaultEffects: WorkerRunEffectsShape = {
     const network = invocation.network === "none" ? "none" : "full"
     const baseEnv = { ...invocation.env, PATH: process.env.PATH ?? "" }
     const writableStatePaths = invocation.writableStatePaths
+    // Some profiles embed WORKSPACE_PLACEHOLDER to pin the absolute checkout
+    // path in their args (e.g. agy --add-dir); profiles are built before the
+    // checkout exists, so it is resolved here where cwd is known.
+    const command = invocation.command.map((arg) => (arg === WORKSPACE_PLACEHOLDER ? cwd : arg))
 
     // Unconfined (operator opted out) or no network: run without a proxy.
     if (invocation.egress.mode !== "filtered" || network === "none") {
       return runSandboxedCommand({
-        command: invocation.command,
+        command,
         cwd,
         env: baseEnv,
         timeoutMs: invocation.timeoutMs,
@@ -115,7 +120,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     const proxy = await startEgressProxy({ allowHosts: invocation.egress.allowHosts })
     try {
       const result = await runSandboxedCommand({
-        command: invocation.command,
+        command,
         cwd,
         env: { ...baseEnv, ...proxy.proxyEnv },
         timeoutMs: invocation.timeoutMs,

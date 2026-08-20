@@ -195,6 +195,11 @@ function homeStateDirs(
  * tests, not an architecture change. Verify against each tool's docs when
  * bumping.
  */
+/** Sentinel a profile may embed in its args; runWorker substitutes the
+ *  disposable-checkout path at run time (profiles are built before the
+ *  checkout exists, so the absolute path is unknown at build time). */
+export const WORKSPACE_PLACEHOLDER = "__DAX_WORKSPACE__"
+
 export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   claude: {
     label: "Claude Code",
@@ -244,7 +249,21 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     // API-key env lane was observed (AV_API_KEY/GOOGLE_API_KEY ignored, OAuth
     // still demanded), so credentials come through HOME passthrough, not env.
     // Verified live: agy -p runs exit 0 with only the token file present.
-    args: (prompt) => ["-p", prompt],
+    // --dangerously-skip-permissions: agy's default toolPermission is
+    // request-review and print mode soft-denies every tool without an
+    // approver (observed: "soft-denying tool confirmation ListDir"), so the
+    // worker would never edit. DAX is the sandbox and approval authority
+    // here, mirroring the claude/codex decision to bypass the worker's own
+    // redundant gate.
+    // --add-dir: agy's print mode otherwise works in its own scratch workspace
+    // (~/.gemini/antigravity-cli/scratch) seeded from cwd, so the checkout
+    // would never change. Relative add-dirs are unreliable: agy resolves "."
+    // against the git repo root (in a worktree checkout that lands in the
+    // origin repo, outside the sandbox write scope) and can fall back to
+    // scratch. Only an absolute --add-dir targets the checkout, so the args
+    // pin WORKSPACE_PLACEHOLDER and runWorker substitutes the real checkout
+    // path at run time (observed: edits land in the checkout only then).
+    args: (prompt) => ["-p", prompt, "--dangerously-skip-permissions", "--add-dir", WORKSPACE_PLACEHOLDER],
     envAllowlist: [],
     stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini/antigravity-cli", ".gemini/config"]),
   },

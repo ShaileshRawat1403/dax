@@ -92,6 +92,47 @@ Evidence: `agy-proxy-tests.txt`.
 - `settings.json` absent → "cli settings not available, using defaults"; `crashes/crash_*.log` written per run (observed empty).
 - `--model` exists on `agy` (contradicts a web source; observed beats docs).
 
+### 8. Governed end-to-end run (CONFIRMED)
+
+Full `dax worker run antigravity` succeeded against the scratch repo
+`/tmp/dax-e2e-repo` (seed: `src/math.ts` `add` + a passing test):
+
+- Run `ses_fe2525330ffez8J8eB4J2FsVVz`: `worker:antigravity`, `diff:2`,
+  `sandbox:seatbelt`, network full, egress filtered (cooperative-proxy),
+  **zero egress denials**, verification `bun test (seatbelt) passed`
+  (receipt `2bd68c1d-70c0-4a7a-9997-56dd2662da6a`), and the kernel diff was
+  parked at the `patch_apply` approval gate (`apr_0a87a2534520498f`).
+- The diff matched the task exactly (added `isEven` to `src/math.ts` + a test
+  in `src/math.test.ts`) — DAX's kernel computed it from the checkout, never
+  from worker-reported state.
+
+Adapter behaviors verified live and baked into the profile:
+
+- **`--dangerously-skip-permissions` is required.** agy's default
+  `toolPermission` is `request-review` and print mode soft-denies every tool
+  without an approver ("soft-denying tool confirmation ListDir"); with it set,
+  agy logs "auto-approving all tool permissions" and edits flow.
+- **agy works in its own scratch workspace** (`~/.gemini/antigravity-cli/scratch`)
+  seeded from cwd in print mode, so without `--add-dir` the checkout never
+  changes. A *relative* `--add-dir .` is unreliable: in a git-worktree checkout
+  agy resolves the repo root (the origin repo, outside the sandbox write
+  scope) or falls back to scratch. Only an **absolute** `--add-dir` to the
+  checkout targets it. Because profiles are built before the checkout exists,
+  the args embed `WORKSPACE_PLACEHOLDER` (`__DAX_WORKSPACE__`) and
+  `WorkerRunEffects.runWorker` substitutes the real checkout path at run time.
+- The Seatbelt profile allows writes anywhere under `/tmp`/`TMPDIR` (needed for
+  worker temp state), which lets a worktree-adjacent origin repo under `/tmp`
+  be written; production origins under `~` would be blocked by the profile, so
+  the absolute `--add-dir` is what keeps writes in the checkout everywhere.
+
+Egress allowlist finalized to the hosts actually observed in governed runs
+(only these were ever reached; no denials on the final run):
+`daily-cloudcode-pa.googleapis.com`, `oauth2.googleapis.com`,
+`accounts.google.com`, `www.googleapis.com`, `lh3.googleusercontent.com`,
+`antigravity-unleash.goog`, `play.googleapis.com`.
+
+Full suite at the commit: typecheck, lint, and **1381 tests pass**.
+
 ## Open Questions / Assumptions
 
 - Copy of the real `~/.gemini` into a temp HOME still requested auth; real HOME authenticates via keychain. Unresolved why the composite keychain lookup did not succeed in the copy — **not blocking**: the token-file copy is the reliable sandbox path.
@@ -107,7 +148,7 @@ Evidence: `agy-proxy-tests.txt`.
 
 ## Next Actions
 
-1. Phase 2 (DONE, follow-up commit): provider enum id `antigravity`, binary `agy`, `WORKER_PROFILES` exported; `worker-adapter.test.ts` asserts `expect(invocation.command[0]).toBe(WORKER_PROFILES[workerId].binary)`; :125 id list is `["claude","codex","gemini","antigravity"]`; `worker:antigravity` providerHint accepted.
-2. Egress allowlist in `egress-allowlist.ts`: `daily-cloudcode-pa.googleapis.com`, `playwright.azureedge.net`, `playwright-akamai.azureedge.net`, `playwright-verizon.azureedge.net` (plus installer hosts `antigravity-cli-auto-updater-974169037036.us-central1.run.app`, `storage.googleapis.com`, and `accounts.google.com` only for unauthenticated flows).
-3. Sandbox provisioning: mount/copy `.gemini/antigravity-cli/antigravity-oauth-token` as auth material; treat the other `~/.gemini/antigravity-cli/*` dirs as ephemeral writable state.
-4. Optional: verify telemetry-off flag; test `--continue` across restarts before Phase 2 worker work.
+1. Phase 2 (DONE): provider enum id `antigravity`, binary `agy`, `WORKER_PROFILES` exported; `worker-adapter.test.ts` asserts `expect(invocation.command[0]).toBe(WORKER_PROFILES[workerId].binary)`; :125 id list is `["claude","codex","gemini","antigravity"]`; `worker:antigravity` providerHint accepted.
+2. Phase 2 governed E2E (DONE, this branch): `--dangerously-skip-permissions` + absolute `--add-dir` via `WORKSPACE_PLACEHOLDER` substitution; egress allowlist finalized to the 7 observed hosts; verified `diff:2` + `bun test` passed at the approval gate.
+3. Sandbox provisioning: `.gemini/antigravity-cli/antigravity-oauth-token` is the auth material (0600 JSON, refresh_token present, 1h expiry); the other `~/.gemini/antigravity-cli/*` dirs are ephemeral writable state.
+4. Optional: verify telemetry-off flag; test `--continue` across restarts.
