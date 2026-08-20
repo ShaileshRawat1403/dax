@@ -159,6 +159,9 @@ export class WorkerProviderRegistry {
 type WorkerProfile = {
   label: string
   binary: string
+  /** Human label for the auth lane this worker uses (api-key, oauth, config).
+   *  Readiness diagnostics report it verbatim; it never gates a run. */
+  authLane: string
   /** Build argv given the rendered contract prompt. */
   args: (prompt: string) => string[]
   /** Env var names passed through from the host environment. */
@@ -245,6 +248,7 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   claude: {
     label: "Claude Code",
     binary: "claude",
+    authLane: "api-key or OAuth (ANTHROPIC_API_KEY / stored auth)",
     // acceptEdits: headless claude denies write tools by default (no human
     // to answer its prompts). Inside DAX's disposable checkout with DAX's
     // approval gate downstream, Claude's own interactive gate is a redundant
@@ -257,6 +261,7 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   codex: {
     label: "Codex",
     binary: "codex",
+    authLane: "api-key or ChatGPT auth (OPENAI_API_KEY / stored auth)",
     // DAX is the sandbox and the approval authority here. The worker already runs
     // inside DAX's Seatbelt/bubblewrap profile (writes confined to the checkout,
     // secrets masked, egress filtered) and its diff is reviewed at DAX's human
@@ -278,6 +283,7 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   gemini: {
     label: "Gemini CLI",
     binary: "gemini",
+    authLane: "api-key (GEMINI_API_KEY)",
     // gemini is the Gemini API-key headless worker; antigravity is Google's
     // subscription/OAuth worker. Two distinct lanes, fully separated state.
     //
@@ -321,6 +327,7 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   antigravity: {
     label: "Antigravity CLI",
     binary: "agy",
+    authLane: "oauth (token file under ~/.gemini/antigravity-cli)",
     // agy authenticates headless via ~/.gemini/antigravity-cli/antigravity-oauth-token
     // (or the shared macOS keychain) and runs with silent auth in -p mode. No
     // API-key env lane was observed (AV_API_KEY/GOOGLE_API_KEY ignored, OAuth
