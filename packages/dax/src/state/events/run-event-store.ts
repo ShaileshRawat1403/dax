@@ -4,7 +4,7 @@ import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { acquireRunLock } from "@/util/fs-lock"
 import type { RunEventEnvelope } from "./run-event-types"
-import { reduceRunState, type RunState } from "./run-reducer"
+import { reduceRunState, type CanonicalRunState, type RunState } from "./run-reducer"
 import { readRunState } from "@/state/run-store"
 
 const log = Log.create({ service: "event-store" })
@@ -137,7 +137,7 @@ export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> 
   }
 }
 
-export async function projectRunStateFromEvents(runId: string): Promise<RunState | null> {
+export async function projectRunStateFromEvents(runId: string): Promise<CanonicalRunState | null> {
   const events = await readRunEvents(runId)
   if (events.length === 0) {
     return null
@@ -158,6 +158,7 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
     return {
       ...legacyState,
       draft: null,
+      invocations: {},
     } as RunState
   }
 

@@ -96,10 +96,15 @@ describe("run event log validation at the storage boundary", () => {
   })
 
   test("every canonical event class has a runtime-valid payload contract", () => {
-    const payloads: Array<Pick<RunEventEnvelope, "type" | "payload">> = [
+    const payloads: Array<
+      Pick<RunEventEnvelope, "type" | "payload"> & Pick<Partial<RunEventEnvelope>, "correlationId" | "causationId">
+    > = [
       { type: "contract_compiled", payload: { contractId: "ctr_1", verificationRequired: true, guardEnforcementMode: "enforce" } },
       { type: "execution_queued", payload: {} },
       { type: "workflow_started", payload: {} },
+      { type: "tool_invocation_recorded", payload: { invocationId: "inv_1", toolId: "shell", input: { basis: "validated_tool_input", canonicalization: "sorted-json-v1", digest: `sha256:${"a".repeat(64)}`, redactedPreview: '{"command":"bun test"}', truncated: false }, contractId: "ctr_1", executor: { kind: "builtin", id: "shell" }, originTurnId: "msg_1", ordinal: 0 } },
+      { type: "authorization_recorded", payload: { invocationId: "inv_1", finalDisposition: "allowed", contractDisposition: "allowed", runtimeGuardDisposition: "allowed", permissionDisposition: "allowed", approvalIds: [], reasonCodes: [] }, correlationId: "inv_1" },
+      { type: "tool_result_recorded", payload: { invocationId: "inv_1", status: "completed", result: { basis: "validated_dax_result_pre_truncation", canonicalization: "sorted-json-v1", digest: `sha256:${"b".repeat(64)}`, redactedPreview: '{"exit":0}', truncated: false } }, correlationId: "inv_1", causationId: "evt_authorization" },
       { type: "approval_requested", payload: { approvalId: "apr_1", approvalType: "command", risk: "high", title: "Run command", reason: "test", expectedConsequence: "changes files", stepId: null } },
       { type: "approval_resolved", payload: { approvalId: "apr_1", decision: "approved", actor: "operator", comment: "ok", resolvedAt: "2026-01-01T00:00:00.000Z" } },
       { type: "step_added", payload: { stepId: "step_1", title: "Inspect", stepType: "proposed" } },
@@ -130,7 +135,11 @@ describe("run event log validation at the storage boundary", () => {
       { type: "workflow_failed", payload: { error: { code: "failed", message: "failed" } } },
       { type: "verification_recorded", payload: { status: "passed", receipts: [{ receiptId: "receipt_1" }], checks: [{ id: "test", kind: "test", label: "test", command: "bun test", cwd: ".", required: true, risk: "low", exitCode: 0, status: "passed", startedAt: "2026-01-01T00:00:00.000Z", finishedAt: "2026-01-01T00:00:01.000Z", durationMs: 1000, stdoutPreview: "", stderrPreview: "" }] } },
     ]
-    const events = payloads.map((event, seq) => createEvent(RUN_ID, seq, event.type, event.payload))
+    const events = payloads.map((event, seq) => ({
+      ...createEvent(RUN_ID, seq, event.type, event.payload),
+      ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+      ...(event.causationId ? { causationId: event.causationId } : {}),
+    }))
 
     expect(parseRunEventLog(RUN_ID, events)).toHaveLength(payloads.length)
   })

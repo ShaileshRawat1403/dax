@@ -23,6 +23,138 @@ const CompletionProofSchema = closed({
 // contracts; partial or augmented receipts are corruption, not compatibility.
 const VerificationReceiptSchema = z.union([EvidenceReceipt, closed({ receiptId: z.string() })])
 
+const Sha256DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
+
+const CanonicalCommitmentSchema = {
+  canonicalization: z.literal("sorted-json-v1"),
+  digest: Sha256DigestSchema,
+  redactedPreview: z.string().min(1).max(8_192),
+  truncated: z.boolean(),
+}
+
+/**
+ * A commitment to validated tool input without making the append-only run log
+ * a raw-input store. `sorted-json-v1` recursively sorts object keys, omits
+ * undefined object members, preserves array order, and hashes the UTF-8 JSON.
+ * The digest is computed from the unredacted validated input; only the bounded
+ * preview is redacted, and `truncated` describes that preview.
+ */
+export const CanonicalInvocationInputSchema = closed({
+  basis: z.literal("validated_tool_input"),
+  ...CanonicalCommitmentSchema,
+})
+
+/**
+ * A commitment to the validated DAX transport result before model-facing
+ * truncation. Tool-domain validation necessarily precedes this boundary.
+ */
+export const CanonicalToolResultSchema = closed({
+  basis: z.literal("validated_dax_result_pre_truncation"),
+  ...CanonicalCommitmentSchema,
+})
+
+export const NativeExecutorSchema = closed({
+  kind: z.enum(["builtin", "plugin", "mcp"]),
+  id: z.string().min(1),
+})
+
+const ToolInvocationRecordedPayloadSchema = closed({
+  invocationId: z.string().min(1),
+  toolId: z.string().min(1),
+  input: CanonicalInvocationInputSchema,
+  contractId: z.string().min(1),
+  executor: NativeExecutorSchema,
+  originTurnId: z.string().min(1).optional(),
+  workflowStepId: z.string().min(1).optional(),
+  parentInvocationId: z.string().min(1).optional(),
+  ordinal: z.number().int().nonnegative().optional(),
+  retryOfInvocationId: z.string().min(1).optional(),
+})
+
+const PolicyDispositionSchema = z.enum(["allowed", "denied", "approval_required", "not_evaluated"])
+
+const AuthorizationRecordedPayloadSchema = closed({
+  invocationId: z.string().min(1),
+  finalDisposition: z.enum(["allowed", "denied"]),
+  contractDisposition: z.enum(["allowed", "denied"]),
+  runtimeGuardDisposition: PolicyDispositionSchema,
+  permissionDisposition: PolicyDispositionSchema,
+  approvalIds: z.array(z.string().min(1)),
+  reasonCodes: z.array(z.string().min(1)),
+}).superRefine((authorization, ctx) => {
+  const policyDispositions = [authorization.runtimeGuardDisposition, authorization.permissionDisposition]
+  const approvalRequired = policyDispositions.includes("approval_required")
+  const directDenial = authorization.contractDisposition === "denied" || policyDispositions.includes("denied")
+
+  if (new Set(authorization.approvalIds).size !== authorization.approvalIds.length) {
+    ctx.addIssue({ code: "custom", path: ["approvalIds"], message: "must not contain duplicates" })
+  }
+  if (new Set(authorization.reasonCodes).size !== authorization.reasonCodes.length) {
+    ctx.addIssue({ code: "custom", path: ["reasonCodes"], message: "must not contain duplicates" })
+  }
+  if (approvalRequired !== authorization.approvalIds.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["approvalIds"],
+      message: "must identify resolved approvals exactly when a policy disposition required approval",
+    })
+  }
+
+  if (authorization.finalDisposition === "allowed") {
+    if (
+      authorization.contractDisposition !== "allowed" ||
+      policyDispositions.some((disposition) => disposition === "denied" || disposition === "not_evaluated")
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["finalDisposition"],
+        message: "allowed requires every policy component to have allowed or resolved approval-required disposition",
+      })
+    }
+    return
+  }
+
+  if (!directDenial && !approvalRequired) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["finalDisposition"],
+      message: "denied requires a denied policy component or a rejected required approval",
+    })
+  }
+  if (authorization.reasonCodes.length === 0) {
+    ctx.addIssue({ code: "custom", path: ["reasonCodes"], message: "denied authorization requires a stable reason" })
+  }
+})
+
+const ExecutionFailureSchema = closed({
+  code: z.string().min(1),
+  message: z.string(),
+  retryable: z.boolean(),
+})
+
+const ExecutionCancellationSchema = closed({
+  code: z.string().min(1),
+  message: z.string(),
+})
+
+const ToolResultRecordedPayloadSchema = z.discriminatedUnion("status", [
+  closed({
+    invocationId: z.string().min(1),
+    status: z.literal("completed"),
+    result: CanonicalToolResultSchema,
+  }),
+  closed({
+    invocationId: z.string().min(1),
+    status: z.literal("failed"),
+    failure: ExecutionFailureSchema,
+  }),
+  closed({
+    invocationId: z.string().min(1),
+    status: z.literal("cancelled"),
+    cancellation: ExecutionCancellationSchema,
+  }),
+])
+
 /**
  * The closed canonical event vocabulary and each event's durable payload are
  * one runtime contract. This is deliberately the source of truth for both
@@ -40,6 +172,9 @@ const RunEventVariants = [
   }),
   z.object({ type: z.literal("execution_queued"), payload: z.object({}).strict() }),
   z.object({ type: z.literal("workflow_started"), payload: z.object({}).strict() }),
+  z.object({ type: z.literal("tool_invocation_recorded"), payload: ToolInvocationRecordedPayloadSchema }),
+  z.object({ type: z.literal("authorization_recorded"), payload: AuthorizationRecordedPayloadSchema }),
+  z.object({ type: z.literal("tool_result_recorded"), payload: ToolResultRecordedPayloadSchema }),
   z.object({
     type: z.literal("approval_requested"),
     payload: closed({
@@ -226,6 +361,24 @@ export const RunEventEnvelopeSchema = z
   })
   .strict()
   .and(RunEventPayloadSchema)
+  .superRefine((event, ctx) => {
+    if (event.type === "authorization_recorded" || event.type === "tool_result_recorded") {
+      if (event.correlationId !== event.payload.invocationId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["correlationId"],
+          message: `must equal payload.invocationId for ${event.type}`,
+        })
+      }
+    }
+    if (event.type === "tool_result_recorded" && !event.causationId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["causationId"],
+        message: "must reference the allowed authorization event",
+      })
+    }
+  })
 
 let eventCounter = 0
 

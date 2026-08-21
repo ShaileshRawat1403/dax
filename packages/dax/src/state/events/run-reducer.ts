@@ -1,4 +1,4 @@
-import type { RunEventEnvelope } from "./run-event-types"
+import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
 /**
  * The state machine is defined once, in run-state.ts.
  *
@@ -19,6 +19,13 @@ export type RunState = {
   status: RunStatus
   currentStepId: string | null
   steps: StepRecord[]
+  /**
+   * Canonical native execution attempts, keyed independently of workflow
+   * steps. Event replay always initializes this map; it is optional in the
+   * shared return type only because the Gateway can still synthesize a legacy
+   * compatibility state that has no canonical invocation projection.
+   */
+  invocations?: Record<string, NativeInvocationRecord>
   pendingApprovalIds: string[]
   /**
    * The approvals this run requested, as the operator saw them. Distinct from
@@ -112,6 +119,11 @@ export type RunStatus =
   | "failed"
   | "cancelled"
 
+/** Event replay always has the canonical invocation projection. */
+export type CanonicalRunState = RunState & {
+  invocations: Record<string, NativeInvocationRecord>
+}
+
 /**
  * What the run's governance actually did, as opposed to what it was configured to
  * do. Answers the three questions a reviewer asks about a governed worker: what
@@ -152,6 +164,8 @@ export type ApprovalRecord = {
   reason: string | null
   expectedConsequence: string | null
   stepId: string | null
+  /** Canonical invocation correlation, absent for workflow/legacy approvals. */
+  correlationId: string | null
   status: "pending" | "approved" | "rejected"
   decidedBy: string | null
   decidedAt: string | null
@@ -166,6 +180,25 @@ export type StepRecord = {
   completedAt: string | null
   error: StepError | null
   outputs: string[]
+}
+
+type ToolInvocationPayload = Extract<RunEventPayload, { type: "tool_invocation_recorded" }>["payload"]
+
+export type NativeInvocationRecord = Pick<
+  ToolInvocationPayload,
+  | "invocationId"
+  | "toolId"
+  | "executor"
+  | "originTurnId"
+  | "workflowStepId"
+  | "parentInvocationId"
+  | "ordinal"
+  | "retryOfInvocationId"
+> & {
+  status: "awaiting_authorization" | "authorized" | "denied" | "completed" | "failed" | "cancelled"
+  authorizationEventId: string | null
+  resultEventId: string | null
+  approvalIds: string[]
 }
 
 export type DraftRecord = {
@@ -193,8 +226,6 @@ export type RunError = {
   message: string
   retryable: boolean
 }
-
-
 
 /**
  * Refuse a log that cannot be replayed faithfully.
@@ -231,7 +262,7 @@ function assertContiguous(events: RunEventEnvelope[]): void {
   }
 }
 
-export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
+export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | null {
   if (events.length === 0) {
     return null
   }
@@ -250,12 +281,13 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
   }
   const contractId = birth.contractId
 
-  const state: RunState = {
+  const state: CanonicalRunState = {
     runId: firstEvent.runId,
     contractId,
     status: "compiled",
     currentStepId: null,
     steps: [],
+    invocations: {},
     pendingApprovalIds: [],
     approvals: [],
     evidence: { contract: null, sandbox: null, egressDenials: [] },
@@ -324,6 +356,132 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
         break
       }
 
+      case "tool_invocation_recorded": {
+        const payload = event.payload as ToolInvocationPayload
+        const invocations = state.invocations
+        if (invocations[payload.invocationId]) {
+          throw new Error(`Invocation already exists: ${payload.invocationId}`)
+        }
+        if (payload.contractId !== state.contractId) {
+          throw new Error(
+            `Invocation ${payload.invocationId} contract ${payload.contractId} does not match run contract ${state.contractId}`,
+          )
+        }
+        if (payload.parentInvocationId) {
+          const parent = invocations[payload.parentInvocationId]
+          if (!parent) {
+            throw new Error(`Parent invocation not found for ${payload.invocationId}: ${payload.parentInvocationId}`)
+          }
+        }
+        if (payload.retryOfInvocationId) {
+          const retrySource = invocations[payload.retryOfInvocationId]
+          if (!retrySource) {
+            throw new Error(
+              `Retry source invocation not found for ${payload.invocationId}: ${payload.retryOfInvocationId}`,
+            )
+          }
+          if (retrySource.toolId !== payload.toolId) {
+            throw new Error(
+              `Retry source tool does not match invocation ${payload.invocationId}: ${retrySource.toolId} != ${payload.toolId}`,
+            )
+          }
+        }
+        invocations[payload.invocationId] = {
+          invocationId: payload.invocationId,
+          toolId: payload.toolId,
+          executor: payload.executor,
+          originTurnId: payload.originTurnId,
+          workflowStepId: payload.workflowStepId,
+          parentInvocationId: payload.parentInvocationId,
+          ordinal: payload.ordinal,
+          retryOfInvocationId: payload.retryOfInvocationId,
+          status: "awaiting_authorization",
+          authorizationEventId: null,
+          resultEventId: null,
+          approvalIds: [],
+        }
+        break
+      }
+
+      case "authorization_recorded": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "authorization_recorded" }>["payload"]
+        const invocation = state.invocations[payload.invocationId]
+        if (!invocation) {
+          throw new Error(`Authorization references unknown invocation: ${payload.invocationId}`)
+        }
+        if (event.correlationId !== payload.invocationId) {
+          throw new Error(`Authorization correlation does not match invocation: ${payload.invocationId}`)
+        }
+        if (invocation.authorizationEventId) {
+          throw new Error(`Invocation already has authorization: ${payload.invocationId}`)
+        }
+        if (invocation.status !== "awaiting_authorization") {
+          throw new Error(`Cannot authorize invocation ${payload.invocationId} from status ${invocation.status}`)
+        }
+        const approvalRecords = payload.approvalIds.map((approvalId) => {
+          const approval = state.approvals.find((record) => record.approvalId === approvalId)
+          if (!approval) {
+            throw new Error(`Authorization references unknown approval ${approvalId}: ${payload.invocationId}`)
+          }
+          if (approval.status === "pending") {
+            throw new Error(`Authorization references unresolved approval ${approvalId}: ${payload.invocationId}`)
+          }
+          if (approval.correlationId !== payload.invocationId) {
+            throw new Error(`Authorization references approval for another authority subject: ${payload.invocationId}`)
+          }
+          return approval
+        })
+        if (
+          payload.finalDisposition === "allowed" &&
+          approvalRecords.some((approval) => approval.status !== "approved")
+        ) {
+          throw new Error(`Allowed authorization references rejected approval: ${payload.invocationId}`)
+        }
+        const hasDirectDenial =
+          payload.contractDisposition === "denied" ||
+          payload.runtimeGuardDisposition === "denied" ||
+          payload.permissionDisposition === "denied"
+        if (
+          payload.finalDisposition === "denied" &&
+          !hasDirectDenial &&
+          !approvalRecords.some((approval) => approval.status === "rejected")
+        ) {
+          throw new Error(`Denied authorization has no rejected authority source: ${payload.invocationId}`)
+        }
+        invocation.authorizationEventId = event.eventId
+        invocation.approvalIds = [...payload.approvalIds]
+        invocation.status = payload.finalDisposition === "allowed" ? "authorized" : "denied"
+        break
+      }
+
+      case "tool_result_recorded": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "tool_result_recorded" }>["payload"]
+        const invocation = state.invocations[payload.invocationId]
+        if (!invocation) {
+          throw new Error(`Tool result references unknown invocation: ${payload.invocationId}`)
+        }
+        if (event.correlationId !== payload.invocationId) {
+          throw new Error(`Tool result correlation does not match invocation: ${payload.invocationId}`)
+        }
+        if (!invocation.authorizationEventId) {
+          throw new Error(`Tool result has no authorization: ${payload.invocationId}`)
+        }
+        if (event.causationId !== invocation.authorizationEventId) {
+          throw new Error(`Tool result authorization causation does not match invocation: ${payload.invocationId}`)
+        }
+        if (invocation.status !== "authorized") {
+          throw new Error(
+            `Cannot record tool result for invocation ${payload.invocationId} from status ${invocation.status}`,
+          )
+        }
+        if (invocation.resultEventId) {
+          throw new Error(`Invocation already has a terminal result: ${payload.invocationId}`)
+        }
+        invocation.resultEventId = event.eventId
+        invocation.status = payload.status
+        break
+      }
+
       case "approval_requested": {
         if (!isTerminalStatus(state.status)) {
           if (state.status !== "waiting_approval" && !isLegalTransition(state.status, "waiting_approval")) {
@@ -352,6 +510,7 @@ export function reduceRunState(events: RunEventEnvelope[]): RunState | null {
               reason: payload.reason ?? null,
               expectedConsequence: payload.expectedConsequence ?? null,
               stepId: payload.stepId ?? null,
+              correlationId: event.correlationId ?? null,
               status: "pending",
               decidedBy: null,
               decidedAt: null,
