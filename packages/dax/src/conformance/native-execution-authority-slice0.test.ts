@@ -52,7 +52,7 @@ const testModel = {
 } as any
 
 describe("native execution authority slice 0", () => {
-  test("an allowlisted batch call can execute a contract-excluded write leaf", async () => {
+  test("an allowlisted batch call cannot execute a contract-excluded write leaf", async () => {
     await fs.writeFile(path.join(testProject, "dax.json"), JSON.stringify({ experimental: { batch_tool: true } }))
 
     await Instance.provide({
@@ -71,6 +71,7 @@ describe("native execution authority slice 0", () => {
         const summarySpy = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined as any)
         let batchCallSettled = false
         let offeredTools: string[] = []
+        let batchResult: any
         const target = path.join(testProject, ".dax", "lab", "written-through-batch.txt")
         await fs.mkdir(path.dirname(target), { recursive: true })
 
@@ -93,6 +94,7 @@ describe("native execution authority slice 0", () => {
               },
               { toolCallId: "call_batch_outer", abortSignal: new AbortController().signal },
             )
+            batchResult = output
             return {
               fullStream: (async function* () {
                 yield { type: "start" }
@@ -148,11 +150,9 @@ describe("native execution authority slice 0", () => {
 
           expect(offeredTools).toContain("batch")
           expect(offeredTools).not.toContain("write")
-          expect(await Bun.file(target).text()).toBe("written by a contract-excluded leaf\n")
-          const leafExists = await Bun.file(target).exists()
-          expectGap("integrity.native-batch-contract-bypass", () => {
-            expect(leafExists).toBe(false)
-          })
+          expect(await Bun.file(target).exists()).toBe(false)
+          expect(batchResult.metadata).toMatchObject({ totalCalls: 1, successful: 0, failed: 1 })
+          expect(batchResult.output).toContain("1 failed")
         } finally {
           summarySpy.mockRestore()
           ;(Provider as any).getModel = originalGetModel

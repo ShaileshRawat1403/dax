@@ -40,8 +40,6 @@ export const KNOWN_GAPS = {
     "The compatibility run event stream still changes production snapshot fields for event-authority runs, so it is not projection-only",
   "integrity.native-approval-canonical":
     "Native permission approvals persist outside the canonical run log; the canonical projection cannot reconstruct the pending approval",
-  "integrity.native-batch-contract-bypass":
-    "The native batch tool reloads the registry and executes nested tools excluded by the ExecutionContract allowlist, bypassing the outer native tool boundary",
   "integrity.native-verification-preexecution":
     "RuntimeGuard records verification as satisfied when a verification-shaped shell request is authorized, before the command has produced a successful execution result",
   "integrity.native-mutation-observation-ambiguity":

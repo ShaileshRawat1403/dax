@@ -57,6 +57,12 @@ export namespace Session {
       projectID: z.string(),
       directory: z.string(),
       parentID: Identifier.schema("session").optional(),
+      /**
+       * The governed run whose immutable ExecutionContract applies to this
+       * session's execution. A session ID remains conversation identity; this
+       * reference preserves authority across derived sessions.
+       */
+      governingRunId: Identifier.schema("session").optional(),
       summary: z
         .object({
           additions: z.number(),
@@ -165,10 +171,13 @@ export namespace Session {
     async (input) => {
       const original = await get(input.sessionID)
       if (!original) throw new Error("session not found")
+      const { resolveExecutionAuthority } = await import("@/execution/contract-guardian")
+      const authority = await resolveExecutionAuthority(original.id, original.governingRunId)
       const title = getForkedTitle(original.title)
       const session = await createNext({
         directory: Instance.directory,
         title,
+        governingRunId: authority.governingRunId,
       })
       const msgs = await messages({ sessionID: input.sessionID })
       const idMap = new Map<string, string>()
@@ -209,9 +218,12 @@ export namespace Session {
     id?: string
     title?: string
     parentID?: string
+    governingRunId?: string
     directory: string
     permission?: Permission.Ruleset
   }) {
+    const governingRunId =
+      input.governingRunId === undefined ? undefined : Identifier.schema("session").parse(input.governingRunId)
     const result: Info = {
       id: Identifier.descending("session", input.id),
       slug: Slug.create(),
@@ -219,6 +231,7 @@ export namespace Session {
       projectID: Instance.project.id,
       directory: input.directory,
       parentID: input.parentID,
+      governingRunId,
       title: input.title ?? createDefaultTitle(!!input.parentID),
       permission: input.permission,
       time: {
@@ -308,6 +321,23 @@ export namespace Session {
       info: result,
     })
     return result
+  }
+
+  /**
+   * Binds a session to the governed run whose immutable contract authorizes
+   * execution in that session. Authority can be established once, never
+   * redirected to another run.
+   */
+  export async function bindGoverningRun(sessionID: string, governingRunId: string): Promise<Info> {
+    const authorityRunId = Identifier.schema("session").parse(governingRunId)
+    return update(sessionID, (draft) => {
+      if (draft.governingRunId && draft.governingRunId !== authorityRunId) {
+        throw new Error(
+          `Session ${sessionID} is already governed by run ${draft.governingRunId}; cannot rebind to ${authorityRunId}`,
+        )
+      }
+      draft.governingRunId = authorityRunId
+    })
   }
 
   export const diff = fn(Identifier.schema("session"), async (sessionID) => {

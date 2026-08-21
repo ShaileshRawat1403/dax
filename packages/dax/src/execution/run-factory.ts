@@ -192,6 +192,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   const planQuality = evaluatePlanQuality(contract)
 
   await writeContract(session.id, contract)
+  await Session.bindGoverningRun(session.id, session.id)
 
   const isEventPilot = true
 

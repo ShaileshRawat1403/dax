@@ -139,6 +139,21 @@ export function isValidContract(contract: unknown): contract is ExecutionContrac
   return ExecutionContract.safeParse(contract).success
 }
 
+/**
+ * Contract tool authority is independent of whether a registry happens to
+ * expose a tool. An absent contract preserves the native pre-contract path;
+ * an empty allowlist means no allowlist restriction, matching existing prompt
+ * filtering semantics. A blocklist always takes precedence.
+ */
+export function isToolAllowedByContract(
+  contract: Pick<ExecutionContract, "toolAllowlist" | "toolBlocklist"> | null | undefined,
+  toolId: string,
+): boolean {
+  if (!contract) return true
+  if (contract.toolBlocklist.includes(toolId)) return false
+  return contract.toolAllowlist.length === 0 || contract.toolAllowlist.includes(toolId)
+}
+
 export function getContractSummary(contract: ExecutionContract): {
   contractId: string
   workflowClass: WorkflowClass

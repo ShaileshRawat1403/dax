@@ -1,6 +1,7 @@
 import z from "zod"
 import { Tool } from "./tool"
 import DESCRIPTION from "./batch.txt"
+import { isToolAllowedByContract } from "@/execution/execution-contract"
 
 const DISALLOWED = new Set(["batch"])
 const FILTERED_FROM_SUGGESTIONS = new Set(["invalid", "patch", ...DISALLOWED])
@@ -69,6 +70,17 @@ export const BatchTool = Tool.define("batch", async () => {
               `Tool '${call.tool}' not in registry. External tools (MCP, environment) cannot be batched - call them directly. Available tools: ${availableToolsList.join(", ")}`,
             )
           }
+
+          // A batch wrapper is not authority for its leaves. Read the immutable
+          // contract immediately before the nested executable boundary so a
+          // registry entry alone cannot grant the nested tool permission.
+          const session = await Session.get(ctx.sessionID)
+          const { resolveExecutionAuthority } = await import("@/execution/contract-guardian")
+          const { contract } = await resolveExecutionAuthority(session.id, session.governingRunId)
+          if (!isToolAllowedByContract(contract, call.tool)) {
+            throw new Error(`Tool '${call.tool}' is not permitted by the ExecutionContract`)
+          }
+
           const validatedParams = tool.parameters.parse(call.parameters)
 
           await Session.updatePart({

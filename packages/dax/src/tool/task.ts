@@ -10,6 +10,7 @@ import { iife } from "@/util/iife"
 import { defer } from "@/util/defer"
 import { Config } from "../config/config"
 import { Permission } from "@/governance"
+import { resolveExecutionAuthority } from "@/execution/contract-guardian"
 
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
@@ -46,6 +47,20 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
 
       const messageID = Identifier.ascending("message")
       const session = params.task_id ? await Session.get(params.task_id) : await Session.fork({ sessionID: ctx.sessionID })
+
+      const parentSession = await Session.get(ctx.sessionID)
+      const parentAuthority = await resolveExecutionAuthority(parentSession.id, parentSession.governingRunId)
+
+      // A governed parent may resume only a child already bound to the same
+      // immutable contract. Ambiguous historical children are not adopted.
+      if (parentAuthority.governingRunId) {
+        const childAuthority = await resolveExecutionAuthority(session.id, session.governingRunId)
+        if (childAuthority.governingRunId !== parentAuthority.governingRunId) {
+          throw new Error(
+            `Task session ${session.id} is not governed by parent run ${parentAuthority.governingRunId}`,
+          )
+        }
+      }
 
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 

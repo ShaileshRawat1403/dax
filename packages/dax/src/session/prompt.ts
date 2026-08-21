@@ -63,6 +63,7 @@ import { ExploreOperator } from "@/operators/explore"
 import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
 import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
+import { isToolAllowedByContract } from "@/execution/execution-contract"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -787,16 +788,9 @@ export namespace SessionPrompt {
     const tools: Record<string, AITool> = {}
 
     // Load contract to enforce execution boundary allowlist
-    const { ContractGuardian } = await import("@/execution/contract-guardian")
-    const contract = await ContractGuardian.get(input.session.id)
-    const allowedTools = contract?.toolAllowlist ? new Set(contract.toolAllowlist) : null
-    const blockedTools = contract?.toolBlocklist ? new Set(contract.toolBlocklist) : null
-
-    const isAllowedTool = (toolId: string) => {
-      if (blockedTools?.has(toolId)) return false
-      if (allowedTools && allowedTools.size > 0 && !allowedTools.has(toolId)) return false
-      return true
-    }
+    const { resolveExecutionAuthority } = await import("@/execution/contract-guardian")
+    const authority = await resolveExecutionAuthority(input.session.id, input.session.governingRunId)
+    const contract = authority.contract
 
     const context = (args: any, options: ToolCallOptions, toolID?: string): Tool.Context => ({
       sessionID: input.session.id,
@@ -845,7 +839,7 @@ export namespace SessionPrompt {
       { modelID: input.model.api.id, providerID: input.model.providerID },
       input.agent,
     )) {
-      if (!isAllowedTool(item.id)) continue
+      if (!isToolAllowedByContract(contract, item.id)) continue
 
       const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
       tools[item.id] = tool({
@@ -881,7 +875,7 @@ export namespace SessionPrompt {
     }
 
     for (const [key, item] of Object.entries(await MCP.tools())) {
-      if (!isAllowedTool(key)) continue
+      if (!isToolAllowedByContract(contract, key)) continue
 
       const execute = item.execute
       if (!execute) continue

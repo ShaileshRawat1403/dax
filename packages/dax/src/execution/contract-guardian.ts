@@ -4,6 +4,7 @@ import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { RunStore } from "@/state/run-store"
 import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
+import { Identifier } from "@/id/id"
 
 const log = Log.create({ service: "contract-guardian" })
 
@@ -34,6 +35,36 @@ export async function readContract(runId: string): Promise<ExecutionContract | n
     log.error("failed to read execution contract", { runId, error })
     throw error
   }
+}
+
+/**
+ * Resolves the immutable contract that governs execution in a session.
+ * An explicit governing run reference is authoritative: its absence or a
+ * failed read is never reinterpreted as an ungoverned child session.
+ */
+export async function resolveExecutionAuthority(
+  sessionId: string,
+  governingRunId?: string,
+): Promise<{ governingRunId?: string; contract: ExecutionContract | null }> {
+  const hasExplicitAuthority = governingRunId !== undefined
+  const authorityRunId = hasExplicitAuthority ? Identifier.schema("session").parse(governingRunId) : sessionId
+  const contract = await readContract(authorityRunId)
+
+  if (hasExplicitAuthority && !contract) {
+    throw new Error(`Governing ExecutionContract not found for run ${authorityRunId}`)
+  }
+
+  if (!contract) {
+    return { contract: null }
+  }
+
+  if (contract.runId !== authorityRunId) {
+    throw new Error(
+      `ExecutionContract for storage run ${authorityRunId} declares mismatched run ${contract.runId}`,
+    )
+  }
+
+  return { governingRunId: authorityRunId, contract }
 }
 
 // Write contract only if run hasn't started or if it hasn't changed
