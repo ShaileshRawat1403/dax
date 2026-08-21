@@ -31,6 +31,14 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
   return {
     description: DESCRIPTION,
     parameters,
+    result: Tool.result(
+      z
+        .object({
+          sessionId: z.string(),
+          model: z.union([z.object({ providerID: z.string(), modelID: z.string() }).strict(), z.literal(false)]).optional(),
+        })
+        .strict(),
+    ),
     execute: async (params: z.infer<typeof parameters>, ctx: Tool.Context) => {
       const config = await Config.get()
       const agent = agents.find((a) => a.name === params.subagent_type) || (await Agent.get("general"))

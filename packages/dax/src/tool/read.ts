@@ -26,6 +26,15 @@ export const ReadTool = Tool.define("read", {
     offset: z.coerce.number().describe("The line number to start reading from (0-based)").optional(),
     limit: z.coerce.number().describe("The number of lines to read (defaults to 2000)").optional(),
   }),
+  result: Tool.result(
+    z
+      .object({
+        preview: z.string(),
+        truncated: z.boolean(),
+        loaded: z.array(z.string()).optional(),
+      })
+      .strict(),
+  ),
   async execute(params, ctx) {
     let filepath = params.filePath
     if (!path.isAbsolute(filepath)) {
@@ -87,7 +96,7 @@ export const ReadTool = Tool.define("read", {
             id: Identifier.ascending("part"),
             sessionID: ctx.sessionID,
             messageID: ctx.messageID,
-            type: "file",
+            type: "file" as const,
             mime,
             url: `data:${mime};base64,${Buffer.from(await file.bytes()).toString("base64")}`,
           },

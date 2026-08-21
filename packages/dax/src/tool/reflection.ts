@@ -39,6 +39,7 @@ export const ReflectionTool = Tool.define("reflection", {
     requiresApproval: z.boolean().describe("Whether this action requires explicit operator approval"),
     verificationPlan: z.array(z.string()).describe("Steps you'll take to verify the action worked correctly"),
   }),
+  result: Tool.result(z.object({ reflection: z.boolean() }).strict()),
   async execute(params, ctx) {
     const reflection: SessionV2.Reflection = {
       goal: params.goal,

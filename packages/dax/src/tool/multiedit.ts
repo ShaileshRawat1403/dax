@@ -1,6 +1,6 @@
 import z from "zod"
 import { Tool } from "./tool"
-import { EditTool } from "./edit"
+import { EditMetadataSchema, EditTool } from "./edit"
 import DESCRIPTION from "./multiedit.txt"
 import path from "path"
 import { Instance } from "../project/instance"
@@ -20,6 +20,13 @@ export const MultiEditTool = Tool.define("multiedit", {
       )
       .describe("Array of edit operations to perform sequentially on the file"),
   }),
+  result: Tool.result(
+    z
+      .object({
+        results: z.array(EditMetadataSchema.extend({ truncated: z.boolean().optional(), outputPath: z.string().optional() }).strict()),
+      })
+      .strict(),
+  ),
   async execute(params, ctx) {
     const tool = await EditTool.init()
     const results = []

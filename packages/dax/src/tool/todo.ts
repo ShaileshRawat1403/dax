@@ -8,6 +8,7 @@ export const TodoWriteTool = Tool.define("todowrite", {
   parameters: z.object({
     todos: z.array(z.object(Todo.Info.shape)).describe("The updated todo list"),
   }),
+  result: Tool.result(z.object({ todos: z.array(Todo.Info.strict()) }).strict()),
   async execute(params, ctx) {
     await ctx.ask({
       permission: "todowrite",
@@ -33,6 +34,7 @@ export const TodoWriteTool = Tool.define("todowrite", {
 export const TodoReadTool = Tool.define("todoread", {
   description: "Use this tool to read your todo list",
   parameters: z.object({}),
+  result: Tool.result(z.object({ todos: z.array(Todo.Info.strict()) }).strict()),
   async execute(_params, ctx) {
     await ctx.ask({
       permission: "todoread",

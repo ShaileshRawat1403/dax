@@ -50,6 +50,7 @@ export const CodeSearchTool = Tool.define("codesearch", {
         "Number of tokens to return (1000-50000). Default is 5000 tokens. Adjust this value based on how much context you need - use lower values for focused queries and higher values for comprehensive documentation.",
       ),
   }),
+  result: Tool.result(z.object({}).strict()),
   async execute(params, ctx) {
     await ctx.ask({
       permission: "codesearch",

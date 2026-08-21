@@ -24,6 +24,16 @@ const DEFAULT_TIMEOUT = Flag.DAX_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 
 import { shellPathCandidates, stripOuterQuotes } from "./shell-approval"
 import { Sandbox } from "@/shell/sandbox"
 
+export const ShellResultSchema = Tool.result(
+  z
+    .object({
+      output: z.string(),
+      exit: z.number().int().nullable(),
+      description: z.string(),
+    })
+    .strict(),
+)
+
 export const log = Log.create({ service: "shell-tool" })
 
 const resolveWasm = (asset: string) => {
@@ -94,8 +104,9 @@ export const ShellTool = Tool.define("shell", async () => {
         .string()
         .describe(
           "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'",
-        ),
+      ),
     }),
+    result: ShellResultSchema,
     async execute(params, ctx) {
       const cwd = params.workdir || Instance.directory
 

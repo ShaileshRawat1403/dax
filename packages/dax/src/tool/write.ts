@@ -10,7 +10,7 @@ import { FileWatcher } from "../file/watcher"
 import { FileTime } from "../file/time"
 import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
-import { trimDiff } from "./edit"
+import { DiagnosticsSchema, trimDiff } from "./edit"
 import { assertExternalDirectory } from "./external-directory"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
@@ -22,6 +22,7 @@ export const WriteTool = Tool.define("write", {
     content: z.string().describe("The content to write to the file"),
     filePath: z.string().describe("The absolute path to the file to write (must be absolute, not relative)"),
   }),
+  result: Tool.result(z.object({ diagnostics: DiagnosticsSchema, filepath: z.string(), exists: z.boolean() }).strict()),
   async execute(params, ctx) {
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     await assertExternalDirectory(ctx, filepath)

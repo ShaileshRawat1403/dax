@@ -21,6 +21,7 @@ export const GitBranchTool = Tool.define("git_branch", async () => {
         .optional()
         .describe("Whether to create the branch if it doesn't exist (default: false)"),
     }),
+    result: Tool.result(z.object({ branch: z.string() }).strict()),
     async execute(params) {
       const { name, create } = params
       const cwd = Instance.worktree

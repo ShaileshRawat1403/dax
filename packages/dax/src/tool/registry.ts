@@ -66,19 +66,29 @@ export namespace ToolRegistry {
       init: async (initCtx) => ({
         parameters: z.object(def.args),
         description: def.description,
+        // A plugin's domain contract is its declared string return. That string
+        // is parsed below before it is transformed into DAX transport.
+        result: Tool.Result,
         execute: async (args, ctx) => {
           const pluginCtx = {
             ...ctx,
             directory: Instance.directory,
             worktree: Instance.worktree,
           } as unknown as PluginToolContext
-          const result = await def.execute(args as any, pluginCtx)
-          const out = await Truncate.output(result, {}, initCtx?.agent)
-          return {
+          // Plugin tools return a string by contract. Parse it before truncation
+          // so a misbehaving plugin cannot become a successful model result.
+          const result = z.string().parse(await def.execute(args as any, pluginCtx))
+          const domainResult = Tool.parseResult(id, {
             title: "",
-            output: out.truncated ? out.content : result,
-            metadata: { truncated: out.truncated, outputPath: out.truncated ? out.outputPath : undefined },
-          }
+            output: result,
+            metadata: {},
+          })
+          const out = await Truncate.output(domainResult.output, {}, initCtx?.agent)
+          return Tool.parseResult(id, {
+            ...domainResult,
+            output: out.content,
+            metadata: { truncated: out.truncated, ...(out.truncated ? { outputPath: out.outputPath } : {}) },
+          })
         },
       }),
     }

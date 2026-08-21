@@ -41,6 +41,7 @@ export const ListTool = Tool.define("list", {
     path: z.string().describe("The absolute path to the directory to list (must be absolute, not relative)").optional(),
     ignore: z.array(z.string()).describe("List of glob patterns to ignore").optional(),
   }),
+  result: Tool.result(z.object({ count: z.number().int().nonnegative(), truncated: z.boolean() }).strict()),
   async execute(params, ctx) {
     const searchPath = path.resolve(Instance.directory, params.path || ".")
     await assertExternalDirectory(ctx, searchPath, { kind: "directory" })

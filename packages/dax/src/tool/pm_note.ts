@@ -13,6 +13,7 @@ export const PMNoteTool = Tool.define("pm_note", {
     day: z.string().describe("Day in YYYY-MM-DD format").optional(),
     author: z.string().describe("Optional author display name").optional(),
   }),
+  result: Tool.result(z.object({ id: z.string(), day: z.string() }).strict()),
   async execute(params, ctx) {
     await ctx.ask({
       permission: "pm_note",

@@ -20,6 +20,42 @@ import { assertExternalDirectory } from "./external-directory"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
+const PositionSchema = z.object({ line: z.number().int().nonnegative(), character: z.number().int().nonnegative() }).strict()
+const RangeSchema = z.object({ start: PositionSchema, end: PositionSchema }).strict()
+const RelatedInformationSchema = z
+  .object({ location: z.object({ uri: z.string(), range: RangeSchema }).strict(), message: z.string() })
+  .strict()
+
+/** The LSP diagnostic shape persisted in edit-family tool results. */
+export const DiagnosticSchema = z
+  .object({
+    range: RangeSchema,
+    message: z.string(),
+    severity: z.number().int().optional(),
+    code: z.union([z.string(), z.number().int()]).optional(),
+    codeDescription: z.object({ href: z.string() }).strict().optional(),
+    source: z.string().optional(),
+    tags: z.array(z.number().int()).optional(),
+    relatedInformation: z.array(RelatedInformationSchema).optional(),
+    // LSP explicitly allows server-defined diagnostic data. It is intentionally
+    // opaque JSON rather than an unvalidated object shape.
+    data: z.json().optional(),
+  })
+  .strict()
+export const DiagnosticsSchema = z.record(z.string(), z.array(DiagnosticSchema))
+export const FileDiffSchema = z
+  .object({
+    file: z.string(),
+    before: z.string(),
+    after: z.string(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+  })
+  .strict()
+export const EditMetadataSchema = z
+  .object({ diagnostics: DiagnosticsSchema, diff: z.string(), filediff: FileDiffSchema })
+  .strict()
+
 function normalizeLineEndings(text: string): string {
   return text.replaceAll("\r\n", "\n")
 }
@@ -32,6 +68,7 @@ export const EditTool = Tool.define("edit", {
     newString: z.string().describe("The text to replace it with (must be different from oldString)"),
     replaceAll: z.boolean().optional().describe("Replace all occurrences of oldString (default false)"),
   }),
+  result: Tool.result(EditMetadataSchema),
   async execute(params, ctx) {
     if (!params.filePath) {
       throw new Error("filePath is required")

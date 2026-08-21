@@ -33,18 +33,6 @@ describe("invariant 4 — runtime boundary validation", () => {
     expect(tool).toContain("parameters.parse(args)")
   })
 
-  test("tool outputs are validated at runtime", () => {
-    // Fails at v1.3.0. Tool.Info declares `parameters` (a z.ZodType) but no
-    // corresponding output schema; the result is typed as Metadata and never parsed.
-    // A tool returning a malformed observation puts it straight into context.
-    const tool = source("tool/tool.ts")
-    const declaresOutputSchema = /returns\s*[:?]|outputSchema|result\.parse|output\.parse/.test(tool)
-
-    expectGap("inv4.tool-output-validation", () => {
-      expect(declaresOutputSchema).toBe(true)
-    })
-  })
-
   test("event payloads are validated at the append boundary", () => {
     // Still open, and deliberately so. appendEventOnly is generic over
     // RunEventPayload, so a wrong payload for a given event type is a compile

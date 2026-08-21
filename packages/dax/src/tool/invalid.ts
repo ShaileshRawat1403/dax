@@ -7,6 +7,7 @@ export const InvalidTool = Tool.define("invalid", {
     tool: z.string(),
     error: z.string(),
   }),
+  result: Tool.result(z.object({}).strict()),
   async execute(params) {
     return {
       title: "Invalid Tool",

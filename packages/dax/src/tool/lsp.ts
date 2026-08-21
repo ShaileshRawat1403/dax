@@ -27,6 +27,7 @@ export const LspTool = Tool.define("lsp", {
     line: z.number().int().min(1).describe("The line number (1-based, as shown in editors)"),
     character: z.number().int().min(1).describe("The character offset (1-based, as shown in editors)"),
   }),
+  result: Tool.result(z.object({ result: z.array(z.json()) }).strict()),
   execute: async (args, ctx) => {
     const file = path.isAbsolute(args.filePath) ? args.filePath : path.join(Instance.directory, args.filePath)
     await assertExternalDirectory(ctx, file)
@@ -59,7 +60,7 @@ export const LspTool = Tool.define("lsp", {
 
     await LSP.touchFile(file, true)
 
-    const result: unknown[] = await (async () => {
+    const result = z.array(z.json()).parse(await (async () => {
       switch (args.operation) {
         case "goToDefinition":
           return LSP.definition(position)
@@ -80,7 +81,7 @@ export const LspTool = Tool.define("lsp", {
         case "outgoingCalls":
           return LSP.outgoingCalls(position)
       }
-    })()
+    })())
 
     const output = (() => {
       if (result.length === 0) return `No results found for ${args.operation}`

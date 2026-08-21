@@ -8,7 +8,7 @@ import { Instance } from "../project/instance"
 import { Patch } from "../patch"
 import { createTwoFilesPatch, diffLines } from "diff"
 import { assertExternalDirectory } from "./external-directory"
-import { trimDiff } from "./edit"
+import { DiagnosticsSchema, trimDiff } from "./edit"
 import { LSP } from "../lsp"
 import { Filesystem } from "../util/filesystem"
 import DESCRIPTION from "./apply_patch.txt"
@@ -18,9 +18,24 @@ const PatchParams = z.object({
   patchText: z.string().describe("The full patch text that describes all changes to be made"),
 })
 
+const AppliedFileSchema = z
+  .object({
+    filePath: z.string(),
+    relativePath: z.string(),
+    type: z.enum(["add", "update", "delete", "move"]),
+    diff: z.string(),
+    before: z.string(),
+    after: z.string(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    movePath: z.string().optional(),
+  })
+  .strict()
+
 export const ApplyPatchTool = Tool.define("apply_patch", {
   description: DESCRIPTION,
   parameters: PatchParams,
+  result: Tool.result(z.object({ diff: z.string(), files: z.array(AppliedFileSchema), diagnostics: DiagnosticsSchema }).strict()),
   async execute(params, ctx) {
     if (!params.patchText) {
       throw new Error("patchText is required")

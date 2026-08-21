@@ -495,7 +495,10 @@ export namespace SessionPrompt {
             })
           },
         }
-        const result = await taskTool.execute(taskArgs, taskCtx).catch((error) => {
+        const result = await taskTool
+          .execute(taskArgs, taskCtx)
+          .then((output) => Tool.parseResult("task", output))
+          .catch((error) => {
           executionError = error
           log.error("subtask execution failed", { error, agent: task.agent, description: task.description })
           return undefined
@@ -908,6 +911,9 @@ export namespace SessionPrompt {
           always: ["*"],
         })
 
+        // MCP's protocol result was already parsed by MCP.convertMcpTool's
+        // CallToolResultSchema. Validate the translated DAX result as well,
+        // before truncation makes it model-visible.
         const result = await execute(args, opts)
 
         await Plugin.trigger(
@@ -954,20 +960,24 @@ export namespace SessionPrompt {
           }
         }
 
-        const truncated = await Truncate.output(textParts.join("\n\n"), {}, input.agent)
-        const metadata = {
-          ...(result.metadata ?? {}),
-          truncated: truncated.truncated,
-          ...(truncated.truncated && { outputPath: truncated.outputPath }),
-        }
-
-        return {
+        const domainResult = Tool.parseResult(key, {
           title: "",
-          metadata,
-          output: truncated.content,
+          metadata: result.metadata ?? {},
+          output: textParts.join("\n\n"),
           attachments,
+        })
+        const truncated = await Truncate.output(domainResult.output, {}, input.agent)
+
+        return Tool.parseResult(key, {
+          ...domainResult,
+          metadata: {
+            ...domainResult.metadata,
+            truncated: truncated.truncated,
+            ...(truncated.truncated ? { outputPath: truncated.outputPath } : {}),
+          },
+          output: truncated.content,
           content: result.content, // directly return content to preserve ordering when outputting to model
-        }
+        })
       }
       tools[key] = item
     }

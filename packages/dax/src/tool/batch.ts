@@ -19,6 +19,17 @@ export const BatchTool = Tool.define("batch", async () => {
         .min(1, "Provide at least one tool call")
         .describe("Array of tool calls to execute in parallel"),
     }),
+    result: Tool.result(
+      z
+        .object({
+          totalCalls: z.number().int().nonnegative(),
+          successful: z.number().int().nonnegative(),
+          failed: z.number().int().nonnegative(),
+          tools: z.array(z.string()),
+          details: z.array(z.object({ tool: z.string(), success: z.boolean() }).strict()),
+        })
+        .strict(),
+    ),
     formatValidationError(error) {
       const formattedErrors = error.issues
         .map((issue) => {
@@ -76,7 +87,7 @@ export const BatchTool = Tool.define("batch", async () => {
             },
           })
 
-          const result = await tool.execute(validatedParams, { ...ctx, callID: partID })
+          const result = Tool.parseResult(call.tool, await tool.execute(validatedParams, { ...ctx, callID: partID }))
 
           await Session.updatePart({
             id: partID,

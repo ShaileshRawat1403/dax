@@ -20,6 +20,7 @@ async function getLastModel(sessionID: string) {
 export const PlanExitTool = Tool.define("plan_exit", {
   description: EXIT_DESCRIPTION,
   parameters: z.object({}),
+  result: Tool.result(z.object({}).strict()),
   async execute(_params, ctx) {
     const session = await Session.get(ctx.sessionID)
     const plan = path.relative(Instance.worktree, Session.plan(session))
@@ -75,6 +76,7 @@ export const PlanExitTool = Tool.define("plan_exit", {
 export const PlanEnterTool = Tool.define("plan_enter", {
   description: ENTER_DESCRIPTION,
   parameters: z.object({}),
+  result: Tool.result(z.object({}).strict()),
   async execute(_params, ctx) {
     const session = await Session.get(ctx.sessionID)
     const plan = path.relative(Instance.worktree, Session.plan(session))

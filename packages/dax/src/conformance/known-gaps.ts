@@ -49,7 +49,6 @@ export const KNOWN_GAPS = {
   "inv1.record-classes": "Prompt, context, message, tool call, tool result, policy, delegation and compaction have no durable event representation (3 of 11 classes covered)",
   "inv3.conformance-points": "Execution paths do not emit the same conformance points (14 of 40)",
   "inv3.governance-spread": "An action's governance still depends on which execution path it entered through",
-  "inv4.tool-output-validation": "Tool results are a TypeScript shape, never parsed at runtime; needs the H2 output-contract decision first",
   "inv4.payload-schemas": "Event payloads are typed at compile time but not parsed per type at runtime",
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",
   "inv5.capability-properties": "Capabilities do not declare intrinsic properties distinct from contract authority",

@@ -58,6 +58,7 @@ export const SkillTool = Tool.define("skill", async (ctx) => {
   return {
     description,
     parameters,
+    result: Tool.result(z.object({ name: z.string(), dir: z.string() }).strict()),
     async execute(params: z.infer<typeof parameters>, ctx) {
       const skill = await Skill.get(params.name)
 
