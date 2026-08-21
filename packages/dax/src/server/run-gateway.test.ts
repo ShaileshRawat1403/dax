@@ -579,7 +579,7 @@ describe("run gateway v1 contract", () => {
     }
   }, 40000)
 
-  test("extracts contract_mutation from immutable message when error.code is not set", async () => {
+  test("projects a canonical contract_mutation failure", async () => {
     const testHome = path.join(os.tmpdir(), `dax-run-immutable-message-${Date.now().toString(36)}`)
     const previousHome = process.env.DAX_TEST_HOME
     process.env.DAX_TEST_HOME = testHome
@@ -604,7 +604,7 @@ describe("run gateway v1 contract", () => {
         await RunLifecycle.startStep(create.runId, stepId)
 
         await RunLifecycle.failStep(create.runId, stepId, {
-          code: undefined as any,
+          code: "contract_mutation",
           message: "ExecutionContract is immutable after run initialization",
         })
         await RunLifecycle.transition(create.runId, "failed", "run_failed", {

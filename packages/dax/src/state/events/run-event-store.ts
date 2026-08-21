@@ -63,7 +63,8 @@ export async function appendRunEvent(
   try {
     let existingEvents: RunEventEnvelope[] = []
     try {
-      existingEvents = (await Storage.read<RunEventEnvelope[]>(eventsPath)) ?? []
+      const persistedEvents = await Storage.read<unknown[]>(eventsPath)
+      existingEvents = persistedEvents ? parseRunEventLog(runId, persistedEvents) : []
     } catch (error) {
       if (!Storage.NotFoundError.isInstance(error)) {
         throw error
@@ -101,13 +102,17 @@ export async function appendRunEvent(
       ...(event.commandId ? { commandId: event.commandId } : {}),
     }
 
-    existingEvents.push(newEvent)
+    // Validate the write-side boundary as well as storage reads. This prevents
+    // a malformed in-process event from becoming durable evidence that a later
+    // projection would have to reject.
+    const validatedNewEvent = parseRunEventLog(runId, [newEvent])[0]
+    existingEvents.push(validatedNewEvent)
 
     await Storage.write(tempPath, existingEvents)
     await Storage.rename(tempPath, eventsPath)
 
     log.info("appended event", { runId, seq: expectedSeq, type: event.type })
-    return newEvent
+    return validatedNewEvent
   } finally {
     await fsLock.dispose()
   }

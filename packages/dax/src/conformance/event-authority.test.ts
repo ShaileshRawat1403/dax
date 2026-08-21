@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { expectGap } from "./known-gaps"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-import { RUN_EVENT_TYPES, type RunEventType } from "@/state/events/run-event-types"
+import { RUN_EVENT_TYPES, RunEventPayloadSchema, type RunEventType } from "@/state/events/run-event-types"
 
 /**
  * Invariant 1 — Durable Authority.
@@ -114,20 +112,30 @@ describe("invariant 1 — durable authority", () => {
     // { approvalId, approvalType, risk } and nothing else, so the answer lived in
     // the ApprovalStore and the log recorded only that an approval had happened.
     //
-    // Asserted against the payload union rather than a sample event, so adding a
-    // field a reviewer needs cannot be satisfied by one well-formed emit site.
-    const declared = readFileSync(join(import.meta.dir, "..", "state/events/run-event-types.ts"), "utf8")
-    const approvalRequested = declared.slice(
-      declared.indexOf('type: "approval_requested"'),
-      declared.indexOf('type: "approval_resolved"'),
-    )
+    // Asserted through the actual payload contract: a durable field is only
+    // useful if a persisted event is parsed and retained for replay.
+    const requested = RunEventPayloadSchema.parse({
+      type: "approval_requested",
+      payload: {
+        approvalId: "apr_1",
+        approvalType: "command",
+        risk: "medium",
+        title: "Run verification",
+        reason: "The command reads workspace state",
+        expectedConsequence: "Produces verification evidence",
+      },
+    })
+    expect(requested.payload).toMatchObject({
+      title: "Run verification",
+      reason: "The command reads workspace state",
+      expectedConsequence: "Produces verification evidence",
+    })
 
-    for (const field of ["title", "reason", "expectedConsequence"]) {
-      expect(approvalRequested).toContain(field)
-    }
-
-    const approvalResolved = declared.slice(declared.indexOf('type: "approval_resolved"'))
-    expect(approvalResolved.slice(0, 400)).toContain("actor")
+    const resolved = RunEventPayloadSchema.parse({
+      type: "approval_resolved",
+      payload: { approvalId: "apr_1", decision: "approved", actor: "operator" },
+    })
+    expect(resolved.payload).toMatchObject({ actor: "operator" })
   })
 
   test("the vocabulary is closed, so absence is detectable", () => {

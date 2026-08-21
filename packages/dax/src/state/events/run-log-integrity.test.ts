@@ -95,6 +95,46 @@ describe("run event log validation at the storage boundary", () => {
     expect(parseRunEventLog(RUN_ID, events)).toHaveLength(2)
   })
 
+  test("every canonical event class has a runtime-valid payload contract", () => {
+    const payloads: Array<Pick<RunEventEnvelope, "type" | "payload">> = [
+      { type: "contract_compiled", payload: { contractId: "ctr_1", verificationRequired: true, guardEnforcementMode: "enforce" } },
+      { type: "execution_queued", payload: {} },
+      { type: "workflow_started", payload: {} },
+      { type: "approval_requested", payload: { approvalId: "apr_1", approvalType: "command", risk: "high", title: "Run command", reason: "test", expectedConsequence: "changes files", stepId: null } },
+      { type: "approval_resolved", payload: { approvalId: "apr_1", decision: "approved", actor: "operator", comment: "ok", resolvedAt: "2026-01-01T00:00:00.000Z" } },
+      { type: "step_added", payload: { stepId: "step_1", title: "Inspect", stepType: "proposed" } },
+      { type: "step_started", payload: { stepId: "step_1" } },
+      { type: "step_completed", payload: { stepId: "step_1", outputs: ["artifact_1"] } },
+      { type: "step_failed", payload: { stepId: "step_1", error: { code: "failed", message: "failed" } } },
+      { type: "artifact_created", payload: { artifactId: "artifact_1", artifactType: "patch" } },
+      { type: "draft_created", payload: { draftId: "draft_1", type: "plan", content: "content", targetPath: "PLAN.md" } },
+      { type: "trust_updated", payload: { trust: { posture: "strong", score: 1, blocked: false, reasons: [] } } },
+      { type: "run_failed", payload: { error: { code: "failed", message: "failed", retryable: false } } },
+      { type: "run_completed", payload: { completionProof: { decision: "pass", failedChecks: [], verificationExecuted: true, receiptIds: [], artifactChecks: true, expectedOutputChecks: true, expectedOutputTypesSatisfied: [], expectedOutputTypesMissing: [], scopeChecks: true, sensitivePathApprovalChecks: true, checkedAt: "2026-01-01T00:00:00.000Z" } } },
+      { type: "workflow_completed", payload: {} },
+      { type: "approval_denied", payload: {} },
+      { type: "approval_required", payload: {} },
+      { type: "approval_resumed", payload: {} },
+      { type: "provider_pressure_updated", payload: { lane: "default", throttles: 0, inFlight: 1, queueLength: 0 } },
+      { type: "contract_refined", payload: { writeScope: ["src/**"], forbiddenPaths: [".env"], verification: ["bun test"], provenance: { writeScope: "operator", forbiddenPaths: "operator", verification: "operator" } } },
+      { type: "worker_sandbox_recorded", payload: { provider: "seatbelt", providerId: "worker_1", filesystem: "checkout-write-only", network: "none", reapedDescendants: true, egress: "filtered", egressEnforcement: "cooperative-proxy", egressAllowHosts: [] } },
+      { type: "worker_egress_denied", payload: { providerId: "worker_1", hosts: ["example.com"] } },
+      { type: "mutation_recorded", payload: { receiptIds: ["receipt_1"], changedPaths: ["src/index.ts"] } },
+      { type: "execution_started", payload: {} },
+      { type: "plan_quality_gate", payload: { reason: "ready" } },
+      { type: "signoff_requested", payload: {} },
+      { type: "signoff_received", payload: { decision: "approved" } },
+      { type: "workflow_signed_off", payload: {} },
+      { type: "workflow_rejected", payload: {} },
+      { type: "workflow_expired", payload: {} },
+      { type: "workflow_failed", payload: { error: { code: "failed", message: "failed" } } },
+      { type: "verification_recorded", payload: { status: "passed", receipts: [{ receiptId: "receipt_1" }], checks: [{ id: "test", kind: "test", label: "test", command: "bun test", cwd: ".", required: true, risk: "low", exitCode: 0, status: "passed", startedAt: "2026-01-01T00:00:00.000Z", finishedAt: "2026-01-01T00:00:01.000Z", durationMs: 1000, stdoutPreview: "", stderrPreview: "" }] } },
+    ]
+    const events = payloads.map((event, seq) => createEvent(RUN_ID, seq, event.type, event.payload))
+
+    expect(parseRunEventLog(RUN_ID, events)).toHaveLength(payloads.length)
+  })
+
   test("a truncated event is refused, naming its position", () => {
     // The half-written record: a crash during append leaves an object that is
     // JSON but not an event.
@@ -130,13 +170,67 @@ describe("run event log validation at the storage boundary", () => {
     expect(() => parseRunEventLog(RUN_ID, fractional)).toThrow(/malformed/i)
   })
 
-  test("payloads pass through unparsed, and the test says so plainly", () => {
-    // Envelope structure is checked; payload shape per event type is not. Asserted
-    // here so the limit of the guarantee is recorded rather than assumed.
+  test("a malformed payload for a known event is refused before it can reach the reducer", () => {
+    const events = [createEvent(RUN_ID, 0, "contract_compiled", { nonsense: true })]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/payload\.contractId/i)
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/malformed/i)
+  })
+
+  test("an undeclared canonical payload field is refused instead of discarded", () => {
     const events = [
-      { ...createEvent(RUN_ID, 0, "contract_compiled", { nonsense: true }) },
+      createEvent(RUN_ID, 0, "contract_compiled", {
+        contractId: "ctr_1",
+        corruptExtra: true,
+      }),
     ]
 
-    expect(parseRunEventLog(RUN_ID, events)).toHaveLength(1)
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/corruptExtra/i)
+    expect(() => reduceRunState(parseRunEventLog(RUN_ID, events))).toThrow(/corruptExtra/i)
+  })
+
+  test("an undeclared canonical envelope field is also refused", () => {
+    const events = [
+      {
+        ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+        corruptEnvelopeExtra: true,
+      },
+    ]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/corruptEnvelopeExtra/i)
+  })
+
+  test("an undeclared field in a closed nested canonical object is refused", () => {
+    const events = [
+      createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      createEvent(RUN_ID, 1, "step_failed", {
+        stepId: "step_1",
+        error: { code: "failed", message: "failed", corruptExtra: true },
+      }),
+    ]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/corruptExtra/i)
+  })
+
+  test("a payload belonging to a different event type is refused", () => {
+    const events = [
+      createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      createEvent(RUN_ID, 1, "execution_queued", { contractId: "ctr_1" }),
+    ]
+
+    expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/payload/i)
+  })
+
+  test("historical optional payload fields remain readable", () => {
+    const events = [
+      createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      createEvent(RUN_ID, 1, "approval_requested", {
+        approvalId: "apr_1",
+        approvalType: "command",
+        risk: "medium",
+      }),
+    ]
+
+    expect(parseRunEventLog(RUN_ID, events)).toHaveLength(2)
   })
 })

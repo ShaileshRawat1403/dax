@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { expectGap } from "./known-gaps"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -12,11 +11,9 @@ import { join } from "node:path"
  * Decision procedure: does a malformed value get rejected at runtime, or does it
  * enter state unchecked?
  *
- * The asymmetry at v1.3.0 is stark and worth naming precisely: DAX validates what
- * the model sends *in* and trusts everything that comes back *out*. Tool arguments
- * are parsed through a zod schema on every call. Tool results are a TypeScript
- * shape, which is to say they are checked at compile time in a system whose whole
- * problem is what happens at runtime.
+ * Tool arguments and model-facing tool results are both parsed at the native
+ * tool boundary. Canonical event envelopes are parsed with their payload as one
+ * discriminated runtime contract before log replay.
  */
 
 const SRC = join(import.meta.dir, "..")
@@ -33,22 +30,6 @@ describe("invariant 4 — runtime boundary validation", () => {
     expect(tool).toContain("parameters.parse(args)")
   })
 
-  test("event payloads are validated at the append boundary", () => {
-    // Still open, and deliberately so. appendEventOnly is generic over
-    // RunEventPayload, so a wrong payload for a given event type is a compile
-    // error — but nothing parses the payload per type at runtime.
-    //
-    // Closing this needs a zod schema per event type mirroring the TS union.
-    // Doing a few and waving the rest through would report a guarantee the system
-    // does not provide, which is the failure mode this whole suite exists to catch.
-    const types = source("state/events/run-event-types.ts")
-    const hasPerTypePayloadSchemas = /RunEventPayloadSchema|z\.discriminatedUnion/.test(types)
-
-    expectGap("inv4.payload-schemas", () => {
-      expect(hasPerTypePayloadSchemas).toBe(true)
-    })
-  })
-
   test("a log read from disk is validated before projection", () => {
     // readRunEvents used to return whatever JSON was on disk under a TypeScript
     // annotation that asserted its shape without checking it.
@@ -63,7 +44,6 @@ describe("invariant 4 — runtime boundary validation", () => {
     // system.
     const types = source("state/events/run-event-types.ts")
 
-    expect(types).not.toMatch(/checks:\s*unknown\[\]/)
-    expect(types).toContain("checks: CheckResult[]")
+    expect(types).toContain("checks: z.array(CheckResult.strict())")
   })
 })
