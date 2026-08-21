@@ -40,6 +40,16 @@ export class DuplicateCommandError extends Error {
   }
 }
 
+export class InvalidRunAuthorityError extends Error {
+  constructor(
+    public readonly runId: string,
+    public readonly value: unknown,
+  ) {
+    super(`Invalid run authority for ${runId}`)
+    this.name = "InvalidRunAuthorityError"
+  }
+}
+
 export async function appendRunEvent(
   runId: string,
   expectedSeq: number,
@@ -154,8 +164,17 @@ export async function getRunAuthority(runId: string): Promise<RunAuthority | nul
   const fullPath = [...path, "authority.json"]
 
   try {
-    const result = await Storage.read<{ authority: RunAuthority }>(fullPath)
-    return result?.authority ?? null
+    const result = await Storage.read<unknown>(fullPath)
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+      throw new InvalidRunAuthorityError(runId, result)
+    }
+
+    const authority = (result as { authority?: unknown }).authority
+    if (authority !== "legacy" && authority !== "event-log") {
+      throw new InvalidRunAuthorityError(runId, result)
+    }
+
+    return authority
   } catch (error) {
     if (Storage.NotFoundError.isInstance(error)) {
       return null

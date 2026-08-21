@@ -1,8 +1,9 @@
-import { ExecutionContract } from "./execution-contract"
+import { isValidContract, type ExecutionContract } from "./execution-contract"
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { RunStore } from "@/state/run-store"
+import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
 
 const log = Log.create({ service: "contract-guardian" })
 
@@ -21,9 +22,17 @@ export class ContractImmutabilityError extends Error {
 // Read contract
 export async function readContract(runId: string): Promise<ExecutionContract | null> {
   try {
-    return await Storage.read<ExecutionContract>(contractPath(runId))
-  } catch {
-    return null
+    const contract = await Storage.read<unknown>(contractPath(runId))
+    if (!isValidContract(contract)) {
+      throw new Error(`Invalid ExecutionContract stored for run ${runId}`)
+    }
+    return contract
+  } catch (error) {
+    if (Storage.NotFoundError.isInstance(error)) {
+      return null
+    }
+    log.error("failed to read execution contract", { runId, error })
+    throw error
   }
 }
 
@@ -51,6 +60,24 @@ export async function writeContractIfNotStarted(runId: string, contract: Executi
 
 async function canModifyContract(runId: string): Promise<boolean> {
   try {
+    const authority = await getRunAuthority(runId)
+
+    // Event authority begins when the canonical authority marker is written,
+    // before any legacy RunStore compatibility row exists. That marker is the
+    // durable decision about which lifecycle owns this run, so an existing
+    // contract is locked as soon as it is present.
+    if (authority === "event-log") {
+      return false
+    }
+
+    // A genuinely unmarked pre-run has neither authority marker nor canonical
+    // events. If canonical events exist without their marker, the authority is
+    // uncertain rather than pre-run; a changed contract must stay locked.
+    if (authority === null && (await hasRunEvents(runId))) {
+      log.warn("canonical events exist without a run authority marker", { runId })
+      return false
+    }
+
     const state = await RunStore.get(runId)
 
     if (!state) {
@@ -59,8 +86,12 @@ async function canModifyContract(runId: string): Promise<boolean> {
 
     // Once the run moves past "created", the contract is locked
     return state.status === "created"
-  } catch {
-    return true // Safe default: allow
+  } catch (error) {
+    // A failed authority read must not turn into permission to alter an
+    // existing contract. The caller still allows an idempotent rewrite because
+    // it compares the existing and proposed contract hashes after this returns.
+    log.warn("failed to establish run authority for contract mutability", { runId, error })
+    return false
   }
 }
 
