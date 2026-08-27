@@ -17,7 +17,6 @@ import { enforceRuntimeGuard } from "@/execution/runtime-guard"
 import { Snapshot } from "@/snapshot"
 import { BatchTool } from "@/tool/batch"
 import { Tool } from "@/tool/tool"
-import { expectGap } from "./known-gaps"
 
 let testHome = ""
 let previousTestHome: string | undefined
@@ -246,7 +245,7 @@ describe("native execution authority slice 0", () => {
     })
   })
 
-  test("a failed snapshot diff is returned as the same empty observation shape as no change", async () => {
+  test("snapshot observation failures are distinct from a successful no-change observation", async () => {
     await $`git init`.quiet().cwd(testProject)
     await fs.writeFile(path.join(testProject, "tracked.txt"), "baseline\n")
 
@@ -258,16 +257,23 @@ describe("native execution authority slice 0", () => {
         const snapshot = baseline!
 
         const noChange = await Snapshot.patch(snapshot)
+        const failedDiff = await Snapshot.patch("not-a-snapshot-hash")
         await fs.rm(path.join(testHome, ".local", "share", "dax", "snapshot", Instance.project.id), {
           recursive: true,
           force: true,
         })
-        const failedObservation = await Snapshot.patch(snapshot)
+        const failedStage = await Snapshot.patch(snapshot)
 
-        expect(noChange).toEqual({ hash: snapshot, files: [] })
-        expect(failedObservation).toEqual(noChange)
-        expectGap("integrity.native-mutation-observation-ambiguity", () => {
-          expect(failedObservation).not.toEqual(noChange)
+        expect(noChange).toEqual({ status: "observed", patch: { hash: snapshot, files: [] } })
+        expect(failedDiff).toMatchObject({
+          status: "failed",
+          hash: "not-a-snapshot-hash",
+          failure: { code: "snapshot_diff_failed" },
+        })
+        expect(failedStage).toMatchObject({
+          status: "failed",
+          hash: snapshot,
+          failure: { code: "snapshot_stage_failed" },
         })
       },
     })

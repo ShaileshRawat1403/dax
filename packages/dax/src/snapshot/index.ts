@@ -94,30 +94,58 @@ export namespace Snapshot {
   })
   export type Patch = z.infer<typeof Patch>
 
-  export async function patch(hash: string): Promise<Patch> {
+  export type PatchObservation =
+    | { status: "observed"; patch: Patch }
+    | {
+        status: "failed"
+        hash: string
+        failure: {
+          code: "snapshot_stage_failed" | "snapshot_diff_failed"
+          exitCode: number
+        }
+      }
+
+  export async function patch(hash: string): Promise<PatchObservation> {
     const git = gitdir()
-    await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`.quiet().cwd(Instance.directory).nothrow()
+    const staged = await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`
+      .quiet()
+      .cwd(Instance.directory)
+      .nothrow()
+    if (staged.exitCode !== 0) {
+      log.warn("failed to stage snapshot before diff", { hash, exitCode: staged.exitCode })
+      return {
+        status: "failed",
+        hash,
+        failure: { code: "snapshot_stage_failed", exitCode: staged.exitCode },
+      }
+    }
     const result =
       await $`git -c core.autocrlf=false -c core.quotepath=false --git-dir ${git} --work-tree ${Instance.worktree} diff --no-ext-diff --name-only ${hash} -- .`
         .quiet()
         .cwd(Instance.directory)
         .nothrow()
 
-    // If git diff fails, return empty patch
     if (result.exitCode !== 0) {
       log.warn("failed to get diff", { hash, exitCode: result.exitCode })
-      return { hash, files: [] }
+      return {
+        status: "failed",
+        hash,
+        failure: { code: "snapshot_diff_failed", exitCode: result.exitCode },
+      }
     }
 
     const files = result.text()
     return {
-      hash,
-      files: files
-        .trim()
-        .split("\n")
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .map((x) => path.join(Instance.worktree, x)),
+      status: "observed",
+      patch: {
+        hash,
+        files: files
+          .trim()
+          .split("\n")
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .map((x) => path.join(Instance.worktree, x)),
+      },
     }
   }
 

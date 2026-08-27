@@ -382,15 +382,20 @@ export namespace SessionProcessor {
                     })
                     await Session.updateMessage(input.assistantMessage)
                     if (snapshot) {
-                      const patch = await Snapshot.patch(snapshot)
-                      if (patch.files.length) {
+                      const observation = await Snapshot.patch(snapshot)
+                      if (observation.status === "failed") {
+                        log.warn("snapshot patch observation failed", {
+                          snapshot,
+                          ...observation.failure,
+                        })
+                      } else if (observation.patch.files.length) {
                         await Session.updatePart({
                           id: Identifier.ascending("part"),
                           messageID: input.assistantMessage.id,
                           sessionID: input.sessionID,
                           type: "patch",
-                          hash: patch.hash,
-                          files: patch.files,
+                          hash: observation.patch.hash,
+                          files: observation.patch.files,
                         })
                       }
                       snapshot = undefined
@@ -503,15 +508,20 @@ export namespace SessionProcessor {
             SessionStatus.set(input.sessionID, { type: "idle" })
           }
           if (snapshot) {
-            const patch = await Snapshot.patch(snapshot)
-            if (patch.files.length) {
+            const observation = await Snapshot.patch(snapshot)
+            if (observation.status === "failed") {
+              log.warn("snapshot patch observation failed", {
+                snapshot,
+                ...observation.failure,
+              })
+            } else if (observation.patch.files.length) {
               await Session.updatePart({
                 id: Identifier.ascending("part"),
                 messageID: input.assistantMessage.id,
                 sessionID: input.sessionID,
                 type: "patch",
-                hash: patch.hash,
-                files: patch.files,
+                hash: observation.patch.hash,
+                files: observation.patch.files,
               })
             }
             snapshot = undefined
