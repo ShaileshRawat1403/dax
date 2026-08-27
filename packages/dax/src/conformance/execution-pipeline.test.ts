@@ -47,6 +47,40 @@ const POINTS: Point[] = [
 
 type PathScore = { path: string; points: Record<Point, boolean> }
 
+type NativeSessionSources = {
+  prompt: string
+  tool: string
+  canonical: string
+}
+
+/**
+ * Each native point names the particular production boundary that would have
+ * to exist for it to be true.  Do not replace these with a shared "has run
+ * events" check: one event producer is not evidence for the other seven
+ * obligations.
+ */
+function scoreNativeSessionSources(sources: NativeSessionSources): Record<Point, boolean> {
+  return {
+    // Filtering is necessary but not sufficient: every executable native
+    // session must also cross canonical run birth before the path is universally
+    // contract-bound. Today direct CLI/TUI sessions do not establish that fact.
+    contract_bound:
+      sources.prompt.includes("createEventAuthorityRun") &&
+      sources.prompt.includes("const authority = await resolveExecutionAuthority(input.session.id, input.session.governingRunId)") &&
+      sources.prompt.includes("if (!isToolAllowedByContract(contract, item.id)) continue") &&
+      sources.prompt.includes("if (!isToolAllowedByContract(contract, key)) continue"),
+    input_validated: sources.tool.includes("toolInfo.parameters.parse(args)"),
+    // These are deliberately separate canonical producer obligations. Event
+    // vocabulary or reducer support is not producer reachability.
+    policy_emitted: sources.canonical.includes('appendEventOnly(runId, "authorization_recorded"'),
+    approval_emitted: sources.canonical.includes('appendEventOnly(runId, "approval_requested"'),
+    execution_emitted: sources.canonical.includes('appendEventOnly(runId, "tool_invocation_recorded"'),
+    output_validated: sources.tool.includes("toolInfo.result.parse(await execute(args, ctx))"),
+    verification_emitted: sources.canonical.includes('appendEventOnly(runId, "verification_recorded"'),
+    completion_projected: sources.canonical.includes('appendEventOnly(runId, "run_completed"'),
+  }
+}
+
 function scoreWorkerRun(): PathScore {
   const s = source("workflows/worker-run.ts")
   return {
@@ -88,24 +122,19 @@ function scoreDraftApproveExecute(): PathScore {
 }
 
 function scoreNativeSession(): PathScore {
-  const processor = source("session/processor.ts")
+  const prompt = source("session/prompt.ts")
   const tool = source("tool/tool.ts")
-  const emitsRunEvents = /appendEventOnly|RunLifecycle|appendRunEvent/.test(processor)
+  const processor = source("session/processor.ts")
   return {
     path: "native session",
-    points: {
-      contract_bound: emitsRunEvents,
-      // The one point native execution does own: tool.ts parses arguments through
-      // the tool's zod schema on every call, and throws on mismatch.
-      input_validated: tool.includes("parameters.parse(args)"),
-      policy_emitted: emitsRunEvents,
-      // ctx.ask() gates the action, but produces no durable run event.
-      approval_emitted: emitsRunEvents,
-      execution_emitted: emitsRunEvents,
-      output_validated: /returns|outputSchema|result\.parse/.test(tool),
-      verification_emitted: emitsRunEvents,
-      completion_projected: emitsRunEvents,
-    },
+    points: scoreNativeSessionSources({
+      prompt,
+      tool,
+      // The eventual settlement point is deliberately not assumed here. A
+      // truthful producer in prompt, tool, or processor is detected by its own
+      // event type rather than by the presence of any run-event call.
+      canonical: [prompt, tool, processor].join("\n"),
+    }),
   }
 }
 
@@ -143,6 +172,33 @@ function scoreAll(): PathScore[] {
 }
 
 describe("invariant 3 — universal execution boundary", () => {
+  test("native meter points are independently evidenced", () => {
+    const evidenceByPoint: Record<Point, NativeSessionSources> = {
+      contract_bound: {
+        prompt: [
+          "createEventAuthorityRun",
+          "const authority = await resolveExecutionAuthority(input.session.id, input.session.governingRunId)",
+          "if (!isToolAllowedByContract(contract, item.id)) continue",
+          "if (!isToolAllowedByContract(contract, key)) continue",
+        ].join("\n"),
+        tool: "",
+        canonical: "",
+      },
+      input_validated: { prompt: "", tool: "toolInfo.parameters.parse(args)", canonical: "" },
+      policy_emitted: { prompt: "", tool: "", canonical: 'appendEventOnly(runId, "authorization_recorded"' },
+      approval_emitted: { prompt: "", tool: "", canonical: 'appendEventOnly(runId, "approval_requested"' },
+      execution_emitted: { prompt: "", tool: "", canonical: 'appendEventOnly(runId, "tool_invocation_recorded"' },
+      output_validated: { prompt: "", tool: "toolInfo.result.parse(await execute(args, ctx))", canonical: "" },
+      verification_emitted: { prompt: "", tool: "", canonical: 'appendEventOnly(runId, "verification_recorded"' },
+      completion_projected: { prompt: "", tool: "", canonical: 'appendEventOnly(runId, "run_completed"' },
+    }
+
+    for (const point of POINTS) {
+      const points = scoreNativeSessionSources(evidenceByPoint[point])
+      expect(POINTS.filter((candidate) => points[candidate])).toEqual([point])
+    }
+  })
+
   test("every execution path emits every conformance point", () => {
     const gaps = scoreAll().flatMap((p) =>
       POINTS.filter((pt) => !p.points[pt]).map((pt) => `${p.path}: ${pt}`),

@@ -45,7 +45,7 @@ export const KNOWN_GAPS = {
   "integrity.native-mutation-observation-ambiguity":
     "Snapshot.patch returns an empty file list after a failed diff observation, making that failure indistinguishable to its caller from a successful no-change observation",
   "inv1.record-classes": "Prompt, context, message, tool call, tool result, policy, delegation and compaction have no durable event representation (3 of 11 classes covered)",
-  "inv3.conformance-points": "Execution paths do not emit the same conformance points (14 of 40)",
+  "inv3.conformance-points": "Execution paths do not emit the same conformance points (15 of 40)",
   "inv3.governance-spread": "An action's governance still depends on which execution path it entered through",
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",
   "inv5.capability-properties": "Capabilities do not declare intrinsic properties distinct from contract authority",
