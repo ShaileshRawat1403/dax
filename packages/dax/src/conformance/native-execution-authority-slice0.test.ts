@@ -177,14 +177,20 @@ describe("native execution authority slice 0", () => {
     })
   })
 
-  test("a failed verification shell command is marked satisfied before its result exists", async () => {
+  test("a failed verification shell command never satisfies verification before or after its result", async () => {
     await Instance.provide({
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Verification before execution" })
         const shell = await ShellTool.init()
         const missingTest = path.join(testProject, "missing-verification.test.ts")
-        let verificationSatisfiedBeforeShellResult: boolean | undefined
+        let verificationBeforeShellResult:
+          | {
+              required: boolean
+              satisfied: boolean
+              receipts: string[]
+            }
+          | undefined
 
         const result = await shell.execute(
           {
@@ -207,8 +213,14 @@ describe("native execution authority slice 0", () => {
                 req,
                 callID: "call_verification_characterization",
               })
-              verificationSatisfiedBeforeShellResult = (await Session.get(session.id)).state_v2?.runtime_guard?.verification
-                .satisfied
+              const verification = (await Session.get(session.id)).state_v2?.runtime_guard?.verification
+              verificationBeforeShellResult = verification
+                ? {
+                    required: verification.required,
+                    satisfied: verification.satisfied,
+                    receipts: [...verification.receipts],
+                  }
+                : undefined
               await Permission.ask({
                 ...req,
                 sessionID: session.id,
@@ -220,8 +232,15 @@ describe("native execution authority slice 0", () => {
         )
 
         expect(result.metadata.exit).not.toBe(0)
-        expectGap("integrity.native-verification-preexecution", () => {
-          expect(verificationSatisfiedBeforeShellResult).toBe(false)
+        expect(verificationBeforeShellResult).toEqual({
+          required: true,
+          satisfied: false,
+          receipts: [],
+        })
+        expect((await Session.get(session.id)).state_v2?.runtime_guard?.verification).toEqual({
+          required: true,
+          satisfied: false,
+          receipts: [],
         })
       },
     })

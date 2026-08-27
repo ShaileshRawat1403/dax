@@ -763,11 +763,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     }
     if (actionClass === "verify") {
       next.verification = {
+        ...next.verification,
         required: true,
-        satisfied: true,
-        receipts: input.callID
-          ? [...new Set([...next.verification.receipts, input.callID])]
-          : next.verification.receipts,
       }
     }
     return next
@@ -829,11 +826,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         verification:
           actionClass === "verify"
             ? {
+                ...state.governance.verification,
                 required: true,
-                satisfied: true,
-                receiptIds: input.callID
-                  ? [...new Set([...state.governance.verification.receiptIds, input.callID])]
-                  : state.governance.verification.receiptIds,
               }
             : actionClass === "mutate" || actionClass === "commit" || actionClass === "publish"
               ? {
@@ -858,11 +852,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
                     verification:
                       actionClass === "verify"
                         ? {
+                            ...state.governance.verification,
                             required: true,
-                            satisfied: true,
-                            receiptIds: input.callID
-                              ? [...new Set([...state.governance.verification.receiptIds, input.callID])]
-                              : state.governance.verification.receiptIds,
                           }
                         : actionClass === "mutate" || actionClass === "commit" || actionClass === "publish"
                           ? {

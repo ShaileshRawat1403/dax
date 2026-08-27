@@ -118,7 +118,7 @@ async function setupGuardedSession(input: {
 }
 
 describe("runtime hardening", () => {
-  test("allows in-scope mutations and records verification receipts", async () => {
+  test("allows in-scope mutations without treating a verification proposal as evidence", async () => {
     await Instance.provide({
       directory: process.cwd(),
       fn: async () => {
@@ -163,7 +163,11 @@ describe("runtime hardening", () => {
             item.replaceAll("\\", "/").endsWith(target.replaceAll("\\", "/")),
           ),
         ).toBe(true)
-        expect(updated.state_v2?.runtime_guard?.verification.satisfied).toBe(true)
+        expect(updated.state_v2?.runtime_guard?.verification).toEqual({
+          required: true,
+          satisfied: false,
+          receipts: [],
+        })
         expect(updated.state_v2?.runtime_guard?.baselineCheckpoint?.createdAt).toBeDefined()
       },
     })
