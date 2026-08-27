@@ -1,6 +1,7 @@
 import { Log } from "@/util/log"
 import {
   appendRunEvent,
+  appendRunEventAtTail,
   readRunEvents,
   projectRunStateFromEvents,
   getRunAuthority,
@@ -91,10 +92,7 @@ export async function appendEventOnly<E extends RunEventType>(
     throw new Error(`Run ${runId} is not an event-authority run`)
   }
 
-  const events = await readRunEvents(runId)
-  const seq = events.length
-
-  await appendRunEvent(runId, seq, {
+  await appendRunEventAtTail(runId, {
     type: eventType,
     payload,
     ...(commandId ? { commandId } : {}),

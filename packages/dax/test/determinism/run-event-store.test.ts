@@ -13,6 +13,11 @@ import {
   StaleAppendError,
 } from "../../src/state/events/run-event-store"
 import { reduceRunState } from "../../src/state/events/run-reducer"
+import {
+  appendEventOnly,
+  createEventAuthorityRun,
+  transitionEventAuthority,
+} from "../../src/state/events/event-transitions"
 
 describe("run-event-store", () => {
   const testHome = path.join(os.tmpdir(), `dax-event-store-${Date.now().toString(36)}`)
@@ -121,6 +126,66 @@ describe("run-event-store", () => {
           "approval_requested",
           "approval_resolved",
         ])
+      })
+    })
+  })
+
+  describe("appendEventOnly tail serialization", () => {
+    test("concurrent producers all append with contiguous sequence numbers", async () => {
+      const runId = `test-run-${Date.now()}-tail-concurrent`
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, "contract-tail-concurrent")
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+
+        const approvals = Array.from({ length: 24 }, (_, index) => `apr_tail_${index}`)
+        await Promise.all(
+          approvals.map((approvalId) =>
+            appendEventOnly(
+              runId,
+              "approval_requested",
+              { approvalId, approvalType: "tool", risk: "medium" },
+              `cmd_${approvalId}`,
+            ),
+          ),
+        )
+
+        const events = await readRunEvents(runId)
+        expect(events).toHaveLength(27)
+        expect(events.map((event) => event.seq)).toEqual(Array.from({ length: 27 }, (_, index) => index))
+        expect(
+          events
+            .filter((event) => event.type === "approval_requested")
+            .map((event) => (event.payload as { approvalId: string }).approvalId)
+            .sort(),
+        ).toEqual(approvals.sort())
+
+        const projected = await projectRunStateFromEvents(runId)
+        expect(projected?.pendingApprovalIds.slice().sort()).toEqual(approvals.sort())
+      })
+    })
+
+    test("concurrent duplicate command IDs settle as one durable event", async () => {
+      const runId = `test-run-${Date.now()}-tail-idempotent`
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, "contract-tail-idempotent")
+        await transitionEventAuthority(runId, "queued", "execution_queued", {})
+        await transitionEventAuthority(runId, "running", "workflow_started", {})
+        const commandId = "cmd_tail_duplicate"
+        const payload = { approvalId: "apr_tail_duplicate", approvalType: "tool", risk: "medium" }
+
+        const states = await Promise.all([
+          appendEventOnly(runId, "approval_requested", payload, commandId),
+          appendEventOnly(runId, "approval_requested", payload, commandId),
+        ])
+
+        const events = await readRunEvents(runId)
+        expect(events).toHaveLength(4)
+        expect(events.map((event) => event.seq)).toEqual([0, 1, 2, 3])
+        expect(events.filter((event) => event.commandId === commandId)).toHaveLength(1)
+        expect(states.every((state) => state.pendingApprovalIds.includes(payload.approvalId))).toBe(true)
       })
     })
   })

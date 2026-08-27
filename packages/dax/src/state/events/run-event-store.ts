@@ -50,10 +50,76 @@ export class InvalidRunAuthorityError extends Error {
   }
 }
 
+type NewRunEvent = Omit<RunEventEnvelope, "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion">
+
+async function readValidatedEvents(runId: string, eventsPath: string[]): Promise<RunEventEnvelope[]> {
+  try {
+    const persistedEvents = await Storage.read<unknown[]>(eventsPath)
+    return persistedEvents ? parseRunEventLog(runId, persistedEvents) : []
+  } catch (error) {
+    if (Storage.NotFoundError.isInstance(error)) {
+      return []
+    }
+    throw error
+  }
+}
+
+async function appendRunEventUnderLock(input: {
+  runId: string
+  expectedSeq: number
+  event: NewRunEvent
+  existingEvents: RunEventEnvelope[]
+  eventsPath: string[]
+  tempPath: string[]
+}): Promise<RunEventEnvelope> {
+  const { runId, expectedSeq, event, existingEvents, eventsPath, tempPath } = input
+  const actualSeq = existingEvents.length
+  if (actualSeq !== expectedSeq) {
+    throw new StaleAppendError(runId, expectedSeq, actualSeq)
+  }
+
+  if (event.commandId) {
+    const existingCommand = existingEvents.find((candidate) => candidate.commandId === event.commandId)
+    if (existingCommand) {
+      log.info("duplicate command detected, returning existing event", {
+        runId,
+        commandId: event.commandId,
+        existingEventId: existingCommand.eventId,
+      })
+      return existingCommand
+    }
+  }
+
+  const newEvent: RunEventEnvelope = {
+    eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+    runId,
+    seq: expectedSeq,
+    type: event.type,
+    payload: event.payload,
+    occurredAt: new Date().toISOString(),
+    schemaVersion: "v1",
+    ...(event.causationId ? { causationId: event.causationId } : {}),
+    ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+    ...(event.commandId ? { commandId: event.commandId } : {}),
+  }
+
+  // Validate the write-side boundary as well as storage reads. This prevents
+  // a malformed in-process event from becoming durable evidence that a later
+  // projection would have to reject.
+  const validatedNewEvent = parseRunEventLog(runId, [newEvent])[0]
+  existingEvents.push(validatedNewEvent)
+
+  await Storage.write(tempPath, existingEvents)
+  await Storage.rename(tempPath, eventsPath)
+
+  log.info("appended event", { runId, seq: expectedSeq, type: event.type })
+  return validatedNewEvent
+}
+
 export async function appendRunEvent(
   runId: string,
   expectedSeq: number,
-  event: Omit<RunEventEnvelope, "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion">,
+  event: NewRunEvent,
 ): Promise<RunEventEnvelope> {
   const pathParts = await eventPath(runId)
   const eventsPath = [...pathParts, "events.json"]
@@ -61,58 +127,35 @@ export async function appendRunEvent(
 
   const fsLock = await acquireRunLock(runId)
   try {
-    let existingEvents: RunEventEnvelope[] = []
-    try {
-      const persistedEvents = await Storage.read<unknown[]>(eventsPath)
-      existingEvents = persistedEvents ? parseRunEventLog(runId, persistedEvents) : []
-    } catch (error) {
-      if (!Storage.NotFoundError.isInstance(error)) {
-        throw error
-      }
-      existingEvents = []
-    }
+    const existingEvents = await readValidatedEvents(runId, eventsPath)
+    return await appendRunEventUnderLock({ runId, expectedSeq, event, existingEvents, eventsPath, tempPath })
+  } finally {
+    await fsLock.dispose()
+  }
+}
 
-    const actualSeq = existingEvents.length
-    if (actualSeq !== expectedSeq) {
-      throw new StaleAppendError(runId, expectedSeq, actualSeq)
-    }
+/**
+ * Appends to the current validated tail while holding the same filesystem lock
+ * used by explicit sequence writes. Normal producers use this path so two
+ * concurrent calls serialize instead of racing on a sequence read performed
+ * before the lock. appendRunEvent remains the explicit compare-and-swap API.
+ */
+export async function appendRunEventAtTail(runId: string, event: NewRunEvent): Promise<RunEventEnvelope> {
+  const pathParts = await eventPath(runId)
+  const eventsPath = [...pathParts, "events.json"]
+  const tempPath = [...pathParts, "events.json.tmp"]
 
-    if (event.commandId) {
-      const existingCommand = existingEvents.find((e) => e.commandId === event.commandId)
-      if (existingCommand) {
-        log.info("duplicate command detected, returning existing event", {
-          runId,
-          commandId: event.commandId,
-          existingEventId: existingCommand.eventId,
-        })
-        return existingCommand
-      }
-    }
-
-    const newEvent: RunEventEnvelope = {
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+  const fsLock = await acquireRunLock(runId)
+  try {
+    const existingEvents = await readValidatedEvents(runId, eventsPath)
+    return await appendRunEventUnderLock({
       runId,
-      seq: expectedSeq,
-      type: event.type,
-      payload: event.payload,
-      occurredAt: new Date().toISOString(),
-      schemaVersion: "v1",
-      ...(event.causationId ? { causationId: event.causationId } : {}),
-      ...(event.correlationId ? { correlationId: event.correlationId } : {}),
-      ...(event.commandId ? { commandId: event.commandId } : {}),
-    }
-
-    // Validate the write-side boundary as well as storage reads. This prevents
-    // a malformed in-process event from becoming durable evidence that a later
-    // projection would have to reject.
-    const validatedNewEvent = parseRunEventLog(runId, [newEvent])[0]
-    existingEvents.push(validatedNewEvent)
-
-    await Storage.write(tempPath, existingEvents)
-    await Storage.rename(tempPath, eventsPath)
-
-    log.info("appended event", { runId, seq: expectedSeq, type: event.type })
-    return validatedNewEvent
+      expectedSeq: existingEvents.length,
+      event,
+      existingEvents,
+      eventsPath,
+      tempPath,
+    })
   } finally {
     await fsLock.dispose()
   }
