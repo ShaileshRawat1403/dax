@@ -19,6 +19,10 @@ const context = {
   ask: mock(async () => {}),
 } as unknown as Tool.Context
 
+function malformedRuntimeValue<T>(value: unknown): T {
+  return value as T
+}
+
 describe("tool result runtime validation", () => {
   test("shell owns and enforces its domain result contract", async () => {
     const valid = {
@@ -105,11 +109,11 @@ describe("tool result runtime validation", () => {
       parameters: z.object({}),
       result: ShellResultSchema,
       async execute() {
-        return {
+        return malformedRuntimeValue<z.output<typeof ShellResultSchema>>({
           title: "Lists files",
           output: "README.md",
           metadata: { exit: "zero", output: "README.md", description: "Lists files" },
-        } as any
+        })
       },
     })
     const info = await probe.init()
@@ -199,12 +203,13 @@ describe("tool result runtime validation", () => {
   })
 
   test("a malformed result rejects instead of becoming a successful tool result", async () => {
+    const malformedResultSchema = Tool.result(z.object({ count: z.number().int() }).strict())
     const malformed = Tool.define("malformed-result", {
       description: "test tool",
       parameters: z.object({ value: z.string() }),
-      result: Tool.result(z.object({ count: z.number().int() }).strict()),
+      result: malformedResultSchema,
       async execute() {
-        return { title: "bad", output: 42, metadata: {} } as any
+        return malformedRuntimeValue<z.output<typeof malformedResultSchema>>({ title: "bad", output: 42, metadata: {} })
       },
     })
     const info = await malformed.init()
@@ -228,18 +233,21 @@ describe("tool result runtime validation", () => {
     })
     const info = await tool.init()
 
-    await expect(info.execute({ value: 42 } as any, context)).rejects.toThrow(/invalid arguments/i)
+    await expect(info.execute(malformedRuntimeValue<{ value: string }>({ value: 42 }), context)).rejects.toThrow(
+      /invalid arguments/i,
+    )
     expect(executed).toBeFalse()
   })
 
   test("truncation runs only after the domain result validates", async () => {
     const truncate = spyOn(Truncate, "output")
+    const malformedResultSchema = Tool.result(z.object({}).strict())
     const malformed = Tool.define("malformed-before-truncate", {
       description: "test tool",
       parameters: z.object({}),
-      result: Tool.result(z.object({}).strict()),
+      result: malformedResultSchema,
       async execute() {
-        return { title: "bad", output: null, metadata: {} } as any
+        return malformedRuntimeValue<z.output<typeof malformedResultSchema>>({ title: "bad", output: null, metadata: {} })
       },
     })
     try {

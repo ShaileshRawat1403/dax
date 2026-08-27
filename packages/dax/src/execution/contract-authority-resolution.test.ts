@@ -113,7 +113,7 @@ describe("execution contract authority resolution", () => {
 
         await expect(Session.bindGoverningRun(child.id, "")).rejects.toThrow()
 
-        await Storage.update<any>(["session", Instance.project.id, child.id], (draft) => {
+        await Storage.update<Session.Info>(["session", Instance.project.id, child.id], (draft) => {
           draft.governingRunId = ""
         })
         const persisted = await Session.get(child.id)

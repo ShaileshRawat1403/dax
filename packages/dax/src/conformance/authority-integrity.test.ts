@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import os from "node:os"
 import path from "node:path"
 import { mkdirSync, rmSync } from "node:fs"
@@ -7,6 +7,8 @@ import { Session } from "@/session"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionProcessor } from "@/session/processor"
 import { LLM } from "@/session/llm"
+import { Agent } from "@/agent/agent"
+import { Provider } from "@/provider/provider"
 import { Identifier } from "@/id/id"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
@@ -87,42 +89,59 @@ describe("P0 authority integrity", () => {
           sessionID: session.id,
         })) as MessageV2.Assistant
 
-        const originalStream = LLM.stream
-        const model = {
+        const model = Provider.Model.parse({
           id: "test-model",
           providerID: "openai",
+          api: { id: "test-model", url: "https://example.invalid", npm: "@ai-sdk/openai" },
+          name: "Authority integrity model",
+          capabilities: {
+            temperature: true,
+            reasoning: false,
+            attachment: false,
+            toolcall: true,
+            input: { text: true, audio: false, image: false, video: false, pdf: false },
+            output: { text: true, audio: false, image: false, video: false, pdf: false },
+            interleaved: false,
+          },
+          cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
           limit: { context: 128_000, output: 4_096 },
-        } as any
-        ;(LLM as any).stream = async () => ({
-          fullStream: (async function* () {
-            yield { type: "start" }
-            yield { type: "tool-input-start", id: "call_native_1", toolName: "apply_patch" }
-            yield {
-              type: "tool-call",
-              toolCallId: "call_native_1",
-              toolName: "apply_patch",
-              input: { patchText: "*** Begin Patch\n*** Update File: README.md\n@@\n-old\n+new\n*** End Patch" },
-            }
-            yield {
-              type: "tool-result",
-              toolCallId: "call_native_1",
-              input: { patchText: "*** Begin Patch\n*** Update File: README.md\n@@\n-old\n+new\n*** End Patch" },
-              output: {
-                output: "Patch applied.",
-                title: "Update README.md",
-                metadata: { changedPaths: ["README.md"] },
-                attachments: [],
-              },
-            }
-            yield {
-              type: "finish-step",
-              finishReason: "stop",
-              usage: { inputTokens: 1, outputTokens: 1 },
-              providerMetadata: {},
-            }
-            yield { type: "finish" }
-          })(),
+          status: "active",
+          options: {},
+          headers: {},
+          release_date: "2026-01-01",
         })
+        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
+          ({
+            fullStream: (async function* () {
+              yield { type: "start" }
+              yield { type: "tool-input-start", id: "call_native_1", toolName: "apply_patch" }
+              yield {
+                type: "tool-call",
+                toolCallId: "call_native_1",
+                toolName: "apply_patch",
+                input: { patchText: "*** Begin Patch\n*** Update File: README.md\n@@\n-old\n+new\n*** End Patch" },
+              }
+              yield {
+                type: "tool-result",
+                toolCallId: "call_native_1",
+                input: { patchText: "*** Begin Patch\n*** Update File: README.md\n@@\n-old\n+new\n*** End Patch" },
+                output: {
+                  output: "Patch applied.",
+                  title: "Update README.md",
+                  metadata: { changedPaths: ["README.md"] },
+                  attachments: [],
+                },
+              }
+              yield {
+                type: "finish-step",
+                finishReason: "stop",
+                usage: { inputTokens: 1, outputTokens: 1 },
+                providerMetadata: {},
+              }
+              yield { type: "finish" }
+            })(),
+          }) as unknown as Awaited<ReturnType<typeof LLM.stream>>,
+        )
 
         try {
           const result = await SessionProcessor.create({
@@ -131,8 +150,20 @@ describe("P0 authority integrity", () => {
             model,
             abort: new AbortController().signal,
           }).process({
-            user: {} as any,
-            agent: { name: "test-agent", mode: "test" } as any,
+            user: MessageV2.User.parse({
+              id: Identifier.ascending("message"),
+              sessionID: session.id,
+              role: "user",
+              time: { created: Date.now() },
+              agent: "test-agent",
+              model: { providerID: "openai", modelID: "test-model" },
+            }),
+            agent: Agent.Info.parse({
+              name: "test-agent",
+              mode: "primary",
+              permission: [],
+              options: {},
+            }),
             abort: new AbortController().signal,
             sessionID: session.id,
             system: [],
@@ -162,7 +193,7 @@ describe("P0 authority integrity", () => {
           })
           expect((await getEventAuthorityState(session.id))?.status).toBe("running")
         } finally {
-          ;(LLM as any).stream = originalStream
+          stream.mockRestore()
         }
       },
     })

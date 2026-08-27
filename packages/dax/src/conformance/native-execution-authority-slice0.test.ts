@@ -15,6 +15,8 @@ import { ShellTool } from "@/tool/shell"
 import { Permission } from "@/governance"
 import { enforceRuntimeGuard } from "@/execution/runtime-guard"
 import { Snapshot } from "@/snapshot"
+import { BatchTool } from "@/tool/batch"
+import { Tool } from "@/tool/tool"
 import { expectGap } from "./known-gaps"
 
 let testHome = ""
@@ -41,15 +43,27 @@ afterEach(async () => {
   await fs.rm(testHome, { recursive: true, force: true })
 })
 
-const testModel = {
+const testModel = Provider.Model.parse({
   id: "gpt-4o",
   providerID: "openai",
   name: "Characterization model",
-  api: { id: "gpt-4o", npm: "@ai-sdk/openai" },
-  modalities: { input: ["text"], output: ["text"] },
-  cost: { input: 0, output: 0 },
+  api: { id: "gpt-4o", url: "https://example.invalid", npm: "@ai-sdk/openai" },
+  capabilities: {
+    temperature: true,
+    reasoning: false,
+    attachment: false,
+    toolcall: true,
+    input: { text: true, audio: false, image: false, video: false, pdf: false },
+    output: { text: true, audio: false, image: false, video: false, pdf: false },
+    interleaved: false,
+  },
+  cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
   limit: { context: 128_000, output: 4_096 },
-} as any
+  status: "active",
+  options: {},
+  headers: {},
+  release_date: "2026-01-01",
+})
 
 describe("native execution authority slice 0", () => {
   test("an allowlisted batch call cannot execute a contract-excluded write leaf", async () => {
@@ -66,24 +80,24 @@ describe("native execution authority slice 0", () => {
         contract.toolAllowlist = ["batch"]
         await ContractGuardian.create(session.id, contract)
 
-        const originalGetModel = Provider.getModel
-        const originalStream = LLM.stream
-        const summarySpy = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined as any)
+        const summarySpy = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
         let batchCallSettled = false
         let offeredTools: string[] = []
-        let batchResult: any
+        let batchResult: Tool.InferResult<typeof BatchTool> | undefined
         const target = path.join(testProject, ".dax", "lab", "written-through-batch.txt")
         await fs.mkdir(path.dirname(target), { recursive: true })
 
-        ;(Provider as any).getModel = async (providerID: string, modelID: string) => {
+        const originalGetModel = Provider.getModel
+        const getModel = spyOn(Provider, "getModel").mockImplementation(async (providerID, modelID) => {
           if (providerID === "openai" && modelID === "gpt-4o") return testModel
           return originalGetModel(providerID, modelID)
-        }
-        ;(LLM as any).stream = async (input: any) => {
-          if (input.tools.batch && !batchCallSettled) {
+        })
+        const stream = spyOn(LLM, "stream").mockImplementation(async (input: LLM.StreamInput) => {
+          const batch = input.tools.batch
+          if (batch?.execute && !batchCallSettled) {
             batchCallSettled = true
             offeredTools = Object.keys(input.tools)
-            const output = await input.tools.batch.execute(
+            const output = await batch.execute(
               {
                 tool_calls: [
                   {
@@ -92,7 +106,7 @@ describe("native execution authority slice 0", () => {
                   },
                 ],
               },
-              { toolCallId: "call_batch_outer", abortSignal: new AbortController().signal },
+              { toolCallId: "call_batch_outer", abortSignal: new AbortController().signal, messages: [] },
             )
             batchResult = output
             return {
@@ -118,7 +132,7 @@ describe("native execution authority slice 0", () => {
                 }
                 yield { type: "finish" }
               })(),
-            }
+            } as unknown as Awaited<ReturnType<typeof LLM.stream>>
           }
           return {
             fullStream: (async function* () {
@@ -126,8 +140,8 @@ describe("native execution authority slice 0", () => {
               yield { type: "error", error: new Error("stop after the characterized batch call") }
               yield { type: "finish" }
             })(),
-          }
-        }
+          } as unknown as Awaited<ReturnType<typeof LLM.stream>>
+        })
 
         try {
           // Persist a real prior user message so the execution prompt enters
@@ -151,12 +165,13 @@ describe("native execution authority slice 0", () => {
           expect(offeredTools).toContain("batch")
           expect(offeredTools).not.toContain("write")
           expect(await Bun.file(target).exists()).toBe(false)
-          expect(batchResult.metadata).toMatchObject({ totalCalls: 1, successful: 0, failed: 1 })
-          expect(batchResult.output).toContain("1 failed")
+          expect(batchResult).toBeDefined()
+          expect(batchResult!.metadata).toMatchObject({ totalCalls: 1, successful: 0, failed: 1 })
+          expect(batchResult!.output).toContain("1 failed")
         } finally {
           summarySpy.mockRestore()
-          ;(Provider as any).getModel = originalGetModel
-          ;(LLM as any).stream = originalStream
+          getModel.mockRestore()
+          stream.mockRestore()
         }
       },
     })
