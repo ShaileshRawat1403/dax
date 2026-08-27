@@ -1,7 +1,7 @@
 import { Session } from "@/session"
 import { getProjectedRunState } from "@/state/events/run-event-store"
 import type { SessionV2 } from "@/session/model"
-import { ContractGuardian } from "./contract-guardian"
+import { resolveExecutionAuthority } from "./contract-guardian"
 import { createAndPersistApproval, expireApproval, ApprovalAlreadyResolvedError } from "@/approval/approval-transitions"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
@@ -51,6 +51,10 @@ type RuntimeGuardInput = {
   toolID?: string
   req: GuardRequest
   callID?: string
+}
+
+type ResolvedRuntimeGuardInput = RuntimeGuardInput & {
+  authoritySessionID: string
 }
 
 type RuntimeGuardState = NonNullable<SessionV2.State["runtime_guard"]>
@@ -367,12 +371,12 @@ async function emitWarnIntervention(input: { sessionID: string; reason: string }
   })
 }
 
-async function registerViolation(input: RuntimeGuardInput, code: string) {
+async function registerViolation(input: ResolvedRuntimeGuardInput, code: string) {
   const fingerprint = violationFingerprint(input, code)
-  const session = await Session.get(input.sessionID).catch(() => undefined)
+  const session = await Session.get(input.authoritySessionID)
   const current = session?.state_v2?.runtime_guard ?? defaultRuntimeGuardState()
   const nextCount = (current.failureCounts[fingerprint] ?? 0) + 1
-  await updateRuntimeGuardState(input.sessionID, (guard) => ({
+  await updateRuntimeGuardState(input.authoritySessionID, (guard) => ({
     ...guard,
     failureCounts: {
       ...guard.failureCounts,
@@ -389,7 +393,7 @@ async function registerViolation(input: RuntimeGuardInput, code: string) {
 }
 
 async function blockViolation(
-  input: RuntimeGuardInput,
+  input: ResolvedRuntimeGuardInput,
   violation: {
     code: string
     title: string
@@ -406,11 +410,11 @@ async function blockViolation(
     }
   },
 ) {
-  const session = await Session.get(input.sessionID).catch(() => undefined)
+  const session = await Session.get(input.authoritySessionID)
   const guardMode = resolveGuardEnforcementMode(session?.state_v2?.guard_enforcement_mode)
   if (!shouldBlockViolation(guardMode, violation.risk)) {
     await emitWarnIntervention({
-      sessionID: input.sessionID,
+      sessionID: input.authoritySessionID,
       reason: `${violation.title}: ${violation.reason} Guard mode is warn, so this was recorded as review-needed instead of hard-blocking.`,
     })
     return
@@ -419,7 +423,7 @@ async function blockViolation(
   const failure = await registerViolation(input, violation.code)
   const escalated = failure.exceeded
   const approval = await ensureIntervention({
-    sessionID: input.sessionID,
+    sessionID: input.authoritySessionID,
     title: escalated ? `Repeated blocked attempt: ${violation.title}` : violation.title,
     reason: escalated
       ? `${violation.reason} DAX has now blocked this same pattern ${failure.count} time(s). Pause, summarize, and get operator direction before trying again.`
@@ -446,7 +450,7 @@ async function blockViolation(
     throw new RuntimeGuardViolationError("loop_break", violation.reason)
   }
 
-  const result = await awaitApprovalDecision(approval.approvalId, input.sessionID)
+  const result = await awaitApprovalDecision(approval.approvalId, input.authoritySessionID)
   if (result.decision === "approve") {
     return
   }
@@ -457,7 +461,7 @@ async function blockViolation(
   // case ApprovalAlreadyResolvedError is the expected, harmless outcome.
   if (result.source === "timeout") {
     try {
-      await expireApproval(input.sessionID, approval.approvalId)
+      await expireApproval(input.authoritySessionID, approval.approvalId)
     } catch (err) {
       if (!(err instanceof ApprovalAlreadyResolvedError)) {
         throw err
@@ -504,23 +508,46 @@ function stableStringify(obj: unknown): string {
 }
 
 export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
-  const session = await Session.get(input.sessionID).catch(() => undefined)
-  if (!session) return
+  // The tool call belongs to the current conversation session, but execution
+  // authority belongs to the run explicitly persisted on that session. A
+  // governed child must never become unrestricted because it has a different
+  // conversation ID or because an authority read failed.
+  const executionSession = await Session.get(input.sessionID)
+  const authority = await resolveExecutionAuthority(executionSession.id, executionSession.governingRunId)
+  const authoritySessionID = authority.governingRunId ?? executionSession.id
+  const authoritySession =
+    authoritySessionID === executionSession.id ? executionSession : await Session.get(authoritySessionID)
+  const guardInput: ResolvedRuntimeGuardInput = { ...input, authoritySessionID }
 
-  const state = session.state_v2
+  const state = authoritySession.state_v2
   const currentGuard = state?.runtime_guard ?? defaultRuntimeGuardState()
   const mode = state?.intent?.activeMode ?? input.agent ?? "build"
-  const sessionContract = state?.intent?.contract
+  // The immutable contract and governing runtime state belong to the authority
+  // session. A derived conversation may carry a narrower intent contract,
+  // though, so retain that child-local restriction in the effective scope.
+  const sessionContract = executionSession.state_v2?.intent?.contract
   const planQuality = state?.plan_quality
 
-  const compiledContract = await ContractGuardian.get(input.sessionID).catch(() => null)
-  const scope = normalizeScope(sessionContract)
+  const compiledContract = authority.contract
+  // The immutable execution contract is the governing scope. The established
+  // session intent contract may add narrower/legacy scope detail, but it must
+  // not widen the immutable scope: a path must satisfy every non-empty target
+  // set, while avoid areas accumulate.
+  const declaredScopes = [normalizeScope(compiledContract), normalizeScope(sessionContract)]
+  const targetScopes = declaredScopes.map((item) => item.targetFiles).filter((items) => items.length > 0)
+  const scope = {
+    targetFiles: [...new Set(targetScopes.flat())],
+    avoidAreas: [...new Set(declaredScopes.flatMap((item) => item.avoidAreas))],
+  }
   const actionSemantics = deriveRuntimeActionSemantics({
     toolID: input.toolID,
     req: input.req,
   })
   const actionClass = actionSemantics.actionClass
-  const runState = await RunStore.get(input.sessionID).catch(() => null)
+  // Canonical event authority owns lifecycle truth. getProjectedRunState also
+  // preserves the legacy fallback for genuinely legacy/ungoverned sessions,
+  // while malformed authority or event state propagates and blocks execution.
+  const runState = await getProjectedRunState(authoritySessionID)
   const lifecycle = runState?.status ?? "running"
 
   const toolFingerprint = [input.toolID, stableStringify(input.req.patterns), stableStringify(input.req.metadata)].join(
@@ -531,7 +558,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   const nextSuccessiveCount = isIdentical ? (currentGuard.successiveCount ?? 0) + 1 : 1
 
   // Update successive count in DB immediately so it's persisted even if the call fails later
-  await updateRuntimeGuardState(input.sessionID, (guard) => ({
+  await updateRuntimeGuardState(authoritySessionID, (guard) => ({
     ...guard,
     lastToolCallFingerprint: toolFingerprint,
     successiveCount: nextSuccessiveCount,
@@ -541,7 +568,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     planQuality?.decision === "pause" && ["mutate", "commit", "publish"].includes(actionClass)
   if (requiresStrictPlanBeforeMutation) {
     const reason = `Plan quality is ${planQuality?.score ?? 0}/100 with unresolved checks (${(planQuality?.failedChecks ?? []).join(", ")}). DAX blocks mutating actions until the objective, scope, validation, and rollback signals are concrete.`
-    await blockViolation(input, {
+    await blockViolation(guardInput, {
       code: "plan_quality_mutation_block",
       title: "Weak plan cannot mutate",
       reason,
@@ -554,13 +581,13 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     })
   }
 
-  const scopeHasTargets = normalizeScope(sessionContract).targetFiles.length > 0
+  const scopeHasTargets = targetScopes.length > 0
   if (!scopeHasTargets && ["mutate", "commit", "publish"].includes(actionClass)) {
     const intentText = await latestUserText(input.sessionID)
     if (looksVagueIntent(intentText)) {
       const reason =
         "The current request is too vague for safe mutation and no scoped execution contract targets were found. Clarify objective, target files/subsystems, and validation before editing."
-      await blockViolation(input, {
+      await blockViolation(guardInput, {
         code: "vague_intent_mutation_block",
         title: "Vague intent cannot mutate",
         reason,
@@ -576,7 +603,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
 
   if (!isActionAllowed(mode, actionClass, lifecycle)) {
     const reason = `${mode} mode cannot perform ${actionClass} actions. Switch to build or change the workflow before continuing.`
-    await blockViolation(input, {
+    await blockViolation(guardInput, {
       code: "illegal_transition",
       title: "Mode boundary blocked",
       reason,
@@ -589,7 +616,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   const loopThreshold = currentGuard.budget.maxRepeatedFailures || DEFAULT_BUDGET.maxRepeatedFailures
   if (nextSuccessiveCount >= loopThreshold) {
     const reason = `DAX has detected ${nextSuccessiveCount} successive identical tool calls for '${input.toolID}'. This pattern suggests an automated doom-loop. Pause, summarize your progress, and wait for human direction.`
-    await blockViolation(input, {
+    await blockViolation(guardInput, {
       code: "loop_break",
       title: "Doom loop detected",
       reason,
@@ -612,7 +639,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     }
     if (zone === "forbidden") {
       const reason = `${relativePath} is outside the allowed workspace or inside a forbidden system/config zone.`
-      await blockViolation(input, {
+      await blockViolation(guardInput, {
         code: "forbidden_path",
         title: "Forbidden path blocked",
         reason,
@@ -621,12 +648,12 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
       })
     }
     if (zone === "sensitive") {
-      const approved = await hasScopedSensitiveApproval(input, relativePath)
+      const approved = await hasScopedSensitiveApproval(guardInput, relativePath)
       if (approved) {
         continue
       }
       const reason = `${relativePath} is a sensitive path. DAX requires explicit operator approval before reading or mutating secrets, auth, CI, or publish surfaces.`
-      await blockViolation(input, {
+      await blockViolation(guardInput, {
         code: "sensitive_path",
         title: "Sensitive path requires approval",
         reason,
@@ -636,7 +663,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     }
     if (matchesAvoidArea(scope.avoidAreas, relativePath)) {
       const reason = `${relativePath} is inside a declared avoid area for this run. Pause and confirm scope before continuing.`
-      await blockViolation(input, {
+      await blockViolation(guardInput, {
         code: "avoid_area",
         title: "Avoid area blocked",
         reason,
@@ -644,9 +671,9 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         context: { filePath: relativePath, toolName: input.toolID, notes: scope.avoidAreas },
       })
     }
-    if (!matchesScopedPath(scope.targetFiles, relativePath)) {
+    if (targetScopes.some((targets) => !matchesScopedPath(targets, relativePath))) {
       const reason = `${relativePath} falls outside the current contract targets. Review scope before continuing.`
-      await blockViolation(input, {
+      await blockViolation(guardInput, {
         code: "scope_drift",
         title: "Scope drift blocked",
         reason,
@@ -670,7 +697,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
 
   if (!isOnlyLabAction && nextFilesTouched > currentGuard.budget.maxFilesTouched) {
     const reason = `This run would touch ${nextFilesTouched} files, exceeding the mutation budget of ${currentGuard.budget.maxFilesTouched}. Pause and confirm direction.`
-    await blockViolation(input, {
+    await blockViolation(guardInput, {
       code: "mutation_budget",
       title: "Mutation budget reached",
       reason,
@@ -681,7 +708,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
 
   if (!isOnlyLabAction && nextMutatingCommands > currentGuard.budget.maxMutatingCommands) {
     const reason = `This run would exceed the mutating-command budget of ${currentGuard.budget.maxMutatingCommands}. Pause and summarize before continuing.`
-    await blockViolation(input, {
+    await blockViolation(guardInput, {
       code: "command_budget",
       title: "Mutation command budget reached",
       reason,
@@ -692,7 +719,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
 
   if (currentGuard.budget.approvalsRequested >= currentGuard.budget.maxApprovalRequests) {
     const reason = `This run has already requested ${currentGuard.budget.approvalsRequested} approvals, reaching the maximum budget of ${currentGuard.budget.maxApprovalRequests}. Complete existing approvals before requesting more.`
-    await blockViolation(input, {
+    await blockViolation(guardInput, {
       code: "approval_budget",
       title: "Approval request budget reached",
       reason,
@@ -705,7 +732,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     })
   }
 
-  await updateRuntimeGuardState(input.sessionID, (guard) => {
+  await updateRuntimeGuardState(authoritySessionID, (guard) => {
     const next = { ...guard }
     next.budget = {
       ...guard.budget,
@@ -750,7 +777,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   if (needsBaseline) {
     const baselineRef = await resolveBaselineRef()
     if (baselineRef) {
-      await updateRuntimeGuardState(input.sessionID, (guard) => {
+      await updateRuntimeGuardState(authoritySessionID, (guard) => {
         if (!guard.baselineCheckpoint || guard.baselineCheckpoint.baselineRef) return guard
         return {
           ...guard,
@@ -770,12 +797,12 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     //
     // This is the parallel-state seam, not a fix for it — governance belongs on
     // the event spine, which is tracked as inv3.conformance-points.
-    if (!(await RunStore.exists(input.sessionID))) {
-      const projected = await getProjectedRunState(input.sessionID).catch(() => null)
-      if (projected) await RunStore.save(input.sessionID, projected)
+    if (!(await RunStore.exists(authoritySessionID))) {
+      const projected = await getProjectedRunState(authoritySessionID).catch(() => null)
+      if (projected) await RunStore.save(authoritySessionID, projected)
     }
 
-    await RunStore.update(input.sessionID, (state) => {
+    await RunStore.update(authoritySessionID, (state) => {
       const next = { ...state }
       next.governance = {
         ...state.governance,
@@ -788,11 +815,11 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
         baselineCheckpoint:
           state.governance.baselineCheckpoint ??
           ((actionClass === "mutate" || actionClass === "commit" || actionClass === "publish") &&
-          session.state_v2?.runtime_guard?.baselineCheckpoint
+          authoritySession.state_v2?.runtime_guard?.baselineCheckpoint
             ? {
-                baselineRef: session.state_v2.runtime_guard.baselineCheckpoint.baselineRef,
-                snapshotId: session.state_v2.runtime_guard.baselineCheckpoint.snapshotId,
-                createdAt: session.state_v2.runtime_guard.baselineCheckpoint.createdAt,
+                baselineRef: authoritySession.state_v2.runtime_guard.baselineCheckpoint.baselineRef,
+                snapshotId: authoritySession.state_v2.runtime_guard.baselineCheckpoint.snapshotId,
+                createdAt: authoritySession.state_v2.runtime_guard.baselineCheckpoint.createdAt,
               }
             : state.governance.baselineCheckpoint),
         mutationReceiptIds:
@@ -815,7 +842,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
                 }
               : state.governance.verification,
         completionProof:
-          compiledContract && session.state_v2?.runtime_guard
+          compiledContract && authoritySession.state_v2?.runtime_guard
             ? deriveCompletionProof({
                 contract: compiledContract,
                 runState: {
@@ -845,7 +872,7 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
                           : state.governance.verification,
                   },
                 },
-                observedArtifacts: session.state_v2?.artifacts ?? [],
+                observedArtifacts: authoritySession.state_v2?.artifacts ?? [],
               })
             : state.governance.completionProof,
       }
@@ -854,15 +881,15 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
   }
 
   if (compiledContract) {
-    const latestRunState = await RunStore.get(input.sessionID).catch(() => null)
+    const latestRunState = await RunStore.get(authoritySessionID).catch(() => null)
     if (latestRunState) {
       const proof = deriveCompletionProof({
         contract: compiledContract,
         runState: latestRunState,
-        artifactCountOverride: session.state_v2?.artifacts?.length ?? latestRunState.artifactIds.length,
-        observedArtifacts: session.state_v2?.artifacts ?? [],
+        artifactCountOverride: authoritySession.state_v2?.artifacts?.length ?? latestRunState.artifactIds.length,
+        observedArtifacts: authoritySession.state_v2?.artifacts ?? [],
       })
-      await Session.update(input.sessionID, (draft) => {
+      await Session.update(authoritySessionID, (draft) => {
         const current = draft.state_v2
         draft.state_v2 = {
           intent: current?.intent,
