@@ -405,6 +405,14 @@ export function compile(input: CompileInput): CompileResult {
 function isValidWorkflowHint(hint: string, intent: string, providerHint?: string): boolean {
   const lowerIntent = intent.toLowerCase()
 
+  // "generic" is the explicit native-session workflow. Unlike the fixed
+  // workflows it does not claim a keyword-shaped orchestration; the native
+  // harness will still derive risk, tool authority and verification from the
+  // actual intent.
+  if (hint === "generic") {
+    return true
+  }
+
   if (hint === "draft_and_approve") {
     return /create|write|generate|make|build|implement|add|modify|refactor|fix|edit/i.test(lowerIntent)
   }

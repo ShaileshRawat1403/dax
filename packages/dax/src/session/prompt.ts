@@ -64,6 +64,13 @@ import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-expl
 import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
 import { isToolAllowedByContract } from "@/execution/execution-contract"
+import { compileWithRunId } from "@/execution/compiler"
+import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
+import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
+import { createEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
+import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
+import { acquireRunLock } from "@/util/fs-lock"
+import { RunStore } from "@/state/run-store"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -97,6 +104,142 @@ export namespace SessionPrompt {
   export function assertNotBusy(sessionID: string) {
     const match = state()[sessionID]
     if (match) throw new Session.BusyError(sessionID)
+  }
+
+  function promptIntent(parts: PromptInput["parts"]): string {
+    const text = parts
+      .filter((part): part is Extract<PromptInput["parts"][number], { type: "text" }> => part.type === "text")
+      .map((part) => part.text.trim())
+      .filter(Boolean)
+      .join("\n\n")
+    if (text) return text
+
+    const references = parts.flatMap((part) => {
+      if (part.type === "file") return part.filename ? [`file:${part.filename}`] : ["file"]
+      if (part.type === "agent") return [`agent:${part.name}`]
+      if (part.type === "subtask") return [`subtask:${part.description}`]
+      return []
+    })
+    return references.length > 0
+      ? `Process the supplied prompt inputs: ${references.join(", ")}`
+      : "Process the supplied prompt."
+  }
+
+  function messageIntent(message: MessageV2.WithParts): string {
+    const text = message.parts
+      .filter((part): part is MessageV2.TextPart => part.type === "text" && part.synthetic !== true && !part.ignored)
+      .map((part) => part.text.trim())
+      .filter(Boolean)
+      .join("\n\n")
+    return text || "Continue the governed session."
+  }
+
+  /**
+   * Establishes the canonical run authority owed by every native model
+   * execution. Session identity is conversational; a governed child therefore
+   * reuses its persisted governingRunId instead of creating a child run.
+   */
+  export async function ensureCanonicalRunBirth(input: { sessionID: string; intent: string }): Promise<void> {
+    const initialSession = await Session.get(input.sessionID)
+    const authorityRunId = initialSession.governingRunId ?? initialSession.id
+    const birthLock = await acquireRunLock(`native-birth-${authorityRunId}`)
+
+    try {
+      let session = await Session.get(input.sessionID)
+      let authority = await resolveExecutionAuthority(session.id, session.governingRunId)
+
+      if (!authority.contract) {
+        // resolveExecutionAuthority returns null only for a genuinely ungoverned
+        // session. An explicit but unreadable governing reference throws above.
+        const availableTools = [
+          ...(await ToolRegistry.ids()),
+          ...Object.keys(await MCP.tools()),
+        ]
+        const { contract } = compileWithRunId(
+          {
+            request: {
+              intent: { input: input.intent, repoPath: Instance.directory },
+              workflowHint: "generic",
+              metadata: {
+                source: "dax",
+                targeting: { mode: "explicit_repo_path", repoPath: Instance.directory },
+              },
+            },
+            availableTools: [...new Set(availableTools)],
+          },
+          session.id,
+        )
+        await ContractGuardian.create(session.id, contract)
+        await Session.bindGoverningRun(session.id, session.id)
+        session = await Session.get(session.id)
+        authority = await resolveExecutionAuthority(session.id, session.governingRunId)
+      } else if (!session.governingRunId) {
+        // Compatibility roots may already have an own-ID contract. Make their
+        // authority explicit before any new execution begins.
+        await Session.bindGoverningRun(session.id, authority.governingRunId!)
+        session = await Session.get(session.id)
+      }
+
+      const contract = authority.contract
+      const governingRunId = authority.governingRunId
+      if (!contract || !governingRunId) {
+        throw new Error(`Failed to establish canonical execution authority for session ${session.id}`)
+      }
+
+      const marker = await getRunAuthority(governingRunId)
+      const existingEvents = await readRunEvents(governingRunId)
+
+      if (marker === "legacy") {
+        throw new Error(`Run ${governingRunId} still has legacy authority; refusing native execution downgrade`)
+      }
+      if (marker === null && existingEvents.length > 0) {
+        throw new Error(`Run ${governingRunId} has canonical events without an authority marker`)
+      }
+      if (marker === null) {
+        const legacyState = await RunStore.get(governingRunId)
+        if (legacyState) {
+          throw new Error(
+            `Run ${governingRunId} has legacy persisted lifecycle state; refusing to rebirth it as a fresh canonical run`,
+          )
+        }
+        await createEventAuthorityRun(
+          governingRunId,
+          contract.contractId,
+          contract.runtimePolicy?.postconditions?.verificationRequired === true,
+          resolveGuardEnforcementMode(),
+        )
+      }
+
+      const state = await projectRunStateFromEvents(governingRunId)
+      if (!state) {
+        // This includes the known marker-before-first-event crash window. It is
+        // deliberately locked and left for recovery rather than treated as a
+        // fresh, writable run.
+        throw new Error(`Event-authority run ${governingRunId} has no canonical birth event`)
+      }
+      if (state.contractId !== contract.contractId) {
+        throw new Error(
+          `Canonical run ${governingRunId} is bound to contract ${state.contractId}, not ${contract.contractId}`,
+        )
+      }
+
+      let status = state.status
+      if (status === "compiled") {
+        await transitionEventAuthority(governingRunId, "queued", "execution_queued", {})
+        status = "queued"
+      }
+      if (status === "queued") {
+        await transitionEventAuthority(governingRunId, "running", "execution_started", {})
+        status = "running"
+      }
+      if (status !== "running") {
+        throw new Error(
+          `Run ${governingRunId} is ${status}; refusing native execution outside an active canonical run`,
+        )
+      }
+    } finally {
+      await birthLock.dispose()
+    }
   }
 
   export const PromptInput = z.object({
@@ -181,10 +324,16 @@ export namespace SessionPrompt {
     }
 
     const session = await Session.get(input.sessionID)
+    if (input.noReply !== true) {
+      // This must precede intent interpretation as well as the main assistant
+      // loop: interpretIntent may invoke a model, so placing birth later would
+      // leave the first native model call outside canonical authority.
+      await ensureCanonicalRunBirth({ sessionID: input.sessionID, intent: promptIntent(input.parts) })
+    }
     await SessionRevert.cleanup(session)
 
     const existingMessages = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
-    if (existingMessages.length === 0) {
+    if (input.noReply !== true && existingMessages.length === 0) {
       const rawPrompt = input.parts.find((p) => p.type === "text")?.text || ""
       if (rawPrompt) {
         try {
@@ -356,7 +505,8 @@ export namespace SessionPrompt {
     using _ = defer(() => cancel(sessionID))
 
     let step = 0
-    const session = await Session.get(sessionID)
+    let session = await Session.get(sessionID)
+    let authorityEstablished = false
     while (true) {
       SessionStatus.set(sessionID, { type: "busy" })
       log.info("loop", { step, sessionID })
@@ -390,6 +540,15 @@ export namespace SessionPrompt {
       ) {
         log.info("exiting loop", { sessionID })
         break
+      }
+      if (!authorityEstablished) {
+        const lastUserMessage = msgs.find((message) => message.info.id === lastUser.id)
+        await ensureCanonicalRunBirth({
+          sessionID,
+          intent: lastUserMessage ? messageIntent(lastUserMessage) : "Continue the governed session.",
+        })
+        session = await Session.get(sessionID)
+        authorityEstablished = true
       }
 
       step++
@@ -788,7 +947,6 @@ export namespace SessionPrompt {
     const tools: Record<string, AITool> = {}
 
     // Load contract to enforce execution boundary allowlist
-    const { resolveExecutionAuthority } = await import("@/execution/contract-guardian")
     const authority = await resolveExecutionAuthority(input.session.id, input.session.governingRunId)
     const contract = authority.contract
 

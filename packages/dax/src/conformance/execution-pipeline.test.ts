@@ -63,7 +63,7 @@ function scoreNativeSessionSources(sources: NativeSessionSources): Record<Point,
   return {
     // Filtering is necessary but not sufficient: every executable native
     // session must also cross canonical run birth before the path is universally
-    // contract-bound. Today direct CLI/TUI sessions do not establish that fact.
+    // contract-bound. The prompt boundary now establishes that fact.
     contract_bound:
       sources.prompt.includes("createEventAuthorityRun") &&
       sources.prompt.includes("const authority = await resolveExecutionAuthority(input.session.id, input.session.governingRunId)") &&

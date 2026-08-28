@@ -66,7 +66,7 @@ Two of the tests are *meters*: they compute a conformance score and assert the
 target. They fail with a number, and that number is the progress metric.
 
 - `execution-pipeline.test.ts` scores each execution path against 8 conformance
-  points. **15 / 40** across five paths — native session 2/8, worker run 5/8,
+  points. **16 / 40** across five paths — native session 3/8, worker run 5/8,
   draft-approve-execute 4/8, repo-analyze 2/8, review-and-signoff 2/8.
 
   It scored 9/24 over three paths until H1b, which is worth recording: two of the
