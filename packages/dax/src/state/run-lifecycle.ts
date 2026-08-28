@@ -12,6 +12,7 @@ import {
 import { projectRunStateFromEvents } from "@/state/events/run-event-store"
 import type { RunState, RunStatus } from "@/state/run-state"
 import type { RunEventType } from "@/state/events/run-event-types"
+import type { ApprovalContext, ApprovalSource } from "@/approval/approval-types"
 
 /**
  * Refusal to complete a run that has not satisfied its gates. Kept from the
@@ -66,6 +67,8 @@ export class RunLifecycle {
       reason?: string
       expectedConsequence?: string
       stepId?: string | null
+      context?: ApprovalContext
+      source?: ApprovalSource
     },
   ): Promise<RunState> {
     return addApprovalEvent(runId, approvalId, details)

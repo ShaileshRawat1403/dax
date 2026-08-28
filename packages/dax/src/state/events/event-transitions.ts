@@ -10,6 +10,7 @@ import {
 import { reduceRunState, type RunState } from "./run-reducer"
 import { type RunEventType, type RunEventPayload } from "./run-event-types"
 import type { RunStatus } from "../run-state"
+import type { ApprovalContext, ApprovalSource } from "@/approval/approval-types"
 
 const log = Log.create({ service: "event-transitions" })
 
@@ -145,6 +146,8 @@ export async function addApprovalEvent(
     reason?: string
     expectedConsequence?: string
     stepId?: string | null
+    context?: ApprovalContext
+    source?: ApprovalSource
   },
 ): Promise<RunState> {
   const commandId = `cmd_approval_add_${approvalId}`
@@ -162,6 +165,8 @@ export async function addApprovalEvent(
       ...(details?.reason ? { reason: details.reason } : {}),
       ...(details?.expectedConsequence ? { expectedConsequence: details.expectedConsequence } : {}),
       ...(details?.stepId !== undefined ? { stepId: details.stepId } : {}),
+      ...(details?.context ? { context: details.context } : {}),
+      ...(details?.source ? { source: details.source } : {}),
     },
     commandId,
   )
@@ -170,8 +175,10 @@ export async function addApprovalEvent(
 export async function resolveApprovalEvent(
   runId: string,
   approvalId: string,
-  decision: "approved" | "rejected",
+  decision: "approved" | "rejected" | "expired" | "cancelled",
   actor?: string | null,
+  comment?: string,
+  resolvedAt = new Date().toISOString(),
 ): Promise<RunState> {
   const commandId = `cmd_resolve_${approvalId}_${decision}`
   return appendEventOnly(
@@ -181,7 +188,8 @@ export async function resolveApprovalEvent(
       approvalId,
       decision,
       ...(actor !== undefined ? { actor } : {}),
-      resolvedAt: new Date().toISOString(),
+      ...(comment !== undefined ? { comment } : {}),
+      resolvedAt,
     },
     commandId,
   )

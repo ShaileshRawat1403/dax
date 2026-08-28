@@ -252,19 +252,7 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
   if (planQuality.decision === "pause") {
     const note = `Plan quality gate flagged this run (${planQuality.score}/100): ${planQuality.failedChecks.join(", ")}`
     warnings.push(note)
-    if (guardMode === "enforce") {
-      await createAndPersistApproval({
-        runId: session.id,
-        type: "workflow_gate",
-        risk: "high",
-        title: "Plan quality gate paused execution",
-        reason: `Execution paused until operator review. Missing plan signals: ${planQuality.failedChecks.join(", ")}.`,
-        source: "system",
-        context: {
-          notes: planQuality.guidance,
-        },
-      })
-    } else {
+    if (guardMode !== "enforce") {
       await Bus.publish(Lifecycle.InterventionRequired, {
         runId: session.id,
         reason: `Plan quality warning (warn mode): ${planQuality.failedChecks.join(", ")}.`,
@@ -314,6 +302,20 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
       await startExecution(session.id, contract)
       finalStatus = "running"
     }
+  }
+
+  // The canonical request itself moves the run into waiting_approval. Append
+  // it only after the ordinary queued/running birth sequence is durable.
+  if (requiresPauseForPlanQuality) {
+    await createAndPersistApproval({
+      runId: session.id,
+      type: "workflow_gate",
+      risk: "high",
+      title: "Plan quality gate paused execution",
+      reason: `Execution paused until operator review. Missing plan signals: ${planQuality.failedChecks.join(", ")}.`,
+      source: "system",
+      context: { notes: planQuality.guidance },
+    })
   }
 
   const response: CreateRunResponse = {

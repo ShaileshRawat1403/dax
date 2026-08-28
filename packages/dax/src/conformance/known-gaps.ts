@@ -38,8 +38,6 @@ export const KNOWN_GAPS = {
     "A successfully settled native mutation does not produce canonical mutation_recorded evidence",
   "integrity.gateway-projection-authority":
     "The compatibility run event stream still changes production snapshot fields for event-authority runs, so it is not projection-only",
-  "integrity.native-approval-canonical":
-    "Native permission approvals persist outside the canonical run log; the canonical projection cannot reconstruct the pending approval",
   "inv1.record-classes": "Prompt, context, message, tool call, tool result, policy, delegation and compaction have no durable event representation (3 of 11 classes covered)",
   "inv3.conformance-points": "Execution paths do not emit the same conformance points (16 of 40)",
   "inv3.governance-spread": "An action's governance still depends on which execution path it entered through",

@@ -140,9 +140,25 @@ export const RunStateSchema = z.object({
       reason: z.string().nullable(),
       expectedConsequence: z.string().nullable(),
       stepId: z.string().nullable(),
-      status: z.enum(["pending", "approved", "rejected"]),
+      context: z
+        .object({
+          stepId: z.string().optional(),
+          filePath: z.string().optional(),
+          command: z.string().optional(),
+          toolName: z.string().optional(),
+          diffPreview: z.string().optional(),
+          notes: z.string().array().optional(),
+          originalPermissionId: z.string().optional(),
+        })
+        .nullable()
+        .default(null),
+      source: z.enum(["workflow", "permission", "system", "manual"]).nullable().default(null),
+      correlationId: z.string().nullable().default(null),
+      requestedAt: z.string().default(""),
+      status: z.enum(["pending", "approved", "rejected", "expired", "cancelled"]),
       decidedBy: z.string().nullable(),
       decidedAt: z.string().nullable(),
+      comment: z.string().nullable().default(null),
     })
     .array()
     .default([]),

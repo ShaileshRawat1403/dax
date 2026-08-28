@@ -62,6 +62,8 @@ async function setupGuardedSession(input: {
   const { contract } = compileWithRunId({ request }, session.id)
   await ContractGuardian.create(session.id, contract)
   await createEventAuthorityRun(session.id, contract.contractId, false, "enforce")
+  await Transitions.transition(session.id, "queued", "execution_queued")
+  await Transitions.transition(session.id, "running", "execution_started")
   // The guard's budget bookkeeping still lives on the legacy row; seed it from
   // the projection so the row exists before the guard updates it.
   await RunStore.save(session.id, (await getProjectedRunState(session.id))!)

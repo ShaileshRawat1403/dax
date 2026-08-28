@@ -13,8 +13,7 @@ import { WorkerRunWorkflow } from "@/workflows/worker-run"
 import { LifecycleReconciler } from "@/runtime/compat/lifecycle-reconciler"
 import { ApprovalStore } from "@/approval/approval-store"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
-import { ApprovalAlreadyResolvedError, ApprovalNotFoundError } from "@/approval/approval-transitions"
-import { adaptPermissionRequest } from "@/runtime/compat/permission-adapter"
+import { ApprovalAlreadyResolvedError } from "@/approval/approval-transitions"
 import { Tracer } from "@/runtime/telemetry"
 import { RunLifecycle } from "@/state/run-lifecycle"
 import { replayRunState } from "@/state/replay"
@@ -719,34 +718,6 @@ async function handleBusEvent(event: any) {
     case "message.part.updated":
       await handlePartUpdated(event.properties.part)
       break
-    case "permission.asked": {
-      try {
-        await adaptPermissionRequest(event.properties)
-      } catch (error) {
-        log.warn("failed to create canonical approval from permission", { error, runId: event.properties.sessionID })
-      }
-      break
-    }
-    case "permission.replied": {
-      const runId = event.properties.sessionID
-      try {
-        await ApprovalTransitions.resolve(runId, event.properties.requestID, {
-          decision: event.properties.reply === "reject" ? "deny" : "approve",
-          actorId: "system",
-        })
-      } catch (error) {
-        if (error instanceof ApprovalNotFoundError || error instanceof ApprovalAlreadyResolvedError) {
-          log.debug("canonical approval already absent during permission reply replay", {
-            runId,
-            approvalId: event.properties.requestID,
-            error: error.message,
-          })
-        } else {
-          log.warn("failed to resolve canonical approval", { error, runId, approvalId: event.properties.requestID })
-        }
-      }
-      break
-    }
     case "session.error": {
       if (!event.properties.sessionID) break
       const errorMessage = event.properties.error?.data?.message ?? event.properties.error?.message ?? "Session failed"
@@ -1240,7 +1211,7 @@ export namespace RunGateway {
       const originalPermissionId = canonicalApproval.context?.originalPermissionId
       if (originalPermissionId) {
         const livePermission = (await Permission.list()).find(
-          (item) => item.id === originalPermissionId && item.sessionID === runId,
+          (item) => item.id === originalPermissionId,
         )
         if (livePermission) {
           await Permission.reply({

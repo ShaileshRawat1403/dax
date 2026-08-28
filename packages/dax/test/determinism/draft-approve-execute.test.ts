@@ -11,6 +11,7 @@ import { RunStore } from "../../src/state/run-store"
 import { compile } from "../../src/execution/compiler"
 import { RunLifecycle as Transitions } from "../../src/state/run-lifecycle"
 import { DraftApproveExecuteEffects, DraftApproveExecuteWorkflow } from "../../src/workflows/draft-approve-execute"
+import { ApprovalTransitions } from "../../src/approval/approval-transitions"
 
 describe("draft_and_approve workflow halting", () => {
   const testHome = path.join(os.tmpdir(), `dax-draft-approve-${Date.now().toString(36)}`)
@@ -80,6 +81,7 @@ describe("draft_and_approve workflow halting", () => {
       const approvalId = state!.pendingApprovalIds[0]
       expect(approvalId).toBeDefined()
 
+      await ApprovalTransitions.approve(session.id, approvalId, "test-operator")
       const resumeResult = await workflow.resumeAfterApproval(approvalId, "approved")
       expect(resumeResult.success).toBe(true)
       expect(resumeResult.stepResults).toHaveLength(1) // commit_execution

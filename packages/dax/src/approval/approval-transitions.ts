@@ -1,10 +1,12 @@
 import { Log } from "@/util/log"
 import { Tracer } from "@/runtime/telemetry"
-import type { Approval, ApprovalStatus, ApprovalType, ApprovalContext } from "./approval-types"
+import { ApprovalContextSchema, type Approval, type ApprovalStatus, type ApprovalType, type ApprovalContext } from "./approval-types"
 import { ApprovalStore } from "./approval-store"
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
 import { toApprovalRecordV1 } from "./approval-adapter"
+import { getRunAuthority, hasRunEvents, projectRunStateFromEvents } from "@/state/events/run-event-store"
+import { addApprovalEvent, resolveApprovalEvent } from "@/state/events/event-transitions"
 
 type CreateApprovalParams = {
   runId: string
@@ -19,6 +21,16 @@ type CreateApprovalParams = {
 }
 
 const log = Log.create({ service: "approval-transitions" })
+
+async function usesCanonicalApprovalAuthority(runId: string): Promise<boolean> {
+  const authority = await getRunAuthority(runId)
+  if (authority === "event-log") return true
+  if (authority === "legacy") return false
+  if (await hasRunEvents(runId)) {
+    throw new Error(`Run ${runId} has canonical events without a run authority marker`)
+  }
+  return false
+}
 
 export class ApprovalAlreadyResolvedError extends Error {
   constructor(
@@ -64,13 +76,6 @@ async function generateDeterministicApprovalId(params: CreateApprovalParams): Pr
 export async function createAndPersistApproval(params: CreateApprovalParams): Promise<Approval> {
   const approvalId = await generateDeterministicApprovalId(params)
 
-  // Return existing approval unchanged to avoid duplicate events (idempotent create)
-  const existing = await ApprovalStore.get(params.runId, approvalId)
-  if (existing) {
-    log.debug("approval already exists, skipping creation", { runId: params.runId, approvalId })
-    return existing
-  }
-
   const approval: Approval = {
     approvalId,
     runId: params.runId,
@@ -87,6 +92,46 @@ export async function createAndPersistApproval(params: CreateApprovalParams): Pr
     actor: null,
     source: params.source ?? "workflow",
     resolution: null,
+  }
+
+  if (await usesCanonicalApprovalAuthority(params.runId)) {
+    const state = await addApprovalEvent(params.runId, approvalId, {
+      approvalType: params.type,
+      risk: params.risk,
+      title: params.title,
+      reason: params.reason,
+      expectedConsequence: params.expectedConsequence,
+      stepId: params.stepId,
+      context: params.context,
+      source: approval.source,
+    })
+    const recorded = state.approvals.find((candidate) => candidate.approvalId === approvalId)
+    const expectedContext = params.context ? ApprovalContextSchema.strict().parse(params.context) : null
+    const mismatchedFields = !recorded
+      ? ["approval"]
+      : [
+          recorded.approvalType !== params.type ? "type" : null,
+          recorded.risk !== params.risk ? "risk" : null,
+          recorded.title !== params.title ? "title" : null,
+          recorded.reason !== params.reason ? "reason" : null,
+          recorded.expectedConsequence !== (params.expectedConsequence ?? null) ? "expectedConsequence" : null,
+          recorded.stepId !== (params.stepId ?? null) ? "stepId" : null,
+          recorded.source !== approval.source ? "source" : null,
+          !approvalContextsEqual(recorded.context, expectedContext) ? "context" : null,
+        ].filter((field): field is string => field !== null)
+    if (mismatchedFields.length > 0) {
+      throw new Error(
+        `Canonical approval request ${approvalId} does not match the requested authority fact: ${mismatchedFields.join(", ")}`,
+      )
+    }
+  }
+
+  // The canonical request is admitted first. The compatibility store may be
+  // repaired by retry; it must never be the only durable authority record.
+  const existing = await ApprovalStore.get(params.runId, approvalId)
+  if (existing) {
+    log.debug("approval already exists, skipping compatibility creation", { runId: params.runId, approvalId })
+    return existing
   }
 
   await ApprovalStore.add(params.runId, approval)
@@ -122,13 +167,20 @@ export async function approveApproval(
   comment?: string,
 ): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
+  const canonical = await usesCanonicalApprovalAuthority(runId)
+  const state = canonical ? await projectRunStateFromEvents(runId) : null
+  const canonicalApproval = state?.approvals.find((candidate) => candidate.approvalId === approvalId)
+  if (!approval && !canonicalApproval) throw new ApprovalNotFoundError(approvalId)
+  if (approval && !isPending(approval.status)) throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
 
-  if (!approval) {
-    throw new ApprovalNotFoundError(approvalId)
+  const resolvedAt = new Date().toISOString()
+  if (canonical) {
+    const resolvedState = await resolveApprovalEvent(runId, approvalId, "approved", actorId ?? null, comment, resolvedAt)
+    assertCanonicalResolution(resolvedState, approvalId, "approved", actorId ?? null, comment)
   }
 
-  if (!isPending(approval.status)) {
-    throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
+  if (!approval && canonicalApproval) {
+    await ApprovalStore.add(runId, approvalFromCanonical(runId, canonicalApproval))
   }
 
   const resolved = await ApprovalStore.resolve(runId, approvalId, {
@@ -162,13 +214,20 @@ export async function denyApproval(
   comment?: string,
 ): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
+  const canonical = await usesCanonicalApprovalAuthority(runId)
+  const state = canonical ? await projectRunStateFromEvents(runId) : null
+  const canonicalApproval = state?.approvals.find((candidate) => candidate.approvalId === approvalId)
+  if (!approval && !canonicalApproval) throw new ApprovalNotFoundError(approvalId)
+  if (approval && !isPending(approval.status)) throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
 
-  if (!approval) {
-    throw new ApprovalNotFoundError(approvalId)
+  const resolvedAt = new Date().toISOString()
+  if (canonical) {
+    const resolvedState = await resolveApprovalEvent(runId, approvalId, "rejected", actorId ?? null, comment, resolvedAt)
+    assertCanonicalResolution(resolvedState, approvalId, "rejected", actorId ?? null, comment)
   }
 
-  if (!isPending(approval.status)) {
-    throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
+  if (!approval && canonicalApproval) {
+    await ApprovalStore.add(runId, approvalFromCanonical(runId, canonicalApproval))
   }
 
   const resolved = await ApprovalStore.resolve(runId, approvalId, {
@@ -197,19 +256,23 @@ export async function denyApproval(
 
 export async function expireApproval(runId: string, approvalId: string): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
+  const canonical = await usesCanonicalApprovalAuthority(runId)
+  const state = canonical ? await projectRunStateFromEvents(runId) : null
+  const canonicalApproval = state?.approvals.find((candidate) => candidate.approvalId === approvalId)
+  if (!approval && !canonicalApproval) throw new ApprovalNotFoundError(approvalId)
+  if (approval && !isPending(approval.status)) throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
 
-  if (!approval) {
-    throw new ApprovalNotFoundError(approvalId)
+  const resolvedAt = new Date().toISOString()
+  if (canonical) {
+    const resolvedState = await resolveApprovalEvent(runId, approvalId, "expired", null, undefined, resolvedAt)
+    assertCanonicalResolution(resolvedState, approvalId, "expired", null, undefined)
   }
-
-  if (!isPending(approval.status)) {
-    throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
-  }
+  if (!approval && canonicalApproval) await ApprovalStore.add(runId, approvalFromCanonical(runId, canonicalApproval))
 
   const updated = await ApprovalStore.update(runId, approvalId, (a: Approval) => ({
     ...a,
     status: "expired" as ApprovalStatus,
-    resolvedAt: new Date().toISOString(),
+    resolvedAt,
     actor: null,
     resolution: null,
   }))
@@ -225,19 +288,23 @@ export async function expireApproval(runId: string, approvalId: string): Promise
 
 export async function cancelApproval(runId: string, approvalId: string): Promise<Approval> {
   const approval = await ApprovalStore.get(runId, approvalId)
+  const canonical = await usesCanonicalApprovalAuthority(runId)
+  const state = canonical ? await projectRunStateFromEvents(runId) : null
+  const canonicalApproval = state?.approvals.find((candidate) => candidate.approvalId === approvalId)
+  if (!approval && !canonicalApproval) throw new ApprovalNotFoundError(approvalId)
+  if (approval && !isPending(approval.status)) throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
 
-  if (!approval) {
-    throw new ApprovalNotFoundError(approvalId)
+  const resolvedAt = new Date().toISOString()
+  if (canonical) {
+    const resolvedState = await resolveApprovalEvent(runId, approvalId, "cancelled", null, undefined, resolvedAt)
+    assertCanonicalResolution(resolvedState, approvalId, "cancelled", null, undefined)
   }
-
-  if (!isPending(approval.status)) {
-    throw new ApprovalAlreadyResolvedError(approvalId, approval.status)
-  }
+  if (!approval && canonicalApproval) await ApprovalStore.add(runId, approvalFromCanonical(runId, canonicalApproval))
 
   const updated = await ApprovalStore.update(runId, approvalId, (a: Approval) => ({
     ...a,
     status: "cancelled" as ApprovalStatus,
-    resolvedAt: new Date().toISOString(),
+    resolvedAt,
     actor: null,
     resolution: null,
   }))
@@ -267,6 +334,60 @@ export async function attachToRun(runId: string, approval: Approval): Promise<vo
 
 function isPending(status: ApprovalStatus): boolean {
   return status === "pending"
+}
+
+function approvalContextsEqual(left: ApprovalContext | null, right: ApprovalContext | null): boolean {
+  if (left === null || right === null) return left === right
+  return (
+    left.stepId === right.stepId &&
+    left.filePath === right.filePath &&
+    left.command === right.command &&
+    left.toolName === right.toolName &&
+    left.diffPreview === right.diffPreview &&
+    left.originalPermissionId === right.originalPermissionId &&
+    JSON.stringify(left.notes ?? []) === JSON.stringify(right.notes ?? [])
+  )
+}
+
+function assertCanonicalResolution(
+  state: Awaited<ReturnType<typeof resolveApprovalEvent>>,
+  approvalId: string,
+  decision: "approved" | "rejected" | "expired" | "cancelled",
+  actor: string | null,
+  comment: string | undefined,
+): void {
+  const recorded = state.approvals.find((candidate) => candidate.approvalId === approvalId)
+  if (
+    !recorded ||
+    recorded.status !== decision ||
+    recorded.decidedBy !== actor ||
+    recorded.comment !== (comment ?? null)
+  ) {
+    throw new Error(`Canonical approval resolution ${approvalId} does not match the requested authority fact`)
+  }
+}
+
+function approvalFromCanonical(
+  runId: string,
+  approval: NonNullable<Awaited<ReturnType<typeof projectRunStateFromEvents>>>["approvals"][number],
+): Approval {
+  return {
+    approvalId: approval.approvalId,
+    runId,
+    stepId: approval.stepId,
+    type: approval.approvalType as ApprovalType,
+    risk: approval.risk as Approval["risk"],
+    title: approval.title ?? "Approval required",
+    reason: approval.reason ?? "Canonical approval request",
+    context: approval.context ?? undefined,
+    expectedConsequence: approval.expectedConsequence ?? undefined,
+    status: "pending",
+    requestedAt: approval.requestedAt,
+    resolvedAt: null,
+    actor: null,
+    source: approval.source ?? "workflow",
+    resolution: null,
+  }
 }
 
 export namespace ApprovalTransitions {

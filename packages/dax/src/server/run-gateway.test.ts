@@ -883,14 +883,13 @@ describe("run gateway v1 contract", () => {
     }
   }, 40000)
 
-  test("waits for approval events to persist before Bus.publish resolves", async () => {
+  test("Permission.ask persists approval authority before the request becomes pending", async () => {
     const testHome = path.join(os.tmpdir(), `dax-run-publish-await-${Date.now().toString(36)}`)
     const previousHome = process.env.DAX_TEST_HOME
     process.env.DAX_TEST_HOME = testHome
 
     try {
       const { bootstrap } = await import("@/cli/bootstrap")
-      const { Bus } = await import("@/bus")
       const { RunGateway } = await import("./run-gateway")
       const { Permission } = await import("@/governance")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
@@ -906,9 +905,8 @@ describe("run gateway v1 contract", () => {
           },
         })
 
-        await Bus.publish(Permission.Event.Asked, {
+        const waiting = Permission.ask({
           id: "per_publish_wait",
-          createdAt: Date.now(),
           sessionID: create.runId,
           permission: "shell",
           patterns: ["pwd"],
@@ -918,7 +916,12 @@ describe("run gateway v1 contract", () => {
             messageID: "msg_publish_wait",
             callID: "tool_publish_wait",
           },
+          ruleset: Permission.fromConfig({ shell: "ask" } as never),
         })
+
+        for (let attempt = 0; attempt < 100 && (await Permission.list()).length === 0; attempt++) {
+          await Bun.sleep(10)
+        }
 
         const events = await RunGateway.replayEvents(create.runId)
         const approvals = await RunGateway.getApprovals(create.runId)
@@ -926,6 +929,9 @@ describe("run gateway v1 contract", () => {
         expect(events.some((event) => event.type === "approval.requested")).toBe(true)
         expect(approvals.length).toBeGreaterThanOrEqual(1)
         expect(approvals[0]?.type).toBe("command_execute")
+
+        await Permission.reply({ requestID: "per_publish_wait", reply: "once" })
+        await waiting
       })
     } finally {
       if (previousHome === undefined) delete process.env.DAX_TEST_HOME

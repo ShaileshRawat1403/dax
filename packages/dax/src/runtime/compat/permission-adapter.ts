@@ -51,12 +51,16 @@ function buildReason(patterns: string[]): string {
  * @param stepId - Optional step ID
  * @returns Created approval
  */
-export async function adaptPermissionRequest(request: PermissionRequest, stepId?: string): Promise<Approval> {
+export async function adaptPermissionRequest(
+  request: PermissionRequest,
+  stepId?: string,
+  governingRunId = request.sessionID,
+): Promise<Approval> {
   const type = inferApprovalType(request.permission)
   const risk = inferRiskLevel(request.permission, type)
 
   const approval = await ApprovalTransitions.create({
-    runId: request.sessionID,
+    runId: governingRunId,
     stepId: stepId ?? request.tool?.callID,
     type,
     risk,
@@ -77,7 +81,7 @@ export async function adaptPermissionRequest(request: PermissionRequest, stepId?
   log.info("adapted permission to approval", {
     permissionId: request.id,
     approvalId: approval.approvalId,
-    runId: request.sessionID,
+    runId: governingRunId,
     type,
     risk,
   })
@@ -112,8 +116,8 @@ export async function resolveFromPermissionReply(
 }
 
 export namespace PermissionAdapter {
-  export async function adapt(request: PermissionRequest, stepId?: string): Promise<Approval> {
-    return adaptPermissionRequest(request, stepId)
+  export async function adapt(request: PermissionRequest, stepId?: string, governingRunId?: string): Promise<Approval> {
+    return adaptPermissionRequest(request, stepId, governingRunId)
   }
 
   export async function resolve(

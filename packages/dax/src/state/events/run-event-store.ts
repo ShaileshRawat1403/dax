@@ -107,6 +107,14 @@ async function appendRunEventUnderLock(input: {
   // a malformed in-process event from becoming durable evidence that a later
   // projection would have to reject.
   const validatedNewEvent = parseRunEventLog(runId, [newEvent])[0]
+
+  // Approval authority must not become contradictory durable history. Validate
+  // its reducer semantics while the run lock is held, before persistence. The
+  // wider event vocabulary keeps its existing admission behavior in this
+  // bounded approval slice.
+  if (event.type === "approval_requested" || event.type === "approval_resolved") {
+    reduceRunState([...existingEvents, validatedNewEvent])
+  }
   existingEvents.push(validatedNewEvent)
 
   await Storage.write(tempPath, existingEvents)

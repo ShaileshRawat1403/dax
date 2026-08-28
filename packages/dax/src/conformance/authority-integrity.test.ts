@@ -241,7 +241,6 @@ describe("P0 authority integrity", () => {
       directory: repoRoot,
       async fn() {
         const { session } = await createRunningEventAuthorityRun("Native approval replay")
-        await RunGateway.initialize()
 
         const approval = await ApprovalTransitions.create({
           runId: session.id,
@@ -255,9 +254,13 @@ describe("P0 authority integrity", () => {
         const events = await readRunEvents(session.id)
         const state = await getEventAuthorityState(session.id)
 
-        expectGap("integrity.native-approval-canonical", () => {
-          expect(events.some((event) => event.type === "approval_requested")).toBe(true)
-          expect(state?.pendingApprovalIds).toContain(approval.approvalId)
+        expect(events.some((event) => event.type === "approval_requested")).toBe(true)
+        expect(state?.pendingApprovalIds).toContain(approval.approvalId)
+        expect(state?.approvals.find((item) => item.approvalId === approval.approvalId)).toMatchObject({
+          title: "Approve native tool",
+          reason: "The native permission path requires operator approval.",
+          source: "permission",
+          status: "pending",
         })
       },
     })

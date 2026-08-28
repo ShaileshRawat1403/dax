@@ -9,6 +9,7 @@ import { RunStore } from "../../src/state/run-store"
 import { ApprovalStore } from "../../src/approval/approval-store"
 import { ContractGuardian } from "../../src/execution/contract-guardian"
 import { compileWithRunId } from "../../src/execution/compiler"
+import { ApprovalTransitions } from "../../src/approval/approval-transitions"
 
 async function setupE2ESession(mode: string, prompt: string) {
   const session = await Session.create({ title: "Headless E2E Dummy Run" })
@@ -172,6 +173,9 @@ describe("Headless E2E Dummy Run", () => {
         
         const approvals = await ApprovalStore.getApprovals(session.id)
         expect(approvals.some(a => a.type === "workflow_gate")).toBe(true)
+        const completionApproval = approvals.find((approval) => approval.type === "workflow_gate" && approval.status === "pending")
+        expect(completionApproval).toBeDefined()
+        await ApprovalTransitions.approve(session.id, completionApproval!.approvalId, "test-operator")
 
         // 5. Record Verification Evidence
         await enforceRuntimeGuard({
@@ -225,7 +229,7 @@ describe("Headless E2E Dummy Run", () => {
         // Stay blocked
         await expect(Transitions.transition(session.id, "completed", "run_completed")).rejects.toThrow()
         const state = await getProjectedRunState(session.id)
-        expect(state?.status).toBe("running") // Still running because transition failed
+        expect(state?.status).toBe("waiting_approval")
       }
     })
   })

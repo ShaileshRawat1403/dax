@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { CheckResult } from "@/sdlc/check-types"
 import { EvidenceReceipt } from "@/sdlc/evidence-receipt"
+import { ApprovalContextSchema, ApprovalSourceSchema } from "@/approval/approval-types"
 
 const closed = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape).strict()
 
@@ -178,20 +179,22 @@ const RunEventVariants = [
   z.object({
     type: z.literal("approval_requested"),
     payload: closed({
-      approvalId: z.string(),
-      approvalType: z.string(),
-      risk: z.string(),
+      approvalId: z.string().min(1),
+      approvalType: z.string().min(1),
+      risk: z.string().min(1),
       title: z.string().optional(),
       reason: z.string().optional(),
       expectedConsequence: z.string().optional(),
       stepId: z.string().nullable().optional(),
+      context: ApprovalContextSchema.strict().optional(),
+      source: ApprovalSourceSchema.optional(),
     }),
   }),
   z.object({
     type: z.literal("approval_resolved"),
     payload: closed({
-      approvalId: z.string(),
-      decision: z.enum(["approved", "rejected"]),
+      approvalId: z.string().min(1),
+      decision: z.enum(["approved", "rejected", "expired", "cancelled"]),
       actor: z.string().nullable().optional(),
       comment: z.string().optional(),
       resolvedAt: z.string().optional(),

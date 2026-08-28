@@ -82,6 +82,7 @@ export namespace Permission {
       string,
       {
         info: Request
+        governingRunId?: string
         resolve: () => void
         reject: (e: any) => void
       }
@@ -202,22 +203,46 @@ export namespace Permission {
           )
         if (action === "ask") {
           const id = input.id ?? Identifier.ascending("permission")
-          return new Promise<void>((resolve, reject) => {
-            const description = classificationDescription(classification)
-            const info: Request = {
-              id,
-              createdAt: input.createdAt ?? Date.now(),
-              ...request,
-              metadata: description
-                ? {
-                    ...request.metadata,
-                    description: request.metadata.description ?? description,
-                    rustPolicy: classification,
-                  }
-                : request.metadata,
+          const description = classificationDescription(classification)
+          const info: Request = {
+            id,
+            createdAt: input.createdAt ?? Date.now(),
+            ...request,
+            metadata: description
+              ? {
+                  ...request.metadata,
+                  description: request.metadata.description ?? description,
+                  rustPolicy: classification,
+                }
+              : request.metadata,
+          }
+          let governingRunId: string | undefined
+
+          // A governed permission request becomes canonical before it can
+          // enter the live pending set. Gateway initialization is not an
+          // authority boundary, and a child session must write under the
+          // governing run rather than under its conversational session ID.
+          const { Session } = await import("@/session")
+          const { resolveExecutionAuthority } = await import("@/execution/contract-guardian")
+          try {
+            const session = await Session.get(info.sessionID)
+            const authority = await resolveExecutionAuthority(session.id, session.governingRunId)
+            if (authority.governingRunId) {
+              governingRunId = authority.governingRunId
+              const { adaptPermissionRequest } = await import("@/runtime/compat/permission-adapter")
+              await adaptPermissionRequest(info, info.tool?.callID, authority.governingRunId)
             }
+          } catch (error) {
+            // Some legacy/integration callers use Permission without a
+            // persisted Session. That is genuinely ungoverned compatibility;
+            // any other session or authority read failure remains fatal.
+            if (!Storage.NotFoundError.isInstance(error)) throw error
+          }
+
+          return new Promise<void>((resolve, reject) => {
             s.pending[id] = {
               info,
+              governingRunId,
               resolve,
               reject,
             }
@@ -243,6 +268,7 @@ export namespace Permission {
     requestID: string,
     reply: z.infer<typeof Reply>,
     message: string | undefined,
+    authorityRunId?: string | null,
   ) {
     const { ApprovalStore } = await import("@/approval/approval-store")
     const { ApprovalTransitions, ApprovalAlreadyResolvedError } = await import(
@@ -254,14 +280,19 @@ export namespace Permission {
     // approvals storage prefix to find the run that owns this id.
     // Approvals live at ["approvals", projectId, runId], one file per run.
     const projectId = Instance.project.id
-    const paths = await Storage.list(["approvals", projectId])
+    if (authorityRunId === null) return
+    const paths = authorityRunId
+      ? [["approvals", projectId, authorityRunId]]
+      : await Storage.list(["approvals", projectId])
     let approval: Awaited<ReturnType<typeof ApprovalStore.get>> | null = null
     const seenRuns = new Set<string>()
     for (const segments of paths) {
       const runId = segments[2]
       if (!runId || seenRuns.has(runId)) continue
       seenRuns.add(runId)
-      const candidate = await ApprovalStore.get(runId, requestID).catch(() => null)
+      const candidate = (await ApprovalStore.getApprovals(runId)).find(
+        (item) => item.approvalId === requestID || item.context?.originalPermissionId === requestID,
+      )
       if (candidate) {
         approval = candidate
         break
@@ -309,6 +340,9 @@ export namespace Permission {
         await resolveCanonicalApproval(input.requestID, input.reply, input.message)
         return
       }
+      // The authority decision must be durable before the callback that lets
+      // execution continue (or rejects it) is released.
+      await resolveCanonicalApproval(input.requestID, input.reply, input.message, existing.governingRunId ?? null)
       delete s.pending[input.requestID]
       Bus.publish(Event.Replied, {
         sessionID: existing.info.sessionID,
@@ -333,6 +367,7 @@ export namespace Permission {
         const sessionID = existing.info.sessionID
         for (const [id, pending] of Object.entries(s.pending)) {
           if (pending.info.sessionID === sessionID) {
+            await resolveCanonicalApproval(id, "reject", input.message, pending.governingRunId ?? null)
             delete s.pending[id]
             Bus.publish(Event.Replied, {
               sessionID: pending.info.sessionID,
@@ -372,6 +407,7 @@ export namespace Permission {
             (pattern) => evaluate(pending.info.permission, pattern, s.approved).action === "allow",
           )
           if (!ok) continue
+          await resolveCanonicalApproval(id, "always", input.message, pending.governingRunId ?? null)
           delete s.pending[id]
           Bus.publish(Event.Replied, {
             sessionID: pending.info.sessionID,

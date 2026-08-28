@@ -164,11 +164,23 @@ export type ApprovalRecord = {
   reason: string | null
   expectedConsequence: string | null
   stepId: string | null
+  context: {
+    stepId?: string
+    filePath?: string
+    command?: string
+    toolName?: string
+    diffPreview?: string
+    notes?: string[]
+    originalPermissionId?: string
+  } | null
+  source: "workflow" | "permission" | "system" | "manual" | null
   /** Canonical invocation correlation, absent for workflow/legacy approvals. */
   correlationId: string | null
-  status: "pending" | "approved" | "rejected"
+  requestedAt: string
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled"
   decidedBy: string | null
   decidedAt: string | null
+  comment: string | null
 }
 
 export type StepRecord = {
@@ -444,7 +456,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (
           payload.finalDisposition === "denied" &&
           !hasDirectDenial &&
-          !approvalRecords.some((approval) => approval.status === "rejected")
+          !approvalRecords.some((approval) => approval.status !== "approved")
         ) {
           throw new Error(`Denied authorization has no rejected authority source: ${payload.invocationId}`)
         }
@@ -483,58 +495,61 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       }
 
       case "approval_requested": {
-        if (!isTerminalStatus(state.status)) {
-          if (state.status !== "waiting_approval" && !isLegalTransition(state.status, "waiting_approval")) {
-            throw new Error(`Illegal transition from ${state.status} to waiting_approval`)
-          }
-          if (state.status !== "waiting_approval") {
-            state.status = "waiting_approval"
-          }
-          const payload = event.payload as {
-            approvalId: string
-            approvalType?: string
-            risk?: string
-            title?: string
-            reason?: string
-            expectedConsequence?: string
-            stepId?: string | null
-          }
-          if (!state.pendingApprovalIds.includes(payload.approvalId)) {
-            state.pendingApprovalIds.push(payload.approvalId)
-            state.governance.budget.approvalsRequested += 1
-            state.approvals.push({
-              approvalId: payload.approvalId,
-              approvalType: payload.approvalType ?? "tool",
-              risk: payload.risk ?? "medium",
-              title: payload.title ?? null,
-              reason: payload.reason ?? null,
-              expectedConsequence: payload.expectedConsequence ?? null,
-              stepId: payload.stepId ?? null,
-              correlationId: event.correlationId ?? null,
-              status: "pending",
-              decidedBy: null,
-              decidedAt: null,
-            })
-          }
+        if (isTerminalStatus(state.status)) {
+          throw new Error(`Cannot request approval for terminal run ${state.runId}`)
         }
+        if (state.status !== "waiting_approval" && !isLegalTransition(state.status, "waiting_approval")) {
+          throw new Error(`Illegal transition from ${state.status} to waiting_approval`)
+        }
+        if (state.status !== "waiting_approval") {
+          state.status = "waiting_approval"
+        }
+        const payload = event.payload as Extract<RunEventPayload, { type: "approval_requested" }>["payload"]
+        if (state.approvals.some((approval) => approval.approvalId === payload.approvalId)) {
+          throw new Error(`Approval already requested: ${payload.approvalId}`)
+        }
+        state.pendingApprovalIds.push(payload.approvalId)
+        state.governance.budget.approvalsRequested += 1
+        state.approvals.push({
+          approvalId: payload.approvalId,
+          approvalType: payload.approvalType,
+          risk: payload.risk,
+          title: payload.title ?? null,
+          reason: payload.reason ?? null,
+          expectedConsequence: payload.expectedConsequence ?? null,
+          stepId: payload.stepId ?? null,
+          context: payload.context ?? null,
+          source: payload.source ?? null,
+          correlationId: event.correlationId ?? null,
+          requestedAt: event.occurredAt,
+          status: "pending",
+          decidedBy: null,
+          decidedAt: null,
+          comment: null,
+        })
         break
       }
 
       case "approval_resolved": {
         const payload = event.payload as {
           approvalId: string
-          decision: "approved" | "rejected"
+          decision: "approved" | "rejected" | "expired" | "cancelled"
           actor?: string | null
+          comment?: string
           resolvedAt?: string
         }
-        state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== payload.approvalId)
-
         const record = state.approvals.find((approval) => approval.approvalId === payload.approvalId)
-        if (record) {
-          record.status = payload.decision
-          record.decidedBy = payload.actor ?? null
-          record.decidedAt = payload.resolvedAt ?? event.occurredAt
+        if (!record) {
+          throw new Error(`Approval resolution references unknown approval: ${payload.approvalId}`)
         }
+        if (record.status !== "pending") {
+          throw new Error(`Approval already resolved: ${payload.approvalId}`)
+        }
+        state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== payload.approvalId)
+        record.status = payload.decision
+        record.decidedBy = payload.actor ?? null
+        record.decidedAt = payload.resolvedAt ?? event.occurredAt
+        record.comment = payload.comment ?? null
 
         if (state.pendingApprovalIds.length === 0) {
           if (!isLegalTransition(state.status, "running")) {
