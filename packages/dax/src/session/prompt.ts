@@ -81,6 +81,7 @@ import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { acquireRunLock } from "@/util/fs-lock"
 import { RunStore } from "@/state/run-store"
+import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -548,6 +549,15 @@ export namespace SessionPrompt {
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
         lastUser.id < lastAssistant.id
       ) {
+        if (lastAssistant.finish === "stop") {
+          const completion = await adjudicateNativeCompletionCandidate({
+            sessionID,
+            assistantMessageID: lastAssistant.id,
+            finishReason: lastAssistant.finish,
+            hasError: Boolean(lastAssistant.error),
+          })
+          log.info("native completion candidate adjudicated", completion)
+        }
         log.info("exiting loop", { sessionID })
         break
       }
@@ -960,6 +970,16 @@ export namespace SessionPrompt {
         tools,
         model,
       })
+      if (processor.message.finish === "stop") {
+        const completion = await adjudicateNativeCompletionCandidate({
+          sessionID,
+          assistantMessageID: processor.message.id,
+          finishReason: processor.message.finish,
+          hasError: Boolean(processor.message.error),
+        })
+        log.info("native completion candidate adjudicated", completion)
+        break
+      }
       if (result === "stop") break
       if (result === "compact") {
         await SessionCompaction.create({

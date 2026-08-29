@@ -319,6 +319,70 @@ describe("P0 authority integrity", () => {
     })
   })
 
+  test("a native provider stop is adjudicated into canonical completion with proof", async () => {
+    const testProject = path.join(testHome, "native-completion-project")
+    await fs.mkdir(testProject, { recursive: true })
+    await fs.mkdir(path.join(testHome, ".config", "dax"), { recursive: true })
+
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const session = await Session.create({ title: "Native canonical completion" })
+        const originalGetModel = Provider.getModel
+        const getModel = spyOn(Provider, "getModel").mockImplementation(async (providerID, modelID) => {
+          if (providerID === "openai" && modelID === "gpt-4o") return settlementModel
+          return originalGetModel(providerID, modelID)
+        })
+        const summarySpy = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
+        const stream = spyOn(LLM, "stream").mockResolvedValue({
+          fullStream: (async function* () {
+            yield { type: "start" }
+            yield { type: "text-start" }
+            yield { type: "text-delta", text: "The governed execution summary is complete." }
+            yield { type: "text-end" }
+            yield {
+              type: "finish-step",
+              finishReason: "stop",
+              usage: { inputTokens: 1, outputTokens: 1 },
+              providerMetadata: {},
+            }
+            yield { type: "finish" }
+          })(),
+        } as unknown as Awaited<ReturnType<typeof LLM.stream>>)
+
+        try {
+          await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Prepare this governed run." }],
+            noReply: true,
+          })
+          await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Return a concise execution summary." }],
+          })
+
+          const events = await readRunEvents(session.id)
+          const completed = events.find((event) => event.type === "run_completed")
+          expect(completed?.payload).toMatchObject({
+            completionProof: {
+              decision: "pass",
+              failedChecks: [],
+              expectedOutputTypesSatisfied: ["summary"],
+            },
+          })
+          expect((await getEventAuthorityState(session.id))?.status).toBe("completed")
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        } finally {
+          summarySpy.mockRestore()
+          getModel.mockRestore()
+          stream.mockRestore()
+        }
+      },
+    })
+  })
+
   test("a settled native mutation reaches canonical invocation, authorization, and result events", async () => {
     const testProject = path.join(testHome, "project")
     await fs.mkdir(testProject, { recursive: true })
@@ -441,9 +505,9 @@ describe("P0 authority integrity", () => {
               changedPaths: [".dax/lab/notes.txt"],
             },
           })
-          expectGap("integrity.native-terminal-canonical", () => {
-            expect(eventTypes.some((type) => type === "run_completed" || type === "workflow_completed")).toBe(true)
-          })
+          // A provider/session error is not a completion candidate, even after a
+          // successfully settled mutation.
+          expect(eventTypes.some((type) => type === "run_completed" || type === "workflow_completed")).toBe(false)
           expect((await getEventAuthorityState(session.id))?.status).toBe("running")
 
           // SessionPrompt fires session.compaction pruning without awaiting

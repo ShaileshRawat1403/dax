@@ -9,10 +9,11 @@ import {
   addDraftEvent,
   transitionEventAuthority,
 } from "@/state/events/event-transitions"
-import { projectRunStateFromEvents } from "@/state/events/run-event-store"
+import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import type { RunState, RunStatus } from "@/state/run-state"
 import type { RunEventType } from "@/state/events/run-event-types"
 import type { ApprovalContext, ApprovalSource } from "@/approval/approval-types"
+import type { CompletionProofSummary } from "@/execution/completion-proof"
 
 /**
  * Refusal to complete a run that has not satisfied its gates. Kept from the
@@ -20,7 +21,10 @@ import type { ApprovalContext, ApprovalSource } from "@/approval/approval-types"
  * callers still discriminate on the name.
  */
 export class RunCompletionBlockedError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly failedChecks: string[] = [],
+  ) {
     super(message)
     this.name = "RunCompletionBlockedError"
   }
@@ -92,9 +96,10 @@ export class RunLifecycle {
     newStatus: RunStatus,
     eventType: RunEventType,
     payload: unknown = {},
+    options?: { requirePassingCompletionProof?: boolean },
   ): Promise<RunState> {
     if (newStatus === "completed") {
-      const proof = await RunLifecycle.assertCompletionProof(runId)
+      const proof = await RunLifecycle.assertCompletionProof(runId, options)
       if (proof && typeof payload === "object" && payload !== null) {
         payload = { ...(payload as Record<string, unknown>), completionProof: proof }
       }
@@ -115,34 +120,64 @@ export class RunLifecycle {
    * enforced it. Losing it in the migration would have removed a governance gate
    * while every test still passed.
    */
-  private static async assertCompletionProof(runId: string): Promise<unknown | null> {
+  private static async assertCompletionProof(
+    runId: string,
+    options?: { requirePassingCompletionProof?: boolean },
+  ): Promise<CompletionProofSummary | null> {
     const { ContractGuardian } = await import("@/execution/contract-guardian")
-    const contract = await ContractGuardian.get(runId).catch(() => null)
-    if (!contract) return null
+    const requirePassingProof = options?.requirePassingCompletionProof === true
+    const contract = await ContractGuardian.get(runId)
+    if (!contract) {
+      if (!requirePassingProof) return null
+      throw new RunCompletionBlockedError(
+        `Run ${runId} cannot complete without a governing ExecutionContract.`,
+        ["missing_execution_contract"],
+      )
+    }
 
     const state = await projectRunStateFromEvents(runId)
-    if (!state) return null
+    if (!state) {
+      if (!requirePassingProof) return null
+      throw new RunCompletionBlockedError(`Run ${runId} cannot complete without canonical run state.`, [
+        "missing_canonical_state",
+      ])
+    }
 
     const { deriveCompletionProof } = await import("@/execution/completion-proof")
     const { resolveGuardEnforcementMode } = await import("@/execution/guard-mode")
-    const proof = deriveCompletionProof({ contract, runState: state })
+    const events = await readRunEvents(runId)
+    const observedArtifacts = events.flatMap((event) => {
+      if (event.type !== "artifact_created") return []
+      const payload = event.payload as { artifactType?: string }
+      return payload.artifactType ? [{ kind: payload.artifactType }] : []
+    })
+    const proof = deriveCompletionProof({ contract, runState: state, observedArtifacts })
     const guardMode = resolveGuardEnforcementMode(state.governance.guardEnforcementMode)
 
-    if (proof.decision !== "fail" || guardMode !== "enforce") return { ...proof, checkedAt: new Date().toISOString() }
+    const mustPass = requirePassingProof || guardMode === "enforce"
+    if (proof.decision !== "fail" || !mustPass) return proof
 
     const { createAndPersistApproval } = await import("@/approval/approval-transitions")
-    await createAndPersistApproval({
-      runId,
-      type: "workflow_gate",
-      risk: "high",
-      title: "Completion proof missing evidence",
-      reason: `DAX blocked completion because required proof is missing or failed: ${proof.failedChecks.join(", ")}.`,
-      source: "system",
-      context: { notes: proof.failedChecks },
-    })
+    const title = "Completion proof missing evidence"
+    const reason = `DAX blocked completion because required proof is missing or failed: ${proof.failedChecks.join(", ")}.`
+    const requirementAlreadyRecorded = state.approvals.some(
+      (approval) => approval.source === "system" && approval.title === title && approval.reason === reason,
+    )
+    if (!requirementAlreadyRecorded) {
+      await createAndPersistApproval({
+        runId,
+        type: "workflow_gate",
+        risk: "high",
+        title,
+        reason,
+        source: "system",
+        context: { notes: proof.failedChecks },
+      })
+    }
 
     throw new RunCompletionBlockedError(
       `Run ${runId} cannot complete without passing completion proof: ${proof.failedChecks.join(", ")}.`,
+      proof.failedChecks,
     )
   }
 

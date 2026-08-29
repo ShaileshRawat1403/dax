@@ -30,8 +30,6 @@ export const KNOWN_GAPS = {
     "Contract mutability authorization and contract replacement are not one atomic cross-store operation; no production caller currently races a changed rewrite with event-authority establishment",
   "integrity.event-authority-partial-initialization-recovery":
     "If the event-log authority marker is persisted but contract_compiled cannot be appended, the contract correctly remains locked but recovery cannot retry or repair the zero-event authority state",
-  "integrity.native-terminal-canonical":
-    "A completed native SessionProcessor turn does not transition the canonical event-authority run to a terminal state",
   "integrity.gateway-projection-authority":
     "The compatibility run event stream still changes production snapshot fields for event-authority runs, so it is not projection-only",
   "inv1.record-classes":
