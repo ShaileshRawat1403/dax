@@ -8,6 +8,7 @@ import { Flag } from "@/flag/flag"
 import { Installation } from "@/installation"
 import { validateActorToken, type ActorClaims } from "@/identity/zitadel"
 import { AsyncLocalStorage } from "node:async_hooks"
+import { Storage } from "@/storage/storage"
 
 export interface SubstrateAuth {
   token: string
@@ -305,7 +306,10 @@ export function createSubstrateServer(): McpServer {
       const resolvedActorId =
         (args.actorId as string | undefined) ?? actor?.email ?? actor?.name ?? actor?.sub ?? "unknown"
 
-      const snapshot = await RunGateway.getSnapshot(runId).catch(() => null)
+      const snapshot = await RunGateway.getSnapshot(runId).catch((error) => {
+        if (Storage.NotFoundError.isInstance(error)) return null
+        throw error
+      })
 
       if (!snapshot) {
         return errorResult(`Run not found: ${runId}`)

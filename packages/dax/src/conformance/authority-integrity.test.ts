@@ -19,7 +19,6 @@ import {
 import { readRunEvents } from "@/state/events/run-event-store"
 import { RunGateway } from "@/server/run-gateway"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
-import { expectGap } from "./known-gaps"
 import { ToolRegistry } from "@/tool/registry"
 import { Tool } from "@/tool/tool"
 import { TaskTool } from "@/tool/task"
@@ -551,12 +550,13 @@ describe("P0 authority integrity", () => {
 
         const canonical = await getEventAuthorityState(session.id)
         const snapshot = await RunGateway.getSnapshot(session.id)
+        const approvals = await RunGateway.getApprovals(session.id)
+        const projections = await RunGateway.getProjections(session.id)
         const canonicalPendingApprovalCount = canonical?.pendingApprovalIds.length ?? -1
         expect(canonicalPendingApprovalCount).toBe(0)
-
-        expectGap("integrity.gateway-projection-authority", () => {
-          expect(snapshot.pendingApprovalCount).toBe(canonicalPendingApprovalCount)
-        })
+        expect(snapshot.pendingApprovalCount).toBe(canonicalPendingApprovalCount)
+        expect(approvals).toEqual([])
+        expect(projections.approvals).toEqual([])
       },
     })
   })

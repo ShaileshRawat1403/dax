@@ -1,5 +1,5 @@
 import { replayRunState } from "./replay"
-import { getProjectedRunState } from "./events/run-event-store"
+import { getRunAuthority, hasRunEvents, projectRunStateFromEvents, readRunEvents } from "./events/run-event-store"
 import type { ReplayResult } from "./replay"
 import { RunStore } from "./run-store"
 import type { RunState } from "./run-state"
@@ -8,6 +8,25 @@ import { Log } from "@/util/log"
 import { RunGateway } from "@/server/run-gateway"
 
 const log = Log.create({ service: "state-recovery" })
+
+type RecoveryAuthoritySource =
+  | { kind: "event-log"; state: NonNullable<Awaited<ReturnType<typeof projectRunStateFromEvents>>> }
+  | { kind: "legacy"; state: Awaited<ReturnType<typeof RunStore.get>> }
+
+async function loadRecoveryAuthoritySource(runId: string): Promise<RecoveryAuthoritySource> {
+  const authority = await getRunAuthority(runId)
+  if (authority === "event-log") {
+    const state = await projectRunStateFromEvents(runId)
+    if (!state) {
+      throw new RecoveryError("Event-authority run has no canonical state", runId)
+    }
+    return { kind: "event-log", state }
+  }
+  if (authority === null && (await hasRunEvents(runId))) {
+    throw new RecoveryError("Canonical events exist without a run authority marker", runId)
+  }
+  return { kind: "legacy", state: await RunStore.get(runId) }
+}
 
 export interface RecoveryResult {
   success: boolean
@@ -32,8 +51,16 @@ export class RecoveryError extends Error {
 export async function recoverRun(runId: string): Promise<RecoveryResult> {
   log.info("starting recovery", { runId })
 
-  // Try to get persisted state
-  const persistedState = await getProjectedRunState(runId).catch(() => null)
+  const source = await loadRecoveryAuthoritySource(runId)
+  if (source.kind === "event-log") {
+    return {
+      success: true,
+      recoveredRunState: source.state,
+      recoveredApprovals: source.state.pendingApprovalIds.length,
+    }
+  }
+
+  const persistedState = source.state
 
   if (persistedState && isTerminalStatus(persistedState.status)) {
     log.info("run already in terminal state", { runId, status: persistedState.status })
@@ -115,7 +142,7 @@ export async function listInterruptedRuns(now = Date.now()): Promise<RunState[]>
   const states = (
     await Promise.all(
       listed.map(async (stored) => {
-        const projected = await getProjectedRunState(stored.runId).catch(() => null)
+        const projected = (await loadRecoveryAuthoritySource(stored.runId)).state
         if (!projected) return stored
         // Status comes from the log, which is authoritative. `updatedAt` comes
         // from the stored row, which records when the run was last touched on
@@ -139,7 +166,7 @@ export async function listInterruptedRuns(now = Date.now()): Promise<RunState[]>
  * work itself was never rejected, only interrupted.
  */
 export async function markRunInterrupted(runId: string): Promise<RunState | undefined> {
-  const state = await getProjectedRunState(runId).catch(() => null)
+  const state = (await loadRecoveryAuthoritySource(runId)).state
   if (!state || isTerminalStatus(state.status)) return undefined
 
   const { RunLifecycle } = await import("./run-lifecycle")
@@ -156,7 +183,7 @@ export async function markRunInterrupted(runId: string): Promise<RunState | unde
  * Checks if a run appears interrupted and might need recovery.
  */
 export async function needsRecovery(runId: string): Promise<boolean> {
-  const state = await getProjectedRunState(runId).catch(() => null)
+  const state = (await loadRecoveryAuthoritySource(runId)).state
   if (!state) return true // No state = needs recovery
 
   // Non-terminal state without recent activity might need recovery
@@ -177,13 +204,17 @@ export async function getRecoverySummary(runId: string): Promise<{
   needsRecovery: boolean
   eventCount: number
 }> {
-  const state = await getProjectedRunState(runId).catch(() => null)
-  const events = await RunGateway.replayEvents(runId)
+  const source = await loadRecoveryAuthoritySource(runId)
+  const state = source.state
+  const eventCount =
+    source.kind === "event-log"
+      ? (await readRunEvents(runId)).length
+      : (await RunGateway.replayEvents(runId)).length
 
   return {
     hasState: !!state,
     isTerminal: state ? isTerminalStatus(state.status) : false,
     needsRecovery: await needsRecovery(runId),
-    eventCount: events.length,
+    eventCount,
   }
 }

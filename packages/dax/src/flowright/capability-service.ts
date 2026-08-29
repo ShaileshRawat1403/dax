@@ -5,6 +5,7 @@ import type { CreateRunRequest } from "@/server/run-contract"
 import { Identifier } from "@/id/id"
 import { RunFactory } from "@/execution/run-factory"
 import { DraftApproveExecuteWorkflow } from "@/workflows/draft-approve-execute"
+import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
 import { buildCapabilityReceipt } from "./capability-adapter"
 import { buildEvidenceExport, type EvidenceExportResponse } from "./evidence-export"
 import type {
@@ -49,6 +50,16 @@ async function readInvocation(invocationId: string): Promise<InvocationRecord> {
   return Storage.read<InvocationRecord>(invocationPath(invocationId))
 }
 
+async function evidenceProjectionEvents(runId: string) {
+  const authority = await getRunAuthority(runId)
+  if (authority === null && (await hasRunEvents(runId))) {
+    throw new Error(`Run ${runId} has canonical events without a run authority marker`)
+  }
+  // The compatibility stream remains exportable as legacy evidence, but it is
+  // narration only for event-authority runs and cannot alter a DAX receipt.
+  return authority === "event-log" ? [] : RunGateway.replayEvents(runId)
+}
+
 async function waitForReceiptReady(runId: string, timeoutMs: number): Promise<{ timedOut: boolean }> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() <= deadline) {
@@ -72,7 +83,7 @@ async function buildReceipt(record: InvocationRecord, options?: { timeoutReason?
     RunGateway.getSnapshot(record.externalRunId),
     RunGateway.getApprovals(record.externalRunId),
     RunGateway.listArtifacts(record.externalRunId),
-    RunGateway.replayEvents(record.externalRunId),
+    evidenceProjectionEvents(record.externalRunId),
   ])
 
   return buildCapabilityReceipt({
@@ -156,7 +167,7 @@ export namespace FlowrightCapabilityService {
       RunGateway.getSnapshot(record.externalRunId),
       RunGateway.getApprovals(record.externalRunId),
       RunGateway.listArtifacts(record.externalRunId),
-      RunGateway.replayEvents(record.externalRunId),
+      evidenceProjectionEvents(record.externalRunId),
     ])
     return buildEvidenceExport({ snapshot, approvals, artifacts, events, invocationId: record.invocationId })
   }

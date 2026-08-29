@@ -275,8 +275,12 @@ export function buildProjectedRun(
   approvals: ApprovalRecord[],
   artifacts: ArtifactRecord[],
   summary?: RunSummary,
+  options?: { compatibilityEventsAreNarrativeOnly?: boolean },
 ): ProjectedRun {
-  const interventions = buildInterventionProjection(events)
+  // Event-authority runs may still expose the compatibility stream as UI/SSE
+  // narration. Those records cannot create authoritative interventions absent
+  // from canonical history, so only legacy runs project interventions from it.
+  const interventions = options?.compatibilityEventsAreNarrativeOnly ? [] : buildInterventionProjection(events)
   const proposedChanges = buildProposedChangesProjection(approvals)
   return {
     header: buildHeaderProjection(snapshot, interventions),

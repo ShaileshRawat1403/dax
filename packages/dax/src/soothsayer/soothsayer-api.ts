@@ -2,6 +2,7 @@ import { RunGateway } from "@/server/run-gateway"
 import { getStepsForWorkflow } from "@/workflows/types"
 import type { WorkflowClass } from "@/server/run-contract"
 import type { RunSnapshot, RunSummary } from "@/server/run-contract"
+import { Storage } from "@/storage/storage"
 
 export const WORKFLOW_LABELS: Record<string, { label: string; description: string; icon: string }> = {
   draft_and_approve: {
@@ -498,16 +499,18 @@ export namespace SoothsayerAPI {
         },
         lastEvent: snapshot.lastEvent ?? undefined,
       }
-    } catch {
-      return null
+    } catch (error) {
+      if (Storage.NotFoundError.isInstance(error)) return null
+      throw error
     }
   }
 
   export async function getRunSummary(runId: string): Promise<RunSummary | null> {
     try {
       return await RunGateway.getSummary(runId)
-    } catch {
-      return null
+    } catch (error) {
+      if (Storage.NotFoundError.isInstance(error)) return null
+      throw error
     }
   }
 

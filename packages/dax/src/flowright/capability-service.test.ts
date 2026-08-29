@@ -13,6 +13,7 @@ describe("Flowright capability service", () => {
       const { bootstrap } = await import("@/cli/bootstrap")
       const { FlowrightCapabilityService } = await import("./capability-service")
       const { CapabilityRunReceipt } = await import("./capability-contract")
+      const { RunGateway } = await import("@/server/run-gateway")
       const repoRoot = path.resolve(import.meta.dir, "../../..")
 
       await bootstrap(repoRoot, async () => {
@@ -44,6 +45,14 @@ describe("Flowright capability service", () => {
         expect(fetched.invocationId).toBe(response.invocationId)
         expect(fetched.externalRunId).toBe(response.externalRunId)
         expect(fetched.evidenceDigest).toBe(response.receipt.evidenceDigest)
+
+        const evidenceBefore = await FlowrightCapabilityService.exportEvidence("cap_repo_analyze_test")
+        await RunGateway.__testing.appendEvent(response.externalRunId, {
+          type: "run.state_changed",
+          payload: { previousStatus: "completed", currentStatus: "failed", reason: "compatibility-only" },
+        })
+        const evidenceAfter = await FlowrightCapabilityService.exportEvidence("cap_repo_analyze_test")
+        expect(evidenceAfter).toEqual(evidenceBefore)
       })
     } finally {
       if (previousHome === undefined) delete process.env.DAX_TEST_HOME

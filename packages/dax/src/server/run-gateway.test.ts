@@ -163,7 +163,7 @@ describe("run gateway v1 contract", () => {
     }
   }, 40000)
 
-  test("reconstructs pending approvals from run events when live permission memory is unavailable", async () => {
+  test("does not reconstruct event-authority approvals from compatibility events", async () => {
     const testHome = path.join(os.tmpdir(), `dax-run-approval-recovery-${Date.now().toString(36)}`)
     const previousHome = process.env.DAX_TEST_HOME
     process.env.DAX_TEST_HOME = testHome
@@ -228,9 +228,8 @@ describe("run gateway v1 contract", () => {
           const approvals = await RunGateway.getApprovals(create.runId)
           const snapshot = await RunGateway.getSnapshot(create.runId)
 
-          expect(approvals).toHaveLength(1)
-          expect(approvals[0]?.type).toBe("command_execute")
-          expect(snapshot.pendingApprovalCount).toBe(1)
+          expect(approvals).toEqual([])
+          expect(snapshot.pendingApprovalCount).toBe(0)
           expect(snapshot.authority).toBe("dax-state-machine")
         } finally {
           Permission.list = originalList
@@ -805,7 +804,7 @@ describe("run gateway v1 contract", () => {
     }
   }, 40000)
 
-  test("serializes approval and step events so cursors stay unique and summary counts approvals", async () => {
+  test("serializes compatibility approval and step events without changing canonical summary", async () => {
     const testHome = path.join(os.tmpdir(), `dax-run-approval-sequence-${Date.now().toString(36)}`)
     const previousHome = process.env.DAX_TEST_HOME
     process.env.DAX_TEST_HOME = testHome
@@ -874,7 +873,7 @@ describe("run gateway v1 contract", () => {
         expect(startedEvents.length).toBeGreaterThanOrEqual(1)
         expect(new Set(sequences).size).toBe(sequences.length)
         expect(new Set(cursors).size).toBe(cursors.length)
-        expect(summary.approvalCount).toBeGreaterThanOrEqual(1)
+        expect(summary.approvalCount).toBe(0)
       })
     } finally {
       if (previousHome === undefined) delete process.env.DAX_TEST_HOME

@@ -1,5 +1,5 @@
 import { Bus } from "@/bus"
-import { getProjectedRunState } from "@/state/events/run-event-store"
+import { getProjectedRunState, getRunAuthority, hasRunEvents, readRunEvents } from "@/state/events/run-event-store"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { Permission } from "@/governance"
@@ -16,8 +16,15 @@ import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { ApprovalAlreadyResolvedError } from "@/approval/approval-transitions"
 import { Tracer } from "@/runtime/telemetry"
 import { RunLifecycle } from "@/state/run-lifecycle"
+import { RunStore } from "@/state/run-store"
 import { replayRunState } from "@/state/replay"
 import { getEventAuthorityState } from "@/state/events/event-transitions"
+import {
+  reduceRunState,
+  type ApprovalRecord as CanonicalApprovalRecord,
+  type CanonicalRunState,
+} from "@/state/events/run-reducer"
+import type { RunEventEnvelope } from "@/state/events/run-event-types"
 import { isFixedWorkflow, getStepsForWorkflow } from "@/workflows/types"
 import { natsTransport } from "./transport/nats-transport"
 import { getSecrets } from "@/secrets/secrets-loader"
@@ -206,6 +213,118 @@ function artifactType(kind?: string): ArtifactRecord["type"] {
     default:
       return "report"
   }
+}
+
+type GatewayAuthoritySource =
+  | { kind: "event-log"; state: CanonicalRunState; events: RunEventEnvelope[] }
+  | { kind: "legacy"; state: Awaited<ReturnType<typeof RunStore.get>> }
+
+/**
+ * Selects the Gateway's authority source before reading any fallback state.
+ * Compatibility events remain available to SSE and narration, but an explicit
+ * event-log marker makes the validated canonical log the only state source.
+ */
+async function loadGatewayAuthoritySource(runId: string): Promise<GatewayAuthoritySource> {
+  const authority = await getRunAuthority(runId)
+  if (authority === "event-log") {
+    const events = await readRunEvents(runId)
+    const state = reduceRunState(events)
+    if (!state) {
+      throw new Error(`Event-authority run ${runId} has no canonical state`)
+    }
+    return { kind: "event-log", state, events }
+  }
+
+  if (authority === null && (await hasRunEvents(runId))) {
+    throw new Error(`Run ${runId} has canonical events without a run authority marker`)
+  }
+
+  return { kind: "legacy", state: await RunStore.get(runId) }
+}
+
+function canonicalApprovalType(value: string): ApprovalRecord["type"] {
+  switch (value) {
+    case "file_write":
+    case "command_execute":
+    case "patch_apply":
+    case "tool_use":
+    case "workflow_gate":
+    case "question":
+      return value
+    case "tool":
+      return "tool_use"
+    default:
+      return "tool_use"
+  }
+}
+
+function canonicalApprovalRisk(value: string): ApprovalRecord["risk"] {
+  switch (value) {
+    case "low":
+    case "medium":
+    case "high":
+    case "critical":
+      return value
+    default:
+      return "medium"
+  }
+}
+
+function canonicalApprovalStatus(value: CanonicalApprovalRecord["status"]): ApprovalRecord["status"] {
+  return value === "rejected" ? "denied" : value
+}
+
+function toCanonicalApprovalRecord(runId: string, approval: CanonicalApprovalRecord): ApprovalRecord {
+  const status = canonicalApprovalStatus(approval.status)
+  return {
+    approvalId: approval.approvalId,
+    runId,
+    type: canonicalApprovalType(approval.approvalType),
+    status,
+    risk: canonicalApprovalRisk(approval.risk),
+    title: approval.title ?? "Approval required",
+    reason: approval.reason ?? approval.expectedConsequence ?? "Canonical approval request",
+    context: approval.context ?? undefined,
+    createdAt: approval.requestedAt,
+    updatedAt: approval.decidedAt ?? approval.requestedAt,
+    resolvedAt: approval.decidedAt ?? undefined,
+    resolution:
+      status === "pending"
+        ? undefined
+        : {
+            decision: status === "approved" ? "approve" : "deny",
+            actorId: approval.decidedBy ?? undefined,
+            source: "system",
+            comment: approval.comment ?? undefined,
+          },
+  }
+}
+
+function canonicalArtifacts(
+  runId: string,
+  events: RunEventEnvelope[],
+  sessionArtifacts: NonNullable<Session.Info["state_v2"]>["artifacts"],
+): ArtifactRecord[] {
+  const decorationById = new Map(sessionArtifacts.map((artifact) => [artifact.id, artifact]))
+  const records = new Map<string, ArtifactRecord>()
+
+  for (const event of events) {
+    if (event.type !== "artifact_created") continue
+    const payload = event.payload as { artifactId: string; artifactType?: string }
+    if (records.has(payload.artifactId)) continue
+    const decoration = decorationById.get(payload.artifactId)
+    records.set(payload.artifactId, {
+      artifactId: payload.artifactId,
+      runId,
+      type: artifactType(payload.artifactType),
+      title: String(decoration?.metadata?.title ?? decoration?.path ?? payload.artifactType ?? payload.artifactId),
+      createdAt: event.occurredAt,
+      path: decoration?.path,
+      metadata: decoration?.metadata,
+    })
+  }
+
+  return [...records.values()]
 }
 
 function sessionPermissionFromPreset(input: CreateRunRequest): Permission.Ruleset | undefined {
@@ -429,7 +548,7 @@ function sourceSurfaceFromMeta(meta: RunMeta | undefined): RunListItem["sourceSu
 }
 
 async function toRunListItem(runId: string): Promise<RunListItem | undefined> {
-  const [snapshot, meta] = await Promise.all([RunGateway.getSnapshot(runId).catch(() => undefined), readRunMeta(runId)])
+  const [snapshot, meta] = await Promise.all([RunGateway.getSnapshot(runId), readRunMeta(runId)])
 
   if (!snapshot || !meta?.sourceSystem) {
     return undefined
@@ -515,7 +634,7 @@ async function appendEvent(runId: string, event: any) {
 }
 
 async function emitRunState(runId: string, nextStatus: RunSnapshot["status"], reason?: string) {
-  const snapshot = await RunGateway.getSnapshot(runId).catch(() => undefined)
+  const snapshot = await RunGateway.getSnapshot(runId)
   const previousStatus = snapshot?.status ?? "created"
   if (previousStatus === nextStatus && !reason) return
   await appendEvent(runId, {
@@ -680,8 +799,7 @@ async function handleBusEvent(event: any) {
         }
         await emitRunState(runId, "running", "execution_active")
       } else if (event.properties.status.type === "idle") {
-        const snapshot = await RunGateway.getSnapshot(runId).catch(() => undefined)
-        if (!snapshot) break
+        const snapshot = await RunGateway.getSnapshot(runId)
         if (snapshot.status === "completed") {
           await appendEvent(runId, {
             type: "run.completed",
@@ -723,7 +841,8 @@ async function handleBusEvent(event: any) {
       const errorMessage = event.properties.error?.data?.message ?? event.properties.error?.message ?? "Session failed"
       const errorCode = event.properties.error?.name ?? "session_error"
 
-      const runState = await getProjectedRunState(event.properties.sessionID)
+      const authority = await getRunAuthority(event.properties.sessionID)
+      const runState = authority === "event-log" ? null : await getProjectedRunState(event.properties.sessionID)
       if (runState) {
         try {
           if (runState.status === "waiting_approval") {
@@ -817,7 +936,8 @@ async function handleBusEvent(event: any) {
         },
       })
 
-      const runState = await getProjectedRunState(runId)
+      const authority = await getRunAuthority(runId)
+      const runState = authority === "event-log" ? null : await getProjectedRunState(runId)
       if (runState) {
         if (runState.status === "running") {
           try {
@@ -990,16 +1110,76 @@ export namespace RunGateway {
 
   export async function getSnapshot(runId: string): Promise<RunSnapshot> {
     initialize()
-    const [session, messages, meta, events, storedRunState, eventRunState] = await Promise.all([
-      Session.get(runId),
-      Session.messages({ sessionID: runId }),
-      readRunMeta(runId),
-      readEvents(runId),
-      getProjectedRunState(runId),
-      getEventAuthorityState(runId).catch(() => null),
-    ])
+    const source = await loadGatewayAuthoritySource(runId)
+    const [session, meta] = await Promise.all([Session.get(runId), readRunMeta(runId)])
 
-    let runState = eventRunState ?? storedRunState
+    if (source.kind === "event-log") {
+      const runState = source.state
+      const pending = runState.approvals.filter((approval) => approval.status === "pending")
+      const artifacts = canonicalArtifacts(runId, source.events, session.state_v2?.artifacts ?? [])
+      const byType = artifacts.reduce<Record<string, number>>((acc, artifact) => {
+        acc[artifact.type] = (acc[artifact.type] ?? 0) + 1
+        return acc
+      }, {})
+      const currentStep = (() => {
+        if (!runState.currentStepId) return undefined
+        const step = runState.steps.find((candidate) => candidate.stepId === runState.currentStepId)
+        if (!step) return undefined
+        return {
+          stepId: step.stepId,
+          status: step.status,
+          title: step.title,
+          detail: step.error?.message,
+        }
+      })()
+      const trust = runState.trust
+        ? {
+            posture: runState.trust.posture,
+            score: runState.trust.score ?? undefined,
+            blocked: runState.trust.blocked,
+            reasons: runState.trust.reasons,
+          }
+        : undefined
+      const lastCanonicalEvent = source.events.at(-1)
+
+      const counters = authorityCounters()
+      counters.dax_state_machine++
+
+      return {
+        schemaVersion: "v1",
+        authority: "dax-state-machine",
+        sourceSystem: meta?.sourceSystem,
+        runId,
+        status: LifecycleReconciler.toExternal(runState.status),
+        createdAt: runState.createdAt,
+        updatedAt: runState.updatedAt,
+        startedAt: runState.startedAt ?? undefined,
+        completedAt: runState.completedAt ?? undefined,
+        title: session.title,
+        currentStep,
+        pendingApprovalCount: pending.length,
+        trust,
+        artifactSummary: {
+          total: artifacts.length,
+          byType,
+          latestArtifactIds: artifacts.slice(-3).map((artifact) => artifact.artifactId),
+        },
+        workflow: buildWorkflowSummary(meta?.workflowClass, runState),
+        terminalReason: terminalReasonFromRunState(runState),
+        metadata: meta,
+        lastEvent: lastCanonicalEvent
+          ? {
+              eventId: lastCanonicalEvent.eventId,
+              sequence: lastCanonicalEvent.seq,
+              cursor: lastCanonicalEvent.eventId,
+              timestamp: lastCanonicalEvent.occurredAt,
+            }
+          : null,
+      }
+    }
+
+    const [messages, events] = await Promise.all([Session.messages({ sessionID: runId }), readEvents(runId)])
+    let runState = source.state
     if (!runState && events.length > 0) {
       try {
         // Legacy replay predates the projection fields; it reconstructs from the
@@ -1011,7 +1191,6 @@ export namespace RunGateway {
           approvals: [],
           evidence: { contract: null, sandbox: null, egressDenials: [] },
           completion: null,
-          draft: null,
         }
       } catch (err) {
         log.warn("failed to replay run state", { runId, error: String(err) })
@@ -1153,6 +1332,13 @@ export namespace RunGateway {
 
   export async function getApprovals(runId: string): Promise<ApprovalRecord[]> {
     initialize()
+    const source = await loadGatewayAuthoritySource(runId)
+    if (source.kind === "event-log") {
+      return source.state.approvals
+        .filter((approval) => approval.status === "pending")
+        .map((approval) => toCanonicalApprovalRecord(runId, approval))
+    }
+
     const canonicalApprovals = await ApprovalStore.pending(runId)
     if (canonicalApprovals.length > 0) {
       return canonicalApprovals.map((approval) => ({
@@ -1186,12 +1372,75 @@ export namespace RunGateway {
 
   export async function getInterventions(runId: string): Promise<RunIntervention[]> {
     initialize()
+    const source = await loadGatewayAuthoritySource(runId)
+    if (source.kind === "event-log") {
+      // Compatibility interventions remain visible on the raw SSE feed, but
+      // there is no canonical intervention record to project as run truth.
+      return []
+    }
     const events = await readEvents(runId)
     return buildInterventionProjection(events)
   }
 
   export async function resolveApproval(runId: string, approvalId: string, input: ResolveApprovalRequest) {
     initialize()
+    const source = await loadGatewayAuthoritySource(runId)
+    if (source.kind === "event-log") {
+      const canonicalApproval = source.state.approvals.find((approval) => approval.approvalId === approvalId)
+      if (!canonicalApproval) {
+        throw new Storage.NotFoundError({ message: `Approval not found: ${approvalId}` })
+      }
+
+      const decision = canonicalApproval.status === "pending"
+        ? input.decision
+        : canonicalApproval.status === "approved"
+          ? "approve"
+          : "deny"
+
+      if (canonicalApproval.status === "pending") {
+        if (decision === "approve") {
+          await ApprovalTransitions.approve(runId, approvalId, input.actorId, input.comment)
+        } else {
+          await ApprovalTransitions.deny(runId, approvalId, input.actorId, input.comment)
+        }
+      }
+
+      const originalPermissionId = canonicalApproval.context?.originalPermissionId
+      if (originalPermissionId) {
+        const livePermission = (await Permission.list()).find((item) => item.id === originalPermissionId)
+        if (livePermission) {
+          await Permission.reply({
+            requestID: originalPermissionId,
+            reply: decision === "approve" ? "once" : "reject",
+            message: input.comment,
+          })
+        }
+      }
+
+      await resumeCanonicalWorkflowApproval(runId, approvalId, decision)
+
+      const updatedSource = await loadGatewayAuthoritySource(runId)
+      if (updatedSource.kind !== "event-log") {
+        throw new Error(`Run ${runId} lost canonical authority while resolving approval ${approvalId}`)
+      }
+      const updated = updatedSource.state.approvals.find((approval) => approval.approvalId === approvalId)
+      if (!updated) {
+        throw new Error(`Canonical approval ${approvalId} disappeared after resolution`)
+      }
+      const record = toCanonicalApprovalRecord(runId, updated)
+      return {
+        approvalId,
+        status: record.status,
+        resolution: record.resolution ?? {
+          decision,
+          actorId: input.actorId,
+          source: input.source === "api" ? "system" : input.source ?? "system",
+          comment: input.comment,
+        },
+        resolvedAt: record.resolvedAt,
+      }
+    }
+
     const canonicalApproval = await ApprovalStore.get(runId, approvalId)
 
     if (canonicalApproval) {
@@ -1286,24 +1535,37 @@ export namespace RunGateway {
 
   export async function listArtifacts(runId: string) {
     initialize()
+    const source = await loadGatewayAuthoritySource(runId)
     const session = await Session.get(runId)
+    if (source.kind === "event-log") {
+      return canonicalArtifacts(runId, source.events, session.state_v2?.artifacts ?? [])
+    }
     return (session.state_v2?.artifacts ?? []).map((artifact) => toArtifactRecord(runId, artifact))
   }
 
   export async function getSummary(runId: string): Promise<RunSummary> {
     initialize()
-    const [snapshot, events, runState, meta] = await Promise.all([
+    const source = await loadGatewayAuthoritySource(runId)
+    const [snapshot, events, meta] = await Promise.all([
       getSnapshot(runId),
       readEvents(runId),
-      getProjectedRunState(runId),
       readRunMeta(runId),
     ])
+    const runState = source.state
 
     let stepCount = 0
     let approvalCount = 0
     let artifactCount = 0
+    let approvedApprovals = 0
+    let deniedApprovals = 0
 
-    if (runState) {
+    if (source.kind === "event-log") {
+      stepCount = source.state.steps.length
+      approvalCount = source.state.approvals.length
+      artifactCount = source.state.artifactIds.length
+      approvedApprovals = source.state.approvals.filter((approval) => approval.status === "approved").length
+      deniedApprovals = source.state.approvals.filter((approval) => approval.status === "rejected").length
+    } else if (runState) {
       stepCount = runState.steps.length
       approvalCount = events.filter((event) => event.type === "approval.requested").length
       artifactCount = runState.artifactIds.length
@@ -1313,12 +1575,14 @@ export namespace RunGateway {
       artifactCount = events.filter((event) => event.type === "artifact.created").length
     }
 
-    const approvedApprovals = events.filter(
-      (event) => event.type === "approval.resolved" && event.payload.decision === "approve",
-    ).length
-    const deniedApprovals = events.filter(
-      (event) => event.type === "approval.resolved" && event.payload.decision === "deny",
-    ).length
+    if (source.kind === "legacy") {
+      approvedApprovals = events.filter(
+        (event) => event.type === "approval.resolved" && event.payload.decision === "approve",
+      ).length
+      deniedApprovals = events.filter(
+        (event) => event.type === "approval.resolved" && event.payload.decision === "deny",
+      ).length
+    }
 
     let outcomeResult: "success" | "failure" | "partial" | "pending" | undefined
     let terminalReason: string | undefined
@@ -1358,7 +1622,7 @@ export namespace RunGateway {
       artifactCount,
       trust: snapshot.trust,
       workflow: buildWorkflowSummary(meta?.workflowClass, runState),
-      terminalReason: extractTerminalReason(events),
+      terminalReason: source.kind === "event-log" ? snapshot.terminalReason : extractTerminalReason(events),
       outcome: outcomeResult
         ? {
             result: outcomeResult,
@@ -1371,7 +1635,8 @@ export namespace RunGateway {
 
   export async function getProjections(runId: string): Promise<ProjectedRun> {
     initialize()
-    const [snapshot, events, approvals, artifacts, summary] = await Promise.all([
+    const [source, snapshot, events, approvals, artifacts, summary] = await Promise.all([
+      loadGatewayAuthoritySource(runId),
       getSnapshot(runId),
       readEvents(runId),
       getApprovals(runId),
@@ -1379,7 +1644,9 @@ export namespace RunGateway {
       getSummary(runId),
     ])
 
-    return buildProjectedRun(snapshot, events, approvals, artifacts, summary)
+    return buildProjectedRun(snapshot, events, approvals, artifacts, summary, {
+      compatibilityEventsAreNarrativeOnly: source.kind === "event-log",
+    })
   }
 
   export async function replayEvents(runId: string, cursor?: string) {
@@ -1440,7 +1707,7 @@ export namespace RunGateway {
     const pendingApprovalSummaries = (
       await Promise.all(
         activeRuns.map(async (run) => {
-          const approvals = await getPendingApprovalsForRun(run.runId)
+          const approvals = await getApprovals(run.runId)
           return approvals.map((approvalRecord) => ({
             approvalId: approvalRecord.approvalId,
             runId: approvalRecord.runId,
