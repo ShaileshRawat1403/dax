@@ -18,6 +18,7 @@ export const GlobTool = Tool.define("glob", {
       ),
   }),
   result: Tool.result(z.object({ count: z.number().int().nonnegative(), truncated: z.boolean() }).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     await ctx.ask({
       permission: "glob",
@@ -32,6 +33,7 @@ export const GlobTool = Tool.define("glob", {
     let search = params.path ?? Instance.directory
     search = path.isAbsolute(search) ? search : path.resolve(Instance.directory, search)
     await assertExternalDirectory(ctx, search, { kind: "directory" })
+    await ctx.authorize()
 
     const limit = 100
     const files = []

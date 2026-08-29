@@ -83,6 +83,7 @@ export namespace ToolRegistry {
             output: result,
             metadata: {},
           })
+          ctx.captureValidatedResult?.(domainResult)
           const out = await Truncate.output(domainResult.output, {}, initCtx?.agent)
           return Tool.parseResult(id, {
             ...domainResult,
@@ -142,6 +143,17 @@ export namespace ToolRegistry {
 
   export async function ids() {
     return all().then((x) => x.map((t) => t.id))
+  }
+
+  /**
+   * Tool ids sourced from directory-scanned tool files or plugin manifests
+   * (`fromPlugin`), as opposed to DAX's own built-in `Tool.define` set.
+   * Exists so callers outside the registry (native settlement) can classify
+   * an invocation's executor without duplicating the built-in id list.
+   */
+  export async function pluginIds(): Promise<Set<string>> {
+    const { custom } = await state()
+    return new Set(custom.map((t) => t.id))
   }
 
   export async function tools(

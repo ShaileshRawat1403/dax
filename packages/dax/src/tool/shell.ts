@@ -107,6 +107,7 @@ export const ShellTool = Tool.define("shell", async () => {
       ),
     }),
     result: ShellResultSchema,
+    authorization: "self",
     async execute(params, ctx) {
       const cwd = params.workdir || Instance.directory
 
@@ -186,14 +187,13 @@ export const ShellTool = Tool.define("shell", async () => {
         })
       }
 
-      if (patterns.size > 0) {
-        await ctx.ask({
-          permission: "shell",
-          patterns: Array.from(patterns),
-          always: Array.from(always),
-          metadata: {},
-        })
-      }
+      await ctx.ask({
+        permission: "shell",
+        patterns: patterns.size > 0 ? Array.from(patterns) : [params.command],
+        always: always.size > 0 ? Array.from(always) : [params.command],
+        metadata: {},
+      })
+      await ctx.authorize()
 
       const commandToRun = await Sandbox.wrap(params.command, cwd)
 

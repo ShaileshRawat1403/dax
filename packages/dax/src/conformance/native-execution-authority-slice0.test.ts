@@ -227,6 +227,7 @@ describe("native execution authority slice 0", () => {
                 ruleset: Permission.fromConfig({ shell: "allow" }),
               })
             },
+            async authorize() {},
           },
         )
 
@@ -264,7 +265,7 @@ describe("native execution authority slice 0", () => {
         })
         const failedStage = await Snapshot.patch(snapshot)
 
-        expect(noChange).toEqual({ status: "observed", patch: { hash: snapshot, files: [] } })
+        expect(noChange).toEqual({ status: "observed", patch: { hash: snapshot, files: [] }, diff: "" })
         expect(failedDiff).toMatchObject({
           status: "failed",
           hash: "not-a-snapshot-hash",

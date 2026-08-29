@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { CheckResult } from "@/sdlc/check-types"
 import { EvidenceReceipt } from "@/sdlc/evidence-receipt"
+import { MutationReceiptSchema } from "@/sdlc/mutation-receipt"
 import { ApprovalContextSchema, ApprovalSourceSchema } from "@/approval/approval-types"
 
 const closed = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape).strict()
@@ -23,6 +24,29 @@ const CompletionProofSchema = closed({
 // producers persist the complete v1 attestation. Both are closed historical
 // contracts; partial or augmented receipts are corruption, not compatibility.
 const VerificationReceiptSchema = z.union([EvidenceReceipt, closed({ receiptId: z.string() })])
+
+// The first mutation producer persisted only references and paths. Keep that
+// legitimate historical shape readable. Native execution persists the full
+// diff-committed receipt and the invocation window in which DAX observed it.
+const MutationRecordedPayloadSchema = z.union([
+  closed({ receiptIds: z.array(z.string()), changedPaths: z.array(z.string()) }),
+  closed({
+    basis: z.literal("native_snapshot_diff_v1"),
+    receipt: MutationReceiptSchema,
+    observationWindowInvocationIds: z.array(z.string().min(1)).min(1),
+  }).superRefine((payload, ctx) => {
+    if (payload.receipt.changedPaths.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["receipt", "changedPaths"], message: "must record an observed change" })
+    }
+    if (new Set(payload.observationWindowInvocationIds).size !== payload.observationWindowInvocationIds.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["observationWindowInvocationIds"],
+        message: "must not contain duplicates",
+      })
+    }
+  }),
+])
 
 const Sha256DigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
 
@@ -290,7 +314,7 @@ const RunEventVariants = [
   }),
   z.object({
     type: z.literal("mutation_recorded"),
-    payload: closed({ receiptIds: z.array(z.string()), changedPaths: z.array(z.string()) }),
+    payload: MutationRecordedPayloadSchema,
   }),
   z.object({ type: z.literal("execution_started"), payload: z.object({}).strict() }),
   z.object({ type: z.literal("plan_quality_gate"), payload: closed({ reason: z.string().optional() }) }),

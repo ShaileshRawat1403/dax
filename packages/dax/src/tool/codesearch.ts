@@ -51,6 +51,7 @@ export const CodeSearchTool = Tool.define("codesearch", {
       ),
   }),
   result: Tool.result(z.object({}).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     await ctx.ask({
       permission: "codesearch",
@@ -61,6 +62,7 @@ export const CodeSearchTool = Tool.define("codesearch", {
         tokensNum: params.tokensNum,
       },
     })
+    await ctx.authorize()
 
     const codeRequest: McpCodeRequest = {
       jsonrpc: "2.0",

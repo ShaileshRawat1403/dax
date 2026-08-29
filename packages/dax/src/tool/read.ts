@@ -35,6 +35,7 @@ export const ReadTool = Tool.define("read", {
       })
       .strict(),
   ),
+  authorization: "self",
   async execute(params, ctx) {
     let filepath = params.filePath
     if (!path.isAbsolute(filepath)) {
@@ -52,6 +53,7 @@ export const ReadTool = Tool.define("read", {
       always: ["*"],
       metadata: {},
     })
+    await ctx.authorize()
 
     const file = Bun.file(filepath)
     if (!(await file.exists())) {

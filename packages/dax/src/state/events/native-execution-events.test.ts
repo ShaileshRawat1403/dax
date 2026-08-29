@@ -94,6 +94,27 @@ function result(
   }
 }
 
+function mutation(...invocationIds: string[]): EventInput {
+  return {
+    type: "mutation_recorded",
+    payload: {
+      basis: "native_snapshot_diff_v1",
+      receipt: {
+        schemaVersion: "dax.sdlc.mutation.v1",
+        receiptId: "mut_native_1",
+        runId: RUN_ID,
+        claim: "1 file changed",
+        proofType: "workspace_diff",
+        source: "dax",
+        changedPaths: ["src/a.ts"],
+        recordedAt: "2026-08-29T00:00:00.000Z",
+        digest: "c".repeat(64),
+      },
+      observationWindowInvocationIds: invocationIds,
+    },
+  }
+}
+
 function seed(...inputs: EventInput[]): RunEventEnvelope[] {
   const events = [createEvent(RUN_ID, 0, "contract_compiled", { contractId: CONTRACT_ID })]
   inputs.forEach((input, index) => events.push(event(index + 1, input)))
@@ -431,6 +452,30 @@ describe("canonical native execution invalid history", () => {
     events.push(auth1, auth2, event(5, result("inv_2", auth1.eventId)))
 
     expect(() => reduceRunState(events)).toThrow(/causation does not match/)
+  })
+
+  test("native mutation evidence requires an allowed invocation and projects the full receipt", () => {
+    expect(() => reduceRunState(seed(mutation("inv_missing")))).toThrow(/unknown invocation/)
+    expect(() => reduceRunState(seed(invocation(), mutation("inv_1")))).toThrow(/without allowed execution authority/)
+
+    const events = seed(invocation())
+    const authorizationEvent = event(2, authorization())
+    events.push(authorizationEvent, event(3, mutation("inv_1")), event(4, result("inv_1", authorizationEvent.eventId)))
+    const state = reduceRunState(events)!
+    expect(state.governance.mutationReceiptIds).toEqual(["mut_native_1"])
+    expect(state.governance.touchedFiles).toEqual(["src/a.ts"])
+    expect(state.governance.verification.required).toBe(true)
+  })
+
+  test("native mutation payloads reject duplicate windows and unknown closed receipt fields", () => {
+    const duplicate = seed(invocation())
+    duplicate.push(event(2, authorization()), event(3, mutation("inv_1", "inv_1")))
+    expect(() => reduceRunState(duplicate)).toThrow(/duplicate invocation/i)
+
+    const malformed = mutation("inv_1")
+    const payload = malformed.payload as { receipt: Record<string, unknown> }
+    payload.receipt.corruptExtra = true
+    expect(() => parseRunEventLog(RUN_ID, seed(malformed))).toThrow(/malformed event|invalid input/i)
   })
 })
 

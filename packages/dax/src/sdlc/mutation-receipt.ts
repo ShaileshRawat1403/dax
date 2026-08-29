@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
+import { z } from "zod"
 
 /**
  * Attests that a run changed the workspace, and what it changed.
@@ -17,19 +18,22 @@ import { createHash, randomUUID } from "node:crypto"
  * Mirrors `sdlc/evidence-receipt.ts`: the digest is over the thing being
  * attested, so a receipt cannot be reattached to different content.
  */
-export type MutationReceipt = {
-  schemaVersion: "dax.sdlc.mutation.v1"
-  receiptId: string
-  runId: string
-  claim: string
-  proofType: "workspace_diff"
-  source: "dax"
-  /** Paths the kernel observed as changed, not paths the actor claimed to touch. */
-  changedPaths: string[]
-  recordedAt: string
-  /** sha256 of the diff itself, so the receipt commits to exact content. */
-  digest: string
-}
+export const MutationReceiptSchema = z
+  .object({
+    schemaVersion: z.literal("dax.sdlc.mutation.v1"),
+    receiptId: z.string().min(1),
+    runId: z.string().min(1),
+    claim: z.string().min(1),
+    proofType: z.literal("workspace_diff"),
+    source: z.literal("dax"),
+    /** Paths the kernel observed as changed, not paths the actor claimed to touch. */
+    changedPaths: z.array(z.string().min(1)),
+    recordedAt: z.string().datetime(),
+    /** sha256 of the diff itself, so the receipt commits to exact content. */
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict()
+export type MutationReceipt = z.infer<typeof MutationReceiptSchema>
 
 export function createMutationReceipt(input: {
   runId: string
@@ -40,7 +44,7 @@ export function createMutationReceipt(input: {
   const digest = createHash("sha256").update(input.diff).digest("hex")
   const count = input.changedPaths.length
 
-  return {
+  return MutationReceiptSchema.parse({
     schemaVersion: "dax.sdlc.mutation.v1",
     receiptId: randomUUID(),
     runId: input.runId,
@@ -50,5 +54,5 @@ export function createMutationReceipt(input: {
     changedPaths: input.changedPaths,
     recordedAt: new Date().toISOString(),
     digest,
-  }
+  })
 }

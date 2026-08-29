@@ -40,12 +40,12 @@ const RECORD_CLASSES = [
   {
     id: "tool_invocation",
     why: "What the model attempted, and with what arguments. The authorisation question is about this.",
-    eventTypes: [],
+    eventTypes: ["tool_invocation_recorded"],
   },
   {
     id: "tool_result",
     why: "What actually happened. Distinguishes attempted from effected change.",
-    eventTypes: [],
+    eventTypes: ["tool_result_recorded"],
   },
   {
     id: "approval",
@@ -55,7 +55,7 @@ const RECORD_CLASSES = [
   {
     id: "policy_decision",
     why: "Why an action was allowed or refused. A silent allow and a considered allow are not the same record.",
-    eventTypes: [],
+    eventTypes: ["authorization_recorded"],
   },
   {
     id: "delegation",
@@ -88,9 +88,8 @@ describe("invariant 1 — durable authority", () => {
   test("every authoritative record class has durable event representation", () => {
     const missing = RECORD_CLASSES.filter((c) => !isDurable(c)).map((c) => c.id)
 
-    // Prompts, context, messages, tool calls, tool results, policy decisions,
-    // delegation and compaction all influence authorisation or correctness, and
-    // none of them survive as events. This is the H2 block.
+    // Prompts, context, assistant messages, delegation and compaction still
+    // influence authorisation or correctness without durable event records.
     expectGap("inv1.record-classes", () => {
       expect(missing).toEqual([])
     })

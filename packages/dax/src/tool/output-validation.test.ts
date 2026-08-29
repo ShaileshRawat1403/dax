@@ -8,6 +8,10 @@ import { Truncate } from "./truncation"
 import { ShellResultSchema } from "./shell"
 import { ApplyPatchTool } from "./apply_patch"
 import { ReadTool } from "./read"
+import { Instance } from "../project/instance"
+import os from "node:os"
+import path from "node:path"
+import { mkdirSync, rmSync } from "node:fs"
 
 const context = {
   sessionID: "ses_output_validation",
@@ -17,6 +21,7 @@ const context = {
   messages: [],
   metadata: mock(() => {}),
   ask: mock(async () => {}),
+  authorize: mock(async () => {}),
 } as unknown as Tool.Context
 
 function malformedRuntimeValue<T>(value: unknown): T {
@@ -75,6 +80,33 @@ describe("tool result runtime validation", () => {
         metadata: { ...valid.metadata, diagnostics: { "/workspace/a.ts": [{}] } },
       }).success,
     ).toBeFalse()
+  })
+
+  test("apply_patch add results omit absent movePath and cross both result schemas", async () => {
+    const directory = path.join(os.tmpdir(), `dax-apply-patch-result-${Date.now()}-${Math.random()}`)
+    mkdirSync(directory, { recursive: true })
+    try {
+      await Instance.provide({
+        directory,
+        async fn() {
+          const applyPatch = await ApplyPatchTool.init()
+          const result = await applyPatch.execute(
+            { patchText: "*** Begin Patch\n*** Add File: added.txt\n+hello\n*** End Patch" },
+            context,
+          )
+          expect(result.metadata.files).toHaveLength(1)
+          expect(result.metadata.files[0]).not.toHaveProperty("movePath")
+          const domainMetadata = { ...result.metadata } as Record<string, unknown>
+          delete domainMetadata.truncated
+          delete domainMetadata.outputPath
+          expect(applyPatch.result.safeParse({ ...result, metadata: domainMetadata }).success).toBeTrue()
+          expect(Tool.Result.safeParse(result).success).toBeTrue()
+        },
+      })
+    } finally {
+      await Instance.disposeAll()
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   test("read owns truncation, loaded paths, and attachment semantics", async () => {
@@ -254,6 +286,45 @@ describe("tool result runtime validation", () => {
       const info = await malformed.init()
       await expect(info.execute({}, context)).rejects.toMatchObject({ name: "ToolResultValidationError" })
       expect(truncate).not.toHaveBeenCalled()
+    } finally {
+      truncate.mockRestore()
+    }
+  })
+
+  test("canonical result capture occurs after validation but before presentation truncation", async () => {
+    const truncate = spyOn(Truncate, "output").mockResolvedValue({
+      content: "short model output",
+      truncated: true,
+      outputPath: "/tmp/dax-output.txt",
+    })
+    let captured: Tool.Result | undefined
+    const captureContext: Tool.Context = {
+      ...context,
+      captureValidatedResult(result) {
+        captured = result
+      },
+    }
+    const tool = Tool.define("pre-truncation-capture", {
+      description: "test tool",
+      parameters: z.object({}),
+      result: Tool.result(z.object({ value: z.string() }).strict()),
+      async execute() {
+        return { title: "capture", output: "complete executor result", metadata: { value: "domain" } }
+      },
+    })
+
+    try {
+      const info = await tool.init()
+      const result = await info.execute({}, captureContext)
+      expect(captured).toEqual({
+        title: "capture",
+        output: "complete executor result",
+        metadata: { value: "domain" },
+      })
+      expect(result).toMatchObject({
+        output: "short model output",
+        metadata: { value: "domain", truncated: true, outputPath: "/tmp/dax-output.txt" },
+      })
     } finally {
       truncate.mockRestore()
     }

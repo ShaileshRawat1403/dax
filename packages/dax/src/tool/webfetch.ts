@@ -19,6 +19,7 @@ export const WebFetchTool = Tool.define("webfetch", {
     timeout: z.number().describe("Optional timeout in seconds (max 120)").optional(),
   }),
   result: Tool.result(z.object({}).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     // Validate URL
     if (!params.url.startsWith("http://") && !params.url.startsWith("https://")) {
@@ -35,6 +36,7 @@ export const WebFetchTool = Tool.define("webfetch", {
         timeout: params.timeout,
       },
     })
+    await ctx.authorize()
 
     const timeout = Math.min((params.timeout ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)
 

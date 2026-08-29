@@ -14,6 +14,7 @@ export const PMNoteTool = Tool.define("pm_note", {
     author: z.string().describe("Optional author display name").optional(),
   }),
   result: Tool.result(z.object({ id: z.string(), day: z.string() }).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     await ctx.ask({
       permission: "pm_note",
@@ -25,6 +26,7 @@ export const PMNoteTool = Tool.define("pm_note", {
         tags: params.tags ?? [],
       },
     })
+    await ctx.authorize()
 
     const row = await PM.save_dsr({
       project_id: Instance.project.id,

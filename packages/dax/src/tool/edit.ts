@@ -69,6 +69,7 @@ export const EditTool = Tool.define("edit", {
     replaceAll: z.boolean().optional().describe("Replace all occurrences of oldString (default false)"),
   }),
   result: Tool.result(EditMetadataSchema),
+  authorization: "self",
   async execute(params, ctx) {
     if (!params.filePath) {
       throw new Error("filePath is required")
@@ -98,6 +99,7 @@ export const EditTool = Tool.define("edit", {
             diff,
           },
         })
+        await ctx.authorize()
         await Bun.write(filePath, params.newString)
         await Bus.publish(File.Event.Edited, {
           file: filePath,
@@ -130,6 +132,7 @@ export const EditTool = Tool.define("edit", {
           diff,
         },
       })
+      await ctx.authorize()
 
       await file.write(contentNew)
       await Bus.publish(File.Event.Edited, {

@@ -638,14 +638,43 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       }
 
       case "mutation_recorded": {
-        const payload = event.payload as { receiptIds: string[]; changedPaths: string[] }
+        const payload = event.payload as Extract<RunEventPayload, { type: "mutation_recorded" }>["payload"]
+        let receiptIds: string[]
+        let changedPaths: string[]
 
-        for (const receiptId of payload.receiptIds) {
+        if ("receipt" in payload) {
+          if (payload.receipt.runId !== state.runId) {
+            throw new Error(
+              `Mutation receipt ${payload.receipt.receiptId} belongs to ${payload.receipt.runId}, not ${state.runId}`,
+            )
+          }
+          if (new Set(payload.observationWindowInvocationIds).size !== payload.observationWindowInvocationIds.length) {
+            throw new Error(`Mutation observation window contains duplicate invocation identities`)
+          }
+          for (const invocationId of payload.observationWindowInvocationIds) {
+            const invocation = state.invocations[invocationId]
+            if (!invocation) {
+              throw new Error(`Mutation observation references unknown invocation: ${invocationId}`)
+            }
+            if (invocation.status !== "authorized" && invocation.resultEventId === null) {
+              throw new Error(
+                `Mutation observation references invocation ${invocationId} without allowed execution authority`,
+              )
+            }
+          }
+          receiptIds = [payload.receipt.receiptId]
+          changedPaths = payload.receipt.changedPaths
+        } else {
+          receiptIds = payload.receiptIds
+          changedPaths = payload.changedPaths
+        }
+
+        for (const receiptId of receiptIds) {
           if (!state.governance.mutationReceiptIds.includes(receiptId)) {
             state.governance.mutationReceiptIds.push(receiptId)
           }
         }
-        for (const path of payload.changedPaths) {
+        for (const path of changedPaths) {
           if (!state.governance.touchedFiles.includes(path)) {
             state.governance.touchedFiles.push(path)
           }

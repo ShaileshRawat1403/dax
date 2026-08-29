@@ -11,6 +11,7 @@ import { reduceRunState, type RunState } from "./run-reducer"
 import { type RunEventType, type RunEventPayload } from "./run-event-types"
 import type { RunStatus } from "../run-state"
 import type { ApprovalContext, ApprovalSource } from "@/approval/approval-types"
+import type { MutationReceipt } from "@/sdlc/mutation-receipt"
 
 const log = Log.create({ service: "event-transitions" })
 
@@ -87,17 +88,25 @@ export async function appendEventOnly<E extends RunEventType>(
   eventType: E,
   payload: Extract<RunEventPayload, { type: E }>["payload"],
   commandId?: string,
+  envelope?: { correlationId?: string; causationId?: string },
+  options?: { rejectDuplicateCommand?: boolean },
 ): Promise<RunState> {
   const authority = await getRunAuthority(runId)
   if (authority !== "event-log") {
     throw new Error(`Run ${runId} is not an event-authority run`)
   }
 
-  await appendRunEventAtTail(runId, {
-    type: eventType,
-    payload,
-    ...(commandId ? { commandId } : {}),
-  })
+  await appendRunEventAtTail(
+    runId,
+    {
+      type: eventType,
+      payload,
+      ...(commandId ? { commandId } : {}),
+      ...(envelope?.correlationId ? { correlationId: envelope.correlationId } : {}),
+      ...(envelope?.causationId ? { causationId: envelope.causationId } : {}),
+    },
+    options,
+  )
 
   const updatedState = await projectRunStateFromEvents(runId)
   if (!updatedState) {
@@ -148,6 +157,8 @@ export async function addApprovalEvent(
     stepId?: string | null
     context?: ApprovalContext
     source?: ApprovalSource
+    /** The native invocation this approval authorizes, when there is one. */
+    correlationId?: string
   },
 ): Promise<RunState> {
   const commandId = `cmd_approval_add_${approvalId}`
@@ -169,6 +180,7 @@ export async function addApprovalEvent(
       ...(details?.source ? { source: details.source } : {}),
     },
     commandId,
+    details?.correlationId ? { correlationId: details.correlationId } : undefined,
   )
 }
 
@@ -217,6 +229,140 @@ export async function updateProviderPressure(
 ): Promise<RunState> {
   const commandId = `cmd_pressure_${Date.now()}`
   return appendEventOnly(runId, "provider_pressure_updated", payload, commandId)
+}
+
+/**
+ * Appends the canonical record of one governed native tool-execution attempt.
+ * Invocation identity is single-use. Any repeated command is rejected so a
+ * framework retry cannot re-enter an executor after an uncertain outcome.
+ */
+export async function recordToolInvocation(
+  runId: string,
+  invocationId: string,
+  details: {
+    toolId: string
+    input: { basis: "validated_tool_input"; canonicalization: "sorted-json-v1"; digest: string; redactedPreview: string; truncated: boolean }
+    contractId: string
+    executor: { kind: "builtin" | "plugin" | "mcp"; id: string }
+    originTurnId?: string
+    workflowStepId?: string
+    parentInvocationId?: string
+    ordinal?: number
+    retryOfInvocationId?: string
+  },
+): Promise<RunState> {
+  const commandId = `cmd_invocation_${invocationId}`
+  return appendEventOnly(
+    runId,
+    "tool_invocation_recorded",
+    {
+      invocationId,
+      toolId: details.toolId,
+      input: details.input,
+      contractId: details.contractId,
+      executor: details.executor,
+      ...(details.originTurnId ? { originTurnId: details.originTurnId } : {}),
+      ...(details.workflowStepId ? { workflowStepId: details.workflowStepId } : {}),
+      ...(details.parentInvocationId ? { parentInvocationId: details.parentInvocationId } : {}),
+      ...(details.ordinal !== undefined ? { ordinal: details.ordinal } : {}),
+      ...(details.retryOfInvocationId ? { retryOfInvocationId: details.retryOfInvocationId } : {}),
+    },
+    commandId,
+    undefined,
+    { rejectDuplicateCommand: true },
+  )
+}
+
+/**
+ * Appends the canonical authority fact for one invocation: the combined,
+ * already-resolved effective decision of contract, RuntimeGuard, Permission,
+ * and any approvals used. Durable before the caller may proceed into the
+ * external-effect executor.
+ */
+export async function recordAuthorization(
+  runId: string,
+  invocationId: string,
+  disposition: {
+    finalDisposition: "allowed" | "denied"
+    contractDisposition: "allowed" | "denied"
+    runtimeGuardDisposition: "allowed" | "denied" | "approval_required" | "not_evaluated"
+    permissionDisposition: "allowed" | "denied" | "approval_required" | "not_evaluated"
+    approvalIds: string[]
+    reasonCodes: string[]
+  },
+): Promise<RunState> {
+  const commandId = `cmd_authorization_${invocationId}`
+  return appendEventOnly(
+    runId,
+    "authorization_recorded",
+    {
+      invocationId,
+      finalDisposition: disposition.finalDisposition,
+      contractDisposition: disposition.contractDisposition,
+      runtimeGuardDisposition: disposition.runtimeGuardDisposition,
+      permissionDisposition: disposition.permissionDisposition,
+      approvalIds: disposition.approvalIds,
+      reasonCodes: disposition.reasonCodes,
+    },
+    commandId,
+    { correlationId: invocationId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+export type ToolResultOutcome =
+  | {
+      status: "completed"
+      result: { basis: "validated_dax_result_pre_truncation"; canonicalization: "sorted-json-v1"; digest: string; redactedPreview: string; truncated: boolean }
+    }
+  | { status: "failed"; failure: { code: string; message: string; retryable: boolean } }
+  | { status: "cancelled"; cancellation: { code: string; message: string } }
+
+/**
+ * Appends the canonical terminal record for one invocation. Requires the
+ * allowed authorization event so the causation chain is provable at read
+ * time; callers must resolve that event id (e.g. from the projected
+ * invocation's authorizationEventId) before calling this.
+ */
+export async function recordToolResult(
+  runId: string,
+  invocationId: string,
+  authorizationEventId: string,
+  outcome: ToolResultOutcome,
+): Promise<RunState> {
+  const commandId = `cmd_result_${invocationId}`
+  return appendEventOnly(
+    runId,
+    "tool_result_recorded",
+    { invocationId, ...outcome },
+    commandId,
+    { correlationId: invocationId, causationId: authorizationEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+/**
+ * Records a kernel-observed native workspace mutation. One observation window
+ * may contain parallel/nested invocations, so attribution is deliberately a
+ * set rather than a false one-tool claim.
+ */
+export async function recordNativeMutation(
+  runId: string,
+  receipt: MutationReceipt,
+  observationWindowInvocationIds: string[],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "mutation_recorded",
+    {
+      basis: "native_snapshot_diff_v1",
+      receipt,
+      observationWindowInvocationIds,
+    },
+    `cmd_mutation_${receipt.receiptId}`,
+    undefined,
+    { rejectDuplicateCommand: true },
+  )
 }
 
 export type { RunState }

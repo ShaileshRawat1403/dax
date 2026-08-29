@@ -114,6 +114,17 @@ export namespace Tool {
     messages: MessageV2.WithParts[]
     metadata(input: { title?: string; metadata?: M }): void
     ask(input: Omit<Permission.AskInput, "id" | "createdAt" | "sessionID" | "tool" | "ruleset">): Promise<void>
+    /**
+     * Exposes the validated DAX transport value before presentation truncation
+     * so canonical settlement can commit to execution truth, not UI output.
+     */
+    captureValidatedResult?(result: Result): void
+    /**
+     * Seals the invocation's combined policy decision before execution may
+     * cross an effect boundary. Tools that own policy checks call this only
+     * after every required ask() has succeeded.
+     */
+    authorize(): Promise<void>
   }
   export interface Info<Parameters extends z.ZodType = z.ZodType, ResultSchema extends z.ZodType = z.ZodType> {
     id: string
@@ -121,6 +132,12 @@ export namespace Tool {
       description: string
       parameters: Parameters
       result: ResultSchema
+      /**
+       * "self" means execute() performs tool-specific ask() calls and invokes
+       * ctx.authorize() before its first effect. The default "caller" mode
+       * receives one generic governed check in the outer execution boundary.
+       */
+      authorization?: "self" | "caller"
       execute(args: z.infer<Parameters>, ctx: Context): Promise<z.output<ResultSchema>>
       formatValidationError?(error: z.ZodError): string
     }>
@@ -141,6 +158,7 @@ export namespace Tool {
         const execute = toolInfo.execute
         return {
           ...toolInfo,
+          authorization: toolInfo.authorization ?? "caller",
           execute: async (args, ctx) => {
             try {
               toolInfo.parameters.parse(args)
@@ -164,6 +182,7 @@ export namespace Tool {
               throw error
             }
             const result = parseResult(id, executionResult)
+            ctx.captureValidatedResult?.(result)
             // skip truncation for tools that handle it themselves
             if (result.metadata.truncated !== undefined) {
               return result as typeof executionResult

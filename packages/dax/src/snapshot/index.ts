@@ -66,7 +66,7 @@ export namespace Snapshot {
     if (cfg.snapshot === false) return
     const git = gitdir()
     if (await fs.mkdir(git, { recursive: true })) {
-      await $`git init`
+      const initialized = await $`git init`
         .env({
           ...process.env,
           GIT_DIR: git,
@@ -74,18 +74,36 @@ export namespace Snapshot {
         })
         .quiet()
         .nothrow()
+      if (initialized.exitCode !== 0) {
+        throw new Error(`Failed to initialize snapshot repository (exit ${initialized.exitCode})`)
+      }
       // Configure git to not convert line endings on Windows
-      await $`git --git-dir ${git} config core.autocrlf false`.quiet().nothrow()
+      const configured = await $`git --git-dir ${git} config core.autocrlf false`.quiet().nothrow()
+      if (configured.exitCode !== 0) {
+        throw new Error(`Failed to configure snapshot repository (exit ${configured.exitCode})`)
+      }
       log.info("initialized")
     }
-    await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`.quiet().cwd(Instance.directory).nothrow()
-    const hash = await $`git --git-dir ${git} --work-tree ${Instance.worktree} write-tree`
+    const staged = await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`
       .quiet()
       .cwd(Instance.directory)
       .nothrow()
-      .text()
+    if (staged.exitCode !== 0) {
+      throw new Error(`Failed to stage snapshot baseline (exit ${staged.exitCode})`)
+    }
+    const tree = await $`git --git-dir ${git} --work-tree ${Instance.worktree} write-tree`
+      .quiet()
+      .cwd(Instance.directory)
+      .nothrow()
+    if (tree.exitCode !== 0) {
+      throw new Error(`Failed to write snapshot baseline (exit ${tree.exitCode})`)
+    }
+    const hash = tree.text().trim()
+    if (!/^[a-f0-9]{40,64}$/.test(hash)) {
+      throw new Error("Snapshot baseline did not produce a valid Git tree hash")
+    }
     log.info("tracking", { hash, cwd: Instance.directory, git })
-    return hash.trim()
+    return hash
   }
 
   export const Patch = z.object({
@@ -95,7 +113,12 @@ export namespace Snapshot {
   export type Patch = z.infer<typeof Patch>
 
   export type PatchObservation =
-    | { status: "observed"; patch: Patch }
+    | {
+        status: "observed"
+        patch: Patch
+        /** Exact kernel-observed diff for evidence commitments. Never model/tool reported. */
+        diff: string
+      }
     | {
         status: "failed"
         hash: string
@@ -119,24 +142,40 @@ export namespace Snapshot {
         failure: { code: "snapshot_stage_failed", exitCode: staged.exitCode },
       }
     }
-    const result =
+    const pathsResult =
       await $`git -c core.autocrlf=false -c core.quotepath=false --git-dir ${git} --work-tree ${Instance.worktree} diff --no-ext-diff --name-only ${hash} -- .`
         .quiet()
         .cwd(Instance.directory)
         .nothrow()
 
-    if (result.exitCode !== 0) {
-      log.warn("failed to get diff", { hash, exitCode: result.exitCode })
+    if (pathsResult.exitCode !== 0) {
+      log.warn("failed to get diff paths", { hash, exitCode: pathsResult.exitCode })
       return {
         status: "failed",
         hash,
-        failure: { code: "snapshot_diff_failed", exitCode: result.exitCode },
+        failure: { code: "snapshot_diff_failed", exitCode: pathsResult.exitCode },
       }
     }
 
-    const files = result.text()
+    const diffResult =
+      await $`git -c core.autocrlf=false -c core.quotepath=false --git-dir ${git} --work-tree ${Instance.worktree} diff --no-ext-diff ${hash} -- .`
+        .quiet()
+        .cwd(Instance.directory)
+        .nothrow()
+
+    if (diffResult.exitCode !== 0) {
+      log.warn("failed to get diff content", { hash, exitCode: diffResult.exitCode })
+      return {
+        status: "failed",
+        hash,
+        failure: { code: "snapshot_diff_failed", exitCode: diffResult.exitCode },
+      }
+    }
+
+    const files = pathsResult.text()
     return {
       status: "observed",
+      diff: diffResult.text(),
       patch: {
         hash,
         files: files

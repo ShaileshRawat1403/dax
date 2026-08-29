@@ -163,5 +163,6 @@ async function createToolContext(agent: Agent.Info) {
         }
       }
     },
+    async authorize() {},
   }
 }

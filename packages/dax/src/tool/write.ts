@@ -23,6 +23,7 @@ export const WriteTool = Tool.define("write", {
     filePath: z.string().describe("The absolute path to the file to write (must be absolute, not relative)"),
   }),
   result: Tool.result(z.object({ diagnostics: DiagnosticsSchema, filepath: z.string(), exists: z.boolean() }).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     await assertExternalDirectory(ctx, filepath)
@@ -42,6 +43,7 @@ export const WriteTool = Tool.define("write", {
         diff,
       },
     })
+    await ctx.authorize()
 
     await Bun.write(filepath, params.content)
     await Bus.publish(File.Event.Edited, {

@@ -57,6 +57,7 @@ function context(sessionID: string): Tool.Context {
     messages: [],
     metadata() {},
     async ask() {},
+    async authorize() {},
   }
 }
 

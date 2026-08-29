@@ -59,6 +59,7 @@ export const SkillTool = Tool.define("skill", async (ctx) => {
     description,
     parameters,
     result: Tool.result(z.object({ name: z.string(), dir: z.string() }).strict()),
+    authorization: "self",
     async execute(params: z.infer<typeof parameters>, ctx) {
       const skill = await Skill.get(params.name)
 
@@ -73,6 +74,7 @@ export const SkillTool = Tool.define("skill", async (ctx) => {
         always: [params.name],
         metadata: {},
       })
+      await ctx.authorize()
 
       const dir = path.dirname(skill.location)
       const base = pathToFileURL(dir).href

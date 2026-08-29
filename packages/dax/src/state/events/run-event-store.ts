@@ -71,8 +71,9 @@ async function appendRunEventUnderLock(input: {
   existingEvents: RunEventEnvelope[]
   eventsPath: string[]
   tempPath: string[]
+  rejectDuplicateCommand?: boolean
 }): Promise<RunEventEnvelope> {
-  const { runId, expectedSeq, event, existingEvents, eventsPath, tempPath } = input
+  const { runId, expectedSeq, event, existingEvents, eventsPath, tempPath, rejectDuplicateCommand } = input
   const actualSeq = existingEvents.length
   if (actualSeq !== expectedSeq) {
     throw new StaleAppendError(runId, expectedSeq, actualSeq)
@@ -81,6 +82,9 @@ async function appendRunEventUnderLock(input: {
   if (event.commandId) {
     const existingCommand = existingEvents.find((candidate) => candidate.commandId === event.commandId)
     if (existingCommand) {
+      if (rejectDuplicateCommand) {
+        throw new DuplicateCommandError(runId, event.commandId)
+      }
       log.info("duplicate command detected, returning existing event", {
         runId,
         commandId: event.commandId,
@@ -108,11 +112,18 @@ async function appendRunEventUnderLock(input: {
   // projection would have to reject.
   const validatedNewEvent = parseRunEventLog(runId, [newEvent])[0]
 
-  // Approval authority must not become contradictory durable history. Validate
-  // its reducer semantics while the run lock is held, before persistence. The
-  // wider event vocabulary keeps its existing admission behavior in this
-  // bounded approval slice.
-  if (event.type === "approval_requested" || event.type === "approval_resolved") {
+  // Authority records must not become contradictory durable history. Validate
+  // their reducer semantics while the run lock is held, before persistence;
+  // projection after the write is too late because the canonical log would
+  // already be poisoned.
+  if (
+    event.type === "approval_requested" ||
+    event.type === "approval_resolved" ||
+    event.type === "tool_invocation_recorded" ||
+    event.type === "authorization_recorded" ||
+    event.type === "tool_result_recorded" ||
+    event.type === "mutation_recorded"
+  ) {
     reduceRunState([...existingEvents, validatedNewEvent])
   }
   existingEvents.push(validatedNewEvent)
@@ -148,7 +159,11 @@ export async function appendRunEvent(
  * concurrent calls serialize instead of racing on a sequence read performed
  * before the lock. appendRunEvent remains the explicit compare-and-swap API.
  */
-export async function appendRunEventAtTail(runId: string, event: NewRunEvent): Promise<RunEventEnvelope> {
+export async function appendRunEventAtTail(
+  runId: string,
+  event: NewRunEvent,
+  options?: { rejectDuplicateCommand?: boolean },
+): Promise<RunEventEnvelope> {
   const pathParts = await eventPath(runId)
   const eventsPath = [...pathParts, "events.json"]
   const tempPath = [...pathParts, "events.json.tmp"]
@@ -163,6 +178,7 @@ export async function appendRunEventAtTail(runId: string, event: NewRunEvent): P
       existingEvents,
       eventsPath,
       tempPath,
+      rejectDuplicateCommand: options?.rejectDuplicateCommand,
     })
   } finally {
     await fsLock.dispose()

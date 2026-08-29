@@ -40,20 +40,20 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
         })
         .strict(),
     ),
+    authorization: "self",
     execute: async (params: z.infer<typeof parameters>, ctx: Tool.Context) => {
       const config = await Config.get()
       const agent = agents.find((a) => a.name === params.subagent_type) || (await Agent.get("general"))
       const model = (agent && typeof agent !== 'string' && agent.model) || (await Agent.get("general").then(a => a!.model))
 
       const messageID = Identifier.ascending("message")
-      const session = params.task_id ? await Session.get(params.task_id) : await Session.fork({ sessionID: ctx.sessionID })
-
       const parentSession = await Session.get(ctx.sessionID)
       const parentAuthority = await resolveExecutionAuthority(parentSession.id, parentSession.governingRunId)
+      let session = params.task_id ? await Session.get(params.task_id) : undefined
 
       // A governed parent may resume only a child already bound to the same
       // immutable contract. Ambiguous historical children are not adopted.
-      if (parentAuthority.governingRunId) {
+      if (session && parentAuthority.governingRunId) {
         const childAuthority = await resolveExecutionAuthority(session.id, session.governingRunId)
         if (childAuthority.governingRunId !== parentAuthority.governingRunId) {
           throw new Error(
@@ -77,6 +77,11 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
           prompt: params.prompt,
         },
       })
+      await ctx.authorize()
+
+      // Creating a derived session is itself an execution effect. Do it only
+      // after the parent invocation's combined authority is durable.
+      session ??= await Session.fork({ sessionID: ctx.sessionID })
 
       const approved = await Permission.getApproved()
       const hasTaskPermission = approved.some((p) => p.permission === "task" && p.action === "allow")

@@ -388,6 +388,7 @@ describe("governing run authority in child sessions", () => {
             messages: [],
             metadata() {},
             async ask() {},
+            async authorize() {},
           },
         )
 
@@ -417,6 +418,7 @@ describe("governing run authority in child sessions", () => {
             messages: [],
             metadata() {},
             async ask() {},
+            async authorize() {},
           },
         )
 
@@ -451,6 +453,7 @@ describe("governing run authority in child sessions", () => {
                 messages: [],
                 metadata() {},
                 async ask() {},
+                async authorize() {},
               },
             ),
           ).rejects.toThrow(/stop after fresh-child authority assertion/i)
@@ -479,6 +482,7 @@ describe("governing run authority in child sessions", () => {
           messages: [],
           metadata() {},
           async ask() {},
+          async authorize() {},
         }
 
         await expect(
@@ -524,6 +528,7 @@ describe("governing run authority in child sessions", () => {
                 messages: [],
                 metadata() {},
                 async ask() {},
+                async authorize() {},
               },
             ),
           ).rejects.toThrow(/stop after same-authority resume assertion/i)

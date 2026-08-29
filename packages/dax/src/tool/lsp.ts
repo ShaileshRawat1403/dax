@@ -28,6 +28,7 @@ export const LspTool = Tool.define("lsp", {
     character: z.number().int().min(1).describe("The character offset (1-based, as shown in editors)"),
   }),
   result: Tool.result(z.object({ result: z.array(z.json()) }).strict()),
+  authorization: "self",
   execute: async (args, ctx) => {
     const file = path.isAbsolute(args.filePath) ? args.filePath : path.join(Instance.directory, args.filePath)
     await assertExternalDirectory(ctx, file)
@@ -38,6 +39,7 @@ export const LspTool = Tool.define("lsp", {
       always: ["*"],
       metadata: {},
     })
+    await ctx.authorize()
     const uri = pathToFileURL(file).href
     const position = {
       file,

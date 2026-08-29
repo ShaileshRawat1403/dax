@@ -18,6 +18,8 @@ export interface PermissionRequest {
     diff?: string
     files?: any[]
   }
+  /** The native invocation this permission request authorizes, when there is one. */
+  invocationId?: string
 }
 
 function inferApprovalType(permission: string): ApprovalType {
@@ -76,6 +78,7 @@ export async function adaptPermissionRequest(
       diffPreview: request.metadata?.diff,
     },
     source: "permission",
+    correlationId: request.invocationId,
   })
 
   log.info("adapted permission to approval", {

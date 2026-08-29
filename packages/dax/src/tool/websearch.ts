@@ -63,6 +63,7 @@ export const WebSearchTool = Tool.define("websearch", async () => {
         .describe("Maximum characters for context string optimized for LLMs (default: 10000)"),
     }),
     result: Tool.result(z.object({}).strict()),
+    authorization: "self",
     async execute(params, ctx) {
       await ctx.ask({
         permission: "websearch",
@@ -76,6 +77,7 @@ export const WebSearchTool = Tool.define("websearch", async () => {
           contextMaxCharacters: params.contextMaxCharacters,
         },
       })
+      await ctx.authorize()
 
       const searchRequest: McpSearchRequest = {
         jsonrpc: "2.0",

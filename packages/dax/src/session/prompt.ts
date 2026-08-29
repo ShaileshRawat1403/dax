@@ -64,10 +64,20 @@ import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-expl
 import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
 import { isToolAllowedByContract } from "@/execution/execution-contract"
+import { permissionForToolId } from "@/tool/tool-class"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
 import { createEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
+import {
+  beginNativeInvocation,
+  completeNativeAuthorization,
+  finalizeNativeResult,
+  isNativeInvocationAuthorized,
+  isNativeSettlementPending,
+  NativeSettlementStateError,
+} from "@/execution/native-settlement"
+import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { acquireRunLock } from "@/util/fs-lock"
 import { RunStore } from "@/state/run-store"
@@ -618,17 +628,26 @@ export namespace SessionPrompt {
           subagent_type: task.agent,
           command: task.command,
         }
-        await Plugin.trigger(
-          "tool.execute.before",
-          {
-            tool: "task",
-            sessionID,
-            callID: part.id,
-          },
-          { args: taskArgs },
-        )
+        const settlement = await beginNativeInvocation({
+          sessionID,
+          invocationId: part.callID,
+          toolId: "task",
+          executor: { kind: "builtin", id: "task" },
+          args: taskArgs,
+          originTurnId: assistantMessage.id,
+        })
+        const settled = settlement.status === "recorded"
+        let beforeTriggered = false
+        const runBefore = async () => {
+          if (beforeTriggered) return
+          beforeTriggered = true
+          await Plugin.trigger(
+            "tool.execute.before",
+            { tool: "task", sessionID, callID: part.callID },
+            { args: taskArgs },
+          )
+        }
         let executionError: Error | undefined
-        const taskAgent = await Agent.get(task.agent)
         const taskCtx: Tool.Context = {
           agent: task.agent,
           messageID: assistantMessage.id,
@@ -648,30 +667,67 @@ export namespace SessionPrompt {
             } satisfies MessageV2.ToolPart)
           },
           async ask(req) {
-            await Permission.ask({
-              ...req,
-              sessionID: sessionID,
-              ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
+            const { governedAsk } = await import("@/execution/governed-ask")
+            await governedAsk({
+              sessionID,
+              agent: task.agent,
+              toolID: "task",
+              callID: part.callID,
+              messageID: assistantMessage.id,
+              req,
             })
           },
-        }
-        const result = await taskTool
-          .execute(taskArgs, taskCtx)
-          .then((output) => Tool.parseResult("task", output))
-          .catch((error) => {
-          executionError = error
-          log.error("subtask execution failed", { error, agent: task.agent, description: task.description })
-          return undefined
-        })
-        await Plugin.trigger(
-          "tool.execute.after",
-          {
-            tool: "task",
-            sessionID,
-            callID: part.id,
+          async authorize() {
+            if (settled) await completeNativeAuthorization(part.callID)
+            await runBefore()
           },
-          result,
-        )
+        }
+        if (!settled) await runBefore()
+        let result: Tool.Result | undefined
+        let canonicalResult: Tool.Result | undefined
+        taskCtx.captureValidatedResult = (value) => {
+          canonicalResult = value
+        }
+        try {
+          result = Tool.parseResult("task", await taskTool.execute(taskArgs, taskCtx))
+          if (settled && !isNativeInvocationAuthorized(part.callID)) {
+            throw new NativeSettlementStateError(part.callID, "task returned before final authorization")
+          }
+          if (settled && !canonicalResult) {
+            throw new NativeSettlementStateError(part.callID, "task did not expose its validated pre-truncation result")
+          }
+          await Plugin.trigger(
+            "tool.execute.after",
+            { tool: "task", sessionID, callID: part.callID },
+            result,
+          )
+        } catch (error) {
+          if (settled && isNativeInvocationAuthorized(part.callID)) {
+            const message = error instanceof Error ? error.message : String(error)
+            await finalizeNativeResult(
+              part.callID,
+              abort.aborted
+                ? { status: "cancelled", cancellation: { code: "aborted", message } }
+                : { status: "failed", failure: { code: "executor_failed", message, retryable: false } },
+            )
+          }
+          result = undefined
+          executionError = error instanceof Error ? error : new Error(String(error))
+          log.error("subtask execution failed", { error, agent: task.agent, description: task.description })
+        }
+        if (result && settled) {
+          try {
+            const commitment = await computeCanonicalCommitment(canonicalResult!)
+            await finalizeNativeResult(part.callID, {
+              status: "completed",
+              result: { basis: "validated_dax_result_pre_truncation", ...commitment },
+            })
+          } catch (error) {
+            result = undefined
+            executionError = error instanceof Error ? error : new Error(String(error))
+            log.error("subtask result settlement failed", { error, agent: task.agent, description: task.description })
+          }
+        }
         assistantMessage.finish = "tool-calls"
         assistantMessage.time.completed = Date.now()
         await Session.updateMessage(assistantMessage)
@@ -950,7 +1006,13 @@ export namespace SessionPrompt {
     const authority = await resolveExecutionAuthority(input.session.id, input.session.governingRunId)
     const contract = authority.contract
 
-    const context = (args: any, options: ToolCallOptions, toolID?: string): Tool.Context => ({
+    const context = (
+      args: any,
+      options: ToolCallOptions,
+      toolID?: string,
+      onAuthorized?: () => Promise<void>,
+      onValidatedResult?: (result: Tool.Result) => void,
+    ): Tool.Context => ({
       sessionID: input.session.id,
       abort: options.abortSignal!,
       messageID: input.processor.message.id,
@@ -975,23 +1037,35 @@ export namespace SessionPrompt {
           })
         }
       },
-      async ask(req) {
-        const { enforceRuntimeGuard } = await import("@/execution/runtime-guard")
-        await enforceRuntimeGuard({
-          sessionID: input.session.id,
-          agent: input.agent.name,
+      // A genuine method (not an arrow function) so a caller that constructs
+      // a narrower ctx via `{ ...ctx, callID: leafCallID }` — BatchTool's
+      // per-leaf context is the production case — gets ask() bound to *that*
+      // object's identity at call time, not the identity of the invocation
+      // that first built this context. this.sessionID/agent/messageID always
+      // equal the closed-over values for a direct (non-forked) call.
+      async ask(this: Tool.Context, req) {
+        const { governedAsk } = await import("@/execution/governed-ask")
+        await governedAsk({
+          sessionID: this.sessionID,
+          agent: this.agent,
           toolID,
+          callID: this.callID,
+          messageID: this.messageID,
           req,
-          callID: options.toolCallId,
-        })
-        await Permission.ask({
-          ...req,
-          sessionID: input.session.id,
-          tool: { messageID: input.processor.message.id, callID: options.toolCallId },
-          ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
         })
       },
+      async authorize(this: Tool.Context) {
+        if (this.callID && isNativeSettlementPending(this.callID)) {
+          await completeNativeAuthorization(this.callID)
+        }
+        await onAuthorized?.()
+      },
+      captureValidatedResult(result) {
+        onValidatedResult?.(result)
+      },
     })
+
+    const pluginToolIds = await ToolRegistry.pluginIds()
 
     for (const item of await ToolRegistry.tools(
       { modelID: input.model.api.id, providerID: input.model.providerID },
@@ -1005,28 +1079,94 @@ export namespace SessionPrompt {
         description: item.description,
         inputSchema: jsonSchema(schema as any),
         async execute(args, options) {
-          const ctx = context(args, options, item.id)
-          await Plugin.trigger(
-            "tool.execute.before",
-            {
-              tool: item.id,
-              sessionID: ctx.sessionID,
-              callID: ctx.callID,
-            },
-            {
-              args,
-            },
-          )
-          const result = await item.execute(args, ctx)
-          await Plugin.trigger(
-            "tool.execute.after",
-            {
-              tool: item.id,
-              sessionID: ctx.sessionID,
-              callID: ctx.callID,
-            },
-            result,
-          )
+          let canonicalResult: Tool.Result | undefined
+          let beforeTriggered = false
+          const runBefore = async () => {
+            if (beforeTriggered) return
+            beforeTriggered = true
+            await Plugin.trigger(
+              "tool.execute.before",
+              { tool: item.id, sessionID: input.session.id, callID: options.toolCallId },
+              { args },
+            )
+          }
+          const ctx = context(args, options, item.id, runBefore, (result) => {
+            canonicalResult = result
+          })
+          const invocationId = ctx.callID
+          // Left unawaited-for-catch on purpose: an append failure here must
+          // propagate before item.execute() ever runs, not be swallowed.
+          const settlement = invocationId
+            ? await beginNativeInvocation({
+                sessionID: ctx.sessionID,
+                invocationId,
+                toolId: item.id,
+                executor: { kind: pluginToolIds.has(item.id) ? "plugin" : "builtin", id: item.id },
+                args,
+                originTurnId: ctx.messageID,
+              })
+            : { status: "not_canonical" as const }
+          const settled = settlement.status === "recorded"
+
+          if (!settled) await runBefore()
+          if (settled && item.authorization !== "self") {
+            await ctx.ask({
+              permission: permissionForToolId(item.id),
+              patterns: ["*"],
+              always: ["*"],
+              metadata: {},
+            })
+            await ctx.authorize()
+          }
+
+          let result: Awaited<ReturnType<typeof item.execute>>
+          try {
+            result = await item.execute(args, ctx)
+            if (settled && invocationId && !isNativeInvocationAuthorized(invocationId)) {
+              throw new NativeSettlementStateError(invocationId, `${item.id} returned before final authorization`)
+            }
+            if (settled && invocationId && !canonicalResult) {
+              throw new NativeSettlementStateError(
+                invocationId,
+                `${item.id} did not expose its validated pre-truncation result`,
+              )
+            }
+            await Plugin.trigger(
+              "tool.execute.after",
+              { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
+              result,
+            )
+          } catch (error) {
+            if (settled && invocationId && isNativeInvocationAuthorized(invocationId)) {
+              await finalizeNativeResult(
+                invocationId,
+                ctx.abort.aborted
+                  ? {
+                      status: "cancelled",
+                      cancellation: { code: "aborted", message: error instanceof Error ? error.message : String(error) },
+                    }
+                  : {
+                      status: "failed",
+                      failure: {
+                        code: "executor_failed",
+                        message: error instanceof Error ? error.message : String(error),
+                        retryable: false,
+                      },
+                    },
+              )
+            }
+            throw error
+          }
+
+          if (settled && invocationId) {
+            // Not caught above: a real success whose result cannot be made
+            // durable must not become a model-visible success either.
+            const commitment = await computeCanonicalCommitment(canonicalResult!)
+            await finalizeNativeResult(invocationId, {
+              status: "completed",
+              result: { basis: "validated_dax_result_pre_truncation", ...commitment },
+            })
+          }
           return result
         },
       })
@@ -1042,93 +1182,141 @@ export namespace SessionPrompt {
       item.inputSchema = jsonSchema(transformed)
       // Wrap execute to add plugin hooks and format output
       item.execute = async (args, opts) => {
-        const ctx = context(args, opts, key)
-
-        await Plugin.trigger(
-          "tool.execute.before",
-          {
-            tool: key,
-            sessionID: ctx.sessionID,
-            callID: opts.toolCallId,
-          },
-          {
-            args,
-          },
-        )
-
-        await ctx.ask({
-          permission: key,
-          metadata: {},
-          patterns: ["*"],
-          always: ["*"],
-        })
-
-        // MCP's protocol result was already parsed by MCP.convertMcpTool's
-        // CallToolResultSchema. Validate the translated DAX result as well,
-        // before truncation makes it model-visible.
-        const result = await execute(args, opts)
-
-        await Plugin.trigger(
-          "tool.execute.after",
-          {
-            tool: key,
-            sessionID: ctx.sessionID,
-            callID: opts.toolCallId,
-          },
-          result,
-        )
-
-        const textParts: string[] = []
-        const attachments: MessageV2.FilePart[] = []
-
-        for (const contentItem of result.content) {
-          if (contentItem.type === "text") {
-            textParts.push(contentItem.text)
-          } else if (contentItem.type === "image") {
-            attachments.push({
-              id: Identifier.ascending("part"),
-              sessionID: input.session.id,
-              messageID: input.processor.message.id,
-              type: "file",
-              mime: contentItem.mimeType,
-              url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
+        let beforeTriggered = false
+        const runBefore = async () => {
+          if (beforeTriggered) return
+          beforeTriggered = true
+          await Plugin.trigger(
+            "tool.execute.before",
+            { tool: key, sessionID: input.session.id, callID: opts.toolCallId },
+            { args },
+          )
+        }
+        const ctx = context(args, opts, key, runBefore)
+        const invocationId = ctx.callID
+        const settlement = invocationId
+          ? await beginNativeInvocation({
+              sessionID: ctx.sessionID,
+              invocationId,
+              toolId: key,
+              executor: { kind: "mcp", id: key },
+              args,
+              originTurnId: ctx.messageID,
             })
-          } else if (contentItem.type === "resource") {
-            const { resource } = contentItem
-            if (resource.text) {
-              textParts.push(resource.text)
-            }
-            if (resource.blob) {
+          : { status: "not_canonical" as const }
+        const settled = settlement.status === "recorded"
+        let domainResult: Tool.Result | undefined
+        let protocolResult: Awaited<ReturnType<typeof execute>> | undefined
+
+        try {
+          await ctx.ask({
+            permission: key,
+            metadata: {},
+            patterns: ["*"],
+            always: ["*"],
+          })
+          if (settled) await ctx.authorize()
+          else await runBefore()
+
+          // MCP's protocol result was already parsed by MCP.convertMcpTool's
+          // CallToolResultSchema. Validate the translated DAX result as well,
+          // before truncation makes it model-visible.
+          protocolResult = await execute(args, opts)
+
+          await Plugin.trigger(
+            "tool.execute.after",
+            {
+              tool: key,
+              sessionID: ctx.sessionID,
+              callID: opts.toolCallId,
+            },
+            protocolResult,
+          )
+
+          const textParts: string[] = []
+          const attachments: MessageV2.FilePart[] = []
+
+          for (const contentItem of protocolResult.content) {
+            if (contentItem.type === "text") {
+              textParts.push(contentItem.text)
+            } else if (contentItem.type === "image") {
               attachments.push({
                 id: Identifier.ascending("part"),
                 sessionID: input.session.id,
                 messageID: input.processor.message.id,
                 type: "file",
-                mime: resource.mimeType ?? "application/octet-stream",
-                url: `data:${resource.mimeType ?? "application/octet-stream"};base64,${resource.blob}`,
-                filename: resource.uri,
+                mime: contentItem.mimeType,
+                url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
               })
+            } else if (contentItem.type === "resource") {
+              const { resource } = contentItem
+              if (resource.text) {
+                textParts.push(resource.text)
+              }
+              if (resource.blob) {
+                attachments.push({
+                  id: Identifier.ascending("part"),
+                  sessionID: input.session.id,
+                  messageID: input.processor.message.id,
+                  type: "file",
+                  mime: resource.mimeType ?? "application/octet-stream",
+                  url: `data:${resource.mimeType ?? "application/octet-stream"};base64,${resource.blob}`,
+                  filename: resource.uri,
+                })
+              }
             }
           }
+
+          domainResult = Tool.parseResult(key, {
+            title: "",
+            metadata: protocolResult.metadata ?? {},
+            output: textParts.join("\n\n"),
+            attachments,
+          })
+        } catch (error) {
+          if (settled && invocationId && isNativeInvocationAuthorized(invocationId)) {
+            await finalizeNativeResult(
+              invocationId,
+              ctx.abort.aborted
+                ? {
+                    status: "cancelled",
+                    cancellation: { code: "aborted", message: error instanceof Error ? error.message : String(error) },
+                  }
+                : {
+                    status: "failed",
+                    failure: {
+                      code: "executor_failed",
+                      message: error instanceof Error ? error.message : String(error),
+                      retryable: false,
+                    },
+                  },
+            )
+          }
+          throw error
         }
 
-        const domainResult = Tool.parseResult(key, {
-          title: "",
-          metadata: result.metadata ?? {},
-          output: textParts.join("\n\n"),
-          attachments,
-        })
-        const truncated = await Truncate.output(domainResult.output, {}, input.agent)
+        // A successful executor result is settled outside the executor-error
+        // catch. If this append fails, the invocation must remain authorized
+        // with an unknown outcome; it must not be rewritten as a failed call.
+        if (settled && invocationId) {
+          const commitment = await computeCanonicalCommitment(domainResult!)
+          await finalizeNativeResult(invocationId, {
+            status: "completed",
+            result: { basis: "validated_dax_result_pre_truncation", ...commitment },
+          })
+        }
+
+        const truncated = await Truncate.output(domainResult!.output, {}, input.agent)
 
         return Tool.parseResult(key, {
-          ...domainResult,
+          ...domainResult!,
           metadata: {
-            ...domainResult.metadata,
+            ...domainResult!.metadata,
             truncated: truncated.truncated,
             ...(truncated.truncated ? { outputPath: truncated.outputPath } : {}),
           },
           output: truncated.content,
-          content: result.content, // directly return content to preserve ordering when outputting to model
+          content: protocolResult!.content, // directly return content to preserve ordering when outputting to model
         })
       }
       tools[key] = item
@@ -1366,6 +1554,7 @@ export namespace SessionPrompt {
                       messages: [],
                       metadata: async () => {},
                       ask: async () => {},
+                      authorize: async () => {},
                     }
                     const result = await t.execute(args, readCtx)
                     pieces.push({
@@ -1430,6 +1619,7 @@ export namespace SessionPrompt {
                   messages: [],
                   metadata: async () => {},
                   ask: async () => {},
+                  authorize: async () => {},
                 }
                 const result = await ListTool.init().then((t) => t.execute(args, listCtx))
                 return [

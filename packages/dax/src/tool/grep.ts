@@ -17,6 +17,7 @@ export const GrepTool = Tool.define("grep", {
     include: z.string().optional().describe('File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")'),
   }),
   result: Tool.result(z.object({ matches: z.number().int().nonnegative(), truncated: z.boolean() }).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     if (!params.pattern) {
       throw new Error("pattern is required")
@@ -43,6 +44,7 @@ export const GrepTool = Tool.define("grep", {
     let searchPath = params.path ?? Instance.directory
     searchPath = path.isAbsolute(searchPath) ? searchPath : path.resolve(Instance.directory, searchPath)
     await assertExternalDirectory(ctx, searchPath, { kind: "directory" })
+    await ctx.authorize()
 
     const rgPath = await Ripgrep.filepath()
     const args = ["-nH", "--hidden", "--no-messages", "--field-match-separator=|", "--regexp", params.pattern]

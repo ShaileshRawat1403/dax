@@ -18,6 +18,8 @@ type CreateApprovalParams = {
   context?: ApprovalContext
   expectedConsequence?: string
   source?: "workflow" | "permission" | "system" | "manual"
+  /** The native invocation this approval authorizes, when there is one. */
+  correlationId?: string
 }
 
 const log = Log.create({ service: "approval-transitions" })
@@ -104,6 +106,7 @@ export async function createAndPersistApproval(params: CreateApprovalParams): Pr
       stepId: params.stepId,
       context: params.context,
       source: approval.source,
+      correlationId: params.correlationId,
     })
     const recorded = state.approvals.find((candidate) => candidate.approvalId === approvalId)
     const expectedContext = params.context ? ApprovalContextSchema.strict().parse(params.context) : null

@@ -36,6 +36,7 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
   description: DESCRIPTION,
   parameters: PatchParams,
   result: Tool.result(z.object({ diff: z.string(), files: z.array(AppliedFileSchema), diagnostics: DiagnosticsSchema }).strict()),
+  authorization: "self",
   async execute(params, ctx) {
     if (!params.patchText) {
       throw new Error("patchText is required")
@@ -183,7 +184,7 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
       after: change.newContent,
       additions: change.additions,
       deletions: change.deletions,
-      movePath: change.movePath,
+      ...(change.movePath ? { movePath: change.movePath } : {}),
     }))
 
     // Check permissions if needed
@@ -198,6 +199,7 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
         files,
       },
     })
+    await ctx.authorize()
 
     // Apply the changes
     const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []

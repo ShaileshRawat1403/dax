@@ -47,6 +47,8 @@ export namespace Permission {
         })
         .optional(),
       ruleset: Ruleset,
+      /** The native invocation this permission request authorizes, when there is one. */
+      invocationId: z.string().optional(),
     })
     .meta({
       ref: "PermissionAskInput",
@@ -230,7 +232,11 @@ export namespace Permission {
             if (authority.governingRunId) {
               governingRunId = authority.governingRunId
               const { adaptPermissionRequest } = await import("@/runtime/compat/permission-adapter")
-              await adaptPermissionRequest(info, info.tool?.callID, authority.governingRunId)
+              await adaptPermissionRequest(
+                { ...info, invocationId: input.invocationId },
+                info.tool?.callID,
+                authority.governingRunId,
+              )
             }
           } catch (error) {
             // Some legacy/integration callers use Permission without a

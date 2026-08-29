@@ -51,6 +51,8 @@ type RuntimeGuardInput = {
   toolID?: string
   req: GuardRequest
   callID?: string
+  /** The native invocation this check authorizes, when there is one. */
+  invocationId?: string
 }
 
 type ResolvedRuntimeGuardInput = RuntimeGuardInput & {
@@ -290,6 +292,7 @@ async function ensureIntervention(input: {
     diffPreview?: string
     notes?: string[]
   }
+  correlationId?: string
 }) {
   const approval = await createAndPersistApproval({
     runId: input.sessionID,
@@ -299,6 +302,7 @@ async function ensureIntervention(input: {
     reason: input.reason,
     context: input.context,
     source: "system",
+    correlationId: input.correlationId,
   })
   return approval
 }
@@ -436,6 +440,7 @@ async function blockViolation(
         ...(escalated ? [`loop-break engaged after ${failure.count} similar blocked attempt(s)`] : []),
       ],
     },
+    correlationId: input.invocationId,
   })
 
   // Pause-and-ask: surface the approval card and await the operator's

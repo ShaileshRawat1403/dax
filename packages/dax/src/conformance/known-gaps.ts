@@ -32,13 +32,10 @@ export const KNOWN_GAPS = {
     "If the event-log authority marker is persisted but contract_compiled cannot be appended, the contract correctly remains locked but recovery cannot retry or repair the zero-event authority state",
   "integrity.native-terminal-canonical":
     "A completed native SessionProcessor turn does not transition the canonical event-authority run to a terminal state",
-  "integrity.native-tool-settlement-canonical":
-    "Native tool results settle only into session parts and have no canonical run-event representation",
-  "integrity.native-mutation-canonical":
-    "A successfully settled native mutation does not produce canonical mutation_recorded evidence",
   "integrity.gateway-projection-authority":
     "The compatibility run event stream still changes production snapshot fields for event-authority runs, so it is not projection-only",
-  "inv1.record-classes": "Prompt, context, message, tool call, tool result, policy, delegation and compaction have no durable event representation (3 of 11 classes covered)",
+  "inv1.record-classes":
+    "Prompt, context, assistant message, delegation and compaction replacement have no durable event representation (6 of 11 classes covered)",
   "inv3.conformance-points": "Execution paths do not emit the same conformance points (16 of 40)",
   "inv3.governance-spread": "An action's governance still depends on which execution path it entered through",
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",
