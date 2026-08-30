@@ -135,9 +135,11 @@ describe("permission approvals", () => {
 
           const pending = await waitForPending(Permission, 2)
           expect(pending.length).toBe(2)
+          const firstRequest = pending.find((request) => request.patterns.includes(firstCommand))
+          expect(firstRequest).toBeDefined()
 
           await Permission.reply({
-            requestID: pending[0]!.id,
+            requestID: firstRequest!.id,
             reply: "reject",
             message: "Use a safer cleanup path.",
           })
