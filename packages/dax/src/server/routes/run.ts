@@ -19,6 +19,7 @@ import {
   ProjectedRun,
 } from "../run-contract"
 import { RunGateway } from "../run-gateway"
+import { RunInspectorReadResultV1 } from "../run-inspector-projection"
 
 export const RunRoutes = lazy(() =>
   new Hono()
@@ -66,6 +67,29 @@ export const RunRoutes = lazy(() =>
       async (c) => {
         const body = c.req.valid("json")
         return c.json(await RunGateway.createRun(body))
+      },
+    )
+    .get(
+      "/:runID/inspector",
+      describeRoute({
+        summary: "Get canonical run inspector",
+        description:
+          "Return the canonical-authority inspector projection, or an explicit authority status when it cannot be read.",
+        operationId: "run.inspector",
+        responses: {
+          200: {
+            description: "Canonical inspector projection or typed authority status",
+            content: {
+              "application/json": {
+                schema: resolver(RunInspectorReadResultV1),
+              },
+            },
+          },
+        },
+      }),
+      validator("param", z.object({ runID: z.string() })),
+      async (c) => {
+        return c.json(await RunGateway.getInspectorProjection(c.req.valid("param").runID))
       },
     )
     .get(

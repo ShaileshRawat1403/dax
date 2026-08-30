@@ -47,6 +47,12 @@ import {
   type RunIntervention,
 } from "./run-contract"
 import { buildProjectedRun, buildInterventionProjection, mapEventToNarrativeItem } from "./run-projections"
+import {
+  authorityUnreadable,
+  buildRunInspectorProjectionV1,
+  legacyUnsupported,
+  type RunInspectorReadResultV1,
+} from "./run-inspector-projection"
 
 type RunMeta = {
   sourceSystem?: "soothsayer" | "dax" | "cli" | "api"
@@ -1327,6 +1333,83 @@ export namespace RunGateway {
               timestamp: events.at(-1)!.timestamp,
             }
           : null,
+    }
+  }
+
+  /**
+   * The canonical-only inspector read boundary. This deliberately does not
+   * compose existing Gateway projections: those reads may include session or
+   * compatibility state for legacy support. A successful result is fresh only
+   * when this invocation validated one canonical event snapshot and returns
+   * its sequence/cursor.
+   */
+  export async function getInspectorProjection(runId: string): Promise<RunInspectorReadResultV1> {
+    initialize()
+
+    let authority: Awaited<ReturnType<typeof getRunAuthority>>
+    try {
+      authority = await getRunAuthority(runId)
+    } catch {
+      return authorityUnreadable(runId, "authority_marker_unreadable")
+    }
+
+    if (authority === "legacy") {
+      return legacyUnsupported(runId, "legacy_authority")
+    }
+
+    if (authority === null) {
+      try {
+        // An unmarked log is canonical corruption, never an invitation to use
+        // session or compatibility state. An empty unmarked run is genuinely
+        // outside this canonical inspector's supported authority model.
+        const events = await readRunEvents(runId)
+        return events.length > 0
+          ? authorityUnreadable(runId, "authority_marker_missing")
+          : legacyUnsupported(runId, "no_canonical_authority")
+      } catch {
+        return authorityUnreadable(runId, "canonical_log_unreadable")
+      }
+    }
+
+    let events: RunEventEnvelope[]
+    try {
+      events = await readRunEvents(runId)
+    } catch {
+      return authorityUnreadable(runId, "canonical_log_unreadable")
+    }
+
+    if (events.length === 0) return authorityUnreadable(runId, "canonical_log_empty")
+
+    let contract: Awaited<ReturnType<typeof RunFactory.getContract>>
+    try {
+      contract = await RunFactory.getContract(runId)
+    } catch {
+      // A valid event-authority marker makes a contract storage failure an
+      // authority failure. Do not downgrade to session, mutable permissions,
+      // or compatibility projections.
+      return authorityUnreadable(runId, "execution_contract_unreadable")
+    }
+    if (!contract) return authorityUnreadable(runId, "execution_contract_missing")
+
+    let state: CanonicalRunState | null
+    try {
+      state = reduceRunState(events)
+    } catch {
+      return authorityUnreadable(runId, "canonical_state_unreadable")
+    }
+    if (!state) return authorityUnreadable(runId, "canonical_log_empty")
+
+    if (contract.runId !== runId || contract.contractId !== state.contractId) {
+      return authorityUnreadable(runId, "execution_contract_mismatch")
+    }
+
+    try {
+      return buildRunInspectorProjectionV1({ runId, contract, state, events })
+    } catch {
+      // Schema/projection failures are evidence that the supposedly canonical
+      // snapshot cannot be read truthfully, not a reason to offer a partial
+      // or compatibility projection.
+      return authorityUnreadable(runId, "canonical_state_unreadable")
     }
   }
 
