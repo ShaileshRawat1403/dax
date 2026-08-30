@@ -13,6 +13,7 @@ import { Truncate } from "@/tool/truncation"
 import { Tool } from "@/tool/tool"
 import { ToolRegistry } from "@/tool/registry"
 import { Permission } from "@/governance"
+import { NativeVerificationEffects } from "@/execution/native-verification"
 import { RunFactory } from "@/execution/run-factory"
 import { RunGateway } from "@/server/run-gateway"
 import { WorkerRunEffects } from "@/workflows/worker-run"
@@ -192,7 +193,7 @@ async function seedSession(sessionID: string): Promise<void> {
 }
 
 async function observeNativeApprovalAndMutation(project: string) {
-  const target = path.join(project, ".dax", "lab", "native-meter.txt")
+  const target = path.join(project, "src", "native-meter.txt")
   const session = await Session.create({ title: "Native approval meter" })
   await Session.update(session.id, (draft) => {
     draft.permission = [{ permission: "edit", pattern: "*", action: "ask" }]
@@ -254,7 +255,7 @@ async function observeNativeApprovalAndMutation(project: string) {
       SessionPrompt.prompt({
         sessionID: session.id,
         model: { providerID: meterModel.providerID, modelID: meterModel.id },
-        parts: [{ type: "text", text: "Write .dax/lab/native-meter.txt and verify the mutation before completion." }],
+        parts: [{ type: "text", text: "Write src/native-meter.txt and verify the mutation before completion." }],
       }),
   )
 
@@ -460,7 +461,20 @@ export async function observeNativeKernel(root: string): Promise<KernelObservati
   const project = path.join(root, "native-project")
   await fs.mkdir(project, { recursive: true })
   await initializeGitRepository(project)
+  await fs.writeFile(
+    path.join(project, "package.json"),
+    JSON.stringify({ scripts: { test: "bun test src/native-meter.test.ts" } }),
+  )
+  await fs.writeFile(path.join(project, "bun.lock"), "")
+  await fs.writeFile(
+    path.join(project, "src", "native-meter.test.ts"),
+    'import { expect, test } from "bun:test"\ntest("native meter", () => expect(1).toBe(1))\n',
+  )
+  await runGit(project, ["add", "."])
+  await runGit(project, ["-c", "user.name=DAX Tests", "-c", "user.email=dax@example.invalid", "commit", "-m", "checks"])
   await fs.mkdir(path.join(root, ".config", "dax"), { recursive: true })
+
+  NativeVerificationEffects.set({ run: async (check) => passedCheck(check) })
 
   return Instance.provide({
     directory: project,
@@ -492,9 +506,12 @@ export async function observeNativeKernel(root: string): Promise<KernelObservati
       )
       const verificationRequired = positive.contract?.runtimePolicy?.postconditions.verificationRequired === true
       const verificationRecorded = has(positive.events, "verification_recorded")
+      const positiveResultEvent = first(positive.events, "tool_result_recorded")
+      const positiveVerificationEvent = first(positive.events, "verification_recorded")
+      const positiveCompletionEvent = first(positive.events, "run_completed")
 
       return {
-        kernel: "native",
+        kernel: "native" as const,
         points: {
           contract_bound: {
             satisfied:
@@ -547,18 +564,21 @@ export async function observeNativeKernel(root: string): Promise<KernelObservati
             references: ["Tool.result.parse", "ToolResultValidationError", "tool_result_recorded:failed"],
           },
           verification_emitted: {
-            satisfied: verificationRequired && verificationRecorded,
+            satisfied:
+              verificationRequired &&
+              Boolean(positiveResultEvent) &&
+              Boolean(positiveVerificationEvent) &&
+              Boolean(positiveCompletionEvent) &&
+              positiveResultEvent!.seq < positiveVerificationEvent!.seq &&
+              positiveVerificationEvent!.seq < positiveCompletionEvent!.seq,
             references: verificationRecorded ? ["verification_recorded"] : [],
-            note: verificationRecorded
-              ? undefined
-              : "Native mutation required verification, but production SessionPrompt emitted no verification_recorded event.",
           },
           completion_projected: {
             satisfied:
               has(completion.events, "run_completed") &&
               completion.state?.status === "completed" &&
-              !has(positive.events, "run_completed") &&
-              positive.state?.status !== "completed",
+              has(positive.events, "run_completed") &&
+              positive.state?.status === "completed",
             references: ["SessionPrompt", "native completion adjudication", "run_completed"],
           },
         },
@@ -568,11 +588,13 @@ export async function observeNativeKernel(root: string): Promise<KernelObservati
             invalidInput.results.some((event) => payload<{ status: string }>(event)?.status === "failed") &&
             invalidOutput.results.some((event) => payload<{ status: string }>(event)?.status === "failed") &&
             deniedAuthorization?.finalDisposition === "denied",
-          incomplete: verificationRequired && !verificationRecorded && positive.state?.status !== "completed",
+          incomplete:
+            invalidOutput.results.some((event) => payload<{ status: string }>(event)?.status === "failed") &&
+            !has(invalidOutput.events, "run_completed"),
         },
       }
     },
-  })
+  }).finally(() => NativeVerificationEffects.reset())
 }
 
 type WorkerCase = {

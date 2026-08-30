@@ -23,6 +23,8 @@ import {
 } from "@/state/events/event-transitions"
 import { readRunEvents } from "@/state/events/run-event-store"
 import type { ExecutionContract } from "./execution-contract"
+import { NativeVerificationEffects } from "./native-verification"
+import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 
 let testHome = ""
 let previousTestHome: string | undefined
@@ -33,9 +35,11 @@ beforeEach(async () => {
   process.env.DAX_TEST_HOME = testHome
   mkdirSync(testHome, { recursive: true })
   await Instance.disposeAll()
+  NativeVerificationEffects.reset()
 })
 
 afterEach(async () => {
+  NativeVerificationEffects.reset()
   await Instance.disposeAll()
   if (previousTestHome === undefined) delete process.env.DAX_TEST_HOME
   else process.env.DAX_TEST_HOME = previousTestHome
@@ -45,6 +49,7 @@ afterEach(async () => {
 async function createNativeRun(input?: {
   expectedOutputs?: ExecutionContract["expectedOutputs"]
   verificationRequired?: boolean
+  validationCommands?: string[]
 }) {
   const session = await Session.create({ title: "Native completion candidate" })
   const { contract } = compileWithRunId(
@@ -58,7 +63,7 @@ async function createNativeRun(input?: {
     postconditions: {
       verificationRequired: input?.verificationRequired ?? false,
       validationPlan: input?.verificationRequired ? ["Collect evidence"] : [],
-      validationCommands: input?.verificationRequired ? ["bun test"] : [],
+      validationCommands: input?.verificationRequired ? (input.validationCommands ?? ["bun test"]) : [],
     },
   }
 
@@ -68,6 +73,26 @@ async function createNativeRun(input?: {
   await transitionEventAuthority(session.id, "queued", "execution_queued", {})
   await transitionEventAuthority(session.id, "running", "execution_started", {})
   return { session, contract }
+}
+
+function checkResult(check: CheckDefinition, status: "passed" | "failed"): CheckResult {
+  const now = new Date().toISOString()
+  return {
+    id: check.id,
+    kind: check.kind,
+    label: check.label,
+    command: [check.command, ...check.args].join(" "),
+    cwd: check.cwd,
+    required: check.required,
+    risk: check.risk,
+    exitCode: status === "passed" ? 0 : 1,
+    status,
+    startedAt: now,
+    finishedAt: now,
+    durationMs: 1,
+    stdoutPreview: status === "passed" ? "verified" : "",
+    stderrPreview: status === "failed" ? "verification failed" : "",
+  }
 }
 
 async function createAssistantCandidate(sessionID: string, text = "Governed work is complete.") {
@@ -143,6 +168,42 @@ describe("native canonical completion", () => {
         })
         const completed = (await readRunEvents(session.id)).find((event) => event.type === "run_completed")
         expect(completed?.payload).toMatchObject({ completionProof: { decision: "pass" } })
+      },
+    })
+  })
+
+  test("provider stop executes the complete contract verification plan before completion", async () => {
+    await Instance.provide({
+      directory: testHome,
+      async fn() {
+        const executed: string[] = []
+        NativeVerificationEffects.set({
+          async run(check) {
+            executed.push([check.command, ...check.args].join(" "))
+            return checkResult(check, "passed")
+          },
+        })
+        const { session } = await createNativeRun({
+          verificationRequired: true,
+          validationCommands: ["bun run typecheck", "bun test"],
+        })
+
+        const decision = await adjudicateNativeCompletionCandidate({
+          sessionID: session.id,
+          assistantMessageID: await createAssistantCandidate(session.id),
+          finishReason: "stop",
+        })
+
+        expect(decision).toMatchObject({ accepted: true, reasonCodes: [] })
+        expect(executed).toEqual(["bun run typecheck", "bun test"])
+        const events = await readRunEvents(session.id)
+        const verification = events.find((event) => event.type === "verification_recorded")
+        const completed = events.find((event) => event.type === "run_completed")
+        expect(verification?.payload).toMatchObject({ status: "passed" })
+        expect((verification?.payload as { checks: CheckResult[] }).checks.map((check) => check.command)).toEqual(
+          executed,
+        )
+        expect(verification!.seq).toBeLessThan(completed!.seq)
       },
     })
   })
@@ -261,12 +322,11 @@ describe("native canonical completion", () => {
     })
   })
 
-  test.each(["missing", "failed"] as const)("%s required verification rejects completion", async (kind) => {
+  test("a required contract with no executable validation plan rejects completion", async () => {
     await Instance.provide({
       directory: testHome,
       async fn() {
-        const { session } = await createNativeRun({ verificationRequired: true })
-        if (kind === "failed") await recordPassedVerification(session.id, "failed")
+        const { session } = await createNativeRun({ verificationRequired: true, validationCommands: [] })
 
         const decision = await adjudicateNativeCompletionCandidate({
           sessionID: session.id,
@@ -275,6 +335,30 @@ describe("native canonical completion", () => {
         })
 
         expect(decision.reasonCodes).toContain("completion_proof:missing_verification")
+        expect((await getEventAuthorityState(session.id))?.status).toBe("waiting_approval")
+      },
+    })
+  })
+
+  test("an actually failed contract verification rejects completion", async () => {
+    await Instance.provide({
+      directory: testHome,
+      async fn() {
+        NativeVerificationEffects.set({ run: async (check) => checkResult(check, "failed") })
+        const { session } = await createNativeRun({ verificationRequired: true })
+
+        const decision = await adjudicateNativeCompletionCandidate({
+          sessionID: session.id,
+          assistantMessageID: await createAssistantCandidate(session.id),
+          finishReason: "stop",
+        })
+
+        expect(decision.reasonCodes).toContain("completion_proof:missing_verification")
+        const events = await readRunEvents(session.id)
+        expect(events.find((event) => event.type === "verification_recorded")?.payload).toMatchObject({
+          status: "failed",
+        })
+        expect(events.some((event) => event.type === "run_completed")).toBe(false)
         expect((await getEventAuthorityState(session.id))?.status).toBe("waiting_approval")
       },
     })
@@ -442,7 +526,7 @@ describe("native canonical completion", () => {
     await Instance.provide({
       directory: testHome,
       async fn() {
-        const { session } = await createNativeRun({ verificationRequired: true })
+        const { session } = await createNativeRun({ verificationRequired: true, validationCommands: [] })
         await Session.update(session.id, (draft) => {
           draft.state_v2 = {
             activity_timeline: [],

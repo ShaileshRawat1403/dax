@@ -5,6 +5,8 @@ import { addArtifactEvent } from "@/state/events/event-transitions"
 import { getRunAuthority, projectRunStateFromEvents } from "@/state/events/run-event-store"
 import type { CanonicalRunState } from "@/state/events/run-reducer"
 import { RunCompletionBlockedError, RunLifecycle } from "@/state/run-lifecycle"
+import { Instance } from "@/project/instance"
+import { recordNativeVerification } from "./native-verification"
 
 export type NativeCompletionDecision = {
   candidate: boolean
@@ -92,6 +94,18 @@ export async function adjudicateNativeCompletionCandidate(input: {
   ]
   if (authorityReasons.length > 0) {
     return { candidate: true, accepted: false, runId, reasonCodes: authorityReasons }
+  }
+
+  // The provider's stop is only a completion candidate. When the immutable
+  // contract requires verification, DAX executes the complete validation plan
+  // itself and durably records the actual results before completion proof runs.
+  // A missing or failed plan remains fail-closed in RunLifecycle below.
+  if (state.governance.verification.required && !state.governance.verification.satisfied) {
+    await recordNativeVerification({
+      runId,
+      contract: authority.contract,
+      cwd: Instance.worktree,
+    })
   }
 
   const hasTextOutput = assistant.parts.some(

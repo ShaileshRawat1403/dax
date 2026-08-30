@@ -3,7 +3,6 @@ import os from "node:os"
 import path from "node:path"
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { Instance } from "@/project/instance"
-import { expectGap } from "./known-gaps"
 import {
   CONFORMANCE_POINTS,
   observeNativeKernel,
@@ -75,10 +74,9 @@ describe("invariant 3 — two-kernel universal execution boundary", () => {
       approval_emitted: true,
       execution_emitted: true,
       output_validated: true,
-      verification_emitted: false,
+      verification_emitted: true,
       completion_projected: true,
     })
-    expect(native.points.verification_emitted.note).toContain("production SessionPrompt emitted no verification_recorded")
   }, 30_000)
 
   test("worker evidence comes from Gateway and RunFactory production dispatch", async () => {
@@ -120,8 +118,8 @@ describe("invariant 3 — two-kernel universal execution boundary", () => {
     const scores = Object.fromEntries(rows.map((row) => [row.kernel, score(row)]))
     const earned = rows.reduce((total, row) => total + score(row), 0)
 
-    expect(scores).toEqual({ native: 7, worker: 8 })
-    expect({ earned, total: rows.length * CONFORMANCE_POINTS.length }).toEqual({ earned: 15, total: 16 })
+    expect(scores).toEqual({ native: 8, worker: 8 })
+    expect({ earned, total: rows.length * CONFORMANCE_POINTS.length }).toEqual({ earned: 16, total: 16 })
   })
 
   test("all retained kernels must prove all eight points", async () => {
@@ -132,17 +130,13 @@ describe("invariant 3 — two-kernel universal execution boundary", () => {
       ),
     )
 
-    expect(missing).toEqual([
-      "native: verification_emitted",
-    ])
-    expectGap("inv3.conformance-points", () => expect(missing).toEqual([]))
+    expect(missing).toEqual([])
   })
 
-  test("governance spread remains open while one kernel has weaker proven coverage", async () => {
+  test("both execution kernels prove the same governance coverage", async () => {
     const counts = (await observeKernels()).map(score)
     const spread = Math.max(...counts) - Math.min(...counts)
-    expect(spread).toBe(1)
-    expectGap("inv3.governance-spread", () => expect(spread).toBe(0))
+    expect(spread).toBe(0)
   })
 
   test("there is exactly one lifecycle implementation", () => {
