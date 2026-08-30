@@ -465,7 +465,7 @@ from the past.
 | Approval store authoritative, log derived | Closed for replay. The event carries what the operator was shown and who decided; the store is a projection. |
 | Worker evidence projecting nowhere | Closed. `contract_refined`, `worker_sandbox_recorded` and `worker_egress_denied` project into `RunState.evidence`. |
 | Circular completion gate | Closed. The requirement rides on `contract_compiled`, and mutation independently obliges evidence. |
-| Native sessions emit no run events per tool call | **Open.** This is the H2 block and the largest remaining gap. |
+| Native sessions emit no run events per tool call | Closed. Native execution durably records invocation, pre-effect authorization, terminal result, mutation evidence and completion adjudication. |
 
 ### Findings the H0 trace did not reach
 

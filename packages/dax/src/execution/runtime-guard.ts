@@ -797,8 +797,8 @@ export async function enforceRuntimeGuard(input: RuntimeGuardInput) {
     // The guard's budget bookkeeping still lives on that row: seed it from the
     // projection rather than dropping the accounting on the floor.
     //
-    // This is the parallel-state seam, not a fix for it — governance belongs on
-    // the event spine, which is tracked as inv3.conformance-points.
+    // This is a compatibility projection for budget consumers, never execution
+    // authority. Canonical events and their reducer remain the governing truth.
     if (!(await RunStore.exists(authoritySessionID))) {
       const projected = await getProjectedRunState(authoritySessionID).catch(() => null)
       if (projected) await RunStore.save(authoritySessionID, projected)
