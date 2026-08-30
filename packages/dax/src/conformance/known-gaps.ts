@@ -29,8 +29,6 @@ export const KNOWN_GAPS = {
     "Contract mutability authorization and contract replacement are not one atomic cross-store operation; no production caller currently races a changed rewrite with event-authority establishment",
   "integrity.event-authority-partial-initialization-recovery":
     "If the event-log authority marker is persisted but contract_compiled cannot be appended, the contract correctly remains locked but recovery cannot retry or repair the zero-event authority state",
-  "integrity.signoff-expiry-false-receipt":
-    "Review-and-signoff emits signoff_received after an expiry even though no operator signoff was received",
   "inv1.record-classes":
     "Prompt, context, assistant message, delegation and compaction replacement have no durable event representation (6 of 11 classes covered)",
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",

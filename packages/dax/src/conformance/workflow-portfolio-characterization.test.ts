@@ -15,7 +15,6 @@ import {
   runWorkflowAndCaptureEvents,
 } from "@/workflows/workflow-event-harness"
 import type { WorkflowClass } from "@/execution/workflow-class"
-import { expectGap } from "./known-gaps"
 
 /**
  * These are product/workflow characterizations, not Universal Execution
@@ -98,7 +97,7 @@ describe("workflow portfolio characterization outside the execution-kernel meter
     expect(eventByType(run.events, "mutation_recorded")).toHaveLength(0)
   })
 
-  test("review signoff remains distinct from action approval", async () => {
+  test("expired review signoff has no receipt and replays as workflow expiration", async () => {
     const prototype = ReviewAndSignoffWorkflow.prototype as unknown as {
       waitForSignoff(deadline: number): Promise<SignoffResult>
     }
@@ -114,12 +113,68 @@ describe("workflow portfolio characterization outside the execution-kernel meter
       })
 
       expect(eventByType(run.events, "signoff_requested")).toHaveLength(1)
-      expectGap("integrity.signoff-expiry-false-receipt", () => {
-        expect(eventByType(run.events, "signoff_received")).toHaveLength(0)
-      })
+      expect(eventByType(run.events, "signoff_received")).toHaveLength(0)
       expect(eventByType(run.events, "approval_requested")).toHaveLength(0)
       expect(eventByType(run.events, "approval_resolved")).toHaveLength(0)
       expect(eventByType(run.events, "mutation_recorded")).toHaveLength(0)
+      expect(eventByType(run.events, "workflow_signed_off")).toHaveLength(0)
+      expect(eventByType(run.events, "workflow_expired")).toHaveLength(1)
+      expect(run.result.success).toBe(false)
+      expect(run.state?.status).toBe("cancelled")
+      expect(run.result.stepResults).toHaveLength(3)
+    } finally {
+      waitForSignoff.mockRestore()
+    }
+  })
+
+  test("accepted signoff retains its durable receipt and signed-off terminal", async () => {
+    const prototype = ReviewAndSignoffWorkflow.prototype as unknown as {
+      waitForSignoff(deadline: number): Promise<SignoffResult>
+    }
+    const waitForSignoff = spyOn(prototype, "waitForSignoff").mockResolvedValue({
+      decision: "signed_off",
+      actorId: "operator_1",
+      timestamp: new Date().toISOString(),
+    })
+    try {
+      const run = await runWorkflowAndCaptureEvents({
+        workflowClass: "review_and_signoff",
+        contract: contract("review_and_signoff"),
+        directory: workspace,
+      })
+
+      expect(eventByType(run.events, "signoff_received")).toHaveLength(1)
+      expect(eventByType(run.events, "signoff_received")[0]?.payload).toEqual({ decision: "signed_off" })
+      expect(eventByType(run.events, "workflow_signed_off")).toHaveLength(1)
+      expect(run.result.success).toBe(true)
+      expect(run.state?.status).toBe("completed")
+    } finally {
+      waitForSignoff.mockRestore()
+    }
+  })
+
+  test("rejected signoff retains its durable receipt and rejected terminal", async () => {
+    const prototype = ReviewAndSignoffWorkflow.prototype as unknown as {
+      waitForSignoff(deadline: number): Promise<SignoffResult>
+    }
+    const waitForSignoff = spyOn(prototype, "waitForSignoff").mockResolvedValue({
+      decision: "rejected",
+      actorId: "operator_1",
+      reason: "findings unresolved",
+      timestamp: new Date().toISOString(),
+    })
+    try {
+      const run = await runWorkflowAndCaptureEvents({
+        workflowClass: "review_and_signoff",
+        contract: contract("review_and_signoff"),
+        directory: workspace,
+      })
+
+      expect(eventByType(run.events, "signoff_received")).toHaveLength(1)
+      expect(eventByType(run.events, "signoff_received")[0]?.payload).toEqual({ decision: "rejected" })
+      expect(eventByType(run.events, "workflow_rejected")).toHaveLength(1)
+      expect(run.result.success).toBe(false)
+      expect(run.state?.status).toBe("cancelled")
     } finally {
       waitForSignoff.mockRestore()
     }

@@ -94,7 +94,7 @@ describe("review_and_signoff workflow", () => {
     expect(workflow).not.toBeNull()
   })
 
-  test("review_and_signoff workflow executes successfully", async () => {
+  test("expired review_and_signoff workflow settles without finalization", async () => {
     const { bootstrap } = await import("../../src/cli/bootstrap")
     await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
       const session = await Session.create({ title: "Test review and signoff" })
@@ -127,19 +127,20 @@ describe("review_and_signoff workflow", () => {
 
       const result = await workflow!.execute()
 
-      expect(result.stepResults).toHaveLength(4)
-      expect(result.finalArtifactId).toBeDefined()
+      expect(result.success).toBe(false)
+      expect(result.stepResults).toHaveLength(3)
+      expect(result.finalArtifactId).toBeUndefined()
 
       const runState = await getProjectedRunState(runId)
-      expect(runState?.steps).toHaveLength(4)
+      expect(runState?.status).toBe("cancelled")
+      expect(runState?.steps).toHaveLength(3)
       expect(runState?.steps[0]?.title).toBe("Collect Context")
       expect(runState?.steps[1]?.title).toBe("Produce Review")
       expect(runState?.steps[2]?.title).toBe("Request Signoff")
-      expect(runState?.steps[3]?.title).toBe("Finalize Outcome")
     })
   }, 15000)
 
-  test("review_and_signoff workflow records artifacts", async () => {
+  test("expired review_and_signoff workflow records no final artifact", async () => {
     const { bootstrap } = await import("../../src/cli/bootstrap")
     await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
       const session = await Session.create({ title: "Test review artifacts" })
@@ -171,7 +172,7 @@ describe("review_and_signoff workflow", () => {
       await workflow!.execute()
 
       const runState = await getProjectedRunState(runId)
-      expect(runState?.artifactIds.length).toBeGreaterThan(0)
+      expect(runState?.artifactIds).toHaveLength(0)
     })
   }, 15000)
 
@@ -207,7 +208,7 @@ describe("review_and_signoff workflow", () => {
       await workflow!.execute()
 
       const runState = await getProjectedRunState(runId)
-      expect(runState?.steps).toHaveLength(4)
+      expect(runState?.steps).toHaveLength(3)
       expect(runState?.steps.every((s: { status: string }) => s.status === "completed")).toBe(true)
     })
   }, 15000)
@@ -270,8 +271,8 @@ describe("review_and_signoff workflow", () => {
       const stepOrder1 = runState1!.steps.map((s: { stepId: string }) => s.stepId)
       const stepTitles1 = runState1!.steps.map((s: { title: string }) => s.title)
 
-      expect(stepOrder1.length).toBe(4)
-      expect(stepTitles1).toEqual(["Collect Context", "Produce Review", "Request Signoff", "Finalize Outcome"])
+      expect(stepOrder1.length).toBe(3)
+      expect(stepTitles1).toEqual(["Collect Context", "Produce Review", "Request Signoff"])
 
       const session2 = await Session.create({ title: "Test review replay 2" })
       const runId2 = session2.id
