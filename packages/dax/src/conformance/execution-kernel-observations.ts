@@ -629,6 +629,7 @@ async function runWorkerCase(input: {
   request?: ReturnType<typeof workerRequest>
   write?: (checkout: string) => Promise<void>
   processExit?: number
+  malformedProcess?: boolean
   verification?: "passed" | "failed"
   malformedPatch?: boolean
   hold?: { release?: (result: { exitCode: number; stdout: string; stderr: string }) => void }
@@ -652,10 +653,10 @@ async function runWorkerCase(input: {
       await input.write?.(checkout)
       expectedDiff = await runGit(checkout, ["diff"])
       return {
-        exitCode: input.processExit ?? 0,
+        exitCode: input.malformedProcess ? ("zero" as unknown as number) : (input.processExit ?? 0),
         stdout: "worker observed",
         stderr: input.processExit ? "worker failed" : "",
-        sandboxProvider: "test-sandbox",
+        sandboxProvider: "seatbelt",
         reapedDescendants: false,
       }
     },
@@ -814,6 +815,7 @@ export async function observeWorkerKernel(root: string): Promise<KernelObservati
         },
       })
       const failedProcess = await runWorkerCase({ repository, processExit: 7 })
+      const malformedProcess = await runWorkerCase({ repository, malformedProcess: true })
       const failedVerification = await runWorkerCase({
         repository,
         verification: "failed",
@@ -928,10 +930,17 @@ export async function observeWorkerKernel(root: string): Promise<KernelObservati
             references: ["mutation_recorded", "step_failed", "run_failed"],
           },
           output_validated: {
-            satisfied: false,
-            references: ["Git staged diff", "scope validation", "MutationReceiptSchema", "mutation_recorded"],
-            note:
-              "Empty, malformed and out-of-scope patches fail closed, but the production worker process and diff observation shapes remain TypeScript-only and this meter replaces the process boundary through WorkerRunEffects.",
+            satisfied:
+              has(malformedProcess.events, "run_failed") &&
+              !has(malformedProcess.events, "mutation_recorded") &&
+              has(malformedPatch.events, "run_failed") &&
+              !has(malformedPatch.events, "mutation_recorded"),
+            references: [
+              "WorkerProcessResultSchema",
+              "WorkerPatchSchema",
+              "Git staged diff",
+              "mutation_recorded",
+            ],
           },
           verification_emitted: {
             satisfied:
@@ -957,6 +966,7 @@ export async function observeWorkerKernel(root: string): Promise<KernelObservati
           positive: Boolean(mutation) && approvedTerminal.state?.status === "completed",
           failure:
             has(failedProcess.events, "run_failed") &&
+            has(malformedProcess.events, "run_failed") &&
             has(failedVerification.events, "run_failed") &&
             has(emptyPatch.events, "run_failed") &&
             has(malformedPatch.events, "run_failed") &&

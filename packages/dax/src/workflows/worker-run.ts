@@ -18,6 +18,7 @@ import { verifyWorkerPatch } from "@/worker/worker-verification"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { runSandboxedCommand, runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
 import { startEgressProxy } from "@/worker/egress-proxy"
+import { z } from "zod"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -41,28 +42,36 @@ const log = Log.create({ service: "worker-run-workflow" })
 
 export type WorkerCheckout = { path: string; cleanup: () => Promise<void> }
 
-export type WorkerPatch = {
-  content: string
-  /** Repository-relative paths computed by Git after staging the worker's changes. */
-  changedPaths: string[]
-}
+export const WorkerPatchSchema = z
+  .object({
+    content: z.string(),
+    /** Repository-relative paths computed by Git after staging the worker's changes. */
+    changedPaths: z.array(z.string()),
+  })
+  .strict()
+export type WorkerPatch = z.infer<typeof WorkerPatchSchema>
+
+export const WorkerProcessResultSchema = z
+  .object({
+    exitCode: z.number().int(),
+    stdout: z.string(),
+    stderr: z.string(),
+    timedOut: z.boolean().optional(),
+    sandboxProvider: z.enum(["seatbelt", "bwrap"]).optional(),
+    /** True when DAX had to kill descendants the worker left behind. */
+    reapedDescendants: z.boolean().optional(),
+    /** Hosts the egress proxy refused during the run (evidence of attempts). */
+    deniedEgress: z.array(z.string()).optional(),
+  })
+  .strict()
+export type WorkerProcessResult = z.infer<typeof WorkerProcessResultSchema>
 
 export type WorkerRunEffectsShape = {
   createCheckout: (repoPath: string, runId: string) => Promise<WorkerCheckout>
   runWorker: (
     invocation: WorkerInvocation,
     cwd: string,
-  ) => Promise<{
-    exitCode: number
-    stdout: string
-    stderr: string
-    timedOut?: boolean
-    sandboxProvider?: string
-    /** True when DAX had to kill descendants the worker left behind. */
-    reapedDescendants?: boolean
-    /** Hosts the egress proxy refused during the run (evidence of attempts). */
-    deniedEgress?: string[]
-  }>
+  ) => Promise<WorkerProcessResult>
   /** Kernel-owned diff and changed paths (including untracked files). */
   computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
   /** DAX-owned verification command runner; injectable for workflow tests. */
@@ -325,7 +334,9 @@ export class WorkerRunWorkflow {
       })
 
       checkout = await WorkerRunEffects.current.createCheckout(repoPath, this.runId)
-      const result = await WorkerRunEffects.current.runWorker(invocation, checkout.path)
+      const result = WorkerProcessResultSchema.parse(
+        await WorkerRunEffects.current.runWorker(invocation, checkout.path),
+      )
       // Recorded before the failure throws below. Isolation and process
       // ownership held regardless of how the worker exited, and a timeout is
       // precisely when the operator needs to see that nothing was left behind.
@@ -361,7 +372,7 @@ export class WorkerRunWorkflow {
 
       // Kernel-owned diff: the worker's own account of its changes is never
       // consulted.
-      const patch = await WorkerRunEffects.current.computeDiff(checkout.path)
+      const patch = WorkerPatchSchema.parse(await WorkerRunEffects.current.computeDiff(checkout.path))
       if (!patch.content.trim()) {
         throw new Error(`worker ${workerId} produced no changes — nothing to review`)
       }

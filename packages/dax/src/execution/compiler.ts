@@ -328,6 +328,16 @@ export function compile(input: CompileInput): CompileResult {
           `Workflow hint "${hintedWorkflow}" accepted. DAX classification suggested "${classifiedWorkflow}" but Picobot hint takes precedence.`,
         )
       }
+    } else if (hintedWorkflow === "worker_run") {
+      // An explicit worker request is an authority boundary, not a routing
+      // suggestion. Keep it on the worker workflow so its provider validation
+      // fails closed; silently falling back to native execution would select a
+      // different executor with different authority semantics.
+      workflowClass = "worker_run"
+      workflowHintAccepted = false
+      warnings.push(
+        `Workflow hint "worker_run" requires providerHint "worker:<claude|codex|gemini>" and will fail closed.`,
+      )
     } else {
       workflowClass = classifiedWorkflow === "generic" ? "draft_and_approve" : classifiedWorkflow
       workflowHintAccepted = false

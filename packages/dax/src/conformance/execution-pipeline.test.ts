@@ -87,16 +87,14 @@ describe("invariant 3 — two-kernel universal execution boundary", () => {
     expect(worker.semantics).toEqual({ positive: true, failure: true, incomplete: true })
     expect(pointMap(worker)).toEqual({
       contract_bound: true,
-      input_validated: false,
+      input_validated: true,
       policy_emitted: true,
       approval_emitted: true,
       execution_emitted: true,
-      output_validated: false,
+      output_validated: true,
       verification_emitted: true,
       completion_projected: true,
     })
-    expect(worker.points.input_validated.note).toContain("falls back to generic native execution")
-    expect(worker.points.output_validated.note).toContain("remain TypeScript-only")
   }, 30_000)
 
   test("execution credit cannot come from workflow steps or worker containment", async () => {
@@ -122,8 +120,8 @@ describe("invariant 3 — two-kernel universal execution boundary", () => {
     const scores = Object.fromEntries(rows.map((row) => [row.kernel, score(row)]))
     const earned = rows.reduce((total, row) => total + score(row), 0)
 
-    expect(scores).toEqual({ native: 7, worker: 6 })
-    expect({ earned, total: rows.length * CONFORMANCE_POINTS.length }).toEqual({ earned: 13, total: 16 })
+    expect(scores).toEqual({ native: 7, worker: 8 })
+    expect({ earned, total: rows.length * CONFORMANCE_POINTS.length }).toEqual({ earned: 15, total: 16 })
   })
 
   test("all retained kernels must prove all eight points", async () => {
@@ -136,8 +134,6 @@ describe("invariant 3 — two-kernel universal execution boundary", () => {
 
     expect(missing).toEqual([
       "native: verification_emitted",
-      "worker: input_validated",
-      "worker: output_validated",
     ])
     expectGap("inv3.conformance-points", () => expect(missing).toEqual([]))
   })

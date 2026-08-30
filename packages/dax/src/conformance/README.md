@@ -67,11 +67,9 @@ target. They fail with a number, and that number is the progress metric.
 
 - `execution-pipeline.test.ts` scores exactly two execution kernels against 8
   independently evidenced conformance points. Current production-dispatched
-  score: **13 / 16** — native governed tool execution 7/8, governed external
-  worker execution 6/8. Native lacks a production `verification_recorded`
-  producer. Worker does not reject an explicit unknown provider before it can
-  fall back to generic execution, and the real worker process/diff observation
-  shapes do not yet cross a runtime schema boundary.
+  score: **15 / 16** — native governed tool execution 7/8, governed external
+  worker execution 8/8. Native lacks a production `verification_recorded`
+  producer.
 
   Both rows enter through production dispatch. Native uses SessionPrompt tool
   resolution, settlement and completion adjudication. Worker uses

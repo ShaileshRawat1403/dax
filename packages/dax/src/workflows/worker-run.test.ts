@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { WorkerRunEffects, validateWorkerPatchScope, workerIdFromProviderHint, workerContractFromPolicy } from "./worker-run"
+import {
+  WorkerPatchSchema,
+  WorkerProcessResultSchema,
+  WorkerRunEffects,
+  validateWorkerPatchScope,
+  workerIdFromProviderHint,
+  workerContractFromPolicy,
+} from "./worker-run"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
 
@@ -13,6 +20,44 @@ describe("workerIdFromProviderHint", () => {
     expect(workerIdFromProviderHint("worker:copilot")).toBeNull()
     expect(workerIdFromProviderHint("claude")).toBeNull()
     expect(workerIdFromProviderHint(undefined)).toBeNull()
+  })
+})
+
+describe("worker observation runtime boundaries", () => {
+  test("accepts truthful process and kernel-diff observations", () => {
+    expect(
+      WorkerProcessResultSchema.parse({
+        exitCode: 0,
+        stdout: "done",
+        stderr: "",
+        timedOut: false,
+        sandboxProvider: "seatbelt",
+        reapedDescendants: false,
+        deniedEgress: [],
+      }),
+    ).toBeDefined()
+    expect(
+      WorkerPatchSchema.parse({
+        content: "diff --git a/src/x.ts b/src/x.ts\n+added",
+        changedPaths: ["src/x.ts"],
+      }),
+    ).toBeDefined()
+  })
+
+  test("rejects malformed and unknown process observation fields", () => {
+    expect(() =>
+      WorkerProcessResultSchema.parse({ exitCode: "zero", stdout: "", stderr: "" }),
+    ).toThrow()
+    expect(() =>
+      WorkerProcessResultSchema.parse({ exitCode: 0, stdout: "", stderr: "", trusted: true }),
+    ).toThrow()
+  })
+
+  test("rejects malformed and unknown kernel-diff observation fields", () => {
+    expect(() => WorkerPatchSchema.parse({ content: "diff", changedPaths: [42] })).toThrow()
+    expect(() =>
+      WorkerPatchSchema.parse({ content: "diff", changedPaths: ["src/x.ts"], workerClaim: true }),
+    ).toThrow()
   })
 })
 
