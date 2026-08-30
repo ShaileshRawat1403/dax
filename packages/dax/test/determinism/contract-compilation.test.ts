@@ -59,15 +59,18 @@ describe("Execution Contract Compilation", () => {
     expect(result.contract.expectedOutputs.some((output) => output.type === "patch")).toBe(true)
   })
 
-  test("worker_run hint is ignored without a governed worker provider hint", () => {
+  test("worker_run without a governed provider remains explicit and fails closed", () => {
     const request: CreateRunRequest = {
       ...makeRequest("fix the small bug in src/math.ts"),
       workflowHint: "worker_run",
     }
     const result = compile({ request })
 
-    expect(result.contract.workflowClass).not.toBe("worker_run")
+    expect(result.contract.workflowClass).toBe("worker_run")
     expect(result.contract.workflowHintAccepted).toBe(false)
+    expect(result.warnings).toContain(
+      'Workflow hint "worker_run" requires providerHint "worker:<claude|codex|gemini>" and will fail closed.',
+    )
   })
 
   test("generic intent gets generic workflow class", () => {
