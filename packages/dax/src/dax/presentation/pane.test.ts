@@ -9,9 +9,10 @@ import {
 } from "./pane"
 
 describe("pane presentation model", () => {
-  it("keeps refine, approvals, audit, and memory as first-class pane modes", () => {
+  it("keeps the read-only canonical inspector and existing workstation surfaces as first-class pane modes", () => {
     expect(PANE_MODE).toContain("audit")
     expect(PANE_MODE).toContain("approvals")
+    expect(PANE_MODE).toContain("inspector")
     expect(PANE_MODE).toContain("memory")
     expect(PANE_MODE).toContain("refine")
     expect(PANE_MODE).not.toContain("plan")
@@ -19,6 +20,8 @@ describe("pane presentation model", () => {
 
   it("uses concrete operator labels for the remaining pane surfaces", () => {
     expect(paneLabel("audit", false)).toBe("audit")
+    expect(paneLabel("inspector", false)).toBe("inspector")
+    expect(paneLabel("inspector", true)).toBe("run truth")
     expect(paneLabel("refine", false)).toBe("refine")
     expect(paneLabel("memory", false)).toBe("memory")
     expect(paneCompactLabel("approvals", false)).toBe("approve")

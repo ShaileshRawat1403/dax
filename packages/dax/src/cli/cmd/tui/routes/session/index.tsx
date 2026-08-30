@@ -79,6 +79,7 @@ import { Auth } from "@/auth"
 import { Instance } from "@/project/instance"
 import { PermissionPrompt } from "./permission"
 import { RAOPane } from "./rao-pane"
+import { CanonicalInspectorPane } from "./canonical-inspector-pane"
 import { AuditLogPane } from "../../component/prompt/audit-log"
 import { RuntimePane } from "../../component/prompt/runtime-pane"
 import { RefinePane } from "../../component/prompt/refine"
@@ -1483,6 +1484,14 @@ export function Session() {
 
                   <Match when={activePaneMode() === "audit"}>
                     <AuditLogPane history={auditHistory()} latest={latestAudit()} ledger={evidenceLedger()} />
+                  </Match>
+
+                  <Match when={activePaneMode() === "inspector"}>
+                    <CanonicalInspectorPane
+                      runID={route.sessionID}
+                      displayMode={displayMode()}
+                      refreshKey={sync.data.run[route.sessionID]}
+                    />
                   </Match>
 
                   <Match when={activePaneMode() === "runtime"}>

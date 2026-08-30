@@ -1,4 +1,4 @@
-export const PANE_MODE = ["audit", "approvals", "memory", "refine", "operator", "runtime"] as const
+export const PANE_MODE = ["audit", "approvals", "inspector", "memory", "refine", "operator", "runtime"] as const
 
 export type PaneMode = (typeof PANE_MODE)[number]
 
@@ -17,6 +17,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
     return {
       audit: "checks",
       approvals: "my decisions",
+      inspector: "run truth",
       memory: "my notes",
       refine: "refine",
       operator: "controls",
@@ -26,6 +27,7 @@ export function paneLabel(mode: PaneMode, eli12: boolean) {
   return {
     audit: "audit",
     approvals: "approvals",
+    inspector: "inspector",
     memory: "memory",
     refine: "refine",
     operator: "operator",
@@ -38,6 +40,7 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
     return {
       audit: "checks",
       approvals: "decide",
+      inspector: "truth",
       memory: "notes",
       refine: "refine",
       operator: "ctrl",
@@ -47,6 +50,7 @@ export function paneCompactLabel(mode: PaneMode, eli12: boolean) {
   return {
     audit: "audit",
     approvals: "approve",
+    inspector: "inspect",
     memory: "memory",
     refine: "refine",
     operator: "operator",
@@ -72,6 +76,8 @@ export function paneContextLabel(mode: PaneMode): string {
       return "Awaiting operator decision"
     case "audit":
       return "Trust, verification, and guard posture"
+    case "inspector":
+      return "Canonical authority and execution truth"
     case "memory":
       return "Durable operator context"
     case "refine":
