@@ -15,6 +15,7 @@ import { ToolRegistry } from "@/tool/registry"
 import { Permission } from "@/governance"
 import { NativeVerificationEffects } from "@/execution/native-verification"
 import { RunFactory } from "@/execution/run-factory"
+import { RAOAdapter } from "@/rao/adapters"
 import { RunGateway } from "@/server/run-gateway"
 import { WorkerRunEffects } from "@/workflows/worker-run"
 import { getEventAuthorityState } from "@/state/events/event-transitions"
@@ -57,6 +58,11 @@ export type KernelObservation = {
     positive: boolean
     failure: boolean
     incomplete: boolean
+  }
+  authorityConsumers?: {
+    mutationEvidenceClaim: boolean
+    touchedFiles: string[]
+    completionScopeChecks: boolean
   }
 }
 
@@ -509,6 +515,8 @@ export async function observeNativeKernel(root: string): Promise<KernelObservati
       const positiveResultEvent = first(positive.events, "tool_result_recorded")
       const positiveVerificationEvent = first(positive.events, "verification_recorded")
       const positiveCompletionEvent = first(positive.events, "run_completed")
+      if (!positive.state) throw new Error("native mutation did not project canonical state")
+      const raoState = RAOAdapter.toRAORunState(positive.state)
 
       return {
         kernel: "native" as const,
@@ -591,6 +599,11 @@ export async function observeNativeKernel(root: string): Promise<KernelObservati
           incomplete:
             invalidOutput.results.some((event) => payload<{ status: string }>(event)?.status === "failed") &&
             !has(invalidOutput.events, "run_completed"),
+        },
+        authorityConsumers: {
+          mutationEvidenceClaim: raoState.evidence.some((receipt) => receipt.source === "dax_mutation_ledger"),
+          touchedFiles: positive.state.governance.touchedFiles,
+          completionScopeChecks: positive.state.governance.completionProof?.scopeChecks === true,
         },
       }
     },

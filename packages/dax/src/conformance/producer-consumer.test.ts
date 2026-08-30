@@ -1,7 +1,10 @@
-import { describe, expect, test } from "bun:test"
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { afterAll, describe, expect, test } from "bun:test"
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
+import os from "node:os"
 import { join } from "node:path"
 import { expectGap } from "./known-gaps"
+import { observeNativeKernel, type KernelObservation } from "./execution-kernel-observations"
+import { Instance } from "@/project/instance"
 
 /**
  * A live consumer must have a live producer.
@@ -31,15 +34,37 @@ import { expectGap } from "./known-gaps"
  * A test caller proves the API is executable, not that anything executes it —
  * which is exactly how all three defects above looked healthy.
  *
- * The checks below approximate that property by pattern-matching producer call
- * sites in non-test source. That is weaker than the invariant: a helper outside a
- * test file which is itself unreachable from any entry point would pass. The
- * approximation is recorded as `producer.reachability-approximated` so the
- * implementation does not quietly become the definition — the property above is
- * what must hold, and a call-graph check is what would prove it.
+ * Mutation reachability is exercised behaviorally through the production native
+ * entry point and its canonical projection. Project memory remains explicitly
+ * open: it has no governed production writer yet.
  */
 
 const SRC = join(import.meta.dir, "..")
+const testHome = mkdtempSync(join(os.tmpdir(), "dax-producer-reachability-"))
+const previousTestHome = process.env.DAX_TEST_HOME
+const previousGuardApprovalTimeout = process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS
+const previousShadowAudit = process.env.DAX_DISABLE_SHADOW_AUDIT
+process.env.DAX_TEST_HOME = testHome
+process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS = "10000"
+process.env.DAX_DISABLE_SHADOW_AUDIT = "1"
+
+let nativeObservation: Promise<KernelObservation> | undefined
+
+function observeReachableNative(): Promise<KernelObservation> {
+  nativeObservation ??= observeNativeKernel(testHome)
+  return nativeObservation
+}
+
+afterAll(async () => {
+  await Instance.disposeAll()
+  if (previousTestHome === undefined) delete process.env.DAX_TEST_HOME
+  else process.env.DAX_TEST_HOME = previousTestHome
+  if (previousGuardApprovalTimeout === undefined) delete process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS
+  else process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS = previousGuardApprovalTimeout
+  if (previousShadowAudit === undefined) delete process.env.DAX_DISABLE_SHADOW_AUDIT
+  else process.env.DAX_DISABLE_SHADOW_AUDIT = previousShadowAudit
+  rmSync(testHome, { recursive: true, force: true })
+})
 
 type Pairing = {
   /** What reads the data, and why its emptiness matters. */
@@ -97,13 +122,16 @@ function producerSites(pattern: RegExp): string[] {
 }
 
 describe("producer/consumer symmetry", () => {
-  test("mutation evidence has a production producer", () => {
-    expect(producerSites(/createMutationReceipt\s*\(/)).not.toEqual([])
-  })
+  test("production native dispatch reaches the mutation evidence consumer", async () => {
+    const observation = await observeReachableNative()
+    expect(observation.authorityConsumers?.mutationEvidenceClaim).toBe(true)
+  }, 30_000)
 
-  test("touched files have a production producer", () => {
-    expect(producerSites(/appendEventOnly\([^,]+,\s*"mutation_recorded"/)).not.toEqual([])
-  })
+  test("production native dispatch reaches completion scope checks with touched files", async () => {
+    const observation = await observeReachableNative()
+    expect(observation.authorityConsumers?.touchedFiles).toEqual(["src/native-meter.txt"])
+    expect(observation.authorityConsumers?.completionScopeChecks).toBe(true)
+  }, 30_000)
 
   test("project memory has a production producer", () => {
     // Open. `save_memory` is called only from pm/index.test.ts, so the store the
@@ -129,17 +157,6 @@ describe("producer/consumer symmetry", () => {
       .map((file) => file.slice(SRC.length + 1))
 
     expect(offenders).toEqual([])
-  })
-
-  test("producer detection proves reachability, not merely existence", () => {
-    // The gap between the stated invariant and its current implementation. Closing
-    // it needs reachability from a production entry point — a CLI command, a
-    // server route, a workflow step — rather than "appears in a non-test file".
-    // Asserted against a helper module rather than this file's own text: a test
-    // that greps itself for the words it contains will always find them.
-    expectGap("producer.reachability-approximated", () => {
-      expect(existsSync(join(import.meta.dir, "reachability.ts"))).toBe(true)
-    })
   })
 
   test("every declared pairing states its failure mode", () => {

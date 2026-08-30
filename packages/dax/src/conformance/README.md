@@ -87,7 +87,8 @@ target. They fail with a number, and that number is the progress metric.
   None contributes points to the 16-point denominator.
 
 - `event-authority.test.ts` scores 11 authoritative record classes for durable
-  representation. Baseline at v1.3.0: **3 / 11** (approval, verification, completion).
+  representation. Current coverage: **6 / 11** (tool invocation, tool result,
+  approval, policy decision, verification and completion).
 
 The record-class meter counts whether a class has *any* durable event type. It is
 deliberately generous: approval scores, yet a separate test shows the payload cannot
@@ -106,11 +107,11 @@ non-test caller     ≠  reachable producer
 test passes         ≠  invariant satisfied
 ```
 
-This is not hypothetical. The first version of the reachability gap check read its
-own source and searched it for `entryPoints|callGraph|reachableFrom` — strings the
-regex literal itself contains, so it always matched and reported the gap closed. A
-conformance check can be satisfied while never exercising the property it names,
-which is the same defect the suite exists to catch, one level up.
+This is not hypothetical. An earlier producer inventory accepted a non-test call
+site as production reachability. The current mutation checks instead dispatch the
+native kernel through `SessionPrompt`, then assert that canonical mutation state
+reaches both `RunLifecycle` completion scope checks and the operator-facing evidence
+adapter.
 
 Two habits follow. State the property in the invariant and let the check be an
 explicit approximation of it, recorded as a gap when the distance matters. And
