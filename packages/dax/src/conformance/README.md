@@ -65,15 +65,29 @@ generalised. Run and project are what exist.
 Two of the tests are *meters*: they compute a conformance score and assert the
 target. They fail with a number, and that number is the progress metric.
 
-- `execution-pipeline.test.ts` scores each execution path against 8 conformance
-  points. **16 / 40** across five paths — native session 3/8, worker run 5/8,
-  draft-approve-execute 4/8, repo-analyze 2/8, review-and-signoff 2/8.
+- `execution-pipeline.test.ts` scores exactly two execution kernels against 8
+  independently evidenced conformance points. Current production-dispatched
+  score: **13 / 16** — native governed tool execution 7/8, governed external
+  worker execution 6/8. Native lacks a production `verification_recorded`
+  producer. Worker does not reject an explicit unknown provider before it can
+  fall back to generic execution, and the real worker process/diff observation
+  shapes do not yet cross a runtime schema boundary.
 
-  It scored 9/24 over three paths until H1b, which is worth recording: two of the
-  five execution paths were on a separate lifecycle and the meter simply did not
-  count them. A score that ignores the paths least likely to conform is not a
-  score. The spread matters as much as the total — an action's governance still
-  depends on which door it came through.
+  Both rows enter through production dispatch. Native uses SessionPrompt tool
+  resolution, settlement and completion adjudication. Worker uses
+  RunGateway/RunFactory and WorkerRunWorkflow; only its existing side-effect seam
+  stands in for the external process and verification command. Event vocabulary,
+  reducer support and source matches earn no points. In particular,
+  `step_completed` is orchestration evidence and `worker_sandbox_recorded` is
+  containment evidence, not execution evidence.
+
+  `draft_and_approve`, `repo_analyze` and `review_and_signoff` are workflow presets
+  and human-governance processes, not additional execution kernels. Their current
+  behavior remains characterized separately in
+  `workflow-portfolio-characterization.test.ts`: drafting publishes an artifact
+  rather than applying it, repository analysis produces template/report
+  orchestration, and review uses signoff semantics distinct from action approval.
+  None contributes points to the 16-point denominator.
 
 - `event-authority.test.ts` scores 11 authoritative record classes for durable
   representation. Baseline at v1.3.0: **3 / 11** (approval, verification, completion).

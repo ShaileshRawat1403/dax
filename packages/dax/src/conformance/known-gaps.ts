@@ -16,10 +16,9 @@
  *      ordinary red test, because it is not wrapped.
  *   3. A gap that *closes* also turns red, until it is struck from this list.
  *
- * Property 3 exists because the execution meter sat at 10/24 through an entire
- * workstream that was supposed to move it, and nobody noticed the instrument was
- * measuring three of five paths. An unnoticed fix is a measurement problem, not
- * good news.
+ * Property 3 exists because an earlier execution meter stayed green while its
+ * source-text approximation and obsolete workflow denominator hid what production
+ * could actually prove. An unnoticed fix is a measurement problem, not good news.
  *
  * To close a gap: delete its entry here and unwrap its check. The test should
  * then pass on its own terms.
@@ -30,17 +29,22 @@ export const KNOWN_GAPS = {
     "Contract mutability authorization and contract replacement are not one atomic cross-store operation; no production caller currently races a changed rewrite with event-authority establishment",
   "integrity.event-authority-partial-initialization-recovery":
     "If the event-log authority marker is persisted but contract_compiled cannot be appended, the contract correctly remains locked but recovery cannot retry or repair the zero-event authority state",
+  "integrity.signoff-expiry-false-receipt":
+    "Review-and-signoff emits signoff_received after an expiry even though no operator signoff was received",
   "inv1.record-classes":
     "Prompt, context, assistant message, delegation and compaction replacement have no durable event representation (6 of 11 classes covered)",
-  "inv3.conformance-points": "Execution paths do not emit the same conformance points (16 of 40)",
-  "inv3.governance-spread": "An action's governance still depends on which execution path it entered through",
+  "inv3.conformance-points":
+    "The production-dispatched two-kernel meter proves 13 of 16 points: native verification has no producer, invalid worker providers fall back to generic execution, and worker process/diff observations lack a runtime schema boundary",
+  "inv3.governance-spread":
+    "Native proves 7 of 8 points while worker proves 6 of 8; authority coverage still depends on which execution kernel receives the request",
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",
   "inv5.capability-properties": "Capabilities do not declare intrinsic properties distinct from contract authority",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
   "scope.journal-primitive": "The journal machinery (append, sequence validation, locking, envelope validation, replay) is not generic over scope, so a second scope would copy it rather than instantiate it",
   "scope.aware-envelope": "The event envelope carries runId only, so an event cannot state which scope owns it or cite provenance across scopes",
   "scope.project-journal": "No project-scoped journal exists, so facts that outlive their run — promoted memory, project conventions — have no authoritative owner",
-  "producer.reachability-approximated": "Producer detection pattern-matches non-test call sites rather than proving reachability from a production entry point, so a dead helper calling the producer would pass",
+  "producer.reachability-approximated":
+    "Both execution-meter rows now use production dispatch, but the separate durable-record producer inventory still pattern-matches non-test call sites rather than proving entry-point reachability",
   "memory.no-producer": "Project memory is read by intent interpretation on every session but no production code writes it; what may be promoted into memory is an open governance decision",
   "inv5.grant-resolution": "Execution paths do not resolve authority through one shared grant lookup",
 } as const
