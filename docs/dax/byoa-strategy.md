@@ -13,7 +13,7 @@ replaces, [product-doctrine.md](./product-doctrine.md) and
 Two clauses, both load-bearing. DAX is not "just a wrapper": it remains the
 authority — contract, run state, approval gates, kernel-computed diff
 evidence, audit chain, receipt. External agents (Claude Code, Codex CLI,
-Gemini CLI, whatever ships next) are **capability workers**: replaceable
+Antigravity CLI, supported legacy Gemini CLI deployments, whatever ships next) are **capability workers**: replaceable
 execution engines inside DAX's contract. And DAX's own agent loop remains the
 reference worker and fallback — the worker contract cannot be validated
 without a worker we fully control.
@@ -63,14 +63,15 @@ individual hands. Framing enterprise before that proof is hype.
 One demo defines the category:
 
 ```
-dax worker run claude|codex|gemini -- "<task>"
+dax worker run claude|codex|antigravity|gemini -- "<task>"
 ```
 
 1. Operator invokes an external agent as a worker with a task.
 2. DAX creates a clean worktree and wraps the worker in a host OS sandbox.
    macOS Seatbelt or Linux bubblewrap confines writes to that checkout.
-   Provider network is currently open during worker execution; exact
-   per-worker host allowlists remain a hardening target, not a shipped claim.
+   Provider network is available during worker execution through a deny-first
+   forward proxy with exact per-worker host allowlists. This is cooperative
+   proxy confinement, not a kernel packet filter, and the receipt says so.
 3. DAX passes an execution contract to the worker (task, write scope,
    verification expectations) in the worker's non-interactive mode.
 4. The worker produces changes inside the capsule.
@@ -96,9 +97,21 @@ enforcement, verification, evidence, and approval.
   remain available.
 - Workers can read host files allowed by the OS profile but can write only to
   the disposable checkout and temporary directories.
-- Worker execution has provider network access. Verification has no network.
+- Worker execution has provider network access narrowed by the exact-host
+  forward proxy unless the operator explicitly disables that filter.
+  Verification has no network.
 - Verification output previews are redacted before persistence; receipts
   retain a digest of the exact original result.
+
+### Google CLI transition
+
+Google [ended consumer Gemini CLI service](https://developers.google.com/gemini-code-assist/docs/deprecations/code-assist-individuals)
+on June 18, 2026. DAX therefore uses
+`antigravity` (`agy`) as the current individual-subscription worker. The
+`gemini` worker remains for supported enterprise/API-key Gemini CLI
+deployments; it is not presented as a consumer subscription path. Both are
+workers, never execution authorities: DAX still owns the checkout, observed
+diff, verification, evidence, and approval.
 
 ## Robustness before features
 

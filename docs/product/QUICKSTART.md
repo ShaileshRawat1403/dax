@@ -82,13 +82,21 @@ dax auth login
 
 Authentication is usually local to your machine and OS user account. If DAX already appears connected in another repository, that normally means you already authenticated on this machine earlier.
 
-The Google/Gemini auth picker shows three truthful lanes:
+The Google/Gemini auth picker shows two direct provider lanes by default:
 
 - `Gemini API Key`
-- `Gemini CLI Session Import`
 - `Google OAuth Client Sign-In`
 
-`Gemini CLI Session Import` uses your local `gemini` CLI login when available. If that imported session expires, DAX will prompt you to run `gemini` again and reconnect.
+Google ended consumer Gemini CLI service on June 18, 2026. To use an
+individual Google AI subscription as a governed coding worker, install and
+authenticate Antigravity CLI, then run:
+
+```bash
+dax worker run antigravity -- "<task>"
+```
+
+The old Gemini CLI import is an enterprise compatibility lane hidden behind
+`DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT=1`.
 
 `Google OAuth Client Sign-In` is the browser-based lane. If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can use them directly. Otherwise it will prompt for your own Google OAuth client credentials.
 

@@ -33,9 +33,10 @@ It is closer to:
 4. DAX pauses when something needs approval or attention.
 5. You keep control of the final outcome.
 
-## The 3 Google / Gemini Sign-In Options
+## Google / Gemini Access
 
-Most people will only need one of these:
+Most people will use one direct provider option, or Antigravity as a governed
+external worker.
 
 ### 1. Gemini API Key
 
@@ -47,19 +48,22 @@ Choose this when you want:
 - predictable API-key based access
 - a good default for most technical users
 
-### 2. Gemini CLI Session Import
+### 2. Antigravity worker
 
-Use this if you already use Gemini through a subscription, especially through the `gemini` CLI.
+Use this for individual Google AI subscription-backed coding work. Google ended
+consumer Gemini CLI service on June 18, 2026 and moved this use case to
+Antigravity CLI (`agy`).
 
 Choose this when you want:
 
-- to use your Gemini Pro or Pro Plus access
-- DAX to use your existing Gemini login
-- DAX to handle the subscription integration for you
+- to use the agent already authenticated by `agy`
+- to keep DAX's governed checkout, evidence, verification, and approval
+- to avoid copying AGY credentials into DAX
 
-If this lane expires later, DAX should tell you to run `gemini` again.
+Run `agy` once to authenticate, then use
+`dax worker run antigravity -- "<task>"`.
 
-Important: DAX uses the account that is authenticated on your own machine. It does not ship somebody else's subscription to you. If you install DAX on your laptop, it will use your Gemini login, your API key, or your OAuth setup.
+Important: DAX uses the account that is authenticated on your own machine. It does not ship somebody else's subscription to you. If you install DAX on your laptop, it will use your AGY login, your API key, or your OAuth setup.
 
 ### 3. Google OAuth Client Sign-In
 
@@ -123,13 +127,13 @@ Use these checks:
 - `dax auth doctor`
 - `dax auth login`
 
-If the Google subscription lane stops working after it worked earlier, run:
+If the Antigravity worker stops working after it worked earlier, run:
 
 ```bash
-gemini
+agy
 ```
 
-Then reconnect through DAX.
+Confirm AGY is signed in, then retry the governed worker command.
 
 ## One Thing That Surprises New Users
 
@@ -141,7 +145,7 @@ DAX authentication is usually:
 
 - local to your machine
 - shared across projects for your OS user
-- based on your own login, keys, or local `gemini` CLI session
+- based on your own AGY login, keys, or OAuth client
 
 ## The Main Idea
 

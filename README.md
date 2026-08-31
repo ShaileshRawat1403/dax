@@ -157,6 +157,13 @@ checkout, computes the Git diff itself, executes verification without network,
 and pauses for a human decision. Governed external workers require macOS
 Seatbelt or Linux bubblewrap; Windows support is not included in the v1.2 beta.
 
+Supported worker IDs are `claude`, `codex`, `antigravity`, and the legacy
+`gemini` lane for supported enterprise/API-key Gemini CLI deployments. For an
+individual Google AI subscription, install and authenticate Google's `agy`
+CLI, then run `dax worker run antigravity -- "<task>"`. DAX invokes AGY inside
+the same governed checkout, egress, verification, evidence, and approval
+boundaries as every other external worker.
+
 ## How DAX Differs
 
 DAX is not trying to be the fastest “AI coding assistant” in an editor tab. It is trying to be the most trustworthy execution system when the work actually matters.
@@ -238,19 +245,23 @@ dax --version
 
 ### Google / Gemini auth note
 
-For most users, DAX will show three Google auth options:
+By default, DAX shows two direct Google provider auth options:
 
 - `Gemini API Key`
-- `Gemini CLI Session Import`
 - `Google OAuth Client Sign-In`
 
-`Gemini CLI Session Import` reuses your local `gemini` CLI session when available.
+Google [ended consumer Gemini CLI service](https://developers.google.com/gemini-code-assist/docs/deprecations/code-assist-individuals)
+on June 18, 2026. Individual Google
+AI subscription users should use the governed Antigravity worker instead of
+importing `gemini` CLI credentials. The old import remains available only for
+supported enterprise/Google Cloud deployments when
+`DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT=1` is set.
 
 `Google OAuth Client Sign-In` is the browser-based lane. If `DAX_GOOGLE_CLI_CLIENT_ID` and `DAX_GOOGLE_CLI_CLIENT_SECRET` are configured, DAX can use them directly. Otherwise it will prompt for your own OAuth client credentials.
 
 If you inspect the source, you may also see more specific internal Gemini method names. Those are implementation details, not extra user-facing choices.
 
-Authentication is local to your machine and OS user account. DAX does not ship someone else's subscriptions to other users. If a new user installs DAX on their own machine, they authenticate with their own account, keys, or local `gemini` login.
+Authentication is local to your machine and OS user account. DAX does not ship someone else's subscriptions to other users. If a new user installs DAX on their own machine, they authenticate with their own account, keys, OAuth client, or local AGY login.
 
 ### Anthropic / Claude Pro-Max note
 

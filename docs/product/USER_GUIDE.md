@@ -81,17 +81,22 @@ Start here:
 
 Most users should start with one provider only.
 
-For Google / Gemini, the three visible options are:
+For Google / Gemini, the two default provider options are:
 
 - `Gemini API Key`
-- `Gemini CLI Session Import`
 - `Google OAuth Client Sign-In`
 
 For most people:
 
 - use `Gemini API Key` if you have a Google AI Studio API key
-- use `Gemini CLI Session Import` if you already use Gemini through the `gemini` CLI
 - use `Google OAuth Client Sign-In` if you want browser-based OAuth with a configured or user-managed Google client
+
+Google ended consumer Gemini CLI service on June 18, 2026. For individual
+Google AI subscription-backed agent work, install and authenticate `agy`, then
+use `dax worker run antigravity -- "<task>"`. DAX governs the AGY process; it
+does not import AGY credentials into the provider store. Supported enterprise
+Gemini CLI users can expose the legacy import with
+`DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT=1`.
 
 Important:
 
@@ -258,11 +263,11 @@ dax auth doctor
 dax models
 ```
 
-For Gemini subscription issues:
+For Antigravity subscription-worker issues:
 
 ```bash
-gemini
-dax auth login
+agy
+dax worker run antigravity -- "<task>"
 ```
 
 If DAX says the Gemini subscription lane is busy:
