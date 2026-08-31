@@ -307,6 +307,11 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
 
 export const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000
 
+/** Resolve the reviewed executable for an approved external worker. */
+export function workerBinary(workerId: ExternalWorkerId): string {
+  return WORKER_PROFILES[ExternalWorkerId.parse(workerId)].binary
+}
+
 /** Session identity every worker needs to resolve its own auth/config.
  *  Identity, not secrets — the credential boundary stays per-worker. */
 const BASE_ENV_ALLOWLIST = ["HOME", "USER", "LOGNAME", "TMPDIR"]

@@ -58,6 +58,7 @@ import { Sandbox } from "@/shell/sandbox"
 import { UIActivityProvider } from "./context/activity"
 import { bootstrap } from "../../bootstrap"
 import { formatDoctorSection, mcpSection, projectSection } from "@/doctor"
+import { DialogGovernedWorker } from "@tui/component/dialog-governed-worker"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   return "dark"
@@ -430,6 +431,19 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       },
       onSelect: () => {
         dialog.replace(() => <DialogModel />)
+      },
+    },
+    {
+      title: "Run governed worker",
+      value: "worker.run",
+      suggested: true,
+      category: "Workflows",
+      slash: {
+        name: "workers",
+        aliases: ["worker", "agy"],
+      },
+      onSelect: () => {
+        dialog.replace(() => <DialogGovernedWorker />)
       },
     },
     {
