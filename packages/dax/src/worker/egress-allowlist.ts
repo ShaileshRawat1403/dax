@@ -38,6 +38,18 @@ export const PROVIDER_EGRESS_HOSTS: Record<ExternalWorkerId, readonly string[]> 
   // refused until chatgpt.com was allowlisted.
   codex: ["api.openai.com", "chatgpt.com"],
   gemini: ["generativelanguage.googleapis.com", "oauth2.googleapis.com"],
+  // Observed with AGY 1.1.22 through DAX's deny-first CONNECT proxy. The
+  // cached-login eligibility/model run succeeds with the first five; oauth2
+  // is the observed refresh/auth endpoint. Future endpoint drift fails closed
+  // and is surfaced through worker_egress_denied evidence.
+  antigravity: [
+    "antigravity-unleash.goog",
+    "daily-cloudcode-pa.googleapis.com",
+    "www.googleapis.com",
+    "lh3.googleusercontent.com",
+    "play.googleapis.com",
+    "oauth2.googleapis.com",
+  ],
 }
 
 /**
@@ -50,6 +62,7 @@ const PROVIDER_BASE_URL_ENV: Record<ExternalWorkerId, readonly string[]> = {
   claude: ["ANTHROPIC_BASE_URL"],
   codex: ["OPENAI_BASE_URL"],
   gemini: [],
+  antigravity: [],
 }
 
 /**

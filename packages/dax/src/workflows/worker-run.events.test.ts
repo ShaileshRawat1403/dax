@@ -312,6 +312,57 @@ describe("worker_run evidence contract (event harness)", () => {
     expect(run.state?.status).toBe("failed")
   })
 
+  test("an Antigravity non-success terminal status cannot become a reviewed mutation", async () => {
+    const invocations: WorkerInvocation[] = []
+    let diffObserved = false
+    WorkerRunEffects.set({
+      ...successfulEffects(invocations),
+      async runWorker(invocation: WorkerInvocation) {
+        invocations.push(invocation)
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            conversation_id: "",
+            status: "CANCELED",
+            response: "",
+            error: "write permission denied",
+            duration_seconds: 0.2,
+            num_turns: 1,
+            usage: {
+              input_tokens: 10,
+              output_tokens: 0,
+              thinking_tokens: 0,
+              cache_read_tokens: 0,
+              total_tokens: 10,
+            },
+          }),
+          stderr: "",
+          sandboxProvider: "seatbelt" as const,
+          reapedDescendants: false,
+        }
+      },
+      async computeDiff() {
+        diffObserved = true
+        return { content: "diff that must not be admitted", changedPaths: ["src/unsafe.ts"] }
+      },
+    })
+
+    const run = await runWorkflowAndCaptureEvents({
+      workflowClass: "worker_run",
+      contract: makeContract({ providerHint: "worker:antigravity" }),
+      directory: workspace,
+    })
+
+    expect(run.result.success).toBe(false)
+    expect(invocations[0]?.command[0]).toBe("agy")
+    expect(diffObserved).toBe(false)
+    expect(firstEventByType(run.events, "mutation_recorded")).toBeUndefined()
+    expect(firstEventByType(run.events, "approval_requested")).toBeUndefined()
+    expect((firstEventByType(run.events, "run_failed")?.payload as { error: { message: string } }).error.message).toContain(
+      "Antigravity CLI ended with CANCELED",
+    )
+  })
+
   test("emits scope provenance and verification receipts on the success path", async () => {
     const invocations: WorkerInvocation[] = []
     WorkerRunEffects.set(successfulEffects(invocations))

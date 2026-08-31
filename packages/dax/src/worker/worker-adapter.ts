@@ -1,17 +1,18 @@
 import z from "zod"
-import { join } from "node:path"
+import { isAbsolute, join } from "node:path"
 import { buildEgressAllowlist } from "./egress-allowlist"
 
 /**
  * External worker adapters — the BYOA layer (docs/dax/byoa-strategy.md).
  *
- * DAX governs external coding agents (Claude Code, Codex CLI, Gemini CLI)
+ * DAX governs external coding agents (Claude Code, Codex CLI, Gemini CLI,
+ * Antigravity CLI)
  * as capability workers: DAX owns the worktree, the sandbox, the diff, the
  * approval gate, and the receipt; the worker is a replaceable execution
  * engine invoked non-interactively inside DAX's contract.
  *
- * This module is deliberately pure: it builds the invocation (argv, env,
- * network policy, contract prompt) and interprets nothing. Execution,
+ * This module builds the invocation (argv, env, network policy, contract
+ * prompt) and validates executor-owned terminal protocols. Execution,
  * diffing, approval, and evidence stay with the run machinery.
  *
  * Trust rules encoded here:
@@ -33,8 +34,39 @@ import { buildEgressAllowlist } from "./egress-allowlist"
  *   actually held.
  */
 
-export const ExternalWorkerId = z.enum(["claude", "codex", "gemini"])
+export const ExternalWorkerId = z.enum(["claude", "codex", "gemini", "antigravity"])
 export type ExternalWorkerId = z.infer<typeof ExternalWorkerId>
+
+const AntigravityUsageSchema = z
+  .object({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+    thinking_tokens: z.number().int().nonnegative(),
+    cache_read_tokens: z.number().int().nonnegative(),
+    total_tokens: z.number().int().nonnegative(),
+  })
+  .strict()
+
+const AntigravityHeadlessBaseSchema = z.object({
+  conversation_id: z.string(),
+  response: z.string(),
+  duration_seconds: z.number().nonnegative(),
+  num_turns: z.number().int().nonnegative(),
+  usage: AntigravityUsageSchema,
+})
+
+/** Documented AGY JSON result. Only SUCCESS is an accepted worker outcome. */
+export const AntigravityHeadlessResultSchema = z.discriminatedUnion("status", [
+  AntigravityHeadlessBaseSchema.extend({
+    status: z.literal("SUCCESS"),
+    conversation_id: z.string().min(1),
+  }).strict(),
+  AntigravityHeadlessBaseSchema.extend({
+    status: z.enum(["ERROR", "CANCELED", "INTERRUPTED", "INVALID", "WAITING", "RUNNING"]),
+    error: z.string().optional(),
+  }).strict(),
+])
+export type AntigravityHeadlessResult = z.infer<typeof AntigravityHeadlessResultSchema>
 
 /**
  * Egress confinement decided for an invocation. "filtered" carries the exact
@@ -125,6 +157,7 @@ export interface WorkerProvider {
   descriptor: WorkerProviderDescriptor
   buildInvocation(input: {
     contract: WorkerContract
+    workingDirectory: string
     hostEnv: Record<string, string | undefined>
     timeoutMs?: number
     egress?: WorkerEgressInput
@@ -160,7 +193,7 @@ type WorkerProfile = {
   label: string
   binary: string
   /** Build argv given the rendered contract prompt. */
-  args: (prompt: string) => string[]
+  args: (prompt: string, timeoutMs: number, workingDirectory: string) => string[]
   /** Env var names passed through from the host environment. */
   envAllowlist: string[]
   /**
@@ -230,11 +263,45 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".codex"], [hostEnv.CODEX_HOME]),
   },
   gemini: {
-    label: "Gemini CLI",
+    label: "Gemini CLI (enterprise/API key)",
     binary: "gemini",
     args: (prompt) => ["-p", prompt],
     envAllowlist: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"],
     stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini"]),
+  },
+  antigravity: {
+    label: "Antigravity CLI",
+    binary: "agy",
+    // A disposable checkout is a new AGY project. accept-edits is the narrow
+    // noninteractive mode that permits workspace edits while retaining AGY's
+    // own approval checks for broader tools. DAX still owns the outer sandbox,
+    // kernel diff, verification, and human approval.
+    args: (prompt, timeoutMs, workingDirectory) => [
+      "-p",
+      prompt,
+      "--new-project",
+      // AGY's new project otherwise defaults to its private scratch workspace.
+      // Relative paths resolve to that scratch project under Seatbelt, so bind
+      // the absolute DAX disposable checkout explicitly.
+      "--add-dir",
+      workingDirectory,
+      "--mode",
+      "accept-edits",
+      "--output-format",
+      "json",
+      "--print-timeout",
+      `${Math.max(1, Math.ceil(timeoutMs / 1000))}s`,
+    ],
+    // XPC identity is required for AGY's cached macOS login to remain visible
+    // inside Seatbelt. These values are process identity, not credentials.
+    envAllowlist: [
+      "GEMINI_API_KEY",
+      "GOOGLE_API_KEY",
+      "GOOGLE_CLOUD_PROJECT",
+      "XPC_FLAGS",
+      "XPC_SERVICE_NAME",
+    ],
+    stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini/antigravity-cli"]),
   },
 }
 
@@ -293,6 +360,7 @@ export function buildWorkerEnv(
 export function buildWorkerInvocation(input: {
   workerId: ExternalWorkerId
   contract: WorkerContract
+  workingDirectory: string
   hostEnv?: Record<string, string | undefined>
   timeoutMs?: number
   egress?: WorkerEgressInput
@@ -300,6 +368,7 @@ export function buildWorkerInvocation(input: {
   return buildProviderInvocation({
     providerId: ExternalWorkerId.parse(input.workerId),
     contract: input.contract,
+    workingDirectory: input.workingDirectory,
     hostEnv: input.hostEnv,
     timeoutMs: input.timeoutMs,
     egress: input.egress,
@@ -310,20 +379,65 @@ export function buildWorkerInvocation(input: {
 export function buildProviderInvocation(input: {
   providerId: string
   contract: WorkerContract
+  workingDirectory: string
   hostEnv?: Record<string, string | undefined>
   timeoutMs?: number
   registry?: WorkerProviderRegistry
   egress?: WorkerEgressInput
 }): WorkerInvocation {
   const contract = WorkerContract.parse(input.contract)
+  if (!isAbsolute(input.workingDirectory)) {
+    throw new Error("worker workingDirectory must be an absolute path")
+  }
   const provider = (input.registry ?? DefaultWorkerProviderRegistry).get(input.providerId)
   if (!provider) throw new Error(`unknown worker provider '${input.providerId}'`)
   return provider.buildInvocation({
     contract,
+    workingDirectory: input.workingDirectory,
     hostEnv: input.hostEnv ?? {},
     timeoutMs: input.timeoutMs,
     egress: input.egress,
   })
+}
+
+/** Validate executor-owned terminal output before DAX accepts process success. */
+export function validateWorkerProcessOutput(
+  invocation: Pick<WorkerInvocation, "providerId">,
+  result: { exitCode: number; stdout: string; stderr: string },
+): void {
+  if (invocation.providerId !== "antigravity") return
+
+  let value: unknown
+  try {
+    value = JSON.parse(result.stdout.trim())
+  } catch {
+    throw new Error("Antigravity CLI returned invalid headless JSON; execution result is not authoritative.")
+  }
+
+  const parsed = AntigravityHeadlessResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error("Antigravity CLI returned a malformed headless result; execution result is not authoritative.")
+  }
+  if (result.exitCode !== 0 || parsed.data.status !== "SUCCESS") {
+    const detail = parsed.data.status === "SUCCESS" ? result.stderr : parsed.data.error ?? result.stderr
+    throw new Error(
+      `Antigravity CLI ended with ${parsed.data.status}${detail.trim() ? `: ${detail.trim().slice(0, 2000)}` : "."}`,
+    )
+  }
+}
+
+export function assertWorkerBinaryAvailable(
+  invocation: Pick<WorkerInvocation, "providerId" | "command">,
+  which: (binary: string) => string | null = Bun.which,
+): void {
+  const binary = invocation.command[0]
+  if (binary && which(binary)) return
+  if (invocation.providerId === "antigravity") {
+    throw new Error(
+      "Antigravity CLI (`agy`) is not installed or is not on PATH. Install it from https://antigravity.google/docs/cli/install/ and authenticate once with `agy`.",
+    )
+  }
+  throw new Error(`worker ${invocation.providerId} executable '${binary ?? "unknown"}' is not available on PATH`)
 }
 
 function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProvider {
@@ -334,8 +448,9 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
       label: profile.label,
       kind: "external_cli",
     },
-    buildInvocation({ contract, hostEnv, timeoutMs, egress }) {
+    buildInvocation({ contract, workingDirectory, hostEnv, timeoutMs, egress }) {
       const prompt = renderWorkerPrompt(contract)
+      const effectiveTimeoutMs = timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS
       // Egress filtering is on unless the operator opted out. The allowlist is
       // provider defaults plus any custom base-URL host plus operator extras.
       const filterEnabled = egress?.filter ?? true
@@ -348,7 +463,7 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
       return {
         providerId: workerId,
         workerId,
-        command: [profile.binary, ...profile.args(prompt)],
+        command: [profile.binary, ...profile.args(prompt, effectiveTimeoutMs, workingDirectory)],
         env: buildWorkerEnv(workerId, hostEnv, contract),
         // External workers must reach their provider APIs. The workflow wraps
         // this invocation in the platform sandbox before execution; egress
@@ -358,7 +473,7 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
         // The CLI's own state dir must be writable at init (verified on
         // Seatbelt). Repo writes stay checkout-confined regardless.
         writableStatePaths: profile.stateDirs(hostEnv),
-        timeoutMs: timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+        timeoutMs: effectiveTimeoutMs,
       }
     },
   }

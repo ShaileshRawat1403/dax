@@ -5,10 +5,12 @@ import {
   ExternalWorkerId,
   WorkerContract,
   WorkerProviderRegistry,
+  assertWorkerBinaryAvailable,
   buildWorkerEnv,
   buildWorkerInvocation,
   buildProviderInvocation,
   renderWorkerPrompt,
+  validateWorkerProcessOutput,
 } from "./worker-adapter"
 
 const contract: WorkerContract = WorkerContract.parse({
@@ -19,13 +21,14 @@ const contract: WorkerContract = WorkerContract.parse({
   runId: "run_worker_1",
   invocationId: "inv_worker_1",
 })
+const workingDirectory = "/repo/checkout"
 
 describe("worker adapter", () => {
   test("each worker gets a non-interactive invocation carrying the contract prompt", () => {
     for (const workerId of ExternalWorkerId.options) {
-      const invocation = buildWorkerInvocation({ workerId, contract })
+      const invocation = buildWorkerInvocation({ workerId, contract, workingDirectory })
       expect(invocation.providerId).toBe(workerId)
-      expect(invocation.command[0]).toBe(workerId)
+      expect(invocation.command[0]).toBe(workerId === "antigravity" ? "agy" : workerId)
       const prompt = invocation.command.find((arg) => arg.includes("TASK:"))
       expect(prompt).toBeDefined()
       expect(prompt).toContain("Add an isEven helper")
@@ -93,7 +96,7 @@ describe("worker adapter", () => {
   })
 
   test("network is full for provider APIs while workflow confinement owns writes", () => {
-    const invocation = buildWorkerInvocation({ workerId: "claude", contract })
+    const invocation = buildWorkerInvocation({ workerId: "claude", contract, workingDirectory })
     expect(invocation.network).toBe("full")
     expect(invocation.timeoutMs).toBe(DEFAULT_WORKER_TIMEOUT_MS)
   })
@@ -102,34 +105,110 @@ describe("worker adapter", () => {
     // DAX already wraps the worker in its own sandbox + approval gate; codex's
     // own `--sandbox workspace-write` nests a second sandbox that empirically
     // makes it apply nothing. The worker runs under DAX's isolation instead.
-    const invocation = buildWorkerInvocation({ workerId: "codex", contract })
+    const invocation = buildWorkerInvocation({ workerId: "codex", contract, workingDirectory })
     expect(invocation.command).toContain("exec")
     expect(invocation.command).toContain("--dangerously-bypass-approvals-and-sandbox")
     expect(invocation.command).not.toContain("workspace-write")
   })
 
   test("claude worker gets headless edit permission without skipping all gates", () => {
-    const invocation = buildWorkerInvocation({ workerId: "claude", contract })
+    const invocation = buildWorkerInvocation({ workerId: "claude", contract, workingDirectory })
     expect(invocation.command).toContain("--permission-mode")
     expect(invocation.command).toContain("acceptEdits")
     expect(invocation.command).not.toContain("--dangerously-skip-permissions")
   })
 
+  test("antigravity uses the explicit AGY headless contract and narrow state/env boundary", () => {
+    const invocation = buildWorkerInvocation({
+      workerId: "antigravity",
+      contract,
+      workingDirectory,
+      hostEnv: {
+        HOME: "/Users/operator",
+        USER: "operator",
+        XPC_FLAGS: "0x0",
+        XPC_SERVICE_NAME: "0",
+        AWS_SECRET_ACCESS_KEY: "never",
+      },
+      timeoutMs: 42_500,
+    })
+
+    expect(invocation.command).toEqual([
+      "agy",
+      "-p",
+      expect.stringContaining("TASK:"),
+      "--new-project",
+      "--add-dir",
+      workingDirectory,
+      "--mode",
+      "accept-edits",
+      "--output-format",
+      "json",
+      "--print-timeout",
+      "43s",
+    ])
+    expect(invocation.command).not.toContain("--dangerously-skip-permissions")
+    expect(invocation.writableStatePaths).toEqual(["/Users/operator/.gemini/antigravity-cli"])
+    expect(invocation.env.XPC_FLAGS).toBe("0x0")
+    expect(invocation.env.XPC_SERVICE_NAME).toBe("0")
+    expect(invocation.env.AWS_SECRET_ACCESS_KEY).toBeUndefined()
+  })
+
+  test("antigravity accepts only valid SUCCESS terminal JSON", () => {
+    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })
+    const success = JSON.stringify({
+      conversation_id: "conversation_1",
+      status: "SUCCESS",
+      response: "done\n",
+      duration_seconds: 1.2,
+      num_turns: 1,
+      usage: { input_tokens: 10, output_tokens: 2, thinking_tokens: 1, cache_read_tokens: 0, total_tokens: 12 },
+    })
+    expect(() => validateWorkerProcessOutput(invocation, { exitCode: 0, stdout: success, stderr: "" })).not.toThrow()
+
+    for (const status of ["ERROR", "CANCELED", "INTERRUPTED", "INVALID", "WAITING", "RUNNING"] as const) {
+      const output = JSON.stringify({
+        conversation_id: "",
+        status,
+        response: "",
+        error: "not complete",
+        duration_seconds: 0,
+        num_turns: 0,
+        usage: { input_tokens: 0, output_tokens: 0, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 0 },
+      })
+      expect(() => validateWorkerProcessOutput(invocation, { exitCode: status === "ERROR" ? 1 : 0, stdout: output, stderr: "" })).toThrow(status)
+    }
+    expect(() => validateWorkerProcessOutput(invocation, { exitCode: 0, stdout: "not-json", stderr: "" })).toThrow("invalid headless JSON")
+    expect(() => validateWorkerProcessOutput(invocation, { exitCode: 0, stdout: JSON.stringify({ status: "SUCCESS" }), stderr: "" })).toThrow("malformed")
+  })
+
+  test("missing antigravity binary fails with an actionable install message", () => {
+    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })
+    expect(() => assertWorkerBinaryAvailable(invocation, () => null)).toThrow("antigravity.google/docs/cli/install")
+  })
+
   test("unknown workers and empty tasks are rejected", () => {
-    expect(() => buildWorkerInvocation({ workerId: "copilot" as ExternalWorkerId, contract })).toThrow()
+    expect(() =>
+      buildWorkerInvocation({ workerId: "copilot" as ExternalWorkerId, contract, workingDirectory }),
+    ).toThrow()
     expect(() => WorkerContract.parse({ ...contract, task: "" })).toThrow()
+    expect(() =>
+      buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory: "relative/checkout" }),
+    ).toThrow("absolute path")
   })
 
   test("the default registry lists every approved provider as an external CLI", () => {
     const providers = DefaultWorkerProviderRegistry.list()
-    expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex", "gemini"])
+    expect(providers.map((provider) => provider.id)).toEqual(["claude", "codex", "gemini", "antigravity"])
     for (const provider of providers) {
       expect(provider.kind).toBe("external_cli")
     }
   })
 
   test("provider lookup fails closed and duplicate registration is rejected", () => {
-    expect(() => buildProviderInvocation({ providerId: "unknown", contract })).toThrow("unknown worker provider")
+    expect(() => buildProviderInvocation({ providerId: "unknown", contract, workingDirectory })).toThrow(
+      "unknown worker provider",
+    )
 
     const registry = new WorkerProviderRegistry()
     const provider = DefaultWorkerProviderRegistry.get("claude")

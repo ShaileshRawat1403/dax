@@ -336,7 +336,7 @@ export function compile(input: CompileInput): CompileResult {
       workflowClass = "worker_run"
       workflowHintAccepted = false
       warnings.push(
-        `Workflow hint "worker_run" requires providerHint "worker:<claude|codex|gemini>" and will fail closed.`,
+        `Workflow hint "worker_run" requires providerHint "worker:<claude|codex|gemini|antigravity>" and will fail closed.`,
       )
     } else {
       workflowClass = classifiedWorkflow === "generic" ? "draft_and_approve" : classifiedWorkflow
@@ -436,7 +436,7 @@ function isValidWorkflowHint(hint: string, intent: string, providerHint?: string
   }
 
   if (hint === "worker_run") {
-    return /^worker:(claude|codex|gemini)$/.test(providerHint ?? "")
+    return /^worker:(claude|codex|gemini|antigravity)$/.test(providerHint ?? "")
   }
 
   return false

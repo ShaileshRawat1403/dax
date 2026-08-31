@@ -76,6 +76,20 @@ describe("buildEgressAllowlist", () => {
     const allow = buildEgressAllowlist({ workerId: "claude", allowHosts: ["", "   "] })
     expect([...allow]).toEqual(["api.anthropic.com"])
   })
+
+  test("antigravity uses the exact live-characterized host set without Google wildcards", () => {
+    const hosts = buildEgressAllowlist({ workerId: "antigravity" })
+    expect([...hosts].sort()).toEqual([
+      "antigravity-unleash.goog",
+      "daily-cloudcode-pa.googleapis.com",
+      "lh3.googleusercontent.com",
+      "oauth2.googleapis.com",
+      "play.googleapis.com",
+      "www.googleapis.com",
+    ])
+    expect(hosts.has("googleapis.com")).toBe(false)
+    expect(hosts.has("*.googleapis.com")).toBe(false)
+  })
 })
 
 describe("isEgressHostAllowed", () => {

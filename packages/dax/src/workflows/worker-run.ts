@@ -10,7 +10,9 @@ import path from "node:path"
 import {
   ExternalWorkerId,
   WorkerContract,
+  assertWorkerBinaryAvailable,
   buildProviderInvocation,
+  validateWorkerProcessOutput,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
@@ -32,7 +34,7 @@ const log = Log.create({ service: "worker-run-workflow" })
  *   approval gate -> patch artifact for the operator to apply.
  *
  * The worker is selected via the contract's providerHint ("worker:claude" |
- * "worker:codex" | "worker:gemini"). The workflow fails closed on a missing
+ * "worker:codex" | "worker:gemini" | "worker:antigravity"). The workflow fails closed on a missing
  * or unknown worker, a missing repoPath, a failed worker process, or an
  * empty diff — a worker that produced nothing has nothing to approve.
  *
@@ -102,6 +104,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     }
   },
   async runWorker(invocation, cwd) {
+    assertWorkerBinaryAvailable(invocation)
     const network = invocation.network === "none" ? "none" : "full"
     const baseEnv = { ...invocation.env, PATH: process.env.PATH ?? "" }
     const writableStatePaths = invocation.writableStatePaths
@@ -268,7 +271,7 @@ export class WorkerRunWorkflow {
 
     const workerId = workerIdFromProviderHint(this.contract.providerHint)
     if (!workerId) {
-      const error = `worker_run requires providerHint "worker:<claude|codex|gemini>", got "${this.contract.providerHint ?? "none"}"`
+      const error = `worker_run requires providerHint "worker:<claude|codex|gemini|antigravity>", got "${this.contract.providerHint ?? "none"}"`
       await this.failRun("invalid_worker", error)
       return { success: false, stepResults, error }
     }
@@ -322,18 +325,22 @@ export class WorkerRunWorkflow {
         },
       })
 
+      checkout = await WorkerRunEffects.current.createCheckout(repoPath, this.runId)
+
       // Routed through the registry rather than the legacy external-CLI
       // helper, so the run path resolves an approved provider adapter and the
-      // identity it reports is the one recorded as evidence below.
+      // identity it reports is the one recorded as evidence below. The
+      // checkout path is explicit because some workers otherwise choose a
+      // private scratch workspace instead of DAX's governed directory.
       const invocation = buildProviderInvocation({
         providerId: workerId,
         contract,
+        workingDirectory: checkout.path,
         hostEnv: process.env,
         timeoutMs: this.contract.timeoutMs,
         egress: this.contract.runtimePolicy?.egress,
       })
 
-      checkout = await WorkerRunEffects.current.createCheckout(repoPath, this.runId)
       const result = WorkerProcessResultSchema.parse(
         await WorkerRunEffects.current.runWorker(invocation, checkout.path),
       )
@@ -366,6 +373,7 @@ export class WorkerRunWorkflow {
       if (result.timedOut) {
         throw new Error(`worker ${workerId} timed out after ${invocation.timeoutMs}ms`)
       }
+      validateWorkerProcessOutput(invocation, result)
       if (result.exitCode !== 0) {
         throw new Error(`worker ${workerId} exited ${result.exitCode}: ${result.stderr.slice(0, 2000)}`)
       }

@@ -105,7 +105,7 @@ async function waitForConfirmation(): Promise<boolean> {
 }
 
 /**
- * dax worker run <claude|codex|gemini> -- <task>
+ * dax worker run <claude|codex|gemini|antigravity> -- <task>
  *
  * The BYOA entry point (docs/dax/byoa-strategy.md): govern an external
  * coding agent as a capability worker. DAX owns the checkout, the diff,

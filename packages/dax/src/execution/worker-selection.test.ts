@@ -18,7 +18,7 @@ describe("explicit worker authority selection", () => {
     expect(contract.workflowHintAccepted).toBe(false)
     expect(contract.providerHint).toBe("worker:unknown")
     expect(warnings).toContain(
-      'Workflow hint "worker_run" requires providerHint "worker:<claude|codex|gemini>" and will fail closed.',
+      'Workflow hint "worker_run" requires providerHint "worker:<claude|codex|gemini|antigravity>" and will fail closed.',
     )
   })
 

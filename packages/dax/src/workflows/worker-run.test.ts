@@ -17,6 +17,7 @@ describe("workerIdFromProviderHint", () => {
     expect(workerIdFromProviderHint("worker:claude")).toBe("claude")
     expect(workerIdFromProviderHint("worker:codex")).toBe("codex")
     expect(workerIdFromProviderHint("worker:gemini")).toBe("gemini")
+    expect(workerIdFromProviderHint("worker:antigravity")).toBe("antigravity")
     expect(workerIdFromProviderHint("worker:copilot")).toBeNull()
     expect(workerIdFromProviderHint("claude")).toBeNull()
     expect(workerIdFromProviderHint(undefined)).toBeNull()
