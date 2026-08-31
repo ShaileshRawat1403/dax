@@ -95,6 +95,11 @@ authenticate Antigravity CLI, then run:
 dax worker run antigravity -- "<task>"
 ```
 
+From the TUI, run `/workers` or `/agy`, choose the bounded write scope and
+verification command, then confirm the DAX contract preview. You can also find
+Antigravity under `/connect` as a **Governed worker**. It is intentionally not
+listed in `/models`.
+
 The old Gemini CLI import is an enterprise compatibility lane hidden behind
 `DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT=1`.
 

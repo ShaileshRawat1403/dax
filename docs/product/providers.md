@@ -58,6 +58,12 @@ and invoke it as a governed external worker:
 dax worker run antigravity -- "<task>"
 ```
 
+The equivalent TUI entry is `/workers` (or `/agy`). `/connect` exposes the same
+entry under **Governed worker** so individual users are not directed into the
+retired consumer Gemini CLI import. AGY is not a selectable `/models` provider:
+it is a governed process that may use models through its own authenticated
+Google account.
+
 This is deliberately separate from `google/*` model-provider authentication.
 AGY owns its local login; DAX does not import or persist AGY credentials. DAX
 owns the disposable checkout, sandbox, exact-host proxy policy, observed diff,

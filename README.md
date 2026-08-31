@@ -164,6 +164,11 @@ CLI, then run `dax worker run antigravity -- "<task>"`. DAX invokes AGY inside
 the same governed checkout, egress, verification, evidence, and approval
 boundaries as every other external worker.
 
+In the TUI, use `/workers` (or `/agy`) to launch the same governed flow. The
+`/connect` dialog also links to Antigravity under **Governed worker**. AGY does
+not appear in `/models` because it is an execution worker, not a direct model
+provider.
+
 ## How DAX Differs
 
 DAX is not trying to be the fastest “AI coding assistant” in an editor tab. It is trying to be the most trustworthy execution system when the work actually matters.
