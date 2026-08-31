@@ -78,8 +78,8 @@ import { Identifier } from "@/id/id"
 import { Auth } from "@/auth"
 import { Instance } from "@/project/instance"
 import { PermissionPrompt } from "./permission"
-import { RAOPane } from "./rao-pane"
 import { CanonicalInspectorPane } from "./canonical-inspector-pane"
+import { CanonicalApprovalPane } from "./canonical-approval-pane"
 import { AuditLogPane } from "../../component/prompt/audit-log"
 import { RuntimePane } from "../../component/prompt/runtime-pane"
 import { RefinePane } from "../../component/prompt/refine"
@@ -1462,10 +1462,12 @@ export function Session() {
                 <Switch>
                   <Match when={activePaneMode() === "approvals"}>
                     <box flexGrow={1} minHeight={0}>
-                      <RAOPane
+                      <CanonicalApprovalPane
                         permissions={permissions()}
                         questions={questions()}
-                        sessionID={route.sessionID}
+                        runID={route.sessionID}
+                        displayMode={displayMode()}
+                        refreshKey={sync.data.run[route.sessionID]}
                         onAllResolved={() => {
                           // Only release the pane if the user is still
                           // viewing approvals — they may have already
