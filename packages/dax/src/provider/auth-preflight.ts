@@ -154,7 +154,7 @@ async function validateGoogleOAuthAccessToken(token: string) {
       ok: false as const,
       reason: "token_invalid",
       message:
-        "Google OAuth access token is invalid or expired for Gemini. Re-run `dax auth login` and choose `Gemini CLI Session Import` or `Google OAuth Client Sign-In`, or switch to `GEMINI_API_KEY`.",
+        "Google OAuth access token is invalid or expired for Gemini. Re-run `dax auth login` with a supported Google OAuth configuration, switch to `GEMINI_API_KEY`, or use a governed Antigravity worker for individual CLI subscription access.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -198,7 +198,7 @@ async function validateGoogleOAuthAccessToken(token: string) {
       ok: false as const,
       reason: "token_expired",
       message:
-        "Google OAuth access token is expired. Re-authenticate with `Gemini CLI Session Import` or `Google OAuth Client Sign-In`, or use `GEMINI_API_KEY`.",
+        "Google OAuth access token is expired. Re-authenticate with a supported Google OAuth configuration, use `GEMINI_API_KEY`, or use a governed Antigravity worker for individual CLI subscription access.",
     }
     tokenHealthCache.set(token, { checkedAt: Date.now(), result: health })
     return health
@@ -281,7 +281,7 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
           ...token.details,
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
           mode === "cli-import"
-            ? "Lane: Gemini CLI Session Import."
+            ? "Lane: Gemini CLI Import (enterprise legacy)."
             : mode === "codeassist"
               ? "Lane: Google OAuth Client Sign-In (configured browser sign-in)."
               : mode === "custom-oauth"
@@ -297,7 +297,7 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
             ? "Access token expired/invalid, but refresh token is present and will be used during execution."
             : "Access token expired/invalid and no refresh token found.",
           isSubscription && mode === "cli-import"
-            ? "If this came from Gemini CLI import and the session has expired, run `gemini` and reconnect with `Gemini CLI Session Import`."
+            ? "For a supported enterprise Gemini CLI deployment, refresh `gemini`; individual accounts should use a governed Antigravity worker or Gemini API key."
             : "Re-run `dax auth login` if the lane stays blocked.",
         ]
 

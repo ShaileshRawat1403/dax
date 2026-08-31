@@ -201,7 +201,7 @@ function isSubscriptionMode(mode: OAuthState["mode"]) {
 class GeminiCliSessionExpiredError extends Error {
   constructor() {
     super(
-      "Your imported Gemini CLI session expired. Reconnect with 'Gemini CLI Session Import', switch to 'Google OAuth Client Sign-In', or run `gemini` again to refresh your local terminal login.",
+      "The legacy imported Gemini CLI session expired. Individual accounts should use a governed Antigravity worker or a Gemini API key. Supported enterprise Gemini CLI users may refresh `gemini` and retry the legacy import.",
     )
     this.name = "GeminiCliSessionExpiredError"
   }
@@ -1169,13 +1169,13 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (scopeError) {
               return googleAuthHelpResponse(
                 403,
-                "Google token is missing the scopes required for this Gemini lane. Use `Gemini API Key`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`. If you authenticated with gcloud/ADC, use the Vertex provider instead.",
+                "Google token is missing the scopes required for this Gemini lane. Use a Gemini API key or supported Google OAuth/Vertex configuration. Individual CLI subscription users should use a governed Antigravity worker.",
               )
             }
             if (invalidCredential) {
               return googleAuthHelpResponse(
                 401,
-                "Google credentials are invalid for this lane. Use `Gemini API Key`, reconnect with `Gemini CLI Session Import`, or use `Google OAuth Client Sign-In`. For gcloud ADC credentials, switch to Vertex provider.",
+                "Google credentials are invalid for this lane. Use a Gemini API key or supported Google OAuth/Vertex configuration. Individual CLI subscription users should use a governed Antigravity worker.",
               )
             }
             return first
@@ -1206,8 +1206,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           type: "oauth" as const,
           label: "Sign in with Google",
           description:
-            "Sign in directly with your Google account using a secure browser flow.\n" +
-            "Works with Gemini free tier, Pro, and Plus subscriptions — no CLI install required.",
+            "Sign in with a Google OAuth client for supported Google Cloud or enterprise deployments.\n" +
+            "Individual Google AI Pro/Ultra CLI access has moved to Antigravity.",
           async authorize() {
             const clientID = getGoogleCliClientId()
             const clientSecret = getGoogleCliClientSecret()
@@ -1220,8 +1220,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   "  DAX_GOOGLE_CLI_CLIENT_SECRET=<your-client-secret>\n\n" +
                   "Create an OAuth 2.0 Desktop-app client at:\n" +
                   "  https://console.cloud.google.com/apis/credentials\n\n" +
-                  "Or use 'Import from Gemini CLI' if you have the Gemini CLI installed,\n" +
-                  "or use 'Custom Google OAuth Client' to provide credentials in-app.",
+                  "Or use 'Custom Google OAuth Client' to provide credentials in-app.\n" +
+                  "For individual Google AI Pro/Ultra access, use `dax worker run antigravity`.",
               )
             }
 
@@ -1266,8 +1266,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           type: "oauth" as const,
           label: "Import from Gemini CLI",
           description:
-            "Sign in with Google or import your existing `gemini` CLI session — whichever completes first.\n" +
-            "Use this if you already have the Gemini CLI running and want to reuse that login.",
+            "Legacy import for supported enterprise/Google Cloud Gemini CLI deployments.\n" +
+            "Hidden by default; individual accounts should use an Antigravity worker or Gemini API key.",
           async authorize() {
             const baseline = await readCliCreds()
             // Prefer credentials from the user's CLI file — no hardcoded fallback.
@@ -1281,8 +1281,8 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 method: "auto" as const,
                 url: GEMINI_OAUTH_DOC,
                 instructions:
-                  "Run `gemini` in a terminal to authenticate with Google, then return here.\n" +
-                  "DAX will detect the login automatically.",
+                  "This legacy lane is only for a supported enterprise Gemini CLI deployment.\n" +
+                  "Run `gemini` there, then return; individual accounts should cancel and use Antigravity.",
                 async callback() {
                   const creds = await waitForCliImportCreds({ baseline, timeoutMs: WAIT_MS })
                   if (!creds?.refresh) return { type: "failed" as const }
@@ -1325,7 +1325,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               method: "auto" as const,
               url: signInUrl,
               instructions:
-                "Sign in with Google in your browser, or run `gemini` in a terminal — DAX will accept whichever completes first.",
+                "Complete the supported enterprise Google sign-in, or run `gemini` in that deployment. Individual accounts should cancel and use Antigravity.",
               async callback() {
                 const winner = await raceGoogleAuth(webState, baseline, WAIT_MS)
                 if (!winner) return { type: "failed" as const }
@@ -1381,7 +1381,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (!health.ok) {
                   if (health.reason === "scope_missing")
                     throw new Error(
-                      "Imported Gemini CLI session is missing required scopes. Use 'Sign in with Google' instead.",
+                      "Legacy Gemini CLI import is missing required enterprise scopes. Use a supported Google OAuth/Vertex configuration, or use Antigravity for an individual account.",
                     )
                   if (health.reason === "token_expired") throw importedGeminiCliExpiredError()
                   throw new Error(`Token validation failed: ${health.reason}`)

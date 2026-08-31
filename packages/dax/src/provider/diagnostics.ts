@@ -20,7 +20,7 @@ export type ProviderLane =
 
 const laneLabels: Record<ProviderLane, string> = {
   "gemini-api": "Gemini API Key",
-  "gemini-cli-import": "Gemini CLI Session Import",
+  "gemini-cli-import": "Gemini CLI Import (enterprise legacy)",
   "google-oauth-client": "Google OAuth Client Sign-In",
   vertex: "Google Vertex ADC",
   "anthropic-api": "Claude API Key",
@@ -95,12 +95,12 @@ export function providerFailureNextStep(input: {
   switch (input.category) {
     case "auth_expired":
       if (input.lane === "gemini-cli-import") {
-        return "Run `gemini`, finish login in the terminal, then retry `Gemini CLI Session Import`."
+        return "Individual accounts should use `dax worker run antigravity` or a Gemini API key. For a supported enterprise Gemini CLI deployment, refresh `gemini` and retry the legacy import."
       }
       return `Reconnect ${lane} with \`dax auth login ${input.providerID}\` and retry.`
     case "auth_missing":
       if (input.lane === "gemini-cli-import") {
-        return "Run `gemini`, finish login in the terminal, then retry `Gemini CLI Session Import`."
+        return "Individual accounts should use `dax worker run antigravity` or a Gemini API key. For a supported enterprise Gemini CLI deployment, authenticate `gemini` and retry the legacy import."
       }
       return `Authenticate ${lane} first with \`dax auth login ${input.providerID}\` or configure the required API key.`
     case "rate_limited":
@@ -133,4 +133,3 @@ export function describeProviderFailure(input: {
     }),
   }
 }
-

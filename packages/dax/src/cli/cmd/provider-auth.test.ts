@@ -28,7 +28,7 @@ describe("getVisibleProviderAuthMethods", () => {
     },
   ]
 
-  test("uses Gemini CLI as the subscription lane when CLI creds exist", async () => {
+  test("hides legacy Gemini CLI import by default even when CLI creds exist", async () => {
     const dir = await mkdtemp(join(tmpdir(), "dax-google-auth-"))
     const credsPath = join(dir, "oauth_creds.json")
     await writeFile(credsPath, JSON.stringify({ access_token: "x", refresh_token: "y" }))
@@ -37,13 +37,9 @@ describe("getVisibleProviderAuthMethods", () => {
       GEMINI_OAUTH_CREDS_PATH: credsPath,
     })
 
-    expect(visible.map((item) => item.title)).toEqual([
-      "Gemini API Key",
-      "Gemini CLI Session Import",
-      "Google OAuth Client Sign-In",
-    ])
-    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "gemini-cli-import", "google-oauth-client"])
-    expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 3])
+    expect(visible.map((item) => item.title)).toEqual(["Gemini API Key", "Google OAuth Client Sign-In"])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "google-oauth-client"])
+    expect(visible.map((item) => item.originalIndex)).toEqual([0, 3])
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -55,25 +51,34 @@ describe("getVisibleProviderAuthMethods", () => {
       DAX_GOOGLE_CLI_CLIENT_SECRET: "client-secret",
     })
 
-    expect(visible.map((item) => item.title)).toEqual([
-      "Gemini API Key",
-      "Gemini CLI Session Import",
-      "Google OAuth Client Sign-In",
-    ])
-    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "gemini-cli-import", "google-oauth-client"])
-    expect(visible.map((item) => item.originalIndex)).toEqual([0, 1, 2])
+    expect(visible.map((item) => item.title)).toEqual(["Gemini API Key", "Google OAuth Client Sign-In"])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "google-oauth-client"])
+    expect(visible.map((item) => item.originalIndex)).toEqual([0, 2])
     await rm(dir, { recursive: true, force: true })
   })
 
-  test("falls back to CLI import when neither CLI creds nor direct sign-in env are present", async () => {
+  test("uses custom OAuth rather than legacy CLI import when no configured client is present", async () => {
     const dir = await mkdtemp(join(tmpdir(), "dax-google-auth-"))
     const visible = await getVisibleProviderAuthMethods("google", googleMethods, {
       HOME: dir,
     })
 
+    expect(visible.map((item) => item.title)).toEqual(["Gemini API Key", "Google OAuth Client Sign-In"])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "google-oauth-client"])
+    expect(visible.map((item) => item.originalIndex)).toEqual([0, 3])
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  test("shows the enterprise legacy import only behind its explicit opt-in", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dax-google-auth-"))
+    const visible = await getVisibleProviderAuthMethods("google", googleMethods, {
+      HOME: dir,
+      DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT: "1",
+    })
+
     expect(visible.map((item) => item.title)).toEqual([
       "Gemini API Key",
-      "Gemini CLI Session Import",
+      "Gemini CLI Import (enterprise legacy)",
       "Google OAuth Client Sign-In",
     ])
     expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "gemini-cli-import", "google-oauth-client"])

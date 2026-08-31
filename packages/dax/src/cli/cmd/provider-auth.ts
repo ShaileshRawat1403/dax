@@ -16,6 +16,10 @@ export function hasAdvancedGoogleClient(env: NodeJS.ProcessEnv = process.env) {
   return !!env.DAX_GOOGLE_CLI_CLIENT_ID && !!env.DAX_GOOGLE_CLI_CLIENT_SECRET
 }
 
+export function legacyGeminiCliImportEnabled(env: NodeJS.ProcessEnv = process.env) {
+  return env.DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT === "1"
+}
+
 export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethodLike>(
   providerID: string,
   methods: T[],
@@ -56,13 +60,13 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
     })
   }
 
-  if (cliImportIndex >= 0) {
+  if (cliImportIndex >= 0 && legacyGeminiCliImportEnabled(env)) {
     visible.push({
       method: methods[cliImportIndex]!,
       originalIndex: cliImportIndex,
       title: providerLaneLabel("gemini-cli-import")!,
-      description: "Reuse your local `gemini` CLI login for the Gemini subscription lane.",
-      hint: "Imported from Gemini CLI",
+      description: "Legacy enterprise/Google Cloud Gemini CLI import. Individual accounts should use an Antigravity worker.",
+      hint: "Enterprise legacy opt-in",
       lane: "gemini-cli-import",
     })
   }

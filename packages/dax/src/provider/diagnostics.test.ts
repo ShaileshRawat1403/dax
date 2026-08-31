@@ -8,7 +8,7 @@ import {
 
 describe("provider diagnostics normalization", () => {
   test("returns canonical lane labels", () => {
-    expect(providerLaneLabel("gemini-cli-import")).toBe("Gemini CLI Session Import")
+    expect(providerLaneLabel("gemini-cli-import")).toBe("Gemini CLI Import (enterprise legacy)")
     expect(providerLaneLabel("anthropic-subscription")).toBe("Claude Pro/Max Sign-In")
     expect(providerLaneLabel("openai-chatgpt")).toBe("ChatGPT Plus/Pro Sign-In")
   })
@@ -30,8 +30,8 @@ describe("provider diagnostics normalization", () => {
     })
 
     expect(failure.category).toBe("auth_missing")
-    expect(failure.laneLabel).toBe("Gemini CLI Session Import")
-    expect(failure.nextStep).toContain("Run `gemini`")
+    expect(failure.laneLabel).toBe("Gemini CLI Import (enterprise legacy)")
+    expect(failure.nextStep).toContain("worker run antigravity")
   })
 
   test("provides an honest fallback next step for unknown failures", () => {
