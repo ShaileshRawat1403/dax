@@ -12,10 +12,13 @@ export type CanonicalInspectorState =
 
 export const initialCanonicalInspectorState = (): CanonicalInspectorState => ({ status: "loading", stale: false })
 
-export function acceptCanonicalInspectorRead(value: unknown): CanonicalInspectorState {
+export function acceptCanonicalInspectorRead(value: unknown, expectedRunId?: string): CanonicalInspectorState {
   const parsed = RunInspectorReadResultV1.safeParse(value)
   if (!parsed.success) {
     return { status: "unavailable", stale: false, error: "Inspector response failed canonical contract validation." }
+  }
+  if (expectedRunId && parsed.data.runId !== expectedRunId) {
+    return { status: "unavailable", stale: false, error: `Inspector response run mismatch: expected ${expectedRunId}.` }
   }
   return { status: "ready", snapshot: parsed.data, stale: false }
 }

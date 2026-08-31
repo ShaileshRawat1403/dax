@@ -8,6 +8,9 @@ import type { PersonaPack } from "@/dax/presentation/persona"
 import { nextDisplayMode, type DisplayMode } from "@/dax/presentation/session-display"
 import type { HeaderProjection, HeaderState } from "@/dax/presentation/ui-state-resolver"
 import { Spinner } from "@tui/component/spinner"
+import { CanonicalAuthorityStrip } from "./canonical-authority-strip"
+import { shouldShowCompatibilityHeaderChip } from "./canonical-authority-strip-presentation"
+import { useOptionalCanonicalInspectorSource } from "./canonical-inspector-source"
 
 type HeaderAction = {
   label: string
@@ -26,9 +29,12 @@ export function Header(props: {
   busy?: boolean
   onCyclePersona?: () => void
   contextPercent?: number
+  onReviewDecision?: () => void
+  onInspectTruth?: () => void
 }) {
   const kv = useKV()
   const { theme } = useTheme()
+  const canonicalSource = useOptionalCanonicalInspectorSource()
 
   const [displayMode, setDisplayMode] = kv.signal<DisplayMode>(DAX_SETTING.display_mode, "operator")
   const _explainMode = createMemo(() => isEli12Mode(kv.get(DAX_SETTING.explain_mode, "normal")))
@@ -67,7 +73,12 @@ export function Header(props: {
   // The projection chip is the single source of state truth for the Header.
   // It must remain visible regardless of emphasis; muted only affects styling.
   // See Contract Section 1: Header always answers "what state is DAX in?".
-  const showProjectionChip = createMemo(() => !!props.headerProjection)
+  const showProjectionChip = createMemo(() => {
+    const state = canonicalSource?.state()
+    // Canonical states own lifecycle/completion language. Legacy retains the
+    // established compatibility chip alongside its explicit unsupported note.
+    return !!props.headerProjection && shouldShowCompatibilityHeaderChip(state)
+  })
 
   // Spinner shows only when the caller says we're busy AND the projection
   // indicates an active, in-flight run state. Spinner is presentational
@@ -183,6 +194,13 @@ export function Header(props: {
             </Show>
           </box>
         </box>
+        <Show when={canonicalSource && props.onReviewDecision && props.onInspectTruth}>
+          <CanonicalAuthorityStrip
+            displayMode={displayMode()}
+            onReviewDecision={props.onReviewDecision!}
+            onInspectTruth={props.onInspectTruth!}
+          />
+        </Show>
       </box>
     </box>
   )

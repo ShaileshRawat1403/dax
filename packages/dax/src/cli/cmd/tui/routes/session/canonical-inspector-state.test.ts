@@ -40,6 +40,12 @@ describe("canonical inspector state", () => {
     expect(acceptCanonicalInspectorRead(canonical())).toMatchObject({ status: "ready", stale: false, snapshot: { kind: "canonical" } })
   })
 
+  test("refuses an otherwise valid inspector response for a different run", () => {
+    expect(acceptCanonicalInspectorRead(canonical(), "run_2")).toMatchObject({
+      status: "unavailable", stale: false, error: "Inspector response run mismatch: expected run_2.",
+    })
+  })
+
   test("shows unresolved work and integrity warnings rather than inferring success", () => {
     const view = presentCanonicalInspector(canonical({
       durableAuthorization: { items: [{ invocationId: "i", toolId: "write", executor: { kind: "builtin", id: "write" }, status: "authorized", authorization: { finalDisposition: "allowed", contractDisposition: "allowed", runtimeGuardDisposition: "allowed", permissionDisposition: "allowed", approvalIds: [], reasonCodes: [] } }], omittedCount: 0 },

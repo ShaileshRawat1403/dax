@@ -80,6 +80,7 @@ import { Instance } from "@/project/instance"
 import { PermissionPrompt } from "./permission"
 import { CanonicalInspectorPane } from "./canonical-inspector-pane"
 import { CanonicalApprovalPane } from "./canonical-approval-pane"
+import { CanonicalInspectorSourceProvider } from "./canonical-inspector-source"
 import { AuditLogPane } from "../../component/prompt/audit-log"
 import { RuntimePane } from "../../component/prompt/runtime-pane"
 import { RefinePane } from "../../component/prompt/refine"
@@ -1287,6 +1288,7 @@ export function Session() {
   })
 
   return (
+    <CanonicalInspectorSourceProvider runID={route.sessionID} refreshKey={sync.data.run[route.sessionID]}>
     <context.Provider
       value={{
         width: contentWidth(),
@@ -1309,6 +1311,8 @@ export function Session() {
           emphasis={showPane() ? "muted" : "normal"}
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
           contextPercent={sessionTelemetry().contextPercent ?? undefined}
+          onReviewDecision={() => selectPaneMode("approvals")}
+          onInspectTruth={() => selectPaneMode("inspector")}
           actions={[
             {
               label: followActionLabel(),
@@ -1467,7 +1471,6 @@ export function Session() {
                         questions={questions()}
                         runID={route.sessionID}
                         displayMode={displayMode()}
-                        refreshKey={sync.data.run[route.sessionID]}
                         onAllResolved={() => {
                           // Only release the pane if the user is still
                           // viewing approvals — they may have already
@@ -1490,9 +1493,7 @@ export function Session() {
 
                   <Match when={activePaneMode() === "inspector"}>
                     <CanonicalInspectorPane
-                      runID={route.sessionID}
                       displayMode={displayMode()}
-                      refreshKey={sync.data.run[route.sessionID]}
                     />
                   </Match>
 
@@ -1796,6 +1797,7 @@ export function Session() {
         <Toast />
       </box>
     </context.Provider>
+    </CanonicalInspectorSourceProvider>
   )
 }
 
