@@ -316,6 +316,7 @@ export namespace SessionPrompt {
           }),
       ]),
     ),
+    completionPolicy: z.enum(["explicit", "on_provider_stop"]).optional(),
   })
   export type PromptInput = z.infer<typeof PromptInput>
 
@@ -406,7 +407,7 @@ export namespace SessionPrompt {
       return message
     }
 
-    return loop({ sessionID: input.sessionID })
+    return loop({ sessionID: input.sessionID, completionPolicy: input.completionPolicy })
   })
 
   /**
@@ -501,9 +502,10 @@ export namespace SessionPrompt {
   export const LoopInput = z.object({
     sessionID: Identifier.schema("session"),
     resume_existing: z.boolean().optional(),
+    completionPolicy: z.enum(["explicit", "on_provider_stop"]).optional(),
   })
   export const loop = fn(LoopInput, async (input) => {
-    const { sessionID, resume_existing } = input
+    const { sessionID, resume_existing, completionPolicy } = input
 
     const abort = resume_existing ? resume(sessionID) : start(sessionID)
     if (!abort) {
@@ -549,7 +551,7 @@ export namespace SessionPrompt {
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
         lastUser.id < lastAssistant.id
       ) {
-        if (lastAssistant.finish === "stop") {
+        if (lastAssistant.finish === "stop" && completionPolicy === "on_provider_stop") {
           const completion = await adjudicateNativeCompletionCandidate({
             sessionID,
             assistantMessageID: lastAssistant.id,
@@ -971,13 +973,15 @@ export namespace SessionPrompt {
         model,
       })
       if (processor.message.finish === "stop") {
-        const completion = await adjudicateNativeCompletionCandidate({
-          sessionID,
-          assistantMessageID: processor.message.id,
-          finishReason: processor.message.finish,
-          hasError: Boolean(processor.message.error),
-        })
-        log.info("native completion candidate adjudicated", completion)
+        if (completionPolicy === "on_provider_stop") {
+          const completion = await adjudicateNativeCompletionCandidate({
+            sessionID,
+            assistantMessageID: processor.message.id,
+            finishReason: processor.message.finish,
+            hasError: Boolean(processor.message.error),
+          })
+          log.info("native completion candidate adjudicated", completion)
+        }
         break
       }
       if (result === "stop") break

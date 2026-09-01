@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { cliImportCredSignature, cloudCodeProjectID, isCliImportReady, waitForCliImportCreds } from "./gemini"
+import {
+  cliImportCredSignature,
+  cloudCodeProjectID,
+  isCliImportReady,
+  parseCliCreds,
+  waitForCliImportCreds,
+} from "./gemini"
 
 describe("Google Code Assist project resolution", () => {
   test("normalizes the companion project id returned by Code Assist", () => {
@@ -81,5 +87,43 @@ describe("gemini CLI import readiness", () => {
     })
 
     expect(result?.access).toBe("fresh-access")
+  })
+})
+
+describe("Antigravity credential parsing", () => {
+  test("parses nested Antigravity token structure", () => {
+    const creds = {
+      auth_method: "consumer",
+      token: {
+        access_token: "ya29.test-access-token",
+        refresh_token: "1//test-refresh-token",
+        expiry: "2026-08-31T15:00:00.000Z",
+        token_type: "Bearer",
+      },
+    }
+    const parsed = parseCliCreds(creds, "/home/user/.gemini/antigravity-cli/antigravity-oauth-token")
+    expect(parsed).toBeDefined()
+    expect(parsed?.access).toBe("ya29.test-access-token")
+    expect(parsed?.refresh).toBe("1//test-refresh-token")
+    expect(parsed?.expires).toBe(new Date("2026-08-31T15:00:00.000Z").getTime())
+    expect(parsed?.mode).toBe("antigravity-import")
+  })
+
+  test("parses standard flat CLI format", () => {
+    const creds = {
+      access_token: "ya29.flat-access-token",
+      refresh_token: "1//flat-refresh-token",
+      expiry_date: 1788167000000,
+      client_id: "test-client-id",
+      client_secret: "test-client-secret",
+    }
+    const parsed = parseCliCreds(creds, "/home/user/.gemini/oauth_creds.json")
+    expect(parsed).toBeDefined()
+    expect(parsed?.access).toBe("ya29.flat-access-token")
+    expect(parsed?.refresh).toBe("1//flat-refresh-token")
+    expect(parsed?.expires).toBe(1788167000000)
+    expect(parsed?.clientID).toBe("test-client-id")
+    expect(parsed?.clientSecret).toBe("test-client-secret")
+    expect(parsed?.mode).toBe("cli-import")
   })
 })

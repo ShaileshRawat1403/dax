@@ -2455,6 +2455,13 @@
                   "variant": {
                     "type": "string"
                   },
+                  "completionPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "explicit",
+                      "on_provider_stop"
+                    ]
+                  },
                   "parts": {
                     "type": "array",
                     "items": {
@@ -2838,6 +2845,13 @@
                   },
                   "variant": {
                     "type": "string"
+                  },
+                  "completionPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "explicit",
+                      "on_provider_stop"
+                    ]
                   },
                   "parts": {
                     "type": "array",

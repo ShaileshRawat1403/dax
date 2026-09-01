@@ -61,3 +61,5 @@ import type { RunFactoryInput, RunFactoryResult } from "./run-factory"
 
 export { RunFactory, createRunFromContract, getContractForRun, hasContract }
 export type { RunFactoryInput, RunFactoryResult }
+
+export { NativeExecution } from "./native-execution"

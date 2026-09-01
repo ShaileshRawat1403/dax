@@ -736,6 +736,7 @@ export async function executeRun(args: RunArgs, options?: { defaultCommand?: str
         agent,
         model,
         variant: args.variant,
+        completionPolicy: "on_provider_stop",
         parts: [...files, { type: "text", text: message }],
       })
     }

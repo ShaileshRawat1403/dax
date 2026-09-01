@@ -34,6 +34,18 @@ describe("provider diagnostics normalization", () => {
     expect(failure.nextStep).toContain("worker run antigravity")
   })
 
+  test("gives lane-specific next steps for Antigravity session import auth gaps", () => {
+    const failure = describeProviderFailure({
+      providerID: "google",
+      lane: "antigravity-import",
+      errorName: "ProviderAuthOauthMissing",
+    })
+
+    expect(failure.category).toBe("auth_missing")
+    expect(failure.laneLabel).toBe("Antigravity (governed worker)")
+    expect(failure.nextStep).toContain("worker run antigravity")
+  })
+
   test("provides an honest fallback next step for unknown failures", () => {
     const next = providerFailureNextStep({
       category: "unknown",

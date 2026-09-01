@@ -165,6 +165,7 @@ async function startExecution(runId: string, contract: ExecutionContract): Promi
   SessionPrompt.prompt({
     sessionID: runId,
     model,
+    completionPolicy: "on_provider_stop",
     parts: [
       {
         type: "text",

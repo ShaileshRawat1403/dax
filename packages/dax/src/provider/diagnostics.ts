@@ -10,6 +10,7 @@ export type ProviderFailureCategory =
 export type ProviderLane =
   | "gemini-api"
   | "gemini-cli-import"
+  | "antigravity-import"
   | "google-oauth-client"
   | "vertex"
   | "anthropic-api"
@@ -21,6 +22,7 @@ export type ProviderLane =
 const laneLabels: Record<ProviderLane, string> = {
   "gemini-api": "Gemini API Key",
   "gemini-cli-import": "Gemini CLI Import (enterprise legacy)",
+  "antigravity-import": "Antigravity (governed worker)",
   "google-oauth-client": "Google OAuth Client Sign-In",
   vertex: "Google Vertex ADC",
   "anthropic-api": "Claude API Key",
@@ -94,11 +96,17 @@ export function providerFailureNextStep(input: {
   const lane = providerLaneLabel(input.lane) ?? input.providerID
   switch (input.category) {
     case "auth_expired":
+      if (input.lane === "antigravity-import") {
+        return "Use `dax worker run antigravity` (or the Antigravity CLI entry in the TUI) for subscription-backed AGY execution. Use `GEMINI_API_KEY` for direct DAX chat."
+      }
       if (input.lane === "gemini-cli-import") {
         return "Individual accounts should use `dax worker run antigravity` or a Gemini API key. For a supported enterprise Gemini CLI deployment, refresh `gemini` and retry the legacy import."
       }
       return `Reconnect ${lane} with \`dax auth login ${input.providerID}\` and retry.`
     case "auth_missing":
+      if (input.lane === "antigravity-import") {
+        return "Authenticate `agy`, then use `dax worker run antigravity` (or the Antigravity CLI entry in the TUI). Use `GEMINI_API_KEY` for direct DAX chat."
+      }
       if (input.lane === "gemini-cli-import") {
         return "Individual accounts should use `dax worker run antigravity` or a Gemini API key. For a supported enterprise Gemini CLI deployment, authenticate `gemini` and retry the legacy import."
       }

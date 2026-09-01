@@ -16,7 +16,7 @@ export namespace Auth {
       clientID: z.string().optional(),
       clientSecret: z.string().optional(),
       quotaProjectID: z.string().optional(),
-      mode: z.enum(["api-key", "custom-oauth", "cli-import", "codeassist", "vertex"]).optional(),
+      mode: z.enum(["api-key", "custom-oauth", "cli-import", "codeassist", "vertex", "antigravity-import"]).optional(),
     })
     .meta({ ref: "OAuth" })
 

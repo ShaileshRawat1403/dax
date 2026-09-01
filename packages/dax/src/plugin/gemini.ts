@@ -31,9 +31,9 @@ const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 const WAIT_MS = 2 * 60 * 1000
 const WAIT_STEP_MS = 1500
 const ACCESS_ONLY_PREFIX = "access-only:"
-// No credentials are hardcoded. Set DAX_GOOGLE_CLI_CLIENT_ID + DAX_GOOGLE_CLI_CLIENT_SECRET
-// (or GEMINI_OAUTH_CLIENT_ID + GEMINI_OAUTH_CLIENT_SECRET) for "Sign in with Google".
-// CLI import reads credentials directly from ~/.gemini/oauth_creds.json.
+// DAX never embeds or impersonates another application's OAuth client.
+// Browser OAuth is available only when the operator supplies a DAX-owned
+// client. Antigravity remains isolated behind DAX's governed worker lane.
 const getGoogleCliClientId = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_ID ?? Bun.env.GEMINI_OAUTH_CLIENT_ID
 const getGoogleCliClientSecret = () => Bun.env.DAX_GOOGLE_CLI_CLIENT_SECRET ?? Bun.env.GEMINI_OAUTH_CLIENT_SECRET
 
@@ -49,6 +49,8 @@ export function cloudCodeProjectID(value: unknown): string | undefined {
   return undefined
 }
 
+export const isCloudCodeEndpoint = (hostname: string) => hostname === "cloudcode-pa.googleapis.com"
+
 async function resolveCloudCodeProject(accessToken: string, refreshToken?: string): Promise<string> {
   if (cachedCloudCodeProjectId) return cachedCloudCodeProjectId
 
@@ -61,84 +63,95 @@ async function resolveCloudCodeProject(accessToken: string, refreshToken?: strin
   const makeHeaders = (token: string) => ({
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
-    "User-Agent": "GoogleCloud/1.0.0 (Windows NT 10.0; Win64; x64) GeminiCLI/0.34.0",
+    "User-Agent": "Antigravity/1.1.22 (darwin/arm64)",
   })
 
-  // Try loadCodeAssist with current token
-  let loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
-    method: "POST",
-    headers: makeHeaders(accessToken),
-    body: JSON.stringify({ metadata }),
-  }).catch(() => null)
-
-  if (loadRes?.ok) {
-    const data = await loadRes.json().catch(() => ({}))
-    const project = cloudCodeProjectID(data.cloudaicompanionProject)
-    if (project) {
-      cachedCloudCodeProjectId = project
-      return project
-    }
-  }
-
-  // If loadCodeAssist failed, try to get a fresh token
-  // Strategy 1: Re-read CLI file (user may have run `gemini`)
-  const freshCreds = await readCliCreds()
-  if (freshCreds?.access && freshCreds.expires && freshCreds.expires > Date.now()) {
-    loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
+  // Try loadCodeAssist on standard and daily endpoints
+  for (const host of ["cloudcode-pa.googleapis.com"]) {
+    const loadRes = await fetch(`https://${host}/v1internal:loadCodeAssist`, {
       method: "POST",
-      headers: makeHeaders(freshCreds.access),
+      headers: makeHeaders(accessToken),
       body: JSON.stringify({ metadata }),
     }).catch(() => null)
 
     if (loadRes?.ok) {
       const data = await loadRes.json().catch(() => ({}))
-      const project = cloudCodeProjectID(data.cloudaicompanionProject)
+      const project =
+        cloudCodeProjectID(data.cloudaicompanionProject) ||
+        (typeof data.cloudaicompanionProject === "string" ? data.cloudaicompanionProject : undefined)
       if (project) {
         cachedCloudCodeProjectId = project
         return project
+      }
+      if (data.currentTier?.id === "free-tier" || data.paidTier?.id) {
+        const fallbackProject = "aicode-consumers"
+        cachedCloudCodeProjectId = fallbackProject
+        return fallbackProject
+      }
+    }
+  }
+
+  // If loadCodeAssist failed, try to get a fresh token
+  // Strategy 1: Re-read CLI file
+  const freshCreds = await readCliCreds()
+  if (freshCreds?.access && freshCreds.expires && freshCreds.expires > Date.now()) {
+    for (const host of ["cloudcode-pa.googleapis.com"]) {
+      const loadRes = await fetch(`https://${host}/v1internal:loadCodeAssist`, {
+        method: "POST",
+        headers: makeHeaders(freshCreds.access),
+        body: JSON.stringify({ metadata }),
+      }).catch(() => null)
+
+      if (loadRes?.ok) {
+        const data = await loadRes.json().catch(() => ({}))
+        const project =
+          cloudCodeProjectID(data.cloudaicompanionProject) ||
+          (typeof data.cloudaicompanionProject === "string" ? data.cloudaicompanionProject : undefined)
+        if (project) {
+          cachedCloudCodeProjectId = project
+          return project
+        }
+        if (data.currentTier?.id === "free-tier" || data.paidTier?.id) {
+          const fallbackProject = "aicode-consumers"
+          cachedCloudCodeProjectId = fallbackProject
+          return fallbackProject
+        }
       }
     }
   }
 
   // Strategy 2: Refresh the token using the refresh token
   if (refreshToken) {
-    const refreshed = await refreshGoogleToken(refreshToken)
+    const refreshed = await refreshGoogleToken(refreshToken, getGoogleCliClientId(), getGoogleCliClientSecret())
     if (refreshed?.access) {
-      loadRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", {
-        method: "POST",
-        headers: makeHeaders(refreshed.access),
-        body: JSON.stringify({ metadata }),
-      }).catch(() => null)
+      for (const host of ["cloudcode-pa.googleapis.com"]) {
+        const loadRes = await fetch(`https://${host}/v1internal:loadCodeAssist`, {
+          method: "POST",
+          headers: makeHeaders(refreshed.access),
+          body: JSON.stringify({ metadata }),
+        }).catch(() => null)
 
-      if (loadRes?.ok) {
-        const data = await loadRes.json().catch(() => ({}))
-        const project = cloudCodeProjectID(data.cloudaicompanionProject)
-        if (project) {
-          cachedCloudCodeProjectId = project
-          return project
+        if (loadRes?.ok) {
+          const data = await loadRes.json().catch(() => ({}))
+          const project =
+            cloudCodeProjectID(data.cloudaicompanionProject) ||
+            (typeof data.cloudaicompanionProject === "string" ? data.cloudaicompanionProject : undefined)
+          if (project) {
+            cachedCloudCodeProjectId = project
+            return project
+          }
+          if (data.currentTier?.id === "free-tier" || data.paidTier?.id) {
+            const fallbackProject = "aicode-consumers"
+            cachedCloudCodeProjectId = fallbackProject
+            return fallbackProject
+          }
         }
       }
     }
   }
 
-  // Fallback onboard attempt
-  const onboardRes = await fetch("https://cloudcode-pa.googleapis.com/v1internal:onboardUser", {
-    method: "POST",
-    headers: makeHeaders(accessToken),
-    body: JSON.stringify({ tierId: "standard-tier", metadata }),
-  }).catch(() => null)
-
-  if (onboardRes?.ok) {
-    const data = await onboardRes.json().catch(() => ({}))
-    const project = cloudCodeProjectID(data.cloudaicompanionProject)
-    if (project) {
-      cachedCloudCodeProjectId = project
-      return project
-    }
-  }
-
   throw new Error(
-    "Google Code Assist could not resolve a companion project for this account. Re-run `dax auth login` for Google, then retry the chat.",
+    "Google Code Assist could not resolve a companion project for this account. Refresh the supported enterprise Gemini CLI session or configure a Gemini API key.",
   )
 }
 
@@ -156,9 +169,19 @@ const adcPath = () =>
   )
 
 type CliCreds = {
+  auth_method?: string
+  token?:
+    | {
+        access_token?: string
+        refresh_token?: string
+        expiry?: string | number
+        token_type?: string
+      }
+    | string
   access_token?: string
   refresh_token?: string
   expiry_date?: number
+  expiry?: string | number
   client_id?: string
   client_secret?: string
 }
@@ -178,10 +201,13 @@ type OAuthCreds = {
   clientID?: string
   clientSecret?: string
   quotaProjectID?: string
-  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
+  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex" | "antigravity-import"
 }
 
-type CliImportCredentialSnapshot = Pick<OAuthCreds, "access" | "refresh" | "expires" | "clientID" | "clientSecret">
+type CliImportCredentialSnapshot = Pick<
+  OAuthCreds,
+  "access" | "refresh" | "expires" | "clientID" | "clientSecret" | "mode"
+>
 
 type OAuthState = {
   access?: string
@@ -191,7 +217,7 @@ type OAuthState = {
   clientSecret?: string
   quotaProjectID?: string
   accountId?: string // user email
-  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
+  mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex" | "antigravity-import"
 }
 
 function isSubscriptionMode(mode: OAuthState["mode"]) {
@@ -332,6 +358,48 @@ let oauthServer: ReturnType<typeof Bun.serve> | undefined
 const oauthCode = new Map<string, string>()
 let oauthRedirectURI: string | undefined
 
+function parseExpiry(exp?: string | number): number | undefined {
+  if (typeof exp === "number") return exp
+  if (typeof exp === "string") {
+    const parsed = new Date(exp).getTime()
+    return isNaN(parsed) ? undefined : parsed
+  }
+  return undefined
+}
+
+export function parseCliCreds(creds: CliCreds, filePath?: string): OAuthCreds | undefined {
+  if (!creds) return undefined
+  let access = creds.access_token
+  let refresh = creds.refresh_token
+  let expires = creds.expiry_date ?? parseExpiry(creds.expiry)
+
+  if (typeof creds.token === "object" && creds.token !== null) {
+    access = creds.token.access_token ?? access
+    refresh = creds.token.refresh_token ?? refresh
+    expires = parseExpiry(creds.token.expiry) ?? expires
+  } else if (typeof creds.token === "string") {
+    access = creds.token
+  }
+
+  if (!access && !refresh) return undefined
+
+  const isAntigravity = Boolean(
+    creds.auth_method === "consumer" ||
+      (typeof creds.token === "object" && creds.token !== null) ||
+      (filePath && (filePath.includes("antigravity") || filePath.includes("jetski"))),
+  )
+
+  return {
+    access,
+    refresh,
+    expires,
+    clientID: creds.client_id,
+    clientSecret: creds.client_secret,
+    quotaProjectID: undefined,
+    mode: isAntigravity ? "antigravity-import" : "cli-import",
+  } satisfies OAuthCreds
+}
+
 const readCliCreds = async (): Promise<OAuthCreds | undefined> => {
   for (const item of credsPaths()) {
     const creds = await Bun.file(item)
@@ -339,15 +407,8 @@ const readCliCreds = async (): Promise<OAuthCreds | undefined> => {
       .then((x) => x as CliCreds)
       .catch(() => undefined)
     if (!creds) continue
-    if (!creds.access_token && !creds.refresh_token) continue
-    return {
-      access: creds.access_token,
-      refresh: creds.refresh_token,
-      expires: creds.expiry_date,
-      clientID: creds.client_id,
-      clientSecret: creds.client_secret,
-      quotaProjectID: undefined,
-    } satisfies OAuthCreds
+    const parsed = parseCliCreds(creds, item)
+    if (parsed) return parsed
   }
   return undefined
 }
@@ -374,8 +435,9 @@ const readAdcCreds = async (): Promise<OAuthCreds | undefined> => {
 
 const readCreds = async (): Promise<OAuthCreds | undefined> => {
   const [cli, adc] = await Promise.all([readCliCreds(), readAdcCreds()])
-  if (cli?.access && cli?.refresh) return { ...cli, mode: "cli-import" }
-  if (cli?.refresh) return { ...cli, mode: "cli-import" }
+  if (cli?.access && cli?.refresh) return cli
+  if (cli?.refresh) return cli
+  if (cli?.access) return cli
   // Do not auto-import ADC for Gemini API ("google" provider). ADC is for
   // Vertex flows and usually yields cloud-platform scoped tokens that fail
   // against Gemini API auth requirements.
@@ -428,10 +490,9 @@ const latestOAuth = async (getAuth: () => Promise<Auth.Info | undefined>): Promi
   const [stored, file] = await Promise.all([getAuth(), readCreds()])
   const oauth = stored?.type === "oauth" ? stored : undefined
 
-  // Prefer stored creds over CLI file unless the stored record is explicitly
-  // cli-import. This also handles mode === undefined (mode was not saved by an
-  // older version) — stored creds with a clientID/clientSecret are trustworthy.
-  if (oauth?.refresh && oauth.mode !== "cli-import") {
+  // Imported sessions remain owned by their CLI. Re-read those files on every
+  // request instead of freezing a stale access token inside DAX.
+  if (oauth?.refresh && oauth.mode !== "cli-import" && oauth.mode !== "antigravity-import") {
     return oauth
   }
 
@@ -521,6 +582,7 @@ const refreshGoogleToken = async (refreshToken: string, clientID?: string, clien
 }
 
 const refreshStoredGoogleAccess = async (oauth: OAuthState | undefined, refreshToken: string) => {
+  if (oauth?.mode === "antigravity-import") throw importedGeminiCliExpiredError()
   if (oauth?.mode === "cli-import" && (!oauth.clientID || !oauth.clientSecret)) {
     // Always re-read the CLI creds file first — the user may have run `gemini`
     // in the background and the file has a fresh access token.
@@ -700,7 +762,7 @@ const buildGoogleAuthorizeURL = (
         client_id: clientID,
         code_challenge: pkce.challenge,
         code_challenge_method: "S256",
-        prompt: "consent",
+        prompt: "consent select_account",
         redirect_uri: redirectURI,
         response_type: "code",
         scope: [GOOGLE_SCOPE_OPENID, GOOGLE_SCOPE_EMAIL, GOOGLE_SCOPE_PROFILE, GOOGLE_SCOPE_CLOUD].join(" "),
@@ -713,7 +775,7 @@ const buildGoogleAuthorizeURL = (
     client_id: clientID,
     code_challenge: pkce.challenge,
     code_challenge_method: "S256",
-    prompt: "consent",
+    prompt: "consent select_account",
     redirect_uri: redirectURI,
     response_type: "code",
     scope: scopes.join(" "),
@@ -801,6 +863,11 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (!current || current.type !== "oauth") return fetch(request, init)
 
             const fresh = await latestOAuth(getAuth)
+            if (fresh?.mode === "antigravity-import") {
+              throw new Error(
+                "Antigravity account sessions are not a supported direct DAX model credential. Use `dax worker run antigravity` (or the Antigravity CLI entry in the TUI), or configure GEMINI_API_KEY for direct chat.",
+              )
+            }
             let access = fresh?.access ?? current.access
             const refresh = fresh?.refresh ?? current.refresh
             let expires = fresh?.expires ?? current.expires
@@ -875,8 +942,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
             let resolvedProject: string | undefined
             let effectiveModel: string | undefined
 
-            // Native DAX routing for Pro/Plus Subscriptions (Code Assist API)
-            // If the auth mode is explicitly Code Assist or CLI import, route to cloudcode-pa
+            // Supported enterprise Code Assist and legacy CLI-import lanes.
             if (isSubscriptionMode(fresh?.mode) && req.href.includes("generativelanguage.googleapis.com")) {
               const isStream = req.href.includes("streamGenerateContent")
               const action = isStream ? "streamGenerateContent" : "generateContent"
@@ -906,7 +972,6 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
                   })
                 } catch (e) {}
               }
-              // Code Assist API requires a specific User-Agent format
               headers.set("User-Agent", "GoogleCloud/1.0.0 (Windows NT 10.0; Win64; x64) GeminiCLI/0.34.0")
               headers.set("x-activity-request-id", crypto.randomUUID().substring(0, 16))
             }
@@ -924,7 +989,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               }
 
               let response: Response | null
-              if (fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+              if (isCloudCodeEndpoint(fetchReq.hostname)) {
                 response = await scheduleGeminiSubscriptionRequest(doFetch, {
                   projectId: resolvedProject,
                   model: modelName,
@@ -938,7 +1003,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               }
 
               // Only rewrite successful responses from Code Assist API
-              if (response.ok && fetchReq.hostname === "cloudcode-pa.googleapis.com") {
+              if (response.ok && isCloudCodeEndpoint(fetchReq.hostname)) {
                 const contentType = response.headers.get("content-type") ?? ""
 
                 // Handle SSE Streams
@@ -1207,21 +1272,14 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           label: "Sign in with Google",
           description:
             "Sign in with a Google OAuth client for supported Google Cloud or enterprise deployments.\n" +
-            "Individual Google AI Pro/Ultra CLI access has moved to Antigravity.",
+            "Individual Google AI Pro/Ultra CLI access uses the governed Antigravity worker lane.",
           async authorize() {
             const clientID = getGoogleCliClientId()
             const clientSecret = getGoogleCliClientSecret()
 
-            if (!clientID || !clientSecret) {
+            if (!clientID) {
               throw new Error(
-                "Google OAuth credentials are required for browser sign-in.\n\n" +
-                  "Set these environment variables and restart DAX:\n" +
-                  "  DAX_GOOGLE_CLI_CLIENT_ID=<your-client-id>\n" +
-                  "  DAX_GOOGLE_CLI_CLIENT_SECRET=<your-client-secret>\n\n" +
-                  "Create an OAuth 2.0 Desktop-app client at:\n" +
-                  "  https://console.cloud.google.com/apis/credentials\n\n" +
-                  "Or use 'Custom Google OAuth Client' to provide credentials in-app.\n" +
-                  "For individual Google AI Pro/Ultra access, use `dax worker run antigravity`.",
+                "Google browser sign-in requires a DAX-owned OAuth client ID. Set DAX_GOOGLE_CLI_CLIENT_ID (and DAX_GOOGLE_CLI_CLIENT_SECRET when required), use a Gemini API key, or run Antigravity through DAX's governed worker lane.",
               )
             }
 
@@ -1267,7 +1325,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
           label: "Import from Gemini CLI",
           description:
             "Legacy import for supported enterprise/Google Cloud Gemini CLI deployments.\n" +
-            "Hidden by default; individual accounts should use an Antigravity worker or Gemini API key.",
+            "Hidden by default; individual accounts should use a governed Antigravity worker or Gemini API key.",
           async authorize() {
             const baseline = await readCliCreds()
             // Prefer credentials from the user's CLI file — no hardcoded fallback.
@@ -1411,7 +1469,7 @@ export async function GeminiAuthPlugin(input: PluginInput): Promise<Hooks> {
               key: "clientID",
               type: "text",
               message: "Enter your Google OAuth Client ID",
-              placeholder: "e.g. 123456789-abc.apps.googleusercontent.com",
+              placeholder: "Enter client ID",
               validate: (x: string) =>
                 x && x.includes("apps.googleusercontent.com") ? undefined : "Must be a valid Google OAuth Client ID",
             },

@@ -30,6 +30,7 @@ export type AuthDiagnostics = {
     | "gemini-api-key"
     | "gemini-oauth"
     | "cli-import"
+    | "antigravity-import"
     | "codeassist"
     | "custom-oauth"
     | "openai-api"
@@ -41,7 +42,7 @@ export type AuthDiagnostics = {
     | "anthropic-oauth"
   lane?: ProviderLane
   laneLabel?: string
-  source?: "api-key" | "stored-oauth" | "cli-import" | "adc" | "env"
+  source?: "api-key" | "stored-oauth" | "cli-import" | "antigravity-import" | "adc" | "env"
   endpoint?: "generativelanguage" | "cloudcode-pa" | "vertex"
   ok: boolean
   requiredEnv: string[]
@@ -238,6 +239,28 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
   const apiKey = env("GEMINI_API_KEY") ?? env("GOOGLE_API_KEY")
   const project = env("GOOGLE_CLOUD_PROJECT") ?? env("GCP_PROJECT") ?? env("GCLOUD_PROJECT")
 
+  if (auth?.type === "oauth" && auth.mode === "antigravity-import") {
+    const lane: ProviderLane = "antigravity-import"
+    return {
+      providerID,
+      mode: "antigravity-import",
+      lane,
+      laneLabel: providerLaneLabel(lane),
+      source: "antigravity-import",
+      endpoint: "cloudcode-pa",
+      ok: false,
+      requiredEnv: ["None for the governed AGY worker lane"],
+      missingEnv: [],
+      details: [
+        "AGY owns its account session in the operating-system keyring.",
+        "DAX does not import that session or impersonate AGY as a direct model provider.",
+      ],
+      error: "Antigravity session import is not a supported direct DAX provider credential.",
+      failureCategory: "misconfigured",
+      next: [providerFailureNextStep({ category: "auth_missing", providerID, lane })],
+    }
+  }
+
   const hasValidOAuth = async () => {
     if (auth?.type === "oauth") {
       const mode = (auth.mode as any) ?? (cliCreds?.refresh ? "cli-import" : "gemini-oauth")
@@ -253,18 +276,21 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
 
   if (auth?.type === "oauth" && oauthValid) {
     const mode = (auth.mode as any) ?? (cliCreds?.refresh ? "cli-import" : "gemini-oauth")
-    const accessToken = mode === "cli-import" ? (cliCreds?.access ?? auth.access) : auth.access
-    const refreshToken = mode === "cli-import" ? (cliCreds?.refresh ?? auth.refresh) : auth.refresh
+    const isCli = mode === "cli-import" || mode === "antigravity-import"
+    const accessToken = isCli ? (cliCreds?.access ?? auth.access) : auth.access
+    const refreshToken = isCli ? (cliCreds?.refresh ?? auth.refresh) : auth.refresh
     const token = await validateGoogleOAuthAccessToken(accessToken)
     const hasRefresh = Boolean(refreshToken)
-    const isSubscription = mode === "codeassist" || mode === "cli-import"
-    const source = mode === "cli-import" && cliCreds?.refresh ? "cli-import" : "stored-oauth"
+    const isSubscription = mode === "codeassist" || mode === "cli-import" || mode === "antigravity-import"
+    const source = isCli && cliCreds?.refresh ? (mode === "antigravity-import" ? "antigravity-import" : "cli-import") : "stored-oauth"
     const lane: ProviderLane =
-      mode === "cli-import"
-        ? "gemini-cli-import"
-        : mode === "codeassist" || mode === "custom-oauth"
-          ? "google-oauth-client"
-          : "gemini-api"
+      mode === "antigravity-import"
+        ? "antigravity-import"
+        : mode === "cli-import"
+          ? "gemini-cli-import"
+          : mode === "codeassist" || mode === "custom-oauth"
+            ? "google-oauth-client"
+            : "gemini-api"
     const failureCategory =
       token.ok || hasRefresh
         ? undefined
@@ -280,13 +306,15 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
       ? [
           ...token.details,
           `OAuth client id in use: ${effectiveClient.value} (${effectiveClient.source})`,
-          mode === "cli-import"
-            ? "Lane: Gemini CLI Import (enterprise legacy)."
-            : mode === "codeassist"
-              ? "Lane: Google OAuth Client Sign-In (configured browser sign-in)."
-              : mode === "custom-oauth"
-                ? "Lane: Google OAuth Client Sign-In (user-managed OAuth client)."
-                : "Lane: Gemini API OAuth.",
+          mode === "antigravity-import"
+            ? "Lane: Antigravity Session Import."
+            : mode === "cli-import"
+              ? "Lane: Gemini CLI Import (enterprise legacy)."
+              : mode === "codeassist"
+                ? "Lane: Google OAuth Client Sign-In (configured browser sign-in)."
+                : mode === "custom-oauth"
+                  ? "Lane: Google OAuth Client Sign-In (user-managed OAuth client)."
+                  : "Lane: Gemini API OAuth.",
           auth.accountId
             ? `Authenticated as: ${auth.accountId}`
             : "Authenticated email not recorded; re-run `dax auth login` to refresh metadata.",
@@ -296,9 +324,11 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
           hasRefresh
             ? "Access token expired/invalid, but refresh token is present and will be used during execution."
             : "Access token expired/invalid and no refresh token found.",
-          isSubscription && mode === "cli-import"
-            ? "For a supported enterprise Gemini CLI deployment, refresh `gemini`; individual accounts should use a governed Antigravity worker or Gemini API key."
-            : "Re-run `dax auth login` if the lane stays blocked.",
+          isSubscription && mode === "antigravity-import"
+            ? "Run `agy` or open Antigravity to refresh your session, or reconnect with `dax auth login google`."
+            : isSubscription && mode === "cli-import"
+              ? "For a supported enterprise Gemini CLI deployment, refresh `gemini`; individual accounts should use Antigravity Session Import or Gemini API key."
+              : "Re-run `dax auth login` if the lane stays blocked.",
         ]
 
     return {

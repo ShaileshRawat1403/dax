@@ -261,6 +261,7 @@ async function observeNativeApprovalAndMutation(project: string) {
       SessionPrompt.prompt({
         sessionID: session.id,
         model: { providerID: meterModel.providerID, modelID: meterModel.id },
+        completionPolicy: "on_provider_stop",
         parts: [{ type: "text", text: "Write src/native-meter.txt and verify the mutation before completion." }],
       }),
   )
@@ -365,6 +366,7 @@ async function observeNativeReadOnlyCompletion() {
       SessionPrompt.prompt({
         sessionID: session.id,
         model: { providerID: meterModel.providerID, modelID: meterModel.id },
+        completionPolicy: "on_provider_stop",
         parts: [{ type: "text", text: "Read only: return a concise governed summary." }],
       }),
   )

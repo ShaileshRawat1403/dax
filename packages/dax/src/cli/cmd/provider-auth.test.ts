@@ -86,6 +86,23 @@ describe("getVisibleProviderAuthMethods", () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  test("does not present Antigravity session files as a direct model-provider credential", async () => {
+    const methodsWithAntigravity = [
+      {
+        type: "oauth" as const,
+        label: "Antigravity Session Import",
+        description: "Import your authenticated session from local Antigravity CLI or desktop app.",
+      },
+      ...googleMethods,
+    ]
+
+    const visible = await getVisibleProviderAuthMethods("google", methodsWithAntigravity, {})
+
+    expect(visible.map((item) => item.title)).toEqual(["Gemini API Key", "Google OAuth Client Sign-In"])
+    expect(visible.map((item) => item.lane)).toEqual(["gemini-api", "google-oauth-client"])
+    expect(visible.map((item) => item.originalIndex)).toEqual([1, 4])
+  })
+
   test("leaves unsupported providers unchanged", async () => {
     const visible = await getVisibleProviderAuthMethods("ollama", [
       {

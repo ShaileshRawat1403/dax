@@ -120,7 +120,7 @@ export type AuthOuathResult = { url: string; instructions: string } & (
                 clientID?: string
                 clientSecret?: string
                 quotaProjectID?: string
-                mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
+                mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex" | "antigravity-import"
               }
             | { key: string }
           ))
@@ -144,7 +144,7 @@ export type AuthOuathResult = { url: string; instructions: string } & (
                 clientID?: string
                 clientSecret?: string
                 quotaProjectID?: string
-                mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex"
+                mode?: "api-key" | "custom-oauth" | "cli-import" | "codeassist" | "vertex" | "antigravity-import"
               }
             | { key: string }
           ))

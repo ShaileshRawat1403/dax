@@ -4311,6 +4311,7 @@ export type SessionPromptData = {
     }
     system?: string
     variant?: string
+    completionPolicy?: "explicit" | "on_provider_stop"
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
   }
   path: {
@@ -4498,6 +4499,7 @@ export type SessionPromptAsyncData = {
     }
     system?: string
     variant?: string
+    completionPolicy?: "explicit" | "on_provider_stop"
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
   }
   path: {

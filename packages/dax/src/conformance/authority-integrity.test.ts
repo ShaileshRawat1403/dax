@@ -11,6 +11,7 @@ import { SessionSummary } from "@/session/summary"
 import { Provider } from "@/provider/provider"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
+import { NativeExecution } from "@/execution/native-execution"
 import {
   createEventAuthorityRun,
   getEventAuthorityState,
@@ -356,7 +357,7 @@ describe("P0 authority integrity", () => {
             parts: [{ type: "text", text: "Prepare this governed run." }],
             noReply: true,
           })
-          await SessionPrompt.prompt({
+          await NativeExecution.runSingleShot({
             sessionID: session.id,
             model: { providerID: "openai", modelID: "gpt-4o" },
             parts: [{ type: "text", text: "Return a concise execution summary." }],

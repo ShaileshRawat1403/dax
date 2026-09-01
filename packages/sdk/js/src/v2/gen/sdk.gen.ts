@@ -1508,6 +1508,7 @@ export class Session extends HeyApiClient {
       }
       system?: string
       variant?: string
+      completionPolicy?: "explicit" | "on_provider_stop"
       parts?: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
     },
     options?: Options<never, ThrowOnError>,
@@ -1526,6 +1527,7 @@ export class Session extends HeyApiClient {
             { in: "body", key: "tools" },
             { in: "body", key: "system" },
             { in: "body", key: "variant" },
+            { in: "body", key: "completionPolicy" },
             { in: "body", key: "parts" },
           ],
         },
@@ -1596,6 +1598,7 @@ export class Session extends HeyApiClient {
       }
       system?: string
       variant?: string
+      completionPolicy?: "explicit" | "on_provider_stop"
       parts?: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
     },
     options?: Options<never, ThrowOnError>,
@@ -1614,6 +1617,7 @@ export class Session extends HeyApiClient {
             { in: "body", key: "tools" },
             { in: "body", key: "system" },
             { in: "body", key: "variant" },
+            { in: "body", key: "completionPolicy" },
             { in: "body", key: "parts" },
           ],
         },

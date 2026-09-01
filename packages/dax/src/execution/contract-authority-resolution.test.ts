@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
+import { SessionPrompt } from "@/session/prompt"
 import { Storage } from "@/storage/storage"
 import { compileWithRunId } from "./compiler"
 import { ContractGuardian, resolveExecutionAuthority } from "./contract-guardian"
@@ -46,6 +47,27 @@ describe("execution contract authority resolution", () => {
       async fn() {
         const run = await createRunFromContract({ request: { intent: { input: "" } } })
         expect((await Session.get(run.runId)).governingRunId).toBe(run.runId)
+      },
+    })
+  })
+
+  test("RunFactory marks its generic production prompt as single-shot completion", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const prompt = spyOn(SessionPrompt, "prompt").mockResolvedValue(undefined as never)
+        try {
+          const run = await createRunFromContract({
+            request: { intent: { input: "Return a governed summary." }, workflowHint: "generic" },
+          })
+          expect(prompt).toHaveBeenCalledTimes(1)
+          expect(prompt.mock.calls[0]?.[0]).toMatchObject({
+            sessionID: run.runId,
+            completionPolicy: "on_provider_stop",
+          })
+        } finally {
+          prompt.mockRestore()
+        }
       },
     })
   })

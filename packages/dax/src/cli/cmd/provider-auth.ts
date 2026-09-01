@@ -43,7 +43,9 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
   }
 
   const apiKeyIndex = methods.findIndex((method) => isGoogleApiKeyLabel(method.label))
-  const cliImportIndex = methods.findIndex((method) => isGeminiCliImportLabel(method.label))
+  const cliImportIndex = methods.findIndex(
+    (method) => isGeminiCliImportLabel(method.label) && !isAntigravityImportLabel(method.label),
+  )
   const directSignInIndex = methods.findIndex((method) => looksLikeAdvancedGoogleSignIn(method.label))
   const customOauthIndex = methods.findIndex((method) => looksLikeCustomGoogleOauth(method.label))
 
@@ -65,7 +67,7 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
       method: methods[cliImportIndex]!,
       originalIndex: cliImportIndex,
       title: providerLaneLabel("gemini-cli-import")!,
-      description: "Legacy enterprise/Google Cloud Gemini CLI import. Individual accounts should use an Antigravity worker.",
+      description: "Legacy enterprise/Google Cloud Gemini CLI import.",
       hint: "Enterprise legacy opt-in",
       lane: "gemini-cli-import",
     })
@@ -97,6 +99,10 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
 
 function isGoogleLikeProvider(providerID: string) {
   return providerID.includes("google") || providerID.includes("gemini")
+}
+
+function isAntigravityImportLabel(label: string) {
+  return label.toLowerCase().includes("antigravity")
 }
 
 function isGoogleApiKeyLabel(label: string) {

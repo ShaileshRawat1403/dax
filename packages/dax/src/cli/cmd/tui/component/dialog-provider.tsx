@@ -49,7 +49,7 @@ export function createDialogProviderOptions() {
           value: provider.id,
           description: {
             openai: "(ChatGPT Plus/Pro or API key)",
-            google: "(Gemini API key or Gemini OAuth)",
+            google: "(Gemini API key or Google OAuth)",
             anthropic: "(Claude subscription or API key)",
             ollama: "(Local models on your machine)",
             "google-vertex": "(Google Cloud ADC + project)",
