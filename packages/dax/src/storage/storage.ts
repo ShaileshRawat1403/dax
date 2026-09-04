@@ -3,7 +3,6 @@ import path from "path"
 import fs from "fs/promises"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
-import { lazy } from "../util/lazy"
 import { Lock } from "../util/lock"
 import { $ } from "bun"
 import { NamedError } from "@dax-ai/util/error"
@@ -141,8 +140,29 @@ export namespace Storage {
     },
   ]
 
-  const state = lazy(async () => {
-    const dir = path.join(Global.Path.data, "storage")
+  /**
+   * Migration and mkdir are per storage root, so the memo is keyed by the root
+   * it describes rather than by the process.
+   *
+   * This was `lazy(...)`, which computes once and never again. `Global.Path.data`
+   * resolves `DAX_TEST_HOME` on every call, so it follows the environment — but
+   * the first caller to touch Storage froze `dir` for the life of the process, and
+   * every later resolution was discarded. In a real run the home never changes, so
+   * that was invisible. Under `bun test`, every test file shares one process: the
+   * first file to touch Storage silently owned the storage root, and every other
+   * file's sessions, run states and event logs were written into it. Per-file
+   * `DAX_TEST_HOME` and per-file temp-dir cleanup both became no-ops, so runs
+   * accumulated across the whole suite and any test that enumerates runs — stranded
+   * detection, recovery, the gateway listing — read other files' fixtures,
+   * including the deliberately malformed ones.
+   *
+   * Keying by directory changes nothing in production, where `Global.Path.data` is
+   * constant and this resolves to exactly one entry with migrations run exactly
+   * once, as before.
+   */
+  const states = new Map<string, Promise<{ dir: string }>>()
+
+  async function initialize(dir: string) {
     await fs.mkdir(dir, { recursive: true })
     const migration = await Bun.file(path.join(dir, "migration"))
       .json()
@@ -150,14 +170,22 @@ export namespace Storage {
       .catch(() => 0)
     for (let index = migration; index < MIGRATIONS.length; index++) {
       log.info("running migration", { index })
-      const migration = MIGRATIONS[index]
-      await migration(dir).catch(() => log.error("failed to run migration", { index }))
+      const step = MIGRATIONS[index]
+      await step(dir).catch(() => log.error("failed to run migration", { index }))
       await Bun.write(path.join(dir, "migration"), (index + 1).toString())
     }
-    return {
-      dir,
+    return { dir }
+  }
+
+  function state(): Promise<{ dir: string }> {
+    const dir = path.join(Global.Path.data, "storage")
+    let existing = states.get(dir)
+    if (!existing) {
+      existing = initialize(dir)
+      states.set(dir, existing)
     }
-  })
+    return existing
+  }
 
   export async function remove(key: string[]) {
     const dir = await state().then((x) => x.dir)

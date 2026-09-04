@@ -1028,7 +1028,16 @@ export namespace SessionPrompt {
       }
       continue
     }
-    SessionCompaction.prune({ sessionID })
+    // Best-effort background pruning: it discards stale tool output and has no
+    // bearing on the turn's correctness. Its two siblings above — ensureTitle and
+    // SessionSummary.summarize — are both guarded; this one was not, so any I/O
+    // rejection became an unhandled promise rejection. That is reachable in a
+    // live process: a session archived or deleted while the just-finished turn's
+    // prune is still walking its messages raises ENOENT, and an unhandled
+    // rejection can take the server down over work that was only an optimisation.
+    SessionCompaction.prune({ sessionID }).catch((error) => {
+      log.warn("failed to prune session", { sessionID, error })
+    })
     for await (const item of MessageV2.stream(sessionID)) {
       if (item.info.role === "user") continue
       const queued = state()[sessionID]?.callbacks ?? []
