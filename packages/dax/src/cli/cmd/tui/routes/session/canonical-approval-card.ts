@@ -89,6 +89,36 @@ export function canResolveCanonicalApproval(input: {
   )
 }
 
+/**
+ * Decides whether a raw keypress is an intentional canonical approval decision.
+ *
+ * `useKeyboard` in OpenTUI is a process-wide handler, not a focus-scoped one, so
+ * the approval pane received every keystroke the terminal produced — including
+ * ordinary typing in the prompt textarea and in open dialogs. With a pending
+ * approval selected, typing a word containing "y" resolved it. The stream-level
+ * handler in `routes/session/index.tsx` already guards on prompt focus; this is
+ * the same rule, expressed as data so it can be tested without a renderer.
+ *
+ * A decision requires all of: the approval is genuinely actionable, no other
+ * surface owns text input, and the key carries no modifier.
+ */
+export function canonicalApprovalKeyDecision(input: {
+  actionable: boolean
+  /** True when the prompt textarea currently owns keyboard input. */
+  promptFocused: boolean
+  /** Depth of the modal dialog stack; any open dialog owns input. */
+  dialogDepth: number
+  event: { name?: string; ctrl?: boolean; meta?: boolean; shift?: boolean }
+}): "approve" | "deny" | undefined {
+  if (!input.actionable) return undefined
+  if (input.promptFocused) return undefined
+  if (input.dialogDepth > 0) return undefined
+  if (input.event.ctrl || input.event.meta || input.event.shift) return undefined
+  if (input.event.name === "y") return "approve"
+  if (input.event.name === "n") return "deny"
+  return undefined
+}
+
 export type CanonicalApprovalTransport = {
   resolve: (approvalId: string, decision: "approve" | "deny") => Promise<void>
   read: () => Promise<unknown>

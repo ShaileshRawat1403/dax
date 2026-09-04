@@ -19,6 +19,7 @@ import { Lifecycle } from "@/bus/lifecycle"
 import { ShadowAuditor } from "./shadow-auditor"
 
 import { ContractGuardian } from "./contract-guardian"
+import { RunLifecycle } from "@/state/run-lifecycle"
 import {
   createEventAuthorityRun,
   transitionEventAuthority,
@@ -176,8 +177,28 @@ async function startExecution(runId: string, contract: ExecutionContract): Promi
         text: `\n\n## User Request\n${contract.intent}`,
       },
     ],
-  }).catch((error) => {
+  }).catch(async (error) => {
     log.error("failed to start execution", { error, runId, contractId: contract.contractId })
+    // The run was moved to `running` before this prompt was dispatched, so a
+    // rejection here leaves durable canonical state claiming an execution that
+    // has already died. Drive the ordinary canonical failure transition rather
+    // than recording the death anywhere else: `run_failed` is the existing
+    // vocabulary, the reducer no-ops if the run already reached a terminal
+    // state, and the original reason travels in the event payload.
+    await RunLifecycle.transition(runId, "failed", "run_failed", {
+      error: {
+        code: "execution_start_failed",
+        message: error instanceof Error ? error.message : String(error),
+        retryable: false,
+      },
+    }).catch((transitionError) => {
+      log.error("failed to record execution start failure", {
+        error: transitionError,
+        cause: error,
+        runId,
+        contractId: contract.contractId,
+      })
+    })
   })
 }
 

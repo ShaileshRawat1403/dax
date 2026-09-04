@@ -1471,6 +1471,9 @@ export function Session() {
                         questions={questions()}
                         runID={route.sessionID}
                         displayMode={displayMode()}
+                        // Same guard as the stream-level handler above: approval
+                        // shortcuts must never fire while the operator is typing.
+                        promptFocused={() => promptRef.current?.focused === true}
                         onAllResolved={() => {
                           // Only release the pane if the user is still
                           // viewing approvals — they may have already

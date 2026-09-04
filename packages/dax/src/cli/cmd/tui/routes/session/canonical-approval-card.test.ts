@@ -3,6 +3,7 @@ import type { RunInspectorProjectionV1 } from "@/server/run-inspector-projection
 import {
   canResolveCanonicalApproval,
   canonicalApprovalHeading,
+  canonicalApprovalKeyDecision,
   canonicalApprovalResolutionRequest,
   pendingCanonicalApprovalCount,
   presentCanonicalApproval,
@@ -99,5 +100,55 @@ describe("canonical approval card", () => {
       read: async () => { calls.push("read"); return canonical() },
     }, "apr_1", "approve")).rejects.toThrow("rejected")
     expect(calls).toEqual(["resolve"])
+  })
+})
+
+describe("canonical approval keyboard safety", () => {
+  const active = { actionable: true, promptFocused: false, dialogDepth: 0 }
+
+  test("Y and N decide only when the approval pane is the intentional decision surface", () => {
+    expect(canonicalApprovalKeyDecision({ ...active, event: { name: "y" } })).toBe("approve")
+    expect(canonicalApprovalKeyDecision({ ...active, event: { name: "n" } })).toBe("deny")
+  })
+
+  test("ordinary typing in the prompt textarea never resolves an approval", () => {
+    // The regression: useKeyboard is process-wide, so every character typed into
+    // the prompt reached this handler. A word containing "y" resolved a pending
+    // canonical approval with no operator intent behind it.
+    expect(canonicalApprovalKeyDecision({ ...active, promptFocused: true, event: { name: "y" } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, promptFocused: true, event: { name: "n" } })).toBeUndefined()
+  })
+
+  test("an open dialog owns input, so Y and N do not reach the approval", () => {
+    // Opening a dialog blurs the prompt, so prompt focus alone is not sufficient.
+    expect(canonicalApprovalKeyDecision({ ...active, dialogDepth: 1, event: { name: "y" } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, dialogDepth: 2, event: { name: "n" } })).toBeUndefined()
+  })
+
+  test("a non-actionable snapshot cannot be decided by keyboard", () => {
+    // Mirrors canResolveCanonicalApproval: stale, unavailable, unreadable,
+    // legacy, in-flight and already-decided approvals are all non-actionable.
+    expect(canonicalApprovalKeyDecision({ ...active, actionable: false, event: { name: "y" } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, actionable: false, event: { name: "n" } })).toBeUndefined()
+  })
+
+  test("modified and unrelated keys are never decisions", () => {
+    expect(canonicalApprovalKeyDecision({ ...active, event: { name: "y", ctrl: true } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, event: { name: "y", meta: true } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, event: { name: "n", shift: true } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, event: { name: "j" } })).toBeUndefined()
+    expect(canonicalApprovalKeyDecision({ ...active, event: {} })).toBeUndefined()
+  })
+
+  test("a stale snapshot is non-actionable, so no keypress mutates it", () => {
+    const snapshot = canonical()
+    const actionable = canResolveCanonicalApproval({
+      state: { status: "stale", stale: true, snapshot, error: "offline" },
+      runId: "run_1",
+      approvalId: "apr_1",
+      inFlight: false,
+    })
+    expect(actionable).toBe(false)
+    expect(canonicalApprovalKeyDecision({ actionable, promptFocused: false, dialogDepth: 0, event: { name: "y" } })).toBeUndefined()
   })
 })

@@ -16,6 +16,12 @@ export namespace NativeExecution {
    * Unlike generic conversational prompts (which preserve the active running
    * state across user turns), single-shot native execution specifically owns
    * completion adjudication and terminalization upon provider stop.
+   *
+   * Adjudication runs against the exact assistant result this invocation
+   * produced. It used to re-read the compacted session history and adjudicate
+   * whichever assistant happened to be newest, which is a different message
+   * whenever compaction or summarization interleaved with the turn — so the
+   * decision could be made about work this call never did.
    */
   export async function runSingleShot(input: SessionPrompt.PromptInput): Promise<SingleShotResult> {
     const message = await SessionPrompt.prompt({
@@ -26,22 +32,30 @@ export namespace NativeExecution {
       completionPolicy: "explicit",
     })
 
-    const messages = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
-    const lastAssistant = [...messages].reverse().find((m) => m.info.role === "assistant")
-    const completion = lastAssistant
-      ? await adjudicateNativeCompletionCandidate({
-          sessionID: input.sessionID,
-          assistantMessageID: lastAssistant.info.id,
-          finishReason: (lastAssistant.info as MessageV2.Assistant).finish ?? "stop",
-          hasError: Boolean((lastAssistant.info as MessageV2.Assistant).error),
-        })
-      : {
+    if (message.info.role !== "assistant") {
+      return {
+        message,
+        completion: {
           candidate: false,
           accepted: false,
           runId: input.sessionID,
-          reasonCodes: ["no_assistant_message"],
-        }
+          reasonCodes: [`non_assistant_result:${message.info.role}`],
+        },
+      }
+    }
 
-    return { message, completion }
+    const assistant = message.info as MessageV2.Assistant
+    return {
+      message,
+      // A missing finish reason is not a provider stop. Defaulting it to "stop"
+      // turned "the provider never told us how this ended" into a completion
+      // candidate; adjudication fails it closed as `finish_reason:missing`.
+      completion: await adjudicateNativeCompletionCandidate({
+        sessionID: input.sessionID,
+        assistantMessageID: assistant.id,
+        finishReason: assistant.finish,
+        hasError: Boolean(assistant.error),
+      }),
+    }
   }
 }

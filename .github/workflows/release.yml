@@ -21,12 +21,30 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      - name: Install ripgrep
+        run: sudo apt-get install -y ripgrep
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
 
       - name: Install dependencies
         run: bun install
 
-      - name: Verify release inputs
-        run: bun run release:check
+      # One reusable root command, shared with local release verification, so a
+      # tag can never publish a commit that bypassed the essential gates. This
+      # runs repo integrity, legacy guard, typecheck, lint, tests, smoke evals,
+      # Rust fmt/clippy/test and release:check — and it runs before build and
+      # upload, so a failing gate stops publication rather than annotating it.
+      - name: Verify release gates
+        run: bun run release:gates
 
       - name: Build canonical release assets
         run: bun run build

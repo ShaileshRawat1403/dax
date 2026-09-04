@@ -4,11 +4,13 @@ import { useKeyboard } from "@opentui/solid"
 import type { PermissionRequest, QuestionRequest } from "@dax-ai/sdk/v2"
 import { useSDK } from "@tui/context/sdk"
 import { useTheme } from "@tui/context/theme"
+import { useDialog } from "@tui/ui/dialog"
 import type { DisplayMode } from "@/dax/presentation/session-display"
 import { RAOPane } from "./rao-pane"
 import {
   canResolveCanonicalApproval,
   canonicalApprovalHeading,
+  canonicalApprovalKeyDecision,
   canonicalApprovalResolutionRequest,
   pendingCanonicalApprovalCount,
   presentCanonicalApproval,
@@ -25,9 +27,15 @@ export function CanonicalApprovalPane(props: {
   permissions: PermissionRequest[]
   questions: QuestionRequest[]
   onAllResolved?: () => void
+  /**
+   * Reports whether the prompt textarea currently owns keyboard input. Read at
+   * key time, not at render time, so the guard reflects live focus.
+   */
+  promptFocused?: () => boolean
 }) {
   const { theme } = useTheme()
   const sdk = useSDK()
+  const dialog = useDialog()
   const source = useCanonicalInspectorSource()
   const [selectedApprovalId, setSelectedApprovalId] = createSignal<string | undefined>()
   const [inFlight, setInFlight] = createSignal(false)
@@ -91,15 +99,15 @@ export function CanonicalApprovalPane(props: {
   }
 
   useKeyboard((event) => {
-    if (!actionable() || event.ctrl || event.meta || event.shift) return
-    if (event.name === "y") {
-      event.preventDefault()
-      void decide("approve")
-    }
-    if (event.name === "n") {
-      event.preventDefault()
-      void decide("deny")
-    }
+    const decision = canonicalApprovalKeyDecision({
+      actionable: actionable(),
+      promptFocused: props.promptFocused?.() === true,
+      dialogDepth: dialog.stack.length,
+      event,
+    })
+    if (!decision) return
+    event.preventDefault()
+    void decide(decision)
   })
 
   return (

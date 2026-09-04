@@ -13,6 +13,10 @@ import { compileWithRunId } from "@/execution/compiler"
 import { NativeExecution } from "@/execution/native-execution"
 import { readRunEvents } from "@/state/events/run-event-store"
 import { getEventAuthorityState, transitionEventAuthority } from "@/state/events/event-transitions"
+import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
+import { MessageV2 } from "@/session/message-v2"
+import { Identifier } from "@/id/id"
+import { Bus } from "@/bus"
 
 import { SessionSummary } from "@/session/summary"
 import * as Interpret from "@/intent/interpret"
@@ -307,56 +311,283 @@ describe("Native Execution & Conversational Lifetime Separation", () => {
     })
   })
 
-  test("6. Pending approvals remain fail-closed against completion", async () => {
+  test("6. Pending approvals are refused by completion adjudication, not merely present", async () => {
     await Instance.provide({
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Pending approval test" })
-        const { contract } = compileWithRunId(
-          { request: { intent: { input: "Approval test." }, workflowHint: "generic" } },
-          session.id,
+        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
+          mockStreamingResponse("The governed execution summary is complete."),
         )
-        await ContractGuardian.create(session.id, contract)
-        await Session.bindGoverningRun(session.id, session.id)
 
-        // Enter running state and add an unresolved approval
-        await SessionPrompt.ensureCanonicalRunBirth({ sessionID: session.id, intent: "Approval test." })
-        await transitionEventAuthority(session.id, "waiting_approval", "approval_requested", {
-          approvalId: "app_pending_123",
-          approvalType: "tool",
-          risk: "high",
-        })
+        try {
+          const { contract } = compileWithRunId(
+            { request: { intent: { input: "Approval test." }, workflowHint: "generic" } },
+            session.id,
+          )
+          await ContractGuardian.create(session.id, contract)
+          await Session.bindGoverningRun(session.id, session.id)
 
-        const state = await getEventAuthorityState(session.id)
-        expect(state?.status).toBe("waiting_approval")
-        expect(state?.pendingApprovalIds).toContain("app_pending_123")
+          // A real turn, so there is an actual assistant result to adjudicate.
+          const turn = await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Do the approval-gated work." }],
+          })
+          expect(turn.info.role).toBe("assistant")
+
+          await transitionEventAuthority(session.id, "waiting_approval", "approval_requested", {
+            approvalId: "app_pending_123",
+            approvalType: "tool",
+            risk: "high",
+          })
+
+          // The point of the test: adjudication must refuse, not just record.
+          const decision = await adjudicateNativeCompletionCandidate({
+            sessionID: session.id,
+            assistantMessageID: turn.info.id,
+            finishReason: "stop",
+            hasError: false,
+          })
+
+          expect(decision.accepted).toBe(false)
+          expect(decision.reasonCodes).toContain("approval_pending:app_pending_123")
+
+          const state = await getEventAuthorityState(session.id)
+          expect(state?.status).not.toBe("completed")
+          expect(state?.status).toBe("waiting_approval")
+          expect(state?.pendingApprovalIds).toContain("app_pending_123")
+          expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
+        } finally {
+          getModel.mockRestore()
+          stream.mockRestore()
+        }
       },
     })
   })
 
-  test("7. Internal model stops (compaction/summarization/synthetic) are non-terminal", async () => {
+  test("7. A compaction model generation finishes without terminalizing the governing run", async () => {
     await Instance.provide({
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Internal model stops" })
         const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
-        const stream = spyOn(LLM, "stream").mockImplementation(async () => {
-          return mockStreamingResponse("Internal synthetic stop")
-        })
+        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
+          mockStreamingResponse("Internal synthetic stop"),
+        )
 
         try {
-          // A regular conversational turn ends with model stop
           await SessionPrompt.prompt({
             sessionID: session.id,
             model: { providerID: "openai", modelID: "gpt-4o" },
-            parts: [{ type: "text", text: "Internal stop prompt." }],
+            parts: [{ type: "text", text: "Context that compaction will summarize." }],
           })
 
-          // Model stop in interactive mode must not emit run_completed
-          const events = await readRunEvents(session.id)
-          expect(events.some((e) => e.type === "run_completed")).toBe(false)
+          // The internal path this test claims to exercise. `create` only
+          // enqueues the compaction task; the loop performs the actual internal
+          // model generation on the next turn, so both calls are required for
+          // this to exercise anything at all.
+          await SessionCompaction.create({
+            sessionID: session.id,
+            agent: "build",
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            auto: false,
+          })
+          await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Turn that drives the queued compaction." }],
+          })
+
+          // The internal generation really did complete. Read the raw message
+          // stream, not the compacted view: filterCompacted deliberately elides
+          // the boundary this test is about.
+          const messages = await Array.fromAsync(MessageV2.stream(session.id))
+          const summary = messages.find((m) => m.info.role === "assistant" && (m.info as MessageV2.Assistant).summary)
+          expect(summary).toBeDefined()
+          expect((summary!.info as MessageV2.Assistant).finish).toBeDefined()
+
+          // ...and it did not terminalize the governing run.
+          expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
           expect((await getEventAuthorityState(session.id))?.status).toBe("running")
+
+          // The next conversational turn still works against the live run.
+          const next = await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Continue after the internal generation." }],
+          })
+          expect(next.info.role).toBe("assistant")
+          expect((await getEventAuthorityState(session.id))?.status).toBe("running")
+          expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
         } finally {
+          getModel.mockRestore()
+          stream.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("8. Single-shot adjudicates the message this invocation produced, not the newest in history", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const session = await Session.create({ title: "Exact-result adjudication" })
+        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
+          mockStreamingResponse("A completed earlier assistant turn."),
+        )
+
+        try {
+          // A. A prior assistant already exists in history, and it finished "stop".
+          const prior = await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Earlier turn." }],
+          })
+          expect((prior.info as MessageV2.Assistant).finish).toBe("stop")
+
+          // B. This invocation produces its own result, and C. that result has no
+          // finish reason. Scanning history would have found this same message and
+          // read its missing finish as "stop"; adjudicating the exact result and
+          // refusing to default the finish reason are what make it fail closed.
+          const produced = (await Session.updateMessage({
+            id: Identifier.ascending("message"),
+            parentID: prior.info.id,
+            role: "assistant",
+            mode: "build",
+            agent: "build",
+            path: { cwd: testProject, root: testProject },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            modelID: "gpt-4o",
+            providerID: "openai",
+            time: { created: Date.now() },
+            sessionID: session.id,
+          })) as MessageV2.Assistant
+          expect(produced.finish).toBeUndefined()
+
+          const promptSpy = spyOn(SessionPrompt, "prompt").mockResolvedValue({ info: produced, parts: [] })
+          try {
+            const result = await NativeExecution.runSingleShot({
+              sessionID: session.id,
+              model: { providerID: "openai", modelID: "gpt-4o" },
+              parts: [{ type: "text", text: "Return a concise execution summary." }],
+            })
+
+            expect(result.message.info.id).toBe(produced.id)
+            expect(result.completion.candidate).toBe(false)
+            expect(result.completion.accepted).toBe(false)
+            expect(result.completion.reasonCodes).toContain("finish_reason:missing")
+          } finally {
+            promptSpy.mockRestore()
+          }
+
+          expect((await getEventAuthorityState(session.id))?.status).not.toBe("completed")
+          expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
+        } finally {
+          getModel.mockRestore()
+          stream.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("9. A malformed non-assistant single-shot result cannot complete the run", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const session = await Session.create({ title: "Malformed single-shot result" })
+        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
+          mockStreamingResponse("An earlier assistant turn."),
+        )
+
+        try {
+          await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Earlier turn." }],
+          })
+
+          const notAnAssistant = await Session.updateMessage({
+            id: Identifier.ascending("message"),
+            role: "user",
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            sessionID: session.id,
+            agent: "build",
+            time: { created: Date.now() },
+          })
+
+          const promptSpy = spyOn(SessionPrompt, "prompt").mockResolvedValue({ info: notAnAssistant, parts: [] })
+          try {
+            const result = await NativeExecution.runSingleShot({
+              sessionID: session.id,
+              model: { providerID: "openai", modelID: "gpt-4o" },
+              parts: [{ type: "text", text: "Return a concise execution summary." }],
+            })
+            expect(result.completion.accepted).toBe(false)
+            expect(result.completion.reasonCodes).toContain("non_assistant_result:user")
+          } finally {
+            promptSpy.mockRestore()
+          }
+
+          expect((await getEventAuthorityState(session.id))?.status).not.toBe("completed")
+          expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
+        } finally {
+          getModel.mockRestore()
+          stream.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("10. A refused completion surfaces as a session error, so a single-shot caller cannot read it as success", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const session = await Session.create({ title: "Refused completion surfaces" })
+        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
+          mockStreamingResponse("Claiming to be done."),
+        )
+
+        const errors: string[] = []
+        const unsubscribe = Bus.subscribe(Session.Event.Error, (event) => {
+          if (event.properties.sessionID !== session.id) return
+          const message = (event.properties.error as { data?: { message?: string } } | undefined)?.data?.message
+          if (message) errors.push(message)
+        })
+
+        try {
+          const { contract } = compileWithRunId(
+            { request: { intent: { input: "Refused completion." }, workflowHint: "generic" } },
+            session.id,
+          )
+          // The contract owes a patch. A text-only turn cannot satisfy it, so
+          // completion proof fails and adjudication refuses the provider stop.
+          contract.expectedOutputs = [{ type: "patch", description: "The governed change" }]
+          await ContractGuardian.create(session.id, contract)
+          await Session.bindGoverningRun(session.id, session.id)
+
+          // `dax run` and RunFactory both drive this policy. The decision used to
+          // be logged and dropped, so the loop exited, the session went idle, and
+          // the caller exited 0 for a run that never reached completed.
+          await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            parts: [{ type: "text", text: "Finish the governed task." }],
+            completionPolicy: "on_provider_stop",
+          })
+
+          expect(errors.some((message) => message.includes("Governed completion was not accepted"))).toBe(true)
+          expect(errors.some((message) => message.includes("completion_proof:missing_expected_outputs"))).toBe(true)
+          expect(errors.some((message) => message.includes("did not reach completed"))).toBe(true)
+          expect((await getEventAuthorityState(session.id))?.status).not.toBe("completed")
+          expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
+        } finally {
+          unsubscribe()
           getModel.mockRestore()
           stream.mockRestore()
         }

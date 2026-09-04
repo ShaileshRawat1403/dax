@@ -81,7 +81,10 @@ import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { acquireRunLock } from "@/util/fs-lock"
 import { RunStore } from "@/state/run-store"
-import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
+import {
+  adjudicateNativeCompletionCandidate,
+  type NativeCompletionDecision,
+} from "@/execution/native-completion"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -499,6 +502,36 @@ export namespace SessionPrompt {
     return
   }
 
+  /**
+   * A provider stop that adjudication refused is not a successful single-shot
+   * execution, and the caller must not be able to read it as one.
+   *
+   * Logging the decision and breaking the loop was the whole failure: the run
+   * stayed short of `completed` in the canonical log while `dax run` saw an
+   * ordinary idle session and exited 0. The typed `NativeCompletionDecision` is
+   * the boundary; this only publishes the refusal on the session error channel
+   * the CLI already consumes, so the caller never string-matches to learn it.
+   *
+   * Canonical authority is untouched — no state is synthesized, no completed run
+   * is reopened, and the reason codes remain the run log's own. Only callers that
+   * asked for `on_provider_stop` adjudication reach here, so interactive
+   * conversational prompts are unaffected.
+   */
+  async function surfaceRejectedNativeCompletion(
+    sessionID: string,
+    completion: NativeCompletionDecision,
+  ): Promise<void> {
+    log.info("native completion candidate adjudicated", completion)
+    if (completion.accepted) return
+    const reasons = completion.reasonCodes.length ? completion.reasonCodes.join(", ") : "unspecified_reason"
+    Bus.publish(Session.Event.Error, {
+      sessionID,
+      error: new NamedError.Unknown({
+        message: `Governed completion was not accepted (${reasons}). The canonical run did not reach completed.`,
+      }).toObject(),
+    })
+  }
+
   export const LoopInput = z.object({
     sessionID: Identifier.schema("session"),
     resume_existing: z.boolean().optional(),
@@ -558,7 +591,7 @@ export namespace SessionPrompt {
             finishReason: lastAssistant.finish,
             hasError: Boolean(lastAssistant.error),
           })
-          log.info("native completion candidate adjudicated", completion)
+          await surfaceRejectedNativeCompletion(sessionID, completion)
         }
         log.info("exiting loop", { sessionID })
         break
@@ -980,7 +1013,7 @@ export namespace SessionPrompt {
             finishReason: processor.message.finish,
             hasError: Boolean(processor.message.error),
           })
-          log.info("native completion candidate adjudicated", completion)
+          await surfaceRejectedNativeCompletion(sessionID, completion)
         }
         break
       }
