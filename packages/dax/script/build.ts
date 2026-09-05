@@ -189,8 +189,15 @@ async function buildTarget(item: (typeof allTargets)[number]) {
 
   await $`rm -rf ./dist/${name}/bin/tui`
 
-  if (isHostTarget(item)) {
+  // Sidecars are compiled for the runner's own target only, so every other
+  // archive ships without them. Record what a given archive actually contains
+  // rather than leaving its absence to be discovered at runtime; building them
+  // for every target needs a cross-compilation matrix in the release workflow.
+  const sidecars = isHostTarget(item) ? RUST_SIDECAR_BINARIES : []
+  if (sidecars.length > 0) {
     await buildRustSidecars(name)
+  } else {
+    console.warn(`no Rust sidecars for ${name}: not the host target`)
   }
 
   await Bun.file(`dist/${name}/package.json`).write(
@@ -200,6 +207,7 @@ async function buildTarget(item: (typeof allTargets)[number]) {
         version: Script.version,
         os: [item.os],
         cpu: [item.arch],
+        sidecars,
       },
       null,
       2,
