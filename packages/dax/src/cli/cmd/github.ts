@@ -28,6 +28,7 @@ import { MessageV2 } from "../../session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { $ } from "bun"
 import { Installation } from "@/installation"
+import { redactEvidenceText } from "../../worker/evidence-redaction"
 
 type GitHubAuthor = {
   login: string
@@ -642,6 +643,10 @@ export const GithubRunCommand = cmd({
         } else if (e instanceof Error) {
           msg = e.message
         }
+        // This is posted to a GitHub comment, which on a public repository is
+        // world-readable. Shell stderr routinely carries the token that was in
+        // the failing command's URL or environment.
+        msg = redactEvidenceText(String(msg))
         if (isUserEvent) {
           await createComment(`${msg}${footer()}`)
           await removeReaction(commentType)
@@ -1029,8 +1034,14 @@ export const GithubRunCommand = cmd({
       }
 
       async function restoreGitConfig() {
-        if (gitConfig === undefined) return
         const config = "http.https://github.com/.extraheader"
+        if (gitConfig === undefined) {
+          // Nothing to restore means the checkout had no extraheader of its own
+          // and the one there now is the App token we wrote. Returning early
+          // left that credential sitting in .git/config after the run.
+          await $`git config --local --unset-all ${config}`.nothrow()
+          return
+        }
         await $`git config --local ${config} "${gitConfig}"`
       }
 

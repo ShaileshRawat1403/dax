@@ -8,6 +8,7 @@ import { MessageV2 } from "@/session/message-v2"
 import { Storage } from "@/storage/storage"
 import { Log } from "@/util/log"
 import type * as SDK from "@dax-ai/sdk/v2"
+import { redactDeep } from "../worker/evidence-redaction"
 
 export namespace ShareNext {
   const log = Log.create({ service: "share-next" })
@@ -141,9 +142,12 @@ export namespace ShareNext {
         headers: {
           "Content-Type": "application/json",
         },
+        // A share link is public. Redact the payload - transcripts and diffs
+        // carry whatever the session touched - while leaving the envelope's own
+        // secret, which is what authorizes the write, intact.
         body: JSON.stringify({
           secret: share.secret,
-          data: Array.from(queued.data.values()),
+          data: redactDeep(Array.from(queued.data.values())),
         }),
       })
     }, 1000)
