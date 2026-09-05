@@ -57,22 +57,8 @@ export namespace Sandbox {
     capability: null as SandboxCapability | null,
   }
 
-  export const buildDockerCommand = (command: string, cwd: string, image: string): string => {
-    const quotedCmd = `'${command.replace(/'/g, "'\\''")}'`
-    const mountPath = cwd.replace(/"/g, '\\"')
-    return [
-      "docker",
-      "run",
-      "--rm",
-      "-v",
-      `"${mountPath}":/workspace:rw`,
-      "-w",
-      "/workspace",
-      image,
-      "sh",
-      "-c",
-      quotedCmd,
-    ].join(" ")
+  export const buildDockerCommand = (command: string, cwd: string, image: string): string[] => {
+    return ["docker", "run", "--rm", "-v", `${cwd}:/workspace:rw`, "-w", "/workspace", image, "sh", "-c", command]
   }
 
   export async function init(): Promise<void> {
@@ -176,7 +162,13 @@ export namespace Sandbox {
     return { available: false, reason: "no sandbox provider available" }
   }
 
-  export async function wrap(command: string, cwd: string): Promise<string> {
+  /**
+   * Full argv for a sandboxed run, or null when no provider is active and the
+   * caller should run the command itself. Never a shell string: the argv is
+   * spawned directly so neither the command nor the working directory is
+   * re-parsed by an outer shell.
+   */
+  export async function wrap(command: string, cwd: string): Promise<string[] | null> {
     await init()
 
     if (state.selectedProvider) {
@@ -187,10 +179,10 @@ export namespace Sandbox {
       return state.fallbackProvider.wrap(command, cwd)
     }
 
-    return command
+    return null
   }
 
-  export async function wrapAsync(command: string, cwd: string): Promise<string> {
+  export async function wrapAsync(command: string, cwd: string): Promise<string[] | null> {
     return wrap(command, cwd)
   }
 }
@@ -241,22 +233,7 @@ class DockerSandbox implements SandboxProviderImpl {
     return { available: true }
   }
 
-  async wrap(command: string, cwd: string): Promise<string> {
-    const mountPath = cwd.replace(/"/g, '\\"')
-    const quotedCmd = `'${command.replace(/'/g, "'\\''")}'`
-
-    return [
-      "docker",
-      "run",
-      "--rm",
-      "-v",
-      `"${mountPath}":/workspace:rw`,
-      "-w",
-      "/workspace",
-      this.image,
-      "sh",
-      "-c",
-      quotedCmd,
-    ].join(" ")
+  async wrap(command: string, cwd: string): Promise<string[]> {
+    return Sandbox.buildDockerCommand(command, cwd, this.image)
   }
 }

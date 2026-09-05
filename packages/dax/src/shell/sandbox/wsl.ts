@@ -58,13 +58,12 @@ export class WslSandbox implements SandboxProviderImpl {
     }
   }
 
-  async wrap(command: string, cwd: string): Promise<string> {
+  async wrap(command: string, cwd: string): Promise<string[]> {
     const distro = this.wslDistro || "Ubuntu"
     const windowsPath = cwd.replace(/\\/g, "/").replace(/^([A-Za-z]):/, "/mnt/$1")
-    const quotedCmd = `'${command.replace(/'/g, "'\\''")}'`
 
     if (this.useBwrap) {
-      const bwrapCmd = [
+      const bwrapCmd: string[] = [
         "bwrap",
         "--unshare-all",
         "--new-session",
@@ -95,13 +94,15 @@ export class WslSandbox implements SandboxProviderImpl {
         "/workspace",
         "/bin/sh",
         "-c",
-        quotedCmd,
-      ].join(" ")
+        command,
+      ]
 
-      return `wsl -d ${distro} ${bwrapCmd}`
+      return ["wsl", "-d", distro, ...bwrapCmd]
     }
 
-    return `wsl -d ${distro} cd ${windowsPath} && ${command}`
+    // --cd keeps the working directory out of the command string; it used to be
+    // interpolated into "cd <path> && <command>" and re-parsed by the shell.
+    return ["wsl", "-d", distro, "--cd", windowsPath, "sh", "-c", command]
   }
 }
 

@@ -1,5 +1,5 @@
 import z from "zod"
-import { spawn } from "child_process"
+import { spawn, type ChildProcess } from "child_process"
 import { Tool } from "./tool"
 import path from "path"
 import DESCRIPTION from "./shell.txt"
@@ -184,19 +184,26 @@ export const ShellTool = Tool.define("shell", async () => {
         })
       }
 
-      const commandToRun = await Sandbox.wrap(params.command, cwd)
+      const sandboxed = await Sandbox.wrap(params.command, cwd)
 
       const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
-      const proc = spawn(commandToRun, {
-        shell,
+      const options = {
         cwd,
         env: {
           ...process.env,
           ...shellEnv.env,
         },
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
-      })
+      }
+      // A sandboxed run is spawned as argv with no shell, so neither the
+      // command nor the working directory is re-parsed by an outer shell. The
+      // unsandboxed run still goes through the shell, because interpreting the
+      // operator's command is the point - but the command is the whole thing
+      // being run, never interpolated into a larger string.
+      const proc: ChildProcess = sandboxed
+        ? spawn(sandboxed[0]!, sandboxed.slice(1), options)
+        : spawn(params.command, { ...options, shell })
 
       let output = ""
 

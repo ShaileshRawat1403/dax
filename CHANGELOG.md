@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Sandbox wrappers no longer build a shell string.** Every provider assembled an argv array and
+  then joined it with spaces, so the result was re-parsed by the outer shell: the model-controlled
+  working directory was interpolated unquoted, and the seatbelt wrapper escaped only `"`, so a
+  backslash before a quote ended the argument early and the rest ran *outside* `sandbox-exec`. The
+  layer meant to contain a command was itself the injection sink. `wrap()` now returns argv and a
+  sandboxed run is spawned directly. The seatbelt invocation was also malformed - the working
+  directory sat where `sandbox-exec` expects the program - so strict sandboxing could not run at all.
+- **Read-only verification mode could be escaped with a newline.** The whitelist split commands on
+  `\s+`, so `npm test\ncurl http://host/x` parsed as `npm` with the arguments `curl` and a URL, both
+  of which passed the safe-target check. It was then executed with `shell: true`, where the newline
+  is a command separator. Separators are now refused outright and argument splitting no longer treats
+  a newline as whitespace.
+
 - **Workspace trust: a repository's executable configuration no longer runs on sight.** Opening a
   repo and running `dax` used to execute whatever it declared: `.dax/plugin/*.ts` was imported and
   every export called with `Bun.$` and an authenticated SDK client, `plugin` entries were installed

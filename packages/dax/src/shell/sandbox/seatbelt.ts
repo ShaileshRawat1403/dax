@@ -107,11 +107,12 @@ export class SeatbeltSandbox implements SandboxProviderImpl {
     return { available: true }
   }
 
-  async wrap(command: string, cwd: string): Promise<string> {
+  async wrap(command: string, _cwd: string): Promise<string[]> {
     const profile = this.strict ? STRICT_SEATBELT_PROFILE : DEFAULT_SEATBELT_PROFILE
-    const quotedCmd = command.replace(/"/g, '\\"')
-
-    return `sandbox-exec -p '${profile.replace(/'/g, "'\\''")}' ${cwd} /bin/sh -c "${quotedCmd}"`
+    // The working directory is applied by the spawn, not passed as an argument:
+    // it used to sit where sandbox-exec expects the program to run, so a
+    // correctly formed sandboxed command could not execute at all.
+    return ["sandbox-exec", "-p", profile, "/bin/sh", "-c", command]
   }
 }
 

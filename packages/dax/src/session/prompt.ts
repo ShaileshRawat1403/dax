@@ -64,6 +64,7 @@ import { ExploreOperator } from "@/operators/explore"
 import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
 import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
+import { Sandbox } from "../shell/sandbox"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -1958,7 +1959,6 @@ ${
       // can ship .dax/command/<name>.md, so typing /<name> used to execute
       // arbitrary commands with no approval card and no audit record. Gate them
       // through the same permission the shell tool uses, before any of them run.
-      // TODO(WO-6): route these through Sandbox.wrap once wrap() returns argv.
       const shellAgent = await Agent.get(command.agent ?? input.agent ?? (await Agent.defaultAgent()))
       await Permission.ask({
         sessionID: input.sessionID,
@@ -1975,6 +1975,19 @@ ${
       const results = await Promise.all(
         shell.map(async ([, cmd]) => {
           try {
+            // Honour the sandbox when one is active. Sandbox.wrap returns argv,
+            // so the command travels as a single element and nothing in it -
+            // or in the working directory - is re-parsed by an outer shell.
+            const wrapped = await Sandbox.wrap(cmd, Instance.directory)
+            if (wrapped) {
+              const proc = Bun.spawn(wrapped, {
+                cwd: Instance.directory,
+                stdout: "pipe",
+                stderr: "ignore",
+              })
+              await proc.exited
+              return await new Response(proc.stdout).text()
+            }
             return await $`${{ raw: cmd }}`.quiet().nothrow().text()
           } catch (error) {
             return `Error executing command: ${error instanceof Error ? error.message : String(error)}`

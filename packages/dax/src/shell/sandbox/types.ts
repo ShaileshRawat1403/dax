@@ -40,12 +40,19 @@ export interface SandboxProviderImpl {
 
   isAvailable(): Promise<boolean>
   check(): Promise<{ available: boolean; reason?: string }>
-  wrap(command: string, cwd: string): Promise<string>
+  /**
+   * Returns the full argv to spawn. It must never be joined into a shell
+   * string: every provider embeds the caller's command, and the working
+   * directory is model-controlled, so a joined string is re-parsed by the
+   * outer shell and the sandbox becomes the injection sink it exists to
+   * prevent. The command travels as one argv element.
+   */
+  wrap(command: string, cwd: string): Promise<string[]>
 }
 
 export interface SandboxResult {
   wrapped: boolean
   provider: SandboxProvider
-  command: string
+  command: string[]
   capability: SandboxCapability
 }

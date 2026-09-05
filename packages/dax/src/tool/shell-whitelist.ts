@@ -4,6 +4,11 @@ export function isWhitelistedVerificationCommand(command: string): boolean {
   const normalized = command.trim().toLowerCase()
 
   const forbiddenPatterns = [
+    // A separator turns one whitelisted command into two commands. Splitting on
+    // \s+ absorbed a newline as whitespace, so "npm test\ncurl http://host/x"
+    // parsed as npm with the arguments "curl" and a URL - both of which look
+    // like safe path targets - and the shell then ran the second line.
+    /[\n\r;`]/,
     /^-c$/,
     /\s\|\s/,
     /\s&&\s/,
@@ -23,7 +28,7 @@ export function isWhitelistedVerificationCommand(command: string): boolean {
     }
   }
 
-  const parts = normalized.split(/\s+/)
+  const parts = normalized.split(/[ \t]+/)
   if (parts.length === 0) return false
 
   const executable = parts[0]
@@ -87,7 +92,9 @@ function isSafeVerificationTarget(arg: string) {
 }
 
 export function parseCommandExecutable(command: string): { executable: string; args: string[] } | null {
-  const parts = command.trim().split(/\s+/)
+  // Deliberately not \s+: a newline is a command separator, not an argument
+  // separator, and treating it as whitespace hides a second command.
+  const parts = command.trim().split(/[ \t]+/)
   if (parts.length === 0) return null
 
   return {
@@ -109,6 +116,11 @@ export function isGenericShellEscape(command: string): boolean {
     { pattern: /\s&&\s/, name: "chain" },
     { pattern: />\s/, name: "redirect output" },
     { pattern: /<\s/, name: "redirect input" },
+    { pattern: /[\n\r]/, name: "newline separator" },
+    { pattern: /;/, name: "semicolon separator" },
+    { pattern: /`/, name: "backtick substitution" },
+    { pattern: /\|/, name: "pipe" },
+    { pattern: /&&/, name: "chain" },
   ]
 
   for (const { pattern, name } of escapePatterns) {
