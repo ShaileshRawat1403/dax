@@ -1954,6 +1954,24 @@ ${
 
     const shell = ConfigMarkdown.shell(template)
     if (shell.length > 0) {
+      // Backtick-bang blocks in command markdown run raw shell. A hostile repo
+      // can ship .dax/command/<name>.md, so typing /<name> used to execute
+      // arbitrary commands with no approval card and no audit record. Gate them
+      // through the same permission the shell tool uses, before any of them run.
+      // TODO(WO-6): route these through Sandbox.wrap once wrap() returns argv.
+      const shellAgent = await Agent.get(command.agent ?? input.agent ?? (await Agent.defaultAgent()))
+      await Permission.ask({
+        sessionID: input.sessionID,
+        permission: "shell",
+        patterns: shell.map(([, cmd]) => cmd),
+        always: shell.map(([, cmd]) => cmd),
+        metadata: {
+          command: input.command,
+          description: `Command /${input.command} runs shell from its markdown definition`,
+        },
+        ruleset: shellAgent.permission,
+      })
+
       const results = await Promise.all(
         shell.map(async ([, cmd]) => {
           try {
