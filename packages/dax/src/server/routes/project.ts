@@ -6,6 +6,7 @@ import { Project } from "../../project/project"
 import z from "zod"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { privilegedMutation } from "../transport-security"
 
 export const ProjectRoutes = lazy(() =>
   new Hono()
@@ -54,6 +55,7 @@ export const ProjectRoutes = lazy(() =>
     )
     .patch(
       "/:projectID",
+      privilegedMutation,
       describeRoute({
         summary: "Update project",
         description: "Update project properties such as name, icon, and commands.",

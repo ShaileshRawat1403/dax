@@ -10,6 +10,7 @@ import { Log } from "../../util/log"
 import { lazy } from "../../util/lazy"
 import { Config } from "../../config/config"
 import { errors } from "../error"
+import { privilegedMutation } from "../transport-security"
 
 const log = Log.create({ service: "server" })
 
@@ -128,6 +129,7 @@ export const GlobalRoutes = lazy(() =>
     )
     .patch(
       "/config",
+      privilegedMutation,
       describeRoute({
         summary: "Update global configuration",
         description: "Update global Dax configuration settings and preferences.",

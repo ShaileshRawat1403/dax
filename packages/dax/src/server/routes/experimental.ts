@@ -9,6 +9,7 @@ import { MCP } from "../../mcp"
 import { zodToJsonSchema } from "zod-to-json-schema"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { privilegedMutation } from "../transport-security"
 
 export const ExperimentalRoutes = lazy(() =>
   new Hono()
@@ -88,6 +89,7 @@ export const ExperimentalRoutes = lazy(() =>
     )
     .post(
       "/worktree",
+      privilegedMutation,
       describeRoute({
         summary: "Create worktree",
         description: "Create a new git worktree for the current project and run any configured startup scripts.",

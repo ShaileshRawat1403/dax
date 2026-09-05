@@ -48,10 +48,6 @@ export namespace Worktree {
   export const CreateInput = z
     .object({
       name: z.string().optional(),
-      startCommand: z
-        .string()
-        .optional()
-        .describe("Additional startup script to run after the project's start command"),
     })
     .meta({
       ref: "WorktreeCreateInput",
@@ -269,18 +265,19 @@ export namespace Worktree {
     return false
   }
 
-  async function runStartScripts(directory: string, input: { projectID: string; extra?: string }) {
+  /**
+   * Only the project's own configured start command runs here. The API used to
+   * accept an additional `startCommand` from the caller and hand it to
+   * `bash -lc`, which made worktree creation a remote shell on a server whose
+   * authentication is opt-in. Configure `commands.start` on the project instead.
+   */
+  async function runStartScripts(directory: string, input: { projectID: string }) {
     const project = await Storage.read<Project.Info>(["project", input.projectID]).catch(() => undefined)
     const startup = project?.commands?.start?.trim() ?? ""
-    const ok = await runStartScript(directory, startup, "project")
-    if (!ok) return false
-
-    const extra = input.extra ?? ""
-    await runStartScript(directory, extra, "worktree")
-    return true
+    return runStartScript(directory, startup, "project")
   }
 
-  function queueStartScripts(directory: string, input: { projectID: string; extra?: string }) {
+  function queueStartScripts(directory: string, input: { projectID: string }) {
     setTimeout(() => {
       const start = async () => {
         await runStartScripts(directory, input)
@@ -314,7 +311,6 @@ export namespace Worktree {
     await Project.addSandbox(Instance.project.id, info.directory).catch(() => undefined)
 
     const projectID = Instance.project.id
-    const extra = input?.startCommand?.trim()
     setTimeout(() => {
       const start = async () => {
         const populated = await $`git reset --hard`.quiet().nothrow().cwd(info.directory)
@@ -366,7 +362,7 @@ export namespace Worktree {
           },
         })
 
-        await runStartScripts(info.directory, { projectID, extra })
+        await runStartScripts(info.directory, { projectID })
       }
 
       void start().catch((error) => {
