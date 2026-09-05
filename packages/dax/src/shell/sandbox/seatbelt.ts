@@ -3,12 +3,13 @@ import type { SandboxProviderImpl, SandboxCapability } from "./types"
 
 const DEFAULT_SEATBELT_PROFILE = `(version 1)
 (deny default)
+; Standard OS runtime support (dyld, system libraries, inherited descriptors)
+(import "system.sb")
+(allow file-read* (literal "/private/var/select/sh"))
+(allow file-read* (subpath "/bin"))
 (allow process-info*)
-(allow process-info-pidinfo *)
-(allow process-info-setcontrol *)
 (allow signal (target self))
 (allow job-creation)
-(allow default)
 
 ; Filesystem - project directory only
 (allow file-read* (subpath "/Users"))
@@ -41,7 +42,7 @@ const DEFAULT_SEATBELT_PROFILE = `(version 1)
 
 ; Network - deny by default, allow localhost for npm
 (deny network*)
-(allow network* (local ip "*"))
+(allow network* (remote ip "localhost:*"))
 `
 
 const STRICT_SEATBELT_PROFILE = `(version 1)
