@@ -52,6 +52,10 @@ export const EditTool = Tool.define("edit", {
     await FileTime.withLock(filePath, async () => {
       if (params.oldString === "") {
         const existed = await Bun.file(filePath).exists()
+        if (existed) {
+          await FileTime.assert(ctx.sessionID, filePath)
+          contentOld = await Bun.file(filePath).text()
+        }
         contentNew = params.newString
         diff = trimDiff(createTwoFilesPatch(filePath, filePath, contentOld, contentNew))
         await ctx.ask({
