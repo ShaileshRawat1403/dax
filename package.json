@@ -90,8 +90,6 @@
     "turbo": "2.10.4"
   },
   "dependencies": {
-    "blessed": "^0.1.81",
-    "quansync": "^1.0.0",
     "typescript": "catalog:"
   },
   "overrides": {
