@@ -49,6 +49,7 @@ import { SubstrateRoutes } from "./routes/substrate"
 import { SandboxRoutes } from "./routes/sandbox"
 import { getSecrets } from "@/secrets/secrets-loader"
 import { initialize as initializeOtel } from "@/runtime/otel"
+import { configureTransport, isAllowedOrigin, transportSecurity } from "./transport-security"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -59,7 +60,6 @@ export namespace Server {
   const log = Log.create({ service: "server" })
 
   let _url: URL | undefined
-  let _corsWhitelist: string[] = []
 
   export function url(): URL {
     return _url ?? new URL("http://localhost:4096")
@@ -88,7 +88,9 @@ export namespace Server {
             status: 500,
           })
         })
+        .use(transportSecurity)
         .use(async (c, next) => {
+          if (c.req.method === "OPTIONS") return next()
           const secrets = await getSecrets()
           const password = secrets.serverPassword
           if (!password) return next()
@@ -115,21 +117,7 @@ export namespace Server {
         .use(
           cors({
             origin(input) {
-              if (!input) return
-
-              if (input.startsWith("http://localhost:")) return input
-              if (input.startsWith("http://127.0.0.1:")) return input
-              if (input === "tauri://localhost" || input === "http://tauri.localhost") return input
-
-              // *.dax.ai (https only, adjust if needed)
-              if (/^https:\/\/([a-z0-9-]+\.)*dax\.ai$/.test(input)) {
-                return input
-              }
-              if (_corsWhitelist.includes(input)) {
-                return input
-              }
-
-              return
+              return input && isAllowedOrigin(input) ? input : undefined
             },
           }),
         )
@@ -598,7 +586,7 @@ export namespace Server {
       }
       log.warn("Explicitly allowing unauthenticated non-loopback access", { hostname: opts.hostname })
     }
-    _corsWhitelist = opts.cors ?? []
+    configureTransport({ hostname: opts.hostname, ports: [opts.port || 4096], cors: opts.cors })
 
     const args = {
       hostname: opts.hostname,
@@ -625,6 +613,11 @@ export namespace Server {
     }
 
     _url = server.url
+    configureTransport({
+      hostname: opts.hostname,
+      ports: [server.port!, ...(Flag.DAX_SUBSTRATE_ENABLED ? [Flag.DAX_SUBSTRATE_PORT] : [])],
+      cors: opts.cors,
+    })
 
     const shouldPublishMDNS =
       opts.mdns &&
