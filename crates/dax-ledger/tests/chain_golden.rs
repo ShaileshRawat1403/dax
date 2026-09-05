@@ -22,6 +22,40 @@ fn verifies_golden_chain() {
     verify_chain(&[first, second, third]).expect("golden chain should verify");
 }
 
+/// Pins the hash format itself.
+///
+/// The test above computes every hash at runtime, so it round-trips whatever
+/// the implementation currently does and cannot notice a format change. These
+/// values are the contract: the TypeScript side recomputes the same digests, so
+/// changing the material that goes into a hash has to be a deliberate,
+/// versioned decision rather than something a refactor can do silently.
+#[test]
+fn pins_the_hash_format() {
+    let first = append(
+        None,
+        &json!({ "kind": "run.created", "runId": "run_1" }),
+        "2026-05-07T00:00:00Z",
+    );
+    assert_eq!(
+        first.body_hash,
+        "sha256:e1ee39b445fbdad7de60a5364837cb5d681bab0870018e7f434fe3aae82fe5a8"
+    );
+    assert_eq!(
+        first.chain_hash,
+        "sha256:27ef5b60643f67dd66aab4392a7305814b988443dea69e2cf604d826d0cb86a7"
+    );
+
+    let second = append(
+        Some(&first),
+        &json!({ "kind": "step.completed", "stepId": "step_1" }),
+        "2026-05-07T00:00:01Z",
+    );
+    assert_eq!(
+        second.chain_hash,
+        "sha256:3bbe9de2263351970c54ba777350aa02e0a951de96f3477db4ac894888314d3d"
+    );
+}
+
 #[test]
 fn detects_reordered_entries() {
     let first = append(

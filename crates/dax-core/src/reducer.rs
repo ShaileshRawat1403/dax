@@ -41,9 +41,21 @@ pub fn replay_run_state(events: &[RunEvent]) -> Result<RunState, ReplayError> {
     sorted.sort_by_key(|e| e.sequence);
 
     for i in 1..sorted.len() {
-        if sorted[i].sequence != sorted[i - 1].sequence + 1 {
+        // checked_add, not `+ 1`: a sequence at u32::MAX panics in debug builds
+        // and wraps in release, where the wrap would silently accept a gap.
+        let expected = match sorted[i - 1].sequence.checked_add(1) {
+            Some(value) => value,
+            None => {
+                return Err(ReplayError::SequenceGap {
+                    expected: sorted[i - 1].sequence,
+                    got: sorted[i].sequence,
+                    index: i,
+                })
+            }
+        };
+        if sorted[i].sequence != expected {
             return Err(ReplayError::SequenceGap {
-                expected: sorted[i - 1].sequence + 1,
+                expected,
                 got: sorted[i].sequence,
                 index: i,
             });
