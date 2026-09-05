@@ -24,7 +24,7 @@ async function resolveTarget(filepath: string): Promise<string> {
     const entry = await lstat(filepath).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error
     })
-    if (entry?.isSymbolicLink()) throw new Error(`Cannot authorize dangling symlink: ${filepath}`)
+    if (entry?.isSymbolicLink()) throw new Error(`Cannot authorize dangling symlink: ${filepath}`, { cause: error })
     const parent = path.dirname(filepath)
     if (parent === filepath) throw error
     return path.join(await resolveTarget(parent), path.basename(filepath))

@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test"
 import os from "os"
 import path from "path"
 
-async function waitForPending(Permission: { list: () => Promise<any[]> }, count: number): Promise<any[]> {
+type PendingRequest = { id: string; permission: string; patterns: string[]; always: string[] }
+
+async function waitForPending(
+  Permission: { list: () => Promise<PendingRequest[]> },
+  count: number,
+): Promise<PendingRequest[]> {
   for (let attempt = 0; attempt < 1500; attempt++) {
     const pending = await Permission.list()
     if (pending.length === count) return pending
@@ -38,7 +43,7 @@ describe("compound command approvals", () => {
             metadata: {},
             ruleset: Permission.fromConfig({
               shell: { "*": "ask", "curl *": "deny" },
-            } as any),
+            } as Parameters<typeof Permission.fromConfig>[0]),
           })
 
           await expect(denied).rejects.toThrow()
@@ -77,7 +82,7 @@ describe("compound command approvals", () => {
             metadata: {},
             ruleset: Permission.fromConfig({
               shell: { "*": "ask", "git *": "allow" },
-            } as any),
+            } as Parameters<typeof Permission.fromConfig>[0]),
           })
 
           const pending = await waitForPending(Permission, 1)
@@ -87,7 +92,9 @@ describe("compound command approvals", () => {
           await Permission.reply({ requestID: pending[0]!.id, reply: "always" })
           await request
 
-          const approved = (await Storage.read<any[]>(["permission", Instance.project.id]).catch(() => [])) ?? []
+          type ApprovedRule = { permission: string; pattern: string; action: string }
+          const approved =
+            (await Storage.read<ApprovedRule[]>(["permission", Instance.project.id]).catch(() => [])) ?? []
           expect(approved.map((x) => x.pattern)).toEqual(["curl *"])
         })
       } finally {
