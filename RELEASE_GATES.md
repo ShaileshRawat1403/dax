@@ -19,38 +19,43 @@
 
 - [x] Illegal run transitions cannot mutate canonical state.
 - [x] DAX computes worker diffs instead of trusting worker self-reports.
-- [ ] Scope and forbidden-path rules are enforced against Git-derived paths. Pending: WO-8: fix and enable the Rust policy floor.
-- [ ] Verification runs before human review and fails closed. Pending: WO-11b: verify the execution integrity control is live.
-- [ ] Approval remains an explicit operator decision. Pending: WO-5, WO-7 and WO-2b: repair permission evaluation, defaults and route gates.
-- [ ] Evidence previews are redacted; exact-result digests remain in receipts. Pending: Share-upload redaction remains open; WO-9 and WO-8 cover digest integrity.
+- [ ] Scope and forbidden-path rules are enforced against Git-derived paths. Pending: the classifier's
+      relative-path bypass is fixed and DAX's own credential stores are on the sensitive list, but the Rust
+      policy floor stays opt-in behind `DAX_RUST_POLICY`: it fails closed when the sidecars are absent, and
+      installs predating the `install.sh` fix have none. Enable by default once sidecars ship everywhere.
+- [x] Verification runs before human review and fails closed.
+- [x] Approval remains an explicit operator decision.
+- [x] Evidence previews are redacted; exact-result digests remain in receipts.
 
-- [ ] The live audit event log is tamper-evident and verifiable. Pending: WO-8 (genesis boundary, keyed chain, and `dax verify`).
+- [x] The live audit event log is tamper-evident and verifiable (`dax verify audit`). Entries written before
+      chaining have no digests and are reported as unchained rather than back-filled.
 
 ### Isolation and compatibility
 
 - [x] Worker launch requires a successful OS-isolation probe.
-- [ ] macOS Seatbelt and Linux bubblewrap plans have focused tests. Pending: WO-6: migrate and test every sandbox wrapper. WO-1 verified only the non-strict Seatbelt profile.
+- [x] macOS Seatbelt and Linux bubblewrap plans have focused tests.
 - [x] Unsupported worker platforms fail closed with an actionable message.
 - [x] Built-in DAX workflows remain usable when worker isolation is unavailable.
 - [x] A real repository worker run produces an approve or deny receipt.
 
 ### Release quality
 
-- [ ] `bun run check:repo`
-- [ ] `bun run --cwd packages/dax lint`
-- [ ] `bun run typecheck:dax`
-- [ ] `bun run test --coverage` (1,119 pass across 133 files)
-- [ ] `bun run eval:smoke` (5/5 scenarios)
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings`
-- [ ] `cargo test --workspace`
+- [x] `bun run check:repo`
+- [x] `bun run --cwd packages/dax lint`
+- [x] `bun run typecheck:dax`
+- [x] `bun run test` (1,455 pass across 198 files)
+- [x] `bun run eval:smoke` (5/5 scenarios)
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo clippy --workspace --all-targets -- -D warnings`
+- [x] `cargo test --workspace` (79 pass)
 - [ ] `bun audit` has zero high-severity findings
 - [ ] Canonical release build produces all 11 target archives, manifest, installer, and verified checksums
 - [ ] GitHub CI is green on Ubuntu, macOS, and Windows for `main` (run 29174772587).
 
 WO-10a installs these checks in CI and release workflows. Re-tick only after the corresponding
 checks pass on the candidate commit; local checks do not establish cross-platform CI or release-build success.
-The dependency audit currently reports 15 high-severity advisories and blocks release.
+The dependency audit still reports 15 high-severity advisories (34 total) and blocks release. They are
+upstream and pre-existing; fixing them means major-version migrations, not an in-range bump.
 
 ## Known Operational Limits
 

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The session stream is readable.** Narration was rendered in `textMuted` with the terminal `DIM`
+  attribute on top, which measures 2.2:1 against the default theme - below even the large-text floor -
+  and only the newest row got full-strength text, so scrolling back through a session meant reading
+  dimmed prose. `DIM` is gone from the stream and history keeps the same weight as the live row.
+- One indent scale, so the phase rail no longer sits a column left of everything it contains; one
+  duration formatter, so the same run no longer reports both `1m 5s` and `1m 05s`; one status
+  vocabulary, replacing four dot glyphs, two crosses and two ellipses, with approval outcomes sharing
+  ✓ and ✗ deliberately. The turn separator draws a rule instead of rendering an empty box.
+- The footer drops a divider that was invisible at 1.03:1 and three of the four border columns each
+  key hint spent on a nested keycap, and labels plan mode `PLAN` - the name the agent, the command and
+  the permissions all use - instead of `CHAT`. Sixteen fractional layout values resolved to whole
+  cells; a character grid has no halves.
+- Each semantic colour has its own hue. Four roles in the default theme sat within 1.28 of each other,
+  so hue could not distinguish a heading from a link from a type. The `dax` theme's body text (3.67:1)
+  and error text (4.31:1) now clear 4.5:1.
+- The wordmark is drawn in the brand's violet-to-blue ramp rather than flat grey, and the dead
+  two-tone renderer behind it is gone.
+
+### Fixed
+
+- Building the stream no longer costs quadratic time: `suppressHeader` was computed by handing every
+  row the whole item array and scanning backwards from its own index, and is now one pass in the builder.
+
+### Changed
+
 - **Type-aware lint rules are on.** The config used typescript-eslint's `recommended`, not
   `recommendedTypeChecked`, so every rule needing type information was off - including the family
   that catches this codebase's actual mistakes. `no-floating-promises`, `no-misused-promises`,
