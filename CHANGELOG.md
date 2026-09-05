@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Workspace trust: a repository's executable configuration no longer runs on sight.** Opening a
+  repo and running `dax` used to execute whatever it declared: `.dax/plugin/*.ts` was imported and
+  every export called with `Bun.$` and an authenticated SDK client, `plugin` entries were installed
+  from npm and imported, local `mcp` servers were spawned, and `bun install` ran the repo's install
+  scripts. None of it prompted, and the `plugin` array was concatenated across config sources so a
+  user's own config could not remove a project entry. Project-scoped plugins, local MCP servers and
+  dependency installs are now withheld until the operator runs `dax trust`, and the decision is bound
+  to a digest of exactly what was withheld - adding a plugin to a trusted repo asks again. Global,
+  managed and user configuration are unaffected. `dax trust revoke` withdraws it.
+- **Local MCP servers no longer inherit the whole environment.** DAX harvests `.env` files from every
+  ancestor directory into its own environment, so spreading `process.env` handed every provider API
+  key and project secret to any server the configuration named. Child processes now get only the
+  variables a process needs to start; anything else is declared in that server's own `environment`
+  block. **Breaking:** an MCP server that relied on an inherited credential must now declare it.
+
 - **`POST /pty` no longer accepts a command, arguments or an environment.** A PTY exists to give the
   operator an interactive shell; accepting those over HTTP made it unattended remote execution with a
   caller-controlled environment. The shell is always the operator's own and `cwd` must resolve inside

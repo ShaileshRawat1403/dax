@@ -32,6 +32,7 @@ import { PackageRegistry } from "@/bun/registry"
 import { proxied } from "@/util/proxied"
 import { iife } from "@/util/iife"
 import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
+import * as ProjectTrust from "../project/trust"
 
 export namespace Config {
   const ModelId = z.string().meta({ $ref: "https://models.dev/model-schema.json#/$defs/Model" })
@@ -177,12 +178,37 @@ export namespace Config {
       log.debug("loaded custom config", { path: Flag.DAX_CONFIG })
     }
 
+    // Configuration found below the working directory can name code DAX will
+    // execute, and a repository is not a trusted input. Track what each
+    // project-scoped source contributes so it can be withheld until the
+    // operator trusts this worktree - see ProjectTrust.
+    const executable: ProjectTrust.Executable = { plugins: [], mcp: [], install: [] }
+    const trackProjectContribution = <T>(before: () => T, after: (snapshot: T) => void) => {
+      const snapshot = before()
+      return () => after(snapshot)
+    }
+    const snapshotExecutable = () => ({
+      plugins: [...(result.plugin ?? [])],
+      mcp: Object.keys(result.mcp ?? {}),
+    })
+    const recordExecutable = (snapshot: ReturnType<typeof snapshotExecutable>) => {
+      const previousPlugins = new Set(snapshot.plugins)
+      for (const entry of result.plugin ?? []) if (!previousPlugins.has(entry)) executable.plugins.push(entry)
+      const previousMcp = new Set(snapshot.mcp)
+      for (const [name, entry] of Object.entries(result.mcp ?? {})) {
+        if (previousMcp.has(name)) continue
+        if (entry && "type" in entry && entry.type === "local") executable.mcp.push(name)
+      }
+    }
+
     // Project config overrides global and remote config.
     if (!Flag.DAX_DISABLE_PROJECT_CONFIG) {
       for (const file of ["dax.jsonc", "dax.json"]) {
         const found = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
         for (const resolved of found.toReversed()) {
+          const done = trackProjectContribution(snapshotExecutable, recordExecutable)
           result = mergeConfigConcatArrays(result, await loadFile(resolved))
+          done()
         }
       }
     }
@@ -191,18 +217,21 @@ export namespace Config {
     result.mode = result.mode || {}
     result.plugin = result.plugin || []
 
+    const projectDirectories = !Flag.DAX_DISABLE_PROJECT_CONFIG
+      ? await Array.fromAsync(
+          Filesystem.up({
+            targets: [".dax"],
+            start: Instance.directory,
+            stop: Instance.worktree,
+          }),
+        )
+      : []
+    const isProjectScoped = (dir: string) => projectDirectories.includes(dir)
+
     const directories = [
       Global.Path.config,
       // Only scan project .dax/ directories when project discovery is enabled
-      ...(!Flag.DAX_DISABLE_PROJECT_CONFIG
-        ? await Array.fromAsync(
-            Filesystem.up({
-              targets: [".dax"],
-              start: Instance.directory,
-              stop: Instance.worktree,
-            }),
-          )
-        : []),
+      ...projectDirectories,
       // Always scan ~/.dax/ (user home directory)
       ...(await Array.fromAsync(
         Filesystem.up({
@@ -225,7 +254,9 @@ export namespace Config {
       if (dir.endsWith(".dax") || dir === Flag.DAX_CONFIG_DIR) {
         for (const file of ["dax.jsonc", "dax.json"]) {
           log.debug(`loading config from ${path.join(dir, file)}`)
+          const done = isProjectScoped(dir) ? trackProjectContribution(snapshotExecutable, recordExecutable) : undefined
           result = mergeConfigConcatArrays(result, await loadFile(path.join(dir, file)))
+          done?.()
           // to satisfy the type checker
           result.agent ??= {}
           result.mode ??= {}
@@ -238,12 +269,18 @@ export namespace Config {
         !Flag.DAX_DISABLE_CONFIG_AUTO_INSTALL &&
         result.experimental?.auto_install_config_dependencies !== false
       ) {
-        deps.push(
-          iife(async () => {
-            const shouldInstall = await needsInstall(dir)
-            if (shouldInstall) await installDependencies(dir)
-          }),
-        )
+        if (isProjectScoped(dir)) {
+          // Installing a repository's declared dependencies runs its install
+          // scripts, so it waits on the same trust decision as its plugins.
+          executable.install.push(dir)
+        } else {
+          deps.push(
+            iife(async () => {
+              const shouldInstall = await needsInstall(dir)
+              if (shouldInstall) await installDependencies(dir)
+            }),
+          )
+        }
       } else if (!Installation.isLocal()) {
         log.debug("skipping config dependency auto-install", {
           dir,
@@ -255,7 +292,9 @@ export namespace Config {
       result.command = mergeDeep(result.command ?? {}, await loadCommand(dir))
       result.agent = mergeDeep(result.agent, await loadAgent(dir))
       result.agent = mergeDeep(result.agent, await loadMode(dir))
-      result.plugin.push(...(await loadPlugin(dir)))
+      const discovered = await loadPlugin(dir)
+      if (isProjectScoped(dir)) executable.plugins.push(...discovered)
+      result.plugin.push(...discovered)
     }
 
     // Inline config content overrides all non-managed config sources.
@@ -271,6 +310,37 @@ export namespace Config {
     if (existsSync(managedConfigDir)) {
       for (const file of ["dax.jsonc", "dax.json"]) {
         result = mergeConfigConcatArrays(result, await loadFile(path.join(managedConfigDir, file)))
+      }
+    }
+
+    // Withhold executable configuration contributed by this repository until
+    // the operator has trusted this exact set. Global, managed and user config
+    // are untouched - only what the working directory itself introduced is
+    // held back, and the decision is bound to a digest of precisely that, so
+    // adding a plugin to an already-trusted repo asks again.
+    if (!ProjectTrust.isEmpty(executable)) {
+      const trustRoot = ProjectTrust.root(Instance.worktree, Instance.directory)
+      if (await ProjectTrust.isTrusted(trustRoot, executable)) {
+        ProjectTrust.setWithheld(ProjectTrust.empty)
+        for (const dir of executable.install) {
+          deps.push(
+            iife(async () => {
+              const shouldInstall = await needsInstall(dir)
+              if (shouldInstall) await installDependencies(dir)
+            }),
+          )
+        }
+      } else {
+        const withheldPlugins = new Set(executable.plugins)
+        result.plugin = (result.plugin ?? []).filter((entry) => !withheldPlugins.has(entry))
+        for (const name of executable.mcp) delete result.mcp?.[name]
+        ProjectTrust.setWithheld(executable)
+        log.warn("withheld untrusted project configuration", {
+          worktree: trustRoot,
+          plugins: executable.plugins.length,
+          mcp: executable.mcp.length,
+          install: executable.install.length,
+        })
       }
     }
 

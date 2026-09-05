@@ -24,6 +24,46 @@ import { Bus } from "@/bus"
 import { TuiEvent } from "@/cli/cmd/tui/event"
 import open from "open"
 
+/**
+ * A local MCP server is a child process declared by configuration, and DAX
+ * harvests `.env` files from every ancestor directory into its own environment.
+ * Spreading the whole environment therefore handed every provider API key and
+ * every project secret to any server the config named. Pass only what a process
+ * needs to start; anything else a server requires is declared in its own
+ * `environment` block, where the operator can see it.
+ */
+function baseEnvironment(): Record<string, string> {
+  const allowed = [
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TERM",
+    "TMPDIR",
+    "TZ",
+    // Windows needs these to resolve anything at all.
+    "SystemRoot",
+    "SystemDrive",
+    "COMSPEC",
+    "PATHEXT",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+  ]
+  const result: Record<string, string> = {}
+  for (const key of allowed) {
+    const value = process.env[key]
+    if (value !== undefined) result[key] = value
+  }
+  return result
+}
+
 export namespace MCP {
   const log = Log.create({ service: "mcp" })
   const DEFAULT_TIMEOUT = 30_000
@@ -463,7 +503,7 @@ export namespace MCP {
         args,
         cwd,
         env: {
-          ...process.env,
+          ...baseEnvironment(),
           ...(cmd === "dax" ? { BUN_BE_BUN: "1" } : {}),
           ...mcp.environment,
         },
