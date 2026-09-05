@@ -7,31 +7,23 @@ import { useCommandDialog } from "../../component/dialog-command"
 import { useDialog } from "../../ui/dialog"
 import type { FooterProjection, FooterHealth } from "@/dax/presentation/ui-state-resolver"
 
+/**
+ * A key and what it does.
+ *
+ * This used to nest a rounded box inside a rounded box to draw one keycap -
+ * four border columns per hint, on a line that is already tight at narrow
+ * widths. A bold glyph against a muted label reads as a key without any of it.
+ */
 function KeyHint(props: { key: string; label: string }) {
   const { theme } = useTheme()
   return (
-    <box
-      flexDirection="row"
-      gap={1}
-      alignItems="center"
-      paddingLeft={1}
-      paddingRight={1}
-      backgroundColor={theme.backgroundElement}
-      border={["round"]}
-      borderColor={theme.borderSubtle}
-    >
-      <box
-        backgroundColor={theme.background}
-        border={["round"]}
-        borderColor={theme.borderSubtle}
-        paddingLeft={1}
-        paddingRight={1}
-      >
-        <text fg={theme.text} attributes={TextAttributes.BOLD}>
-          {props.key}
-        </text>
-      </box>
-      <text fg={theme.textMuted}>{props.label}</text>
+    <box flexDirection="row" gap={1} alignItems="center" paddingLeft={1} paddingRight={1}>
+      <text fg={theme.text} attributes={TextAttributes.BOLD}>
+        {props.key}
+      </text>
+      <Show when={props.label}>
+        <text fg={theme.textMuted}>{props.label}</text>
+      </Show>
     </box>
   )
 }
@@ -110,8 +102,8 @@ export function Footer(props?: {
       flexShrink={0}
       paddingLeft={1}
       paddingRight={1}
-      paddingTop={0.5}
-      paddingBottom={0.5}
+      paddingTop={0}
+      paddingBottom={0}
       backgroundColor={theme.background}
       border={["top"]}
       borderColor={theme.borderSubtle}
@@ -129,7 +121,7 @@ export function Footer(props?: {
           >
             <text fg={theme.accent} attributes={TextAttributes.BOLD}>
               {props?.workflowMode === "plan"
-                ? "CHAT"
+                ? "PLAN"
                 : props?.workflowMode === "build"
                   ? "BUILD"
                   : props?.workflowMode?.toUpperCase()}
@@ -157,10 +149,6 @@ export function Footer(props?: {
           >
             <text fg={envColor()}>{props!.footerProjection!.label}</text>
           </box>
-        </Show>
-
-        <Show when={!tiny()}>
-          <text fg={theme.borderSubtle}>|</text>
         </Show>
 
         <KeyHint key="/" label={small() ? "" : "Actions"} />

@@ -199,7 +199,7 @@ export function Prompt(props: PromptProps) {
           borderBottom={false}
           borderColor={theme.borderSubtle}
         >
-          <box paddingLeft={2} paddingRight={2} paddingTop={0.5} flexShrink={0} backgroundColor={theme.background}>
+          <box paddingLeft={2} paddingRight={2} paddingTop={0} flexShrink={0} backgroundColor={theme.background}>
             <box flexDirection="row" gap={1} alignItems="flex-start">
               <Show when={state.showInputHint()}>
                 <spinner frames={state.homeCueFrames()} interval={95} color={state.homeCueColor()} />
@@ -245,7 +245,7 @@ export function Prompt(props: PromptProps) {
                 syntaxStyle={syntax()}
               />
             </box>
-            <box flexDirection="row" flexShrink={0} paddingTop={0.5} gap={1}>
+            <box flexDirection="row" flexShrink={0} paddingTop={0} gap={1}>
               <text fg={state.highlight()}>{state.store.mode === "shell" ? "Shell" : state.activeWorkflowLabel()}</text>
               <Show when={state.store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>
@@ -270,7 +270,7 @@ export function Prompt(props: PromptProps) {
           width="100%"
           paddingLeft={1}
           paddingRight={1}
-          paddingBottom={0.5}
+          paddingBottom={0}
           alignItems="center"
         >
           <box flexGrow={1} flexDirection="row" alignItems="center">

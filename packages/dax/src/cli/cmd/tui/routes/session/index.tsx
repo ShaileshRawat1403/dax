@@ -2439,7 +2439,7 @@ function CompactedToolGroup(props: {
           </text>
         </Show>
       </box>
-      <box paddingLeft={2} border={["left"]} borderColor={theme.borderSubtle} marginLeft={0.5}>
+      <box paddingLeft={2} border={["left"]} borderColor={theme.borderSubtle} marginLeft={1}>
         <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
           {narration()}
         </text>
@@ -2533,7 +2533,7 @@ function ToolLine(props: { part: ToolPart; toolName: string; input: Record<strin
         border={["left"]}
         borderColor={theme.borderSubtle}
         paddingLeft={2}
-        marginLeft={0.5}
+        marginLeft={1}
         marginTop={0}
       >
         <Show when={narration()}>
@@ -2661,7 +2661,7 @@ function Bash(props: ToolProps<typeof ShellTool>) {
         border={["left"]}
         borderColor={theme.borderSubtle}
         paddingLeft={2}
-        marginLeft={0.5}
+        marginLeft={1}
         marginTop={0}
       >
         <Show when={narration()}>

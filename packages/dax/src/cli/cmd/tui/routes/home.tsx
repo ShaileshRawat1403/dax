@@ -523,7 +523,7 @@ function SectionDivider(props: { label: string; theme: any }) {
       <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
         {props.label}
       </text>
-      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.border} marginBottom={0.5} />
+      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.border} marginBottom={0} />
     </box>
   )
 }
