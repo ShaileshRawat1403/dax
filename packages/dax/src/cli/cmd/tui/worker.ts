@@ -116,9 +116,9 @@ export const rpc = {
       body,
     }
   },
-  async server(input: { port: number; hostname: string; mdns?: boolean; cors?: string[] }) {
+  async server(input: { port: number; hostname: string; mdns?: boolean; cors?: string[]; allowUnauthenticated?: boolean }) {
     if (server) await server.stop(true)
-    server = Server.listen(input)
+    server = await Server.listen(input)
     return { url: server.url.toString() }
   },
   async checkUpgrade(input: { directory: string }) {

@@ -580,13 +580,24 @@ export namespace Server {
     return result
   }
 
-  export function listen(opts: {
+  export async function listen(opts: {
     port: number
     hostname: string
     mdns?: boolean
     mdnsDomain?: string
     cors?: string[]
+    allowUnauthenticated?: boolean
   }) {
+    const secrets = await getSecrets()
+    const loopback = ["127.0.0.1", "localhost", "::1"].includes(opts.hostname)
+    if (!loopback && !secrets.serverPassword) {
+      if (!opts.allowUnauthenticated) {
+        throw new Error(
+          "DAX_SERVER_PASSWORD is required for a non-loopback listener. Use --allow-unauthenticated to explicitly override.",
+        )
+      }
+      log.warn("Explicitly allowing unauthenticated non-loopback access", { hostname: opts.hostname })
+    }
     _corsWhitelist = opts.cors ?? []
 
     const args = {

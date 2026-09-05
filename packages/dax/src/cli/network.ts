@@ -2,6 +2,11 @@ import type { Argv, InferredOptionTypes } from "yargs"
 import { Config } from "../config/config"
 
 const options = {
+  "allow-unauthenticated": {
+    type: "boolean" as const,
+    describe: "explicitly allow non-loopback access without a server password",
+    default: false,
+  },
   port: {
     type: "number" as const,
     describe: "port to listen on",
@@ -56,5 +61,5 @@ export async function resolveNetworkOptions(args: NetworkOptions) {
   const argsCors = Array.isArray(args.cors) ? args.cors : args.cors ? [args.cors] : []
   const cors = [...configCors, ...argsCors]
 
-  return { hostname, port, mdns, mdnsDomain, cors }
+  return { hostname, port, mdns, mdnsDomain, cors, allowUnauthenticated: args["allow-unauthenticated"] }
 }

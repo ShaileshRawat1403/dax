@@ -24,4 +24,4 @@ COPY . .
 
 EXPOSE 4096
 
-CMD ["sh", "-lc", "bun run --cwd packages/dax --conditions=browser src/index.ts serve --hostname 0.0.0.0 --port ${PORT:-4096}"]
+CMD ["sh", "-lc", ": \"${DAX_SERVER_PASSWORD:?DAX_SERVER_PASSWORD is required}\"; exec bun run --cwd packages/dax --conditions=browser src/index.ts serve --hostname 0.0.0.0 --port ${PORT:-4096}"]
