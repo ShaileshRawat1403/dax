@@ -8,6 +8,7 @@ import { ProviderAuth } from "../../provider/auth"
 import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { providerResponse } from "../provider-response"
 
 export const ProviderRoutes = lazy(() =>
   new Hono()
@@ -76,7 +77,7 @@ export const ProviderRoutes = lazy(() =>
         }
 
         return c.json({
-          all: Object.values(providers),
+          all: Object.values(providers).map(providerResponse),
           default: mapValues(providers, (item) => {
             const sorted = Provider.sort(Object.values(item.models))
             return sorted.length > 0 ? sorted[0].id : undefined
