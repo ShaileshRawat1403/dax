@@ -71,8 +71,11 @@ export namespace Server {
       // Refactor: Break server.ts into smaller route files to fix type inference
       app
         .onError((err, c) => {
+          const errorId = crypto.randomUUID()
           log.error("failed", {
+            errorId,
             error: err,
+            stack: err.stack,
           })
           if (err instanceof NamedError) {
             let status: ContentfulStatusCode
@@ -84,7 +87,7 @@ export namespace Server {
           }
           if (err instanceof HTTPException) return err.getResponse()
           if (err instanceof InstanceCapacityError) return c.json({ error: err.message }, 503)
-          const message = err instanceof Error && err.stack ? err.stack : err.toString()
+          const message = `Internal server error. Reference: ${errorId}`
           return c.json(new NamedError.Unknown({ message }).toObject(), {
             status: 500,
           })
