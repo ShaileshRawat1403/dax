@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Evidence digests were locale-dependent.** The canonicalizer sorted object keys with
+  `localeCompare` - locale-aware collation, not the lexicographic order the shared Flowright schema
+  specifies - and record ordering tie-broke the same way on mixed-case base62 ids, which decides the
+  `prevDigest` chain. The published `evidenceDigest` therefore depended on the machine's locale and
+  ICU version and could not be reproduced by the other side of the contract. Both now sort by code
+  point. Digests computed before this fix on a non-C locale may differ.
+- **Every run event minted in the same millisecond shared an id.** `createEvent` built its uniqueness
+  suffix with `.toString(36).slice(2, 11)` on a counter, which returns an empty string until the
+  counter passes 1296.
+- **A caller could overwrite run-event identity.** `run-gateway.appendEvent` spread the caller's
+  object last, so `eventId`, `sequence`, `cursor`, `runId` and `timestamp` - the fields ordering and
+  replay depend on - could be supplied from outside.
+- The TUI entrypoint used an async Promise executor, so a failure during startup was swallowed and
+  the process hung with no diagnostic instead of reporting the error.
+- `lazy` existed twice with different behaviour, and both copies were imported from inside the same
+  package. There is now one implementation.
+
 ### Security
 
 - **Sandbox wrappers no longer build a shell string.** Every provider assembled an argv array and

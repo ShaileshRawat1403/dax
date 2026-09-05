@@ -212,9 +212,6 @@
   "src/cli/cmd/tui/app.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 3
-    },
-    "no-async-promise-executor": {
-      "count": 1
     }
   },
   "src/cli/cmd/tui/component/dialog-mcp.tsx": {
@@ -1172,7 +1169,7 @@
   },
   "src/server/run-gateway.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 7
+      "count": 5
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
