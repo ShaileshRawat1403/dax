@@ -220,7 +220,11 @@ export namespace InstructionPrompt {
     let current = path.dirname(target)
     const root = path.resolve(Instance.directory)
 
-    while (current.startsWith(root) && current !== root) {
+    // A raw prefix test has no separator boundary, so a sibling directory like
+    // <root>-secrets satisfied it and its instruction files were read into the
+    // model context. This path has no ctx.ask and no containment check of its
+    // own, so the loop bound is the only control.
+    while (current !== root && Filesystem.contains(root, current)) {
       const found = await find(current)
 
       if (found && found !== target && !system.has(found) && !already.has(found) && !isClaimed(messageID, found)) {
