@@ -42,19 +42,34 @@ Please perform new development work only within these directories:
 
 ```bash
 # Setup dependencies
-bun install
+bun install --frozen-lockfile
 
 # Start the interactive development environment
 bun run dev
 ```
 
 ### Mandatory Checks
-Before submitting a PR, ensure all checks pass:
+Use Bun 1.4.0. Before handing a feature branch to the maintainer, run the checks enforced by CI:
 ```bash
-bun run typecheck:dax   # Static type safety
-bun run test            # Comprehensive test suite
-bun run release:check   # Release readiness and integrity
+bun install --frozen-lockfile
+bun run check:repo
+bun run guard:legacy    # Non-Windows: prevent retired roots from returning
+bun run lint            # All five workspaces, with tracked lint debt
+bun run typecheck       # All five workspaces
+bun run test --coverage
+bun run eval:smoke
+bun run rust:verify     # fmt, clippy with warnings denied, and Rust tests
+bun audit --audit-level high
 ```
+
+For a tagged release, also run `DAX_RELEASE=1 bun run release:check` on a clean working tree.
+The release workflow enforces the same quality checks before building and publishing artifacts.
+
+The existing DAX lint suppressions remain in `packages/dax/eslint-suppressions.json`.
+WO-10a extends coverage to the other four workspaces with 54 existing violations recorded
+separately in `eslint-workspaces-suppressions.json`; their source cleanup belongs to WO-10b.
+Do not run `lint:baseline` or regenerate either file to hide new violations. Remove obsolete
+entries with `--prune-suppressions` as the corresponding code is fixed or deleted.
 
 ---
 

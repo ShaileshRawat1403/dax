@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -14,38 +14,75 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.0
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Audit dependencies
+        run: bun audit --audit-level high
+
+      - name: Lint all workspaces
+        run: bun run lint
+
+      - name: Typecheck all workspaces
+        run: bun run typecheck
+
+      - name: Test with coverage
+        run: bun run test --coverage
+
+      - name: Smoke evals
+        run: bun run eval:smoke
+
+      - name: Verify Rust
+        run: bun run rust:verify
 
       - name: Verify release inputs
         run: bun run release:check
+        env:
+          DAX_RELEASE: "1"
 
       - name: Build canonical release assets
         run: bun run build
         working-directory: packages/dax
         env:
+          DAX_RELEASE: "1"
           DAX_CHANNEL: ${{ contains(github.ref_name, '-beta.') && 'beta' || 'latest' }}
 
       - name: List release assets
         run: find packages/dax/dist/release -maxdepth 1 -type f | sort
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-assets
           path: packages/dax/dist/release/*
           if-no-files-found: error
 
       - name: Publish GitHub release assets
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           files: |
             packages/dax/dist/release/*.tar.gz

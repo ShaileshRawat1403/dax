@@ -3,6 +3,9 @@
   "name": "@dax-ai/script",
   "version": "1.0.0",
   "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "publishConfig": {
     "access": "public"
   },
