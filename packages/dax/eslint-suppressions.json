@@ -1110,7 +1110,7 @@
   },
   "src/provider/provider.ts": {
     "@typescript-eslint/ban-ts-comment": {
-      "count": 4
+      "count": 3
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 26
