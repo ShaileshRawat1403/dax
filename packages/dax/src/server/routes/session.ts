@@ -10,6 +10,7 @@ import { SessionRevert } from "../../session/revert"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "../../session/todo"
+import { Identifier } from "../../id/id"
 import { Agent } from "../../agent/agent"
 import { Snapshot } from "@/snapshot"
 import { Log } from "../../util/log"
@@ -173,7 +174,7 @@ export const SessionRoutes = lazy(() =>
       validator(
         "param",
         z.object({
-          sessionID: z.string().meta({ description: "Session ID" }),
+          sessionID: Identifier.schema("session").meta({ description: "Session ID" }),
         }),
       ),
       async (c) => {

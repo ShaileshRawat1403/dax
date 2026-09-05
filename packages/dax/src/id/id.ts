@@ -14,7 +14,14 @@ export namespace Identifier {
   } as const
 
   export function schema(prefix: keyof typeof prefixes) {
-    return z.string().startsWith(prefixes[prefix])
+    // startsWith alone let "ses../../etc" through, and IDs are used as storage
+    // path segments. No dot and no separator can appear in an identifier, which
+    // is what makes traversal impossible; underscores and hyphens stay legal
+    // because callers do mint ids like "ses_worker_1".
+    return z
+      .string()
+      .startsWith(prefixes[prefix])
+      .regex(/^[a-zA-Z]+_[0-9a-zA-Z_-]+$/, "must be a bare identifier")
   }
 
   const LENGTH = 26
