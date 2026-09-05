@@ -7,7 +7,7 @@
  *
  * Before this module, each of those carried its own hand-maintained tool-id
  * list, and they had drifted. The compiler listed a non-existent "apply" tool
- * and omitted the real "apply_patch" and "multiedit" edit tools, so a
+ * and omitted "apply_patch" and the legacy "multiedit" identifier, so a
  * read-only / analyze / audit intent silently kept edit capability. This module
  * removes that failure class by giving every consumer one list.
  *
@@ -20,7 +20,7 @@
  * so the lists cannot silently drift from the tools that actually exist.
  */
 
-/** File-editing tools. All run under the single "edit" permission EditTool asks for. */
+/** File-editing IDs, including legacy multiedit receipts. All use the "edit" permission. */
 export const EDIT_TOOL_IDS = ["edit", "write", "apply_patch", "multiedit"] as const
 
 /** Command-executing tools. `bash`/`exec`/`run` are legacy aliases kept for parity. */
