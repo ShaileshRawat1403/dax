@@ -17,6 +17,7 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { Snapshot } from "@/snapshot"
 import { assertExternalDirectory } from "./external-directory"
+import { assertUnprotectedWrite } from "./protected-path"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
@@ -42,6 +43,7 @@ export const EditTool = Tool.define("edit", {
     }
 
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+    await assertUnprotectedWrite(filePath)
     await assertExternalDirectory(ctx, filePath)
 
     let diff = ""
@@ -61,6 +63,7 @@ export const EditTool = Tool.define("edit", {
             diff,
           },
         })
+        await assertUnprotectedWrite(filePath)
         await Bun.write(filePath, params.newString)
         await Bus.publish(File.Event.Edited, {
           file: filePath,
@@ -94,6 +97,7 @@ export const EditTool = Tool.define("edit", {
         },
       })
 
+      await assertUnprotectedWrite(filePath)
       await file.write(contentNew)
       await Bus.publish(File.Event.Edited, {
         file: filePath,
