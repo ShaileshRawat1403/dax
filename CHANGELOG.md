@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **The audit trail is now tamper-evident.** `dax audit` reads the `pm_rao_event` table, which was a
+  plain SQLite insert with no chaining - one `UPDATE` and the doctored history read back clean. Every
+  event now carries the hash-chain link that `crates/dax-ledger` defines, computed in TypeScript so
+  it works without the Rust sidecar, and cross-checked against the Rust implementation by a pinned
+  vector in both test suites. `dax verify audit` recomputes the chain and reports where it breaks.
+  Events written before this change have no digests: they are reported as unchained rather than
+  back-filled, because inventing chain history for records that were never chained would forge the
+  trail. The hash-chained ledger crate that shipped with no production caller is what backs it.
+- The ledger's own crate no longer leaves its timestamp outside the hash, appends under an exclusive
+  lock so two concurrent writers cannot brick the chain, and creates its files 0600.
+
 - **Sandbox wrappers no longer build a shell string.** Every provider assembled an argv array and
   then joined it with spaces, so the result was re-parsed by the outer shell: the model-controlled
   working directory was interpolated unquoted, and the seatbelt wrapper escaped only `"`, so a
