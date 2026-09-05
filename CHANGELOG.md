@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Type-aware lint rules are on.** The config used typescript-eslint's `recommended`, not
+  `recommendedTypeChecked`, so every rule needing type information was off - including the family
+  that catches this codebase's actual mistakes. `no-floating-promises`, `no-misused-promises`,
+  `await-thenable` and a `no-restricted-imports` guard on `child_process` now run and surfaced 191
+  existing violations (148 floating promises, 37 `await` on non-thenables, 6 direct `child_process`
+  imports). Those are recorded in the suppressions ratchet so no *new* ones can be added; they are
+  tracked debt, not fixed. 82 of them are in `server/`, `session/`, `governance/`, `tool/`, `shell/`,
+  `mcp/`, `plugin/`, `worker/` and `execution/`.
+- `noImplicitOverride`, `noFallthroughCasesInSwitch` and `verbatimModuleSyntax` are enabled - each
+  was free. `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are not: they surface 615 and
+  460 existing errors, so each is its own piece of work rather than a config edit.
+
 ### Fixed
 
 - **Evidence digests were locale-dependent.** The canonicalizer sorted object keys with
