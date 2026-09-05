@@ -1107,14 +1107,6 @@
       "count": 1
     }
   },
-  "src/runtime/migration/report.ts": {
-    "@typescript-eslint/no-namespace": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    }
-  },
   "src/runtime/otel/index.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
@@ -1332,9 +1324,6 @@
   "src/session/system.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
-    },
-    "no-constant-condition": {
-      "count": 1
     }
   },
   "src/session/todo.ts": {
@@ -1400,11 +1389,6 @@
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
-    }
-  },
-  "src/skills/types.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
     }
   },
   "src/snapshot/index.ts": {
