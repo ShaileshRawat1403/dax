@@ -2,7 +2,7 @@
   "$schema": "https://dax.ai/theme.json",
   "defs": {
     "primary": "#8B79E8",
-    "accent": "#6BB8D4",
+    "accent": "#5FBFB4",
     "bg": "#181C28",
     "panel": "#1C2030",
     "element": "#20253A",
@@ -10,10 +10,10 @@
     "muted": "#7B89A3",
     "red": "#C46A72",
     "amber": "#D4A843",
-    "tan": "#C9A87C",
+    "tan": "#B3A48E",
     "green": "#8EBA82",
-    "blue": "#7AA0C4",
-    "indigo": "#A882C8"
+    "blue": "#6FA3DC",
+    "indigo": "#C286D2"
   },
   "theme": {
     "primary": "primary",

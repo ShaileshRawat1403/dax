@@ -99,7 +99,7 @@ function generateWorkflowSummary(state: SessionState, workflowId: string): any {
 
 export const WorkflowCommand = cmd({
   command: "workflow <command>",
-  describe: "Manage DAX workflows",
+  describe: "manage DAX workflows",
   builder: (yargs: Argv) => {
     return yargs
       .command({
@@ -257,7 +257,7 @@ export const WorkflowCommand = cmd({
       })
       .command({
         command: "artifacts <subcommand>",
-        describe: "Manage workflow artifacts",
+        describe: "manage workflow artifacts",
         builder: (yargs: Argv) =>
           yargs
             .command({
