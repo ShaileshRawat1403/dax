@@ -12,6 +12,7 @@ import { fn } from "../util/fn"
 import { Log } from "../util/log"
 import { BusEvent } from "@/bus/bus-event"
 import { GlobalBus } from "@/bus/global"
+import { Filesystem } from "../util/filesystem"
 
 export namespace Worktree {
   const log = Log.create({ service: "worktree" })
@@ -382,6 +383,14 @@ export namespace Worktree {
     }
 
     const directory = await canonical(input.directory)
+    const root = path.join(Global.Path.data, "worktree", Instance.project.id)
+    if (
+      directory === (await canonical(Instance.worktree)) ||
+      directory === (await canonical(root)) ||
+      !Filesystem.containsReal(root, directory)
+    ) {
+      throw new RemoveFailedError({ message: "Cannot remove a directory outside the project's managed worktrees" })
+    }
     const list = await $`git worktree list --porcelain`.quiet().nothrow().cwd(Instance.worktree)
     if (list.exitCode !== 0) {
       throw new RemoveFailedError({ message: errorText(list) || "Failed to read git worktrees" })
@@ -413,11 +422,7 @@ export namespace Worktree {
     })()
 
     if (!entry?.path) {
-      const directoryExists = await exists(directory)
-      if (directoryExists) {
-        await fs.rm(directory, { recursive: true, force: true })
-      }
-      return true
+      throw new RemoveFailedError({ message: "Directory is not a registered git worktree" })
     }
 
     const removed = await $`git worktree remove --force ${entry.path}`.quiet().nothrow().cwd(Instance.worktree)
