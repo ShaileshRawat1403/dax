@@ -1,38 +1,18 @@
 import { Show, Switch, Match } from "solid-js"
-import { TextAttributes } from "@opentui/core"
 import { type RenderableStreamItem, type RunPhase, getPhaseLabel } from "@/dax/presentation/session-stream"
 import type { AssistantMessage, UserMessage } from "@dax-ai/sdk/v2"
 import { useTheme } from "@tui/context/theme"
 import { RunEventRow } from "./run-event-row"
 import { AlertInline } from "./alert-inline"
 import { PhaseRail } from "./phase-rail"
+import { STREAM_INDENT } from "./layout"
 
 export function StreamItem(props: {
   item: RenderableStreamItem
   isLast: boolean
   index: number
-  previousItem?: RenderableStreamItem
-  allItems?: RenderableStreamItem[]
   MessageComponent: typeof MessagePlaceholder
 }) {
-  const suppressHeader = () => {
-    if (props.item.kind !== "message.assistant") return false
-    const currAgent = (props.item.data as AssistantMessage).agent
-    // Look backward past run.events to find the last assistant message.
-    // If it has the same agent, suppress the repeated label — it's the same mode continuing.
-    const all = props.allItems
-    if (!all) return false
-    for (let i = props.index - 1; i >= 0; i--) {
-      const prev = all[i]!
-      if (prev.kind === "message.assistant") {
-        return (prev.data as AssistantMessage).agent === currAgent
-      }
-      // Stop looking back if we cross a user turn or phase boundary
-      if (prev.kind === "message.user" || prev.kind === "phase.marker") break
-    }
-    return false
-  }
-
   return (
     <Switch>
       <Match when={props.item.kind === "phase.marker"}>
@@ -69,21 +49,31 @@ export function StreamItem(props: {
           message={props.item.data as AssistantMessage}
           last={props.isLast}
           partsOverride={props.item.parts}
-          suppressHeader={suppressHeader()}
+          suppressHeader={props.item.suppressHeader}
         />
       </Match>
     </Switch>
   )
 }
 
+/**
+ * The boundary between one turn and the next.
+ *
+ * This used to be an empty box with margins, so the most important division in
+ * the stream was three blank lines that looked like every other gap. A rule
+ * costs one line and makes the turn structure scannable.
+ */
 function TurnSeparator() {
+  const { theme } = useTheme()
   return (
     <box
       flexShrink={0}
-      marginTop={2}
+      marginTop={1}
       marginBottom={1}
-      marginLeft={2}
-      marginRight={2}
+      marginLeft={STREAM_INDENT.structure}
+      marginRight={STREAM_INDENT.structure}
+      border={["top"]}
+      borderColor={theme.border}
     />
   )
 }
@@ -95,13 +85,13 @@ function CompactionMarker(props: { variant?: string }) {
       flexDirection="row"
       gap={1}
       alignItems="center"
-      paddingLeft={2}
-      paddingRight={2}
+      paddingLeft={STREAM_INDENT.content}
+      paddingRight={STREAM_INDENT.content}
       marginTop={1}
       marginBottom={1}
     >
-      <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-        {props.variant ? `⟳  context compacted · ${props.variant}` : "⟳  context compacted"}
+      <text fg={theme.textMuted}>
+        {props.variant ? `context compacted · ${props.variant}` : "context compacted"}
       </text>
     </box>
   )
@@ -109,7 +99,7 @@ function CompactionMarker(props: { variant?: string }) {
 
 function MessagePlaceholder(props: { message: AssistantMessage | UserMessage; last: boolean; partsOverride?: any[]; suppressHeader?: boolean }) {
   return (
-    <box paddingLeft={2} paddingRight={2} marginTop={1} marginBottom={1}>
+    <box paddingLeft={STREAM_INDENT.content} paddingRight={STREAM_INDENT.content} marginTop={1} marginBottom={1}>
       <text fg="$text">{`[${props.message.role} message - use existing Message component]`}</text>
     </box>
   )

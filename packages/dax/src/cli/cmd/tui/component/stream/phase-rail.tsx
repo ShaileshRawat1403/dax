@@ -2,6 +2,7 @@ import { Show, createMemo } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { type RunPhase, formatDuration } from "@/dax/presentation/session-stream"
 import { useTheme } from "@tui/context/theme"
+import { STREAM_INDENT } from "./layout"
 
 export function PhaseRail(props: {
   phase: RunPhase
@@ -41,14 +42,14 @@ export function PhaseRail(props: {
       flexDirection="row"
       gap={1}
       alignItems="center"
-      paddingLeft={1}
-      paddingRight={1}
+      paddingLeft={STREAM_INDENT.structure}
+      paddingRight={STREAM_INDENT.structure}
       marginTop={1}
       marginBottom={0}
     >
       <text
         fg={labelColor()}
-        attributes={props.status === "active" ? TextAttributes.BOLD : TextAttributes.DIM}
+        attributes={props.status === "active" ? TextAttributes.BOLD : undefined}
       >
         {props.label.toLowerCase()}
       </text>
@@ -57,9 +58,7 @@ export function PhaseRail(props: {
       <box flexGrow={1} />
 
       <Show when={summary()}>
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
-          {summary()}
-        </text>
+        <text fg={theme.textMuted}>{summary()}</text>
       </Show>
     </box>
   )

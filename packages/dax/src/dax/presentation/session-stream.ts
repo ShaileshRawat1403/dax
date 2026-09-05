@@ -55,6 +55,13 @@ export interface RenderableStreamItem {
   /** Duration in milliseconds (set on phase.marker and run.event items when computable) */
   durationMs?: number
   narrative?: StreamNarrativeDescriptor
+  /**
+   * True when this assistant message continues the same agent as the previous
+   * one, so the renderer should not repeat the agent label. Computed here in a
+   * single pass: the renderer used to be handed the entire item array and scan
+   * backwards from its own index, which is quadratic in the length of a session.
+   */
+  suppressHeader?: boolean
 }
 
 const PHASE_MAP: Record<string, RunPhase> = {
@@ -737,8 +744,31 @@ export function buildStreamItems(
 
   const merged = mergeAdjacentAssistantEvidenceItems(streamItems)
   annotatePhaseStats(merged, narrative)
-  return merged
+  return annotateSuppressedHeaders(merged)
 }
+
+/**
+ * Mark assistant messages that continue the same agent as the previous one.
+ *
+ * Run events sit between assistant messages, so the previous *message* is not
+ * the previous *item*; a user turn or a phase boundary resets the context and
+ * the label must reappear.
+ */
+function annotateSuppressedHeaders(items: RenderableStreamItem[]): RenderableStreamItem[] {
+  let lastAssistantAgent: string | undefined
+  for (const item of items) {
+    if (item.kind === "message.user" || item.kind === "phase.marker") {
+      lastAssistantAgent = undefined
+      continue
+    }
+    if (item.kind !== "message.assistant") continue
+    const agent = (item.data as AssistantMessage | undefined)?.agent
+    item.suppressHeader = lastAssistantAgent !== undefined && agent === lastAssistantAgent
+    lastAssistantAgent = agent
+  }
+  return items
+}
+
 
 function buildLegacyStreamItems(
   messages: MessageV2.Info[],
@@ -790,7 +820,7 @@ function buildLegacyStreamItems(
     }
   }
 
-  return mergeAdjacentAssistantEvidenceItems(streamItems)
+  return annotateSuppressedHeaders(mergeAdjacentAssistantEvidenceItems(streamItems))
 }
 
 function canMergeAssistantItems(

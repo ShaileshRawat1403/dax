@@ -1369,8 +1369,6 @@ export function Session() {
                       item={item}
                       index={index()}
                       isLast={index() === lastMessageIndex()}
-                      previousItem={index() > 0 ? streamItems()[index() - 1] : undefined}
-                      allItems={streamItems()}
                       MessageComponent={Message}
                     />
                   </>

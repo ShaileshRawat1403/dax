@@ -2,6 +2,7 @@ import { For, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useTheme } from "@tui/context/theme"
 import { TodoItem } from "@tui/component/todo-item"
+import { STREAM_INDENT } from "./layout"
 
 export interface TodoEntry {
   id?: string
@@ -43,11 +44,11 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
           <text fg={theme.info} attributes={TextAttributes.BOLD}>
             Plan
           </text>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+          <text fg={theme.textMuted}>
             {completedCount()}/{props.todos.length} done
           </text>
           <Show when={activeCount() > 0}>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            <text fg={theme.textMuted}>
               · {activeCount()} active
             </text>
           </Show>
@@ -58,7 +59,7 @@ export function TodoStreamBlock(props: TodoStreamBlockProps) {
           </For>
         </box>
         <Show when={hiddenCompletedCount() > 0}>
-          <box paddingLeft={2} paddingTop={0} paddingBottom={0}>
+          <box paddingLeft={STREAM_INDENT.content} paddingTop={0} paddingBottom={0}>
             <text fg={theme.textMuted} dim>
               {hiddenCompletedCount()} completed hidden · {activeCount()} active
             </text>
