@@ -15,6 +15,13 @@ interface Context {
 }
 const context = Context.create<Context>("instance")
 const cache = new Map<string, Promise<Context>>()
+const MAX_CACHED_CONTEXTS = 64
+
+export class InstanceCapacityError extends Error {
+  constructor() {
+    super("Project instance capacity reached; dispose an unused instance before opening another")
+  }
+}
 
 const disposal = {
   all: undefined as Promise<void> | undefined,
@@ -22,8 +29,12 @@ const disposal = {
 
 export const Instance = {
   async provide<R>(input: { directory: string; init?: () => Promise<any>; fn: () => R }): Promise<R> {
+    input = { ...input, directory: path.resolve(input.directory) }
     let existing = cache.get(input.directory)
     if (!existing) {
+      // Contexts can own background runs and pending approvals after a request
+      // returns. Do not evict them implicitly; explicit disposal releases capacity.
+      if (cache.size >= MAX_CACHED_CONTEXTS) throw new InstanceCapacityError()
       Log.Default.info("creating instance", { directory: input.directory })
       existing = iife(async () => {
         const { project, sandbox } = await Project.fromDirectory(input.directory)
