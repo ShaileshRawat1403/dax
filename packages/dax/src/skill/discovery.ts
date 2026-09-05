@@ -2,6 +2,8 @@ import path from "path"
 import { mkdir } from "fs/promises"
 import { Log } from "../util/log"
 import { Global } from "../global"
+import { Filesystem } from "../util/filesystem"
+import z from "zod"
 
 export namespace Discovery {
   const log = Log.create({ service: "skill-discovery" })
@@ -19,13 +21,19 @@ export namespace Discovery {
     skills: RegistryEntry[]
   }
 
-  type Index = {
-    skills: Array<{
-      name: string
-      description: string
-      files: string[]
-    }>
-  }
+  const component = z
+    .string()
+    .min(1)
+    .refine(
+      (value) =>
+        value !== "." &&
+        value !== ".." &&
+        !/[/\\:\0]/.test(value) &&
+        !path.isAbsolute(value) &&
+        !path.win32.isAbsolute(value),
+    )
+  const entry = z.object({ name: component, files: z.array(component) })
+  const indexSchema = z.object({ skills: z.array(z.unknown()) })
 
   export function dir() {
     return path.join(Global.Path.cache, "skills")
@@ -68,7 +76,8 @@ export namespace Discovery {
     ]
   }
 
-  async function get(url: string, dest: string): Promise<boolean> {
+  async function get(url: string, dest: string, cache: string): Promise<boolean> {
+    if (!Filesystem.containsReal(cache, dest)) return false
     if (await Bun.file(dest).exists()) return true
     return fetch(url)
       .then(async (response) => {
@@ -76,7 +85,9 @@ export namespace Discovery {
           log.error("failed to download", { url, status: response.status })
           return false
         }
-        await Bun.write(dest, await response.text())
+        const content = await response.text()
+        if (!Filesystem.containsReal(cache, dest)) return false
+        await Bun.write(dest, content)
         return true
       })
       .catch((err) => {
@@ -101,7 +112,7 @@ export namespace Discovery {
         }
         return response
           .json()
-          .then((json) => json as Index)
+          .then((json) => indexSchema.parse(json))
           .catch((err) => {
             log.error("failed to parse index", { url: index, err })
             return undefined
@@ -117,28 +128,34 @@ export namespace Discovery {
       return result
     }
 
-    const list = data.skills.filter((skill) => {
-      if (!skill?.name || !Array.isArray(skill.files)) {
+    const list = data.skills.flatMap((skill) => {
+      const parsed = entry.safeParse(skill)
+      if (!parsed.success) {
         log.warn("invalid skill entry", { url: index, skill })
-        return false
+        return []
       }
-      return true
+      return [parsed.data]
     })
+
+    if (!Filesystem.containsReal(Global.Path.cache, cache)) return result
+    await mkdir(cache, { recursive: true })
 
     await Promise.all(
       list.map(async (skill) => {
         const root = path.join(cache, skill.name)
+        if (!Filesystem.containsReal(cache, root)) return
         await Promise.all(
           skill.files.map(async (file) => {
             const link = new URL(file, `${host}/${skill.name}/`).href
             const dest = path.join(root, file)
+            if (!Filesystem.containsReal(cache, dest)) return
             await mkdir(path.dirname(dest), { recursive: true })
-            await get(link, dest)
+            await get(link, dest, cache)
           }),
         )
 
         const md = path.join(root, "SKILL.md")
-        if (await Bun.file(md).exists()) result.push(root)
+        if (Filesystem.containsReal(cache, md) && (await Bun.file(md).exists())) result.push(root)
       }),
     )
 
