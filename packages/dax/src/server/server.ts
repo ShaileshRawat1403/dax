@@ -50,6 +50,7 @@ import { SandboxRoutes } from "./routes/sandbox"
 import { getSecrets } from "@/secrets/secrets-loader"
 import { initialize as initializeOtel } from "@/runtime/otel"
 import { configureTransport, isAllowedOrigin, transportSecurity } from "./transport-security"
+import { authorizedDirectory, setLaunchDirectory } from "./directory-boundary"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -186,14 +187,17 @@ export namespace Server {
         )
         .use(async (c, next) => {
           if (c.req.path === "/log") return next()
-          const raw = c.req.query("directory") || c.req.header("x-dax-directory") || process.cwd()
-          const directory = (() => {
+          const raw = c.req.query("directory") ?? c.req.header("x-dax-directory")
+          const decoded = (() => {
+            if (raw === undefined || c.req.query("directory") !== undefined) return raw
             try {
               return decodeURIComponent(raw)
             } catch {
               return raw
             }
           })()
+          const directory = await authorizedDirectory(decoded)
+          if (!directory) return c.json({ error: "Directory is not authorized for this server" }, 403)
           return Instance.provide({
             directory,
             init: InstanceBootstrap,
@@ -586,6 +590,7 @@ export namespace Server {
       }
       log.warn("Explicitly allowing unauthenticated non-loopback access", { hostname: opts.hostname })
     }
+    await setLaunchDirectory(process.cwd())
     configureTransport({ hostname: opts.hostname, ports: [opts.port || 4096], cors: opts.cors })
 
     const args = {
