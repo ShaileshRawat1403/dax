@@ -48,21 +48,21 @@
 - [x] `cargo fmt --all -- --check`
 - [x] `cargo clippy --workspace --all-targets -- -D warnings`
 - [x] `cargo test --workspace` (79 pass)
-- [ ] `bun audit` has zero high-severity findings
+- [x] `bun audit --audit-level high` has zero high-severity findings
 - [ ] Canonical release build produces all 11 target archives, manifest, installer, and verified checksums
 - [ ] GitHub CI is green on Ubuntu, macOS, and Windows for `main` (run 29174772587).
 
 WO-10a installs these checks in CI and release workflows. Re-tick only after the corresponding
 checks pass on the candidate commit; local checks do not establish cross-platform CI or release-build success.
-The dependency audit still reports 15 high-severity advisories (34 total) and blocks release. They are
-upstream and pre-existing; fixing them means major-version migrations, not an in-range bump.
+The dependency audit passes at high severity. A flat override keeps `js-yaml` on a patched release;
+the tracked `gray-matter` compatibility patch replaces its removed `safeLoad`/`safeDump` aliases.
+The other vulnerable transitive packages are constrained to compatible patched versions.
 
 ## Known Operational Limits
 
 - Worker provider calls use full network access; hostname allowlisting is future hardening.
 - Worker profiles permit host reads and confine writes; use a container or VM for stronger confidentiality.
 - Windows external workers are unavailable.
-- The residual dependency advisories require major upstream migrations and are documented in the changelog.
 
 ## References
 
