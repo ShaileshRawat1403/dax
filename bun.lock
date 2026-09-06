@@ -50,6 +50,7 @@
         "@dax-ai/script": "workspace:*",
         "@dax-ai/sdk": "workspace:*",
         "@dax-ai/util": "workspace:*",
+        "@hono/standard-validator": "catalog:",
         "@infisical/sdk": "^5.0.2",
         "@modelcontextprotocol/sdk": "^1.26.0",
         "@octokit/graphql": "9.0.2",
@@ -197,6 +198,7 @@
   },
   "catalog": {
     "@cloudflare/workers-types": "4.20251008.0",
+    "@hono/standard-validator": "0.2.3",
     "@hono/zod-validator": "0.4.2",
     "@kobalte/core": "0.13.11",
     "@octokit/rest": "22.0.0",
@@ -516,6 +518,8 @@
     "@hey-api/types": ["@hey-api/types@0.1.4", "", {}, "sha512-thWfawrDIP7wSI9ioT13I5soaaqB5vAPIiZmgD8PbeEVKNrkonc0N/Sjj97ezl7oQgusZmaNphGdMKipPO6IBg=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
+
+    "@hono/standard-validator": ["@hono/standard-validator@0.2.3", "", { "peerDependencies": { "@standard-schema/spec": "^1.0.0", "hono": ">=3.9.0" } }, "sha512-bp9vHu6Va6SfMHC3D4ZLBbT/woi+AZ9CRdTXQu3kLJuLh2W/Gb9UO4hijS+BQAGFXi4EGpXdetxpzwTAawSVeg=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.1", "", {}, "sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA=="],
 

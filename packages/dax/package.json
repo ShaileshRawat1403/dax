@@ -74,6 +74,7 @@
     "@dax-ai/script": "workspace:*",
     "@dax-ai/sdk": "workspace:*",
     "@dax-ai/util": "workspace:*",
+    "@hono/standard-validator": "catalog:",
     "@infisical/sdk": "^5.0.2",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@octokit/graphql": "9.0.2",

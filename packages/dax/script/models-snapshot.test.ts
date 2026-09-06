@@ -42,3 +42,37 @@ test("snapshot generation accepts models.dev fields that are optional by contrac
 
   expect(() => modelsSnapshotSource(JSON.stringify(snapshot))).not.toThrow()
 })
+
+test("snapshot generation accepts provider request shapes and structured experimental modes", () => {
+  const snapshot = {
+    test: {
+      id: "test",
+      name: "Test",
+      env: [],
+      models: {
+        fast: {
+          id: "fast",
+          name: "Fast",
+          release_date: "2026-01-01",
+          attachment: false,
+          reasoning: false,
+          tool_call: true,
+          limit: { context: 8192, output: 8192 },
+          provider: { shape: "responses" },
+          experimental: {
+            modes: {
+              fast: {
+                cost: { input: 1.5, output: 9, cache_read: 0.15 },
+                provider: { body: { service_tier: "priority" } },
+              },
+            },
+          },
+        },
+      },
+    },
+  }
+
+  const source = modelsSnapshotSource(JSON.stringify(snapshot))
+  expect(source).toContain('"shape":"responses"')
+  expect(source).toContain('"service_tier":"priority"')
+})

@@ -14,6 +14,44 @@ export namespace ModelsDev {
   const log = Log.create({ service: "models.dev" })
   const filepath = path.join(Global.Path.cache, "models.json")
 
+  const ExperimentalCost = z
+    .object({
+      input: z.number(),
+      output: z.number(),
+      reasoning: z.number().optional(),
+      cache_read: z.number().optional(),
+      cache_write: z.number().optional(),
+      input_audio: z.number().optional(),
+      output_audio: z.number().optional(),
+    })
+    .strict()
+
+  const ProviderRequest = z
+    .object({
+      npm: z.string().optional(),
+      api: z.string().optional(),
+      shape: z.enum(["responses", "completions"]).optional(),
+      body: z.record(z.string(), z.json()).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
+    })
+    .strict()
+
+  const Experimental = z
+    .object({
+      modes: z
+        .record(
+          z.string(),
+          z
+            .object({
+              cost: ExperimentalCost.optional(),
+              provider: ProviderRequest.pick({ body: true, headers: true }).optional(),
+            })
+            .strict(),
+        )
+        .optional(),
+    })
+    .strict()
+
   export const Model = z.object({
     id: z.string(),
     name: z.string(),
@@ -60,11 +98,11 @@ export namespace ModelsDev {
         output: z.array(z.enum(["text", "audio", "image", "video", "pdf"])),
       })
       .optional(),
-    experimental: z.boolean().optional(),
+    experimental: z.union([z.boolean(), Experimental]).optional(),
     status: z.enum(["alpha", "beta", "deprecated"]).optional(),
     options: z.record(z.string(), z.any()).optional(),
     headers: z.record(z.string(), z.string()).optional(),
-    provider: z.object({ npm: z.string() }).optional(),
+    provider: ProviderRequest.optional(),
     variants: z.record(z.string(), z.record(z.string(), z.any())).optional(),
   })
   export type Model = z.infer<typeof Model>
