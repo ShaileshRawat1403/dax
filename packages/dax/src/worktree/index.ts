@@ -380,10 +380,11 @@ export namespace Worktree {
 
     const directory = await canonical(input.directory)
     const root = path.join(Global.Path.data, "worktree", Instance.project.id)
+    const canonicalRoot = await canonical(root)
     if (
       directory === (await canonical(Instance.worktree)) ||
-      directory === (await canonical(root)) ||
-      !Filesystem.containsReal(root, directory)
+      directory === canonicalRoot ||
+      !Filesystem.contains(canonicalRoot, directory)
     ) {
       throw new RemoveFailedError({ message: "Cannot remove a directory outside the project's managed worktrees" })
     }

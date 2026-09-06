@@ -35,6 +35,11 @@ export class FsLockTimeoutError extends FsLockError {
   }
 }
 
+function isLockContentionError(code: string | undefined) {
+  if (code === "EEXIST") return true
+  return process.platform === "win32" && (code === "EACCES" || code === "EBUSY" || code === "EPERM")
+}
+
 export async function acquireRunLock(
   runId: string,
   options: FsLockOptions = {},
@@ -72,26 +77,28 @@ export async function acquireRunLock(
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
-      if (code === "EEXIST") {
+      if (isLockContentionError(code)) {
         if (Date.now() - startTime > timeoutMs) {
           throw new FsLockTimeoutError(runId)
         }
 
-        try {
-          const existingContent = await fs.readFile(lockPath, "utf-8")
-          const existingMeta = JSON.parse(existingContent) as FsLockMetadata
+        if (code === "EEXIST") {
+          try {
+            const existingContent = await fs.readFile(lockPath, "utf-8")
+            const existingMeta = JSON.parse(existingContent) as FsLockMetadata
 
-          const isStale = await isLockStale(existingMeta)
-          if (isStale) {
-            try {
-              await fs.unlink(lockPath)
-              continue
-            } catch {
-              // Failed to remove stale lock
+            const isStale = await isLockStale(existingMeta)
+            if (isStale) {
+              try {
+                await fs.unlink(lockPath)
+                continue
+              } catch {
+                // Failed to remove stale lock
+              }
             }
+          } catch {
+            // Failed to read lock file
           }
-        } catch {
-          // Failed to read lock file
         }
 
         await new Promise((resolve) => setTimeout(resolve, retryIntervalMs))
