@@ -1939,11 +1939,6 @@
       "count": 3
     }
   },
-  "src/worktree/index.test.ts": {
-    "@typescript-eslint/await-thenable": {
-      "count": 2
-    }
-  },
   "src/worktree/index.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1

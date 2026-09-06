@@ -26,14 +26,36 @@ import { BatchTool } from "@/tool/batch"
 import z from "zod"
 
 let testHome = ""
+let testProject = ""
 let previousTestHome: string | undefined
+
+async function runGit(cwd: string, args: string[]): Promise<void> {
+  const child = Bun.spawn(["git", ...args], { cwd, stdout: "pipe", stderr: "pipe" })
+  const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()])
+  if (exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${stderr}`)
+}
 
 beforeEach(async () => {
   previousTestHome = process.env.DAX_TEST_HOME
   testHome = path.join(os.tmpdir(), `dax-native-settlement-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`)
+  testProject = path.join(testHome, "project")
   process.env.DAX_TEST_HOME = testHome
   mkdirSync(testHome, { recursive: true })
   mkdirSync(path.join(testHome, ".config", "dax"), { recursive: true })
+  mkdirSync(testProject, { recursive: true })
+  await Bun.write(path.join(testProject, "README.md"), "# Native settlement fixture\n")
+  await runGit(testProject, ["init", "--quiet"])
+  await runGit(testProject, ["add", "."])
+  await runGit(testProject, [
+    "-c",
+    "user.name=DAX Tests",
+    "-c",
+    "user.email=dax@example.invalid",
+    "commit",
+    "--quiet",
+    "-m",
+    "fixture",
+  ])
   await Instance.disposeAll()
 })
 
@@ -43,8 +65,6 @@ afterEach(async () => {
   else process.env.DAX_TEST_HOME = previousTestHome
   rmSync(testHome, { recursive: true, force: true })
 })
-
-const repoRoot = path.resolve(import.meta.dir, "../../../..")
 
 async function createGovernedRun(title: string, toolAllowlist?: string[]) {
   const session = await Session.create({ title })
@@ -60,7 +80,7 @@ async function createGovernedRun(title: string, toolAllowlist?: string[]) {
 describe("native settlement crash windows", () => {
   test("invocation append failure throws and leaves no tracked state, so the executor never runs", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Invocation append failure")
         const spy = spyOn(EventTransitions, "recordToolInvocation").mockRejectedValue(new Error("disk full"))
@@ -91,7 +111,7 @@ describe("native settlement crash windows", () => {
 
   test("authorization append failure throws and leaves the invocation without an authorization event, so the caller must not proceed to an effect", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Authorization append failure")
         const invocationId = "call_crash_authorization"
@@ -132,7 +152,7 @@ describe("native settlement crash windows", () => {
 
   test("policy denial is terminal and contradictory re-authorization is rejected", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Denial durability")
         const invocationId = "call_crash_denied"
@@ -173,7 +193,7 @@ describe("native settlement crash windows", () => {
 
   test("result append failure after a real success throws, and no automatic retry re-authorizes or re-records", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Result append failure")
         const invocationId = "call_crash_result"
@@ -235,7 +255,7 @@ describe("native settlement crash windows", () => {
 
   test("successful result append projects a completed invocation", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Successful settlement")
         const invocationId = "call_crash_success"
@@ -273,7 +293,7 @@ describe("native settlement crash windows", () => {
 
   test("an invocation identity cannot be replayed with identical or changed execution facts", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Invocation identity fence")
         const invocationId = "call_identity_fence"
@@ -316,7 +336,7 @@ describe("native settlement crash windows", () => {
 
   test("canonical policy evaluation without pending coordination fails before policy runs", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Missing policy handoff")
         await expect(
@@ -336,7 +356,7 @@ describe("native settlement crash windows", () => {
 
   test("multiple policy checks form one final authorization and a later denial wins", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Combined policy denial")
         await Session.update(session.id, (draft) => {
@@ -392,7 +412,7 @@ describe("native settlement crash windows", () => {
 
   test("allowed policy remains non-executable until the combined authorization is sealed", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Explicit authorization seal")
         await Session.update(session.id, (draft) => {
@@ -426,7 +446,7 @@ describe("native settlement crash windows", () => {
 
   test("contract denial is canonical and happens before runtime policy or execution", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const { session } = await createGovernedRun("Contract leaf denial", ["read"])
         await expect(
@@ -456,7 +476,7 @@ describe("native settlement crash windows", () => {
 
   test("batch propagates an uncertain child result instead of reporting ordinary partial success", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const toolId = "batch_result_append_probe"
         const { session } = await createGovernedRun("Batch child result uncertainty", ["batch", toolId])
@@ -525,7 +545,7 @@ describe("native settlement crash windows", () => {
 
   test("a non-canonical (ungoverned) session is not tracked and current behavior is preserved", async () => {
     await Instance.provide({
-      directory: repoRoot,
+      directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Ungoverned" })
         const result = await beginNativeInvocation({

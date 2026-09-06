@@ -217,7 +217,7 @@ function homeStateDirs(
   const home = hostEnv.HOME
   const fromHome = home ? homeRelative.map((name) => join(home, name)) : []
   const all = [...explicit, ...fromHome].filter(
-    (path): path is string => typeof path === "string" && path.startsWith("/"),
+    (path): path is string => typeof path === "string" && isAbsolute(path),
   )
   return [...new Set(all)]
 }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import path from "node:path"
 import {
   DEFAULT_WORKER_TIMEOUT_MS,
   DefaultWorkerProviderRegistry,
@@ -148,7 +149,7 @@ describe("worker adapter", () => {
       "43s",
     ])
     expect(invocation.command).not.toContain("--dangerously-skip-permissions")
-    expect(invocation.writableStatePaths).toEqual(["/Users/operator/.gemini/antigravity-cli"])
+    expect(invocation.writableStatePaths).toEqual([path.join("/Users/operator", ".gemini/antigravity-cli")])
     expect(invocation.env.XPC_FLAGS).toBe("0x0")
     expect(invocation.env.XPC_SERVICE_NAME).toBe("0")
     expect(invocation.env.AWS_SECRET_ACCESS_KEY).toBeUndefined()

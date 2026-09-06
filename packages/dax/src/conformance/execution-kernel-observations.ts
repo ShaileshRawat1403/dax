@@ -982,7 +982,7 @@ export async function observeWorkerKernel(root: string): Promise<KernelObservati
           verification_emitted: {
             satisfied:
               verificationPayload?.status === "passed" &&
-              Boolean(approved.verificationCwd?.includes(".dax/worker-checkouts/")) &&
+              Boolean(approved.verificationCwd?.includes(path.join(".dax", "worker-checkouts"))) &&
               failedVerificationPayload?.status === "failed" &&
               !has(failedVerification.events, "approval_requested") &&
               !has(failedVerification.events, "workflow_completed"),

@@ -24,9 +24,10 @@ test("remove requires both git registration and managed-root containment", async
         await fs.mkdir(unregistered, { recursive: true })
         const sentinel = path.join(unregistered, "keep.txt")
         await Bun.write(sentinel, "keep")
-        await expect(Worktree.remove({ directory: unregistered })).rejects.toMatchObject({
-          data: { message: "Directory is not a registered git worktree" },
-        })
+        const unregisteredError = await Worktree.remove({ directory: unregistered }).catch((error) => error)
+        expect(Worktree.RemoveFailedError.isInstance(unregisteredError)).toBe(true)
+        if (!Worktree.RemoveFailedError.isInstance(unregisteredError)) throw unregisteredError
+        expect(unregisteredError.data.message).toBe("Directory is not a registered git worktree")
         expect(await Bun.file(sentinel).text()).toBe("keep")
 
         const outside = path.join(home, "outside")
@@ -34,9 +35,12 @@ test("remove requires both git registration and managed-root containment", async
         const alias = path.join(root, "alias")
         await fs.symlink(outside, alias)
         for (const directory of [repo, root, outside, alias]) {
-          await expect(Worktree.remove({ directory })).rejects.toMatchObject({
-            data: { message: "Cannot remove a directory outside the project's managed worktrees" },
-          })
+          const containmentError = await Worktree.remove({ directory }).catch((error) => error)
+          expect(Worktree.RemoveFailedError.isInstance(containmentError)).toBe(true)
+          if (!Worktree.RemoveFailedError.isInstance(containmentError)) throw containmentError
+          expect(containmentError.data.message).toBe(
+            "Cannot remove a directory outside the project's managed worktrees",
+          )
           expect((await fs.stat(directory)).isDirectory()).toBe(true)
         }
 

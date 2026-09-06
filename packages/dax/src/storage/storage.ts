@@ -260,7 +260,23 @@ export namespace Storage {
     const dir = await state().then((x) => x.dir)
     const fromPath = resolve(dir, from)
     const toPath = resolve(dir, to)
-    await fs.rename(fromPath, toPath)
+    using _ = await Lock.write(toPath)
+
+    // Windows can briefly deny a replace while a file watcher or virus scanner
+    // still has the destination open. Coordinate with in-process readers first,
+    // then retry only the transient replacement errors. The source remains intact
+    // between attempts, so a failed retry never creates a missing canonical file.
+    const delays = [10, 25, 50, 100]
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await fs.rename(fromPath, toPath)
+        return
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException | undefined)?.code
+        if (!code || !["EACCES", "EBUSY", "EPERM"].includes(code) || attempt >= delays.length) throw error
+        await Bun.sleep(delays[attempt])
+      }
+    }
   }
 
   async function withErrorHandling<T>(body: () => Promise<T>) {
