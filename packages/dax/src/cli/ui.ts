@@ -1,7 +1,7 @@
 import z from "zod"
 import { EOL } from "os"
 import { NamedError } from "@dax-ai/util/error"
-import { logo as glyphs } from "./logo"
+import { logo as glyphs, BRAND_RAMP } from "./logo"
 
 export namespace UI {
   export const CancelledError = NamedError.create("UICancelledError", z.void())
@@ -40,52 +40,36 @@ export namespace UI {
     blank = true
   }
 
+  /**
+   * The wordmark, drawn in the brand ramp.
+   *
+   * It rendered in flat `gray` - the least legible neutral available - as the
+   * first thing anyone sees, while dax-logo.svg carries a violet-to-blue
+   * identity the terminal never used. Each column is interpolated across that
+   * ramp, so the mark reads as the same object in both places. Terminals
+   * without truecolor fall back to a single brand-adjacent colour rather than
+   * to grey.
+   */
   export function logo(pad?: string) {
-    const result: string[] = []
     const reset = "\x1b[0m"
-    const left = {
-      fg: Bun.color("gray", "ansi") ?? "",
-      shadow: "\x1b[38;5;235m",
-      bg: "\x1b[48;5;235m",
+    const truecolor = (process.env["COLORTERM"] ?? "").includes("truecolor") || (process.env["COLORTERM"] ?? "") === "24bit"
+    const width = Math.max(...glyphs.map((row) => row.length))
+
+    const colorAt = (column: number) => {
+      if (!truecolor) return "\x1b[38;5;99m"
+      const t = width <= 1 ? 0 : column / (width - 1)
+      const [r, g, b] = [0, 1, 2].map((i) =>
+        Math.round(BRAND_RAMP.from[i]! + (BRAND_RAMP.to[i]! - BRAND_RAMP.from[i]!) * t),
+      )
+      return `\x1b[38;2;${r};${g};${b}m`
     }
-    const right = {
-      fg: reset,
-      shadow: "\x1b[38;5;238m",
-      bg: "\x1b[48;5;238m",
-    }
-    const gap = " "
-    const draw = (line: string, fg: string, shadow: string, bg: string) => {
-      const parts: string[] = []
-      for (const char of line) {
-        if (char === "_") {
-          parts.push(bg, " ", reset)
-          continue
-        }
-        if (char === "^") {
-          parts.push(fg, bg, "▀", reset)
-          continue
-        }
-        if (char === "~") {
-          parts.push(shadow, "▀", reset)
-          continue
-        }
-        if (char === " ") {
-          parts.push(" ")
-          continue
-        }
-        parts.push(fg, char, reset)
-      }
-      return parts.join("")
-    }
-    glyphs.left.forEach((row, index) => {
-      if (pad) result.push(pad)
-      result.push(draw(row, left.fg, left.shadow, left.bg))
-      result.push(gap)
-      const other = glyphs.right[index] ?? ""
-      result.push(draw(other, right.fg, right.shadow, right.bg))
-      result.push(EOL)
-    })
-    return result.join("").trimEnd()
+
+    return glyphs
+      .map((row) => {
+        const cells = [...row].map((char, column) => (char === " " ? " " : colorAt(column) + char))
+        return (pad ?? "") + cells.join("") + reset
+      })
+      .join(EOL)
   }
 
   export async function input(prompt: string): Promise<string> {

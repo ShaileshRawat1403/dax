@@ -6,6 +6,12 @@
     "jsxImportSource": "solid-js",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    // noUncheckedIndexedAccess and exactOptionalPropertyTypes are the two that
+    // are not free: they surface 615 and 460 existing errors respectively.
+    // Turning either on is its own piece of work, not a config edit.
     "noUncheckedIndexedAccess": false,
     "customConditions": ["browser"],
     "paths": {

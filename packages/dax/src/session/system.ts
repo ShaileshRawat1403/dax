@@ -1,5 +1,3 @@
-import { Ripgrep } from "../file/ripgrep"
-
 import { Instance } from "../project/instance"
 import { Vcs } from "../project/vcs"
 
@@ -43,16 +41,6 @@ export namespace SystemPrompt {
         `  Platform: ${process.platform}`,
         `  Today's date: ${new Date().toDateString()}`,
         `</env>`,
-        `<directories>`,
-        `  ${
-          project.vcs === "git" && false
-            ? await Ripgrep.tree({
-                cwd: Instance.directory,
-                limit: 50,
-              })
-            : ""
-        }`,
-        `</directories>`,
       ].join("\n"),
     ]
   }

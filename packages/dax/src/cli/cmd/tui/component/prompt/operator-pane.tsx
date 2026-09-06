@@ -128,8 +128,8 @@ export function OperatorPane(props: {
                 onMouseUp={() => setInstructionScope(() => "once")}
                 border={["round"]}
                 borderColor={instructionScope() === "once" ? theme.primary : theme.borderSubtle}
-                paddingLeft={0.5}
-                paddingRight={0.5}
+                paddingLeft={0}
+                paddingRight={0}
               >
                 <text fg={instructionScope() === "once" ? theme.primary : theme.textMuted} fontSize={0.8}>
                   ○ Once
@@ -139,8 +139,8 @@ export function OperatorPane(props: {
                 onMouseUp={() => setInstructionScope(() => "session")}
                 border={["round"]}
                 borderColor={instructionScope() === "session" ? theme.primary : theme.borderSubtle}
-                paddingLeft={0.5}
-                paddingRight={0.5}
+                paddingLeft={0}
+                paddingRight={0}
               >
                 <text fg={instructionScope() === "session" ? theme.primary : theme.textMuted} fontSize={0.8}>
                   ● Session
@@ -159,8 +159,8 @@ export function OperatorPane(props: {
                   onMouseUp={() => props.onInstructionChange?.(template.description)}
                   border={["round"]}
                   borderColor={theme.borderSubtle}
-                  paddingLeft={0.5}
-                  paddingRight={0.5}
+                  paddingLeft={0}
+                  paddingRight={0}
                 >
                   <text fg={theme.primary} fontSize={0.85}>
                     {template.label}
@@ -225,8 +225,8 @@ export function OperatorPane(props: {
                             ? tint(theme.backgroundElement, theme.primary, 0.16)
                             : undefined
                         }
-                        paddingLeft={0.5}
-                        paddingRight={0.5}
+                        paddingLeft={0}
+                        paddingRight={0}
                       >
                         <text
                           fg={
@@ -345,8 +345,8 @@ export function OperatorPane(props: {
                   onMouseUp={() => props.onSessionTagChange?.(tag)}
                   border={["round"]}
                   borderColor={theme.borderSubtle}
-                  paddingLeft={0.5}
-                  paddingRight={0.5}
+                  paddingLeft={0}
+                  paddingRight={0}
                 >
                   <text fg={theme.textMuted} fontSize={0.85}>
                     {tag}

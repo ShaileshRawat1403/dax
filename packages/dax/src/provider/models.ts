@@ -21,7 +21,7 @@ export namespace ModelsDev {
     release_date: z.string(),
     attachment: z.boolean(),
     reasoning: z.boolean(),
-    temperature: z.boolean(),
+    temperature: z.boolean().optional(),
     tool_call: z.boolean(),
     interleaved: z
       .union([
@@ -62,7 +62,7 @@ export namespace ModelsDev {
       .optional(),
     experimental: z.boolean().optional(),
     status: z.enum(["alpha", "beta", "deprecated"]).optional(),
-    options: z.record(z.string(), z.any()),
+    options: z.record(z.string(), z.any()).optional(),
     headers: z.record(z.string(), z.string()).optional(),
     provider: z.object({ npm: z.string() }).optional(),
     variants: z.record(z.string(), z.record(z.string(), z.any())).optional(),

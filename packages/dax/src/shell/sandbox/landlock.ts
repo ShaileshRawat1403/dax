@@ -72,16 +72,14 @@ export class LandlockSandbox implements SandboxProviderImpl {
     this.deniedPaths = paths
   }
 
-  async wrap(command: string, cwd: string): Promise<string> {
+  async wrap(command: string, cwd: string): Promise<string[]> {
     if (!this.allowedPaths.length) {
       this.allowedPaths = [cwd, "/tmp", "/var/tmp"]
     }
 
     const allowArgs = this.allowedPaths.flatMap((p) => ["--allow-read", p])
     const denyArgs = this.deniedPaths.flatMap((p) => ["--deny", p])
-    const quotedCmd = `'${command.replace(/'/g, "'\\''")}'`
-
-    return ["landlock", ...allowArgs, ...denyArgs, "sh", "-c", quotedCmd].join(" ")
+    return ["landlock", ...allowArgs, ...denyArgs, "sh", "-c", command]
   }
 }
 

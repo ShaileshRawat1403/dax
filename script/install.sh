@@ -140,6 +140,21 @@ fi
 mkdir -p "$INSTALL_DIR"
 install -m 755 "$tmp_dir/dax" "$INSTALL_DIR/dax"
 
+# The archive can carry the Rust governance sidecars. They were extracted and
+# then left behind, so every installed dax fell back to `cargo run` - which
+# needs a Rust toolchain and the sources, so on a normal install the governance
+# binaries simply were not there.
+sidecars_installed=0
+for sidecar in dax-core dax-policy dax-audit dax-ledger dax-indexer; do
+  for candidate in "$tmp_dir/$sidecar" "$tmp_dir/bin/$sidecar"; do
+    if [[ -f "$candidate" ]]; then
+      install -m 755 "$candidate" "$INSTALL_DIR/$sidecar"
+      sidecars_installed=$((sidecars_installed + 1))
+      break
+    fi
+  done
+done
+
 cat > "$tmp_dir/dax-acp" <<'SHIM'
 #!/usr/bin/env bash
 exec dax acp "$@"
@@ -148,6 +163,11 @@ install -m 755 "$tmp_dir/dax-acp" "$INSTALL_DIR/dax-acp"
 
 echo "Installed dax to $INSTALL_DIR/dax"
 echo "Installed dax-acp to $INSTALL_DIR/dax-acp"
+if [[ "$sidecars_installed" -gt 0 ]]; then
+  echo "Installed $sidecars_installed governance sidecar(s) to $INSTALL_DIR"
+else
+  echo "note: this build ships no Rust governance sidecars; policy enforcement will fall back to the TypeScript path" >&2
+fi
 case ":$PATH:" in
   *":$INSTALL_DIR:"*)
     echo "dax is on your PATH. Run: dax"

@@ -9,10 +9,11 @@ import { Installation } from "@/installation"
 import { validateActorToken, type ActorClaims } from "@/identity/zitadel"
 import { AsyncLocalStorage } from "node:async_hooks"
 import { Storage } from "@/storage/storage"
+import { timingSafeEqual } from "node:crypto"
 
 export interface SubstrateAuth {
   token: string
-  mode: "token" | "dev-unsafe" | "zitadel"
+  mode: "token" | "zitadel"
   actor?: ActorClaims
 }
 
@@ -29,18 +30,17 @@ export async function extractAuth(request: Request): Promise<SubstrateAuth | und
     }
     return { token, mode: "token" }
   }
-  if (scheme.toLowerCase() === "dev-unsafe" && token === "dev-unsafe") {
-    return { token, mode: "dev-unsafe" }
-  }
   return undefined
 }
 
 export function validateAuth(auth: SubstrateAuth | undefined, expectedToken: string | undefined): boolean {
-  if (!expectedToken && !Flag.ZITADEL_DOMAIN) return true
+  if (!expectedToken && !Flag.ZITADEL_DOMAIN) return false
   if (!auth) return false
-  if (auth.mode === "dev-unsafe") return true
   if (auth.mode === "zitadel") return true
-  return auth.token === expectedToken
+  if (!expectedToken) return false
+  const supplied = Buffer.from(auth.token)
+  const expected = Buffer.from(expectedToken)
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected)
 }
 
 const actorStorage = new AsyncLocalStorage<ActorClaims>()

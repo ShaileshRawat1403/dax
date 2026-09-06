@@ -1,0 +1,110 @@
+{
+  "packages/plugin/src/example.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "packages/plugin/src/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    }
+  },
+  "packages/plugin/src/shell.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "packages/plugin/src/tool.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "packages/script/src/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "packages/sdk/js/src/client.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    }
+  },
+  "packages/sdk/js/src/gen/client/client.gen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    }
+  },
+  "packages/sdk/js/src/gen/core/bodySerializer.gen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "packages/sdk/js/src/gen/core/serverSentEvents.gen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "packages/sdk/js/src/v2/client.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "packages/sdk/js/src/v2/gen/client/client.gen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    }
+  },
+  "packages/sdk/js/src/v2/gen/core/bodySerializer.gen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "packages/sdk/js/src/v2/gen/core/serverSentEvents.gen.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "packages/util/src/binary.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "packages/util/src/error.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "packages/util/src/identifier.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "packages/util/src/path.ts": {
+    "no-useless-escape": {
+      "count": 4
+    }
+  },
+  "packages/util/src/slug.ts": {
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  }
+}

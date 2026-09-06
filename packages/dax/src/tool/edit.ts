@@ -17,6 +17,7 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { Snapshot } from "@/snapshot"
 import { assertExternalDirectory } from "./external-directory"
+import { assertUnprotectedWrite } from "./protected-path"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
@@ -80,6 +81,7 @@ export const EditTool = Tool.define("edit", {
     }
 
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+    await assertUnprotectedWrite(filePath)
     await assertExternalDirectory(ctx, filePath)
 
     let diff = ""
@@ -88,6 +90,10 @@ export const EditTool = Tool.define("edit", {
     await FileTime.withLock(filePath, async () => {
       if (params.oldString === "") {
         const existed = await Bun.file(filePath).exists()
+        if (existed) {
+          await FileTime.assert(ctx.sessionID, filePath)
+          contentOld = await Bun.file(filePath).text()
+        }
         contentNew = params.newString
         diff = trimDiff(createTwoFilesPatch(filePath, filePath, contentOld, contentNew))
         await ctx.ask({
@@ -100,6 +106,7 @@ export const EditTool = Tool.define("edit", {
           },
         })
         await ctx.authorize()
+        await assertUnprotectedWrite(filePath)
         await Bun.write(filePath, params.newString)
         await Bus.publish(File.Event.Edited, {
           file: filePath,
@@ -134,6 +141,7 @@ export const EditTool = Tool.define("edit", {
       })
       await ctx.authorize()
 
+      await assertUnprotectedWrite(filePath)
       await file.write(contentNew)
       await Bus.publish(File.Event.Edited, {
         file: filePath,

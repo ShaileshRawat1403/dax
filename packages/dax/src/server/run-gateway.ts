@@ -604,33 +604,46 @@ function queueRunEventMutation<T>(runId: string, operation: () => Promise<T>): P
   })
 }
 
-async function appendEvent(runId: string, event: any) {
+async function appendEvent(runId: string, event: Record<string, unknown>) {
   return queueRunEventMutation(runId, async () => {
     const events = await readEvents(runId)
     const sequence = (events.at(-1)?.sequence ?? 0) + 1
     const eventId = `evt_${runId}_${sequence}`
 
+    // Identity belongs to the log, not to the caller. Spreading `event` last
+    // let any caller overwrite eventId, sequence, cursor, runId and timestamp -
+    // the fields ordering and replay depend on.
+    const {
+      schemaVersion: _schemaVersion,
+      eventId: _eventId,
+      sequence: _sequence,
+      cursor: _cursor,
+      runId: _runId,
+      timestamp: _timestamp,
+      ...rest
+    } = event
+
     // Compute polished narrative message
     const narrativeItem = mapEventToNarrativeItem({
+      ...rest,
       schemaVersion: "v1",
       eventId,
       sequence,
       cursor: eventId,
       runId,
       timestamp: new Date().toISOString(),
-      ...event,
     } as any)
 
     const full: RunEvent = {
+      ...rest,
       schemaVersion: "v1",
       eventId,
       sequence,
       cursor: eventId,
       runId,
       timestamp: new Date().toISOString(),
-      message: narrativeItem?.message,
-      ...event,
-    } as any
+      message: (rest.message as string | undefined) ?? narrativeItem?.message,
+    } as RunEvent
     events.push(full)
     await writeEvents(runId, events)
     listeners.get(runId)?.forEach((listener) => listener(full))

@@ -24,13 +24,38 @@ fn main() {
     }
 }
 
-fn read_events() -> Vec<RunEvent> {
+fn read_input() -> String {
     let mut input = String::new();
     if let Err(e) = io::stdin().read_to_string(&mut input) {
         eprintln!("error reading stdin: {e}");
         process::exit(1);
     }
-    match serde_json::from_str(&input) {
+    input
+}
+
+fn parse_events(input: &str) -> Vec<RunEvent> {
+    match serde_json::from_str(input) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("error parsing events: {e}");
+            process::exit(1);
+        }
+    }
+}
+
+fn read_events() -> Vec<RunEvent> {
+    parse_events(&read_input())
+}
+
+/// The events exactly as they were supplied.
+///
+/// The proof used to hash `to_value(&Vec<RunEvent>)`, which is the struct after
+/// deserialization: any field the struct does not declare is dropped on the way
+/// back out, so two different event logs that differ only in fields dax-core
+/// does not recognize produced the same eventSequenceHash. A proof over a
+/// subset of the log does not bind the log.
+fn parse_raw_events(input: &str) -> Vec<serde_json::Value> {
+    match serde_json::from_str::<Vec<serde_json::Value>>(input) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("error parsing events: {e}");
@@ -62,11 +87,17 @@ fn run_replay() {
 }
 
 fn run_proof() {
-    let events = read_events();
+    let input = read_input();
+    let events = parse_events(&input);
 
-    let mut sorted = events.clone();
-    sorted.sort_by_key(|e| e.sequence);
-    let event_value = serde_json::to_value(&sorted).expect("serialization failed");
+    let mut raw = parse_raw_events(&input);
+    raw.sort_by_key(|event| {
+        event
+            .get("sequence")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+    });
+    let event_value = serde_json::Value::Array(raw);
     let event_sequence_hash = sha256_of(&event_value);
 
     match replay_run_state(&events) {

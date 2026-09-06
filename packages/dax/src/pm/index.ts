@@ -6,6 +6,7 @@ import path from "path"
 import { monotonicFactory } from "ulid"
 import z from "zod"
 import fs from "fs"
+import * as Chain from "./chain"
 
 export namespace PM {
   const log = Log.create({ service: "pm" })
@@ -20,8 +21,11 @@ export namespace PM {
    * prefix but randomises the suffix, so it cannot break the tie either.
    */
   const ulid = monotonicFactory()
+  /** Resolved once at load: the state directory can change afterwards. */
+  export const databaseFile = path.join(Global.Path.state, "pm.sqlite")
+
   const db = (() => {
-    const file = path.join(Global.Path.state, "pm.sqlite")
+    const file = databaseFile
     fs.mkdirSync(path.dirname(file), { recursive: true })
     const db = new Database(file, { create: true })
     // DAX commonly has a TUI and operator commands open together. Apply the
@@ -98,6 +102,23 @@ export namespace PM {
         "create index if not exists idx_pm_memory_category on pm_memory(project_id, category, created_at desc);",
       ].join("\n"),
     )
+
+    // The audit trail is what `dax audit` prints and what receipts cite, but it
+    // was a plain insert with no chaining: one UPDATE and the doctored history
+    // read back clean. Each event now carries the hash-chain link that
+    // crates/dax-ledger defines. Added with ALTER so existing installs keep
+    // their history: those rows have null digests and are reported as
+    // unchained by `dax verify` rather than being back-filled, because
+    // manufacturing chain history for records that were never chained would be
+    // forging an audit trail.
+    for (const column of ["chain_seq integer", "ts_iso text", "prev_hash text", "body_hash text", "chain_hash text"]) {
+      try {
+        db.exec(`alter table pm_rao_event add column ${column};`)
+      } catch {
+        // already present
+      }
+    }
+    db.exec("create index if not exists idx_pm_rao_chain on pm_rao_event(project_id, chain_seq desc);")
     return db
   })()
 
@@ -359,11 +380,55 @@ export namespace PM {
       const state = touch(input.project_id)
       const id = ulid()
       const created_at = Date.now()
+      const ts = new Date(created_at).toISOString()
+
+      // Chain this event onto the project's last chained one. The body is
+      // exactly what a verifier can reconstruct from the stored row, so the
+      // digest covers the whole record rather than the payload alone.
+      const previous = db
+        .prepare(
+          `select chain_seq, ts_iso, prev_hash, body_hash, chain_hash
+             from pm_rao_event
+            where project_id = ? and chain_hash is not null
+            order by chain_seq desc
+            limit 1`,
+        )
+        .get(input.project_id) as
+        | { chain_seq: number; ts_iso: string; prev_hash: string; body_hash: string; chain_hash: string }
+        | undefined
+
+      const body = {
+        id,
+        projectId: input.project_id,
+        sessionId: input.session_id ?? null,
+        messageId: input.message_id ?? null,
+        eventType: input.event_type,
+        payload: input.payload,
+        policyHash: input.policy_hash ?? null,
+        contractHash: input.contract_hash ?? null,
+        createdAt: created_at,
+      }
+
+      const entry = Chain.link(
+        previous
+          ? {
+              seq: previous.chain_seq,
+              ts: previous.ts_iso,
+              prevHash: previous.prev_hash,
+              bodyHash: previous.body_hash,
+              chainHash: previous.chain_hash,
+            }
+          : undefined,
+        body,
+        ts,
+      )
+
       db.prepare(
         `insert into pm_rao_event
-          (id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at)
+          (id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash, pm_rev, created_at,
+           chain_seq, ts_iso, prev_hash, body_hash, chain_hash)
          values
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         input.project_id,
@@ -375,8 +440,70 @@ export namespace PM {
         input.contract_hash ?? null,
         state.pm_rev,
         created_at,
+        entry.seq,
+        ts,
+        entry.prevHash,
+        entry.bodyHash,
+        entry.chainHash,
       )
-      return { id, pm_rev: state.pm_rev, created_at }
+      return { id, pm_rev: state.pm_rev, created_at, chain_hash: entry.chainHash }
+    },
+  )
+
+  /**
+   * Recompute the audit chain and report where it breaks.
+   *
+   * Rows written before chaining existed have no digests. They are reported as
+   * unchained rather than back-filled: inventing chain history for records that
+   * were never chained would be forging the audit trail this exists to protect.
+   */
+  export const verify_events = fn(
+    z.object({
+      project_id: z.string(),
+    }),
+    async (input) => {
+      const rows = db
+        .prepare(
+          `select id, project_id, session_id, message_id, event_type, payload, policy_hash, contract_hash,
+                  created_at, chain_seq, ts_iso, prev_hash, body_hash, chain_hash
+             from pm_rao_event
+            where project_id = ?
+            order by created_at asc, id asc`,
+        )
+        .all(input.project_id) as Array<Record<string, unknown>>
+
+      const unchained = rows.filter((row) => row.chain_hash === null)
+      const chained = rows
+        .filter((row) => row.chain_hash !== null)
+        .sort((left, right) => (left.chain_seq as number) - (right.chain_seq as number))
+
+      const links = chained.map((row) => ({
+        seq: row.chain_seq as number,
+        ts: row.ts_iso as string,
+        prevHash: row.prev_hash as string,
+        bodyHash: row.body_hash as string,
+        chainHash: row.chain_hash as string,
+      }))
+      const bodies = chained.map((row) => ({
+        id: row.id,
+        projectId: row.project_id,
+        sessionId: row.session_id ?? null,
+        messageId: row.message_id ?? null,
+        eventType: row.event_type,
+        payload: JSON.parse(row.payload as string),
+        policyHash: row.policy_hash ?? null,
+        contractHash: row.contract_hash ?? null,
+        createdAt: row.created_at,
+      }))
+
+      const failure = Chain.verify(links, bodies)
+      return {
+        total: rows.length,
+        unchained: unchained.length,
+        chained: chained.length,
+        ok: failure === undefined,
+        failure: failure ?? null,
+      }
     },
   )
 

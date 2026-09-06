@@ -20,6 +20,32 @@ export namespace Storage {
     }),
   )
 
+  export const InvalidKeyError = NamedError.create(
+    "InvalidKeyError",
+    z.object({
+      key: z.array(z.string()),
+      segment: z.string(),
+    }),
+  )
+
+  /**
+   * Key segments become path segments, so a caller that passes an unvalidated
+   * ID - a share import, an HTTP route param - would otherwise be able to walk
+   * out of the storage root and read or overwrite anything the process can.
+   * Every segment must be one inert name.
+   */
+  function assertKey(key: string[]) {
+    for (const segment of key) {
+      if (segment === "" || segment === "." || segment === ".." || /[/\\\0]/.test(segment))
+        throw new InvalidKeyError({ key, segment })
+    }
+  }
+
+  function resolve(dir: string, key: string[]) {
+    assertKey(key)
+    return path.join(dir, ...key) + ".json"
+  }
+
   const MIGRATIONS: Migration[] = [
     async (dir) => {
       const project = path.resolve(dir, "../project")
@@ -189,7 +215,7 @@ export namespace Storage {
 
   export async function remove(key: string[]) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = resolve(dir, key)
     return withErrorHandling(async () => {
       await fs.unlink(target).catch(() => {})
     })
@@ -201,7 +227,7 @@ export namespace Storage {
 
   export async function read<T>(key: string[]) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = resolve(dir, key)
     return withErrorHandling(async () => {
       using _ = await Lock.read(target)
       const result = await Bun.file(target).json()
@@ -211,7 +237,7 @@ export namespace Storage {
 
   export async function update<T>(key: string[], fn: (draft: T) => void) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = resolve(dir, key)
     return withErrorHandling(async () => {
       using _ = await Lock.write(target)
       const content = await Bun.file(target).json()
@@ -223,7 +249,7 @@ export namespace Storage {
 
   export async function write<T>(key: string[], content: T) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = resolve(dir, key)
     return withErrorHandling(async () => {
       using _ = await Lock.write(target)
       await Bun.write(target, JSON.stringify(content, null, 2))
@@ -232,8 +258,8 @@ export namespace Storage {
 
   export async function rename(from: string[], to: string[]) {
     const dir = await state().then((x) => x.dir)
-    const fromPath = path.join(dir, ...from) + ".json"
-    const toPath = path.join(dir, ...to) + ".json"
+    const fromPath = resolve(dir, from)
+    const toPath = resolve(dir, to)
     await fs.rename(fromPath, toPath)
   }
 
@@ -251,6 +277,7 @@ export namespace Storage {
   const glob = new Bun.Glob("**/*")
   export async function list(prefix: string[]) {
     const dir = await state().then((x) => x.dir)
+    assertKey(prefix)
     try {
       const result = await Array.fromAsync(
         glob.scan({

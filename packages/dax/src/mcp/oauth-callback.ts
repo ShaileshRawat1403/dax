@@ -39,7 +39,17 @@ const HTML_ERROR = (error: string) => `<!DOCTYPE html>
   <div class="container">
     <h1>Authorization Failed</h1>
     <p>An error occurred during authorization.</p>
-    <div class="error">${error}</div>
+    <div class="error">${error.replace(
+      /[&<>"']/g,
+      (character) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[character]!,
+    )}</div>
   </div>
 </body>
 </html>`
@@ -66,6 +76,7 @@ export namespace McpOAuthCallback {
     }
 
     server = Bun.serve({
+      hostname: "127.0.0.1",
       port: OAUTH_CALLBACK_PORT,
       fetch(req) {
         const url = new URL(req.url)

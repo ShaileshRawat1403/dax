@@ -35,8 +35,8 @@ const DOCUMENTED_BRANCH_PREFIXES = ["feat", "fix", "chore", "docs", "release", "
 const SHARED_GATES = [
   "bun run check:repo",
   "bun run guard:legacy",
-  "bun run typecheck:dax",
-  "bun run --cwd packages/dax lint",
+  "bun run typecheck",
+  "bun run lint",
   "bun run test",
   "bun run eval:smoke",
 ]
@@ -112,7 +112,7 @@ describe("release gate parity", () => {
 })
 
 describe("Bun version consistency", () => {
-  const PINNED = "1.3.9"
+  const PINNED = "1.4.0"
 
   test("root manifest, CI and release all declare the same Bun", () => {
     expect(manifest.packageManager).toBe(`bun@${PINNED}`)
@@ -120,16 +120,14 @@ describe("Bun version consistency", () => {
     expect(release).toContain(`bun-version: ${PINNED}`)
   })
 
-  test("no workflow leaves Bun unpinned", () => {
+  test("no workflow leaves Bun or its setup action unpinned", () => {
     for (const [name, workflow] of [
       ["ci.yml", ci],
       ["release.yml", release],
     ] as const) {
-      const setups = workflow.split("oven-sh/setup-bun@v2").slice(1)
-      expect(setups.length).toBeGreaterThan(0)
-      for (const setup of setups) {
-        expect({ name, pinned: setup.slice(0, 120).includes("bun-version:") }).toEqual({ name, pinned: true })
-      }
+      const setupRefs = [...workflow.matchAll(/uses:\s+oven-sh\/setup-bun@([0-9a-f]{40})(?:\s+#.*)?$/gm)]
+      expect({ name, setupCount: setupRefs.length }).toEqual({ name, setupCount: 1 })
+      expect(workflow).toContain(`bun-version: ${PINNED}`)
     }
   })
 })

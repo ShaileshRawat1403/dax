@@ -89,9 +89,46 @@ export namespace Agent {
     const cfg = await Config.get()
 
     const skillDirs = await Skill.dirs()
+    // Every permission is enumerated deliberately. There is no "*": "allow"
+    // seed: PolicyEngine.evaluate falls back to "ask" when nothing matches, so
+    // a permission nobody listed - a tool contributed by an MCP server, or one
+    // added to DAX later - now requires approval instead of being granted
+    // silently. The seed previously made shell, edit and every MCP tool resolve
+    // to allow, so the approval surface the product documents never appeared.
+    //
+    // Noise budget: reads and edits inside the worktree are not worth a prompt
+    // and do not get one. Approval is spent on execution, on egress, and on
+    // anything reaching outside the worktree - the last of which is enforced by
+    // external_directory rather than by these rules.
     const defaults = Permission.fromConfig({
-      "*": "allow",
+      // Execution.
+      shell: "ask",
       doom_loop: "ask",
+
+      // Egress. These leave the machine and carry model-composed text, so they
+      // are the exfiltration path a prompt injection would use.
+      webfetch: "ask",
+      websearch: "ask",
+      codesearch: "ask",
+
+      // Mutation inside the worktree. Escaping it is external_directory's job,
+      // and the configuration surface is denied below the ruleset entirely.
+      edit: "allow",
+
+      // Reads. Allowed in general, gated on credential-shaped paths.
+      read: SENSITIVE_PATH_RULES,
+      glob: SENSITIVE_PATH_RULES,
+      list: SENSITIVE_PATH_RULES,
+      grep: SENSITIVE_PATH_RULES,
+
+      // Local, non-mutating, no egress.
+      task: "allow",
+      skill: "allow",
+      lsp: "allow",
+      todoread: "allow",
+      todowrite: "allow",
+      pm_note: "allow",
+
       external_directory: {
         "*": "ask",
         [Truncate.GLOB]: "allow",
@@ -100,13 +137,6 @@ export namespace Agent {
       question: "deny",
       plan_enter: "deny",
       plan_exit: "deny",
-      read: SENSITIVE_PATH_RULES,
-      glob: SENSITIVE_PATH_RULES,
-      list: SENSITIVE_PATH_RULES,
-      grep: SENSITIVE_PATH_RULES,
-      codesearch: SENSITIVE_PATH_RULES,
-      webfetch: SENSITIVE_PATH_RULES,
-      websearch: SENSITIVE_PATH_RULES,
     })
     const user = Permission.fromConfig(cfg.permission ?? {})
 

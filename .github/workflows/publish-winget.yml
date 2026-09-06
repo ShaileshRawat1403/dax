@@ -20,6 +20,14 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_REPO: ${{ inputs.repo }}
+  PACKAGE_IDENTIFIER: ${{ inputs.package_identifier }}
+
 jobs:
   generate:
     runs-on: ubuntu-latest
@@ -27,18 +35,18 @@ jobs:
       package_exists: ${{ steps.check_package.outputs.package_exists }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: 1.4.0
 
       - name: Generate manifests
-        run: bun run dist:winget --version "${{ inputs.version }}" --repo "${{ inputs.repo }}" --id "${{ inputs.package_identifier }}"
+        run: bun run dist:winget --version "$RELEASE_VERSION" --repo "$RELEASE_REPO" --id "$PACKAGE_IDENTIFIER"
 
       - name: Upload winget manifests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: winget-manifests-${{ inputs.version }}
           path: dist/winget/manifests
@@ -48,7 +56,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          package_id="${{ inputs.package_identifier }}"
+          package_id="$PACKAGE_IDENTIFIER"
           package_path="${package_id//./\/}"
           url="https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/${package_path:0:1}/${package_path}"
           if curl -fsSL "$url" >/dev/null; then
@@ -66,16 +74,16 @@ jobs:
     needs: generate
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: 1.4.0
 
       - name: Generate manifests
         shell: pwsh
-        run: bun run dist:winget --version "${{ inputs.version }}" --repo "${{ inputs.repo }}" --id "${{ inputs.package_identifier }}"
+        run: bun run dist:winget --version $env:RELEASE_VERSION --repo $env:RELEASE_REPO --id $env:PACKAGE_IDENTIFIER
 
       - name: Install wingetcreate
         shell: pwsh
@@ -87,10 +95,10 @@ jobs:
           WINGETCREATE_TOKEN: ${{ secrets.WINGETCREATE_TOKEN }}
         run: |
           if (-not $env:WINGETCREATE_TOKEN) { throw "WINGETCREATE_TOKEN repository secret is required for submit mode." }
-          $version = "${{ inputs.version }}"
+          $version = $env:RELEASE_VERSION
           if ($version.StartsWith("v")) { $version = $version.Substring(1) }
-          $installerUrl = "https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/dax-windows-x64.zip"
-          wingetcreate update "${{ inputs.package_identifier }}" -u $installerUrl -v $version -o "dist/winget/manifests/$version" --submit --token $env:WINGETCREATE_TOKEN
+          $installerUrl = "https://github.com/$($env:RELEASE_REPO)/releases/download/$($env:RELEASE_VERSION)/dax-windows-x64.zip"
+          wingetcreate update $env:PACKAGE_IDENTIFIER -u $installerUrl -v $version -o "dist/winget/manifests/$version" --submit --token $env:WINGETCREATE_TOKEN
 
   submit-not-ready:
     if: ${{ inputs.submit && needs.generate.outputs.package_exists != 'true' }}
@@ -100,5 +108,5 @@ jobs:
       - name: Onboarding not merged yet
         run: |
           echo "Skipping submit because package is not yet in microsoft/winget-pkgs."
-          echo "Package: ${{ inputs.package_identifier }}"
+          echo "Package: $PACKAGE_IDENTIFIER"
           echo "Action: merge initial onboarding PR, then rerun with submit=true."

@@ -5,7 +5,6 @@ import { describeRoute, generateSpecs, validator, resolver, openAPIRouteHandler 
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
-import { proxy } from "hono/proxy"
 import { basicAuth } from "hono/basic-auth"
 import z from "zod"
 import { Provider } from "../provider/provider"
@@ -13,7 +12,7 @@ import { NamedError } from "@dax-ai/util/error"
 import { LSP } from "../lsp"
 import { Format } from "../format"
 import { TuiRoutes } from "./routes/tui"
-import { Instance } from "../project/instance"
+import { Instance, InstanceCapacityError } from "../project/instance"
 import { Vcs } from "../project/vcs"
 import { Agent } from "../agent/agent"
 import { Skill } from "../skill/skill"
@@ -49,6 +48,8 @@ import { SubstrateRoutes } from "./routes/substrate"
 import { SandboxRoutes } from "./routes/sandbox"
 import { getSecrets } from "@/secrets/secrets-loader"
 import { initialize as initializeOtel } from "@/runtime/otel"
+import { configureTransport, isAllowedOrigin, transportSecurity } from "./transport-security"
+import { authorizedDirectory, setLaunchDirectory } from "./directory-boundary"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -59,7 +60,6 @@ export namespace Server {
   const log = Log.create({ service: "server" })
 
   let _url: URL | undefined
-  let _corsWhitelist: string[] = []
 
   export function url(): URL {
     return _url ?? new URL("http://localhost:4096")
@@ -71,8 +71,11 @@ export namespace Server {
       // Refactor: Break server.ts into smaller route files to fix type inference
       app
         .onError((err, c) => {
+          const errorId = crypto.randomUUID()
           log.error("failed", {
+            errorId,
             error: err,
+            stack: err.stack,
           })
           if (err instanceof NamedError) {
             let status: ContentfulStatusCode
@@ -83,12 +86,15 @@ export namespace Server {
             return c.json(err.toObject(), { status })
           }
           if (err instanceof HTTPException) return err.getResponse()
-          const message = err instanceof Error && err.stack ? err.stack : err.toString()
+          if (err instanceof InstanceCapacityError) return c.json({ error: err.message }, 503)
+          const message = `Internal server error. Reference: ${errorId}`
           return c.json(new NamedError.Unknown({ message }).toObject(), {
             status: 500,
           })
         })
+        .use(transportSecurity)
         .use(async (c, next) => {
+          if (c.req.method === "OPTIONS") return next()
           const secrets = await getSecrets()
           const password = secrets.serverPassword
           if (!password) return next()
@@ -115,21 +121,7 @@ export namespace Server {
         .use(
           cors({
             origin(input) {
-              if (!input) return
-
-              if (input.startsWith("http://localhost:")) return input
-              if (input.startsWith("http://127.0.0.1:")) return input
-              if (input === "tauri://localhost" || input === "http://tauri.localhost") return input
-
-              // *.dax.ai (https only, adjust if needed)
-              if (/^https:\/\/([a-z0-9-]+\.)*dax\.ai$/.test(input)) {
-                return input
-              }
-              if (_corsWhitelist.includes(input)) {
-                return input
-              }
-
-              return
+              return input && isAllowedOrigin(input) ? input : undefined
             },
           }),
         )
@@ -198,14 +190,17 @@ export namespace Server {
         )
         .use(async (c, next) => {
           if (c.req.path === "/log") return next()
-          const raw = c.req.query("directory") || c.req.header("x-dax-directory") || process.cwd()
-          const directory = (() => {
+          const raw = c.req.query("directory") ?? c.req.header("x-dax-directory")
+          const decoded = (() => {
+            if (raw === undefined || c.req.query("directory") !== undefined) return raw
             try {
               return decodeURIComponent(raw)
             } catch {
               return raw
             }
           })()
+          const directory = await authorizedDirectory(decoded)
+          if (!directory) return c.json({ error: "Directory is not authorized for this server" }, 403)
           return Instance.provide({
             directory,
             init: InstanceBootstrap,
@@ -547,22 +542,7 @@ export namespace Server {
             })
           },
         )
-        .all("/*", async (c) => {
-          const path = c.req.path
-
-          const response = await proxy(`https://app.dax.ai${path}`, {
-            ...c.req,
-            headers: {
-              ...c.req.raw.headers,
-              host: "app.dax.ai",
-            },
-          })
-          response.headers.set(
-            "Content-Security-Policy",
-            "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' data:",
-          )
-          return response
-        }) as unknown as Hono,
+        .notFound((c) => c.json({ error: "Not found" }, 404)) as unknown as Hono,
   )
 
   export async function openapi() {
@@ -580,14 +560,26 @@ export namespace Server {
     return result
   }
 
-  export function listen(opts: {
+  export async function listen(opts: {
     port: number
     hostname: string
     mdns?: boolean
     mdnsDomain?: string
     cors?: string[]
+    allowUnauthenticated?: boolean
   }) {
-    _corsWhitelist = opts.cors ?? []
+    const secrets = await getSecrets()
+    const loopback = ["127.0.0.1", "localhost", "::1"].includes(opts.hostname)
+    if (!loopback && !secrets.serverPassword) {
+      if (!opts.allowUnauthenticated) {
+        throw new Error(
+          "DAX_SERVER_PASSWORD is required for a non-loopback listener. Use --allow-unauthenticated to explicitly override.",
+        )
+      }
+      log.warn("Explicitly allowing unauthenticated non-loopback access", { hostname: opts.hostname })
+    }
+    await setLaunchDirectory(process.cwd())
+    configureTransport({ hostname: opts.hostname, ports: [opts.port || 4096], cors: opts.cors })
 
     const args = {
       hostname: opts.hostname,
@@ -614,6 +606,11 @@ export namespace Server {
     }
 
     _url = server.url
+    configureTransport({
+      hostname: opts.hostname,
+      ports: [server.port!, ...(Flag.DAX_SUBSTRATE_ENABLED ? [Flag.DAX_SUBSTRATE_PORT] : [])],
+      cors: opts.cors,
+    })
 
     const shouldPublishMDNS =
       opts.mdns &&

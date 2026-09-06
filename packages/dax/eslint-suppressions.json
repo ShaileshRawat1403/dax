@@ -11,6 +11,9 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 6
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -50,6 +53,11 @@
   "src/approval/approval-transitions.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
+    }
+  },
+  "src/approval/canonical-approval-transitions.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 7
     }
   },
   "src/auth/index.ts": {
@@ -166,6 +174,9 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     },
@@ -204,6 +215,11 @@
       "count": 14
     }
   },
+  "src/cli/cmd/session.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    }
+  },
   "src/cli/cmd/skills.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -213,8 +229,8 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 3
     },
-    "no-async-promise-executor": {
-      "count": 1
+    "@typescript-eslint/no-floating-promises": {
+      "count": 7
     }
   },
   "src/cli/cmd/tui/component/dialog-mcp.tsx": {
@@ -228,8 +244,16 @@
     }
   },
   "src/cli/cmd/tui/component/dialog-session-list.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
+    }
+  },
+  "src/cli/cmd/tui/component/dialog-session-rename.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/cli/cmd/tui/component/dialog-status.tsx": {
@@ -245,6 +269,11 @@
       "count": 1
     }
   },
+  "src/cli/cmd/tui/component/governed-worker-launch.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
   "src/cli/cmd/tui/component/prompt/autocomplete.tsx": {
     "@typescript-eslint/no-unused-expressions": {
       "count": 1
@@ -256,6 +285,9 @@
   "src/cli/cmd/tui/component/prompt/index.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/cli/cmd/tui/component/prompt/operator-pane.tsx": {
@@ -266,11 +298,17 @@
   "src/cli/cmd/tui/component/prompt/prompt-dialogs.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
     }
   },
   "src/cli/cmd/tui/component/prompt/prompt-handlers.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 6
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -321,10 +359,16 @@
   "src/cli/cmd/tui/context/kv.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 3
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/cli/cmd/tui/context/local.tsx": {
     "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
       "count": 1
     }
   },
@@ -337,8 +381,16 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 4
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 15
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 3
+    }
+  },
+  "src/cli/cmd/tui/context/theme.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/cli/cmd/tui/event.ts": {
@@ -359,6 +411,16 @@
       "count": 6
     },
     "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/routes/session/canonical-approval-card.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
+  "src/cli/cmd/tui/routes/session/dialog-message.tsx": {
+    "@typescript-eslint/no-floating-promises": {
       "count": 1
     }
   },
@@ -390,11 +452,17 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
     }
   },
   "src/cli/cmd/tui/routes/session/rao-pane.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
     }
@@ -433,6 +501,9 @@
     }
   },
   "src/cli/cmd/tui/util/clipboard.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 8
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -463,6 +534,9 @@
   "src/cli/cmd/tui/worker.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/cli/cmd/workflow.ts": {
@@ -479,6 +553,9 @@
     }
   },
   "src/cli/ui.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -498,6 +575,9 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 5
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -508,6 +588,11 @@
   "src/config/markdown.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
+    }
+  },
+  "src/conformance/contract-authority.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 13
     }
   },
   "src/dax/presentation/pane.ts": {
@@ -556,9 +641,34 @@
       "count": 1
     }
   },
+  "src/execution/contract-authority-resolution.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 9
+    }
+  },
   "src/execution/contract-guardian.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
+    }
+  },
+  "src/execution/native-completion.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 2
+    }
+  },
+  "src/execution/native-execution.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
+  "src/execution/native-mutation-observation.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 5
+    }
+  },
+  "src/execution/native-settlement.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 11
     }
   },
   "src/execution/run-factory.ts": {
@@ -590,6 +700,9 @@
     }
   },
   "src/file/index.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -613,6 +726,9 @@
   "src/file/watcher.ts": {
     "@typescript-eslint/ban-ts-comment": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -667,12 +783,20 @@
       "count": 1
     }
   },
+  "src/governance/compound-approval.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
   "src/governance/evaluate.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
   },
   "src/governance/next.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 5
+    },
     "@typescript-eslint/no-explicit-any": {
       "count": 9
     }
@@ -680,6 +804,9 @@
   "src/governance/next.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -719,6 +846,9 @@
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 2
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/installation/index.ts": {
@@ -741,6 +871,9 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -749,8 +882,14 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 4
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
     "@typescript-eslint/no-namespace": {
       "count": 2
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
     }
   },
   "src/lsp/server.ts": {
@@ -758,6 +897,9 @@
       "count": 4
     },
     "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
@@ -770,6 +912,9 @@
     }
   },
   "src/mcp/index.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -778,6 +923,9 @@
     }
   },
   "src/mcp/oauth-callback.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -861,6 +1009,9 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     }
@@ -868,10 +1019,16 @@
   "src/plugin/claude-code.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/plugin/codex.ts": {
     "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
@@ -906,6 +1063,9 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 10
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 6
     },
@@ -920,6 +1080,9 @@
     "@typescript-eslint/ban-ts-comment": {
       "count": 1
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -929,12 +1092,20 @@
       "count": 1
     }
   },
+  "src/project/bootstrap.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    }
+  },
   "src/project/instance.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     }
   },
   "src/project/project.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -948,6 +1119,9 @@
     }
   },
   "src/project/vcs.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -972,13 +1146,16 @@
     "@typescript-eslint/ban-ts-comment": {
       "count": 2
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
   },
   "src/provider/provider.ts": {
     "@typescript-eslint/ban-ts-comment": {
-      "count": 4
+      "count": 3
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 26
@@ -1054,6 +1231,9 @@
     }
   },
   "src/pty/index.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1061,6 +1241,9 @@
   "src/question/index.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -1107,14 +1290,6 @@
       "count": 1
     }
   },
-  "src/runtime/migration/report.ts": {
-    "@typescript-eslint/no-namespace": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    }
-  },
   "src/runtime/otel/index.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
@@ -1123,6 +1298,26 @@
   "src/runtime/telemetry/index.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 2
+    }
+  },
+  "src/rust/audit.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
+  "src/rust/core.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
+  "src/rust/ledger.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
+  "src/rust/policy.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
     }
   },
   "src/scheduler/index.ts": {
@@ -1135,12 +1330,20 @@
       "count": 6
     }
   },
+  "src/server/listen.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 5
+    }
+  },
   "src/server/mdns.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
   },
   "src/server/open-source-stack.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    },
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     }
@@ -1153,11 +1356,22 @@
   "src/server/routes/global.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
     }
   },
   "src/server/routes/run.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    }
+  },
+  "src/server/routes/session.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
     }
   },
   "src/server/routes/soothsayer.ts": {
@@ -1173,14 +1387,28 @@
       "count": 1
     }
   },
+  "src/server/run-gateway-authority.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 9
+    }
+  },
   "src/server/run-gateway.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    },
     "@typescript-eslint/no-explicit-any": {
       "count": 5
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/server/run-gateway.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 7
+      "count": 5
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 12
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -1196,6 +1424,9 @@
     "@typescript-eslint/ban-ts-comment": {
       "count": 1
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1203,9 +1434,15 @@
   "src/server/transport/nats-transport.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
     }
   },
   "src/session/compaction.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1215,9 +1452,17 @@
       "count": 3
     }
   },
+  "src/session/governing-run-authority.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 5
+    }
+  },
   "src/session/index.ts": {
     "@typescript-eslint/ban-ts-comment": {
       "count": 2
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -1265,6 +1510,11 @@
       "count": 3
     }
   },
+  "src/session/native-run-birth.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 4
+    }
+  },
   "src/session/processor.test.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 15
@@ -1273,6 +1523,9 @@
   "src/session/processor.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 3
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -1291,7 +1544,13 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 10
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 12
+    },
     "@typescript-eslint/no-namespace": {
+      "count": 1
+    },
+    "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "no-case-declarations": {
@@ -1301,12 +1560,20 @@
       "count": 4
     }
   },
+  "src/session/retry.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
   "src/session/retry.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
   },
   "src/session/revert.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
@@ -1315,6 +1582,9 @@
     }
   },
   "src/session/status.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1325,6 +1595,9 @@
     }
   },
   "src/session/summary.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1332,12 +1605,12 @@
   "src/session/system.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
-    },
-    "no-constant-condition": {
-      "count": 1
     }
   },
   "src/session/todo.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1351,6 +1624,9 @@
     }
   },
   "src/share/share-next.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
     }
@@ -1385,6 +1661,9 @@
     "@typescript-eslint/no-namespace": {
       "count": 1
     },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     }
@@ -1398,13 +1677,11 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
     "@typescript-eslint/no-namespace": {
       "count": 1
-    }
-  },
-  "src/skills/types.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
     }
   },
   "src/snapshot/index.ts": {
@@ -1438,6 +1715,11 @@
       "count": 1
     }
   },
+  "src/storage/storage-key.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 5
+    }
+  },
   "src/storage/storage.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
@@ -1459,6 +1741,11 @@
       "count": 1
     }
   },
+  "src/tool/edit-security.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
   "src/tool/edit.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -1466,6 +1753,21 @@
   },
   "src/tool/git_branch.ts": {
     "no-control-regex": {
+      "count": 1
+    }
+  },
+  "src/tool/output-validation.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 6
+    }
+  },
+  "src/tool/protected-path.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 7
+    }
+  },
+  "src/tool/read.ts": {
+    "@typescript-eslint/no-floating-promises": {
       "count": 1
     }
   },
@@ -1483,6 +1785,11 @@
   "src/tool/shell-whitelist.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 2
+    }
+  },
+  "src/tool/shell.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
     }
   },
   "src/tool/task.ts": {
@@ -1534,6 +1841,9 @@
   "src/util/defer.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
     }
   },
   "src/util/filesystem.ts": {
@@ -1559,9 +1869,17 @@
       "count": 1
     }
   },
+  "src/util/locked-retry.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
   "src/util/log.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 24
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
     },
     "@typescript-eslint/no-namespace": {
       "count": 1
@@ -1593,6 +1911,11 @@
       "count": 1
     }
   },
+  "src/verify/replay.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 3
+    }
+  },
   "src/verify/replay.ts": {
     "preserve-caught-error": {
       "count": 1
@@ -1614,6 +1937,11 @@
   "src/workflows/repo-analyze.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 3
+    }
+  },
+  "src/worktree/index.test.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 2
     }
   },
   "src/worktree/index.ts": {

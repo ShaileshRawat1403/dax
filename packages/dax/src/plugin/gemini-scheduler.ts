@@ -140,14 +140,33 @@ async function waitForRetryCooldown(key: string): Promise<void> {
   retryCooldownByKey.delete(key)
 }
 
-async function processNext() {
+/**
+ * Fired and forgotten from seven call sites, including inside a Promise
+ * executor. If the async body rejects, the rejection is unhandled and the
+ * request it already dequeued never settles - the caller waits forever. Nothing
+ * escapes this wrapper.
+ */
+function processNext() {
+  void pumpQueue().catch((error) => {
+    debugLog(`scheduler pump failed: ${error instanceof Error ? error.message : String(error)}`)
+  })
+}
+
+async function pumpQueue() {
   if (requestQueue.length === 0) return
   if (inFlight >= MAX_CONCURRENCY) return
 
   const next = requestQueue.shift()
   if (!next) return
 
-  await waitForRetryCooldown(next.throttleKey)
+  try {
+    await waitForRetryCooldown(next.throttleKey)
+  } catch (error) {
+    // The request is already off the queue, so its promise is ours to settle.
+    next.reject(error instanceof Error ? error : new Error(String(error)))
+    processNext()
+    return
+  }
 
   inFlight++
   processNext()

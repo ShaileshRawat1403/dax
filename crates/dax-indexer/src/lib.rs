@@ -461,6 +461,12 @@ fn extract(lang: Language, source: &str, path: &Path) -> Result<Extraction, Inde
     })
 }
 
+/// Deep enough for any real source file, shallow enough that a pathological one
+/// cannot exhaust the stack. Without a bound, a deeply nested file - which a
+/// repository can simply contain - aborts the whole process rather than failing
+/// to index one file.
+const MAX_AST_DEPTH: usize = 512;
+
 fn visit(
     node: Node,
     source: &[u8],
@@ -469,6 +475,21 @@ fn visit(
     symbols: &mut Vec<Symbol>,
     imports: &mut Vec<Import>,
 ) {
+    visit_at_depth(node, source, lang, exported_parent, symbols, imports, 0)
+}
+
+fn visit_at_depth(
+    node: Node,
+    source: &[u8],
+    lang: Language,
+    exported_parent: bool,
+    symbols: &mut Vec<Symbol>,
+    imports: &mut Vec<Import>,
+    depth: usize,
+) {
+    if depth >= MAX_AST_DEPTH {
+        return;
+    }
     let kind = node.kind();
     let exported = exported_parent
         || kind == "export_statement"
@@ -485,7 +506,7 @@ fn visit(
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        visit(child, source, lang, exported, symbols, imports);
+        visit_at_depth(child, source, lang, exported, symbols, imports, depth + 1);
     }
 }
 

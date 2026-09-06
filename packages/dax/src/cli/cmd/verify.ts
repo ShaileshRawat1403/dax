@@ -4,6 +4,48 @@ import { bootstrap } from "../bootstrap"
 import { collectSessionVerification, formatSessionVerification } from "@/governance"
 import { readReplayEventsFile, verifyReplayEvents, formatReplayProof } from "@/verify/replay"
 import { DaxCoreError } from "@/rust/core"
+import { Instance } from "@/project/instance"
+import { PM } from "@/pm"
+import { EOL } from "os"
+
+/**
+ * Recompute the RAO audit chain for this project.
+ *
+ * The trail `dax audit` prints is what receipts cite, and until it was chained
+ * a single UPDATE against the SQLite file left doctored history reading clean.
+ */
+async function handleAuditVerification(format: string | undefined): Promise<void> {
+  await bootstrap(process.cwd(), async () => {
+    const result = await PM.verify_events({ project_id: Instance.project.id })
+
+    if (format === "json") {
+      console.log(JSON.stringify(result, null, 2))
+      if (!result.ok) process.exitCode = 1
+      return
+    }
+
+    process.stdout.write(`Audit trail for ${Instance.project.id}${EOL}${EOL}`)
+    process.stdout.write(`  events    ${result.total}${EOL}`)
+    process.stdout.write(`  chained   ${result.chained}${EOL}`)
+    if (result.unchained > 0) process.stdout.write(`  unchained ${result.unchained}${EOL}`)
+    process.stdout.write(EOL)
+
+    if (!result.ok) {
+      process.stdout.write(`FAILED at sequence ${result.failure?.seq}: ${result.failure?.reason}${EOL}`)
+      process.stdout.write(`The audit trail has been altered after it was written.${EOL}`)
+      process.exitCode = 1
+      return
+    }
+
+    process.stdout.write(`Chain intact: every chained event still hashes to what was recorded.${EOL}`)
+    if (result.unchained > 0) {
+      process.stdout.write(EOL)
+      process.stdout.write(`${result.unchained} event(s) predate hash chaining and cannot be verified.${EOL}`)
+      process.stdout.write(`They are reported rather than back-filled: inventing chain history for${EOL}`)
+      process.stdout.write(`records that were never chained would forge the trail this command checks.${EOL}`)
+    }
+  })
+}
 
 async function handleReplayVerification(args: {
   events?: string
@@ -37,7 +79,7 @@ export const VerifyCommand = cmd({
   builder: (yargs: Argv) =>
     yargs
       .positional("session-id", {
-        describe: "session id to verify, or 'replay' to verify a DAX event log",
+        describe: "session id to verify, 'audit' to verify this project's audit chain, or 'replay' to verify a DAX event log",
         type: "string",
       })
       .option("format", {
@@ -57,6 +99,11 @@ export const VerifyCommand = cmd({
       }),
   handler: async (args) => {
     const sessionID = String(args["session-id"])
+
+    if (sessionID === "audit") {
+      await handleAuditVerification(args.format)
+      return
+    }
 
     if (sessionID === "replay") {
       try {

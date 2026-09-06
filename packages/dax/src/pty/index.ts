@@ -9,6 +9,9 @@ import { Instance } from "../project/instance"
 import { lazy } from "@dax-ai/util/lazy"
 import { Shell } from "@/shell/shell"
 import { Plugin } from "@/plugin"
+import path from "path"
+import { Filesystem } from "../util/filesystem"
+import { NamedError } from "@dax-ai/util/error"
 
 export namespace Pty {
   const log = Log.create({ service: "pty" })
@@ -35,12 +38,26 @@ export namespace Pty {
 
   export type Info = z.infer<typeof Info>
 
+  export const InvalidCwdError = NamedError.create(
+    "PtyInvalidCwdError",
+    z.object({
+      cwd: z.string(),
+      directory: z.string(),
+    }),
+  )
+
+  /**
+   * A PTY hands the operator an interactive shell, which is why it never
+   * needed to accept a command from its caller: anything the operator wants to
+   * run, they can type. Accepting `command`, `args` and `env` over HTTP turned
+   * an operator convenience into unattended remote execution with a
+   * caller-controlled environment, on a server whose authentication is opt-in.
+   * The shell is now always the operator's own, and `cwd` must stay inside the
+   * project.
+   */
   export const CreateInput = z.object({
-    command: z.string().optional(),
-    args: z.array(z.string()).optional(),
     cwd: z.string().optional(),
     title: z.string().optional(),
-    env: z.record(z.string(), z.string()).optional(),
   })
 
   export type CreateInput = z.infer<typeof CreateInput>
@@ -103,17 +120,19 @@ export namespace Pty {
    */
   export async function create(input: CreateInput) {
     const id = Identifier.create("pty", false)
-    const command = input.command || Shell.preferred()
-    const args = input.args || []
+    const command = Shell.preferred()
+    const args: string[] = []
     if (command.endsWith("sh")) {
       args.push("-l")
     }
 
-    const cwd = input.cwd || Instance.directory
+    const cwd = input.cwd ? path.resolve(input.cwd) : Instance.directory
+    if (!Filesystem.contains(Instance.directory, cwd)) {
+      throw new InvalidCwdError({ cwd, directory: Instance.directory })
+    }
     const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
     const env = {
       ...process.env,
-      ...input.env,
       ...shellEnv.env,
       TERM: "xterm-256color",
       DAX_TERMINAL: "1",

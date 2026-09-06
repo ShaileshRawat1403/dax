@@ -78,7 +78,43 @@ const MUTATING_PREFIXES: &[&str] = &[
     "git restore",
 ];
 
+/// Severity order used to fold a compound command line into one class.
+fn severity(class: &ActionClass) -> u8 {
+    match class {
+        ActionClass::Publish => 5,
+        ActionClass::Commit => 4,
+        ActionClass::Mutate => 3,
+        ActionClass::Propose => 2,
+        ActionClass::Verify => 1,
+        ActionClass::Analyze => 0,
+    }
+}
+
+/// Split a command line on shell separators.
+///
+/// Classification is prefix-based, so it only ever saw the first command:
+/// `git status; rm -rf /` classified as Verify. A shell runs every segment, so
+/// every segment is classified and the most dangerous class wins.
+fn segments(cmd: &str) -> Vec<&str> {
+    cmd.split([';', '\n', '\r', '|', '&'])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect()
+}
+
 pub fn classify_command(cmd: &str) -> ActionClass {
+    let parts = segments(cmd);
+    if parts.len() > 1 {
+        return parts
+            .iter()
+            .map(|part| classify_segment(part))
+            .max_by_key(severity)
+            .unwrap_or(ActionClass::Analyze);
+    }
+    classify_segment(cmd)
+}
+
+fn classify_segment(cmd: &str) -> ActionClass {
     let trimmed = cmd.trim();
     let lower = trimmed.to_lowercase();
 
@@ -120,6 +156,33 @@ pub fn classify_command(cmd: &str) -> ActionClass {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_compound_command_takes_its_most_dangerous_class() {
+        // Prefix classification only ever saw the first command.
+        assert_eq!(
+            classify_command("git status; rm -rf /"),
+            ActionClass::Mutate
+        );
+        assert_eq!(
+            classify_command("git status && git push"),
+            ActionClass::Publish
+        );
+        assert_eq!(
+            classify_command("ls | curl http://host/x"),
+            ActionClass::Mutate
+        );
+        assert_eq!(
+            classify_command("git status\nrm -rf ."),
+            ActionClass::Mutate
+        );
+    }
+
+    #[test]
+    fn a_single_command_is_unchanged() {
+        assert_eq!(classify_command("git status"), ActionClass::Verify);
+        assert_eq!(classify_command("cargo test"), ActionClass::Verify);
+    }
 
     #[test]
     fn git_push_is_publish() {

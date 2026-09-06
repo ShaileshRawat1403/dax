@@ -247,7 +247,7 @@ function PermissionCard(props: {
       paddingBottom={1}
     >
       {/* ── Header ── */}
-      <box flexDirection="row" gap={1} alignItems="center" marginBottom={0.5}>
+      <box flexDirection="row" gap={1} alignItems="center" marginBottom={0}>
         <box
           backgroundColor={tint(riskColor(), theme.background, 0.1)}
           paddingLeft={1}
@@ -278,14 +278,14 @@ function PermissionCard(props: {
         </text>
       </box>
 
-      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0} marginTop={0}>
         {/* ── Shell command detail ── */}
         <Show when={props.request.permission === "shell" && props.input.command}>
           <box
             paddingLeft={1}
             paddingRight={1}
-            paddingTop={0.5}
-            paddingBottom={0.5}
+            paddingTop={0}
+            paddingBottom={0}
             backgroundColor={tint(theme.background, theme.textMuted, 0.04)}
             borderStyle="round"
             borderColor={theme.borderSubtle}

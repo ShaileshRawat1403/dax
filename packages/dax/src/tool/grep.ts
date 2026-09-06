@@ -105,6 +105,23 @@ export const GrepTool = Tool.define("grep", {
       })
     }
 
+    // The ask above could only see caller-declared scope, and `path` is
+    // optional - a call with just a pattern evaluated the needle alone and
+    // never a filename. ripgrep runs with --hidden, so re-check the files it
+    // actually opened before any of their content is returned.
+    const matchedPaths = [...new Set(matches.map((x) => x.path))]
+    if (matchedPaths.length > 0) {
+      await ctx.ask({
+        permission: "grep",
+        patterns: matchedPaths,
+        always: matchedPaths,
+        metadata: {
+          pattern: params.pattern,
+          files: matchedPaths.length,
+        },
+      })
+    }
+
     matches.sort((a, b) => b.modTime - a.modTime)
 
     const limit = 100

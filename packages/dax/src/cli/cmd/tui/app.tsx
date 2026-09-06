@@ -75,80 +75,89 @@ export function tui(input: {
   events?: EventSource
   onExit?: (sessionID: string | undefined) => Promise<void>
 }) {
-  return new Promise<string | undefined>(async (resolve) => {
-    const mode = await getTerminalBackgroundColor()
-    let finalSessionID: string | undefined = input.args.sessionID
+  // An async executor swallows its own rejection: if getTerminalBackgroundColor
+  // or render throws, the promise never settles and the TUI hangs with no
+  // diagnostic. Run the body separately and reject explicitly.
+  return new Promise<string | undefined>((resolve, reject) => {
+    void (async () => {
+      try {
+        const mode = await getTerminalBackgroundColor()
+        let finalSessionID: string | undefined = input.args.sessionID
 
-    const onExit = async () => {
-      await input.onExit?.(finalSessionID)
-      resolve(finalSessionID)
-    }
+        const onExit = async () => {
+          await input.onExit?.(finalSessionID)
+          resolve(finalSessionID)
+        }
 
-    await render(
-      () => {
-        return (
-          <ErrorBoundary
-            fallback={(error, reset) => <ErrorComponent error={error} reset={reset} onExit={onExit} mode={mode} />}
-          >
-            <ArgsProvider {...input.args}>
-              <ExitProvider onExit={onExit}>
-                <UIActivityProvider>
-                  <KVProvider>
-                    <ToastProvider>
-                      <RouteProvider>
-                        <SDKProvider url={input.url} fetch={input.fetch} headers={input.headers} events={input.events}>
-                          <SyncProvider>
-                            <ThemeProvider mode={mode}>
-                              <LocalProvider>
-                                <KeybindProvider>
-                                  <PromptStashProvider>
-                                    <PromptRefProvider>
-                                      <DialogProvider>
-                                        <CommandProvider>
-                                          <FrecencyProvider>
-                                            <PromptHistoryProvider>
-                                              <App
-                                                onSessionChange={(id) => {
-                                                  finalSessionID = id
-                                                }}
-                                              />
-                                            </PromptHistoryProvider>
-                                          </FrecencyProvider>
-                                        </CommandProvider>
-                                      </DialogProvider>
-                                    </PromptRefProvider>
-                                  </PromptStashProvider>
-                                </KeybindProvider>
-                              </LocalProvider>
-                            </ThemeProvider>
-                          </SyncProvider>
-                        </SDKProvider>
-                      </RouteProvider>
-                    </ToastProvider>
-                  </KVProvider>
-                </UIActivityProvider>
-              </ExitProvider>
-            </ArgsProvider>
-          </ErrorBoundary>
-        )
-      },
-      {
-        targetFps: 60,
-        gatherStats: false,
-        exitOnCtrlC: false,
-        useKittyKeyboard: {},
-        autoFocus: true,
-        consoleOptions: {
-          keyBindings: [{ name: "y", ctrl: true, action: "copy-selection" }],
-          onCopySelection: (text) => {
-            if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) return
-            Clipboard.copy(text).catch((error) => {
-              console.error(`Failed to copy console selection to clipboard: ${error}`)
-            })
+        await render(
+          () => {
+            return (
+              <ErrorBoundary
+                fallback={(error, reset) => <ErrorComponent error={error} reset={reset} onExit={onExit} mode={mode} />}
+              >
+                <ArgsProvider {...input.args}>
+                  <ExitProvider onExit={onExit}>
+                    <UIActivityProvider>
+                      <KVProvider>
+                        <ToastProvider>
+                          <RouteProvider>
+                            <SDKProvider url={input.url} fetch={input.fetch} headers={input.headers} events={input.events}>
+                              <SyncProvider>
+                                <ThemeProvider mode={mode}>
+                                  <LocalProvider>
+                                    <KeybindProvider>
+                                      <PromptStashProvider>
+                                        <PromptRefProvider>
+                                          <DialogProvider>
+                                            <CommandProvider>
+                                              <FrecencyProvider>
+                                                <PromptHistoryProvider>
+                                                  <App
+                                                    onSessionChange={(id) => {
+                                                      finalSessionID = id
+                                                    }}
+                                                  />
+                                                </PromptHistoryProvider>
+                                              </FrecencyProvider>
+                                            </CommandProvider>
+                                          </DialogProvider>
+                                        </PromptRefProvider>
+                                      </PromptStashProvider>
+                                    </KeybindProvider>
+                                  </LocalProvider>
+                                </ThemeProvider>
+                              </SyncProvider>
+                            </SDKProvider>
+                          </RouteProvider>
+                        </ToastProvider>
+                      </KVProvider>
+                    </UIActivityProvider>
+                  </ExitProvider>
+                </ArgsProvider>
+              </ErrorBoundary>
+            )
           },
-        },
-      },
-    )
+          {
+            targetFps: 60,
+            gatherStats: false,
+            exitOnCtrlC: false,
+            useKittyKeyboard: {},
+            autoFocus: true,
+            consoleOptions: {
+              keyBindings: [{ name: "y", ctrl: true, action: "copy-selection" }],
+              onCopySelection: (text) => {
+                if (Flag.DAX_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) return
+                Clipboard.copy(text).catch((error) => {
+                  console.error(`Failed to copy console selection to clipboard: ${error}`)
+                })
+              },
+            },
+          },
+        )
+      } catch (error) {
+        reject(error)
+      }
+    })()
   })
 }
 

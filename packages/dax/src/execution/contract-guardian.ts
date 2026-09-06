@@ -173,7 +173,18 @@ export namespace ContractGuardian {
    * @returns Execution contract or null
    */
   export async function get(runId: string): Promise<ExecutionContract | null> {
-    return readContract(runId)
+    // Integrity is checked here rather than at the call sites. It previously
+    // had none: verifyContractIntegrity and this namespace's `verify` were
+    // exported and never called, so a stored contract missing contractId,
+    // runId or workflowClass was handed to the runtime guard and used. Folding
+    // the check into the single load path makes the control actually run
+    // everywhere a contract is read, with no call site left to forget it.
+    const result = await verifyContractIntegrity(runId)
+    if (result.valid) return result.contract ?? null
+    if (result.error !== "Contract not found") {
+      log.warn("rejected malformed execution contract", { runId, error: result.error })
+    }
+    return null
   }
 
   /**

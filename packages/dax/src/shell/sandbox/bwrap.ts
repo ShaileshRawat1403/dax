@@ -40,9 +40,8 @@ export class BubblewrapSandbox implements SandboxProviderImpl {
     return { available: true }
   }
 
-  async wrap(command: string, cwd: string): Promise<string> {
-    const bindDir = cwd.replace(/"/g, '\\"')
-    const quotedCmd = `'${command.replace(/'/g, "'\\''")}'`
+  async wrap(command: string, cwd: string): Promise<string[]> {
+    const bindDir = cwd
 
     return [
       "bwrap",
@@ -82,7 +81,7 @@ export class BubblewrapSandbox implements SandboxProviderImpl {
       "/workspace",
       "/bin/sh",
       "-c",
-      quotedCmd,
-    ].join(" ")
+      command,
+    ]
   }
 }

@@ -10,6 +10,7 @@ import {
 import type { SubstrateSession } from "../fastmcp-substrate"
 import { Flag } from "@/flag/flag"
 import { getSecrets } from "@/secrets/secrets-loader"
+import { transportSecurity } from "../transport-security"
 
 const sessions = new Map<string, SubstrateSession>()
 let substrateServer: ReturnType<typeof createSubstrateServer> | null = null
@@ -64,6 +65,15 @@ async function mcpRequestHandler(c: Context): Promise<Response> {
 }
 
 export const SubstrateRoutes = new Hono()
+  .use(transportSecurity)
+  .use(async (c, next) => {
+    if (!Flag.DAX_SUBSTRATE_ENABLED) return c.json({ error: "DAX substrate is not enabled" }, 503)
+    const secrets = await getSecrets()
+    if (!validateAuth(await extractAuth(c.req.raw), secrets.substrateToken)) {
+      return c.json({ error: "unauthorized" }, 401)
+    }
+    return next()
+  })
   .get("/", async (c) => {
     if (!Flag.DAX_SUBSTRATE_ENABLED) {
       return c.json({ error: "DAX substrate is not enabled" }, 503)
@@ -104,11 +114,9 @@ export const SubstrateRoutes = new Hono()
     return c.json({ ok: true })
   })
   .get("/sessions", async (c) => {
-    const secrets = await getSecrets()
     return c.json({
       sessions: [...sessions.keys()],
       count: sessions.size,
       enabled: Flag.DAX_SUBSTRATE_ENABLED,
-      secretsSource: secrets.source,
     })
   })

@@ -9,6 +9,7 @@ import { Patch } from "../patch"
 import { createTwoFilesPatch, diffLines } from "diff"
 import { assertExternalDirectory } from "./external-directory"
 import { DiagnosticsSchema, trimDiff } from "./edit"
+import { assertUnprotectedWrite } from "./protected-path"
 import { LSP } from "../lsp"
 import { Filesystem } from "../util/filesystem"
 import DESCRIPTION from "./apply_patch.txt"
@@ -58,6 +59,17 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
       }
       throw new Error("apply_patch verification failed: no hunks found")
     }
+
+    // Reject the entire patch before reading files or asking for permission.
+    const assertTargets = async () => {
+      for (const hunk of hunks) {
+        await assertUnprotectedWrite(path.resolve(Instance.directory, hunk.path))
+        if (hunk.type === "update" && hunk.move_path) {
+          await assertUnprotectedWrite(path.resolve(Instance.directory, hunk.move_path))
+        }
+      }
+    }
+    await assertTargets()
 
     // Validate file paths and check permissions
     const fileChanges: Array<{
@@ -200,6 +212,9 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
       },
     })
     await ctx.authorize()
+
+    // Recheck after approval in case a symlink changed while waiting.
+    await assertTargets()
 
     // Apply the changes
     const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []

@@ -407,7 +407,7 @@ describe("P0 authority integrity", () => {
 
         let toolCallSettled = false
         let writeResult: { output: string; metadata: Record<string, unknown> } | undefined
-        const targetFile = path.join(testProject, ".dax", "lab", "notes.txt")
+        const targetFile = path.join(testProject, "artifacts", "lab", "notes.txt")
         const stream = spyOn(LLM, "stream").mockImplementation(async (input: LLM.StreamInput) => {
           const write = input.tools.write
           const writeArgs = { filePath: targetFile, content: "hello from settlement\n" }
@@ -460,7 +460,7 @@ describe("P0 authority integrity", () => {
           await SessionPrompt.prompt({
             sessionID: session.id,
             model: { providerID: "openai", modelID: "gpt-4o" },
-            parts: [{ type: "text", text: "Write the file .dax/lab/notes.txt using the write tool." }],
+            parts: [{ type: "text", text: "Write the file artifacts/lab/notes.txt using the write tool." }],
           })
 
           expect(writeResult).toBeDefined()
@@ -502,7 +502,7 @@ describe("P0 authority integrity", () => {
             receipt: {
               runId: session.id,
               proofType: "workspace_diff",
-              changedPaths: [".dax/lab/notes.txt"],
+              changedPaths: ["artifacts/lab/notes.txt"],
             },
           })
           // A provider/session error is not a completion candidate, even after a

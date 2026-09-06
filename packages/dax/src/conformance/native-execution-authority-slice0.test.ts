@@ -66,7 +66,10 @@ const testModel = Provider.Model.parse({
 
 describe("native execution authority slice 0", () => {
   test("an allowlisted batch call cannot execute a contract-excluded write leaf", async () => {
-    await fs.writeFile(path.join(testProject, "dax.json"), JSON.stringify({ experimental: { batch_tool: true } }))
+    await fs.writeFile(
+      path.join(testProject, "dax.json"),
+      JSON.stringify({ experimental: { batch_tool: true }, permission: { batch: "allow" } }),
+    )
 
     await Instance.provide({
       directory: testProject,
@@ -83,7 +86,7 @@ describe("native execution authority slice 0", () => {
         let batchCallSettled = false
         let offeredTools: string[] = []
         let batchResult: Tool.InferResult<typeof BatchTool> | undefined
-        const target = path.join(testProject, ".dax", "lab", "written-through-batch.txt")
+        const target = path.join(testProject, "artifacts", "written-through-batch.txt")
         await fs.mkdir(path.dirname(target), { recursive: true })
 
         const originalGetModel = Provider.getModel

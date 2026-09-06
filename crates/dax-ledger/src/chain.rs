@@ -33,18 +33,35 @@ fn body_hash(body: &Value) -> String {
     sha256(canonical_json(body).as_bytes())
 }
 
-fn chain_hash(prev_hash: &str, body_hash: &str) -> String {
-    let mut input = Vec::with_capacity(prev_hash.len() + body_hash.len());
-    input.extend_from_slice(prev_hash.as_bytes());
-    input.extend_from_slice(body_hash.as_bytes());
-    sha256(&input)
+/// Binds the whole entry header, not just the body.
+///
+/// `ts` used to sit outside both hashes, so every timestamp in the audit trail
+/// could be rewritten without detection - the one field an audit trail exists
+/// to establish. `seq` and the schema version are bound for the same reason.
+/// The material is canonical JSON rather than a concatenation so no two
+/// different headers can hash the same bytes.
+fn chain_hash(
+    prev_hash: &str,
+    body_hash: &str,
+    seq: u64,
+    ts: &str,
+    schema_version: &str,
+) -> String {
+    let header = serde_json::json!({
+        "schemaVersion": schema_version,
+        "seq": seq,
+        "ts": ts,
+        "prevHash": prev_hash,
+        "bodyHash": body_hash,
+    });
+    sha256(canonical_json(&header).as_bytes())
 }
 
 pub fn append(prev: Option<&LedgerEntry>, body: &Value, ts: &str) -> LedgerEntry {
     let seq = prev.map_or(0, |entry| entry.seq + 1);
     let prev_hash = prev.map_or_else(String::new, |entry| entry.chain_hash.clone());
     let body_hash = body_hash(body);
-    let chain_hash = chain_hash(&prev_hash, &body_hash);
+    let chain_hash = chain_hash(&prev_hash, &body_hash, seq, ts, LEDGER_ENTRY_SCHEMA_VERSION);
 
     LedgerEntry {
         schema_version: LEDGER_ENTRY_SCHEMA_VERSION.to_string(),
@@ -89,11 +106,17 @@ pub fn verify_chain(entries: &[LedgerEntry]) -> Result<(), ChainError> {
             return Err(ChainError::BodyHashMismatch { seq: entry.seq });
         }
 
-        let expected_chain_hash = chain_hash(&entry.prev_hash, &entry.body_hash);
+        let expected_chain_hash = chain_hash(
+            &entry.prev_hash,
+            &entry.body_hash,
+            entry.seq,
+            &entry.ts,
+            &entry.schema_version,
+        );
         if entry.chain_hash != expected_chain_hash {
             return Err(ChainError::Break {
                 seq: entry.seq,
-                reason: "chain_hash does not match prev_hash + body_hash".to_string(),
+                reason: "chain_hash does not match the entry header".to_string(),
             });
         }
 
@@ -151,6 +174,27 @@ mod tests {
         assert!(matches!(
             verify_chain(&[first, second]),
             Err(ChainError::BodyHashMismatch { seq: 1 })
+        ));
+    }
+
+    #[test]
+    fn verify_detects_timestamp_tamper() {
+        let first = append(
+            None,
+            &json!({ "kind": "run.created" }),
+            "2026-05-07T00:00:00Z",
+        );
+        let mut second = append(
+            Some(&first),
+            &json!({ "kind": "run.completed" }),
+            "2026-05-07T00:00:01Z",
+        );
+        // Backdating an entry used to leave every hash intact.
+        second.ts = "2020-01-01T00:00:00Z".to_string();
+
+        assert!(matches!(
+            verify_chain(&[first, second]),
+            Err(ChainError::Break { seq: 1, .. })
         ));
     }
 

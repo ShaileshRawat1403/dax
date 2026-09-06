@@ -3,6 +3,8 @@ import { TextAttributes } from "@opentui/core"
 import { type RenderableStreamItem, stripInlineMarkdown } from "@/dax/presentation/session-stream"
 import { useTheme } from "@tui/context/theme"
 import type { RunNarrativeItem } from "@/server/run-contract"
+import { STREAM_INDENT } from "./layout"
+import { decisionGlyph } from "@/dax/presentation/status-glyph"
 
 type ResolutionDecision = "approve" | "deny" | "expired" | "cancelled" | "unknown"
 
@@ -68,14 +70,7 @@ export function AlertInline(props: {
     return theme.textMuted
   }
 
-  const resolvedGlyph = () => {
-    const d = decision()
-    if (d === "approve") return "✓"
-    if (d === "deny") return "✗"
-    if (d === "expired") return "◷"
-    if (d === "cancelled") return "⊘"
-    return "·"
-  }
+  const resolvedGlyph = () => decisionGlyph(decision())
 
   const resolvedHeadline = () => {
     const d = decision()
@@ -101,7 +96,7 @@ export function AlertInline(props: {
         flexDirection="row"
         gap={1}
         alignItems="center"
-        paddingLeft={2}
+        paddingLeft={STREAM_INDENT.content}
         paddingTop={0}
         paddingBottom={0}
         marginTop={0}
@@ -110,12 +105,12 @@ export function AlertInline(props: {
         <text fg={resolvedTone()} attributes={TextAttributes.BOLD}>
           {resolvedHeadline()}
         </text>
-        <text fg={theme.textMuted} attributes={TextAttributes.DIM}>· {typeLabel()}</text>
+        <text fg={theme.textMuted}>· {typeLabel()}</text>
         <Show when={resolutionReason()}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>— {resolutionReason()}</text>
+          <text fg={theme.textMuted}>— {resolutionReason()}</text>
         </Show>
         <Show when={!resolutionReason() && props.item.message}>
-          <text fg={theme.textMuted} attributes={TextAttributes.DIM}>— {stripInlineMarkdown(props.item.message!)}</text>
+          <text fg={theme.textMuted}>— {stripInlineMarkdown(props.item.message!)}</text>
         </Show>
       </box>
     )
@@ -130,8 +125,8 @@ export function AlertInline(props: {
       gap={0}
       paddingTop={1}
       paddingBottom={1}
-      paddingLeft={2}
-      paddingRight={2}
+      paddingLeft={STREAM_INDENT.content}
+      paddingRight={STREAM_INDENT.content}
       marginTop={1}
     >
       {/* Header row */}
@@ -141,14 +136,14 @@ export function AlertInline(props: {
           {typeLabel()}
         </text>
         <Show when={riskLabel()}>
-          <text fg={borderColor()} attributes={TextAttributes.DIM}>
+          <text fg={borderColor()}>
             ({riskLabel()})
           </text>
         </Show>
       </box>
 
       {/* Message and CTA */}
-      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={2} marginLeft={0.5} marginTop={0}>
+      <box flexDirection="column" border={["left"]} borderColor={theme.borderSubtle} paddingLeft={STREAM_INDENT.content} marginLeft={1} marginTop={0}>
         <Show when={props.item.message}>
           <box paddingLeft={0} paddingTop={0}>
             <text fg={baseTextColor()} wrapMode="word">
@@ -160,7 +155,7 @@ export function AlertInline(props: {
         <Show when={isActionable()}>
           <box flexDirection="row" gap={1} alignItems="center" paddingTop={0}>
             <text fg={theme.borderSubtle}>╰─</text>
-            <text fg={theme.textMuted} attributes={TextAttributes.DIM}>
+            <text fg={theme.textMuted}>
               Open the review pane to respond
               {props.reviewKeyHint ? ` (press ${props.reviewKeyHint})` : ""}.
             </text>

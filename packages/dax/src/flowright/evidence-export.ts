@@ -66,13 +66,24 @@ export type EvidenceExportResponse = z.infer<typeof EvidenceExportResponse>
 
 // --- canonicalization (must match Flowright's canonicalJson) ---------------
 
+/**
+ * Lexicographic by code point, which is what the shared schema specifies.
+ * `localeCompare` is locale-aware collation, not lexicographic order: it ranks
+ * "a" before "B" in English and orders base62 ids differently again, so the
+ * digest a receipt published depended on the machine's locale and ICU version
+ * and could not be reproduced by the other side of the contract.
+ */
+function byCodePoint(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
 export function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize)
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .filter(([, item]) => item !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => byCodePoint(left, right))
         .map(([key, item]) => [key, canonicalize(item)]),
     )
   }
@@ -205,8 +216,10 @@ export function buildEvidenceRecords(input: ExportInput): EvidenceRecordV0[] {
     )
   }
 
-  // Deterministic order: createdAt, then id as tiebreaker.
-  bodies.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+  // Deterministic order: createdAt, then id as tiebreaker. Both by code point -
+  // ids are mixed-case base62, where locale collation and lexicographic order
+  // disagree, and the order decides the prevDigest chain.
+  bodies.sort((a, b) => byCodePoint(a.createdAt, b.createdAt) || byCodePoint(a.id, b.id))
 
   const records: EvidenceRecordV0[] = []
   let prevDigest: string | undefined

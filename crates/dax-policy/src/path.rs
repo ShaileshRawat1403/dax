@@ -31,6 +31,15 @@ const FORBIDDEN_PATTERNS: &[&str] = &[
 ];
 
 const SENSITIVE_PATTERNS: &[&str] = &[
+    // DAX's own credential stores were absent from this list, so the gate that
+    // protects everyone else's secrets did not protect the operator's provider
+    // keys.
+    "/dax/auth.json",
+    "/dax/mcp-auth.json",
+    "/.aws/",
+    "/.netrc",
+    "/.kube/config",
+    "/.docker/config.json",
     "secrets",
     "credentials",
     "token",
@@ -70,16 +79,44 @@ const ARTIFACT_OR_TEMP_PATTERNS: &[&str] = &[
     "/node_modules/",
 ];
 
+/// Every pattern here is anchored with a leading `/`, so a relative path never
+/// matched one: `.ssh/known_hosts` does not contain `/.ssh/`, and `etc/passwd`
+/// does not contain `/etc/passwd`. Callers pass worktree-relative paths, so the
+/// deny gate was silently inert for exactly the paths it existed to stop.
+/// Normalizing separators and rooting the path closes that, and erring toward
+/// a match is the right direction for a deny gate.
+fn normalize(path: &str) -> String {
+    let lower = path.replace('\\', "/").to_lowercase();
+    let collapsed = lower
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    let mut rooted = String::with_capacity(lower.len() + 1);
+    for part in collapsed {
+        rooted.push('/');
+        rooted.push_str(part);
+    }
+    if rooted.is_empty() {
+        rooted.push('/');
+    }
+    // Keep a trailing slash for directory-shaped inputs so "/tmp/" style
+    // patterns still match a directory argument.
+    if lower.ends_with('/') && !rooted.ends_with('/') {
+        rooted.push('/');
+    }
+    rooted
+}
+
 fn first_match<'a>(path: &str, patterns: &'a [&str]) -> Option<&'a str> {
-    let lower = path.to_lowercase();
-    patterns.iter().copied().find(|p| lower.contains(p))
+    let normalized = normalize(path);
+    patterns.iter().copied().find(|p| normalized.contains(p))
 }
 
 fn first_custom_match<'a>(path: &str, patterns: &'a [String]) -> Option<&'a str> {
-    let lower = path.to_lowercase();
+    let normalized = normalize(path);
     patterns
         .iter()
-        .find(|p| lower.contains(&p.to_lowercase()))
+        .find(|p| normalized.contains(&p.to_lowercase()))
         .map(String::as_str)
 }
 
@@ -183,6 +220,51 @@ pub fn classify_path_zone(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relative_paths_are_classified_like_absolute_ones() {
+        // Callers pass worktree-relative paths. These used to land in RepoSafe
+        // because every pattern is anchored with a leading slash.
+        for path in [
+            ".ssh/id_rsa",
+            "etc/passwd",
+            ".ssh/known_hosts",
+            "etc/shadow",
+        ] {
+            let result = classify_path(path, &[], &[]);
+            assert_ne!(
+                result.zone,
+                PathZone::RepoSafe,
+                "relative path {path} must not be treated as repo-safe"
+            );
+        }
+    }
+
+    #[test]
+    fn windows_separators_are_classified() {
+        assert_ne!(
+            classify_path("C:\\Users\\me\\.ssh\\id_rsa", &[], &[]).zone,
+            PathZone::RepoSafe
+        );
+    }
+
+    #[test]
+    fn dax_credential_stores_are_sensitive() {
+        for path in [
+            "/home/u/.local/share/dax/auth.json",
+            "/home/u/.aws/credentials",
+            "/home/u/.netrc",
+            "/home/u/.kube/config",
+            "/home/u/.docker/config.json",
+        ] {
+            let result = classify_path(path, &[], &[]);
+            assert_ne!(
+                result.zone,
+                PathZone::RepoSafe,
+                "{path} must not be treated as repo-safe"
+            );
+        }
+    }
 
     #[test]
     fn forbidden_ssh() {

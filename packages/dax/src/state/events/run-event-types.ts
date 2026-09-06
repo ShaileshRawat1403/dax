@@ -411,7 +411,9 @@ let eventCounter = 0
 
 export function createEvent(runId: string, seq: number, type: RunEventType, payload: unknown): RunEventEnvelope {
   return {
-    eventId: `evt_${Date.now()}_${(eventCounter++).toString(36).slice(2, 11)}`,
+    // slice(2, 11) on a base36 counter returned "" until the counter reached
+    // 1296, so every event minted in the same millisecond shared an id.
+    eventId: `evt_${Date.now()}_${(eventCounter++).toString(36).padStart(6, "0")}`,
     runId,
     seq,
     type,

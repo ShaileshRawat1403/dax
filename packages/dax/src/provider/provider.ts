@@ -87,7 +87,8 @@ export namespace Provider {
     "@ai-sdk/togetherai": createTogetherAI,
     "@ai-sdk/perplexity": createPerplexity,
     "@ai-sdk/vercel": createVercel,
-    // @ts-ignore: @ai-sdk/github-copilot package may not be installed, using openai-compatible fallback
+    // @ts-expect-error: @ai-sdk/github-copilot may not be installed; the openai-compatible fallback stands in.
+    // Deliberately expect-error, not ignore: this stops suppressing the day the package is present.
     "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
   }
 
@@ -740,7 +741,7 @@ export namespace Provider {
         output: model.limit.output,
       },
       capabilities: {
-        temperature: model.temperature,
+        temperature: model.temperature ?? false,
         reasoning: model.reasoning,
         attachment: model.attachment,
         toolcall: model.tool_call,
