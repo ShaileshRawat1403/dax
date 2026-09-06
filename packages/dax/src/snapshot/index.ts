@@ -7,6 +7,7 @@ import z from "zod"
 import { Config } from "../config/config"
 import { Instance } from "../project/instance"
 import { Scheduler } from "../scheduler"
+import { Lock } from "../util/lock"
 
 export namespace Snapshot {
   const log = Log.create({ service: "snapshot" })
@@ -27,6 +28,7 @@ export namespace Snapshot {
     const cfg = await Config.get()
     if (cfg.snapshot === false) return
     const git = gitdir()
+    using _ = await Lock.write(git)
     const exists = await fs
       .stat(git)
       .then(() => true)
@@ -65,6 +67,7 @@ export namespace Snapshot {
     const cfg = await Config.get()
     if (cfg.snapshot === false) return
     const git = gitdir()
+    using _ = await Lock.write(git)
     if (await fs.mkdir(git, { recursive: true })) {
       const initialized = await $`git init`
         .env({
@@ -130,6 +133,7 @@ export namespace Snapshot {
 
   export async function patch(hash: string): Promise<PatchObservation> {
     const git = gitdir()
+    using _ = await Lock.write(git)
     const staged = await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`
       .quiet()
       .cwd(Instance.directory)
@@ -191,6 +195,7 @@ export namespace Snapshot {
   export async function restore(snapshot: string) {
     log.info("restore", { commit: snapshot })
     const git = gitdir()
+    using _ = await Lock.write(git)
     const result =
       await $`git --git-dir ${git} --work-tree ${Instance.worktree} read-tree ${snapshot} && git --git-dir ${git} --work-tree ${Instance.worktree} checkout-index -a -f`
         .quiet()
@@ -210,6 +215,7 @@ export namespace Snapshot {
   export async function revert(patches: Patch[]) {
     const files = new Set<string>()
     const git = gitdir()
+    using _ = await Lock.write(git)
     for (const item of patches) {
       for (const file of item.files) {
         if (files.has(file)) continue
@@ -241,6 +247,7 @@ export namespace Snapshot {
 
   export async function diff(hash: string) {
     const git = gitdir()
+    using _ = await Lock.write(git)
     await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`.quiet().cwd(Instance.directory).nothrow()
     const result =
       await $`git -c core.autocrlf=false -c core.quotepath=false --git-dir ${git} --work-tree ${Instance.worktree} diff --no-ext-diff ${hash} -- .`
@@ -276,6 +283,7 @@ export namespace Snapshot {
   export type FileDiff = z.infer<typeof FileDiff>
   export async function diffFull(from: string, to: string): Promise<FileDiff[]> {
     const git = gitdir()
+    using _ = await Lock.read(git)
     const result: FileDiff[] = []
     const status = new Map<string, "added" | "deleted" | "modified">()
 
