@@ -4,6 +4,8 @@ import type { CanonicalInspectorState } from "./canonical-inspector-state"
 export type CanonicalAuthorityStrip = {
   lifecycle: string
   authority: string
+  sequence: number | null
+  cursor: string | null
   intent?: string
   pendingApprovals: number
   inspect: boolean
@@ -22,16 +24,16 @@ export function shouldShowCompatibilityHeaderChip(state: CanonicalInspectorState
 
 export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, mode: DisplayMode): CanonicalAuthorityStrip {
   if (state.status === "loading") {
-    return { lifecycle: "Canonical status loading", authority: "Awaiting validated authority", pendingApprovals: 0, inspect: true, stale: false, warning: false }
+    return { lifecycle: "Canonical status loading", authority: "Awaiting validated authority", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: false }
   }
   if (state.status === "unavailable") {
-    return { lifecycle: "Canonical status unavailable", authority: "Canonical status unavailable", pendingApprovals: 0, inspect: true, stale: false, warning: true }
+    return { lifecycle: "Canonical status unavailable", authority: "Canonical status unavailable", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: true }
   }
   if (state.snapshot.kind === "authority_unreadable") {
-    return { lifecycle: "Authority unreadable", authority: "Authority unreadable", pendingApprovals: 0, inspect: true, stale: false, warning: true }
+    return { lifecycle: "Authority unreadable", authority: "Authority unreadable", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: true }
   }
   if (state.snapshot.kind === "legacy_unsupported") {
-    return { lifecycle: "Legacy authority — canonical inspector unsupported", authority: "Legacy authority — canonical inspector unsupported", pendingApprovals: 0, inspect: true, stale: false, warning: true }
+    return { lifecycle: "Legacy authority — canonical inspector unsupported", authority: "Legacy authority — canonical inspector unsupported", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: true }
   }
 
   const snapshot = state.snapshot
@@ -53,7 +55,11 @@ export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, m
   }
   return {
     lifecycle,
-    authority: state.status === "stale" ? `STALE — last validated canonical state · sequence ${snapshot.authority.eventSequence}` : `Validated sequence ${snapshot.authority.eventSequence} · cursor ${snapshot.authority.cursor}`,
+    authority: state.status === "stale"
+      ? `STALE — last validated canonical state · sequence ${snapshot.authority.eventSequence} · cursor ${snapshot.authority.cursor}`
+      : `Authority log validated · sequence ${snapshot.authority.eventSequence} · cursor ${snapshot.authority.cursor}`,
+    sequence: snapshot.authority.eventSequence,
+    cursor: snapshot.authority.cursor,
     intent: boundedIntent(snapshot.invocationIntent.intent),
     pendingApprovals,
     inspect: true,
@@ -61,4 +67,39 @@ export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, m
     stale: state.status === "stale",
     warning: state.status === "stale" || pendingApprovals > 0 || lifecycle === "Failed" || lifecycle === "Cancelled" || lifecycle === "Completed — proof unavailable",
   }
+}
+
+/** Formats canonical authority strip into distinct semantic rows, enforcing clean separation at narrow widths. */
+export function formatCanonicalAuthorityRows(strip: CanonicalAuthorityStrip, options?: { maxColumns?: number }): string[] {
+  const rows: string[] = []
+
+  let lifecycleRow = strip.lifecycle
+  if (strip.pendingApprovals > 0) {
+    lifecycleRow += ` · Action required: ${strip.pendingApprovals}`
+  }
+  rows.push(lifecycleRow)
+
+  if (strip.intent) {
+    rows.push(`Goal: ${strip.intent}`)
+  }
+
+  const maxCols = options?.maxColumns
+  if (maxCols && maxCols < 60 && strip.sequence !== null && strip.cursor !== null) {
+    const prefix = strip.stale ? "STALE — last validated canonical state" : "Authority log validated"
+    const seqCursor = `sequence ${strip.sequence} · cursor ${strip.cursor}`
+    if (`${prefix} · ${seqCursor}`.length > maxCols) {
+      rows.push(prefix)
+      rows.push(seqCursor)
+    } else {
+      rows.push(strip.authority)
+    }
+  } else {
+    rows.push(strip.authority)
+  }
+
+  if (strip.details) {
+    rows.push(strip.details)
+  }
+
+  return rows
 }
