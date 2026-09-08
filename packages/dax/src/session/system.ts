@@ -9,6 +9,7 @@ import PROMPT_GEMINI from "./prompt/gemini.txt"
 import PROMPT_CODEX from "./prompt/dax_system.txt"
 import PROMPT_TRINITY from "./prompt/trinity.txt"
 import type { Provider } from "@/provider/provider"
+import { isGpt5OrLater } from "@/provider/openai-model-id"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -16,7 +17,7 @@ export namespace SystemPrompt {
   }
 
   export function provider(model: Provider.Model) {
-    if (model.api.id.includes("gpt-5")) return [PROMPT_CODEX]
+    if (isGpt5OrLater(model.api.id)) return [PROMPT_CODEX]
     if (model.api.id.includes("gpt-") || model.api.id.includes("o1") || model.api.id.includes("o3"))
       return [PROMPT_BEAST]
     if (model.api.id.includes("gemini-")) return [PROMPT_GEMINI]

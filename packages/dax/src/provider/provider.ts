@@ -38,16 +38,13 @@ import { createPerplexity } from "@ai-sdk/perplexity"
 import { createVercel } from "@ai-sdk/vercel"
 import { ProviderTransform } from "./transform"
 import { Installation } from "../installation"
+import { isGpt5OrLater } from "./openai-model-id"
 
 export namespace Provider {
   const log = Log.create({ service: "provider" })
 
-  function isGpt5OrLater(modelID: string): boolean {
-    const match = /^gpt-(\d+)/.exec(modelID)
-    if (!match) {
-      return false
-    }
-    return Number(match[1]) >= 5
+  export function supportsDirectModelAccess(auth: Auth.Info): boolean {
+    return auth.type !== "oauth" || auth.mode !== "antigravity-import"
   }
 
   function shouldUseCopilotResponsesApi(modelID: string): boolean {
@@ -981,6 +978,10 @@ export namespace Provider {
         if (disabled.has(targetID)) continue
         const auth = await Auth.get(targetID)
         if (!auth) continue
+        // AGY owns this credential and may execute tools of its own. It is
+        // intentionally exposed only through DAX's governed worker boundary,
+        // never as an ordinary direct-chat Google credential.
+        if (!supportsDirectModelAccess(auth)) continue
 
         const options = await plugin.auth.loader(() => Auth.get(targetID) as any, database[targetID])
         const opts = options ?? {}

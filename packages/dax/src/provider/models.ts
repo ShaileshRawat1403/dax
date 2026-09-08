@@ -118,6 +118,54 @@ export namespace ModelsDev {
 
   export type Provider = z.infer<typeof Provider>
 
+  /**
+   * Narrow first-party overlay for current OpenAI models that postdate the
+   * checked-in models.dev snapshot. Runtime refresh remains authoritative and
+   * replaces an overlay entry when it already contains the model.
+   */
+  export const CurrentOpenAIModels: Readonly<Record<string, Model>> = {
+    "gpt-6-astra": Model.parse({
+      id: "gpt-6-astra",
+      name: "GPT-6 Astra",
+      family: "gpt-astra",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      temperature: false,
+      release_date: "2026-09-04",
+      modalities: { input: ["text", "image", "pdf"], output: ["text"] },
+      limit: { context: 1_050_000, input: 922_000, output: 128_000 },
+      cost: {
+        input: 10,
+        output: 50,
+        cache_read: 1,
+        cache_write: 12.5,
+        context_over_200k: { input: 20, output: 75, cache_read: 2, cache_write: 25 },
+      },
+      experimental: {
+        modes: {
+          fast: {
+            cost: { input: 20, output: 100, cache_read: 2, cache_write: 25 },
+            provider: { body: { service_tier: "priority" } },
+          },
+          pro: { provider: { body: { reasoning: { mode: "pro" } } } },
+        },
+      },
+    }),
+  }
+
+  function withCurrentOpenAIModels(data: Record<string, Provider>): Record<string, Provider> {
+    const openai = data.openai
+    if (!openai) return data
+    return {
+      ...data,
+      openai: {
+        ...openai,
+        models: { ...CurrentOpenAIModels, ...openai.models },
+      },
+    }
+  }
+
   function url() {
     return Flag.DAX_MODELS_URL || "https://models.dev"
   }
@@ -138,7 +186,7 @@ export namespace ModelsDev {
 
   export async function get() {
     const result = await Data()
-    return result as Record<string, Provider>
+    return withCurrentOpenAIModels(result as Record<string, Provider>)
   }
 
   export async function refresh() {
