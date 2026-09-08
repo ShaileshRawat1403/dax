@@ -3,6 +3,7 @@ import type { CreateRunRequest, CreateRunResponse } from "@/server/run-contract"
 import { isWhitelistedVerificationCommand } from "@/tool/shell-whitelist"
 import { buildEgressAllowlist } from "@/worker/egress-allowlist"
 import { ExternalWorkerId, workerBinary, type ExternalWorkerId as WorkerId } from "@/worker/worker-adapter"
+import { AntigravityModel } from "@/worker/antigravity-models"
 
 export type GovernedWorkerLaunchInput = {
   workerId: WorkerId
@@ -11,6 +12,8 @@ export type GovernedWorkerLaunchInput = {
   writeScope: string[]
   verification: string[]
   sessionId?: string
+  modelId?: string
+  modelName?: string
 }
 
 export type GovernedWorkerOption = {
@@ -62,6 +65,16 @@ export function buildGovernedWorkerRunRequest(input: GovernedWorkerLaunchInput):
   const writeScope = [...new Set(input.writeScope.map((item) => item.trim()).filter(Boolean))]
   const verification = [...new Set(input.verification.map((item) => item.trim()).filter(Boolean))]
 
+  if (input.workerId === "antigravity" && !input.modelId) {
+    throw new Error("Antigravity requires an explicit model selected from `agy models`.")
+  }
+  const model = input.workerId === "antigravity"
+    ? AntigravityModel.parse({ id: input.modelId, name: input.modelName ?? input.modelId })
+    : undefined
+  if (input.workerId !== "antigravity" && input.modelId) {
+    throw new Error(`Worker ${input.workerId} does not support an explicit model selection.`)
+  }
+
   if (!task) throw new Error("A worker task is required.")
   if (!isAbsolute(repoPath)) throw new Error("The governed repository path must be absolute.")
   if (writeScope.length === 0) throw new Error("At least one explicit write scope is required.")
@@ -72,7 +85,11 @@ export function buildGovernedWorkerRunRequest(input: GovernedWorkerLaunchInput):
   return {
     intent: { input: task, kind: "workflow_step", repoPath },
     workflowHint: "worker_run",
-    personaPreset: { personaId: "governed-worker", providerHint: `worker:${workerId}` },
+    personaPreset: {
+      personaId: "governed-worker",
+      providerHint: `worker:${workerId}`,
+      ...(model ? { modelHint: model.id } : {}),
+    },
     workerConstraints: {
       writeScope,
       forbiddenPaths: [],
@@ -95,9 +112,16 @@ export function buildGovernedWorkerRunRequest(input: GovernedWorkerLaunchInput):
 
 export function renderGovernedWorkerPreview(input: GovernedWorkerLaunchInput): string {
   const option = governedWorkerOptions().find((candidate) => candidate.id === input.workerId)!
+  if (input.workerId === "antigravity" && !input.modelId) {
+    throw new Error("Antigravity requires an explicit model selected from `agy models`.")
+  }
+  const model = input.workerId === "antigravity"
+    ? AntigravityModel.parse({ id: input.modelId, name: input.modelName ?? input.modelId })
+    : undefined
   const hosts = [...buildEgressAllowlist({ workerId: input.workerId })]
   return [
     `Worker: ${option.title}`,
+    ...(model ? [`AGY model: ${model.name} (${model.id})`] : []),
     `Repository: ${input.repoPath}`,
     `Task: ${input.task.trim()}`,
     `Write scope: ${input.writeScope.join(", ")}`,

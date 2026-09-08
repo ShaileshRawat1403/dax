@@ -111,6 +111,8 @@ export const WorkerContract = z.object({
   verification: z.array(z.string()).default([]),
   runId: z.string(),
   invocationId: z.string().optional(),
+  /** Exact operator-selected model carried by the immutable execution contract. */
+  modelHint: z.string().min(1).max(128).optional(),
 })
 export type WorkerContract = z.infer<typeof WorkerContract>
 
@@ -193,7 +195,7 @@ type WorkerProfile = {
   label: string
   binary: string
   /** Build argv given the rendered contract prompt. */
-  args: (prompt: string, timeoutMs: number, workingDirectory: string) => string[]
+  args: (prompt: string, timeoutMs: number, workingDirectory: string, modelHint?: string) => string[]
   /** Env var names passed through from the host environment. */
   envAllowlist: string[]
   /**
@@ -276,7 +278,7 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     // noninteractive mode that permits workspace edits while retaining AGY's
     // own approval checks for broader tools. DAX still owns the outer sandbox,
     // kernel diff, verification, and human approval.
-    args: (prompt, timeoutMs, workingDirectory) => [
+    args: (prompt, timeoutMs, workingDirectory, modelHint) => [
       "-p",
       prompt,
       "--new-project",
@@ -287,6 +289,8 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
       workingDirectory,
       "--mode",
       "accept-edits",
+      "--model",
+      modelHint!,
       "--output-format",
       "json",
       "--print-timeout",
@@ -454,6 +458,12 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
       kind: "external_cli",
     },
     buildInvocation({ contract, workingDirectory, hostEnv, timeoutMs, egress }) {
+      if (workerId === "antigravity" && !contract.modelHint) {
+        throw new Error("Antigravity governed execution requires an explicit model selected from `agy models`.")
+      }
+      if (workerId !== "antigravity" && contract.modelHint) {
+        throw new Error(`worker provider '${workerId}' does not support an explicit model selection`)
+      }
       const prompt = renderWorkerPrompt(contract)
       const effectiveTimeoutMs = timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS
       // Egress filtering is on unless the operator opted out. The allowlist is
@@ -468,7 +478,7 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
       return {
         providerId: workerId,
         workerId,
-        command: [profile.binary, ...profile.args(prompt, effectiveTimeoutMs, workingDirectory)],
+        command: [profile.binary, ...profile.args(prompt, effectiveTimeoutMs, workingDirectory, contract.modelHint)],
         env: buildWorkerEnv(workerId, hostEnv, contract),
         // External workers must reach their provider APIs. The workflow wraps
         // this invocation in the platform sandbox before execution; egress

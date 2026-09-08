@@ -12,6 +12,7 @@ import { detectChecks } from "../../sdlc/check-catalog"
 import type { CheckDefinition } from "../../sdlc/check-types"
 import { isWhitelistedVerificationCommand } from "../../tool/shell-whitelist"
 import { checkWorkerSandbox } from "../../worker/worker-sandbox"
+import { discoverAntigravityModels, requireAntigravityModel } from "../../worker/antigravity-models"
 import * as prompts from "@clack/prompts"
 
 export type FieldSource = "operator-authored" | "inferred"
@@ -59,6 +60,7 @@ export function renderVetoCard(opts: {
   forbiddenPaths: string[]
   verification: string[]
   isolation: string
+  model?: { id: string; name: string }
   egress: { mode: "filtered" | "unconfined"; hosts: string[] }
   sources: {
     writeScope: FieldSource
@@ -70,6 +72,7 @@ export function renderVetoCard(opts: {
   const lines: string[] = [
     sep,
     `Agent:        ${opts.agent}`,
+    ...(opts.model ? [`AGY model:    ${opts.model.name} (${opts.model.id})`] : []),
     `Task:         ${opts.task.length > 72 ? opts.task.slice(0, 72) + "…" : opts.task}`,
     `Risk:         ${opts.riskLevel}`,
     `Isolation:    ${opts.isolation}`,
@@ -136,6 +139,10 @@ export const WorkerCommand = cmd({
               describe: "repository path (defaults to current directory)",
               type: "string",
             })
+            .option("model", {
+              describe: "exact AGY model slug from `agy models` (required for antigravity)",
+              type: "string",
+            })
             .option("write-scope", {
               describe: "glob patterns the worker may write to (overrides inferred scope)",
               type: "string",
@@ -175,6 +182,26 @@ export const WorkerCommand = cmd({
             const task = taskParts.join(" ").trim()
             if (!task) {
               UI.error("a task is required: dax worker run claude -- \"add tests for src/math.ts\"")
+              process.exitCode = 1
+              return
+            }
+            const requestedModel = (args.model as string | undefined)?.trim()
+            let workerModel: { id: string; name: string } | undefined
+            if (agent === "antigravity") {
+              if (!requestedModel) {
+                UI.error("Antigravity requires --model <slug>. Run `agy models` to list models available to this account.")
+                process.exitCode = 1
+                return
+              }
+              try {
+                workerModel = requireAntigravityModel(requestedModel, await discoverAntigravityModels())
+              } catch (error) {
+                UI.error(error instanceof Error ? error.message : String(error))
+                process.exitCode = 1
+                return
+              }
+            } else if (requestedModel) {
+              UI.error(`--model is currently supported only for the antigravity governed worker, not ${agent}.`)
               process.exitCode = 1
               return
             }
@@ -258,6 +285,7 @@ export const WorkerCommand = cmd({
                 agent, task, riskLevel: inferredRiskLevel,
                 writeScope, forbiddenPaths, verification, isolation: sandbox.summary,
                 egress: egressForCard, sources,
+                model: workerModel,
               })
               UI.println(card)
               cardAccepted = await waitForConfirmation()
@@ -275,6 +303,7 @@ export const WorkerCommand = cmd({
             }
 
             UI.println(`Governed worker run: ${agent}`)
+            if (workerModel) UI.println(`AGY model: ${workerModel.name} (${workerModel.id})`)
             UI.println(`Repo: ${repoPath}`)
             UI.println(`Task: ${task}${EOL}`)
             UI.println(`Isolation: ${sandbox.summary}${EOL}`)
@@ -289,6 +318,7 @@ export const WorkerCommand = cmd({
               personaPreset: {
                 personaId: "governed-worker",
                 providerHint: `worker:${agent}`,
+                ...(workerModel ? { modelHint: workerModel.id } : {}),
               },
               // Always send all three arrays so what the operator saw on the card is exactly
               // what binds — explicit [] is authoritative, not a fallback trigger.

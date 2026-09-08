@@ -10,6 +10,7 @@ import { useRoute } from "@tui/context/route"
 import { useToast } from "@tui/ui/toast"
 import { deriveDefaultValidationCommands } from "@/execution/default-validation-commands"
 import type { ExternalWorkerId } from "@/worker/worker-adapter"
+import { discoverAntigravityModels, type AntigravityModel } from "@/worker/antigravity-models"
 import { CreateRunResponse } from "@/server/run-contract"
 import {
   buildGovernedWorkerRunRequest,
@@ -27,7 +28,7 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
   const toast = useToast()
   const repoPath = createMemo(() => sync.data.path.directory || process.cwd())
 
-  async function launch(workerId: ExternalWorkerId) {
+  async function launch(workerId: ExternalWorkerId, model?: AntigravityModel) {
     const option = governedWorkerOptions().find((candidate) => candidate.id === workerId)!
     const task = await DialogPrompt.show(dialog, `Task for ${option.title}`, {
       placeholder: "Describe the bounded change",
@@ -55,6 +56,8 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
       writeScope: parseWorkerScope(scopeText),
       verification: verification.trim() ? [verification.trim()] : [],
       sessionId: route.data.type === "session" ? route.data.sessionID : undefined,
+      modelId: model?.id,
+      modelName: model?.name,
     }
 
     let preview: string
@@ -95,6 +98,36 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
     }
   }
 
+  async function selectModelThenLaunch(workerId: ExternalWorkerId) {
+    if (workerId !== "antigravity") {
+      await launch(workerId)
+      return
+    }
+
+    try {
+      const models = await discoverAntigravityModels()
+      dialog.replace(() => (
+        <DialogSelect
+          title="Select Antigravity model"
+          options={models.map((model) => ({
+            title: model.name,
+            value: model,
+            description: model.id,
+            category: "Authenticated AGY models",
+            footer: "Governed worker · disposable checkout · DAX approval",
+          }))}
+          onSelect={(option) => void launch(workerId, option.value)}
+        />
+      ))
+    } catch (error) {
+      await DialogAlert.show(
+        dialog,
+        "Antigravity models unavailable",
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+
   const options = governedWorkerOptions()
     .filter((option) => !props.initialWorkerId || option.id === props.initialWorkerId)
     .map((option) => ({
@@ -109,7 +142,7 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
     <DialogSelect
       title={props.initialWorkerId ? "Run Antigravity under DAX" : "Select governed worker"}
       options={options}
-      onSelect={(option) => void launch(option.value)}
+      onSelect={(option) => void selectModelThenLaunch(option.value)}
     />
   )
 }

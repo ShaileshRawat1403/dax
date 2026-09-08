@@ -85,8 +85,8 @@ dax --version
      - `Gemini API Key`: set `GEMINI_API_KEY`
      - `Google OAuth Client Sign-In`: run `dax auth login` and sign in with a configured or user-managed Google OAuth client
      - Create custom OAuth credentials at: https://console.cloud.google.com/apis/credentials/oauthclient
-   - Google AI subscription worker: authenticate `agy`, then run
-     `dax worker run antigravity -- "<task>"`
+   - Google AI subscription worker: authenticate `agy`, inspect `agy models`,
+     then run `dax worker run antigravity --model <model-slug> -- "<task>"`
    - Supported enterprise Gemini CLI legacy import: set
      `DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT=1` before `dax auth login`
    - Ollama: local daemon running (default `http://localhost:11434`)

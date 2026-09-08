@@ -55,10 +55,12 @@ AI subscription users should install and authenticate Antigravity CLI (`agy`)
 and invoke it as a governed external worker:
 
 ```bash
-dax worker run antigravity -- "<task>"
+agy models
+dax worker run antigravity --model <model-slug> -- "<task>"
 ```
 
-The equivalent TUI entry is `/workers` (or `/agy`). `/connect` exposes the same
+The equivalent TUI entry is `/workers` (or `/agy`), where DAX discovers and
+offers every model available to the authenticated AGY account. `/connect` exposes the same
 entry under **Governed worker** so individual users are not directed into the
 retired consumer Gemini CLI import. AGY is not a selectable `/models` provider:
 it is a governed process that may use models through its own authenticated

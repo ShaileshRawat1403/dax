@@ -97,6 +97,16 @@ describe("workerContractFromPolicy — Job 1: binding scope", () => {
     expect(contract.forbiddenPaths).toEqual([])
     expect(contract.verification).toEqual([])
   })
+
+  test("binds the exact operator-selected model into the worker contract", () => {
+    const contract = workerContractFromPolicy(
+      "task",
+      "run_agy",
+      undefined,
+      "gemini-3.8-flash-high",
+    )
+    expect(contract.modelHint).toBe("gemini-3.8-flash-high")
+  })
 })
 
 describe("contract_refined evidence payload — Job 3: three-state per-field provenance", () => {

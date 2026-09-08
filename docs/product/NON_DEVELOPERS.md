@@ -60,8 +60,9 @@ Choose this when you want:
 - to keep DAX's governed checkout, evidence, verification, and approval
 - to avoid copying AGY credentials into DAX
 
-Run `agy` once to authenticate, then use
-`dax worker run antigravity -- "<task>"`.
+Run `agy` once to authenticate, use `agy models` to see the models available
+to your account, then use
+`dax worker run antigravity --model <model-slug> -- "<task>"`.
 
 Important: DAX uses the account that is authenticated on your own machine. It does not ship somebody else's subscription to you. If you install DAX on your laptop, it will use your AGY login, your API key, or your OAuth setup.
 

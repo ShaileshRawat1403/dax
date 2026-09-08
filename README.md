@@ -160,7 +160,8 @@ Seatbelt or Linux bubblewrap; Windows support is not included in the v1.2 beta.
 Supported worker IDs are `claude`, `codex`, `antigravity`, and the legacy
 `gemini` lane for supported enterprise/API-key Gemini CLI deployments. For an
 individual Google AI subscription, install and authenticate Google's `agy`
-CLI, then run `dax worker run antigravity -- "<task>"`. DAX invokes AGY inside
+CLI, inspect `agy models`, then run
+`dax worker run antigravity --model <model-slug> -- "<task>"`. DAX invokes AGY inside
 the same governed checkout, egress, verification, evidence, and approval
 boundaries as every other external worker.
 

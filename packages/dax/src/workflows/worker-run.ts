@@ -188,6 +188,7 @@ export function workerContractFromPolicy(
   intent: string,
   runId: string,
   runtimePolicy?: RuntimePolicy,
+  modelHint?: string,
 ): WorkerContract {
   return WorkerContract.parse({
     task: intent,
@@ -195,6 +196,7 @@ export function workerContractFromPolicy(
     forbiddenPaths: runtimePolicy?.sensitivity.forbiddenPatterns ?? [],
     verification: runtimePolicy?.postconditions.validationCommands ?? [],
     runId,
+    modelHint,
   })
 }
 
@@ -310,6 +312,7 @@ export class WorkerRunWorkflow {
         this.contract.intent,
         this.runId,
         this.contract.runtimePolicy,
+        this.contract.modelHint,
       )
 
       // Scope provenance is part of the receipt. Event ordering is mandatory:

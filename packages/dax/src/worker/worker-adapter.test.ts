@@ -23,11 +23,16 @@ const contract: WorkerContract = WorkerContract.parse({
   invocationId: "inv_worker_1",
 })
 const workingDirectory = "/repo/checkout"
+const antigravityContract: WorkerContract = { ...contract, modelHint: "gemini-3.8-flash-high" }
+
+function contractFor(workerId: ExternalWorkerId): WorkerContract {
+  return workerId === "antigravity" ? antigravityContract : contract
+}
 
 describe("worker adapter", () => {
   test("each worker gets a non-interactive invocation carrying the contract prompt", () => {
     for (const workerId of ExternalWorkerId.options) {
-      const invocation = buildWorkerInvocation({ workerId, contract, workingDirectory })
+      const invocation = buildWorkerInvocation({ workerId, contract: contractFor(workerId), workingDirectory })
       expect(invocation.providerId).toBe(workerId)
       expect(invocation.command[0]).toBe(workerId === "antigravity" ? "agy" : workerId)
       const prompt = invocation.command.find((arg) => arg.includes("TASK:"))
@@ -122,7 +127,7 @@ describe("worker adapter", () => {
   test("antigravity uses the explicit AGY headless contract and narrow state/env boundary", () => {
     const invocation = buildWorkerInvocation({
       workerId: "antigravity",
-      contract,
+      contract: antigravityContract,
       workingDirectory,
       hostEnv: {
         HOME: "/Users/operator",
@@ -143,6 +148,8 @@ describe("worker adapter", () => {
       workingDirectory,
       "--mode",
       "accept-edits",
+      "--model",
+      "gemini-3.8-flash-high",
       "--output-format",
       "json",
       "--print-timeout",
@@ -156,7 +163,7 @@ describe("worker adapter", () => {
   })
 
   test("antigravity accepts only valid SUCCESS terminal JSON", () => {
-    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })
+    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract: antigravityContract, workingDirectory })
     const success = JSON.stringify({
       conversation_id: "conversation_1",
       status: "SUCCESS",
@@ -184,7 +191,7 @@ describe("worker adapter", () => {
   })
 
   test("missing antigravity binary fails with an actionable install message", () => {
-    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })
+    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract: antigravityContract, workingDirectory })
     expect(() => assertWorkerBinaryAvailable(invocation, () => null)).toThrow("antigravity.google/docs/cli/install")
   })
 
@@ -196,6 +203,10 @@ describe("worker adapter", () => {
     expect(() =>
       buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory: "relative/checkout" }),
     ).toThrow("absolute path")
+    expect(() => buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })).toThrow("explicit model")
+    expect(() =>
+      buildWorkerInvocation({ workerId: "codex", contract: antigravityContract, workingDirectory }),
+    ).toThrow("does not support")
   })
 
   test("the default registry lists every approved provider as an external CLI", () => {

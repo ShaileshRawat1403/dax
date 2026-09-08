@@ -349,7 +349,10 @@ describe("worker_run evidence contract (event harness)", () => {
 
     const run = await runWorkflowAndCaptureEvents({
       workflowClass: "worker_run",
-      contract: makeContract({ providerHint: "worker:antigravity" }),
+      contract: makeContract({
+        providerHint: "worker:antigravity",
+        modelHint: "gemini-3.8-flash-high",
+      }),
       directory: workspace,
     })
 
