@@ -114,7 +114,6 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
             value: model,
             description: model.id,
             category: "Authenticated AGY models",
-            footer: "Governed worker · disposable checkout · DAX approval",
           }))}
           onSelect={(option) => void launch(workerId, option.value)}
         />
