@@ -59,12 +59,33 @@ agy models
 dax worker run antigravity --model <model-slug> -- "<task>"
 ```
 
-The equivalent TUI entry is `/workers` (or `/agy`), where DAX discovers and
-offers every model available to the authenticated AGY account. `/connect` exposes the same
-entry under **Governed worker** so individual users are not directed into the
-retired consumer Gemini CLI import. AGY is not a selectable `/models` provider:
-it is a governed process that may use models through its own authenticated
-Google account.
+The TUI model picker (`/models`) includes authenticated choices under
+**AGY governed agent**. Selecting one launches a governed conversational
+session: the picker closes and you type directly in the normal chat box.
+The first message starts AGY in that same DAX session. `/agy` and the AGY
+entry in `/connect` also select a chat model; no task wizard is required.
+`/workers` retains the explicit task/scope/verification launcher.
+Within an AGY session, `/agy` offers **Finish and review** and **Cancel attempt**.
+AGY uses the official streaming CLI; it is not a direct Google model provider.
+`/connect` retains the **Governed worker** entry.
+
+Chat uses a disposable copy of the repository, with existing forbidden-path
+rules and detected repository verification commands. Changes remain isolated
+until DAX verifies them and requests approval. If no verification command is
+detected, DAX cannot approve a coding result without verification.
+
+One AGY process and conversation serve one DAX execution attempt in its
+disposable checkout. Model and scope remain fixed for that attempt. Finish and
+review stops the process before DAX observes the final patch, verifies it,
+and requests canonical approval. Approval yields a patch artifact for the
+operator to apply. Intermediate text-only replies are allowed; finishing an
+attempt without a patch does not count as completed coding work.
+
+AGY-reported tools and text are conversational observations, not verification
+evidence. The bridge accepts text only, rejects malformed streaming output,
+and cancels the process tree on timeout or interruption. Reconnect can observe
+a live session; a crashed or finished attempt requires a new session and is
+never automatically replayed. AGY owns its own conversation files and login.
 
 This is deliberately separate from `google/*` model-provider authentication.
 AGY owns its local login; DAX does not import or persist AGY credentials. DAX

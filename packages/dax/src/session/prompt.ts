@@ -46,6 +46,7 @@ import { TaskTool } from "@/tool/task"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/governance"
 import { SessionStatus } from "./status"
+import { AntigravityConversation } from "@/worker/antigravity-conversation"
 import { LLM } from "./llm"
 import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
@@ -344,6 +345,8 @@ export namespace SessionPrompt {
   export type PromptInput = z.infer<typeof PromptInput>
 
   export const prompt = fn(PromptInput, async (input) => {
+    if (await AntigravityConversation.isBound(input.sessionID)) return AntigravityConversation.prompt(input)
+    if (input.model?.providerID === "worker:antigravity") return AntigravityConversation.startChat(input)
     if (input.tools && Object.keys(input.tools).length > 0) {
       log.warn("deprecated prompt.tools compatibility path used; prefer session permissions", {
         sessionID: input.sessionID,
@@ -509,6 +512,7 @@ export namespace SessionPrompt {
   }
 
   export function cancel(sessionID: string) {
+    if (AntigravityConversation.cancel(sessionID)) return
     log.info("cancel", { sessionID })
     const s = state()
     const match = s[sessionID]
@@ -558,6 +562,7 @@ export namespace SessionPrompt {
     completionPolicy: z.enum(["explicit", "on_provider_stop"]).optional(),
   })
   export const loop = fn(LoopInput, async (input) => {
+    if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("AGY sessions cannot enter the native model loop.")
     const { sessionID, resume_existing, completionPolicy } = input
 
     const abort = resume_existing ? resume(sessionID) : start(sessionID)
@@ -2021,6 +2026,7 @@ ${
   })
   export type ShellInput = z.infer<typeof ShellInput>
   export async function shell(input: ShellInput) {
+    if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("Direct shell execution is unavailable in an AGY governed conversation.")
     const abort = start(input.sessionID)
     if (!abort) {
       throw new Session.BusyError(input.sessionID)
@@ -2288,6 +2294,7 @@ ${
    */
 
   export async function command(input: CommandInput) {
+    if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("Agent commands are unavailable in an AGY governed conversation. Use the AGY session controls.")
     log.info("command", input)
     if (input.command === Command.Default.PM) {
       const result = await commandPM(input)

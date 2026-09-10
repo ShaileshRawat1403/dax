@@ -14,6 +14,7 @@ export type GovernedWorkerLaunchInput = {
   sessionId?: string
   modelId?: string
   modelName?: string
+  conversation?: { effort?: "low" | "medium" | "high" }
 }
 
 export type GovernedWorkerOption = {
@@ -91,6 +92,7 @@ export function buildGovernedWorkerRunRequest(input: GovernedWorkerLaunchInput):
       ...(model ? { modelHint: model.id } : {}),
     },
     workerConstraints: {
+      ...(input.conversation ? { conversation: input.conversation } : {}),
       writeScope,
       forbiddenPaths: [],
       verification,
@@ -121,6 +123,7 @@ export function renderGovernedWorkerPreview(input: GovernedWorkerLaunchInput): s
   const hosts = [...buildEgressAllowlist({ workerId: input.workerId })]
   return [
     `Worker: ${option.title}`,
+    ...(input.conversation ? ["Session: AGY governed agent · conversational", "Follow-up messages stay inside this contract. Finish and review stops AGY before DAX verification."] : []),
     ...(model ? [`AGY model: ${model.name} (${model.id})`] : []),
     `Repository: ${input.repoPath}`,
     `Task: ${input.task.trim()}`,

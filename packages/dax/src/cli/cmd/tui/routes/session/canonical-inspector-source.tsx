@@ -46,7 +46,9 @@ export function CanonicalInspectorSourceProvider(props: ParentProps<{ runID: str
     if (props.runID === runId) setState((previous) => rejectCanonicalInspectorRead(previous, error))
   }
 
-  createEffect(on([() => props.runID, () => props.refreshKey], ([runId]) => {
+  // Solid reconcile preserves the run object's identity. Track its contents
+  // so the pre-birth inspector snapshot refreshes when canonical state arrives.
+  createEffect(on([() => props.runID, () => JSON.stringify(props.refreshKey)], ([runId]) => {
     const changed = lastRunID !== runId
     lastRunID = runId
     if (changed) {

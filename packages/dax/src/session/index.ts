@@ -22,6 +22,7 @@ import { Snapshot } from "@/snapshot"
 import type { Provider } from "@/provider/provider"
 import { Permission } from "@/governance"
 import { Global } from "@/global"
+import { AntigravitySessionState } from "@/worker/antigravity-stream"
 import { SessionV2 } from "./model"
 
 export namespace Session {
@@ -63,6 +64,7 @@ export namespace Session {
        * reference preserves authority across derived sessions.
        */
       governingRunId: Identifier.schema("session").optional(),
+      externalAgent: AntigravitySessionState.optional(),
       summary: z
         .object({
           additions: z.number(),

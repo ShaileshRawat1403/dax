@@ -24,6 +24,7 @@ import type { FilePart } from "@dax-ai/sdk/v2"
 import { useRenderer } from "@opentui/solid"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
+import { antigravitySession } from "@/worker/antigravity-stream"
 
 const OPERATOR_CONTROL_DEFAULTS = {
   speed: "balanced",
@@ -246,6 +247,10 @@ export function usePromptHandlers(
   }
 
   async function handleRefine() {
+    if (props.sessionID && antigravitySession(sync.session.get(props.sessionID))) {
+      toast.show({ variant: "info", message: "Send your refinement directly to the AGY conversation." })
+      return
+    }
     if (props.disabled) {
       log.info("handleRefine: disabled")
       return
@@ -534,6 +539,10 @@ export function usePromptHandlers(
     }
 
     const nonTextParts = store.prompt.parts.filter((part) => part.type !== "text")
+    if (selectedModel.providerID === "worker:antigravity" && (nonTextParts.length > 0 || store.mode === "shell" || isSlashCommand)) {
+      toast.show({ variant: "warning", message: "AGY accepts conversational text only. Use /agy for session controls." })
+      return
+    }
 
     const currentMode = store.mode
     const variant = local.model.variant.current()
@@ -594,7 +603,10 @@ export function usePromptHandlers(
             })),
           ],
         })
-        .catch(() => {})
+        .then((result) => {
+          if (result.error) toast.show({ variant: "error", message: (result.error as { data?: { message?: string } }).data?.message ?? "Message failed. Please retry in a new chat." })
+        })
+        .catch((error) => toast.show({ variant: "error", message: error instanceof Error ? error.message : String(error) }))
     }
     history.append({
       ...store.prompt,

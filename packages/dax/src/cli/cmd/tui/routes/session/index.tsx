@@ -103,6 +103,7 @@ import {
 import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { resolveWorkstationUIState } from "@/dax/presentation/ui-state-container"
+import { antigravitySession } from "@/worker/antigravity-stream"
 import type { ResolvedUISurface } from "@/dax/presentation/ui-state-resolver"
 import { deriveEnvironmentHealth } from "@/dax/presentation/environment-health"
 import {
@@ -863,7 +864,12 @@ export function Session() {
 
   const uiSurface = createMemo(() =>
     resolveWorkstationUIState({
-      workstation: workstationState(),
+      workstation: (() => {
+        const state = workstationState()
+        const agy = antigravitySession(session())
+        if (!agy || agy.phase === "closed") return state
+        return { ...state, lifecycle: agy.phase === "failed" ? "failed" as const : agy.phase === "ready" ? "ready" as const : "executing" as const }
+      })(),
       // permissions() and questions() are the same producer-side signals that
       // fed deriveWorkstationState. Passing them split here preserves the
       // approval/question distinction that WorkstationState aggregates away.

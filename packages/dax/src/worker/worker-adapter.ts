@@ -37,7 +37,7 @@ import { buildEgressAllowlist } from "./egress-allowlist"
 export const ExternalWorkerId = z.enum(["claude", "codex", "gemini", "antigravity"])
 export type ExternalWorkerId = z.infer<typeof ExternalWorkerId>
 
-const AntigravityUsageSchema = z
+export const AntigravityUsageSchema = z
   .object({
     input_tokens: z.number().int().nonnegative(),
     output_tokens: z.number().int().nonnegative(),
@@ -53,6 +53,9 @@ const AntigravityHeadlessBaseSchema = z.object({
   duration_seconds: z.number().nonnegative(),
   num_turns: z.number().int().nonnegative(),
   usage: AntigravityUsageSchema,
+  // Official CLI 1.1.27 reports soft-denied tools even on SUCCESS. This is
+  // activity metadata only; DAX still independently verifies the candidate.
+  denied_actions: z.array(z.object({ action: z.string(), display_name: z.string() }).strict()).optional(),
 })
 
 /** Documented AGY JSON result. Only SUCCESS is an accepted worker outcome. */

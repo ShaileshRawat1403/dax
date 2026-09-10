@@ -125,6 +125,37 @@ afterAll(async () => {
 })
 
 describe("worker_run evidence contract (event harness)", () => {
+  test("conversational AGY seals before diff and verification, then waits for canonical approval", async () => {
+    const order: string[] = []
+    const base = successfulEffects([])
+    WorkerRunEffects.set({
+      ...base,
+      async runWorker() { throw new Error("must use the conversation path") },
+      async runConversation() {
+        order.push("sealed")
+        return { exitCode: 0, stdout: JSON.stringify({ conversation_id: "external-context", status: "SUCCESS", response: "AGY says complete", duration_seconds: 2, num_turns: 2, usage: { input_tokens: 2, output_tokens: 2, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 4 } }), stderr: "", sandboxProvider: "seatbelt" }
+      },
+      async computeDiff() { order.push("diff"); return base.computeDiff() },
+      async runVerification(check) { order.push("verify"); return passedCheck(check) },
+    })
+    const contract = makeContract({ providerHint: "worker:antigravity", modelHint: "selected-model", runtimePolicy: { ...workerPolicy(["src/**"], [], ["bun test"]), workerConversation: {} } })
+    const run = await runWorkflowAndCaptureEvents({ workflowClass: "worker_run", contract, directory: workspace })
+    expect(order).toEqual(["sealed", "diff", "verify", "diff"])
+    expect(run.state?.status).toBe("waiting_approval")
+    expect(firstEventByType(run.events, "approval_requested")).toBeDefined()
+    expect(firstEventByType(run.events, "workflow_completed")).toBeUndefined()
+    expect(firstEventByType(run.events, "tool_result_recorded")).toBeUndefined()
+  })
+
+  test("conversation transport failure cannot produce evidence or approval", async () => {
+    WorkerRunEffects.set({ ...successfulEffects([]), async runConversation() { throw new Error("missing AGY result") } })
+    const contract = makeContract({ providerHint: "worker:antigravity", modelHint: "selected-model", runtimePolicy: { ...workerPolicy(["src/**"], [], ["bun test"]), workerConversation: {} } })
+    const run = await runWorkflowAndCaptureEvents({ workflowClass: "worker_run", contract, directory: workspace })
+    expect(run.state?.status).toBe("failed")
+    expect(firstEventByType(run.events, "mutation_recorded")).toBeUndefined()
+    expect(firstEventByType(run.events, "approval_requested")).toBeUndefined()
+  })
+
   test("records what the operator was asked to permit, not just that they were asked", async () => {
     const invocations: WorkerInvocation[] = []
     WorkerRunEffects.set(successfulEffects(invocations))

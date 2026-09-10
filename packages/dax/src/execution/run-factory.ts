@@ -203,6 +203,10 @@ async function startExecution(runId: string, contract: ExecutionContract): Promi
 }
 
 export async function createRunFromContract(input: RunFactoryInput): Promise<RunFactoryResult> {
+  if (input.request.workerConstraints?.conversation &&
+    (input.request.workflowHint !== "worker_run" || input.request.personaPreset?.providerHint !== "worker:antigravity")) {
+    throw new Error("Conversational worker execution requires the explicit AGY worker_run path.")
+  }
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
   const permission = sessionPermissionFromPreset(input.request)
 

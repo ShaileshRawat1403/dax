@@ -1,4 +1,6 @@
-import { createMemo, createSignal } from "solid-js"
+import { createMemo, createSignal, createResource } from "solid-js"
+import { useSDK } from "@tui/context/sdk"
+import { fetchAgyModels } from "./agy-models-client"
 import { useLocal } from "@tui/context/local"
 import { useSync } from "@tui/context/sync"
 import { map, pipe, flatMap, entries, filter, sortBy, take } from "remeda"
@@ -27,6 +29,9 @@ export function DialogModel(props: { providerID?: string }) {
   const sync = useSync()
   const dialog = useDialog()
   const keybind = useKeybind()
+  const sdk = useSDK()
+  const includeAgy = () => !props.providerID || props.providerID === "worker:antigravity"
+  const [agyModels] = createResource(includeAgy, () => fetchAgyModels(sdk.fetch, sdk.url))
   const [ref, setRef] = createSignal<DialogSelectRef<unknown>>()
   const [query, setQuery] = createSignal("")
 
@@ -200,14 +205,31 @@ export function DialogModel(props: { providerID?: string }) {
         )
       : []
 
+    const agyOptions = !includeAgy() ? [] : (agyModels.error ? [] : agyModels() ?? []).map((model) => ({
+      title: model.name,
+      value: { providerID: "worker:antigravity", modelID: model.id },
+      category: "AGY governed agent",
+      description: "Signed-in AGY account · no Google API key",
+      onSelect: () => {
+        local.model.set({ providerID: "worker:antigravity", modelID: model.id }, { recent: true })
+        dialog.clear()
+      },
+    }))
+    const agyStatus = includeAgy() && (agyModels.loading || agyModels.error) ? [{
+      title: agyModels.loading ? "Loading authenticated AGY models…" : "AGY models unavailable",
+      value: { providerID: "worker:antigravity", modelID: "" }, category: "AGY governed agent", disabled: true,
+      description: agyModels.error ? String(agyModels.error.message ?? agyModels.error).slice(0, 180) : "Checking execution host",
+    }] : []
+
     // Search shows a single merged list (favorites inline)
     if (needle) {
       const filteredProviders = fuzzysort.go(needle, providerOptions, { keys: ["title", "category"] }).map((x) => x.obj)
       const filteredPopular = fuzzysort.go(needle, popularProviders, { keys: ["title"] }).map((x) => x.obj)
-      return [...filteredProviders, ...filteredPopular]
+      const filteredAgy = fuzzysort.go(needle, agyOptions, { keys: ["title", "category"] }).map((x) => x.obj)
+      return [...filteredProviders, ...filteredAgy, ...filteredPopular]
     }
 
-    return [...favoriteOptions, ...recentOptions, ...providerOptions, ...popularProviders]
+    return [...agyOptions, ...agyStatus, ...favoriteOptions, ...recentOptions, ...providerOptions, ...popularProviders]
   })
 
   const provider = createMemo(() =>
@@ -234,6 +256,7 @@ export function DialogModel(props: { providerID?: string }) {
           title: "Favorite",
           disabled: !connected(),
           onTrigger: (option) => {
+            if ((option.value as { providerID?: string })?.providerID === "worker:antigravity") return
             local.model.toggleFavorite(option.value as { providerID: string; modelID: string })
           },
         },

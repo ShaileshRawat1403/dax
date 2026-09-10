@@ -59,6 +59,8 @@ import { UIActivityProvider } from "./context/activity"
 import { bootstrap } from "../../bootstrap"
 import { formatDoctorSection, mcpSection, projectSection } from "@/doctor"
 import { DialogGovernedWorker } from "@tui/component/dialog-governed-worker"
+import { DialogAgySession } from "@tui/component/dialog-agy-session"
+import { antigravitySession } from "@/worker/antigravity-stream"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   return "dark"
@@ -449,10 +451,27 @@ function App(props: { onSessionChange?: (sessionID: string) => void }) {
       category: "Workflows",
       slash: {
         name: "workers",
-        aliases: ["worker", "agy"],
+        aliases: ["worker"],
       },
       onSelect: () => {
-        dialog.replace(() => <DialogGovernedWorker />)
+        if (route.data.type === "session" && antigravitySession(sync.session.get(route.data.sessionID))) {
+          const sessionID = route.data.sessionID
+          dialog.replace(() => <DialogAgySession sessionID={sessionID} />)
+        } else dialog.replace(() => <DialogGovernedWorker conversation />)
+      },
+    },
+    {
+      title: "AGY account conversation",
+      description: "Use your signed-in Antigravity account through the official CLI",
+      value: "agy.conversation",
+      suggested: true,
+      category: "Agent",
+      slash: { name: "agy" },
+      onSelect: () => {
+        if (route.data.type === "session" && antigravitySession(sync.session.get(route.data.sessionID))) {
+          const sessionID = route.data.sessionID
+          dialog.replace(() => <DialogAgySession sessionID={sessionID} />)
+        } else dialog.replace(() => <DialogModel providerID="worker:antigravity" />)
       },
     },
     {

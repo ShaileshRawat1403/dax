@@ -16,6 +16,10 @@ import { produce } from "solid-js/store"
 import { usePromptState, ELI12_PLACEHOLDER, PLACEHOLDERS, WORKFLOW_AGENT_MODES } from "./prompt-state"
 import { usePromptHandlers } from "./prompt-handlers"
 import { usePromptDialogs } from "./prompt-dialogs"
+import { useSync } from "@tui/context/sync"
+import { useDialog } from "@tui/ui/dialog"
+import { antigravitySession } from "@/worker/antigravity-stream"
+import { DialogAgySession, agyPhaseLabel } from "../dialog-agy-session"
 
 export type PromptProps = {
   sessionID?: string
@@ -51,6 +55,9 @@ export function Prompt(props: PromptProps) {
   const keybind = useKeybind()
   const local = useLocal()
   const sdk = useSDK()
+  const sync = useSync()
+  const dialog = useDialog()
+  const agy = () => props.sessionID ? antigravitySession(sync.session.get(props.sessionID)) : undefined
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const textareaKeybindings = useTextareaKeybindings()
@@ -245,14 +252,19 @@ export function Prompt(props: PromptProps) {
                 syntaxStyle={syntax()}
               />
             </box>
-            <box flexDirection="row" flexShrink={0} paddingTop={0} gap={1}>
-              <text fg={state.highlight()}>{state.store.mode === "shell" ? "Shell" : state.activeWorkflowLabel()}</text>
+            <box flexDirection="row" flexWrap="wrap" flexShrink={0} paddingTop={0} gap={1}>
+              <text fg={state.highlight()}>{agy() ? "AGY governed agent" : state.store.mode === "shell" ? "Shell" : state.activeWorkflowLabel()}</text>
+              <Show when={agy()}>
+                <text fg={agy()!.phase === "failed" ? theme.warning : theme.textMuted} onMouseUp={() => dialog.replace(() => <DialogAgySession sessionID={props.sessionID!} />)}>
+                  {agyPhaseLabel[agy()!.phase]} · /agy controls
+                </text>
+              </Show>
               <Show when={state.store.mode === "normal"}>
                 <box flexDirection="row" gap={1}>
                   <text flexShrink={0} fg={keybind.leader ? theme.textMuted : theme.text}>
                     {local.model.parsed().model}
                   </text>
-                  <text fg={theme.textMuted}>{local.model.parsed().provider}</text>
+                  <Show when={!agy()}><text fg={theme.textMuted}>{local.model.parsed().provider}</text></Show>
                   <Show when={state.showVariant()}>
                     <text fg={theme.textMuted}>·</text>
                     <text>

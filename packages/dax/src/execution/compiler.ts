@@ -179,6 +179,7 @@ function deriveRuntimePolicy(request: CreateRunRequest, workflowClass: WorkflowC
       ]),
     },
     provenance: wc.provenance,
+    workerConversation: wc.conversation,
     // Egress confinement rides through to worker_run. Absent leaves the adapter
     // default (filter on); an explicit block carries the operator's choice.
     egress: wc.egress

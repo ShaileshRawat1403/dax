@@ -1,4 +1,4 @@
-import { createMemo } from "solid-js"
+import { createMemo, onMount } from "solid-js"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect } from "@tui/ui/dialog-select"
 import { DialogPrompt } from "@tui/ui/dialog-prompt"
@@ -10,7 +10,8 @@ import { useRoute } from "@tui/context/route"
 import { useToast } from "@tui/ui/toast"
 import { deriveDefaultValidationCommands } from "@/execution/default-validation-commands"
 import type { ExternalWorkerId } from "@/worker/worker-adapter"
-import { discoverAntigravityModels, type AntigravityModel } from "@/worker/antigravity-models"
+import { type AntigravityModel } from "@/worker/antigravity-models"
+import { fetchAgyModels } from "./agy-models-client"
 import { CreateRunResponse } from "@/server/run-contract"
 import {
   buildGovernedWorkerRunRequest,
@@ -20,7 +21,7 @@ import {
   renderGovernedWorkerPreview,
 } from "./governed-worker-launch"
 
-export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId } = {}) {
+export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId; initialModel?: AntigravityModel; conversation?: boolean } = {}) {
   const dialog = useDialog()
   const sdk = useSDK()
   const sync = useSync()
@@ -58,6 +59,7 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
       sessionId: route.data.type === "session" ? route.data.sessionID : undefined,
       modelId: model?.id,
       modelName: model?.name,
+      ...(props.conversation && workerId === "antigravity" ? { conversation: {} } : {}),
     }
 
     let preview: string
@@ -105,7 +107,7 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
     }
 
     try {
-      const models = await discoverAntigravityModels()
+      const models = await fetchAgyModels(sdk.fetch, sdk.url)
       dialog.replace(() => (
         <DialogSelect
           title="Select Antigravity model"
@@ -136,6 +138,10 @@ export function DialogGovernedWorker(props: { initialWorkerId?: ExternalWorkerId
       category: option.recommended ? "Recommended" : "Other governed workers",
       footer: `${option.binary} · execution host checked at start`,
     }))
+
+  onMount(() => {
+    if (props.initialModel) void launch("antigravity", props.initialModel)
+  })
 
   return (
     <DialogSelect

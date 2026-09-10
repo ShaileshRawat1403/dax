@@ -1,10 +1,12 @@
 import { Hono } from "hono"
+import { Bus } from "@/bus"
 import { stream } from "hono/streaming"
 import { describeRoute, validator, resolver } from "hono-openapi"
 import z from "zod"
 import { Session } from "../../session"
 import { MessageV2 } from "../../session/message-v2"
 import { SessionPrompt } from "../../session/prompt"
+import { AntigravityConversation } from "@/worker/antigravity-conversation"
 import { SessionCompaction } from "../../session/compaction"
 import { SessionRevert } from "../../session/revert"
 import { SessionStatus } from "@/session/status"
@@ -380,7 +382,8 @@ export const SessionRoutes = lazy(() =>
         }),
       ),
       async (c) => {
-        SessionPrompt.cancel(c.req.valid("param").sessionID)
+        const sessionID = c.req.valid("param").sessionID
+        if (!await AntigravityConversation.cancelSession(sessionID)) SessionPrompt.cancel(sessionID)
         return c.json(true)
       },
     )
@@ -726,6 +729,15 @@ export const SessionRoutes = lazy(() =>
       ),
       validator("json", SessionPrompt.PromptInput.omit({ sessionID: true })),
       async (c) => {
+        const sessionID = c.req.valid("param").sessionID
+        const body = c.req.valid("json")
+        if (body.model?.providerID === "worker:antigravity" || await AntigravityConversation.isBound(sessionID)) {
+          try {
+            return c.json(await SessionPrompt.prompt({ ...body, sessionID }))
+          } catch (error) {
+            return c.json({ name: "UnknownError", data: { message: error instanceof Error ? error.message : String(error) } }, 409)
+          }
+        }
         c.status(200)
         c.header("Content-Type", "application/json")
         return stream(c, async (stream) => {
@@ -763,7 +775,12 @@ export const SessionRoutes = lazy(() =>
         return stream(c, async () => {
           const sessionID = c.req.valid("param").sessionID
           const body = c.req.valid("json")
-          SessionPrompt.prompt({ ...body, sessionID })
+          void SessionPrompt.prompt({ ...body, sessionID }).catch(async (error) => {
+            log.error("async prompt failed", { sessionID, message: error instanceof Error ? error.message : String(error) })
+            await Bus.publish(Session.Event.Error, { sessionID, error: { name: "UnknownError", data: { message: error instanceof Error ? error.message : String(error) } } })
+          }).catch((error) => {
+            log.error("prompt error notification failed", { sessionID, message: String(error) })
+          })
         })
       },
     )

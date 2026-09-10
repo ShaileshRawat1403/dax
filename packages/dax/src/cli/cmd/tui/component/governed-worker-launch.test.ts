@@ -19,6 +19,12 @@ const input = {
 }
 
 describe("governed worker TUI launch", () => {
+  test("conversation selection preserves the governed worker contract", () => {
+    const request = buildGovernedWorkerRunRequest({ ...input, conversation: { effort: "high" } })
+    expect(request.workflowHint).toBe("worker_run")
+    expect(request.personaPreset?.providerHint).toBe("worker:antigravity")
+    expect(request.workerConstraints).toMatchObject({ conversation: { effort: "high" }, writeScope: input.writeScope, verification: input.verification })
+  })
   test("presents Antigravity as the recommended worker and Gemini CLI as enterprise legacy", () => {
     const options = governedWorkerOptions()
     expect(options[0]).toMatchObject({ id: "antigravity", binary: "agy", recommended: true })

@@ -12,6 +12,8 @@ import { Provider } from "@/provider/provider"
 import { useArgs } from "./args"
 import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
+import { useRoute } from "@tui/context/route"
+import { antigravitySession } from "@/worker/antigravity-stream"
 
 const WORKFLOW_AGENT_ORDER = ["plan", "build", "explore", "docs"] as const
 
@@ -32,8 +34,11 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const sync = useSync()
     const sdk = useSDK()
     const toast = useToast()
+    const route = useRoute()
+    const agy = createMemo(() => route.data.type === "session" ? antigravitySession(sync.session.get(route.data.sessionID)) : undefined)
 
     function isModelValid(model: { providerID: string; modelID: string }) {
+      if (model.providerID === "worker:antigravity") return /^[a-z0-9][a-z0-9.-]+$/.test(model.modelID)
       const provider = sync.data.provider.find((x) => x.id === model.providerID)
       return !!provider?.models[model.modelID]
     }
@@ -219,6 +224,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       })
 
       const currentModel = createMemo(() => {
+        const external = agy()
+        if (external) return { providerID: "worker:antigravity", modelID: external.model }
         const a = agent.current()
         return (
           getFirstValidModel(
@@ -241,7 +248,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return modelStore.favorite
         },
         parsed: createMemo(() => {
+          const external = agy()
+          if (external) return { provider: "AGY governed agent", model: external.model, reasoning: false }
           const value = currentModel()
+          if (value?.providerID === "worker:antigravity") return { provider: "AGY governed agent", model: value.modelID, reasoning: false }
           if (!value) {
             return {
               provider: "Connect a provider",
@@ -304,6 +314,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           save()
         },
         set(model: { providerID: string; modelID: string }, options?: { recent?: boolean }) {
+          if (agy()) {
+            if (model.providerID !== "worker:antigravity" || model.modelID !== agy()!.model) toast.show({ variant: "warning", message: "Start a new session to change the model of a governed AGY attempt." })
+            return
+          }
           batch(() => {
             if (!isModelValid(model)) {
               toast.show({
@@ -350,12 +364,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         },
         variant: {
           current() {
+            if (agy()) return agy()!.effort
             const m = currentModel()
             if (!m) return undefined
             const key = `${m.providerID}/${m.modelID}`
             return modelStore.variant[key]
           },
           list() {
+            if (agy()) return []
             const m = currentModel()
             if (!m) return []
             const provider = sync.data.provider.find((x) => x.id === m.providerID)
@@ -364,6 +380,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             return Object.keys(info.variants)
           },
           set(value: string | undefined) {
+            if (agy()) return
             const m = currentModel()
             if (!m) return
             const key = `${m.providerID}/${m.modelID}`
@@ -408,6 +425,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     // Automatically update model when agent changes
     createEffect(() => {
+      if (agy()) return
       const value = agent.current()
       const saved = model.current()
       if (saved && isModelValid(saved)) return

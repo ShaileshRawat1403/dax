@@ -255,6 +255,7 @@ export type ScopeProvenance = z.infer<typeof ScopeProvenance>
 
 export const WorkerConstraints = z
   .object({
+    conversation: z.object({ effort: z.enum(["low", "medium", "high"]).optional() }).strict().optional(),
     /** Glob patterns the worker may write to. CLI flags win over inferred. */
     writeScope: z.array(z.string()).optional(),
     /** Paths/globs the worker must not touch. */

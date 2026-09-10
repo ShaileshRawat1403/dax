@@ -33,6 +33,9 @@ export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, m
     return { lifecycle: "Authority unreadable", authority: "Authority unreadable", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: true }
   }
   if (state.snapshot.kind === "legacy_unsupported") {
+    if (state.snapshot.reason === "no_canonical_authority") {
+      return { lifecycle: "No canonical run yet", authority: "Waiting for execution to start", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: false }
+    }
     return { lifecycle: "Legacy authority — canonical inspector unsupported", authority: "Legacy authority — canonical inspector unsupported", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: true }
   }
 
