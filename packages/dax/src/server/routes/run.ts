@@ -35,6 +35,10 @@ export const RunRoutes = lazy(() =>
         return c.json({ accepted: true })
       } catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 409) }
     })
+    .get("/:runID/agy/status", async (c) => {
+      try { return c.json(await AntigravityConversation.status(c.req.param("runID"))) }
+      catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 404) }
+    })
     .get(
       "/overview",
       describeRoute({

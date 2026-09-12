@@ -1371,7 +1371,7 @@
   },
   "src/server/routes/session.ts": {
     "@typescript-eslint/no-floating-promises": {
-      "count": 3
+      "count": 2
     }
   },
   "src/server/routes/soothsayer.ts": {

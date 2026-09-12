@@ -647,15 +647,23 @@ export function usePromptHandlers(
       }
       if (refs.autocomplete()?.visible) return
       if (props.sessionID) {
+        // AGY exposes no per-turn interrupt: stopping ends the whole governed attempt.
+        const agy = !!antigravitySession(sync.session.get(props.sessionID))
         const next = store.interrupt + 1
         setStore("interrupt", next)
         setTimeout(() => setStore("interrupt", 0), 5000)
         if (next >= 2) {
           sdk.client.session.abort({ sessionID: props.sessionID })
           setStore("interrupt", 0)
-          toast.show({ variant: "warning", message: "Session interrupted." })
+          toast.show({
+            variant: "warning",
+            message: agy ? "AGY attempt ended. It cannot be resumed; start a new AGY conversation." : "Session interrupted.",
+          })
         } else {
-          toast.show({ variant: "warning", message: "Press ESC again to stop the session." })
+          toast.show({
+            variant: "warning",
+            message: agy ? "Press ESC again to end this AGY attempt. It cannot be resumed." : "Press ESC again to stop the session.",
+          })
         }
       }
       return

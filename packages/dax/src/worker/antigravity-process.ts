@@ -5,6 +5,7 @@ import { processGroupAlive } from "./worker-sandbox"
 import {
   AntigravityDecoder,
   AntigravityProtocol,
+  AntigravityStop,
   antigravityUserMessage,
   type AntigravityStreamRecord,
   type AntigravityStreamResult,
@@ -25,8 +26,8 @@ export function startAntigravityProcess(input: {
   cwd: string
   model: string
   env: Record<string, string>
+  /** Bounds the whole attempt, including time spent waiting for the operator. */
   timeoutMs: number
-  idleTimeoutMs?: number
   onRecord: (record: AntigravityStreamRecord) => Promise<void>
 }) {
   if (process.platform === "win32") throw new Error("AGY governed conversations require macOS or Linux isolation.")
@@ -44,7 +45,6 @@ export function startAntigravityProcess(input: {
   let stderr = ""
   let lastResult: AntigravityStreamResult | undefined
   let active: { resolve: (value: AntigravityStreamResult) => void; reject: (error: Error) => void } | undefined
-  let idleTimer: ReturnType<typeof setTimeout> | undefined
   let shutdownTimer: ReturnType<typeof setTimeout> | undefined
   let killing: Promise<void> | undefined
   const kill = () => (killing ??= Shell.killTree(proc, { exited: () => !proc.pid || !processGroupAlive(proc.pid) }))
@@ -55,13 +55,13 @@ export function startAntigravityProcess(input: {
     active = undefined
     void kill().catch(() => {})
   }
-  const resetIdle = () => {
-    if (idleTimer) clearTimeout(idleTimer)
-    if (!closing)
-      idleTimer = setTimeout(() => fail(new Error("AGY conversation idle timeout.")), input.idleTimeoutMs ?? 300_000)
-  }
-  const deadline = setTimeout(() => fail(new Error("AGY governed attempt timed out.")), input.timeoutMs)
-  const startup = setTimeout(() => fail(new Error("AGY initialization timed out.")), Math.min(input.timeoutMs, 30_000))
+  // No idle timer: between turns AGY waits for a human operator. The execution
+  // contract timeout is the only declared bound on the attempt.
+  const deadline = setTimeout(() => fail(new Error(AntigravityStop.deadline)), input.timeoutMs)
+  const startup = setTimeout(
+    () => fail(new Error(AntigravityStop.initialization)),
+    Math.min(input.timeoutMs, 30_000),
+  )
   proc.stdin!.on("error", fail)
   owner.on("error", fail)
   const exited = new Promise<number>((resolve, reject) => {
@@ -79,26 +79,37 @@ export function startAntigravityProcess(input: {
         for (const record of decoder.push(chunk)) {
           protocol.accept(record)
           if (record.event === "init") clearTimeout(startup)
-          await input.onRecord(record)
+          // A DAX-side failure to present a record is not an AGY protocol failure.
+          const unpresented = await input.onRecord(record).then(
+            () => undefined,
+            (error: unknown) => error ?? new Error("DAX could not record an AGY observation."),
+          )
+          if (unpresented) return fail(unpresented)
           if (record.event === "result") {
             lastResult = record.result
             const turn = active
             active = undefined
             turn?.resolve(record.result)
-            resetIdle()
           }
         }
       }
+      // End of output normally accompanies exit. Let a prompt exit name the stop
+      // reason before validating that every submitted turn received its result.
+      await Promise.race([exited.catch(() => {}), Bun.sleep(1_000)])
       decoder.end()
       protocol.end()
     } catch (error) {
-      fail(error)
+      fail(
+        new Error(`${AntigravityStop.protocol}: ${error instanceof Error ? error.message : String(error)}`, {
+          cause: error,
+        }),
+      )
     }
   })()
   const done = (async () => {
     try {
       const exitCode = await exited
-      if (!closing) fail(new Error(`AGY process exited unexpectedly (${exitCode}).`))
+      if (!closing) fail(new Error(`${AntigravityStop.exit} (${exitCode}).`))
       await kill()
       await Promise.all([reader, diagnostics])
       if (proc.pid && processGroupAlive(proc.pid))
@@ -109,7 +120,6 @@ export function startAntigravityProcess(input: {
     } finally {
       clearTimeout(deadline)
       clearTimeout(startup)
-      if (idleTimer) clearTimeout(idleTimer)
       if (shutdownTimer) clearTimeout(shutdownTimer)
       await kill()
       owner.destroy()
@@ -125,7 +135,6 @@ export function startAntigravityProcess(input: {
       if (closing || failure) throw failure ?? new Error("AGY conversation is closed.")
       if (active) throw new Error("Wait for the current AGY response before sending another message.")
       protocol.beginTurn()
-      if (idleTimer) clearTimeout(idleTimer)
       return new Promise((resolve, reject) => {
         active = { resolve, reject }
         proc.stdin!.write(line, (error) => {
@@ -137,12 +146,15 @@ export function startAntigravityProcess(input: {
       if (active) throw new Error("Wait for the AGY response before finishing for review.")
       if (closing) throw failure ?? new Error("AGY conversation is already closed.")
       closing = true
-      if (idleTimer) clearTimeout(idleTimer)
       proc.stdin!.end()
-      shutdownTimer = setTimeout(() => fail(new Error("AGY did not shut down after stdin closed.")), 30_000)
+      shutdownTimer = setTimeout(
+        () => fail(new Error(`${AntigravityStop.protocol}: AGY did not shut down after stdin closed.`)),
+        30_000,
+      )
     },
-    cancel() {
-      fail(new Error("AGY attempt cancelled by the operator."))
+    /** DAX-initiated stop. The reason becomes the recorded failure unless AGY already failed. */
+    cancel(reason: string = AntigravityStop.operator) {
+      fail(new Error(reason))
     },
   }
 }

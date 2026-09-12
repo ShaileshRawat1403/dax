@@ -1,5 +1,16 @@
 import { describe, test, expect } from "bun:test"
-import { AntigravityDecoder, AntigravityProtocol, antigravityUserMessage } from "./antigravity-stream"
+import {
+  AntigravityDecoder,
+  AntigravityProtocol,
+  AntigravityStop,
+  antigravityUserMessage,
+  describeAntigravityStop,
+  emptyAntigravityActivity,
+  formatAntigravityActivity,
+  recordAntigravityDenied,
+  recordAntigravityTool,
+  type AntigravityStopReason,
+} from "./antigravity-stream"
 
 const usage = { input_tokens: 1, output_tokens: 1, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 2 }
 const init = {
@@ -119,5 +130,49 @@ describe("AGY official stream", () => {
         ),
       ),
     ).toThrow()
+  })
+})
+
+describe("AGY observations and stop reasons", () => {
+  test("tool reports aggregate into one bounded activity summary instead of chat lines", () => {
+    let activity = emptyAntigravityActivity()
+    for (let index = 1; index <= 60; index++)
+      activity = recordAntigravityTool(activity, {
+        index,
+        tool: index % 2 ? "grep_search" : "view_file",
+        failed: index === 7,
+      })
+    activity = recordAntigravityDenied(activity, ["RunCommand (command)"])
+    expect(activity).toMatchObject({
+      actions: 60,
+      failures: 1,
+      latest: "view_file",
+      failed: ["grep_search"],
+      denied: ["RunCommand (command)"],
+    })
+    expect(activity.steps).toHaveLength(50)
+    expect(activity.steps[0]).toEqual({ index: 11, tool: "grep_search", state: "DONE" })
+    expect(formatAntigravityActivity(activity, false)).toBe(
+      "AGY working · 60 actions · latest: view_file · 1 failed (grep_search) · denied: RunCommand (command); DAX permissions were not expanded",
+    )
+    expect(formatAntigravityActivity(activity, true)).toEndWith("observation only, not DAX verification evidence")
+  })
+
+  test("canonical failure messages classify to the reason that actually stopped AGY", () => {
+    const cases: [string, AntigravityStopReason][] = [
+      [AntigravityStop.operator, "operator_cancelled"],
+      [AntigravityStop.beforeStart, "operator_cancelled"],
+      [AntigravityStop.released, "ownership_released"],
+      [AntigravityStop.lost, "ownership_lost"],
+      [`${AntigravityStop.exit} (7).`, "unexpected_exit"],
+      [AntigravityStop.initialization, "initialization_timeout"],
+      // Exact durable record left by the former 5-minute operator-idle kill.
+      ["AGY conversation idle timeout.\nerror: stream input cancelled: context canceled", "idle_timeout"],
+      [`${AntigravityStop.deadline}\nstderr`, "attempt_timeout"],
+      [`${AntigravityStop.protocol}: Unsupported AGY record`, "protocol_failure"],
+      ["DAX verification failed: bun test", "execution_failed"],
+    ]
+    for (const [message, reason] of cases) expect(describeAntigravityStop(message).reason).toBe(reason)
+    expect(new Set(cases.map(([message]) => describeAntigravityStop(message).label)).size).toBe(cases.length)
   })
 })

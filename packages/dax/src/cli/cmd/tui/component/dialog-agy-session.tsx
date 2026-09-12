@@ -1,3 +1,4 @@
+import { createSignal, onMount } from "solid-js"
 import { useSDK } from "@tui/context/sdk"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
@@ -12,9 +13,11 @@ export const agyPhaseLabel = {
   responding: "Responding…",
   ready: "Ready to chat",
   sealing: "Preparing review…",
-  closed: "Conversation closed",
-  failed: "Conversation stopped",
+  closed: "Finished for review",
+  failed: "Attempt ended",
 } as const
+
+const sealed = "Sealed: DAX never replays an uncertain AGY turn."
 
 export function DialogAgySession(props: { sessionID: string }) {
   const sdk = useSDK()
@@ -23,10 +26,35 @@ export function DialogAgySession(props: { sessionID: string }) {
   const toast = useToast()
   const route = useRoute()
   const state = () => antigravitySession(sync.session.get(props.sessionID))
+  const ended = () => ["closed", "failed"].includes(state()?.phase ?? "")
+  // The phase only says that the attempt ended; the reason is the canonical run failure.
+  const [stop, setStop] = createSignal<{ label: string; message: string }>()
+  onMount(async () => {
+    const response = await sdk.fetch(new URL(`/runs/${props.sessionID}/agy/status`, sdk.url)).catch(() => undefined)
+    const value = response?.ok ? await response.json().catch(() => undefined) : undefined
+    if (value?.stop) setStop(value.stop)
+  })
   return (
     <DialogSelect
       title="AGY governed agent"
       options={[
+        ...(ended()
+          ? [
+              {
+                title:
+                  state()?.phase === "closed" && !stop()
+                    ? "Finished for review"
+                    : `Attempt ended: ${stop()?.label ?? "reason unavailable"}`,
+                value: "reason",
+                description: stop()
+                  ? `${stop()!.message.split("\n")[0]} ${sealed}`
+                  : state()?.phase === "closed"
+                    ? "DAX verification and approval continue in this session."
+                    : sealed,
+                onSelect: () => dialog.clear(),
+              },
+            ]
+          : []),
         {
           title: "Finish and review",
           value: "finish",
@@ -49,17 +77,17 @@ export function DialogAgySession(props: { sessionID: string }) {
         {
           title: "Stop conversation",
           value: "cancel",
-          disabled: ["closed", "failed"].includes(state()?.phase ?? "closed"),
-          description: "Stop AGY without submitting changes for approval",
+          disabled: ended() || !state(),
+          description: "End this governed attempt without review; it cannot be resumed",
           onSelect: async () => {
             await sdk.client.session.abort({ sessionID: props.sessionID })
             dialog.clear()
           },
         },
         {
-          title: "Start a new chat",
+          title: "Start a new AGY conversation",
           value: "new",
-          disabled: !["closed", "failed"].includes(state()?.phase ?? ""),
+          disabled: !ended(),
           description: "Keep this transcript and return to a fresh chat",
           onSelect: () => { dialog.clear(); route.navigate({ type: "home" }) },
         },

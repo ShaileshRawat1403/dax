@@ -1,6 +1,8 @@
 import { useCommandDialog } from "../dialog-command"
 import { usePromptStash } from "./stash"
 import { useSDK } from "@tui/context/sdk"
+import { useSync } from "@tui/context/sync"
+import { antigravitySession } from "@/worker/antigravity-stream"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
 import { Editor } from "@tui/util/editor"
@@ -24,6 +26,7 @@ export function usePromptDialogs(
   const command = useCommandDialog()
   const stash = usePromptStash()
   const sdk = useSDK()
+  const sync = useSync()
   const dialog = useDialog()
   const toast = useToast()
   const renderer = useRenderer()
@@ -86,15 +89,23 @@ export function usePromptDialogs(
             dialog.clear()
             return
           }
+          // AGY exposes no per-turn interrupt: stopping ends the whole governed attempt.
+          const agy = !!antigravitySession(sync.session.get(props.sessionID))
           const next = store.interrupt + 1
           setStore("interrupt", next)
           setTimeout(() => setStore("interrupt", 0), 5000)
           if (next >= 2) {
             sdk.client.session.abort({ sessionID: props.sessionID })
             setStore("interrupt", 0)
-            toast.show({ variant: "warning", message: "Session interrupted." })
+            toast.show({
+              variant: "warning",
+              message: agy ? "AGY attempt ended. It cannot be resumed; start a new AGY conversation." : "Session interrupted.",
+            })
           } else {
-            toast.show({ variant: "warning", message: "Press ESC again to stop the session." })
+            toast.show({
+              variant: "warning",
+              message: agy ? "Press ESC again to end this AGY attempt. It cannot be resumed." : "Press ESC again to stop the session.",
+            })
           }
           dialog.clear()
         },

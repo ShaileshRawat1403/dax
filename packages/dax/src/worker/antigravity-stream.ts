@@ -27,6 +27,107 @@ export function antigravitySession(value: unknown): AntigravitySessionState | un
   return parsed.success ? parsed.data : undefined
 }
 
+/**
+ * Canonical failure messages for AGY stops. DAX records the reason once, in the
+ * canonical run failure; the UI classifies that record instead of keeping a
+ * second failure authority. Keep them stable: durable runs carry them.
+ */
+export const AntigravityStop = {
+  operator: "AGY attempt cancelled by the operator.",
+  beforeStart: "AGY attempt cancelled before process start.",
+  released:
+    "AGY attempt ended because DAX released process ownership (backend shutdown, reload, or instance disposal).",
+  lost: "AGY attempt ended because DAX lost process ownership (the backend that owned it stopped before sealing it).",
+  exit: "AGY process exited unexpectedly",
+  initialization: "AGY initialization timed out.",
+  idle: "AGY conversation idle timeout.",
+  deadline: "AGY governed attempt timed out.",
+  protocol: "AGY protocol failure",
+} as const
+
+export type AntigravityStopReason =
+  | "operator_cancelled"
+  | "ownership_released"
+  | "ownership_lost"
+  | "unexpected_exit"
+  | "initialization_timeout"
+  | "idle_timeout"
+  | "attempt_timeout"
+  | "protocol_failure"
+  | "execution_failed"
+
+const stopReasons: [prefix: string, reason: AntigravityStopReason, label: string][] = [
+  [AntigravityStop.operator, "operator_cancelled", "stopped by the operator"],
+  [AntigravityStop.beforeStart, "operator_cancelled", "stopped by the operator before AGY started"],
+  [AntigravityStop.released, "ownership_released", "DAX backend shut down, reloaded, or was reconfigured"],
+  [AntigravityStop.lost, "ownership_lost", "DAX backend that owned AGY stopped"],
+  [AntigravityStop.exit, "unexpected_exit", "AGY process exited unexpectedly"],
+  [AntigravityStop.initialization, "initialization_timeout", "AGY did not initialize in time"],
+  // Retained for durable runs from builds that killed AGY after 5 idle minutes.
+  [AntigravityStop.idle, "idle_timeout", "idle timeout"],
+  [AntigravityStop.deadline, "attempt_timeout", "attempt reached its contract timeout"],
+  [AntigravityStop.protocol, "protocol_failure", "AGY protocol or turn failure"],
+]
+
+/** Classify a canonical failure message; anything else is a DAX execution failure. */
+export function describeAntigravityStop(message: string | undefined) {
+  const text = message ?? ""
+  const match = stopReasons.find(([prefix]) => text.startsWith(prefix))
+  return { reason: match?.[1] ?? "execution_failed", label: match?.[2] ?? "DAX execution failed", message: text }
+}
+
+/** Bounded per-turn summary of AGY-reported tool activity. An observation, never DAX evidence. */
+export type AntigravityActivity = {
+  actions: number
+  failures: number
+  latest?: string
+  failed: string[]
+  denied: string[]
+  steps: { index: number; tool: string; state: "DONE" | "ERROR" }[]
+}
+
+export const emptyAntigravityActivity = (): AntigravityActivity => ({
+  actions: 0,
+  failures: 0,
+  failed: [],
+  denied: [],
+  steps: [],
+})
+
+export function recordAntigravityTool(
+  activity: AntigravityActivity,
+  step: { index: number; tool: string; failed: boolean },
+): AntigravityActivity {
+  return {
+    ...activity,
+    actions: activity.actions + 1,
+    failures: activity.failures + (step.failed ? 1 : 0),
+    latest: step.tool,
+    failed:
+      step.failed && !activity.failed.includes(step.tool) ? [...activity.failed, step.tool].slice(-5) : activity.failed,
+    steps: [...activity.steps, { index: step.index, tool: step.tool, state: step.failed ? "ERROR" : "DONE" } as const].slice(
+      -50,
+    ),
+  }
+}
+
+export function recordAntigravityDenied(activity: AntigravityActivity, denied: string[]): AntigravityActivity {
+  return denied.length ? { ...activity, denied: [...activity.denied, ...denied].slice(0, 20) } : activity
+}
+
+export function formatAntigravityActivity(activity: AntigravityActivity, settled: boolean): string {
+  const actions = `${activity.actions} action${activity.actions === 1 ? "" : "s"}`
+  return [
+    settled ? `AGY reported ${actions}` : `AGY working · ${actions}`,
+    activity.latest && `latest: ${activity.latest}`,
+    activity.failures > 0 && `${activity.failures} failed (${activity.failed.join(", ")})`,
+    activity.denied.length > 0 && `denied: ${activity.denied.join(", ")}; DAX permissions were not expanded`,
+    settled && "observation only, not DAX verification evidence",
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
 const Step = z
   .object({
     conversation_id: z.string().min(1),

@@ -5,13 +5,19 @@ import { Instance } from "@/project/instance"
 import { Identifier } from "@/id/id"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { getProjectedRunState } from "@/state/events/run-event-store"
-import { acquireRunLock } from "@/util/fs-lock"
+import { acquireRunLock, tryAcquireRunLock } from "@/util/fs-lock"
 import { startAntigravityProcess } from "./antigravity-process"
 import { buildWorkerSandboxPlan } from "./worker-sandbox"
 import { startEgressProxy } from "./egress-proxy"
 import { redactEvidenceText } from "./evidence-redaction"
 import {
+  AntigravityStop,
   antigravityUserMessage,
+  describeAntigravityStop,
+  emptyAntigravityActivity,
+  formatAntigravityActivity,
+  recordAntigravityDenied,
+  recordAntigravityTool,
   type AntigravitySessionState,
   type AntigravityStreamRecord,
 } from "./antigravity-stream"
@@ -23,14 +29,27 @@ import { realpath } from "node:fs/promises"
 type Handle = {
   send: (text: string, messageID?: string) => Promise<MessageV2.WithParts>
   finish: () => void
-  cancel: () => void
+  cancel: (reason?: string) => void
   done: Promise<unknown>
 }
+const unsettled = ["compiled", "queued", "running"]
 const active = Instance.state(
   () => new Map<string, Handle>(),
   async (sessions) => {
-    for (const handle of sessions.values()) handle.cancel()
-    await Promise.allSettled([...sessions.values()].map((handle) => handle.done))
+    // Instance disposal (backend shutdown, reload, provider reconnect) ends DAX
+    // ownership of these processes. Record that reason, then give each owning
+    // workflow a bounded chance to seal canonical state, so a stopping backend
+    // does not leave a running canonical run behind with no process.
+    const owned = [...sessions.entries()]
+    for (const [, handle] of owned) handle.cancel(AntigravityStop.released)
+    await Promise.allSettled(
+      owned.map(async ([runID, handle]) => {
+        await handle.done.catch(() => {})
+        const deadline = Date.now() + 5_000
+        while (Date.now() < deadline && unsettled.includes((await getProjectedRunState(runID))?.status ?? ""))
+          await Bun.sleep(25)
+      }),
+    )
   },
 )
 const firstTurns = Instance.state(
@@ -47,6 +66,55 @@ const firstTurns = Instance.state(
 // Remove terminal control bytes from untrusted external-agent output.
 // eslint-disable-next-line no-control-regex
 const clean = (text: string) => redactEvidenceText(stripAnsi(text)).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+
+/**
+ * An open AGY generation that no live DAX process owns can never continue: its
+ * process group died with its owner through the ownership pipe. Seal it once,
+ * under the attempt lock, rather than leave canonical state running forever.
+ */
+async function sealUnowned(sessionID: string): Promise<void> {
+  const session = await Session.get(sessionID)
+  const runID = session.governingRunId ?? session.id
+  const phase = session.externalAgent?.phase
+  if (!phase || phase === "closed" || phase === "failed" || active().has(runID)) return
+  // run() holds this lock from before its durable generation until it records a
+  // terminal phase, so a held lock means a live DAX process still owns AGY.
+  const lock = await tryAcquireRunLock(`agy-${runID}`)
+  if (!lock) return
+  try {
+    const canonical = await getProjectedRunState(runID)
+    if (canonical && unsettled.includes(canonical.status)) {
+      const { RunLifecycle } = await import("@/state/run-lifecycle")
+      await RunLifecycle.transition(runID, "failed", "run_failed", {
+        error: { code: "execution_error", message: AntigravityStop.lost, retryable: false },
+      })
+    } else if (canonical && canonical.status !== "failed" && canonical.status !== "cancelled") return
+    await Session.update(sessionID, (draft) => {
+      if (draft.externalAgent) draft.externalAgent = { ...draft.externalAgent, phase: "failed" }
+    })
+  } finally {
+    await lock.dispose()
+  }
+}
+
+/** Explain from canonical authority why this backend has no live AGY process for a session. */
+async function notLive(sessionID: string): Promise<string> {
+  await sealUnowned(sessionID)
+  const session = await Session.get(sessionID)
+  const phase = session.externalAgent?.phase
+  const canonical = await getProjectedRunState(session.governingRunId ?? session.id)
+  const running = !!canonical && unsettled.includes(canonical.status)
+  if (phase === "closed")
+    return `AGY conversation is not live: it finished for review and DAX verification and approval continue (canonical status: ${canonical?.status ?? "unknown"}). Start a new AGY conversation to keep chatting.`
+  if (running && phase !== "failed")
+    return `AGY conversation is not live in this DAX backend (${phase ?? "preparing"}): it is still starting or another DAX process owns it. Wait, or stop the attempt.`
+  const sealed =
+    "This governed attempt is sealed because DAX cannot safely replay an uncertain external-agent turn. Start a new AGY conversation."
+  if (running)
+    return `AGY conversation is not live. The AGY process ended and DAX has not recorded the canonical outcome yet; if its backend stopped first, review it with \`dax recover\`. ${sealed}`
+  const reason = canonical?.error?.message.split("\n")[0]
+  return `AGY conversation is not live. ${reason ? `Attempt ended: ${reason}` : "The attempt ended."} ${sealed}`
+}
 
 // Match the Session/SessionPrompt service API used by the existing runtime.
 // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -136,13 +204,18 @@ export namespace AntigravityConversation {
     if (cancel(sessionID)) return true
     if (!(await isBound(sessionID))) return false
     if (cancel(sessionID)) return true
+    await sealUnowned(sessionID)
     const session = await Session.get(sessionID)
     const runID = session.governingRunId ?? session.id
     const canonical = await getProjectedRunState(runID)
-    if (canonical && ["compiled", "queued", "running"].includes(canonical.status)) {
+    if (canonical && unsettled.includes(canonical.status)) {
       const { RunLifecycle } = await import("@/state/run-lifecycle")
       await RunLifecycle.transition(runID, "failed", "run_failed", {
-        error: { code: "worker_cancelled", message: "AGY attempt cancelled before process start.", retryable: false },
+        error: {
+          code: "worker_cancelled",
+          message: session.externalAgent ? AntigravityStop.operator : AntigravityStop.beforeStart,
+          retryable: false,
+        },
       })
     }
     return true
@@ -150,10 +223,21 @@ export namespace AntigravityConversation {
 
   export async function finish(sessionID: string): Promise<void> {
     const handle = active().get(sessionID)
-    if (!handle)
-      throw new Error("No live AGY process. Start a new governed conversation; uncertain prompts are never replayed.")
+    if (!handle) throw new Error(await notLive(sessionID))
     handle.finish()
     await handle.done
+  }
+
+  /** Operator view of an attempt: the canonical outcome, and whether this backend owns a live AGY process. */
+  export async function status(sessionID: string) {
+    const session = await Session.get(sessionID)
+    const canonical = await getProjectedRunState(session.governingRunId ?? session.id)
+    return {
+      live: active().has(sessionID),
+      phase: session.externalAgent?.phase,
+      canonicalStatus: canonical?.status,
+      stop: canonical?.error ? describeAntigravityStop(canonical.error.message) : undefined,
+    }
   }
 
   export async function prompt(input: {
@@ -177,8 +261,7 @@ export namespace AntigravityConversation {
       throw new Error("The AGY model is fixed for this governed attempt. Start a new conversation to change it.")
     }
     const handle = active().get(input.sessionID)
-    if (!handle)
-      throw new Error("AGY conversation is not live. Start a new governed conversation; automatic resume is disabled.")
+    if (!handle) throw new Error(await notLive(input.sessionID))
     const text = input.parts.map((part) => part.text ?? "").join("\n\n")
     antigravityUserMessage(text)
     return handle.send(input.system ? `${input.system}\n\n${text}` : text, input.messageID)
@@ -189,6 +272,8 @@ export namespace AntigravityConversation {
     cwd: string
     contract: WorkerContract
     effort?: "low" | "medium" | "high"
+    /** Sandbox binary resolution, injectable exactly as in buildWorkerSandboxPlan; production uses PATH. */
+    which?: Parameters<typeof buildWorkerSandboxPlan>[0]["which"]
   }) {
     const runID = input.contract.runId
     const existing = await Session.get(runID)
@@ -199,6 +284,9 @@ export namespace AntigravityConversation {
     let process: ReturnType<typeof startAntigravityProcess> | undefined
     let assistant: MessageV2.Assistant | undefined
     let part: MessageV2.TextPart | undefined
+    let activity: MessageV2.TextPart | undefined
+    let activityID = ""
+    let observed = emptyAntigravityActivity()
     let rawText = ""
     let sending = false
     let previousUsage = { input_tokens: 0, output_tokens: 0, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 0 }
@@ -218,6 +306,20 @@ export namespace AntigravityConversation {
         type: phase === "ready" || phase === "closed" || phase === "failed" ? "idle" : "busy",
       })
     }
+    // AGY tool reports collapse into one bounded part per turn: an inspectable
+    // external-agent observation, never repeated chat prose or DAX evidence.
+    const report = async (settled: boolean) => {
+      if (!assistant) return
+      activity = {
+        id: activityID,
+        sessionID: runID,
+        messageID: assistant.id,
+        type: "text",
+        text: formatAntigravityActivity(observed, settled),
+        metadata: { origin: "external-agent-report", generationID: state.generationID, activity: observed },
+      }
+      await Session.updatePart(activity)
+    }
     const onRecord = async (record: AntigravityStreamRecord) => {
       if (record.event === "init") {
         state.conversationID = record.conversation_id
@@ -231,26 +333,19 @@ export namespace AntigravityConversation {
           part.text = next
           await Session.updatePart(delta !== undefined ? { part, delta } : part)
         } else if ((step.state === "DONE" || step.state === "ERROR") && step.step_type === "tool") {
-          await Session.updatePart({
-            id: Identifier.ascending("part"),
-            messageID: assistant.id,
-            sessionID: runID,
-            type: "text",
-            text: `AGY reported activity: ${clean(step.tool_name ?? step.tool_info?.name ?? "tool")}${step.state === "ERROR" ? " failed" : ""} (not DAX verification evidence).`,
-            metadata: { origin: "external-agent-report", generationID: state.generationID, stepIndex: step.step_index },
+          observed = recordAntigravityTool(observed, {
+            index: step.step_index,
+            tool: clean(step.tool_name ?? step.tool_info?.name ?? "tool"),
+            failed: step.state === "ERROR",
           })
+          await report(false)
         }
       } else if (record.event === "result" && assistant && part) {
-        for (const denied of record.result.denied_actions ?? []) {
-          await Session.updatePart({
-            id: Identifier.ascending("part"),
-            messageID: assistant.id,
-            sessionID: runID,
-            type: "text",
-            text: `AGY denied activity: ${clean(denied.display_name)} (${clean(denied.action)}). DAX permissions were not expanded.`,
-            metadata: { origin: "external-agent-report", generationID: state.generationID },
-          })
-        }
+        const denied = (record.result.denied_actions ?? []).map(
+          (action) => `${clean(action.display_name)} (${clean(action.action)})`,
+        )
+        observed = recordAntigravityDenied(observed, denied)
+        if (activity || denied.length) await report(true)
         // The result is the authoritative AGY turn text, never proof of DAX completion.
         part.text = clean(record.result.response)
         part.time = { start: assistant.time.created, end: Date.now() }
@@ -329,6 +424,7 @@ export namespace AntigravityConversation {
         cwd: input.cwd,
         network: "full",
         writableStatePaths: input.invocation.writableStatePaths,
+        which: input.which,
       })
       process = startAntigravityProcess({
         command: plan.command,
@@ -386,6 +482,10 @@ export namespace AntigravityConversation {
             tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
           })) as MessageV2.Assistant
           rawText = ""
+          activity = undefined
+          observed = emptyAntigravityActivity()
+          // Allocated before the reply part so the activity line sorts above the reply.
+          activityID = Identifier.ascending("part")
           part = {
             id: Identifier.ascending("part"),
             sessionID: runID,
@@ -403,7 +503,8 @@ export namespace AntigravityConversation {
           await update("ready")
           return { info: assistant, parts: [part] }
         } catch (error) {
-          worker.cancel()
+          // An uncertain turn ends the attempt; record why rather than an operator stop.
+          worker.cancel(clean(error instanceof Error ? error.message : String(error)))
           throw error
         } finally {
           sending = false
@@ -419,7 +520,7 @@ export namespace AntigravityConversation {
           worker.finish()
           void update("sealing").catch(() => worker.cancel())
         },
-        cancel: () => worker.cancel(),
+        cancel: (reason) => worker.cancel(reason),
       })
       const first = firstTurns().get(runID)
       const firstReply = await send(input.contract.task, first?.messageID, true)
@@ -431,6 +532,7 @@ export namespace AntigravityConversation {
       process?.cancel()
       await process?.done.catch(() => {})
       if (assistant && !assistant.time.completed) {
+        if (activity) await report(true).catch(() => {})
         assistant.time.completed = Date.now()
         assistant.error = {
           name: "UnknownError",

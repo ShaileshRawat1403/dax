@@ -1,5 +1,6 @@
-import { test, expect } from "bun:test"
+import { test, expect, jest } from "bun:test"
 import { startAntigravityProcess } from "./antigravity-process"
+import { AntigravityStop } from "./antigravity-stream"
 
 const fake = `
 const readline = require('node:readline');
@@ -22,6 +23,13 @@ const start = (script = fake, timeoutMs = 5000) =>
     onRecord: async () => {},
   })
 
+// Resolves to the rejection message so stop-reason assertions stay synchronous.
+const rejection = (promise: Promise<unknown>) =>
+  promise.then(
+    () => "resolved",
+    (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  )
+
 test("official conversation stays alive across two turns and closes only on finish", async () => {
   const worker = start()
   try {
@@ -35,25 +43,77 @@ test("official conversation stays alive across two turns and closes only on fini
   }
 })
 
+test("a ready conversation waits for the operator past the former five-minute idle kill", async () => {
+  jest.useFakeTimers()
+  const worker = start(fake, 60 * 60 * 1000)
+  try {
+    expect((await worker.send("one")).num_turns).toBe(1)
+    // Operator think time: only the declared attempt deadline may end a ready conversation.
+    jest.advanceTimersByTime(10 * 60 * 1000)
+    jest.useRealTimers()
+    expect((await worker.send("two")).num_turns).toBe(2)
+    worker.finish()
+    expect((await worker.done).exitCode).toBe(0)
+  } finally {
+    jest.useRealTimers()
+    worker.cancel()
+    await worker.done.catch(() => {})
+  }
+})
+
+test("a process that never initializes reports an initialization timeout", async () => {
+  jest.useFakeTimers()
+  const worker = start("setInterval(()=>{},1000)", 60 * 60 * 1000)
+  try {
+    jest.advanceTimersByTime(30_000)
+    // Fake timers also hold the process-tree kill escalation delay.
+    jest.advanceTimersByTime(1_000)
+    jest.useRealTimers()
+    expect(await rejection(worker.done)).toStartWith(AntigravityStop.initialization)
+  } finally {
+    jest.useRealTimers()
+    worker.cancel()
+    await worker.done.catch(() => {})
+  }
+})
+
+test("the recorded failure names what actually ended the process", async () => {
+  const released = start("process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)")
+  released.cancel(AntigravityStop.released)
+  expect(await rejection(released.done)).toStartWith(AntigravityStop.released)
+
+  // A crash during a turn closes stdout and exits together; the exit must win deterministically.
+  const crash = `console.log(JSON.stringify({event:'init',conversation_id:'c',init:{cwd:process.cwd(),model:'fake',tools:[],permission_mode:'request-review'}}));
+    require('node:readline').createInterface({input:process.stdin}).on('line',()=>process.exit(7))`
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const crashed = start(crash)
+    expect(await rejection(crashed.send("one"))).toBe(`${AntigravityStop.exit} (7).`)
+    expect(await rejection(crashed.done)).toStartWith(`${AntigravityStop.exit} (7).`)
+  }
+
+  const malformed = start("console.log('not-json'); setInterval(()=>{},1000)")
+  expect(await rejection(malformed.done)).toStartWith(AntigravityStop.protocol)
+})
+
 test("malformed output stops the process", async () => {
   const worker = start("console.log('not-json'); setInterval(()=>{},1000)")
-  await expect(worker.done).rejects.toThrow()
+  expect(await rejection(worker.done)).not.toBe("resolved")
 })
 
 test("zero exit without a result never succeeds", async () => {
   const worker = start("setTimeout(()=>process.exit(0),50)")
   const turn = worker.send("hello")
-  await expect(turn).rejects.toThrow()
-  await expect(worker.done).rejects.toThrow()
+  expect(await rejection(turn)).not.toBe("resolved")
+  expect(await rejection(worker.done)).not.toBe("resolved")
 })
 
 test("cancellation and timeout terminate a worker ignoring TERM", async () => {
   const script = "process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"
   const cancelled = start(script)
   cancelled.cancel()
-  await expect(cancelled.done).rejects.toThrow("cancelled")
+  expect(await rejection(cancelled.done)).toContain("cancelled")
   const timed = start(script, 300)
-  await expect(timed.done).rejects.toThrow("timed out")
+  expect(await rejection(timed.done)).toContain("timed out")
 })
 
 test("ownership pipe kills the worker after abrupt DAX parent death", async () => {
@@ -86,7 +146,9 @@ test("ownership pipe kills the worker after abrupt DAX parent death", async () =
     if (pid && pid > 1) {
       try {
         process.kill(pid, "SIGKILL")
-      } catch {}
+      } catch {
+        // Already reaped by the ownership watcher.
+      }
     }
   }
 })

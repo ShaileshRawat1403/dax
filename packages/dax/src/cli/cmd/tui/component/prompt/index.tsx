@@ -334,7 +334,9 @@ export function Prompt(props: PromptProps) {
                 <text fg={state.store.interrupt > 0 ? theme.warning : theme.textMuted}>
                   esc{" "}
                   <span style={{ fg: state.store.interrupt > 0 ? theme.warning : theme.textMuted }}>
-                    {state.store.interrupt > 0 ? "again to stop" : "interrupt"}
+                    {state.store.interrupt > 0
+                      ? agy() ? "again to end AGY attempt" : "again to stop"
+                      : agy() ? "end attempt" : "interrupt"}
                   </span>
                 </text>
               </box>
