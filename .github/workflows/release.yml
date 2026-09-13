@@ -60,8 +60,11 @@ jobs:
       - name: Build canonical release assets
         run: bun run build
         working-directory: packages/dax
+        # DAX_CHANNEL alone stamps the package.json version on the detached tag
+        # checkout. Do not set DAX_RELEASE here: it makes build.ts create and
+        # upload the GitHub release itself, without a token, ahead of the
+        # publish step below (see 6f54e69).
         env:
-          DAX_RELEASE: "1"
           DAX_CHANNEL: ${{ contains(github.ref_name, '-beta.') && 'beta' || 'latest' }}
 
       - name: List release assets
