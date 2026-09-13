@@ -100,13 +100,20 @@ function payload<T>(event: RunEventEnvelope | undefined): T | undefined {
   return event?.payload as T | undefined
 }
 
+// Waits are bounded by wall-clock time, not a poll count: every poll also does
+// storage I/O, so on a slow CI runner 300 polls ran out after a few seconds and
+// reported a missing event that was only late.
+const WAIT_TIMEOUT_MS = 15_000
+const POLL_INTERVAL_MS = 10
+
 async function waitFor<T>(read: () => Promise<T>, ready: (value: T) => boolean, label: string): Promise<T> {
-  for (let attempt = 0; attempt < 300; attempt++) {
+  const deadline = Date.now() + WAIT_TIMEOUT_MS
+  for (;;) {
     const value = await read()
     if (ready(value)) return value
-    await Bun.sleep(10)
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${label}`)
+    await Bun.sleep(POLL_INTERVAL_MS)
   }
-  throw new Error(`timed out waiting for ${label}`)
 }
 
 function stream(parts: unknown[]): Awaited<ReturnType<typeof LLM.stream>> {
@@ -283,10 +290,11 @@ async function observeNativeApprovalAndMutation(project: string) {
   })
 
   let request: Permission.Request | undefined
-  for (let attempt = 0; attempt < 300 && !request; attempt++) {
+  const permissionDeadline = Date.now() + WAIT_TIMEOUT_MS
+  while (!request && Date.now() < permissionDeadline) {
     const observed = await Promise.race([
       permissionAsked.then((value) => ({ kind: "permission" as const, value })),
-      Bun.sleep(10).then(() => ({ kind: "poll" as const })),
+      Bun.sleep(POLL_INTERVAL_MS).then(() => ({ kind: "poll" as const })),
     ])
     if (observed.kind === "permission") {
       request = observed.value
