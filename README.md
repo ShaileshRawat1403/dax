@@ -1,8 +1,14 @@
 <p align="center">
   <br>
-  <img src="./dax-logo.svg" alt="DAX logo" width="550">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./dax-logo-dark.svg">
+    <img src="./dax-logo.svg" alt="DAX logo" width="550">
+  </picture>
   <br>
-  <img src="./dax-hound.svg" alt="DAX-hound mascot" width="320">
+  <picture>
+    <source media="(prefers-reduced-motion: reduce)" srcset="./dax-hound.svg">
+    <img src="./dax-hound.webp" alt="DAX-hound mascot" width="320">
+  </picture>
   <br>
   <b>Deterministic runtime contract around stochastic model execution</b>
   <br>
