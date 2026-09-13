@@ -23,6 +23,19 @@ export const OWNER_WATCH = `group=$$
  kill -s KILL -- "-$group" 2>/dev/null) &
 exec "$@" 3<&-`
 
+/**
+ * Wait for a killed process group to disappear. SIGKILL is asynchronous, and a
+ * killed member still counts as a live group member until it is reaped.
+ */
+export async function processGroupGone(pgid: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (processGroupAlive(pgid)) {
+    if (Date.now() >= deadline) return false
+    await Bun.sleep(25)
+  }
+  return true
+}
+
 export function startAntigravityProcess(input: {
   command: string[]
   cwd: string
@@ -114,7 +127,9 @@ export function startAntigravityProcess(input: {
       if (!closing) fail(new Error(`${AntigravityStop.exit} (${exitCode}).`))
       await kill()
       await Promise.all([reader, diagnostics])
-      if (proc.pid && processGroupAlive(proc.pid))
+      // The watcher ignores TERM, so kill escalates to SIGKILL. Confirm the group
+      // is gone instead of racing the reaping of what was just killed.
+      if (proc.pid && !(await processGroupGone(proc.pid, 5_000)))
         throw new Error("AGY process ownership cleanup could not be confirmed.")
       if (failure) throw new Error(`${failure.message}${stderr.trim() ? `\n${stderr.trim()}` : ""}`)
       if (exitCode !== 0 || !lastResult) throw new Error(`AGY process failed (${exitCode}). ${stderr}`)

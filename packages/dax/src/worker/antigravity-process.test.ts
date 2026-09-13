@@ -2,7 +2,8 @@ import { test, expect, jest } from "bun:test"
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import type { Readable, Writable } from "node:stream"
-import { OWNER_WATCH, startAntigravityProcess } from "./antigravity-process"
+import { OWNER_WATCH, processGroupGone, startAntigravityProcess } from "./antigravity-process"
+import { processGroupAlive } from "./worker-sandbox"
 import { AntigravityStop } from "./antigravity-stream"
 
 // AGY process ownership needs POSIX process groups; the runtime refuses Windows.
@@ -194,3 +195,21 @@ posixTest("the ownership watcher reaps the AGY group under every POSIX shell on 
     }
   }
 }, 20_000)
+
+posixTest("process-group exit is confirmed only after its last member is gone", async () => {
+  // Stands in for a killed watcher not yet reaped: the group still exists for a
+  // moment after DAX's kill returns, so an immediate check would misreport it.
+  const lingering = spawn("/bin/sh", ["-c", "sleep 0.4"], { detached: true, stdio: "ignore" })
+  const pgid = lingering.pid!
+  try {
+    expect(processGroupAlive(pgid)).toBe(true)
+    expect(await processGroupGone(pgid, 50)).toBe(false)
+    expect(await processGroupGone(pgid, 5_000)).toBe(true)
+  } finally {
+    try {
+      process.kill(-pgid, "SIGKILL")
+    } catch {
+      // Already exited.
+    }
+  }
+})
