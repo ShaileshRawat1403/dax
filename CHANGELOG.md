@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-13
+
+### Added
+
+- **Governed Antigravity worker.** `dax worker run antigravity --model <slug> -- "<task>"` runs the
+  official Antigravity CLI (`agy`) as a governed worker, for individual Google AI subscribers now that
+  the consumer Gemini CLI service has ended. The model must be one that `agy models` lists for the
+  signed-in account, and it is recorded in the execution contract. AGY keeps its own login; DAX never
+  imports its credentials.
+- **Governed AGY account conversations.** `/models` lists the account's models under **AGY governed
+  agent**, and the first message in a session starts one governed attempt in a disposable checkout,
+  inside DAX's sandbox and egress proxy. The conversation stays live while you think, bounded only by
+  the execution contract timeout, and the model stays fixed for the attempt. `/agy` offers **Finish and
+  review** - DAX then computes the diff, runs its own verification and asks for canonical approval -
+  and **Stop conversation**. AGY-reported tool activity is shown as one muted line per turn and never
+  counts as verification evidence. An attempt that ends is sealed with its recorded reason and is
+  never replayed; if its DAX backend stops, the AGY process group is reaped, including under dash on
+  Linux.
+- **Current OpenAI models.** GPT-6 Astra and the GPT-5.6 family (`gpt-5.6`, `-sol`, `-terra`, `-luna`)
+  are available with their 1.05M-token context and supported reasoning efforts up to `max`, including
+  over a ChatGPT subscription when live model discovery is unavailable. Retired subscription models
+  (GPT-5.1 through GPT-5.4, except `gpt-5.3-codex-spark`) no longer appear.
+
+### Fixed
+
+- TUI: model picker content no longer overflows its dialog, and the canonical authority header keeps
+  its rows separate at narrow widths.
+
 ### Changed
 
 - **The session stream is readable.** Narration was rendered in `textMuted` with the terminal `DIM`
@@ -129,6 +157,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `webfetch` and `websearch` were assigned a *file path* ruleset, so every URL matched its `"*": "allow"`
   entry and the egress gate could never fire.
 
+### Known Limitations
+
+- An AGY attempt belongs to the DAX backend that started it. The local TUI hosts that backend, so
+  quitting it ends the attempt; run `dax serve` and connect with `dax attach <url>` to keep AGY
+  running while clients come and go. There is no resume.
+- After a DAX backend is killed abruptly, its AGY attempt shows as running until the next prompt,
+  finish or stop in that session, or until `dax recover`.
+- AGY governed conversations are unavailable on native Windows.
 
 ## [1.3.0] - 2026-08-14
 

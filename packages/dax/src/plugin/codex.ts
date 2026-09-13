@@ -4,6 +4,7 @@ import { Installation } from "../installation"
 import { Auth, OAUTH_DUMMY_KEY } from "../auth"
 import os from "os"
 import { ProviderTransform } from "@/provider/transform"
+import { isGpt56Family, isGpt6Astra } from "@/provider/openai-model-id"
 
 const log = Log.create({ service: "plugin.codex" })
 
@@ -353,30 +354,38 @@ const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 // Models callable via the ChatGPT Pro/Plus Codex endpoint
 // (https://chatgpt.com/backend-api/codex). Source: OpenAI Codex model
 // docs at https://developers.openai.com/codex/models. Note that the
-// 5.4/5.5 generation dropped the explicit "-codex" suffix — they are
-// Codex-capable frontier models reached by their base ID. The "-pro"
-// and "-nano" variants are NOT routed through the Codex endpoint and
-// require a paid OpenAI API key, so they are excluded here.
-const SUBSCRIPTION_FALLBACKS: ReadonlyArray<{ id: string; release_date: string }> = [
-  { id: "gpt-5.1-codex", release_date: "2026-01-01" },
-  { id: "gpt-5.1-codex-max", release_date: "2026-01-01" },
-  { id: "gpt-5.1-codex-mini", release_date: "2026-01-01" },
-  { id: "gpt-5.2", release_date: "2026-01-01" },
-  { id: "gpt-5.2-codex", release_date: "2026-01-01" },
-  { id: "gpt-5.3-codex", release_date: "2026-02-05" },
-  { id: "gpt-5.3-codex-spark", release_date: "2026-02-05" },
-  { id: "gpt-5.4", release_date: "2026-03-05" },
-  { id: "gpt-5.4-mini", release_date: "2026-03-17" },
+// Current Codex-capable models use their base IDs. The "-pro" and
+// "-nano" API variants are excluded because they require an API key.
+// Live subscription discovery remains authoritative; this list keeps
+// current models available when that endpoint is unavailable.
+export const CODEX_SUBSCRIPTION_FALLBACKS: ReadonlyArray<{ id: string; release_date: string }> = [
+  { id: "gpt-6-astra", release_date: "2026-09-04" },
+  { id: "gpt-5.6", release_date: "2026-07-09" },
+  { id: "gpt-5.6-sol", release_date: "2026-07-09" },
+  { id: "gpt-5.6-terra", release_date: "2026-07-09" },
+  { id: "gpt-5.6-luna", release_date: "2026-07-09" },
   { id: "gpt-5.5", release_date: "2026-04-23" },
+  { id: "gpt-5.3-codex-spark", release_date: "2026-02-05" },
 ]
 
-const SUBSCRIPTION_IDS = new Set(SUBSCRIPTION_FALLBACKS.map((m) => m.id))
+const SUBSCRIPTION_IDS = new Set(CODEX_SUBSCRIPTION_FALLBACKS.map((m) => m.id))
+const RETIRED_SUBSCRIPTION_IDS = new Set([
+  "gpt-5.1-codex",
+  "gpt-5.1-codex-max",
+  "gpt-5.1-codex-mini",
+  "gpt-5.2",
+  "gpt-5.2-codex",
+  "gpt-5.3-codex",
+  "gpt-5.4",
+  "gpt-5.4-mini",
+])
 
-function isSubscriptionModel(id: string): boolean {
+export function isSubscriptionModel(id: string): boolean {
+  if (RETIRED_SUBSCRIPTION_IDS.has(id)) return false
   return SUBSCRIPTION_IDS.has(id) || /codex/i.test(id)
 }
 
-function buildCodexModel(id: string, release_date = "2026-01-01") {
+export function buildCodexModel(id: string, release_date = "2026-01-01") {
   // "gpt-5.3-codex" → "GPT-5.3 Codex", "gpt-5.4-pro" → "GPT-5.4 Pro", "gpt-5.4" → "GPT-5.4"
   const parts = id.split("-")
   const version = parts[1] ?? ""
@@ -401,7 +410,10 @@ function buildCodexModel(id: string, release_date = "2026-01-01") {
       interleaved: false,
     },
     cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-    limit: { context: 400_000, input: 272_000, output: 128_000 },
+    limit:
+      isGpt6Astra(id) || isGpt56Family(id)
+        ? { context: 1_050_000, input: 922_000, output: 128_000 }
+        : { context: 400_000, input: 272_000, output: 128_000 },
     status: "active" as const,
     options: {},
     headers: {},
@@ -452,7 +464,7 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
 
         // Ensure every known subscription model is present regardless of
         // whether the provider registry or live discovery returned it.
-        for (const { id, release_date } of SUBSCRIPTION_FALLBACKS) {
+        for (const { id, release_date } of CODEX_SUBSCRIPTION_FALLBACKS) {
           if (!provider.models[id]) {
             provider.models[id] = buildCodexModel(id, release_date)
           }

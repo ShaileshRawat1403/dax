@@ -14,9 +14,17 @@ const input = {
   writeScope: ["docs/**"],
   verification: ["bun test"],
   sessionId: "session_parent",
+  modelId: "gemini-3.8-flash-high",
+  modelName: "Gemini 3.8 Flash (High)",
 }
 
 describe("governed worker TUI launch", () => {
+  test("conversation selection preserves the governed worker contract", () => {
+    const request = buildGovernedWorkerRunRequest({ ...input, conversation: { effort: "high" } })
+    expect(request.workflowHint).toBe("worker_run")
+    expect(request.personaPreset?.providerHint).toBe("worker:antigravity")
+    expect(request.workerConstraints).toMatchObject({ conversation: { effort: "high" }, writeScope: input.writeScope, verification: input.verification })
+  })
   test("presents Antigravity as the recommended worker and Gemini CLI as enterprise legacy", () => {
     const options = governedWorkerOptions()
     expect(options[0]).toMatchObject({ id: "antigravity", binary: "agy", recommended: true })
@@ -35,7 +43,11 @@ describe("governed worker TUI launch", () => {
     expect(buildGovernedWorkerRunRequest(input)).toEqual({
       intent: { input: input.task, kind: "workflow_step", repoPath: input.repoPath },
       workflowHint: "worker_run",
-      personaPreset: { personaId: "governed-worker", providerHint: "worker:antigravity" },
+      personaPreset: {
+        personaId: "governed-worker",
+        providerHint: "worker:antigravity",
+        modelHint: "gemini-3.8-flash-high",
+      },
       workerConstraints: {
         writeScope: ["docs/**"],
         forbiddenPaths: [],
@@ -60,11 +72,16 @@ describe("governed worker TUI launch", () => {
     expect(() => buildGovernedWorkerRunRequest({ ...input, writeScope: [] })).toThrow("write scope")
     expect(() => buildGovernedWorkerRunRequest({ ...input, verification: ["rm -rf ."] })).toThrow("not approved")
     expect(() => buildGovernedWorkerRunRequest({ ...input, repoPath: "relative" })).toThrow("absolute")
+    expect(() => buildGovernedWorkerRunRequest({ ...input, modelId: undefined })).toThrow("explicit model")
+    expect(() =>
+      buildGovernedWorkerRunRequest({ ...input, workerId: "codex", modelId: "gpt-5.6-sol" }),
+    ).toThrow("does not support")
   })
 
   test("preview exposes the exact authority boundary before launch", () => {
     const preview = renderGovernedWorkerPreview(input)
     expect(preview).toContain("Antigravity CLI")
+    expect(preview).toContain("Gemini 3.8 Flash (High) (gemini-3.8-flash-high)")
     expect(preview).toContain("docs/**")
     expect(preview).toContain("bun test")
     expect(preview).toContain("antigravity-unleash.goog")
@@ -84,8 +101,10 @@ describe("governed worker TUI launch", () => {
 
   test("accepts only a worker_run response after passing the canonical request to the server", async () => {
     let providerHint: string | undefined
+    let modelHint: string | undefined
     const result = await createGovernedWorkerRun(input, async (request) => {
       providerHint = request.personaPreset?.providerHint
+      modelHint = request.personaPreset?.modelHint
       return {
         runId: "run_agy_1",
         status: "running",
@@ -94,6 +113,7 @@ describe("governed worker TUI launch", () => {
       }
     })
     expect(providerHint).toBe("worker:antigravity")
+    expect(modelHint).toBe("gemini-3.8-flash-high")
     expect(result).toMatchObject({ runId: "run_agy_1", workflowClass: "worker_run" })
   })
 })

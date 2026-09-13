@@ -92,10 +92,12 @@ individual Google AI subscription as a governed coding worker, install and
 authenticate Antigravity CLI, then run:
 
 ```bash
-dax worker run antigravity -- "<task>"
+agy models
+dax worker run antigravity --model <model-slug> -- "<task>"
 ```
 
-From the TUI, run `/workers` or `/agy`, choose the bounded write scope and
+From the TUI, run `/workers` or `/agy`, choose one of the models reported by
+your authenticated AGY account, then choose the bounded write scope and
 verification command, then confirm the DAX contract preview. You can also find
 Antigravity under `/connect` as a **Governed worker**. It is intentionally not
 listed in `/models`.

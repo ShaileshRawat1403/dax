@@ -36,7 +36,8 @@ export namespace ShareNext {
           data: evt.properties.info,
         },
       ])
-      if (evt.properties.info.role === "user") {
+      // External-agent selections are transport identities, not API models.
+      if (evt.properties.info.role === "user" && evt.properties.info.model.providerID !== "worker:antigravity") {
         await sync(evt.properties.info.sessionID, [
           {
             type: "model",
@@ -180,6 +181,7 @@ export namespace ShareNext {
       messages
         .filter((m) => m.info.role === "user")
         .map((m) => (m.info as SDK.UserMessage).model)
+        .filter((m) => m.providerID !== "worker:antigravity")
         .map((m) => Provider.getModel(m.providerID, m.modelID).then((m) => m)),
     )
     await sync(sessionID, [

@@ -5,6 +5,7 @@ import type { JSONSchema } from "zod/v4/core"
 import type { Provider } from "./provider"
 import type { ModelsDev } from "./models"
 import { iife } from "@/util/iife"
+import { isGpt5OrLater, isGpt56Family, isGpt6Astra } from "./openai-model-id"
 
 type Modality = NonNullable<ModelsDev.Model["modalities"]>["input"][number]
 
@@ -422,6 +423,8 @@ export namespace ProviderTransform {
         // https://v5.ai-sdk.dev/providers/ai-sdk-providers/openai
         if (id === "gpt-5-pro") return {}
         const openaiEfforts = iife(() => {
+          if (isGpt6Astra(id)) return [...WIDELY_SUPPORTED_EFFORTS, "xhigh", "max"]
+          if (isGpt56Family(id)) return ["none", ...WIDELY_SUPPORTED_EFFORTS, "xhigh", "max"]
           if (id.includes("codex")) {
             if (id.includes("5.2") || id.includes("5.3")) return [...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
             return WIDELY_SUPPORTED_EFFORTS
@@ -643,16 +646,16 @@ export namespace ProviderTransform {
       }
     }
 
-    if (input.model.api.id.includes("gpt-5") && !input.model.api.id.includes("gpt-5-chat")) {
-      if (!input.model.api.id.includes("gpt-5-pro")) {
+    if (isGpt5OrLater(input.model.api.id) && !input.model.api.id.includes("-chat")) {
+      if (input.model.api.id !== "gpt-5-pro") {
         result["reasoningEffort"] = "medium"
         result["reasoningSummary"] = "auto"
       }
 
-      // Only set textVerbosity for non-chat gpt-5.x models
-      // Chat models (e.g. gpt-5.2-chat-latest) only support "medium" verbosity
+      // Only set textVerbosity for non-chat numbered GPT models.
+      // Chat models (e.g. gpt-5.2-chat-latest) only support "medium" verbosity.
       if (
-        input.model.api.id.includes("gpt-5.") &&
+        /^gpt-(?:5\.|[6-9](?:[.-]|$))/i.test(input.model.api.id) &&
         !input.model.api.id.includes("codex") &&
         !input.model.api.id.includes("-chat") &&
         input.model.providerID !== "azure"
@@ -680,8 +683,8 @@ export namespace ProviderTransform {
       model.api.npm === "@ai-sdk/openai" ||
       model.api.npm === "@ai-sdk/github-copilot"
     ) {
-      if (model.api.id.includes("gpt-5")) {
-        if (model.api.id.includes("5.")) {
+      if (isGpt5OrLater(model.api.id)) {
+        if (model.api.id.includes("5.") || model.api.id.startsWith("gpt-6")) {
           return { store: false, reasoningEffort: "low" }
         }
         return { store: false, reasoningEffort: "minimal" }

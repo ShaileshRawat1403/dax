@@ -93,7 +93,8 @@ For most people:
 
 Google ended consumer Gemini CLI service on June 18, 2026. For individual
 Google AI subscription-backed agent work, install and authenticate `agy`, then
-use `dax worker run antigravity -- "<task>"`. DAX governs the AGY process; it
+inspect `agy models` and use
+`dax worker run antigravity --model <model-slug> -- "<task>"`. DAX governs the AGY process; it
 does not import AGY credentials into the provider store. Supported enterprise
 Gemini CLI users can expose the legacy import with
 `DAX_ENABLE_LEGACY_GEMINI_CLI_IMPORT=1`.
@@ -267,7 +268,8 @@ For Antigravity subscription-worker issues:
 
 ```bash
 agy
-dax worker run antigravity -- "<task>"
+agy models
+dax worker run antigravity --model <model-slug> -- "<task>"
 ```
 
 If DAX says the Gemini subscription lane is busy:

@@ -255,7 +255,7 @@ async function diagnoseGoogleProvider(providerID: string): Promise<AuthDiagnosti
         "AGY owns its account session in the operating-system keyring.",
         "DAX does not import that session or impersonate AGY as a direct model provider.",
       ],
-      error: "Antigravity session import is not a supported direct DAX provider credential.",
+      error: "This session selected the Google API provider. For your signed-in Antigravity account, open /agy or choose AGY governed agent in /models. No Google API key is required for that lane.",
       failureCategory: "misconfigured",
       next: [providerFailureNextStep({ category: "auth_missing", providerID, lane })],
     }

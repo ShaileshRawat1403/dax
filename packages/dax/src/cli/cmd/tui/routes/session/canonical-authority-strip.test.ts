@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { RunInspectorProjectionV1 } from "@/server/run-inspector-projection"
 import {
+  formatCanonicalAuthorityRows,
   presentCanonicalAuthorityStrip,
   shouldShowCompatibilityHeaderChip,
 } from "./canonical-authority-strip-presentation"
@@ -72,5 +73,57 @@ describe("canonical authority strip", () => {
     expect(operator.lifecycle).toBe(inspect.lifecycle)
     expect(operator.authority).toBe(inspect.authority)
     expect(inspect.details).toContain("Run run_1")
+  })
+
+  test("renders goal, state, sequence and cursor distinctly in separate presentation rows", () => {
+    const snap = canonical({
+      canonicalStatus: "running",
+      authority: { source: "event-log", validated: true, eventSequence: 2, cursor: "2" },
+      invocationIntent: { intent: "hi", expectedOutputs: [], expectedOutputsOmittedCount: 0 },
+    })
+    const strip = presentCanonicalAuthorityStrip(ready(snap), "operator")
+    expect(strip.lifecycle).toBe("Running")
+    expect(strip.intent).toBe("hi")
+    expect(strip.sequence).toBe(2)
+    expect(strip.cursor).toBe("2")
+    expect(strip.authority).toBe("Authority log validated · sequence 2 · cursor 2")
+
+    const rows = formatCanonicalAuthorityRows(strip)
+    expect(rows).toEqual([
+      "Running",
+      "Goal: hi",
+      "Authority log validated · sequence 2 · cursor 2",
+    ])
+  })
+
+  test("compact-width rendering does not concatenate semantic labels", () => {
+    const snap = canonical({
+      canonicalStatus: "running",
+      authority: { source: "event-log", validated: true, eventSequence: 2, cursor: "2" },
+      invocationIntent: { intent: "hi", expectedOutputs: [], expectedOutputsOmittedCount: 0 },
+    })
+    const strip = presentCanonicalAuthorityStrip(ready(snap), "operator")
+    const rows = formatCanonicalAuthorityRows(strip, { maxColumns: 40 })
+
+    // Ensures goal and authority are on completely separate lines, preventing "Goal:hiValidated sequence 2..."
+    expect(rows[0]).toBe("Running")
+    expect(rows[1]).toBe("Goal: hi")
+    expect(rows[2]).toBe("Authority log validated")
+    expect(rows[3]).toBe("sequence 2 · cursor 2")
+    expect(rows.some((r) => r.includes("Goal:hi"))).toBe(false)
+    expect(rows.some((r) => r.includes("hiValidated"))).toBe(false)
+  })
+
+  test("formats stale authority without mutating canonical sequence or cursor", () => {
+    const snap = canonical({
+      canonicalStatus: "running",
+      authority: { source: "event-log", validated: true, eventSequence: 5, cursor: "c_5" },
+      invocationIntent: { intent: "Deploy worker", expectedOutputs: [], expectedOutputsOmittedCount: 0 },
+    })
+    const strip = presentCanonicalAuthorityStrip({ status: "stale", stale: true, snapshot: snap, error: "offline" }, "operator")
+    expect(strip.stale).toBe(true)
+    expect(strip.authority).toBe("STALE — last validated canonical state · sequence 5 · cursor c_5")
+    expect(strip.sequence).toBe(5)
+    expect(strip.cursor).toBe("c_5")
   })
 })

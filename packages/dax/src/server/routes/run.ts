@@ -20,9 +20,25 @@ import {
 } from "../run-contract"
 import { RunGateway } from "../run-gateway"
 import { RunInspectorReadResultV1 } from "../run-inspector-projection"
+import { discoverAntigravityModels } from "@/worker/antigravity-models"
+import { AntigravityConversation } from "@/worker/antigravity-conversation"
 
 export const RunRoutes = lazy(() =>
   new Hono()
+    .get("/agy/models", async (c) => {
+      try { return c.json({ models: await discoverAntigravityModels() }) }
+      catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 503) }
+    })
+    .post("/:runID/agy/finish", async (c) => {
+      try {
+        await AntigravityConversation.finish(c.req.param("runID"))
+        return c.json({ accepted: true })
+      } catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 409) }
+    })
+    .get("/:runID/agy/status", async (c) => {
+      try { return c.json(await AntigravityConversation.status(c.req.param("runID"))) }
+      catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 404) }
+    })
     .get(
       "/overview",
       describeRoute({

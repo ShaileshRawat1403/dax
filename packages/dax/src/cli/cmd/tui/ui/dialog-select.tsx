@@ -395,8 +395,10 @@ function Option(props: {
         </Show>
       </box>
       <Show when={props.footer}>
-        <box flexShrink={0}>
-          <text fg={theme.textMuted}>{props.footer}</text>
+        <box flexShrink={1} maxWidth="40%" overflow="hidden">
+          <text fg={theme.textMuted} overflow="hidden" wrapMode="truncate-end">
+            {props.footer}
+          </text>
         </box>
       </Show>
     </>

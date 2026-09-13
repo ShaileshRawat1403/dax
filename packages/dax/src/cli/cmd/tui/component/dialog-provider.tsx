@@ -15,7 +15,6 @@ import { Clipboard } from "@tui/util/clipboard"
 import { useToast } from "../ui/toast"
 import { getVisibleProviderAuthMethods } from "../../provider-auth"
 import { describeProviderFailure, type ProviderLane } from "@/provider/diagnostics"
-import { DialogGovernedWorker } from "./dialog-governed-worker"
 
 const CORE_PROVIDER_PRIORITY: Record<string, number> = {
   openai: 0,
@@ -152,13 +151,13 @@ export function createDialogProviderOptions() {
     )
     return [
       {
-        title: "Antigravity CLI",
+        title: "AGY account conversation",
         value: "worker:antigravity",
-        description: "Google AI subscription via a governed worker — not a direct model provider",
+        description: "Use your signed-in Google/Antigravity account through the official CLI; no API key",
         category: "Governed worker",
         footer: "AGY readiness checked at execution",
         onSelect() {
-          dialog.replace(() => <DialogGovernedWorker initialWorkerId="antigravity" />)
+          dialog.replace(() => <DialogModel providerID="worker:antigravity" />)
         },
       },
       ...providers,

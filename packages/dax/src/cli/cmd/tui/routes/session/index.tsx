@@ -103,6 +103,7 @@ import {
 import { sessionWorkflowModeKey } from "@/dax/settings"
 import { deriveWorkstationState, type WorkstationState } from "@/dax/presentation/workstation"
 import { resolveWorkstationUIState } from "@/dax/presentation/ui-state-container"
+import { antigravitySession } from "@/worker/antigravity-stream"
 import type { ResolvedUISurface } from "@/dax/presentation/ui-state-resolver"
 import { deriveEnvironmentHealth } from "@/dax/presentation/environment-health"
 import {
@@ -863,7 +864,12 @@ export function Session() {
 
   const uiSurface = createMemo(() =>
     resolveWorkstationUIState({
-      workstation: workstationState(),
+      workstation: (() => {
+        const state = workstationState()
+        const agy = antigravitySession(session())
+        if (!agy || agy.phase === "closed") return state
+        return { ...state, lifecycle: agy.phase === "failed" ? "failed" as const : agy.phase === "ready" ? "ready" as const : "executing" as const }
+      })(),
       // permissions() and questions() are the same producer-side signals that
       // fed deriveWorkstationState. Passing them split here preserves the
       // approval/question distinction that WorkstationState aggregates away.
@@ -2270,30 +2276,56 @@ function TextPart(props: {
     const timer = setInterval(() => setCursorOn((v) => !v), 530)
     onCleanup(() => clearInterval(timer))
   })
+  // AGY tool telemetry is an external-agent observation: one muted line per
+  // turn, with its step list behind the existing tool-details toggle.
+  const externalReport = createMemo(() => props.part.metadata?.origin === "external-agent-report")
+  const reportSteps = createMemo(
+    () =>
+      ((props.part.metadata?.activity as { steps?: { index: number; tool: string; state: string }[] } | undefined)
+        ?.steps ?? []),
+  )
 
   return (
     <Show when={props.part.text.trim() && !isSubTaskAgent()}>
-      <box
-        id={"text-" + props.part.id}
-        paddingLeft={0}
-        paddingRight={2}
-        paddingBottom={1}
-        marginTop={props.marginTop ?? 1}
-        flexShrink={0}
+      <Show
+        when={!externalReport()}
+        fallback={
+          <box id={"text-" + props.part.id} paddingLeft={0} paddingRight={2} marginTop={props.marginTop ?? 1} flexShrink={0}>
+            <text fg={theme.textMuted} wrapMode="word">
+              {props.part.text.trim()}
+            </text>
+            <Show when={ctx.showDetails() && reportSteps().length > 0}>
+              <text fg={theme.textMuted} attributes={TextAttributes.DIM} wrapMode="word">
+                {reportSteps()
+                  .map((step) => `#${step.index} ${step.tool}${step.state === "ERROR" ? " (failed)" : ""}`)
+                  .join(" · ")}
+              </text>
+            </Show>
+          </box>
+        }
       >
-        <markdown
-          syntaxStyle={syntax()}
-          streaming={isStreaming()}
-          content={props.part.text.trim()}
-          conceal={ctx.conceal()}
-          fg={props.baseTextColor}
-        />
-        <Show when={isStreaming()}>
-          <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-            {cursorOn() ? "▋" : " "}
-          </text>
-        </Show>
-      </box>
+        <box
+          id={"text-" + props.part.id}
+          paddingLeft={0}
+          paddingRight={2}
+          paddingBottom={1}
+          marginTop={props.marginTop ?? 1}
+          flexShrink={0}
+        >
+          <markdown
+            syntaxStyle={syntax()}
+            streaming={isStreaming()}
+            content={props.part.text.trim()}
+            conceal={ctx.conceal()}
+            fg={props.baseTextColor}
+          />
+          <Show when={isStreaming()}>
+            <text fg={theme.primary} attributes={TextAttributes.BOLD}>
+              {cursorOn() ? "▋" : " "}
+            </text>
+          </Show>
+        </box>
+      </Show>
     </Show>
   )
 }

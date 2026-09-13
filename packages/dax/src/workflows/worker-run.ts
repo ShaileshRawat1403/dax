@@ -21,6 +21,7 @@ import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { runSandboxedCommand, runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
 import { startEgressProxy } from "@/worker/egress-proxy"
 import { z } from "zod"
+import { discoverAntigravityModels, requireAntigravityModel } from "@/worker/antigravity-models"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -69,6 +70,7 @@ export const WorkerProcessResultSchema = z
 export type WorkerProcessResult = z.infer<typeof WorkerProcessResultSchema>
 
 export type WorkerRunEffectsShape = {
+  runConversation: (invocation: WorkerInvocation, cwd: string, contract: WorkerContract, effort?: "low" | "medium" | "high") => Promise<WorkerProcessResult>
   createCheckout: (repoPath: string, runId: string) => Promise<WorkerCheckout>
   runWorker: (
     invocation: WorkerInvocation,
@@ -81,6 +83,12 @@ export type WorkerRunEffectsShape = {
 }
 
 const defaultEffects: WorkerRunEffectsShape = {
+  async runConversation(invocation, cwd, contract, effort) {
+    if (invocation.providerId !== "antigravity") throw new Error("Conversational workers currently require AGY.")
+    requireAntigravityModel(contract.modelHint, await discoverAntigravityModels({ forceRefresh: true }))
+    const { AntigravityConversation } = await import("@/worker/antigravity-conversation")
+    return AntigravityConversation.run({ invocation, cwd, contract, effort })
+  },
   async createCheckout(repoPath, runId) {
     const root = path.join(repoPath, ".dax", "worker-checkouts")
     const checkoutPath = path.join(root, runId)
@@ -188,6 +196,7 @@ export function workerContractFromPolicy(
   intent: string,
   runId: string,
   runtimePolicy?: RuntimePolicy,
+  modelHint?: string,
 ): WorkerContract {
   return WorkerContract.parse({
     task: intent,
@@ -195,6 +204,7 @@ export function workerContractFromPolicy(
     forbiddenPaths: runtimePolicy?.sensitivity.forbiddenPatterns ?? [],
     verification: runtimePolicy?.postconditions.validationCommands ?? [],
     runId,
+    modelHint,
   })
 }
 
@@ -310,6 +320,7 @@ export class WorkerRunWorkflow {
         this.contract.intent,
         this.runId,
         this.contract.runtimePolicy,
+        this.contract.modelHint,
       )
 
       // Scope provenance is part of the receipt. Event ordering is mandatory:
@@ -342,7 +353,9 @@ export class WorkerRunWorkflow {
       })
 
       const result = WorkerProcessResultSchema.parse(
-        await WorkerRunEffects.current.runWorker(invocation, checkout.path),
+        this.contract.runtimePolicy?.workerConversation
+          ? await WorkerRunEffects.current.runConversation(invocation, checkout.path, contract, this.contract.runtimePolicy.workerConversation.effort)
+          : await WorkerRunEffects.current.runWorker(invocation, checkout.path),
       )
       // Recorded before the failure throws below. Isolation and process
       // ownership held regardless of how the worker exited, and a timeout is
@@ -413,6 +426,13 @@ export class WorkerRunWorkflow {
       const verification = await this.executeVerifyWorkerPatch(checkout.path, contract)
       if (!verification.success) {
         return verification
+      }
+
+      if (this.contract.runtimePolicy?.workerConversation) {
+        const after = WorkerPatchSchema.parse(await WorkerRunEffects.current.computeDiff(checkout.path))
+        if (after.content !== patch.content || JSON.stringify(after.changedPaths) !== JSON.stringify(patch.changedPaths)) {
+          throw new Error("Verification changed the AGY candidate patch; refusing approval of unverified changes.")
+        }
       }
 
       const draftId = `draft_${Identifier.create("session", false)}`

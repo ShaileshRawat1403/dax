@@ -1,4 +1,5 @@
 import z from "zod"
+import { AntigravityConversationOptions } from "@/worker/antigravity-stream"
 import {
   WorkflowClassSchema,
   ExecutionModeSchema,
@@ -69,6 +70,7 @@ export type SensitivityPolicy = z.infer<typeof SensitivityPolicy>
 const FieldProvenanceEnum = z.enum(["operator-authored", "operator-confirmed", "inferred-unreviewed"])
 
 export const RuntimePolicy = z.object({
+  workerConversation: AntigravityConversationOptions.optional(),
   scope: ScopePolicy,
   budgets: MutationBudgetPolicy,
   postconditions: PostconditionPolicy,
