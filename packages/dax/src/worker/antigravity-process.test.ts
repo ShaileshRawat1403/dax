@@ -1,6 +1,12 @@
 import { test, expect, jest } from "bun:test"
-import { startAntigravityProcess } from "./antigravity-process"
+import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
+import type { Readable, Writable } from "node:stream"
+import { OWNER_WATCH, startAntigravityProcess } from "./antigravity-process"
 import { AntigravityStop } from "./antigravity-stream"
+
+// AGY process ownership needs POSIX process groups; the runtime refuses Windows.
+const posixTest = test.skipIf(process.platform === "win32")
 
 const fake = `
 const readline = require('node:readline');
@@ -30,7 +36,7 @@ const rejection = (promise: Promise<unknown>) =>
     (error: unknown) => (error instanceof Error ? error.message : String(error)),
   )
 
-test("official conversation stays alive across two turns and closes only on finish", async () => {
+posixTest("official conversation stays alive across two turns and closes only on finish", async () => {
   const worker = start()
   try {
     expect((await worker.send("one")).num_turns).toBe(1)
@@ -43,7 +49,7 @@ test("official conversation stays alive across two turns and closes only on fini
   }
 })
 
-test("a ready conversation waits for the operator past the former five-minute idle kill", async () => {
+posixTest("a ready conversation waits for the operator past the former five-minute idle kill", async () => {
   jest.useFakeTimers()
   const worker = start(fake, 60 * 60 * 1000)
   try {
@@ -61,7 +67,7 @@ test("a ready conversation waits for the operator past the former five-minute id
   }
 })
 
-test("a process that never initializes reports an initialization timeout", async () => {
+posixTest("a process that never initializes reports an initialization timeout", async () => {
   jest.useFakeTimers()
   const worker = start("setInterval(()=>{},1000)", 60 * 60 * 1000)
   try {
@@ -77,7 +83,7 @@ test("a process that never initializes reports an initialization timeout", async
   }
 })
 
-test("the recorded failure names what actually ended the process", async () => {
+posixTest("the recorded failure names what actually ended the process", async () => {
   const released = start("process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)")
   released.cancel(AntigravityStop.released)
   expect(await rejection(released.done)).toStartWith(AntigravityStop.released)
@@ -95,19 +101,19 @@ test("the recorded failure names what actually ended the process", async () => {
   expect(await rejection(malformed.done)).toStartWith(AntigravityStop.protocol)
 })
 
-test("malformed output stops the process", async () => {
+posixTest("malformed output stops the process", async () => {
   const worker = start("console.log('not-json'); setInterval(()=>{},1000)")
   expect(await rejection(worker.done)).not.toBe("resolved")
 })
 
-test("zero exit without a result never succeeds", async () => {
+posixTest("zero exit without a result never succeeds", async () => {
   const worker = start("setTimeout(()=>process.exit(0),50)")
   const turn = worker.send("hello")
   expect(await rejection(turn)).not.toBe("resolved")
   expect(await rejection(worker.done)).not.toBe("resolved")
 })
 
-test("cancellation and timeout terminate a worker ignoring TERM", async () => {
+posixTest("cancellation and timeout terminate a worker ignoring TERM", async () => {
   const script = "process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"
   const cancelled = start(script)
   cancelled.cancel()
@@ -116,7 +122,7 @@ test("cancellation and timeout terminate a worker ignoring TERM", async () => {
   expect(await rejection(timed.done)).toContain("timed out")
 })
 
-test("ownership pipe kills the worker after abrupt DAX parent death", async () => {
+posixTest("ownership pipe kills the worker after abrupt DAX parent death", async () => {
   const modulePath = new URL("./antigravity-process.ts", import.meta.url).pathname
   const child = `console.log(JSON.stringify({event:'init',conversation_id:'c',init:{cwd:process.cwd(),model:'fake',tools:[String(process.pid)],permission_mode:'request-review'}})); process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)`
   const parentScript = `import { startAntigravityProcess } from ${JSON.stringify(modulePath)};
@@ -152,3 +158,39 @@ test("ownership pipe kills the worker after abrupt DAX parent death", async () =
     }
   }
 })
+
+posixTest("the ownership watcher reaps the AGY group under every POSIX shell on this host", async () => {
+  // Debian and Ubuntu use dash for /bin/sh while macOS uses bash; both must reap.
+  const child = "console.log(process.pid); process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)"
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  for (const shell of ["/bin/sh", "/bin/dash", "/bin/bash"].filter((path) => existsSync(path))) {
+    const owned = spawn(shell, ["-c", OWNER_WATCH, "dax-agy-owner", process.execPath, "-e", child], {
+      detached: true,
+      stdio: ["ignore", "pipe", "ignore", "pipe"],
+    })
+    const pid = Number(
+      await new Promise<string>((resolve) => (owned.stdout as Readable).once("data", (chunk) => resolve(String(chunk)))),
+    )
+    try {
+      expect(alive(pid)).toBe(true)
+      // DAX death closes the only writer of the ownership pipe.
+      const lease = owned.stdio[3] as Writable
+      lease.destroy()
+      for (let attempt = 0; attempt < 40 && alive(pid); attempt++) await Bun.sleep(50)
+      expect({ shell, alive: alive(pid) }).toEqual({ shell, alive: false })
+    } finally {
+      try {
+        process.kill(-pid, "SIGKILL")
+      } catch {
+        // Already reaped by the ownership watcher.
+      }
+    }
+  }
+}, 20_000)

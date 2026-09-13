@@ -14,11 +14,13 @@ import {
 // fd 3 is an ownership pipe. Only DAX holds its writing end. On parent death,
 // the watcher receives EOF and kills this group even if AGY ignores stdin EOF.
 // The watcher ignores TERM so it survives long enough to escalate to KILL.
-const OWNER_WATCH = `group=$$
+// `kill -s SIG --` is the POSIX form: dash, /bin/sh on Debian and Ubuntu,
+// reads `kill -TERM --` as an illegal pid and would never reap the group.
+export const OWNER_WATCH = `group=$$
 (trap '' TERM INT; while IFS= read -r lease <&3; do :; done
- kill -TERM -- "-$group" 2>/dev/null
+ kill -s TERM -- "-$group" 2>/dev/null
  sleep 0.2
- kill -KILL -- "-$group" 2>/dev/null) &
+ kill -s KILL -- "-$group" 2>/dev/null) &
 exec "$@" 3<&-`
 
 export function startAntigravityProcess(input: {
