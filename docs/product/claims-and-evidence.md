@@ -59,7 +59,7 @@ Two labels, and they are not interchangeable. The agent's own reply text is tagg
 
 **Why it is checkable.** Ordering is load-bearing and stated in the source: scope check first, mutation receipt second, and the receipt is built from the kernel-computed patch. A patch that escaped its `writeScope` is refused rather than attested.
 
-**Demo — live.** Give a worker a task and have it claim, in chat, that it changed a file it did not touch. The review surface shows the kernel diff; the claim appears tagged as an external agent report beside it.
+**Demo — live.** Give a worker a task and have it claim, in chat, that it changed a file it did not touch. The review surface shows the kernel diff; the claim stays beside it as conversation tagged `external-agent`.
 
 **Boundary.** DAX proves what its own verification commands prove. "Kernel-owned diff" is a statement about provenance, not about correctness.
 
