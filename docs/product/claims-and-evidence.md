@@ -53,7 +53,9 @@ Nine cases, five of them named `Fails when …` / `Fails on …`: missing verifi
 
 ### Claim 3 — An agent's own account of its work is never evidence
 
-**Statement.** The diff DAX reviews is computed by the kernel from the worktree, not reported by the worker. The worker's narration is stored as conversation with `origin: "external-agent-report"` and never becomes canonical.
+**Statement.** The diff DAX reviews is computed by the kernel from the worktree, not reported by the worker. Everything the worker says about itself is stored as conversation and never becomes canonical.
+
+Two labels, and they are not interchangeable. The agent's own reply text is tagged `origin: "external-agent"`. Summaries of the tools it ran are tagged `origin: "external-agent-report"`. Neither supplies canonical mutation evidence — which is the point — but say which is which.
 
 **Why it is checkable.** Ordering is load-bearing and stated in the source: scope check first, mutation receipt second, and the receipt is built from the kernel-computed patch. A patch that escaped its `writeScope` is refused rather than attested.
 
@@ -193,7 +195,8 @@ This is one claim's worth of substance split across three implementations; do no
 | 3 | Kernel-computed diff; the worker's own account is never consulted | [worker-run.ts#L394-L396](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/workflows/worker-run.ts#L394-L396) |
 | 3 | Scope check before attestation | [worker-run.ts#L400-L403](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/workflows/worker-run.ts#L400-L403) |
 | 3 | Mutation receipt built from the kernel diff | [worker-run.ts#L406-L414](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/workflows/worker-run.ts#L406-L414) |
-| 3 | AGY chat activity tagged `external-agent-report` | [antigravity-conversation.ts#L319](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-conversation.ts#L319) |
+| 3 | AGY reply text tagged `external-agent` | [antigravity-conversation.ts#L489-L495](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-conversation.ts#L489-L495) · streamed at [#L329-L334](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-conversation.ts#L329-L334) |
+| 3 | AGY tool-activity summaries tagged `external-agent-report` | [antigravity-conversation.ts#L311-L319](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-conversation.ts#L311-L319) |
 | 4 | fd 3 ownership pipe | [antigravity-process.ts#L14-L15](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-process.ts#L14-L15) |
 | 4 | POSIX `kill -s SIG --` group kill, with the `dash` rationale | [antigravity-process.ts#L17-L23](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-process.ts#L17-L23) |
 | 4 | `processGroupGone` — confirm, don't race the reaper | [antigravity-process.ts#L27-L30](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-process.ts#L27-L30) · [#L130-L132](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/packages/dax/src/worker/antigravity-process.ts#L130-L132) |
