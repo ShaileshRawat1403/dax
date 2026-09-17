@@ -87,7 +87,7 @@ Tier 1 skips to step 2 and stops after step 3.
 
 | # | Phase | Owner | Output |
 |---|---|---|---|
-| 1 | **Assign** | HITL | Task, tier, lane, branch name, one line of acceptance |
+| 1 | **Assign** | HITL | Task, tier, lane, one line of acceptance. The owning agent derives its own branch name |
 | 2 | **Build** | One agent | Commits on its own branch, own worktree |
 | 3 | **Publish** | Same agent | Push, then a handoff message pinned to a SHA |
 | 4 | **Validate** | Other agent | Adversarial review — a validation report, not a conversation |
@@ -97,7 +97,7 @@ Tier 1 skips to step 2 and stops after step 3.
 
 Step 4 is bounded. The validating agent does not redesign, refactor, or extend. It attempts to refute specific claims and stops.
 
-**A validation covers the SHA it names and nothing after it.** If resolving findings changed behavior, interfaces, or any claim the validation confirmed, the branch needs a targeted revalidation against the new SHA before merge — scoped to the fixes, not a re-run of the whole review. Merging a corrected branch on the strength of a review of its uncorrected state is the same error as trusting a self-report, arriving by a slower route. Typo and prose fixes do not trigger this.
+**A validation covers the SHA it names and nothing after it.** If resolving findings changed behavior, interfaces, or any claim the validation confirmed, the branch needs a targeted revalidation against the new SHA before merge — scoped to the fixes, not a re-run of the whole review. Merging a corrected branch on the strength of a review of its uncorrected state is the same error as trusting a self-report, arriving by a slower route. Only wording changes that preserve meaning are exempt. A prose edit that changes what is claimed is a substantive change and triggers revalidation — in a document whose content *is* the claim, prose is the deliverable.
 
 ---
 
@@ -151,7 +151,7 @@ So:
 - Use a **different method** than the builder used. If the builder proved it with a unit test, the validator proves it against a real run, or reads the call sites, or checks the failure path.
 - Report only what a command or a `path:line` can demonstrate. "Looks reasonable" is not a validation result.
 - Silence is not approval. An unvalidated claim is reported as `UNVERIFIABLE`, never omitted.
-- **Never report a finding about an artifact you could not read.** If the branch was not fetchable or the file was absent from your baseline, every claim about it is `UNVERIFIABLE` — including claims that later turn out to be correct. A guess that happens to be right is worse than one that is wrong, because it makes an unsound method look reliable and the next guess inherits that credit.
+- **Name the source and SHA you inspected.** If the exact artifact at the exact version cannot be inspected through any available source, the claim is `UNVERIFIABLE` — including a claim that later turns out to be correct, because a guess that happens to be right makes an unsound method look reliable and the next guess inherits that credit. But state what you *did* read rather than leaving the reader to infer it. Agents sharing a git object database can read each other's unpushed commits (`git cat-file -t <sha>`); an unpublished branch is a publication-rule violation, not an unreadable one. Ambiguity about provenance is what turns a sound review into a suspected guess.
 
 ### 6.7 Declare what you could not run
 
@@ -323,12 +323,14 @@ Order findings Critical first, then High, Medium, Low, Info.
 
 Run what the change can actually break. Blanket full-suite gates on a prose edit are cost without signal, and cost without signal is how gates come to be skipped.
 
+Gates follow the diff, not the tier. A Tier 2 documentation change gets cross-validation — that is what its tier buys — but cross-validation of its claims against the tree, not a full-suite run that cannot exercise a word.
+
 | Change | Gate |
 |---|---|
-| Documentation or comments only | None beyond review |
+| Documentation or comments only | Review and evidence checks only. No build gates, at either tier |
 | Application code | `bun run typecheck` and `bun run test` |
 | Native/Rust code | also `bun run rust:verify` |
-| Integration or pre-merge of a Tier 2 branch | `bun run release:gates` |
+| Integration or pre-merge of a Tier 2 **code** branch | `bun run release:gates` |
 | Final tagged release | `DAX_RELEASE=1 bun run release:verify` |
 
 `DAX_RELEASE=1` is required for release validation. Without it the clean-tree and tag-equals-HEAD checks do not run, and the command reports success for a state the tag would reject.
