@@ -26,7 +26,7 @@ Any line cited below can be read the same way: `git show v1.4.0:<path> | sed -n 
 | 4 | DAX owns the external agent's process lifetime | No resume. No native Windows. A hard-killed backend reads "running" until the next interaction or `dax recover`. | Live |
 | 2 | The harness owns execution state, the model doesn't | One host, one filesystem lock. No multi-host coordination. | Command |
 | 5 | Anything unlisted asks instead of running | Egress filtering is cooperative. A worker opening a raw socket is not stopped. Never "secure", never "audited". | Command |
-| 6 | DAX records what it cannot prove, and cannot silently improve | Covers conformance invariants, not all unknowns. | CI screenshot |
+| 6 | DAX records what it cannot prove, and cannot silently improve | Covers conformance invariants, not all unknowns — and nine of the eleven recorded gaps, not all eleven. | CI screenshot |
 | 7 | The release is gated and verifiable | Sidecars compile only for the runner's platform; macOS and Windows fall back to the TypeScript path. Hardened, not battle-tested. | Command |
 
 Claims 1, 3 and 4 demo best live — they are the ones a viewer disbelieves until they watch the refusal happen. Claim 6 demos as a red CI run, which is counterintuitive enough to be memorable.
@@ -45,7 +45,7 @@ Claims 1, 3 and 4 demo best live — they are the ones a viewer disbelieves unti
 ```bash
 bun test packages/dax/test/determinism/completion-proof.test.ts
 ```
-Nine cases, four of them named `Fails when …` / `Fails on …`: missing verification for mutations, unevidenced expected outputs, missing artifacts for expected writes, scope violation, unapproved sensitive changes.
+Nine cases, five of them named `Fails when …` / `Fails on …`: missing verification for mutations, unevidenced expected outputs, missing artifacts for expected writes, scope violation, unapproved sensitive changes.
 
 **Boundary.** Completion proof proves canonical state, verification and expected outputs. It does not prove the change is semantically correct, or that the tests it ran were good tests.
 
@@ -101,9 +101,11 @@ Never describe this as "secure" or "audited". Neither word has been earned.
 
 ### Claim 6 — DAX records what it cannot prove, and cannot silently improve
 
-**Statement.** Eleven conformance gaps are recorded explicitly in `KNOWN_GAPS`, each with a written description of what is missing. Each corresponding check is wrapped in `expectGap`, which inverts the assertion: the check must still fail.
+**Statement.** Eleven conformance gaps are recorded explicitly in `KNOWN_GAPS`, each with a written description of what is missing. Nine of the eleven have a check wrapped in `expectGap`, which inverts the assertion: the check must still fail.
 
-That buys three properties, and the third is the one worth having:
+The remaining two — both `integrity.*` — are recorded in prose with no wrapped check behind them. Say "nine enforced, eleven recorded", never "eleven enforced". The difference is the whole claim.
+
+Where a check exists, it buys three properties, and the third is the one worth having:
 
 1. CI is green while the gap is open.
 2. A *new* failure — an invariant that used to hold and stopped — is an ordinary red test, because it is not wrapped.
@@ -111,25 +113,34 @@ That buys three properties, and the third is the one worth having:
 
 Property 3 exists for a reason with a date on it: an earlier execution meter stayed green while its source-text approximation and obsolete workflow denominator hid what production could actually prove. An unnoticed fix is a measurement problem, not good news.
 
-**The eleven gaps at v1.4.0:**
+**The eleven gaps at v1.4.0.** `Enforced` means a check is wrapped in `expectGap`, so the gap closing turns CI red. `Recorded only` means the entry is prose — nothing fails if it silently closes.
 
-| Gap id | What is missing |
-|---|---|
-| `integrity.contract-immutability-cross-store-race` | Contract mutability authorization and replacement are not one atomic cross-store operation |
-| `integrity.event-authority-partial-initialization-recovery` | Zero-event authority state cannot be retried or repaired |
-| `inv1.record-classes` | Prompt, context, assistant message, delegation and compaction replacement have no durable event representation (6 of 11 classes covered) |
-| `inv5.capability-vocabulary` | No capability registry; capabilities are still separate architectural categories |
-| `inv5.capability-properties` | Capabilities declare no intrinsic properties distinct from contract authority |
-| `inv5.contract-grants` | Contracts do not express authority as grants against named capabilities |
-| `inv5.grant-resolution` | Execution paths do not resolve authority through one shared grant lookup |
-| `scope.journal-primitive` | Journal machinery is not generic over scope; a second scope would copy it |
-| `scope.aware-envelope` | The envelope carries `runId` only — an event cannot state which scope owns it |
-| `scope.project-journal` | No project-scoped journal, so facts outliving their run have no authoritative owner |
-| `memory.no-producer` | Project memory is read every session but no production code writes it |
+| Gap id | What is missing | Status |
+|---|---|---|
+| `integrity.contract-immutability-cross-store-race` | Contract mutability authorization and replacement are not one atomic cross-store operation | Recorded only |
+| `integrity.event-authority-partial-initialization-recovery` | Zero-event authority state cannot be retried or repaired | Recorded only |
+| `inv1.record-classes` | Prompt, context, assistant message, delegation and compaction replacement have no durable event representation (6 of 11 classes covered) | Enforced |
+| `inv5.capability-vocabulary` | No capability registry; capabilities are still separate architectural categories | Enforced |
+| `inv5.capability-properties` | Capabilities declare no intrinsic properties distinct from contract authority | Enforced |
+| `inv5.contract-grants` | Contracts do not express authority as grants against named capabilities | Enforced |
+| `inv5.grant-resolution` | Execution paths do not resolve authority through one shared grant lookup | Enforced |
+| `scope.journal-primitive` | Journal machinery is not generic over scope; a second scope would copy it | Enforced |
+| `scope.aware-envelope` | The envelope carries `runId` only — an event cannot state which scope owns it | Enforced |
+| `scope.project-journal` | No project-scoped journal, so facts outliving their run have no authoritative owner | Enforced |
+| `memory.no-producer` | Project memory is read every session but no production code writes it | Enforced |
+
+Count it yourself:
+
+```bash
+git grep -h "expectGap(" v1.4.0 -- 'packages/dax/src/conformance/*.test.ts' \
+  | grep -oE '"[a-z0-9.-]+"' | sort -u
+```
+
+Ten ids come back; one of them is `inv9.not-a-real-gap`, a fixture that exercises the unknown-id error path. Nine are real.
 
 **Demo — CI screenshot.** Close a gap locally without striking its entry, and the conformance suite turns red. A green suite that silently absorbed an improvement is the failure mode this prevents.
 
-**Boundary.** This covers conformance invariants. It is not a register of everything DAX does not know.
+**Boundary.** This covers conformance invariants. It is not a register of everything DAX does not know. And it covers them unevenly: two of the eleven entries are prose with no wrapped check, so for those two the self-correcting property does not hold — they could close silently, exactly the failure this mechanism exists to prevent. Closing that gap in the gap ledger is tracked work, not a claim.
 
 ---
 
@@ -141,8 +152,10 @@ The build produces 11 targets (linux arm64/x64, both with musl variants and non-
 
 **Demo — command.**
 ```bash
-bun run release:verify     # same gate chain the tag runs
+DAX_RELEASE=1 bun run release:verify     # same gate chain, in the same mode, the tag runs
 ```
+`DAX_RELEASE=1` is not optional for a faithful demo. The workflow sets it ([release.yml#L57-L58](https://github.com/ShaileshRawat1403/dax/blob/v1.4.0/.github/workflows/release.yml#L57-L58)), and it is what turns on the release-mode checks — clean tree, tag equals HEAD, version equals changelog. Without it the same command runs a weaker gate chain and reports success for a state the tag would have rejected.
+
 Then check any published asset against the published `SHA256SUMS`.
 
 **Boundary.** Rust sidecars compile only for the *host* target of the release runner — `isHostTarget(item) ? RUST_SIDECAR_BINARIES : []`, with an explicit `no Rust sidecars for <name>: not the host target` warning for the rest. macOS and Windows builds therefore fall back to the TypeScript path. CI and release were both green on `494354d`. Hardened, not battle-tested.
