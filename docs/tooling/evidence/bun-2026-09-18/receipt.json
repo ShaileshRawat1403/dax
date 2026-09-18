@@ -30,7 +30,13 @@
     "targeted-1.4.0.log": "5943e7924560b3bcf8f58c376e978999a8ef6b6398250fa9344872a19b1ff877",
     "test-1.4.0-fd8192.log": "1a7062fb52d271dcbac07e711362de23aaefce4130a301a43b5608b6f94e13a2",
     "fd8192-result.json": "ba6e75f4d56558cbdc7d59211e254c9d380655ea8c43b68caef7ca53958b057d",
-    "comparison.json": "81b335551b733ad1acfd82f9793b94f5bb6b9d6522bf9cee7d822a3ec2bb4f2d"
+    "comparison.json": "81b335551b733ad1acfd82f9793b94f5bb6b9d6522bf9cee7d822a3ec2bb4f2d",
+    "revalidation/comparison.json": "add522fb444b8dcd681ff6b4492b512fe99bb935c593eb111e9d6590a824fa45",
+    "revalidation/version-guard-results.json": "ad35f45058bf32c8be78a3bebc815ef4635a854e32a7eed68a66e48629ffd182",
+    "revalidation/test-1.4.0-fd1048576.log": "9bd93ce8c6ca86d50f485779b47ce66ec8a237b9e35698ae05954640d079f076",
+    "revalidation/test-1.3.9-fd1048576.log": "484c89ad24b78aeaf079e78ec4b93c28226239ff1c3b49067b8279a0b80db5f8",
+    "revalidation/version-guard-1.4.0.log": "dcb1414c326ae8909f129662fba41e024187c5fb47fa5ae1a32ce87c65b1b3aa",
+    "revalidation/version-guard-1.3.9.log": "d0b7868f231923a9775529731a26ce69e6195ebfdd7828caffb296749c762550"
   },
   "raw_artifact_sha256": {
     "install-1.4.0.log": "2d41c98ddde3ab7648f5e4146e866c47c8ddaed7ec3e00d5e79ffd9e9b5cf9cf",
@@ -43,7 +49,24 @@
     "targeted-1.4.0.log": "5943e7924560b3bcf8f58c376e978999a8ef6b6398250fa9344872a19b1ff877",
     "test-1.4.0-fd8192.log": "1a7062fb52d271dcbac07e711362de23aaefce4130a301a43b5608b6f94e13a2",
     "fd8192-result.json": "ba6e75f4d56558cbdc7d59211e254c9d380655ea8c43b68caef7ca53958b057d",
-    "comparison.json": "81b335551b733ad1acfd82f9793b94f5bb6b9d6522bf9cee7d822a3ec2bb4f2d"
+    "comparison.json": "81b335551b733ad1acfd82f9793b94f5bb6b9d6522bf9cee7d822a3ec2bb4f2d",
+    "revalidation/comparison.json": "add522fb444b8dcd681ff6b4492b512fe99bb935c593eb111e9d6590a824fa45",
+    "revalidation/version-guard-results.json": "ad35f45058bf32c8be78a3bebc815ef4635a854e32a7eed68a66e48629ffd182",
+    "revalidation/test-1.4.0-fd1048576.log": "9bd93ce8c6ca86d50f485779b47ce66ec8a237b9e35698ae05954640d079f076",
+    "revalidation/test-1.3.9-fd1048576.log": "6c683656f46a16e3c2f7955e1bb2ae04459168a7c9d37deccce58ee409fdcfaf",
+    "revalidation/version-guard-1.4.0.log": "dcb1414c326ae8909f129662fba41e024187c5fb47fa5ae1a32ce87c65b1b3aa",
+    "revalidation/version-guard-1.3.9.log": "50902f01aa48361a1a4128abac55e3beeedf0938e9acd495ecab089f658675d1"
   },
-  "retained_log_normalization": "Trailing whitespace removed from log lines for git diff --check; raw artifacts preserved locally."
+  "retained_log_normalization": "Text log copies have trailing whitespace removed; all original bytes are committed in raw-artifacts.tar.gz.",
+  "raw_archive": {
+    "path": "raw-artifacts.tar.gz",
+    "sha256": "c79d48d868d484c4e1124ea1ebc9f3c6265715567f8d9002667c69a44438ed3b",
+    "format": "gzip-compressed tar; member bytes match raw_artifact_sha256"
+  },
+  "revalidation": {
+    "reviewed_commit": "f8d3f1710fffc4fd81b3a7d9481096ea004d9cba",
+    "requested_soft_nofile": 1048576,
+    "limit_and_full_stage_results": "revalidation/comparison.json",
+    "isolated_version_guard_results": "revalidation/version-guard-results.json"
+  }
 }

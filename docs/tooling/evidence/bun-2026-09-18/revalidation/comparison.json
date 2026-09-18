@@ -1,0 +1,32 @@
+{
+  "reviewed_commit": "f8d3f1710fffc4fd81b3a7d9481096ea004d9cba",
+  "initial_nofile": [
+    1048575,
+    9223372036854775807
+  ],
+  "set_nofile": [
+    1048576,
+    9223372036854775807
+  ],
+  "kernel_limits": "kern.maxfiles: 30720\nkern.maxfilesperproc: 10240\n",
+  "runs": [
+    {
+      "version": "1.4.0",
+      "binary": "/Users/Shailesh/MYAIAGENTS/dax-codex/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun",
+      "probe_stdout": "{\"version\":\"1.4.0\",\"revision\":\"34cbb9a40b4bd1bd767d134a7065e66c2432a676\",\"nofile\":\"1048576\"}\n",
+      "probe_stderr": "",
+      "exit_code": 1,
+      "seconds": 0.93,
+      "log": "test-1.4.0-fd1048576.log"
+    },
+    {
+      "version": "1.3.9",
+      "binary": "/Users/ananyalayek/.bun/bin/bun",
+      "probe_stdout": "{\"version\":\"1.3.9\",\"revision\":\"cf6cdbbbadd50604bc17f21ed5d0612c920a5d9a\",\"nofile\":\"unlimited\"}\n",
+      "probe_stderr": "",
+      "exit_code": 1,
+      "seconds": 0.4,
+      "log": "test-1.3.9-fd1048576.log"
+    }
+  ]
+}

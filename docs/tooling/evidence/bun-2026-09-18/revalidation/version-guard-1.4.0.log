@@ -1,0 +1,31 @@
+bun test v1.4.0 (34cbb9a40)
+dax script {
+  "channel": "chore/codex-bun-toolchain",
+  "version": "0.0.0-chore/codex-bun-toolchain-202609180837",
+  "preview": true,
+  "release": false,
+  "team": [
+    "actions-user",
+    "dax",
+    "rekram1-node",
+    "thdxr",
+    "kommander",
+    "jayair",
+    "fwang",
+    "adamdotdevin",
+    "iamdavidhill",
+    "dax-agent[bot]",
+    "R44VC0RP"
+  ]
+}
+
+packages/script/test/index.test.ts:
+(pass) script/index > should work [0.01ms]
+(pass) script/index > keeps prerelease binaries on the beta channel [0.03ms]
+(pass) script/index > keeps stable binaries on the latest channel [0.02ms]
+(pass) script/index > does not replace branch-preview versions with the package release [0.19ms]
+
+ 4 pass
+ 0 fail
+ 6 expect() calls
+Ran 4 tests across 1 file. [822.00ms]

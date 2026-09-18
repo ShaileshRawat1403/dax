@@ -7,10 +7,18 @@ Bun. The official macOS ARM64 binary reports `1.4.0+34cbb9a40`; its frozen insta
 succeeded without changing `bun.lock` or another tracked file. No pin change is
 needed for availability.
 
-The observed `release:gates` outcome did **not** change between 1.4.0 and 1.3.9:
-both passed integrity, legacy guard, typecheck and lint, then stopped during tests
-with file-descriptor errors. This is a comparison of the checks reached, not a
-claim that either runtime passes the complete suite or is release-ready.
+The runtime change has an observable consequence: Bun 1.3.9 is rejected by the
+`^1.4.0` guard in `packages/script/src/index.ts:16`; Bun 1.4.0 passes that guard.
+An isolated rerun of `packages/script/test/index.test.ts` gives **4 pass / 0 fail**
+on 1.4.0 and **0 pass / 1 fail / 1 error** on 1.3.9.
+
+Both full `release:gates` commands nevertheless exited 1: they passed integrity,
+legacy guard, typecheck and lint, then stopped during tests with file-descriptor
+errors. Equal aggregate exit codes do not mean equal underlying outcomes. The
+1.3.9 version rejection was already present in the original committed log and was
+omitted from this report at `f8d3f1710fffc4fd81b3a7d9481096ea004d9cba`.
+This revision corrects that omission without replacing the historical logs.
+Neither runtime has passed the complete gate chain in this worktree.
 
 ## Provenance and scope
 
@@ -47,7 +55,7 @@ The install reported 776 packages installed and exited zero.
 | `guard:legacy` | Pass | Pass |
 | `typecheck` | 5 successful, 0 cached | 5 successful, 0 cached |
 | `lint` (DAX and other workspaces) | Pass | Pass |
-| `test` | Fail: `EMFILE` during loading | Fail: `EMFILE` / `ProcessFdQuotaExceeded` during loading |
+| `test` | Fail: `EMFILE` during loading | Fail: Bun version guard, then `EMFILE` / `ProcessFdQuotaExceeded` during loading |
 | `eval:smoke` | Not reached | Not reached |
 | `rust:verify` | Not reached | Not reached |
 | `release:check` | Not reached | Not reached |
@@ -61,7 +69,7 @@ separate per runtime through `DAX_TEST_HOME`. Both runs disabled models fetching
 config auto-install and Turbo telemetry, and used the dedicated Bun install cache.
 The normal test script additionally sets its own test isolation flags.
 
-## Bounded failure investigation
+## Bounded failure investigation — original runs
 
 The following supplemental checks used the same source and dependencies:
 
@@ -78,10 +86,56 @@ The following supplemental checks used the same source and dependencies:
   tracked `packages/dax/src/installation/index.ts` exists. That message is not
   evidence that the source file is missing.
 
-No root cause is established. These failures are observed under both versions;
-they do not establish a Bun 1.4.0 regression. Investigating the full-suite loader
-failure is a separate work item. No production code, test code, global limits,
-package pin, lockfile or CI configuration was changed for this verification.
+No root cause of the file-descriptor failures is established. They were observed
+under both versions; they do not establish a Bun 1.4.0 regression. The version
+guard rejection is a separate, verified incompatibility with 1.3.9. No production
+code, test code, global limits, package pin, lockfile or CI configuration was
+changed for this verification.
+
+## Cross-validation follow-up — explicit high-limit runs
+
+The review attributed the failure to an 8192 soft limit. That was the separate
+lower-limit diagnostic, not the original gate environment. The original report
+recorded an inherited 1048575 soft limit. A successful run in another worktree
+is useful counterevidence to a universal failure claim, but does not identify
+this worktree's failure cause without controlling the remaining differences.
+
+The follow-up ran both complete `bun run test` stages again, on the code at
+`f8d3f1710fffc4fd81b3a7d9481096ea004d9cba`, with the same installed dependency tree
+and fresh, separate DAX state directories. Python recorded the inherited soft
+limit as 1048575, explicitly set it to **1048576**, and captured a shell's
+`ulimit -n` through each selected Bun binary before launching the test stage.
+
+| Follow-up | Bun 1.4.0 | Bun 1.3.9 |
+| --- | --- | --- |
+| Requested child soft limit | 1048576 | 1048576 |
+| Shell launched by Bun reported | 1048576 | unlimited |
+| Full `bun run test` | Exit 1; `EMFILE` | Exit 1; version guard and `EMFILE` |
+| Isolated `packages/script/test/index.test.ts` | 4 pass, 0 fail, 6 assertions | 0 pass, 1 fail, 1 error; requires `bun@^1.4.0` |
+
+The probe is a separate Bun invocation, not instrumentation inside the test
+runner. The requested parent limit and probe output are both retained rather
+than assuming a runtime leaves its inherited limits unchanged. Kernel limits
+remained `kern.maxfiles=30720` and `kern.maxfilesperproc=10240`. Raising the soft
+limit did not resolve the failure here; the claim that the cause is established
+as the earlier 8192 diagnostic limit is not supported by this experiment.
+
+The two full-stage runs failed in 0.93s and 0.40s respectively, before reaching
+the suite completion summary. They do not independently reproduce the reviewer's
+1737-test run or identify its remaining failure. Its exact invocation, source
+SHA, dependency-install layout and full output are needed for that comparison.
+
+To repeat the high-limit experiment, use the same isolated setup below with a
+fresh `DAX_TEST_HOME` and run these commands inside the selected-runtime subshell:
+
+```sh
+ulimit -S -n 1048576
+bun -e 'console.log(JSON.stringify({version:Bun.version,revision:Bun.revision,nofile:Bun.spawnSync(["/bin/sh","-c","ulimit -n"]).stdout.toString().trim()}))'
+bun run test
+```
+
+Run `bun test packages/script/test/index.test.ts` separately to isolate the
+version guard. Do not infer a passing complete suite from this four-test check.
 
 ## Reproduce the isolated setup
 
@@ -124,10 +178,12 @@ or a passing targeted test must not be reported as a passing release gate chain.
 ## Retained evidence
 
 The [receipt](evidence/bun-2026-09-18/receipt.json) records the source SHA, runtime
-provenance, environment and hashes of every retained log. Committed logs have
-trailing whitespace removed; the receipt also records the hashes of the original
-logs retained locally under `artifacts/bun-toolchain`. No diagnostic text was
-changed. It accompanies:
+provenance, environment and hashes of every retained log. Text log copies have
+trailing whitespace removed. Every original artifact named by
+`raw_artifact_sha256` is now published byte-for-byte inside the
+[raw archive](evidence/bun-2026-09-18/raw-artifacts.tar.gz), including the new
+high-limit runs. The receipt records the archive hash and each member's original
+hash. No local-only artifact is needed to check those fields. It accompanies:
 
 - [Frozen install](evidence/bun-2026-09-18/install-1.4.0.log).
 - [Bun 1.4.0 gates](evidence/bun-2026-09-18/release-gates-1.4.0.log) and
@@ -135,6 +191,16 @@ changed. It accompanies:
 - [Comparison results](evidence/bun-2026-09-18/comparison.json), with elapsed times
   for traceability, not as a performance benchmark.
 - Targeted test and child-limit experiment logs in the same evidence directory.
+- [Explicit-limit results](evidence/bun-2026-09-18/revalidation/comparison.json) and
+  [isolated guard results](evidence/bun-2026-09-18/revalidation/version-guard-results.json).
+
+For example, verify the original 1.3.9 gate log independently from the committed
+archive (compare the result with `raw_artifact_sha256` in the receipt):
+
+```sh
+tar -xOf docs/tooling/evidence/bun-2026-09-18/raw-artifacts.tar.gz \
+  release-gates-1.3.9.log | shasum -a 256
+```
 
 The remaining acceptance limit is explicit: later gates were not executed because
 the test stage failed. No claim is made about how their results differ by runtime.

@@ -1,0 +1,70 @@
+$ bun run script/test.ts
+bun test v1.3.9 (cf6cdbbb)
+
+packages/util/test/array.test.ts:
+(pass) util/array > should have tests implemented [0.71ms]
+
+packages/plugin/test/shell.test.ts:
+(pass) plugin/shell > should test shell interface
+
+packages/script/test/index.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+11 |
+12 | // relax version requirement
+13 | const expectedBunVersionRange = `^${expectedBunVersion}`
+14 |
+15 | if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
+16 |   throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`)
+                 ^
+error: This script requires bun@^1.4.0, but you are using bun@1.3.9
+      at /Users/Shailesh/MYAIAGENTS/dax-codex/packages/script/src/index.ts:16:13
+-------------------------------
+
+
+packages/dax/script/release-metadata.test.ts:
+(pass) release metadata helpers > builds the canonical release tag from a version
+(pass) release metadata helpers > matches exact release tag naming [0.01ms]
+(pass) release metadata helpers > returns the full expected release asset inventory [0.35ms]
+
+packages/dax/script/models-snapshot.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: EMFILE reading "/Users/Shailesh/MYAIAGENTS/dax-codex/node_modules/.bun/zod@4.1.8/node_modules/zod/index.js"
+-------------------------------
+
+
+packages/sdk/js/test/client.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '/Users/Shailesh/MYAIAGENTS/dax-codex/packages/sdk/js/test/client.test.ts' from ''
+-------------------------------
+
+error: Cannot read file "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/sdk/js": EMFILE
+
+error: Cannot read file "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/sdk/js/tsconfig.json": EMFILE
+
+packages/dax/test/soothsayer/presentation.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/test/soothsayer/presentation.test.ts' from ''
+-------------------------------
+
+
+packages/dax/test/determinism/continuation.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/test/determinism/continuation.test.ts' from ''
+-------------------------------
+
+error: Cannot read directory "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/test/determinism/runtime-recovery.test.ts": ProcessFdQuotaExceeded
+
+error: Cannot read directory "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/test/determinism": EMFILE
+
+error: ModuleNotFound resolving "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/test/determinism/runtime-recovery.test.ts" (entry point)
+error: script "test" exited with code 1
