@@ -1,0 +1,88 @@
+$ bun run check:repo && bun run guard:legacy && bun run typecheck && bun run lint && bun run test && bun run eval:smoke && bun run rust:verify && bun run release:check
+$ bun run script/check-repo-integrity.ts
+repo-integrity: ok
+$ bun run script/guard-legacy.ts
+guard:legacy: ok
+$ bun turbo typecheck
+• turbo 2.10.4
+
+   • Packages in scope: @dax-ai/dax, @dax-ai/plugin, @dax-ai/script, @dax-ai/sdk, @dax-ai/util
+   • Running typecheck in 5 packages
+   • Remote caching disabled, using shared worktree cache
+
+@dax-ai/util:typecheck: cache bypass, force executing 18821191b0818103
+@dax-ai/script:typecheck: cache bypass, force executing 20be59c3d880cd9e
+@dax-ai/sdk:typecheck: cache bypass, force executing b14b7cf16370b2b6
+@dax-ai/script:typecheck: $ tsc --noEmit
+@dax-ai/util:typecheck: $ tsc --noEmit
+@dax-ai/sdk:typecheck: $ tsc --noEmit
+@dax-ai/plugin:typecheck: cache bypass, force executing a765c9a02db4a034
+@dax-ai/plugin:typecheck: $ tsc --noEmit
+@dax-ai/dax:typecheck: cache bypass, force executing 93fc3f0894b47aa3
+@dax-ai/dax:typecheck: $ tsc --noEmit
+
+ Tasks:    5 successful, 5 total
+Cached:    0 cached, 5 total
+  Time:    24.493s
+
+$ bun run --cwd packages/dax lint && bun run lint:workspaces
+$ eslint src/ --ext .ts,.tsx,.js,.jsx --suppressions-location eslint-suppressions.json
+$ bun packages/dax/node_modules/eslint/bin/eslint.js --config packages/dax/eslint.config.js packages/plugin/src packages/util/src packages/script/src packages/sdk/js/src --suppressions-location eslint-workspaces-suppressions.json
+$ bun run script/test.ts
+bun test v1.4.0 (34cbb9a40)
+
+packages/util/test/array.test.ts:
+(pass) util/array > should have tests implemented [0.01ms]
+
+packages/plugin/test/shell.test.ts:
+(pass) plugin/shell > should test shell interface
+
+packages/script/test/index.test.ts:
+dax script {
+  "channel": "chore/codex-bun-toolchain",
+  "version": "0.0.0-chore/codex-bun-toolchain-202609180758",
+  "preview": true,
+  "release": false,
+  "team": [
+    "actions-user",
+    "dax",
+    "rekram1-node",
+    "thdxr",
+    "kommander",
+    "jayair",
+    "fwang",
+    "adamdotdevin",
+    "iamdavidhill",
+    "dax-agent[bot]",
+    "R44VC0RP"
+  ]
+}
+(pass) script/index > should work [0.01ms]
+(pass) script/index > keeps prerelease binaries on the beta channel [0.02ms]
+(pass) script/index > keeps stable binaries on the latest channel
+(pass) script/index > does not replace branch-preview versions with the package release [0.17ms]
+
+packages/dax/script/release-metadata.test.ts:
+(pass) release metadata helpers > builds the canonical release tag from a version [0.02ms]
+(pass) release metadata helpers > matches exact release tag naming [0.02ms]
+(pass) release metadata helpers > returns the full expected release asset inventory [0.37ms]
+
+packages/dax/script/models-snapshot.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: EMFILE reading "/Users/Shailesh/MYAIAGENTS/dax-codex/node_modules/.bun/zod@4.1.8/node_modules/zod/v4/classic/external.js"
+-------------------------------
+
+
+packages/sdk/js/test/client.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: EMFILE reading "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/sdk/js/test/client.test.ts"
+-------------------------------
+
+
+packages/dax/test/soothsayer/presentation.test.ts:
+error: script "test" exited with code 1
+error: script "release:gates" exited with code 1

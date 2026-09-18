@@ -1,0 +1,24 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/dax/test/determinism/completion-proof.test.ts:
+(pass) Completion Proof Determinism > Passes when all evidence is present [8.65ms]
+(pass) Completion Proof Determinism > Passes when expected output type is evidenced by observed artifacts [1.06ms]
+(pass) Completion Proof Determinism > Derives expected output evidence from run state when explicit artifact kinds are absent [0.15ms]
+(pass) Completion Proof Determinism > Fails when verification is missing for mutations [0.18ms]
+(pass) Completion Proof Determinism > Fails when promised expected outputs are not evidenced [0.04ms]
+(pass) Completion Proof Determinism > Fails when artifacts are missing for expected writes [0.03ms]
+(pass) Completion Proof Determinism > Fails on scope violation [0.03ms]
+(pass) Completion Proof Determinism > Fails on unapproved sensitive changes [0.03ms]
+(pass) Completion Proof Determinism > Deterministic: identical inputs yield identical results [0.40ms]
+
+packages/dax/src/conformance/known-gaps.test.ts:
+(pass) known-gaps ledger > an open gap passes [2.46ms]
+(pass) known-gaps ledger > a closed gap fails, and says how to close it properly [1.15ms]
+(pass) known-gaps ledger > an unrecorded gap id is refused [0.16ms]
+(pass) known-gaps ledger > every recorded gap describes what is missing [0.66ms]
+(pass) known-gaps ledger > the ledger is not empty, and that is a finding rather than a comfort [0.02ms]
+
+ 14 pass
+ 0 fail
+ 61 expect() calls
+Ran 14 tests across 2 files. [998.00ms]

@@ -1,0 +1,12 @@
+bun install v1.4.0 (34cbb9a40)
+Resolving dependencies
+Resolved, downloaded and extracted [189]
+
++ @stryker-mutator/core@8.7.1
++ @tsconfig/bun@1.0.9 (v1.0.11 available)
++ esbuild@0.28.1
++ prettier@3.6.2
++ turbo@2.10.4
++ typescript@5.8.2 (v7.0.2 available)
+
+776 packages installed [69.33s]

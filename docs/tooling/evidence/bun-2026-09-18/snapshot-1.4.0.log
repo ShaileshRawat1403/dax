@@ -1,0 +1,14 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/dax/script/models-snapshot.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: EMFILE reading "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/src/flag/flag.ts"
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [343.00ms]

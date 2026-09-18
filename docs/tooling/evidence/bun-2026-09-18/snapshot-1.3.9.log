@@ -1,0 +1,14 @@
+bun test v1.3.9 (cf6cdbbb)
+
+packages/dax/script/models-snapshot.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: EMFILE reading "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/dax/src/global/index.ts"
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [316.00ms]

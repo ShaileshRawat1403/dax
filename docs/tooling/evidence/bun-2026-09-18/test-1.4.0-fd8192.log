@@ -1,0 +1,52 @@
+$ bun run script/test.ts
+bun test v1.4.0 (34cbb9a40)
+
+packages/util/test/array.test.ts:
+(pass) util/array > should have tests implemented [0.01ms]
+
+packages/plugin/test/shell.test.ts:
+(pass) plugin/shell > should test shell interface [0.02ms]
+
+packages/script/test/index.test.ts:
+dax script {
+  "channel": "chore/codex-bun-toolchain",
+  "version": "0.0.0-chore/codex-bun-toolchain-202609180800",
+  "preview": true,
+  "release": false,
+  "team": [
+    "actions-user",
+    "dax",
+    "rekram1-node",
+    "thdxr",
+    "kommander",
+    "jayair",
+    "fwang",
+    "adamdotdevin",
+    "iamdavidhill",
+    "dax-agent[bot]",
+    "R44VC0RP"
+  ]
+}
+(pass) script/index > should work [0.02ms]
+(pass) script/index > keeps prerelease binaries on the beta channel [0.02ms]
+(pass) script/index > keeps stable binaries on the latest channel [0.01ms]
+(pass) script/index > does not replace branch-preview versions with the package release [0.13ms]
+
+packages/dax/script/release-metadata.test.ts:
+(pass) release metadata helpers > builds the canonical release tag from a version [0.02ms]
+(pass) release metadata helpers > matches exact release tag naming [0.02ms]
+(pass) release metadata helpers > returns the full expected release asset inventory [0.46ms]
+
+packages/dax/script/models-snapshot.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: EMFILE reading "/Users/Shailesh/MYAIAGENTS/dax-codex/node_modules/.bun/zod@4.1.8/node_modules/zod/v4/classic/external.js"
+-------------------------------
+
+
+packages/sdk/js/test/client.test.ts:
+error: Cannot read file "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/sdk/js": EMFILE
+
+error: Cannot read file "/Users/Shailesh/MYAIAGENTS/dax-codex/packages/sdk/js/tsconfig.json": EMFILE
+error: script "test" exited with code 1

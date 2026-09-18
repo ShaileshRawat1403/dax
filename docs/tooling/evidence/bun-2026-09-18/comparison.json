@@ -1,0 +1,18 @@
+[
+  {
+    "version": "1.4.0",
+    "revision": "1.4.0+34cbb9a40",
+    "binary": "/Users/Shailesh/MYAIAGENTS/dax-codex/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun",
+    "exit_code": 1,
+    "seconds": 71.35,
+    "log": "/Users/Shailesh/MYAIAGENTS/dax-codex/artifacts/bun-toolchain/release-gates-1.4.0.log"
+  },
+  {
+    "version": "1.3.9",
+    "revision": "1.3.9+cf6cdbbba",
+    "binary": "/Users/ananyalayek/.bun/bin/bun",
+    "exit_code": 1,
+    "seconds": 75.31,
+    "log": "/Users/Shailesh/MYAIAGENTS/dax-codex/artifacts/bun-toolchain/release-gates-1.3.9.log"
+  }
+]

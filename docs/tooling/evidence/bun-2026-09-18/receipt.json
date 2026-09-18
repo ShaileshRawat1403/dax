@@ -1,0 +1,49 @@
+{
+  "source_commit": "f31255b07d646d8d0a44560833bd61ffee6f00d3",
+  "branch": "chore/codex-bun-toolchain",
+  "host": "Darwin arm64",
+  "date": "2026-09-18",
+  "release_mode": false,
+  "dependency_installer": "1.4.0+34cbb9a40",
+  "lockfile_sha256_before_and_after": "4a153f81f30fc9775e9fc237e406d55ac220f677a36692dca01914a995192c1d",
+  "release_url": "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.0",
+  "asset_url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-darwin-aarch64.zip",
+  "asset_sha256": "c669e97f6164e1c96e0701748db98dfa77492908cbd8394c7557134a735de381",
+  "binary_sha256": "539598c775882420b9d8deb7dc14d845f20f7d26f5600c50ab067dde6ac3f3bf",
+  "environment": {
+    "TURBO_FORCE": "true",
+    "TURBO_TELEMETRY_DISABLED": "1",
+    "DAX_DISABLE_MODELS_FETCH": "1",
+    "DAX_DISABLE_CONFIG_AUTO_INSTALL": "1",
+    "DAX_TEST_HOME": "distinct artifacts/bun-toolchain/home-<version> directories",
+    "BUN_INSTALL_CACHE_DIR": "artifacts/bun-toolchain/cache-1.4.0",
+    "PATH": "selected binary directory prepended; child bun commands use selected runtime"
+  },
+  "logs_sha256": {
+    "install-1.4.0.log": "2d41c98ddde3ab7648f5e4146e866c47c8ddaed7ec3e00d5e79ffd9e9b5cf9cf",
+    "release-gates-1.4.0.log": "c62bbacd43f50db280f806d6a2c297098bdb9d781d281a54f17f94b3d344f516",
+    "release-gates-1.3.9.log": "b59fc8819225025c6953e6549e7ef72647b9a31fdff659f9364c09b5b1bd705b",
+    "completion-1.4.0.log": "a596d2e65d64de45960155a02b81493f55f586a482ee1632c1065652a9bcc6eb",
+    "completion-1.3.9.log": "26628ca173ec1c3955e182ba4ba6c3a971fe9207acb7cc6c39cc142e614ae79e",
+    "snapshot-1.4.0.log": "403efac21ad6f1ed83f8ee1c56f23f3bae1bc40f45c190df3322520fca67565e",
+    "snapshot-1.3.9.log": "e69853e603e04ca32f80acbe2fbf131456c477ac30893522a16cb60c9633f106",
+    "targeted-1.4.0.log": "5943e7924560b3bcf8f58c376e978999a8ef6b6398250fa9344872a19b1ff877",
+    "test-1.4.0-fd8192.log": "1a7062fb52d271dcbac07e711362de23aaefce4130a301a43b5608b6f94e13a2",
+    "fd8192-result.json": "ba6e75f4d56558cbdc7d59211e254c9d380655ea8c43b68caef7ca53958b057d",
+    "comparison.json": "81b335551b733ad1acfd82f9793b94f5bb6b9d6522bf9cee7d822a3ec2bb4f2d"
+  },
+  "raw_artifact_sha256": {
+    "install-1.4.0.log": "2d41c98ddde3ab7648f5e4146e866c47c8ddaed7ec3e00d5e79ffd9e9b5cf9cf",
+    "release-gates-1.4.0.log": "6cddb4581b57db477d6e7422d207e274db4f93fe832dfa9cf665ca38959308ea",
+    "release-gates-1.3.9.log": "d1248c9a6a535c5076b7165f4f93d70754a796ea41696ed8a7e64d8fe1ce9a53",
+    "completion-1.4.0.log": "a596d2e65d64de45960155a02b81493f55f586a482ee1632c1065652a9bcc6eb",
+    "completion-1.3.9.log": "26628ca173ec1c3955e182ba4ba6c3a971fe9207acb7cc6c39cc142e614ae79e",
+    "snapshot-1.4.0.log": "403efac21ad6f1ed83f8ee1c56f23f3bae1bc40f45c190df3322520fca67565e",
+    "snapshot-1.3.9.log": "e69853e603e04ca32f80acbe2fbf131456c477ac30893522a16cb60c9633f106",
+    "targeted-1.4.0.log": "5943e7924560b3bcf8f58c376e978999a8ef6b6398250fa9344872a19b1ff877",
+    "test-1.4.0-fd8192.log": "1a7062fb52d271dcbac07e711362de23aaefce4130a301a43b5608b6f94e13a2",
+    "fd8192-result.json": "ba6e75f4d56558cbdc7d59211e254c9d380655ea8c43b68caef7ca53958b057d",
+    "comparison.json": "81b335551b733ad1acfd82f9793b94f5bb6b9d6522bf9cee7d822a3ec2bb4f2d"
+  },
+  "retained_log_normalization": "Trailing whitespace removed from log lines for git diff --check; raw artifacts preserved locally."
+}
