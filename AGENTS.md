@@ -1,6 +1,6 @@
 # DAX Repo Agent Rules
 
-Read this file first when working in `/Users/Shared/MYAIAGENTS/dax`.
+Read this file first when working in `/Users/Shailesh/MYAIAGENTS/dax`.
 
 ## Local write boundary
 
@@ -8,7 +8,7 @@ Read this file first when working in `/Users/Shared/MYAIAGENTS/dax`.
 - `opencode` under `~/MYAIAGENTS/opencode` is read-only reference material.
 - Never apply patches, commits, or generated files in `opencode`.
 - Use `opencode` only for comparison and migration context.
-- All code, docs, tests, and commits must be made in `dax-cli-standalone` unless the user explicitly moves the session into another repo.
+- All code, docs, tests, and commits must be made in this `dax` repository unless the user explicitly moves the session into another repo.
 
 ## Product identity
 
@@ -21,6 +21,14 @@ Read this file first when working in `/Users/Shared/MYAIAGENTS/dax`.
 - Do not bend DAX's core product direction around companion-repo convenience.
 - Change DAX for companion repos only when the change improves DAX as a real standalone product or a clearly intentional external interface.
 - Keep the default mental model intact: `DAX = core product`, `Picobot = ingress`, `Soothsayer = operator plane`.
+
+## Working alongside another agent
+
+- More than one AI agent works in this repo. Before any change-bearing work, read [docs/MULTI_AGENT_SOP.md](./docs/MULTI_AGENT_SOP.md).
+- Non-negotiables from that file: separate worktrees, one branch has exactly one owner, push before every handoff, and every handoff pins a commit SHA.
+- Work is risk-tiered. Release, security, concurrency, state-authority and public-claim changes are Tier 2 and require adversarial cross-validation by the other agent before merge. Everything else is Tier 1 — one agent, no ceremony. When unsure, it is Tier 2.
+- The other agent's report of its own work is not evidence. Verify against the tree before building on it.
+- Never `push --force`, never `reset --hard` a shared branch, never check out over another agent's uncommitted work.
 
 ## Required shared context
 
