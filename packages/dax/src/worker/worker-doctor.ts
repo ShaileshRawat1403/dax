@@ -1,3 +1,4 @@
+import { isAbsolute, relative, sep } from "node:path"
 import { ExternalWorkerId, WORKER_PROFILES } from "@/worker/worker-adapter"
 import { buildEgressAllowlist } from "@/worker/egress-allowlist"
 import { checkWorkerSandbox, type WorkerSandboxCheck } from "@/worker/worker-sandbox"
@@ -143,7 +144,12 @@ export async function workerReadiness(input: WorkerDoctorInput): Promise<WorkerR
   )
   const home = hostEnv.HOME
   const stateValue = stateDirs
-    .map((dir) => (home && dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir))
+    .map((dir) => {
+      if (!home) return dir
+      const child = relative(home, dir)
+      if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) return dir
+      return child ? `~/${child.split(sep).join("/")}` : "~"
+    })
     .join(", ")
   items.push({
     label: "State",

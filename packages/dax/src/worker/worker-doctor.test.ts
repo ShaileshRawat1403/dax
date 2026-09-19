@@ -177,3 +177,17 @@ test.skipIf(process.platform === "win32")(
   },
   8000,
 )
+
+
+test("home abbreviation respects directory boundaries", async () => {
+  const report = await workerReadiness({
+    workerId: "codex",
+    hostEnv: { HOME: "/Users/operator", CODEX_HOME: "/Users/operator-other/.codex" },
+    which: () => null,
+    checkSandbox: () => sandboxOk,
+  })
+  const state = report.items.find((item) => item.label === "State")!
+  expect(state.value).toContain("operator-other")
+  expect(state.value).not.toContain("~-other")
+  expect(state.value).toContain("~/.codex")
+})
