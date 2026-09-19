@@ -257,7 +257,7 @@ describe("initialization integrity", () => {
         const eventsKey = ["run_events", Instance.project.id, session.id, "events.json"]
         await Storage.write(eventsKey, [{ broken: true }])
         await expect(recoverRun(session.id)).rejects.toThrow()
-        expect(await Storage.read(eventsKey)).toEqual([{ broken: true }])
+        expect(await Storage.read<Array<{ broken: boolean }>>(eventsKey)).toEqual([{ broken: true }])
         await Storage.write(eventsKey, null)
         await expect(recoverRun(session.id)).rejects.toThrow(/expected an array/)
         expect(await Storage.read(eventsKey)).toBeNull()

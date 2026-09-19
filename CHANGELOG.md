@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-09-19
+
 ### Fixed
 
 - Contract replacement and canonical authority establishment now share the run's
