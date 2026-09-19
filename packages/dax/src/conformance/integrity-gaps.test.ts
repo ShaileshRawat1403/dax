@@ -41,6 +41,16 @@ async function createContract(title: string) {
   return { session, contract }
 }
 
+async function rejection(operation: Promise<unknown>): Promise<Error> {
+  try {
+    await operation
+  } catch (error) {
+    if (error instanceof Error) return error
+    throw error
+  }
+  throw new Error("Expected the operation to reject")
+}
+
 async function completesWithin(promise: Promise<unknown>, ms: number) {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -93,8 +103,8 @@ describe("initialization integrity", () => {
           await Promise.allSettled([rewrite, ...(authority ? [authority] : [])])
           write.mockRestore()
         }
-        // Unexpected storage/setup failures must fail normally, not count as
-        // evidence that the architectural gap is still open.
+        // Storage/setup failures must fail normally rather than accidentally
+        // satisfying the invariant.
         await authority
         const rewriteError = await rewrite
         if (rewriteError !== undefined) expect(rewriteError).toBeInstanceOf(ContractImmutabilityError)
@@ -121,23 +131,25 @@ describe("initialization integrity", () => {
           return originalRename(from, to)
         })
         try {
-          await expect(createEventAuthorityRun(session.id, contract.contractId)).rejects.toBe(failure)
+          expect(await rejection(createEventAuthorityRun(session.id, contract.contractId))).toBe(failure)
         } finally {
           rename.mockRestore()
         }
 
         expect(await getRunAuthority(session.id)).toBe("event-log")
         expect(await readRunEvents(session.id)).toEqual([])
-        await expect(
-          ContractGuardian.create(session.id, {
-            ...contract,
-            intent: "Must remain locked after partial initialization.",
-          }),
-        ).rejects.toBeInstanceOf(ContractImmutabilityError)
+        expect(
+          await rejection(
+            ContractGuardian.create(session.id, {
+              ...contract,
+              intent: "Must remain locked after partial initialization.",
+            }),
+          ),
+        ).toBeInstanceOf(ContractImmutabilityError)
         expect(await ContractGuardian.get(session.id)).toEqual(contract)
 
         // The injected outage is over. Exercise the real recovery entry point;
-        // an unexpected exception is deliberately outside expectGap.
+        // an unexpected exception remains a normal test failure.
         const result = await recoverRun(session.id)
         expect(await ContractGuardian.get(session.id)).toEqual(contract)
         expect(result.success).toBe(true)
@@ -163,16 +175,16 @@ describe("initialization integrity", () => {
           verificationRequired: true,
           guardEnforcementMode: "enforce",
         })
-        await expect(createEventAuthorityRun(session.id, contract.contractId, false, "enforce")).rejects.toThrow(
-          /Conflicting initialization/,
-        )
-        await expect(createEventAuthorityRun(session.id, contract.contractId, true, "warn")).rejects.toThrow(
-          /Conflicting initialization/,
-        )
-        await expect(createEventAuthorityRun(session.id, "different-contract", true, "enforce")).rejects.toThrow(
-          /Conflicting initialization/,
-        )
-        await expect(setRunAuthority(session.id, "legacy")).rejects.toThrow(/Cannot replace canonical/)
+        expect(
+          (await rejection(createEventAuthorityRun(session.id, contract.contractId, false, "enforce"))).message,
+        ).toMatch(/Conflicting initialization/)
+        expect(
+          (await rejection(createEventAuthorityRun(session.id, contract.contractId, true, "warn"))).message,
+        ).toMatch(/Conflicting initialization/)
+        expect(
+          (await rejection(createEventAuthorityRun(session.id, "different-contract", true, "enforce"))).message,
+        ).toMatch(/Conflicting initialization/)
+        expect((await rejection(setRunAuthority(session.id, "legacy"))).message).toMatch(/Cannot replace canonical/)
         expect(await readRunEvents(session.id)).toEqual(before)
       },
     })
@@ -190,15 +202,17 @@ describe("initialization integrity", () => {
           return originalWrite(key, value)
         })
         try {
-          await expect(createEventAuthorityRun(session.id, contract.contractId, true, "enforce")).rejects.toBe(failure)
+          expect(await rejection(createEventAuthorityRun(session.id, contract.contractId, true, "enforce"))).toBe(
+            failure,
+          )
         } finally {
           write.mockRestore()
         }
         expect(await readRunEvents(session.id)).toEqual([])
         // Even before the first event exists, a retry cannot weaken the intent.
-        await expect(createEventAuthorityRun(session.id, contract.contractId, false, "warn")).rejects.toThrow(
-          /Conflicting initialization/,
-        )
+        expect(
+          (await rejection(createEventAuthorityRun(session.id, contract.contractId, false, "warn"))).message,
+        ).toMatch(/Conflicting initialization/)
         // Both user-facing state recovery and runtime continuation repair the
         // same record, sharing the lock rather than appending duplicate genesis.
         const [canonical, runtime] = await Promise.all([recoverCanonicalRun(session.id), recoverRun(session.id)])
@@ -228,8 +242,8 @@ describe("initialization integrity", () => {
         const { session, contract } = await createContract("Missing initialization evidence")
         await setRunAuthority(session.id, "event-log")
         expect((await recoverRun(session.id)).success).toBe(false)
-        await expect(recoverCanonicalRun(session.id)).rejects.toThrow(/no canonical state/i)
-        await expect(createEventAuthorityRun(session.id, contract.contractId)).rejects.toThrow(
+        expect((await rejection(recoverCanonicalRun(session.id))).message).toMatch(/no canonical state/i)
+        expect((await rejection(createEventAuthorityRun(session.id, contract.contractId))).message).toMatch(
           /No initialization intent/,
         )
         expect(await readRunEvents(session.id)).toEqual([])
@@ -244,7 +258,7 @@ describe("initialization integrity", () => {
         const { session, contract } = await createContract("Corrupted initialization evidence")
         const marker = ["run_authority", Instance.project.id, session.id, "authority.json"]
         await Storage.write(marker, { authority: "event-log", initialization: { contractId: contract.contractId } })
-        await expect(recoverRun(session.id)).rejects.toThrow(/Incomplete persisted/)
+        expect((await rejection(recoverRun(session.id))).message).toMatch(/Incomplete persisted/)
         expect(await readRunEvents(session.id)).toEqual([])
         await Storage.write(marker, {
           authority: "event-log",
@@ -256,10 +270,10 @@ describe("initialization integrity", () => {
         })
         const eventsKey = ["run_events", Instance.project.id, session.id, "events.json"]
         await Storage.write(eventsKey, [{ broken: true }])
-        await expect(recoverRun(session.id)).rejects.toThrow()
+        await rejection(recoverRun(session.id))
         expect(await Storage.read<Array<{ broken: boolean }>>(eventsKey)).toEqual([{ broken: true }])
         await Storage.write(eventsKey, null)
-        await expect(recoverRun(session.id)).rejects.toThrow(/expected an array/)
+        expect((await rejection(recoverRun(session.id))).message).toMatch(/expected an array/)
         expect(await Storage.read(eventsKey)).toBeNull()
       },
     })
