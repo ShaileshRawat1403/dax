@@ -45,6 +45,8 @@ jobs:
             sudo apt-get install -y ripgrep
           elif [ "$RUNNER_OS" = "macOS" ]; then
             brew install ripgrep
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            choco install ripgrep -y --no-progress
           fi
 
       - name: Install dependencies
