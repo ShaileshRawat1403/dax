@@ -56,7 +56,7 @@ describe("worker sandbox", () => {
     expect(plan.command.slice(-3)).toEqual(["claude", "-p", "task"])
   })
 
-  test("macOS profile carries symlink-resolved subpaths for not-yet-existing state dirs", () => {
+  test.skipIf(process.platform === "win32")("macOS profile carries symlink-resolved subpaths for not-yet-existing state dirs", () => {
     const plan = buildWorkerSandboxPlan({
       command: ["gemini", "--skip-trust", "-p", "task"],
       cwd: "/repo/checkout",

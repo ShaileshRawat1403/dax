@@ -39,6 +39,8 @@ function escapeSeatbelt(value: string): string {
  * the resolved `/private/var/folders/.../T` form succeeded.
  */
 function resolvedSubpath(value: string): string {
+  // A simulated macOS plan on Windows must keep POSIX paths verbatim.
+  if (process.platform === "win32") return value
   let current = value
   const tail: string[] = []
   for (;;) {

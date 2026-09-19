@@ -98,7 +98,7 @@ dax --version
 Run this before publishing a beta:
 
 ```bash
-DAX_RELEASE=1 bun run release:verify
+NODE_OPTIONS=--max-old-space-size=4096 DAX_RELEASE=1 bun run release:verify
 bun run build
 ```
 
