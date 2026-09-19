@@ -306,6 +306,13 @@ Order findings Critical first, then High, Medium, Low, Info.
 
 ## 11. Project bindings
 
+**2026-09-19 ownership update:** Claude has withdrawn and Codex owns all lanes.
+The lane split and environment table below preserve the ratification record;
+[current status](DAX_STATUS.md) supersedes them for active work. The gate table
+continues to apply. Two-agent validation and relay steps are dormant while only
+one agent is active; solo validation must not be labelled independent review.
+
+
 *Replace this section when reusing this SOP on another project.*
 
 **Project:** DAX — `/Users/Shailesh/MYAIAGENTS/dax`

@@ -4,6 +4,7 @@ import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { RunStore } from "@/state/run-store"
 import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
+import { acquireRunLock } from "@/util/fs-lock"
 import { Identifier } from "@/id/id"
 
 const log = Log.create({ service: "contract-guardian" })
@@ -59,9 +60,7 @@ export async function resolveExecutionAuthority(
   }
 
   if (contract.runId !== authorityRunId) {
-    throw new Error(
-      `ExecutionContract for storage run ${authorityRunId} declares mismatched run ${contract.runId}`,
-    )
+    throw new Error(`ExecutionContract for storage run ${authorityRunId} declares mismatched run ${contract.runId}`)
   }
 
   return { governingRunId: authorityRunId, contract }
@@ -69,24 +68,31 @@ export async function resolveExecutionAuthority(
 
 // Write contract only if run hasn't started or if it hasn't changed
 export async function writeContractIfNotStarted(runId: string, contract: ExecutionContract): Promise<void> {
-  const existing = await readContract(runId)
+  // Share the event store's cross-process lock: authorizing a rewrite and
+  // persisting it must serialize with establishing canonical authority.
+  const lock = await acquireRunLock(runId)
+  try {
+    const existing = await readContract(runId)
 
-  if (existing) {
-    const canWrite = await canModifyContract(runId)
-    if (!canWrite) {
-      // Check if it's the exact same contract being re-written (idempotent)
-      const existingHash = await hashContract(existing)
-      const newHash = await hashContract(contract)
+    if (existing) {
+      const canWrite = await canModifyContract(runId)
+      if (!canWrite) {
+        // Check if it's the exact same contract being re-written (idempotent)
+        const existingHash = await hashContract(existing)
+        const newHash = await hashContract(contract)
 
-      if (existingHash !== newHash) {
-        throw new ContractImmutabilityError(contract.contractId, "modify")
+        if (existingHash !== newHash) {
+          throw new ContractImmutabilityError(contract.contractId, "modify")
+        }
+        return // Same contract, ignore write
       }
-      return // Same contract, ignore write
     }
-  }
 
-  await Storage.write(contractPath(runId), contract)
-  log.info("contract initialized", { runId, contractId: contract.contractId })
+    await Storage.write(contractPath(runId), contract)
+    log.info("contract initialized", { runId, contractId: contract.contractId })
+  } finally {
+    await lock.dispose()
+  }
 }
 
 async function canModifyContract(runId: string): Promise<boolean> {

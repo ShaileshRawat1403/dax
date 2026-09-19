@@ -224,3 +224,21 @@ This is one claim's worth of substance split across three implementations; do no
 - **audited** — no external audit has happened.
 - **battle-tested** — hardened, single-maintainer, not run at scale.
 - **guaranteed** — every claim above has a boundary, and the boundary is part of the claim.
+
+
+## Post-freeze implementation update — 2026-09-19
+
+Commit `08ea614` adds an `expectGap`-wrapped runtime check for each of the two
+`integrity.*` entries in
+[conformance/integrity-gaps.test.ts](https://github.com/ShaileshRawat1403/dax/blob/08ea614/packages/dax/src/conformance/integrity-gaps.test.ts).
+At that commit, all eleven recorded gaps had wrapped checks. The two invariants
+still failed when unwrapped at that version; their implementation gaps remained open. This changes enforcement coverage, not DAX's guarantees.
+
+This update awaits integration into `main`. The statements, gap table and
+permalinks above remain frozen to `v1.4.0`, where only nine gaps are enforced.
+
+The subsequent release candidate closes those two implementation gaps with shared
+run locking and persisted initialization intent. Their checks are ordinary passing
+regressions, and nine remaining gaps stay in `KNOWN_GAPS`. Older marker-only partial
+records without an initialization intent cannot be repaired by guessing settings.
+See [current release work](../DAX_STATUS.md) for verification and publication state.

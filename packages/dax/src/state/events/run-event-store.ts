@@ -1,5 +1,5 @@
 import { Storage } from "@/storage/storage"
-import { parseRunEventLog } from "./run-event-types"
+import { parseRunEventLog, RunEventPayloadSchema, type RunEventPayload } from "./run-event-types"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
 import { acquireRunLock } from "@/util/fs-lock"
@@ -54,8 +54,9 @@ type NewRunEvent = Omit<RunEventEnvelope, "eventId" | "runId" | "seq" | "occurre
 
 async function readValidatedEvents(runId: string, eventsPath: string[]): Promise<RunEventEnvelope[]> {
   try {
-    const persistedEvents = await Storage.read<unknown[]>(eventsPath)
-    return persistedEvents ? parseRunEventLog(runId, persistedEvents) : []
+    const persistedEvents = await Storage.read<unknown>(eventsPath)
+    if (!Array.isArray(persistedEvents)) throw new Error(`Invalid event log for run ${runId}: expected an array`)
+    return parseRunEventLog(runId, persistedEvents)
   } catch (error) {
     if (Storage.NotFoundError.isInstance(error)) {
       return []
@@ -232,37 +233,127 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
   return null
 }
 
-export async function getRunAuthority(runId: string): Promise<RunAuthority | null> {
-  const path = await authorityPath(runId)
-  const fullPath = [...path, "authority.json"]
+type Initialization = Extract<RunEventPayload, { type: "contract_compiled" }>["payload"]
+type AuthorityRecord = { authority: RunAuthority; initialization?: unknown }
 
+async function readAuthorityRecord(runId: string): Promise<AuthorityRecord | null> {
   try {
-    const result = await Storage.read<unknown>(fullPath)
+    const result = await Storage.read<unknown>([...(await authorityPath(runId)), "authority.json"])
     if (!result || typeof result !== "object" || Array.isArray(result)) {
       throw new InvalidRunAuthorityError(runId, result)
     }
-
-    const authority = (result as { authority?: unknown }).authority
-    if (authority !== "legacy" && authority !== "event-log") {
+    const record = result as AuthorityRecord
+    if (record.authority !== "legacy" && record.authority !== "event-log") {
       throw new InvalidRunAuthorityError(runId, result)
     }
-
-    return authority
+    return record
   } catch (error) {
-    if (Storage.NotFoundError.isInstance(error)) {
-      return null
-    }
+    if (Storage.NotFoundError.isInstance(error)) return null
     log.error("failed to read run authority", { error, runId })
     throw error
   }
 }
 
-export async function setRunAuthority(runId: string, authority: RunAuthority): Promise<void> {
-  const path = await authorityPath(runId)
-  const fullPath = [...path, "authority.json"]
+export async function getRunAuthority(runId: string): Promise<RunAuthority | null> {
+  return (await readAuthorityRecord(runId))?.authority ?? null
+}
 
-  await Storage.write(fullPath, { authority })
-  log.info("set run authority", { runId, authority })
+// Caller holds the run lock. Publish the complete marker/intent in one rename,
+// so a torn marker write never becomes the durable initialization recipe.
+async function writeAuthorityRecord(runId: string, record: AuthorityRecord): Promise<void> {
+  const base = await authorityPath(runId)
+  const temp = [...base, "authority.json.tmp"]
+  await Storage.write(temp, record)
+  await Storage.rename(temp, [...base, "authority.json"])
+}
+
+export async function setRunAuthority(runId: string, authority: RunAuthority): Promise<void> {
+  const lock = await acquireRunLock(runId)
+  try {
+    const existing = await readAuthorityRecord(runId)
+    if (existing?.authority === authority) return
+    if (existing?.authority === "event-log") {
+      throw new Error(`Cannot replace canonical event authority for run ${runId}`)
+    }
+    await writeAuthorityRecord(runId, { authority })
+  } finally {
+    await lock.dispose()
+  }
+}
+
+function parseInitialization(value: unknown, persisted = false): Initialization {
+  const event = RunEventPayloadSchema.parse({ type: "contract_compiled", payload: value })
+  if (event.type !== "contract_compiled") throw new Error("Invalid initialization event")
+  if (
+    persisted &&
+    (event.payload.verificationRequired === undefined || event.payload.guardEnforcementMode === undefined)
+  ) {
+    throw new Error("Incomplete persisted initialization intent")
+  }
+  // Normalize optional v1 fields when checking retry equivalence.
+  return {
+    contractId: event.payload.contractId,
+    verificationRequired: event.payload.verificationRequired ?? false,
+    guardEnforcementMode: event.payload.guardEnforcementMode ?? "warn",
+  }
+}
+
+async function appendInitializationUnderLock(runId: string, payload: Initialization): Promise<void> {
+  const base = await eventPath(runId)
+  await appendRunEventUnderLock({
+    runId,
+    expectedSeq: 0,
+    event: { type: "contract_compiled", payload },
+    existingEvents: [],
+    eventsPath: [...base, "events.json"],
+    tempPath: [...base, "events.json.tmp"],
+  })
+}
+
+/** Establish authority with a durable recipe for an interrupted first append. */
+export async function initializeRunEventAuthority(runId: string, input: Initialization): Promise<void> {
+  const payload = parseInitialization(input)
+  const lock = await acquireRunLock(runId)
+  try {
+    const record = await readAuthorityRecord(runId)
+    const events = await readValidatedEvents(runId, [...(await eventPath(runId)), "events.json"])
+    if (record?.authority === "legacy") throw new Error(`Run ${runId} already has legacy authority`)
+    if (events.length > 0) {
+      if (record?.authority !== "event-log" || events[0].type !== "contract_compiled") {
+        throw new Error(`Cannot initialize inconsistent authority for run ${runId}`)
+      }
+      if (JSON.stringify(parseInitialization(events[0].payload)) !== JSON.stringify(payload)) {
+        throw new Error(`Conflicting initialization for run ${runId}`)
+      }
+      return // Exact retry; do not append a second genesis event.
+    }
+    if (record) {
+      // Older marker-only records lack the settings needed for safe replay.
+      if (record.initialization === undefined) throw new Error(`No initialization intent for run ${runId}`)
+      if (JSON.stringify(parseInitialization(record.initialization, true)) !== JSON.stringify(payload)) {
+        throw new Error(`Conflicting initialization for run ${runId}`)
+      }
+    } else {
+      await writeAuthorityRecord(runId, { authority: "event-log", initialization: payload })
+    }
+    await appendInitializationUnderLock(runId, payload)
+  } finally {
+    await lock.dispose()
+  }
+}
+
+/** Repair only a missing first event with a persisted, validated initialization intent. */
+export async function repairRunInitialization(runId: string): Promise<void> {
+  const lock = await acquireRunLock(runId)
+  try {
+    const record = await readAuthorityRecord(runId)
+    if (record?.authority !== "event-log") return
+    const events = await readValidatedEvents(runId, [...(await eventPath(runId)), "events.json"])
+    if (events.length > 0 || record.initialization === undefined) return
+    await appendInitializationUnderLock(runId, parseInitialization(record.initialization, true))
+  } finally {
+    await lock.dispose()
+  }
 }
 
 export async function hasRunEvents(runId: string): Promise<boolean> {

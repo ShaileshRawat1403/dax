@@ -5,7 +5,7 @@ import {
   readRunEvents,
   projectRunStateFromEvents,
   getRunAuthority,
-  setRunAuthority,
+  initializeRunEventAuthority,
 } from "./run-event-store"
 import { reduceRunState, type RunState } from "./run-reducer"
 import { type RunEventType, type RunEventPayload } from "./run-event-types"
@@ -26,12 +26,7 @@ export async function createEventAuthorityRun(
   verificationRequired = false,
   guardEnforcementMode: "warn" | "enforce" = "warn",
 ): Promise<void> {
-  await setRunAuthority(runId, "event-log")
-
-  await appendRunEvent(runId, 0, {
-    type: "contract_compiled",
-    payload: { contractId, verificationRequired, guardEnforcementMode },
-  })
+  await initializeRunEventAuthority(runId, { contractId, verificationRequired, guardEnforcementMode })
 
   log.info("created event-authority run", { runId, contractId, verificationRequired })
 }

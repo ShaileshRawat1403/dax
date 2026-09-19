@@ -22,6 +22,13 @@ Read this file first when working in `/Users/Shailesh/MYAIAGENTS/dax`.
 - Change DAX for companion repos only when the change improves DAX as a real standalone product or a clearly intentional external interface.
 - Keep the default mental model intact: `DAX = core product`, `Picobot = ingress`, `Soothsayer = operator plane`.
 
+## Current ownership
+
+- Codex owns all DAX implementation lanes following the 2026-09-19 handover; Claude has withdrawn and has no work in flight.
+- Read [docs/DAX_STATUS.md](./docs/DAX_STATUS.md) for current validation, open work, and the preserved handover.
+- The two-agent lane assignments and relay requirements below apply when a second agent is active. They are dormant during sole ownership. Keep the evidence discipline and diff-appropriate gates; do not describe solo review as independent cross-validation.
+- Feature branches remain required. The maintainer merges into `main`.
+
 ## Working alongside another agent
 
 - More than one AI agent works in this repo. Before any change-bearing work, read [docs/MULTI_AGENT_SOP.md](./docs/MULTI_AGENT_SOP.md).

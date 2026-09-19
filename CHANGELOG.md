@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Contract replacement and canonical authority establishment now share the run's
+  filesystem lock, preventing a concurrent rewrite from changing a governing contract.
+- Interrupted event-authority initialization can recover its first event from a
+  persisted intent without weakening verification or enforcement settings. Retries
+  are idempotent; conflicting settings and corrupt recovery evidence are rejected.
+  Older marker-only partial records without an initialization intent remain blocked.
+- Test discovery is scoped to `./packages`, so ignored caches or copied projects
+  cannot silently join the suite. Regression coverage includes the ignored canary
+  and cross-process contract locking; the two closed integrity gaps are unwrapped.
+
+### Documentation
+
+- Preserve the reviewed claims/evidence pack and ownership handover, with corrected
+  toolchain and test-discovery evidence. The public `v1.4.0` claims remain frozen.
+
 ## [1.4.0] - 2026-09-13
 
 ### Added

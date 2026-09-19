@@ -26,20 +26,20 @@ After a release is tagged, all follow-up changes land in `## [Unreleased]` until
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 If you always want latest published release tag (stable first, then prerelease fallback):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax/main/script/install.sh | bash
 ```
 
 Optional installer variables:
 
 - `DAX_VERSION`: release tag to install (example: `vX.Y.Z` or `vX.Y.Z-beta.N`)
 - `DAX_INSTALL_DIR`: install directory (default: `~/.local/bin`)
-- `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax-tui`)
+- `DAX_REPO`: release repo (default: `ShaileshRawat1403/dax`)
 
 ## Uninstall
 
@@ -50,7 +50,7 @@ rm -f ~/.local/bin/dax
 ## Update
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax-tui/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
+curl -fsSL https://raw.githubusercontent.com/ShaileshRawat1403/dax/main/script/install.sh | DAX_VERSION=vX.Y.Z-beta.N bash
 ```
 
 ## Minimum System Requirements
@@ -98,7 +98,7 @@ dax --version
 Run this before publishing a beta:
 
 ```bash
-bun run release:verify
+DAX_RELEASE=1 bun run release:verify
 bun run build
 ```
 
@@ -138,7 +138,7 @@ Expected:
 
 ## Report Issues
 
-Open an issue at <https://github.com/ShaileshRawat1403/dax-tui/issues> with:
+Open an issue at <https://github.com/ShaileshRawat1403/dax/issues> with:
 
 - DAX version tag (`dax --version`)
 - OS + architecture

@@ -1,5 +1,5 @@
 import { Log } from "@/util/log"
-import { getProjectedRunState } from "@/state/events/run-event-store"
+import { getProjectedRunState, repairRunInitialization } from "@/state/events/run-event-store"
 import { evaluateRunRecovery, type RecoveryDecision, type RecoveryAction } from "@/state/events/recovery"
 
 const log = Log.create({ service: "runtime-recovery" })
@@ -23,6 +23,7 @@ export interface ContinuationPlan {
 }
 
 export async function recoverRun(runId: string): Promise<RecoveryResult> {
+  await repairRunInitialization(runId)
   const decision = await evaluateRunRecovery(runId)
 
   if (!decision) {

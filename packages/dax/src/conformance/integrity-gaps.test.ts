@@ -7,10 +7,11 @@ import { ContractGuardian, ContractImmutabilityError } from "@/execution/contrac
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { createEventAuthorityRun } from "@/state/events/event-transitions"
-import { getRunAuthority, readRunEvents } from "@/state/events/run-event-store"
+import { getRunAuthority, readRunEvents, setRunAuthority, appendRunEvent } from "@/state/events/run-event-store"
+import { recoverRun as recoverCanonicalRun } from "@/state/recovery"
 import { recoverRun } from "@/state/events/runtime-recovery"
+import { acquireRunLock } from "@/util/fs-lock"
 import { Storage } from "@/storage/storage"
-import { expectGap } from "./known-gaps"
 
 const repoRoot = path.resolve(import.meta.dir, "../../../..")
 let testHome: string
@@ -54,7 +55,7 @@ async function completesWithin(promise: Promise<unknown>, ms: number) {
   }
 }
 
-describe("integrity gap enforcement", () => {
+describe("initialization integrity", () => {
   test("authority establishment and a concurrent contract rewrite preserve the governing contract", async () => {
     await Instance.provide({
       directory: repoRoot,
@@ -103,9 +104,7 @@ describe("integrity gap enforcement", () => {
         const stored = await ContractGuardian.get(session.id)
         expect(stored).not.toBeNull()
 
-        expectGap("integrity.contract-immutability-cross-store-race", () => {
-          expect(stored).toEqual(governingContract)
-        })
+        expect(stored).toEqual(governingContract)
       },
     })
   })
@@ -141,11 +140,186 @@ describe("integrity gap enforcement", () => {
         // an unexpected exception is deliberately outside expectGap.
         const result = await recoverRun(session.id)
         expect(await ContractGuardian.get(session.id)).toEqual(contract)
-        expectGap("integrity.event-authority-partial-initialization-recovery", () => {
-          expect(result.success).toBe(true)
-          expect(result.action).toBe("retry")
-          expect(result.continuation?.nextStep).toBe("start_execution")
+        expect(result.success).toBe(true)
+        expect(result.action).toBe("retry")
+        expect(result.continuation?.nextStep).toBe("start_execution")
+        expect(await readRunEvents(session.id)).toHaveLength(1)
+      },
+    })
+  })
+
+  test("concurrent initialization retries keep one genesis event and reject changed settings", async () => {
+    await Instance.provide({
+      directory: repoRoot,
+      async fn() {
+        const { session, contract } = await createContract("Idempotent initialization")
+        await Promise.all(
+          Array.from({ length: 4 }, () => createEventAuthorityRun(session.id, contract.contractId, true, "enforce")),
+        )
+        const before = await readRunEvents(session.id)
+        expect(before).toHaveLength(1)
+        expect(before[0].payload).toEqual({
+          contractId: contract.contractId,
+          verificationRequired: true,
+          guardEnforcementMode: "enforce",
         })
+        await expect(createEventAuthorityRun(session.id, contract.contractId, false, "enforce")).rejects.toThrow(
+          /Conflicting initialization/,
+        )
+        await expect(createEventAuthorityRun(session.id, contract.contractId, true, "warn")).rejects.toThrow(
+          /Conflicting initialization/,
+        )
+        await expect(createEventAuthorityRun(session.id, "different-contract", true, "enforce")).rejects.toThrow(
+          /Conflicting initialization/,
+        )
+        await expect(setRunAuthority(session.id, "legacy")).rejects.toThrow(/Cannot replace canonical/)
+        expect(await readRunEvents(session.id)).toEqual(before)
+      },
+    })
+  })
+
+  test("recovery replays the durable settings after a first-event write failure, once only", async () => {
+    await Instance.provide({
+      directory: repoRoot,
+      async fn() {
+        const { session, contract } = await createContract("Recover exact initialization intent")
+        const originalWrite = Storage.write
+        const failure = new Error("injected event write failure")
+        const write = spyOn(Storage, "write").mockImplementation(async (key, value) => {
+          if (key[0] === "run_events" && key[2] === session.id) throw failure
+          return originalWrite(key, value)
+        })
+        try {
+          await expect(createEventAuthorityRun(session.id, contract.contractId, true, "enforce")).rejects.toBe(failure)
+        } finally {
+          write.mockRestore()
+        }
+        expect(await readRunEvents(session.id)).toEqual([])
+        // Even before the first event exists, a retry cannot weaken the intent.
+        await expect(createEventAuthorityRun(session.id, contract.contractId, false, "warn")).rejects.toThrow(
+          /Conflicting initialization/,
+        )
+        // Both user-facing state recovery and runtime continuation repair the
+        // same record, sharing the lock rather than appending duplicate genesis.
+        const [canonical, runtime] = await Promise.all([recoverCanonicalRun(session.id), recoverRun(session.id)])
+        expect(canonical.success).toBe(true)
+        expect(canonical.recoveredRunState?.status).toBe("compiled")
+        expect(runtime.success).toBe(true)
+        const events = await readRunEvents(session.id)
+        expect(events).toHaveLength(1)
+        expect(events[0].payload).toEqual({
+          contractId: contract.contractId,
+          verificationRequired: true,
+          guardEnforcementMode: "enforce",
+        })
+        await appendRunEvent(session.id, 1, { type: "execution_queued", payload: {} })
+        const queued = await readRunEvents(session.id)
+        await createEventAuthorityRun(session.id, contract.contractId, true, "enforce")
+        await recoverRun(session.id)
+        expect(await readRunEvents(session.id)).toEqual(queued)
+      },
+    })
+  })
+
+  test("marker-only legacy partial state stays closed instead of inventing initialization settings", async () => {
+    await Instance.provide({
+      directory: repoRoot,
+      async fn() {
+        const { session, contract } = await createContract("Missing initialization evidence")
+        await setRunAuthority(session.id, "event-log")
+        expect((await recoverRun(session.id)).success).toBe(false)
+        await expect(recoverCanonicalRun(session.id)).rejects.toThrow(/no canonical state/i)
+        await expect(createEventAuthorityRun(session.id, contract.contractId)).rejects.toThrow(
+          /No initialization intent/,
+        )
+        expect(await readRunEvents(session.id)).toEqual([])
+      },
+    })
+  })
+
+  test("malformed intent and corrupt logs cannot be repaired into weaker authority", async () => {
+    await Instance.provide({
+      directory: repoRoot,
+      async fn() {
+        const { session, contract } = await createContract("Corrupted initialization evidence")
+        const marker = ["run_authority", Instance.project.id, session.id, "authority.json"]
+        await Storage.write(marker, { authority: "event-log", initialization: { contractId: contract.contractId } })
+        await expect(recoverRun(session.id)).rejects.toThrow(/Incomplete persisted/)
+        expect(await readRunEvents(session.id)).toEqual([])
+        await Storage.write(marker, {
+          authority: "event-log",
+          initialization: {
+            contractId: contract.contractId,
+            verificationRequired: true,
+            guardEnforcementMode: "enforce",
+          },
+        })
+        const eventsKey = ["run_events", Instance.project.id, session.id, "events.json"]
+        await Storage.write(eventsKey, [{ broken: true }])
+        await expect(recoverRun(session.id)).rejects.toThrow()
+        expect(await Storage.read(eventsKey)).toEqual([{ broken: true }])
+        await Storage.write(eventsKey, null)
+        await expect(recoverRun(session.id)).rejects.toThrow(/expected an array/)
+        expect(await Storage.read(eventsKey)).toBeNull()
+      },
+    })
+  })
+
+  test("a separate process cannot replace a contract while authority is being established", async () => {
+    await Instance.provide({
+      directory: repoRoot,
+      async fn() {
+        const { session, contract } = await createContract("Cross-process lock")
+        const readyPath = path.join(testHome, "child-ready")
+        const changed = { ...contract, intent: "Must not cross the authority lock" }
+        const lock = await acquireRunLock(session.id)
+        let released = false
+        const script = `
+          import { Instance } from ${JSON.stringify(path.join(repoRoot, "packages/dax/src/project/instance.ts"))};
+          import { ContractGuardian, ContractImmutabilityError } from ${JSON.stringify(path.join(repoRoot, "packages/dax/src/execution/contract-guardian.ts"))};
+          await Instance.provide({ directory: ${JSON.stringify(repoRoot)}, async fn() {
+            await Bun.write(${JSON.stringify(readyPath)}, "ready");
+            try {
+              await ContractGuardian.create(${JSON.stringify(session.id)}, ${JSON.stringify(changed)});
+              process.exitCode = 2;
+            } catch (error) {
+              if (!(error instanceof ContractImmutabilityError)) throw error;
+            }
+          }});
+          await Instance.disposeAll();
+        `
+        const child = Bun.spawn([process.execPath, "--eval", script], {
+          cwd: repoRoot,
+          env: { ...process.env },
+          stdout: "ignore",
+          stderr: "pipe",
+        })
+        const stderr = new Response(child.stderr).text()
+        try {
+          const ready = (async () => {
+            while (!(await Bun.file(readyPath).exists())) {
+              if (child.exitCode !== null) throw new Error(await stderr)
+              await Bun.sleep(10)
+            }
+          })()
+          expect(await completesWithin(ready, 3000)).toBe(true)
+          expect(await completesWithin(child.exited, 250)).toBe(false)
+          // Simulate the marker publication while its run lock is held. The
+          // child must re-evaluate mutability only after the lock is released.
+          await Storage.write(["run_authority", Instance.project.id, session.id, "authority.json"], {
+            authority: "event-log",
+          })
+          await lock.dispose()
+          released = true
+          expect(await completesWithin(child.exited, 3000)).toBe(true)
+          expect(await child.exited).toBe(0)
+          expect(await ContractGuardian.get(session.id)).toEqual(contract)
+        } finally {
+          if (child.exitCode === null) child.kill()
+          await child.exited
+          await stderr
+          if (!released) await lock.dispose()
+        }
       },
     })
   })

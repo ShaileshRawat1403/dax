@@ -1,5 +1,5 @@
 import { replayRunState } from "./replay"
-import { getRunAuthority, hasRunEvents, projectRunStateFromEvents, readRunEvents } from "./events/run-event-store"
+import { getRunAuthority, repairRunInitialization, hasRunEvents, projectRunStateFromEvents, readRunEvents } from "./events/run-event-store"
 import type { ReplayResult } from "./replay"
 import { RunStore } from "./run-store"
 import type { RunState } from "./run-state"
@@ -51,6 +51,7 @@ export class RecoveryError extends Error {
 export async function recoverRun(runId: string): Promise<RecoveryResult> {
   log.info("starting recovery", { runId })
 
+  await repairRunInitialization(runId)
   const source = await loadRecoveryAuthoritySource(runId)
   if (source.kind === "event-log") {
     return {
