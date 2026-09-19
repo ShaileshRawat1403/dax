@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test"
 import os from "os"
 import path from "path"
-import { rmSync } from "fs"
+import { rm } from "node:fs/promises"
 import { bootstrap } from "../cli/bootstrap"
 import * as Intent from "../intent/interpret"
 import * as Planner from "../planner/planner"
@@ -163,7 +163,7 @@ describe("session /explore command", () => {
         }
       })
     } finally {
-      rmSync(root, { recursive: true, force: true })
+      await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   }, 40000)
 })

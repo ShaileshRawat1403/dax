@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.5.0] - 2026-09-19
+## [1.5.0] - 2026-09-20
 
 ### Added
 
@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TUI startup waits for its worker to install the RPC handler before sending
+  initial requests, preventing a blank screen. Worker errors reject callers, and
+  missing startup readiness times out instead of waiting indefinitely.
 - Contract replacement and canonical authority establishment now share the run's
   filesystem lock, preventing a concurrent rewrite from changing a governing contract.
 - Interrupted event-authority initialization can recover its first event from a
