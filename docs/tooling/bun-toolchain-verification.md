@@ -2,6 +2,11 @@
 
 ## Outcome
 
+**2026-09-19 follow-up:** [Fresh-clone and discovery investigation](bun-test-discovery-investigation.md)
+records a passing full test stage on 1.4.0 and the expected version rejection on
+1.3.9. In the original artifact-populated worktree, explicitly scoping discovery
+to `./packages` also passes. The historical results below remain unchanged.
+
 The repository pin is available and can be used locally without replacing system
 Bun. The official macOS ARM64 binary reports `1.4.0+34cbb9a40`; its frozen install
 succeeded without changing `bun.lock` or another tracked file. No pin change is
@@ -139,8 +144,10 @@ version guard. Do not infer a passing complete suite from this four-test check.
 
 ## Reproduce the isolated setup
 
-Run from **your own** clean DAX worktree on macOS ARM64. Use a fresh artifact
-directory. The checksum below belongs to the exact release asset, not latest Bun.
+Run from **your own** fresh DAX checkout on macOS ARM64, without nested clones
+or package caches under it. A Git-clean working tree alone is insufficient:
+Bun's bare test filter can discover files inside Git-ignored directories. Use a
+fresh artifact directory for the binary. The checksum below belongs to the exact release asset, not latest Bun.
 
 ```sh
 dax_toolchain="$PWD/artifacts/bun-toolchain/1.4.0"
@@ -159,8 +166,9 @@ Then select that binary only inside a subshell:
 ```sh
 (
   export PATH="$PWD/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64:$PATH"
-  export BUN_INSTALL_CACHE_DIR="$PWD/artifacts/bun-toolchain/cache-1.4.0"
-  export DAX_TEST_HOME="$PWD/artifacts/bun-toolchain/home-1.4.0"
+  dax_run_dir=$(mktemp -d "${TMPDIR:-/tmp}/dax-bun-verification.XXXXXX")
+  export BUN_INSTALL_CACHE_DIR="$dax_run_dir/cache"
+  export DAX_TEST_HOME="$dax_run_dir/home"
   export DAX_DISABLE_MODELS_FETCH=1 DAX_DISABLE_CONFIG_AUTO_INSTALL=1
   export TURBO_FORCE=true TURBO_TELEMETRY_DISABLED=1
   unset DAX_RELEASE

@@ -1,0 +1,55 @@
+{
+  "source_commit": "1741898917fce0b121f9c3535993d35bf640588f",
+  "archive": {
+    "path": "raw-artifacts.tar.gz",
+    "sha256": "fc13ca3f474fc7699d7b379e5b9a82d9b7f743d5f34f093d8f4ea5033a856d48"
+  },
+  "raw_members": {
+    "install.log": {
+      "bytes": 288,
+      "sha256": "b64c0b35a21ed38672b70354a9a101c746dbae56d9ad540d314b2f8c7df3ca8b"
+    },
+    "install.json": {
+      "bytes": 551,
+      "sha256": "342c4e01ac35477eceb539a62370c80848b5da6e97fe7fcece23a78417d51328"
+    },
+    "test-1.4.0.log": {
+      "bytes": 1917764,
+      "sha256": "98653b2cae9b9c56b2533cac1955210312234506b91128563bc3def9e00b03aa"
+    },
+    "test-1.3.9.log": {
+      "bytes": 1907299,
+      "sha256": "8b4970dc4a1a6cdb45b8c837a9305ee9166e5a75205cdbbdd7b2cd6c85a95fe8"
+    },
+    "test-comparison.json": {
+      "bytes": 286632,
+      "sha256": "f03462012eb7d3ed5d5ec986a409e4abdca1bb018b804ab0726dac868ddcafd8"
+    },
+    "discovery-filter.log": {
+      "bytes": 594,
+      "sha256": "ff554421197a624acc9f42aefc6d2d8ddc01ff54fb0ad215045e5c2a9384966c"
+    },
+    "discovery-directory.log": {
+      "bytes": 151,
+      "sha256": "31d5bee0cf424eb0c406a9f2062b48a34a00b3d8eeba9028c14ba19cc2d7e615"
+    },
+    "discovery-results.json": {
+      "bytes": 279,
+      "sha256": "073fabc310281e5c94d844d931ff60fc74604a04e5472669abdf5747e25aae97"
+    },
+    "original-filter.log": {
+      "bytes": 248,
+      "sha256": "d28a1a1b9c925ade6d050588b6fa4e3d250d0dc5744c69b38ad1763651c2a898"
+    },
+    "original-directory.log": {
+      "bytes": 1868577,
+      "sha256": "b8b20ce7d811f37216e0e7949e52816a7f9e22376c0c1ca3500b785b479d2dea"
+    },
+    "original-discovery-comparison.json": {
+      "bytes": 674,
+      "sha256": "2533e015f0cd04e7c7205f462d8559d5b4cacea05e0aaf7679139414003c6466"
+    }
+  },
+  "summary_sha256": "e799a6d0fb0d4bf8d43fe789df07e768441fc58d48504b9cb2c00b8ee8b7ffff",
+  "normalization": "None. Archive members preserve original bytes; summary is derived separately."
+}
