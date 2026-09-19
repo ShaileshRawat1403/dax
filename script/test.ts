@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 const args = process.argv.slice(2)
-const proc = Bun.spawn(["bun", "test", "packages", "--max-concurrency", "1", ...args], {
+const proc = Bun.spawn(["bun", "test", "./packages", "--max-concurrency", "1", ...args], {
   cwd: process.cwd(),
   stdout: "inherit",
   stderr: "inherit",
