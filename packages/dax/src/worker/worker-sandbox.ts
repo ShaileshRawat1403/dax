@@ -1,5 +1,6 @@
 import os from "node:os"
-import { posix } from "node:path"
+import { basename, dirname, join, posix } from "node:path"
+import { realpathSync } from "node:fs"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { Shell } from "@/shell/shell"
 
@@ -25,6 +26,33 @@ function escapeSeatbelt(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
 }
 
+/**
+ * Resolve a writable path to the form Seatbelt actually matches against.
+ *
+ * Seatbelt subpath matching is symlink-resolved, not lexical: macOS exposes
+ * /var -> /private/var and /tmp -> /private/tmp, so an allow written with the
+ * raw symlinked root never matches the path the kernel checks and the worker
+ * gets EPERM creating its own state. Resolve the nearest existing ancestor
+ * (state dirs may not exist yet — the worker is what creates them) and
+ * re-append the unresolved tail. Verified live: allowing the raw
+ * `/var/folders/.../T` form failed mkdir under it with EPERM while allowing
+ * the resolved `/private/var/folders/.../T` form succeeded.
+ */
+function resolvedSubpath(value: string): string {
+  let current = value
+  const tail: string[] = []
+  for (;;) {
+    try {
+      return join(realpathSync(current), ...tail)
+    } catch {
+      const parent = dirname(current)
+      if (parent === current) return value
+      tail.unshift(basename(current))
+      current = parent
+    }
+  }
+}
+
 /** Human summary of the writable surface; accurate whether or not the worker
  *  needs its own state dir writable. */
 function writeSummary(statePaths: string[]): string {
@@ -35,9 +63,10 @@ function writeSummary(statePaths: string[]): string {
  * Credential and secret stores a governed worker never needs to read. Reads are
  * otherwise allowed (a coding agent must see the toolchain and its own config),
  * so this is a deny-list of the well-known exfiltration targets layered on top
- * of the global read allow. Provider auth still works: the three external
- * workers read their own home config (~/.codex, ~/.claude, ~/.gemini — not
- * listed here) or credentials passed as allowlisted env vars.
+ * of the global read allow. Provider auth still works: the external workers
+ * read their own home config (~/.codex, ~/.claude, ~/.gemini and
+ * ~/.gemini/antigravity-cli — not listed here) or credentials passed as
+ * allowlisted env vars.
  *
  * This is the pragmatic floor: it removes the obvious secret targets with no
  * breakage. A future `--strict-reads` mode will invert this to deny-by-default
@@ -84,7 +113,7 @@ function macProfile(
   // repo guarantee: the kernel diff is still computed only from the checkout.
   const writable = [cwd, process.env.TMPDIR, "/tmp", "/private/tmp", ...statePaths]
     .filter((value): value is string => Boolean(value))
-    .map((value) => `(allow file-write* (subpath "${escapeSeatbelt(value)}"))`)
+    .map((value) => `(allow file-write* (subpath "${escapeSeatbelt(resolvedSubpath(value))}"))`)
     .join("\n")
 
   // Layered after the global read allow: last matching rule wins in SBPL, so

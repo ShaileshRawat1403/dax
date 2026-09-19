@@ -6,13 +6,14 @@ import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
 import { RunGateway } from "../../server/run-gateway"
-import { ExternalWorkerId } from "../../worker/worker-adapter"
+import { ExternalWorkerId, missingWorkerAuthEnv } from "../../worker/worker-adapter"
 import { buildEgressAllowlist } from "../../worker/egress-allowlist"
 import { detectChecks } from "../../sdlc/check-catalog"
 import type { CheckDefinition } from "../../sdlc/check-types"
 import { isWhitelistedVerificationCommand } from "../../tool/shell-whitelist"
 import { checkWorkerSandbox } from "../../worker/worker-sandbox"
 import { discoverAntigravityModels, requireAntigravityModel } from "../../worker/antigravity-models"
+import { allWorkerReadiness, formatWorkerReadiness, workerReadiness } from "../../worker/worker-doctor"
 import * as prompts from "@clack/prompts"
 
 export type FieldSource = "operator-authored" | "inferred"
@@ -181,7 +182,7 @@ export const WorkerCommand = cmd({
             const taskParts = [...((args.task as string[]) ?? []), ...((args["--"] as string[]) ?? [])]
             const task = taskParts.join(" ").trim()
             if (!task) {
-              UI.error("a task is required: dax worker run claude -- \"add tests for src/math.ts\"")
+              UI.error('a task is required: dax worker run claude -- "add tests for src/math.ts"')
               process.exitCode = 1
               return
             }
@@ -189,7 +190,9 @@ export const WorkerCommand = cmd({
             let workerModel: { id: string; name: string } | undefined
             if (agent === "antigravity") {
               if (!requestedModel) {
-                UI.error("Antigravity requires --model <slug>. Run `agy models` to list models available to this account.")
+                UI.error(
+                  "Antigravity requires --model <slug>. Run `agy models` to list models available to this account.",
+                )
                 process.exitCode = 1
                 return
               }
@@ -211,6 +214,18 @@ export const WorkerCommand = cmd({
               UI.error(sandbox.reason)
               UI.println(sandbox.remedy)
               UI.println("Governed workers fail closed when OS isolation is unavailable.")
+              process.exitCode = 1
+              return
+            }
+
+            // Fail fast before a run is created: an auth lane that is missing a
+            // required env var can only fail noisily or fall back to a different
+            // lane. Same contract surface as the workflow guard and the future
+            // `dax worker doctor`.
+            const missingAuthEnv = missingWorkerAuthEnv(agent, process.env)
+            if (missingAuthEnv.length > 0) {
+              UI.error(`${agent} worker is not ready: missing ${missingAuthEnv.join(", ")}`)
+              UI.println(`Set ${missingAuthEnv.join(" and ")} then retry.`)
               process.exitCode = 1
               return
             }
@@ -253,7 +268,9 @@ export const WorkerCommand = cmd({
             })
 
             if (verification.length === 0) {
-              UI.error("No safe verification command was supplied or detected. Add --verify, for example: --verify \"bun test\".")
+              UI.error(
+                'No safe verification command was supplied or detected. Add --verify, for example: --verify "bun test".',
+              )
               process.exitCode = 1
               return
             }
@@ -282,9 +299,15 @@ export const WorkerCommand = cmd({
             let cardAccepted = false
             if (!args.yes) {
               const card = renderVetoCard({
-                agent, task, riskLevel: inferredRiskLevel,
-                writeScope, forbiddenPaths, verification, isolation: sandbox.summary,
-                egress: egressForCard, sources,
+                agent,
+                task,
+                riskLevel: inferredRiskLevel,
+                writeScope,
+                forbiddenPaths,
+                verification,
+                isolation: sandbox.summary,
+                egress: egressForCard,
+                sources,
                 model: workerModel,
               })
               UI.println(card)
@@ -396,6 +419,64 @@ export const WorkerCommand = cmd({
               }
               await Bun.sleep(1000)
             }
+          })
+        },
+      )
+      .command(
+        "doctor [agent]",
+        "report readiness for a governed worker (or all workers)",
+        (y: Argv) =>
+          y
+            .positional("agent", {
+              describe: "worker to inspect (defaults to all workers)",
+              choices: ExternalWorkerId.options,
+              type: "string",
+            })
+            .option("json", {
+              describe: "output machine-readable JSON",
+              type: "boolean",
+              default: false,
+            }),
+        async (args) => {
+          await bootstrap(process.cwd(), async () => {
+            const agent = args.agent as ExternalWorkerId | undefined
+            const reports = agent ? [await workerReadiness({ workerId: agent })] : await allWorkerReadiness()
+
+            if (args.json) {
+              process.stdout.write(
+                JSON.stringify(
+                  reports.map((report) => ({
+                    workerId: report.workerId,
+                    label: report.label,
+                    binary: report.binary,
+                    authLane: report.authLane,
+                    items: report.items,
+                    ready: report.ready,
+                    next: report.next,
+                  })),
+                  null,
+                  2,
+                ) + "\n",
+              )
+            } else {
+              UI.empty()
+              prompts.intro("DAX worker doctor")
+              for (const report of reports) {
+                UI.println(`${report.label} (${report.workerId})`)
+                UI.println(formatWorkerReadiness(report))
+                if (!report.ready) {
+                  for (const step of report.next) UI.println(`  next: ${step}`)
+                }
+                UI.println("")
+              }
+              prompts.outro(
+                reports.every((report) => report.ready)
+                  ? "Worker prerequisites present; authentication not verified"
+                  : "Workers need attention",
+              )
+            }
+
+            process.exitCode = reports.every((report) => report.ready) ? 0 : 1
           })
         },
       )

@@ -1,0 +1,15 @@
+= state written by an authenticated agy run =
+AUTHHOME=/tmp/dax-agy-authhome.18052
+token file (auth material): .gemini/antigravity-cli/antigravity-oauth-token  (mode 0600, JSON: access_token, refresh_token, expiry, auth_method)
+runtime writes from second run (vs post-auth snapshot):
+.gemini/antigravity-cli/brain/f3aa0502-fa32-4410-89f0-7f6b2fbb1a07/.system_generated/logs/chunks/transcript/00000000.jsonl
+.gemini/antigravity-cli/brain/f3aa0502-fa32-4410-89f0-7f6b2fbb1a07/.system_generated/logs/chunks/transcript_full/00000000.jsonl
+.gemini/antigravity-cli/brain/f3aa0502-fa32-4410-89f0-7f6b2fbb1a07/.system_generated/logs/transcript.jsonl
+.gemini/antigravity-cli/brain/f3aa0502-fa32-4410-89f0-7f6b2fbb1a07/.system_generated/logs/transcript_full.jsonl
+.gemini/antigravity-cli/cache/conversation_metadata.json
+.gemini/antigravity-cli/conversations/f3aa0502-fa32-4410-89f0-7f6b2fbb1a07.db
+.gemini/antigravity-cli/crashes/crash_18306_b1d5138e-5c7c-4eec-9fd1-51043ddd106a.log
+.gemini/antigravity-cli/log/cli-20260820_101320.log
+.gemini/antigravity-cli/presence/f3aa0502-fa32-4410-89f0-7f6b2fbb1a07.lock
+
+= full cold-start dir tree in a fresh HOME (unauthenticated) =

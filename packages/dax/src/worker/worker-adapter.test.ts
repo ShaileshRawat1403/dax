@@ -10,6 +10,7 @@ import {
   buildWorkerEnv,
   buildWorkerInvocation,
   buildProviderInvocation,
+  missingWorkerAuthEnv,
   renderWorkerPrompt,
   validateWorkerProcessOutput,
 } from "./worker-adapter"
@@ -72,6 +73,63 @@ describe("worker adapter", () => {
     const codexEnv = buildWorkerEnv("codex", hostEnv, contract)
     expect(codexEnv.OPENAI_API_KEY).toBe("sk-oai-xxx")
     expect(codexEnv.ANTHROPIC_API_KEY).toBeUndefined()
+  })
+
+  test("gemini worker is an isolated, deterministic API-key lane", () => {
+    const hostEnv = {
+      GEMINI_API_KEY: "gm-xxx",
+      GOOGLE_API_KEY: "not-the-lane",
+      GOOGLE_GENAI_USE_GCA: "true",
+      GOOGLE_GENAI_USE_VERTEXAI: "true",
+      GOOGLE_APPLICATION_CREDENTIALS: "/ops/sa.json",
+      GOOGLE_CLOUD_PROJECT: "some-project",
+      HOME: "/Users/operator",
+      USER: "operator",
+      LOGNAME: "operator",
+      TMPDIR: "/tmp/operator",
+    }
+    const env = buildWorkerEnv("gemini", hostEnv, contract)
+    // The declared lane wins: GEMINI_API_KEY and only it.
+    expect(env.GEMINI_API_KEY).toBe("gm-xxx")
+    // Conflicting auth selectors never reach the worker even when set in the
+    // host env — gemini picks its lane in env precedence order, so an ambient
+    // Google var must not override the declared lane.
+    expect(env.GOOGLE_API_KEY).toBeUndefined()
+    expect(env.GOOGLE_GENAI_USE_GCA).toBeUndefined()
+    expect(env.GOOGLE_GENAI_USE_VERTEXAI).toBeUndefined()
+    expect(env.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined()
+    expect(env.GOOGLE_CLOUD_PROJECT).toBeUndefined()
+    // State is isolated from the operator's ~/.gemini (and antigravity's state
+    // beneath it): a run-scoped root under the worker's own TMPDIR, never HOME.
+    const isolatedHome = path.join("/tmp/operator", "dax-worker-state", "gemini", contract.runId)
+    expect(env.GEMINI_CLI_HOME).toBe(isolatedHome)
+    expect(env.GEMINI_CLI_HOME?.startsWith(hostEnv.HOME)).toBe(false)
+    const invocation = buildWorkerInvocation({ workerId: "gemini", contract, hostEnv, workingDirectory })
+    expect(invocation.writableStatePaths).toContain(isolatedHome)
+    expect(invocation.writableStatePaths.some((p) => p.startsWith(hostEnv.HOME))).toBe(false)
+  })
+
+  test("gemini worker runs headless with DAX-controlled tool approval", () => {
+    const invocation = buildWorkerInvocation({ workerId: "gemini", contract, workingDirectory })
+    expect(invocation.command).toContain("--skip-trust")
+    expect(invocation.command).toContain("--approval-mode=yolo")
+    expect(invocation.command).toContain("--output-format")
+    expect(invocation.command).toContain("text")
+    expect(invocation.command).toContain("-p")
+  })
+
+  test("gemini fails fast when its required auth env is missing, and only then", () => {
+    // The API-key lane is declared: no GEMINI_API_KEY, no run. The same
+    // contract surface guards the CLI pre-flight, the workflow, and doctor.
+    expect(missingWorkerAuthEnv("gemini", {})).toEqual(["GEMINI_API_KEY"])
+    expect(missingWorkerAuthEnv("gemini", { GEMINI_API_KEY: "gm-xxx" })).toEqual([])
+    // An empty var counts as missing — the lane needs a real key.
+    expect(missingWorkerAuthEnv("gemini", { GEMINI_API_KEY: "" })).toEqual(["GEMINI_API_KEY"])
+    // Config/keychain-auth workers declare no required env: readiness is a
+    // property of the profile, not something each worker checks ad hoc.
+    for (const workerId of ["claude", "codex", "antigravity"] as const) {
+      expect(missingWorkerAuthEnv(workerId, {})).toEqual([])
+    }
   })
 
   test("base session identity (HOME/USER/LOGNAME/TMPDIR) passes through for all workers", () => {
@@ -163,7 +221,11 @@ describe("worker adapter", () => {
   })
 
   test("antigravity accepts only valid SUCCESS terminal JSON", () => {
-    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract: antigravityContract, workingDirectory })
+    const invocation = buildWorkerInvocation({
+      workerId: "antigravity",
+      contract: antigravityContract,
+      workingDirectory,
+    })
     const success = JSON.stringify({
       conversation_id: "conversation_1",
       status: "SUCCESS",
@@ -184,14 +246,28 @@ describe("worker adapter", () => {
         num_turns: 0,
         usage: { input_tokens: 0, output_tokens: 0, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 0 },
       })
-      expect(() => validateWorkerProcessOutput(invocation, { exitCode: status === "ERROR" ? 1 : 0, stdout: output, stderr: "" })).toThrow(status)
+      expect(() =>
+        validateWorkerProcessOutput(invocation, { exitCode: status === "ERROR" ? 1 : 0, stdout: output, stderr: "" }),
+      ).toThrow(status)
     }
-    expect(() => validateWorkerProcessOutput(invocation, { exitCode: 0, stdout: "not-json", stderr: "" })).toThrow("invalid headless JSON")
-    expect(() => validateWorkerProcessOutput(invocation, { exitCode: 0, stdout: JSON.stringify({ status: "SUCCESS" }), stderr: "" })).toThrow("malformed")
+    expect(() => validateWorkerProcessOutput(invocation, { exitCode: 0, stdout: "not-json", stderr: "" })).toThrow(
+      "invalid headless JSON",
+    )
+    expect(() =>
+      validateWorkerProcessOutput(invocation, {
+        exitCode: 0,
+        stdout: JSON.stringify({ status: "SUCCESS" }),
+        stderr: "",
+      }),
+    ).toThrow("malformed")
   })
 
   test("missing antigravity binary fails with an actionable install message", () => {
-    const invocation = buildWorkerInvocation({ workerId: "antigravity", contract: antigravityContract, workingDirectory })
+    const invocation = buildWorkerInvocation({
+      workerId: "antigravity",
+      contract: antigravityContract,
+      workingDirectory,
+    })
     expect(() => assertWorkerBinaryAvailable(invocation, () => null)).toThrow("antigravity.google/docs/cli/install")
   })
 
@@ -203,10 +279,12 @@ describe("worker adapter", () => {
     expect(() =>
       buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory: "relative/checkout" }),
     ).toThrow("absolute path")
-    expect(() => buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })).toThrow("explicit model")
-    expect(() =>
-      buildWorkerInvocation({ workerId: "codex", contract: antigravityContract, workingDirectory }),
-    ).toThrow("does not support")
+    expect(() => buildWorkerInvocation({ workerId: "antigravity", contract, workingDirectory })).toThrow(
+      "explicit model",
+    )
+    expect(() => buildWorkerInvocation({ workerId: "codex", contract: antigravityContract, workingDirectory })).toThrow(
+      "does not support",
+    )
   })
 
   test("the default registry lists every approved provider as an external CLI", () => {

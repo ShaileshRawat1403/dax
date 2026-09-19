@@ -1,0 +1,11 @@
+ERROR: logging before google.Init: I0820 09:49:53.020481       1 installer.go:27] Running Antigravity CLI setup...
+ERROR: logging before google.Init: I0820 09:49:53.022127       1 installer.go:147] Appending PATH export to profile /Users/ananyalayek/.zshrc: export PATH="/tmp/dax-agy-install:$PATH"
+ERROR: logging before google.Init: I0820 09:49:53.025166       1 installer.go:184] Successfully updated shell profile: /Users/ananyalayek/.zshrc
+ERROR: logging before google.Init: I0820 09:49:53.027556       1 installer.go:147] Appending PATH export to profile /Users/ananyalayek/.zprofile: export PATH="/tmp/dax-agy-install:$PATH"
+ERROR: logging before google.Init: I0820 09:49:53.039237       1 installer.go:184] Successfully updated shell profile: /Users/ananyalayek/.zprofile
+
+Warning: /tmp/dax-agy-install is not present in your active PATH.
+To use the 'agy' CLI globally, please manually add it to your shell profile:
+
+  echo 'export PATH="/tmp/dax-agy-install:$PATH"' >> ~/.zshrc && source ~/.zshrc
+

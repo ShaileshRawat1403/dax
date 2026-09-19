@@ -1,0 +1,39 @@
+= agy headless auth via code-paste (temp home /tmp/dax-agy-authhome.18052) =
+- run: agy -p <prompt> under pty, code pasted to stdin
+- selected CLI log lines:
+$AH/.gemini/antigravity-cli/log/cli-20260820_101157.log:ERROR: logging before google.Init: I0820 10:11:58.299469       1 printmode.go:387] Print mode: triggering interactive OAuth
+$AH/.gemini/antigravity-cli/log/cli-20260820_101157.log:ERROR: logging before google.Init: I0820 10:12:35.479634       1 printmode.go:432] Print mode: submitting manually-entered auth code
+$AH/.gemini/antigravity-cli/log/cli-20260820_101157.log:ERROR: logging before google.Init: W0820 10:12:40.653428     198 composite_token_storage.go:240] Keyring SaveToken timed out after 5s, falling back to file storage
+$AH/.gemini/antigravity-cli/log/cli-20260820_101157.log:ERROR: logging before google.Init: I0820 10:12:40.807329     198 auth.go:164] ChainedAuth: interactive auth completed via consumer
+$AH/.gemini/antigravity-cli/log/cli-20260820_101157.log:ERROR: logging before google.Init: I0820 10:12:40.807348     198 server_oauth.go:190] applyAuthResult: email=shailesh.rawat1403@gmail.com, authMethod=consumer, quotaProject=
+$AH/.gemini/antigravity-cli/log/cli-20260820_101157.log:ERROR: logging before google.Init: I0820 10:12:40.816847       1 printmode.go:448] Print mode: authenticated as shailesh.rawat1403@gmail.com
+$AH/.gemini/antigravity-cli/log/cli-20260820_101320.log:ERROR: logging before google.Init: I0820 10:13:21.250858       1 printmode.go:173] Print mode: starting (promptLength=26, model="", conversationID="")
+$AH/.gemini/antigravity-cli/log/cli-20260820_101320.log:ERROR: logging before google.Init: I0820 10:13:21.254665       1 printmode.go:364] Print mode: not authenticated, trying silent auth
+$AH/.gemini/antigravity-cli/log/cli-20260820_101320.log:ERROR: logging before google.Init: I0820 10:13:21.292320      54 keyring.go:81] keyringAuth: loaded token, expiry=2026-08-20 11:12:34.648569 +0530 IST expired=false
+$AH/.gemini/antigravity-cli/log/cli-20260820_101320.log:ERROR: logging before google.Init: I0820 10:13:21.431102       1 auth.go:147] ChainedAuth: authenticated via keyring (effective: keyring)
+$AH/.gemini/antigravity-cli/log/cli-20260820_101320.log:ERROR: logging before google.Init: I0820 10:13:21.431159       1 server_oauth.go:190] applyAuthResult: email=shailesh.rawat1403@gmail.com, authMethod=consumer, quotaProject=
+$AH/.gemini/antigravity-cli/log/cli-20260820_101320.log:ERROR: logging before google.Init: I0820 10:13:26.622850       1 printmode.go:366] Print mode: silent auth succeeded
+
+= egress hosts observed during real run (from cli log http_helpers) =
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101112.log:https://playwright-akamai.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101112.log:https://playwright-verizon.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101112.log:https://playwright.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://daily-cloudcode-pa.googleapis.com
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://playwright-akamai.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://playwright-verizon.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://playwright.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://daily-cloudcode-pa.googleapis.com
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://playwright-akamai.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://playwright-verizon.azureedge.net
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://playwright.azureedge.net
+
+= playwright driver download attempts (404, non-fatal) =
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101112.log:https://playwright-akamai.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101112.log:https://playwright-verizon.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101112.log:https://playwright.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://playwright-akamai.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://playwright-verizon.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101157.log:https://playwright.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://playwright-akamai.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://playwright-verizon.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip
+/tmp/dax-agy-authhome.18052/.gemini/antigravity-cli/log/cli-20260820_101320.log:https://playwright.azureedge.net/builds/driver/playwright-1.57.0-mac-arm64.zip

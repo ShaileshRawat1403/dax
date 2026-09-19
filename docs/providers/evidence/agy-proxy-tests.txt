@@ -1,0 +1,7 @@
+= egress proxy behavior (Go http.ProxyFromEnvironment semantics) =
+run1: HTTPS_PROXY+HTTP_PROXY+ALL_PROXY=http://127.0.0.1:1 (dead port)
+  result: exit=1, error: 'proxyconnect tcp: dial tcp 127.0.0.1:1: connect: connection refused' from daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist
+  => proxy env HONORED
+run2: same proxy vars + NO_PROXY=*
+  result: exit=0, stdout=NOPROXYOK
+  => NO_PROXY HONORED

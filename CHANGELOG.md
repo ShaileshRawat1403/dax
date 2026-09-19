@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.1] - 2026-09-19
+## [1.5.0] - 2026-09-19
+
+### Added
+
+- `dax worker doctor` reports worker prerequisites without validating credentials
+  or logging in. Version probes have a bounded timeout.
+- Gemini workers use isolated per-run state and require `GEMINI_API_KEY`, excluding
+  ambient Google authentication selectors before starting a governed run.
 
 ### Fixed
 

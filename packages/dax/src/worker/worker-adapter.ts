@@ -77,9 +77,7 @@ export type AntigravityHeadlessResult = z.infer<typeof AntigravityHeadlessResult
  * operator escape hatch (--no-egress-filter) and is recorded as such in the
  * receipt so an unfiltered run is never mistaken for a filtered one.
  */
-export type WorkerEgressPolicy =
-  | { mode: "filtered"; allowHosts: string[] }
-  | { mode: "unconfined" }
+export type WorkerEgressPolicy = { mode: "filtered"; allowHosts: string[] } | { mode: "unconfined" }
 
 export const WorkerProviderKind = z.enum(["external_cli", "native", "remote"])
 export type WorkerProviderKind = z.infer<typeof WorkerProviderKind>
@@ -197,17 +195,45 @@ export class WorkerProviderRegistry {
 type WorkerProfile = {
   label: string
   binary: string
+  /** Human label for the auth lane this worker uses (api-key, oauth, config).
+   *  Readiness diagnostics report it verbatim; it never gates a run. */
+  authLane: string
   /** Build argv given the rendered contract prompt. */
   args: (prompt: string, timeoutMs: number, workingDirectory: string, modelHint?: string) => string[]
   /** Env var names passed through from the host environment. */
   envAllowlist: string[]
+  /**
+   * Env vars the worker's auth lane requires before execution. A run must fail
+   * fast — before the worker is spawned — when a required var is missing: the
+   * worker's own auth failure would be noisy, possibly fall back to a different
+   * lane, and waste a disposable checkout. Readiness is a property of the
+   * profile so every worker surface (CLI pre-flight, workflow, future doctor)
+   * checks the same contract. Absent for workers whose auth rides config files
+   * or keychain state rather than env (claude/codex/antigravity).
+   */
+  requiredEnv?: readonly string[]
+  /**
+   * Auth selectors that must never reach this worker, even if the host env
+   * sets them. The worker profile defines its authentication contract: an
+   * ambient variable that flips a vendor CLI onto a different auth lane must
+   * not leak into the child process. Belt-and-suspenders — buildWorkerEnv is
+   * allowlist-only, so this only bites if a future allowlist change
+   * reintroduces a denied name.
+   */
+  denyEnv?: readonly string[]
+  /**
+   * Worker-controlled env vars injected regardless of the host env (paths DAX
+   * provisions and owns, keyed by run). E.g. GEMINI_CLI_HOME points the gemini
+   * CLI at a run-scoped isolated state root instead of the operator's ~/.gemini.
+   */
+  injectEnv?: (contract: WorkerContract, hostEnv: Record<string, string | undefined>) => Record<string, string>
   /**
    * Absolute state dirs the CLI must be able to write at init (its own config,
    * session, and app-server socket live here — the sandbox fails the worker
    * closed without them). Derived from the host env so a custom home is
    * honored. Not the repo; repo writes stay checkout-confined.
    */
-  stateDirs: (hostEnv: Record<string, string | undefined>) => string[]
+  stateDirs: (hostEnv: Record<string, string | undefined>, contract: WorkerContract) => string[]
 }
 
 /**
@@ -221,9 +247,7 @@ function homeStateDirs(
 ): string[] {
   const home = hostEnv.HOME
   const fromHome = home ? homeRelative.map((name) => join(home, name)) : []
-  const all = [...explicit, ...fromHome].filter(
-    (path): path is string => typeof path === "string" && isAbsolute(path),
-  )
+  const all = [...explicit, ...fromHome].filter((path): path is string => typeof path === "string" && isAbsolute(path))
   return [...new Set(all)]
 }
 
@@ -233,10 +257,24 @@ function homeStateDirs(
  * tests, not an architecture change. Verify against each tool's docs when
  * bumping.
  */
-const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
+/** Run-scoped isolated state root for the gemini worker. DAX owns this path:
+ *  gemini creates <root>/.gemini beneath it and never touches the operator's
+ *  ~/.gemini. The sandbox already allows writes under TMPDIR//tmp (worker temp
+ *  state), so the path is writable without extra stateDirs plumbing beyond
+ *  declaring it. Run-scoped by construction: each run gets its own subdir.
+ *  Derived from the worker's own TMPDIR (hostEnv, falling back to the DAX
+ *  process TMPDIR then /tmp) so the env and the sandbox write scope agree.
+ */
+function geminiIsolatedHome(hostEnv: Record<string, string | undefined>, runId: string): string {
+  const tmpRoot = hostEnv.TMPDIR ?? process.env.TMPDIR ?? "/tmp"
+  return join(tmpRoot, "dax-worker-state", "gemini", runId)
+}
+
+export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   claude: {
     label: "Claude Code",
     binary: "claude",
+    authLane: "api-key or OAuth (ANTHROPIC_API_KEY / stored auth)",
     // acceptEdits: headless claude denies write tools by default (no human
     // to answer its prompts). Inside DAX's disposable checkout with DAX's
     // approval gate downstream, Claude's own interactive gate is a redundant
@@ -249,6 +287,7 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   codex: {
     label: "Codex",
     binary: "codex",
+    authLane: "api-key or ChatGPT auth (OPENAI_API_KEY / stored auth)",
     // DAX is the sandbox and the approval authority here. The worker already runs
     // inside DAX's Seatbelt/bubblewrap profile (writes confined to the checkout,
     // secrets masked, egress filtered) and its diff is reviewed at DAX's human
@@ -270,13 +309,46 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   gemini: {
     label: "Gemini CLI (enterprise/API key)",
     binary: "gemini",
-    args: (prompt) => ["-p", prompt],
-    envAllowlist: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"],
-    stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini"]),
+    authLane: "api-key (GEMINI_API_KEY)",
+    // gemini is the Gemini API-key headless worker; antigravity is Google's
+    // subscription/OAuth worker. Two distinct lanes, fully separated state.
+    //
+    // Auth lane: API key only. gemini's OAuth path is dead on this machine
+    // (free-tier UNSUPPORTED_CLIENT redirect to Antigravity) and the operator's
+    // real ~/.gemini/google_accounts.json forces gemini down that path even
+    // with GEMINI_API_KEY set. The worker therefore must never inherit the
+    // operator's ~/.gemini, so the profile:
+    //   - injects GEMINI_CLI_HOME to a run-scoped isolated root under the DAX
+    //     temp dir (verified live: <root>/.gemini created, real ~/.gemini
+    //     untouched, no OAuth account files). This also ends the previous
+    //     cross-provider collision where the gemini worker had write access to
+    //     antigravity's ~/.gemini/antigravity-cli state.
+    //   - allows GEMINI_API_KEY and denies the other auth selectors. gemini
+    //     picks its lane from env in precedence order GOOGLE_GENAI_USE_GCA ->
+    //     GOOGLE_GENAI_USE_VERTEXAI -> gateway -> GEMINI_API_KEY; an ambient
+    //     Google var must not override the declared lane.
+    // --skip-trust: headless gemini prompts for folder trust on a fresh
+    // checkout dir; bypasses it (verified live).
+    // --approval-mode=yolo: gemini's default (`default`) prompts for approval
+    // on edits/commands; yolo auto-approves. DAX is the outer sandbox and the
+    // human approval gate, so gemini's inner gate is a redundant double gate —
+    // mirrors claude acceptEdits / codex
+    // bypass. Verified live: "YOLO mode is enabled. All tool calls will be
+    // automatically approved."
+    // --output-format text: stable machine-readable output for -p mode.
+    args: (prompt) => ["--skip-trust", "--approval-mode=yolo", "--output-format", "text", "-p", prompt],
+    envAllowlist: ["GEMINI_API_KEY"],
+    // The gemini lane is API-key-only: no GEMINI_API_KEY, no run. Fails fast
+    // before a checkout is created, let alone a worker spawned.
+    requiredEnv: ["GEMINI_API_KEY"],
+    denyEnv: ["GOOGLE_API_KEY", "GOOGLE_GENAI_USE_GCA", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_APPLICATION_CREDENTIALS"],
+    injectEnv: (contract, hostEnv) => ({ GEMINI_CLI_HOME: geminiIsolatedHome(hostEnv, contract.runId) }),
+    stateDirs: (hostEnv, contract) => [geminiIsolatedHome(hostEnv, contract.runId)],
   },
   antigravity: {
     label: "Antigravity CLI",
     binary: "agy",
+    authLane: "oauth (stored Antigravity login)",
     // A disposable checkout is a new AGY project. accept-edits is the narrow
     // noninteractive mode that permits workspace edits while retaining AGY's
     // own approval checks for broader tools. DAX still owns the outer sandbox,
@@ -301,13 +373,7 @@ const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
     ],
     // XPC identity is required for AGY's cached macOS login to remain visible
     // inside Seatbelt. These values are process identity, not credentials.
-    envAllowlist: [
-      "GEMINI_API_KEY",
-      "GOOGLE_API_KEY",
-      "GOOGLE_CLOUD_PROJECT",
-      "XPC_FLAGS",
-      "XPC_SERVICE_NAME",
-    ],
+    envAllowlist: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT", "XPC_FLAGS", "XPC_SERVICE_NAME"],
     stateDirs: (hostEnv) => homeStateDirs(hostEnv, [".gemini/antigravity-cli"]),
   },
 }
@@ -363,10 +429,33 @@ export function buildWorkerEnv(
     const value = hostEnv[name]
     if (value) env[name] = value
   }
+  // The profile defines the auth contract: denied selectors never reach the
+  // worker even if the host env sets them (defense in depth on top of the
+  // allowlist above).
+  for (const name of WORKER_PROFILES[workerId].denyEnv ?? []) {
+    delete env[name]
+  }
+  // Worker-owned environment (isolated state roots keyed by run) is injected
+  // after the host passthrough so it can never be overridden by ambient env.
+  Object.assign(env, WORKER_PROFILES[workerId].injectEnv?.(contract, hostEnv))
   env.DAX_RUN_ID = contract.runId
   if (contract.invocationId) env.DAX_INVOCATION_ID = contract.invocationId
   env.DAX_GOVERNED_WORKER = "1"
   return env
+}
+
+/**
+ * Auth-lane readiness for a worker, before anything is spawned. Returns the
+ * profile-declared env vars that are missing from the host env; empty means
+ * no required environment variable is missing; stored auth is not validated. This is the single contract surface the CLI pre-flight,
+ * the workflow, and the future `dax worker doctor` all consult, so a worker
+ * whose auth lane needs an env var fails fast everywhere it can run.
+ */
+export function missingWorkerAuthEnv(
+  workerId: ExternalWorkerId,
+  hostEnv: Record<string, string | undefined>,
+): string[] {
+  return (WORKER_PROFILES[workerId].requiredEnv ?? []).filter((name) => !hostEnv[name])
 }
 
 export function buildWorkerInvocation(input: {
@@ -431,7 +520,7 @@ export function validateWorkerProcessOutput(
     throw new Error("Antigravity CLI returned a malformed headless result; execution result is not authoritative.")
   }
   if (result.exitCode !== 0 || parsed.data.status !== "SUCCESS") {
-    const detail = parsed.data.status === "SUCCESS" ? result.stderr : parsed.data.error ?? result.stderr
+    const detail = parsed.data.status === "SUCCESS" ? result.stderr : (parsed.data.error ?? result.stderr)
     throw new Error(
       `Antigravity CLI ended with ${parsed.data.status}${detail.trim() ? `: ${detail.trim().slice(0, 2000)}` : "."}`,
     )
@@ -490,7 +579,7 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
         egress: egressPolicy,
         // The CLI's own state dir must be writable at init (verified on
         // Seatbelt). Repo writes stay checkout-confined regardless.
-        writableStatePaths: profile.stateDirs(hostEnv),
+        writableStatePaths: profile.stateDirs(hostEnv, contract),
         timeoutMs: effectiveTimeoutMs,
       }
     },

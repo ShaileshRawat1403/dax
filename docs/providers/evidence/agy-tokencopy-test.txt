@@ -1,0 +1,4 @@
+= auth material isolation test =
+fresh empty HOME + copy of ONLY .gemini/antigravity-cli/antigravity-oauth-token
+command: agy -p 'reply with exactly: TOKENCOPY_OK'
+result: stdout=TOKENCOPY_OK exit=0

@@ -13,6 +13,7 @@ import {
   assertWorkerBinaryAvailable,
   buildProviderInvocation,
   validateWorkerProcessOutput,
+  missingWorkerAuthEnv,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
@@ -70,12 +71,14 @@ export const WorkerProcessResultSchema = z
 export type WorkerProcessResult = z.infer<typeof WorkerProcessResultSchema>
 
 export type WorkerRunEffectsShape = {
-  runConversation: (invocation: WorkerInvocation, cwd: string, contract: WorkerContract, effort?: "low" | "medium" | "high") => Promise<WorkerProcessResult>
-  createCheckout: (repoPath: string, runId: string) => Promise<WorkerCheckout>
-  runWorker: (
+  runConversation: (
     invocation: WorkerInvocation,
     cwd: string,
+    contract: WorkerContract,
+    effort?: "low" | "medium" | "high",
   ) => Promise<WorkerProcessResult>
+  createCheckout: (repoPath: string, runId: string) => Promise<WorkerCheckout>
+  runWorker: (invocation: WorkerInvocation, cwd: string) => Promise<WorkerProcessResult>
   /** Kernel-owned diff and changed paths (including untracked files). */
   computeDiff: (checkoutPath: string) => Promise<WorkerPatch>
   /** DAX-owned verification command runner; injectable for workflow tests. */
@@ -167,9 +170,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     }
     const [content, changedPaths] = await Promise.all([
       new Response(diff.stdout).text(),
-      new Response(paths.stdout)
-        .text()
-        .then((output) => output.split("\0").filter(Boolean)),
+      new Response(paths.stdout).text().then((output) => output.split("\0").filter(Boolean)),
     ])
     return { content, changedPaths }
   },
@@ -247,10 +248,7 @@ export function validateWorkerPatchScope(paths: string[], contract: WorkerContra
       continue
     }
 
-    if (
-      contract.writeScope.length > 0 &&
-      !contract.writeScope.some((pattern) => pathMatchesPattern(path, pattern))
-    ) {
+    if (contract.writeScope.length > 0 && !contract.writeScope.some((pattern) => pathMatchesPattern(path, pattern))) {
       violations.push({ path, kind: "outside_write_scope", patterns: contract.writeScope })
     }
   }
@@ -323,6 +321,16 @@ export class WorkerRunWorkflow {
         this.contract.modelHint,
       )
 
+      // Auth-lane readiness is enforced before any checkout is created or the
+      // worker is spawned: a missing required credential must fail the run
+      // fast rather than execute a worker that can only fail noisily or fall
+      // back to a different lane. Same contract surface as the CLI pre-flight
+      // and the future `dax worker doctor`.
+      const missingAuthEnv = missingWorkerAuthEnv(workerId, process.env)
+      if (missingAuthEnv.length > 0) {
+        throw new Error(`worker ${workerId} is not ready: missing ${missingAuthEnv.join(", ")} — set it and retry`)
+      }
+
       // Scope provenance is part of the receipt. Event ordering is mandatory:
       // an unrecorded contract must never race later evidence or review state.
       await appendEventOnly(this.runId, "contract_refined", {
@@ -354,7 +362,12 @@ export class WorkerRunWorkflow {
 
       const result = WorkerProcessResultSchema.parse(
         this.contract.runtimePolicy?.workerConversation
-          ? await WorkerRunEffects.current.runConversation(invocation, checkout.path, contract, this.contract.runtimePolicy.workerConversation.effort)
+          ? await WorkerRunEffects.current.runConversation(
+              invocation,
+              checkout.path,
+              contract,
+              this.contract.runtimePolicy.workerConversation.effort,
+            )
           : await WorkerRunEffects.current.runWorker(invocation, checkout.path),
       )
       // Recorded before the failure throws below. Isolation and process
@@ -430,7 +443,10 @@ export class WorkerRunWorkflow {
 
       if (this.contract.runtimePolicy?.workerConversation) {
         const after = WorkerPatchSchema.parse(await WorkerRunEffects.current.computeDiff(checkout.path))
-        if (after.content !== patch.content || JSON.stringify(after.changedPaths) !== JSON.stringify(patch.changedPaths)) {
+        if (
+          after.content !== patch.content ||
+          JSON.stringify(after.changedPaths) !== JSON.stringify(patch.changedPaths)
+        ) {
           throw new Error("Verification changed the AGY candidate patch; refusing approval of unverified changes.")
         }
       }

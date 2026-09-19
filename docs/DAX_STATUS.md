@@ -3,7 +3,8 @@
 Codex owns all implementation lanes after Claude's withdrawal on 2026-09-19.
 The [original handover](HANDOVER_CLAUDE_TO_CODEX.md) is preserved verbatim; this
 record supersedes its status and open findings. Work remains on feature branches;
-the maintainer owns integration into `main`.
+the maintainer has authorized Codex to integrate validated branches into `main`
+and delete them after verifying ancestry.
 
 ## Preserved work
 
@@ -38,8 +39,10 @@ gap checks reported CLOSED before being unwrapped; nine other gaps remain record
 Seven initialization regressions now pass, including cross-process contention,
 concurrent retries, exact recovery settings, and corrupt/missing intent rejection.
 The broader authority/recovery selection passed 32 tests before the final added
-cross-process case. Complete pinned-runtime gates and build/install verification
-are next. Preserve the claims pack's `v1.4.0`
+cross-process case. The remaining provider branch is being integrated while retaining the newer
+Antigravity model, process-lifetime, egress, and terminal-result safeguards. Its
+Gemini isolation and worker diagnostics make the candidate version 1.5.0.
+Complete pinned-runtime gates and final build/install verification are next. Preserve the claims pack's `v1.4.0`
 statements; describe newer behavior in a separately versioned update.
 
 This is solo validation, not independent second-model review. The multi-agent
