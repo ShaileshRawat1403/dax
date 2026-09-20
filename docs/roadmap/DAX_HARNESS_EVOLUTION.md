@@ -11,10 +11,18 @@ tags:
   - roadmap
   - runtime
   - governance
-last_reviewed: 2026-08-17
+last_reviewed: 2026-09-20
 ---
 
 # DAX Harness Evolution Roadmap
+
+## Current sprint binding
+
+The [post-v1.5.0 conformance sprint](CONFORMANCE_SPRINT.md) schedules the nine
+verified open gaps with owners, dependencies, and behavioral acceptance criteria.
+It is the immediate plan for those gaps. The workstreams below remain the broader
+proposed direction; the older comparative-research gate does not block correcting
+already evidenced DAX gaps. New research-derived expansion still follows that gate.
 
 ## Purpose
 

@@ -1,10 +1,10 @@
 ---
 title: DAX Roadmap
 archetype: product
-status: superseded
+status: active
 owner: Shailesh Rawat
 maintainer: Shailesh Rawat
-version: 0.1.0
+version: 0.2.0
 tags:
   - dax
   - product
@@ -13,11 +13,33 @@ tags:
 
 # DAX Roadmap
 
-> **Status note**: The releases tracked here (v1.0.9 through v1.2.x) have all
-> shipped; the current version is 1.3.0. Retained as a record of the phase-3
-> roadmap. See `WHAT_IS_DAX.md` "Where DAX Is Heading" for the shipped path.
+Current baseline: **DAX v1.5.0**, released 2026-09-20. The next sprint focuses
+on the nine remaining conformance gaps. The older release plan below is retained
+as historical context.
 
-This roadmap explains the near-term product direction for DAX after the Phase 3 architecture work.
+## Next Sprint — Conformance Closure
+
+Owner: Codex. Status: planned; implementation has not started. All nine gaps are
+in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
+
+| Workstream | Gaps | Intended outcome |
+| --- | --- | --- |
+| Complete event history | 1 | Reconstruct prompt, context, assistant, delegation, and compaction history from durable records. |
+| Shared capability permissions | 4 | Name capabilities, validate their properties, express contract grants, and enforce them consistently across execution paths. |
+| Project scope and governed memory | 4 | Reuse journal machinery, identify event ownership, persist project facts, and connect an authorized memory writer. |
+
+Dependencies determine implementation order: project journaling and grant
+resolution precede memory promotion. Completion requires production behavior and
+regression evidence; a file-existence check is insufficient. Unfinished work stays
+open in the ledger and is explicitly carried forward at sprint review. No release
+number or calendar deadline is committed yet.
+
+The two integrity gaps closed in v1.5.0 remain regression requirements, not new
+backlog items. The historical v1.4.0 claims pack remains frozen.
+
+## Historical Phase-3 Roadmap
+
+The sections below preserve the earlier v1.0.9–v1.2.x product direction.
 
 ## Product Direction
 

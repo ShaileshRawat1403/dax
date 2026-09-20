@@ -6,18 +6,25 @@ record supersedes its status and open findings. Work remains on feature branches
 the maintainer has authorized Codex to integrate validated branches into `main`
 and delete them after verifying ancestry.
 
-## Preserved work
+## Released baseline and next sprint
 
-The protocol, claims pack, toolchain evidence, and provider branch histories are
-merged into the published `chore/dax-handover` candidate. No branch history has
-been discarded. The maintainer authorized integration and deletion of merged
-branches after ancestry checks.
+[DAX v1.5.0](https://github.com/ShaileshRawat1403/dax/releases/tag/v1.5.0) shipped
+from `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`. All six prior local branches were
+integrated into published `main` and deleted after ancestry checks; their five
+remote branches were deleted too. The detached Codex worktree and its artifacts
+were preserved. No branch history was discarded.
 
-The [1.5.0 validation record](tooling/release-1.5.0-validation.md) contains the
-current evidence and release boundaries. The complete local release gates pass
-at `ce8cd25`; Linux, macOS, and Windows CI passed at `a959fa7`. Tagged
-publication is the remaining release step. The earlier missing-file, lint-memory, TUI startup, and Windows setup
-issues have been addressed.
+The [1.5.0 validation record](tooling/release-1.5.0-validation.md) contains local
+and candidate CI evidence. The [tagged release workflow](https://github.com/ShaileshRawat1403/dax/actions/runs/35482265176)
+and [integrated main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35482223816)
+both passed. All eleven published archive digests matched the manifest and
+GitHub asset digests; the published macOS installer was exercised and the local
+1.4.0 executable replaced with 1.5.0.
+
+All nine remaining gaps are scheduled in the
+[next-sprint conformance plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
+[product roadmap](product/ROADMAP.md). Codex owns the work; implementation has not
+started. Closure is measured through production behavior, not structural checks.
 
 ## Evidence corrections
 
@@ -35,7 +42,7 @@ issues have been addressed.
   and the isolated runtime survived. No `bun link` or global runtime change is
   needed. Docker-dependent verification remains unavailable without a daemon.
 
-## Active release scope
+## Shipped v1.5.0 scope
 
 Implemented shared filesystem locking for contract replacement and authority
 establishment, plus recovery from a persisted initialization intent. Both original
@@ -45,9 +52,9 @@ concurrent retries, exact recovery settings, and corrupt/missing intent rejectio
 The broader authority/recovery selection passed 32 tests before the final added
 cross-process case. The provider branch has been integrated while retaining the newer
 Antigravity model, process-lifetime, egress, and terminal-result safeguards. Its
-Gemini isolation and worker diagnostics make the candidate version 1.5.0.
+Gemini isolation and worker diagnostics shipped in version 1.5.0.
 Pinned-runtime gates, host build, installer checks, live CLI, and TUI startup/exit
-checks passed. Hosted CI passed on all three platforms. The tag workflow repeats
+checks passed. Hosted CI passed on all three platforms. The tag workflow repeated
 the gates in release mode before publication. Preserve the claims pack's `v1.4.0`
 statements; describe newer behavior in a separately versioned update.
 
