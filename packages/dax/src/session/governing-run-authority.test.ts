@@ -6,6 +6,7 @@ import z from "zod"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
+import { SessionSummary } from "@/session/summary"
 import { LLM } from "@/session/llm"
 import { Provider } from "@/provider/provider"
 import { MCP } from "@/mcp"
@@ -85,6 +86,7 @@ async function captureChildTools(sessionID: string): Promise<string[]> {
     if (providerID === "openai" && modelID === "gpt-4o") return testModel
     return originalGetModel(providerID, modelID)
   })
+  const summary = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
   const stream = spyOn(LLM, "stream").mockImplementation(async (input: LLM.StreamInput) => {
     tools = Object.keys(input.tools)
     return {
@@ -104,6 +106,7 @@ async function captureChildTools(sessionID: string): Promise<string[]> {
     })
   } finally {
     getModel.mockRestore()
+    summary.mockRestore()
     stream.mockRestore()
   }
   return tools
