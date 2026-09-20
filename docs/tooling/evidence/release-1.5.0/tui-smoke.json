@@ -1,0 +1,9 @@
+{
+  "source_commit": "ce8cd25",
+  "build_note": "same production sources, built before commit; final commit only adds changelog/test cleanup",
+  "home_rendered": true,
+  "normal_exit_code": 0,
+  "elapsed_seconds": 2.49,
+  "coverage": "home startup and Ctrl+C exit only",
+  "binary_sha256": "8a736692f5c962d5eba25cb27fe521f2e1e3eb2e20fe8e38c1e38baba86759ad"
+}

@@ -1,0 +1,9 @@
+{
+  "commit": "ce8cd25985d4d5ab18e2137a5edfb3946652247b",
+  "exit_code": 0,
+  "elapsed_seconds": 168.39,
+  "command": "bun run release:gates",
+  "bun": "1.4.0",
+  "node_options": "--max-old-space-size=4096",
+  "release_mode": false
+}

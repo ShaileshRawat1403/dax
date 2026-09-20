@@ -1,0 +1,11 @@
+bun test v1.4.0 (34cbb9a40)
+
+../../../../private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-rpc-negative-gpofhei6/rpc.test.ts:
+(fail) RPC queues startup requests until a delayed worker installs its handler [1002.62ms]
+  ^ this test timed out after 1000ms.
+(fail) RPC rejects queued and future calls when the worker never becomes ready [1003.71ms]
+  ^ this test timed out after 1000ms.
+
+ 0 pass
+ 2 fail
+Ran 2 tests across 1 file. [2.10s]

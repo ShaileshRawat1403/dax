@@ -8,12 +8,16 @@ and delete them after verifying ancestry.
 
 ## Preserved work
 
-The protocol (`27ef19c`), claims pack (`04a4c25`), toolchain evidence (`921be97`),
-and integrated handover (`08ea614`) are published. The integrated branch is
-`chore/dax-handover`. The discovery fix and its negative control are committed;
-both integrity gaps now have enforcing tests. Typechecks and the four new tests
-passed. Full release gates remain pending; the first attempt stopped at this
-previously missing status file, before any test stage ran.
+The protocol, claims pack, toolchain evidence, and provider branch histories are
+merged into the published `chore/dax-handover` candidate. No branch history has
+been discarded. The maintainer authorized integration and deletion of merged
+branches after ancestry checks.
+
+The [1.5.0 validation record](tooling/release-1.5.0-validation.md) contains the
+current evidence and release boundaries. The complete local release gates pass
+at `ce8cd25`; Linux, macOS, and Windows CI passed at `a959fa7`. Tagged
+publication is the remaining release step. The earlier missing-file, lint-memory, TUI startup, and Windows setup
+issues have been addressed.
 
 ## Evidence corrections
 
@@ -39,10 +43,12 @@ gap checks reported CLOSED before being unwrapped; nine other gaps remain record
 Seven initialization regressions now pass, including cross-process contention,
 concurrent retries, exact recovery settings, and corrupt/missing intent rejection.
 The broader authority/recovery selection passed 32 tests before the final added
-cross-process case. The remaining provider branch is being integrated while retaining the newer
+cross-process case. The provider branch has been integrated while retaining the newer
 Antigravity model, process-lifetime, egress, and terminal-result safeguards. Its
 Gemini isolation and worker diagnostics make the candidate version 1.5.0.
-Complete pinned-runtime gates and final build/install verification are next. Preserve the claims pack's `v1.4.0`
+Pinned-runtime gates, host build, installer checks, live CLI, and TUI startup/exit
+checks passed. Hosted CI passed on all three platforms. The tag workflow repeats
+the gates in release mode before publication. Preserve the claims pack's `v1.4.0`
 statements; describe newer behavior in a separately versioned update.
 
 This is solo validation, not independent second-model review. The multi-agent

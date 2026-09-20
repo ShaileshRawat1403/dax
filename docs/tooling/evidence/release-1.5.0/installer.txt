@@ -1,0 +1,5 @@
+Installed dax to /var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-150-install-0t2tz3ku/bin/dax
+Installed dax-acp to /var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-150-install-0t2tz3ku/bin/dax-acp
+Installed 5 governance sidecar(s) to /var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-150-install-0t2tz3ku/bin
+Add this to your shell profile to use 'dax':
+  export PATH="/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-150-install-0t2tz3ku/bin:$PATH"

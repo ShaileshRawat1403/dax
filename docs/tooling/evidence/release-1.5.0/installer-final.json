@@ -1,0 +1,16 @@
+{
+  "version": "1.5.0",
+  "source_commit": "ce8cd25985d4d5ab18e2137a5edfb3946652247b",
+  "binary_sha256": "8a736692f5c962d5eba25cb27fe521f2e1e3eb2e20fe8e38c1e38baba86759ad",
+  "exit_code": 0,
+  "fixture_assets": true,
+  "installed_binaries": [
+    "dax",
+    "dax-acp",
+    "dax-audit",
+    "dax-core",
+    "dax-indexer",
+    "dax-ledger",
+    "dax-policy"
+  ]
+}

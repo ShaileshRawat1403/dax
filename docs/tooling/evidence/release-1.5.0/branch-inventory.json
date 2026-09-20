@@ -1,0 +1,37 @@
+[
+  {
+    "branch": "chore/codex-bun-toolchain",
+    "commit": "921be97016fa2a19f470a23ac92b9fbd4366726a",
+    "in_candidate": true
+  },
+  {
+    "branch": "chore/codex-collab-validation",
+    "commit": "ccbe62116b39b374dce2aa64166f71caf741426d",
+    "in_candidate": true
+  },
+  {
+    "branch": "chore/dax-handover",
+    "commit": "b32c74eb93215d421e59fd87787fb1ab404ab8b0",
+    "in_candidate": true
+  },
+  {
+    "branch": "docs/agent-collab-protocol",
+    "commit": "27ef19cbdb3f1c0ad56fea2a00c84a4d75d5e526",
+    "in_candidate": true
+  },
+  {
+    "branch": "docs/claims-evidence-pack",
+    "commit": "04a4c25652fa0b529106cb091d7b706e199700a5",
+    "in_candidate": true
+  },
+  {
+    "branch": "feat/antigravity-provider",
+    "commit": "bfb83382c542759a0d3d8ada76a5231d23fcde2f",
+    "in_candidate": true
+  },
+  {
+    "branch": "main",
+    "commit": "f31255b07d646d8d0a44560833bd61ffee6f00d3",
+    "in_candidate": true
+  }
+]
