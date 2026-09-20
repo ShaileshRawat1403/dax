@@ -163,22 +163,26 @@ describe("session /explore command", () => {
         }
       })
     } finally {
-      // Bun 1.4.0 on Windows returned EBUSY immediately despite fs.rm's
-      // maxRetries option. Yield between bounded attempts so released handles
-      // can settle; retain the cleanup failure if the directory stays locked.
-      for (let attempt = 0; ; attempt++) {
-        try {
-          await rm(root, { recursive: true, force: true })
-          break
-        } catch (error) {
-          const code = (error as NodeJS.ErrnoException).code
-          if (attempt >= 50 || (code !== "EBUSY" && code !== "EPERM")) throw error
-          await Bun.sleep(100)
-        }
-      }
+      await removeFixture(root)
     }
   }, 40000)
 })
+
+async function removeFixture(root: string) {
+  // Bun 1.4.0 on Windows returned EBUSY immediately despite fs.rm's
+  // maxRetries option. Yield between bounded attempts so released handles
+  // can settle; retain the cleanup failure if the directory stays locked.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rm(root, { recursive: true, force: true })
+      break
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (attempt >= 50 || (code !== "EBUSY" && code !== "EPERM")) throw error
+      await Bun.sleep(100)
+    }
+  }
+}
 
 async function mkdtemp() {
   const dir = await createTempDirectory(path.join(os.tmpdir(), "dax-explore-session-"))
