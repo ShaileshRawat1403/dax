@@ -60,7 +60,7 @@ const RECORD_CLASSES = [
   {
     id: "delegation",
     why: "Which actor did the work, under whose authority, at what depth.",
-    eventTypes: [],
+    eventTypes: ["delegation_recorded"],
   },
   {
     id: "compaction_replacement",

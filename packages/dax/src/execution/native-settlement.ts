@@ -5,6 +5,7 @@ import {
   getEventAuthorityState,
   recordToolInvocation,
   recordAuthorization,
+  recordDelegation,
   recordToolResult,
   type ToolResultOutcome,
 } from "@/state/events/event-transitions"
@@ -44,7 +45,7 @@ const beginning = new Set<string>()
 
 export class NativeSettlementAppendError extends Error {
   constructor(
-    public readonly stage: "invocation" | "authorization" | "result",
+    public readonly stage: "invocation" | "authorization" | "delegation" | "result",
     public readonly invocationId: string,
     cause: unknown,
   ) {
@@ -315,6 +316,37 @@ export async function settleNativeAuthorization(
 
 export function isNativeInvocationAuthorized(invocationId: string): boolean {
   return Boolean(pending.get(invocationId)?.authorizationEventId)
+}
+
+/**
+ * Durably records which child an authorized task invocation selected. This is
+ * dispatch intent, not evidence that the child model started or completed.
+ * Durable reducer validation under the run lock remains the authority check.
+ */
+export async function recordNativeDelegation(
+  invocationId: string,
+  details: {
+    parentSessionId: string
+    childSessionId: string
+    agent: string
+    mode: "created" | "resumed"
+  },
+): Promise<void> {
+  const state = pending.get(invocationId)
+  if (!state) throw new NativeSettlementStateError(invocationId, "delegation has no pending invocation")
+  if (state.denied) throw new NativeSettlementStateError(invocationId, "delegation authorization was denied")
+  if (!state.authorizationEventId) {
+    throw new NativeSettlementStateError(invocationId, "delegation arrived before durable authorization")
+  }
+  if (state.resultPending) {
+    throw new NativeSettlementStateError(invocationId, "delegation arrived while terminal settlement was pending")
+  }
+
+  try {
+    await recordDelegation(state.authorityRunId, invocationId, state.authorizationEventId, details)
+  } catch (error) {
+    throw new NativeSettlementAppendError("delegation", invocationId, error)
+  }
 }
 
 /**

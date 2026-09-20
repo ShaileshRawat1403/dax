@@ -26,6 +26,12 @@ export type RunState = {
    * compatibility state that has no canonical invocation projection.
    */
   invocations?: Record<string, NativeInvocationRecord>
+  /**
+   * Run-owned provenance for subagent dispatch. `coverage` describes only
+   * whether delegation records can be reconstructed; it makes no claim about
+   * prompt, context, assistant-message, or compaction history.
+   */
+  delegationHistory: DelegationHistory
   pendingApprovalIds: string[]
   /**
    * The approvals this run requested, as the operator saw them. Distinct from
@@ -213,6 +219,29 @@ export type NativeInvocationRecord = Pick<
   approvalIds: string[]
 }
 
+export type DelegationRecord = {
+  invocationId: string
+  parentSessionId: string
+  childSessionId: string
+  agent: string
+  mode: "created" | "resumed"
+  authorizationEventId: string
+  eventId: string
+  recordedAt: string
+}
+
+export type DelegationHistory = {
+  /**
+   * `complete` means every delegation transition visible to this run's
+   * canonical task invocations is recorded. `partial` and `unavailable` are
+   * conservative compatibility results, never inferred child lineage.
+   */
+  coverage: "complete" | "partial" | "unavailable"
+  records: DelegationRecord[]
+  missingInvocationIds: string[]
+  uncapturedCreationSessionIds: string[]
+}
+
 export type DraftRecord = {
   draftId: string
   type: string
@@ -300,6 +329,12 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     currentStepId: null,
     steps: [],
     invocations: {},
+    delegationHistory: {
+      coverage: "complete",
+      records: [],
+      missingInvocationIds: [],
+      uncapturedCreationSessionIds: [],
+    },
     pendingApprovalIds: [],
     approvals: [],
     evidence: { contract: null, sandbox: null, egressDenials: [] },
@@ -463,6 +498,51 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         invocation.authorizationEventId = event.eventId
         invocation.approvalIds = [...payload.approvalIds]
         invocation.status = payload.finalDisposition === "allowed" ? "authorized" : "denied"
+        break
+      }
+
+      case "delegation_recorded": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "delegation_recorded" }>["payload"]
+        const invocation = state.invocations[payload.invocationId]
+        if (!invocation) {
+          throw new Error(`Delegation references unknown invocation: ${payload.invocationId}`)
+        }
+        if (invocation.toolId !== "task") {
+          throw new Error(`Delegation references non-task invocation: ${payload.invocationId}`)
+        }
+        if (event.correlationId !== payload.invocationId) {
+          throw new Error(`Delegation correlation does not match invocation: ${payload.invocationId}`)
+        }
+        if (!invocation.authorizationEventId) {
+          throw new Error(`Delegation has no authorization: ${payload.invocationId}`)
+        }
+        if (event.causationId !== invocation.authorizationEventId) {
+          throw new Error(`Delegation authorization causation does not match invocation: ${payload.invocationId}`)
+        }
+        if (invocation.status !== "authorized") {
+          throw new Error(
+            `Cannot record delegation for invocation ${payload.invocationId} from status ${invocation.status}`,
+          )
+        }
+        if (state.delegationHistory.records.some((record) => record.invocationId === payload.invocationId)) {
+          throw new Error(`Invocation already has a delegation: ${payload.invocationId}`)
+        }
+        if (
+          payload.mode === "created" &&
+          state.delegationHistory.records.some((record) => record.childSessionId === payload.childSessionId)
+        ) {
+          throw new Error(`Delegation cannot invent creation lineage for existing child: ${payload.childSessionId}`)
+        }
+        state.delegationHistory.records.push({
+          invocationId: payload.invocationId,
+          parentSessionId: payload.parentSessionId,
+          childSessionId: payload.childSessionId,
+          agent: payload.agent,
+          mode: payload.mode,
+          authorizationEventId: invocation.authorizationEventId,
+          eventId: event.eventId,
+          recordedAt: event.occurredAt,
+        })
         break
       }
 
@@ -924,6 +1004,39 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       }
     }
   }
+
+  const recordedInvocationIds = new Set(state.delegationHistory.records.map((record) => record.invocationId))
+  state.delegationHistory.missingInvocationIds = Object.values(state.invocations)
+    .filter(
+      (invocation) =>
+        invocation.toolId === "task" &&
+        invocation.status !== "awaiting_authorization" &&
+        invocation.status !== "denied" &&
+        !recordedInvocationIds.has(invocation.invocationId),
+    )
+    .map((invocation) => invocation.invocationId)
+
+  const capturedCreations = new Set(
+    state.delegationHistory.records
+      .filter((record) => record.mode === "created")
+      .map((record) => record.childSessionId),
+  )
+  state.delegationHistory.uncapturedCreationSessionIds = [
+    ...new Set(
+      state.delegationHistory.records
+        .filter((record) => record.mode === "resumed" && !capturedCreations.has(record.childSessionId))
+        .map((record) => record.childSessionId),
+    ),
+  ]
+
+  const incomplete =
+    state.delegationHistory.missingInvocationIds.length > 0 ||
+    state.delegationHistory.uncapturedCreationSessionIds.length > 0
+  state.delegationHistory.coverage = incomplete
+    ? state.delegationHistory.records.length > 0
+      ? "partial"
+      : "unavailable"
+    : "complete"
 
   return state
 }

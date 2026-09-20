@@ -305,6 +305,39 @@ export async function recordAuthorization(
   )
 }
 
+/**
+ * Records authorized subagent dispatch intent after the child session has been
+ * selected, but before its prompt begins. The reducer revalidates the durable
+ * task invocation and authorization under the run lock; callers cannot turn a
+ * process-local decision into delegation authority by supplying ids here.
+ */
+export async function recordDelegation(
+  runId: string,
+  invocationId: string,
+  authorizationEventId: string,
+  details: {
+    parentSessionId: string
+    childSessionId: string
+    agent: string
+    mode: "created" | "resumed"
+  },
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "delegation_recorded",
+    {
+      invocationId,
+      parentSessionId: details.parentSessionId,
+      childSessionId: details.childSessionId,
+      agent: details.agent,
+      mode: details.mode,
+    },
+    `cmd_delegation_${invocationId}`,
+    { correlationId: invocationId, causationId: authorizationEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
 export type ToolResultOutcome =
   | {
       status: "completed"

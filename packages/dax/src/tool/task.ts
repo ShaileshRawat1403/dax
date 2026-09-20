@@ -11,6 +11,8 @@ import { defer } from "@/util/defer"
 import { Config } from "../config/config"
 import { Permission } from "@/governance"
 import { resolveExecutionAuthority } from "@/execution/contract-guardian"
+import { getRunAuthority } from "@/state/events/run-event-store"
+import { recordNativeDelegation } from "@/execution/native-settlement"
 
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
@@ -44,12 +46,14 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
     execute: async (params: z.infer<typeof parameters>, ctx: Tool.Context) => {
       const config = await Config.get()
       const agent = agents.find((a) => a.name === params.subagent_type) || (await Agent.get("general"))
-      const model = (agent && typeof agent !== 'string' && agent.model) || (await Agent.get("general").then(a => a!.model))
+      const model = (agent && typeof agent !== "string" && agent.model) || (await Agent.get("general").then(a => a!.model))
+      const agentName = typeof agent === "string" ? agent : agent!.name
 
       const messageID = Identifier.ascending("message")
       const parentSession = await Session.get(ctx.sessionID)
       const parentAuthority = await resolveExecutionAuthority(parentSession.id, parentSession.governingRunId)
       let session = params.task_id ? await Session.get(params.task_id) : undefined
+      const mode = session ? "resumed" : "created"
 
       // A governed parent may resume only a child already bound to the same
       // immutable contract. Ambiguous historical children are not adopted.
@@ -83,6 +87,22 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
       // after the parent invocation's combined authority is durable.
       session ??= await Session.fork({ sessionID: ctx.sessionID })
 
+      const authorityRunId = parentAuthority.governingRunId ?? parentSession.id
+      if ((await getRunAuthority(authorityRunId)) === "event-log") {
+        if (!ctx.callID) {
+          throw new Error(`Canonical task delegation from ${ctx.sessionID} has no invocation identity`)
+        }
+        // This record proves authorized child selection and dispatch intent.
+        // It deliberately precedes the child prompt, which supplies separate
+        // execution/result evidence and may still fail or be interrupted.
+        await recordNativeDelegation(ctx.callID, {
+          parentSessionId: ctx.sessionID,
+          childSessionId: session.id,
+          agent: agentName,
+          mode,
+        })
+      }
+
       const approved = await Permission.getApproved()
       const hasTaskPermission = approved.some((p) => p.permission === "task" && p.action === "allow")
 
@@ -90,7 +110,7 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
         messageID,
         sessionID: session.id,
         model: model ? model : undefined,
-        agent: typeof agent === 'string' ? agent : agent!.name,
+        agent: agentName,
 
         tools: {
           todowrite: false,

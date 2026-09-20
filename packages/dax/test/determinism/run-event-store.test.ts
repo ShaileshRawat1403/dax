@@ -10,12 +10,17 @@ import {
   getRunAuthority,
   hasRunEvents,
   clearRunEvents,
+  DuplicateCommandError,
   StaleAppendError,
 } from "../../src/state/events/run-event-store"
 import { reduceRunState } from "../../src/state/events/run-reducer"
 import {
   appendEventOnly,
   createEventAuthorityRun,
+  recordAuthorization,
+  recordDelegation,
+  recordToolInvocation,
+  recordToolResult,
   transitionEventAuthority,
 } from "../../src/state/events/event-transitions"
 
@@ -320,6 +325,97 @@ describe("run-event-store", () => {
 
         const authority = await getRunAuthority(runId)
         expect(authority).toBe("legacy")
+      })
+    })
+  })
+
+  describe("delegation append authority", () => {
+    const input = {
+      basis: "validated_tool_input" as const,
+      canonicalization: "sorted-json-v1" as const,
+      digest: `sha256:${"a".repeat(64)}`,
+      redactedPreview: '{"subagent_type":"general"}',
+      truncated: false,
+    }
+
+    async function authorizeTask(runId: string, contractId: string, invocationId: string) {
+      await recordToolInvocation(runId, invocationId, {
+        toolId: "task",
+        input,
+        contractId,
+        executor: { kind: "builtin", id: "task" },
+      })
+      const state = await recordAuthorization(runId, invocationId, {
+        finalDisposition: "allowed",
+        contractDisposition: "allowed",
+        runtimeGuardDisposition: "allowed",
+        permissionDisposition: "allowed",
+        approvalIds: [],
+        reasonCodes: [],
+      })
+      return state.invocations?.[invocationId]?.authorizationEventId ?? ""
+    }
+
+    test("validates delegation uniqueness and settlement under the run lock", async () => {
+      const runId = `test-run-${Date.now()}-delegation-lock`
+      const contractId = "contract-delegation-lock"
+      const { bootstrap } = await import("../../src/cli/bootstrap")
+      await bootstrap(path.resolve(import.meta.dir, "../../.."), async () => {
+        await createEventAuthorityRun(runId, contractId)
+        const authorizationEventId = await authorizeTask(runId, contractId, "inv_delegation")
+        expect(authorizationEventId).not.toBe("")
+
+        await recordDelegation(runId, "inv_delegation", authorizationEventId, {
+          parentSessionId: "ses_parent",
+          childSessionId: "ses_child",
+          agent: "general",
+          mode: "created",
+        })
+        const lengthAfterRecord = (await readRunEvents(runId)).length
+
+        await expect(
+          recordDelegation(runId, "inv_delegation", authorizationEventId, {
+            parentSessionId: "ses_parent",
+            childSessionId: "ses_other_child",
+            agent: "general",
+            mode: "created",
+          }),
+        ).rejects.toBeInstanceOf(DuplicateCommandError)
+        expect(await readRunEvents(runId)).toHaveLength(lengthAfterRecord)
+
+        await expect(
+          appendEventOnly(
+            runId,
+            "delegation_recorded",
+            {
+              invocationId: "inv_delegation",
+              parentSessionId: "ses_parent",
+              childSessionId: "ses_third_child",
+              agent: "general",
+              mode: "created",
+            },
+            "cmd_different_identity",
+            { correlationId: "inv_delegation", causationId: authorizationEventId },
+            { rejectDuplicateCommand: true },
+          ),
+        ).rejects.toThrow(/already has a delegation/)
+        expect(await readRunEvents(runId)).toHaveLength(lengthAfterRecord)
+
+        const settledAuthorization = await authorizeTask(runId, contractId, "inv_settled_task")
+        await recordToolResult(runId, "inv_settled_task", settledAuthorization, {
+          status: "failed",
+          failure: { code: "interrupted", message: "child did not start", retryable: false },
+        })
+        const lengthAfterSettlement = (await readRunEvents(runId)).length
+        await expect(
+          recordDelegation(runId, "inv_settled_task", settledAuthorization, {
+            parentSessionId: "ses_parent",
+            childSessionId: "ses_late_child",
+            agent: "general",
+            mode: "created",
+          }),
+        ).rejects.toThrow(/status failed/)
+        expect(await readRunEvents(runId)).toHaveLength(lengthAfterSettlement)
       })
     })
   })

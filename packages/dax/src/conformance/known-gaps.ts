@@ -26,7 +26,7 @@
 
 export const KNOWN_GAPS = {
   "inv1.record-classes":
-    "Prompt, context, assistant message, delegation and compaction replacement have no durable event representation (6 of 11 classes covered)",
+    "Prompt, context, assistant message and compaction replacement have no durable event representation (7 of 11 classes covered)",
   "inv5.capability-vocabulary": "No capability registry exists; capabilities are still separate architectural categories",
   "inv5.capability-properties": "Capabilities do not declare intrinsic properties distinct from contract authority",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",

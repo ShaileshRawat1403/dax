@@ -122,6 +122,7 @@ async function appendRunEventUnderLock(input: {
     event.type === "approval_resolved" ||
     event.type === "tool_invocation_recorded" ||
     event.type === "authorization_recorded" ||
+    event.type === "delegation_recorded" ||
     event.type === "tool_result_recorded" ||
     event.type === "mutation_recorded"
   ) {
@@ -227,6 +228,12 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
       ...legacyState,
       draft: null,
       invocations: {},
+      delegationHistory: {
+        coverage: "unavailable",
+        records: [],
+        missingInvocationIds: [],
+        uncapturedCreationSessionIds: [],
+      },
     } as RunState
   }
 

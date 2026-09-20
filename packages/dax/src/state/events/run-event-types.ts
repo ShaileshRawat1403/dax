@@ -180,6 +180,22 @@ const ToolResultRecordedPayloadSchema = z.discriminatedUnion("status", [
   }),
 ])
 
+const DelegationRecordedPayloadSchema = closed({
+  invocationId: z.string().min(1),
+  parentSessionId: z.string().min(1),
+  childSessionId: z.string().min(1),
+  agent: z.string().min(1),
+  mode: z.enum(["created", "resumed"]),
+}).superRefine((payload, ctx) => {
+  if (payload.parentSessionId === payload.childSessionId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["childSessionId"],
+      message: "must differ from parentSessionId",
+    })
+  }
+})
+
 /**
  * The closed canonical event vocabulary and each event's durable payload are
  * one runtime contract. This is deliberately the source of truth for both
@@ -199,6 +215,7 @@ const RunEventVariants = [
   z.object({ type: z.literal("workflow_started"), payload: z.object({}).strict() }),
   z.object({ type: z.literal("tool_invocation_recorded"), payload: ToolInvocationRecordedPayloadSchema }),
   z.object({ type: z.literal("authorization_recorded"), payload: AuthorizationRecordedPayloadSchema }),
+  z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
   z.object({ type: z.literal("tool_result_recorded"), payload: ToolResultRecordedPayloadSchema }),
   z.object({
     type: z.literal("approval_requested"),
@@ -389,7 +406,11 @@ export const RunEventEnvelopeSchema = z
   .strict()
   .and(RunEventPayloadSchema)
   .superRefine((event, ctx) => {
-    if (event.type === "authorization_recorded" || event.type === "tool_result_recorded") {
+    if (
+      event.type === "authorization_recorded" ||
+      event.type === "delegation_recorded" ||
+      event.type === "tool_result_recorded"
+    ) {
       if (event.correlationId !== event.payload.invocationId) {
         ctx.addIssue({
           code: "custom",
@@ -398,11 +419,11 @@ export const RunEventEnvelopeSchema = z
         })
       }
     }
-    if (event.type === "tool_result_recorded" && !event.causationId) {
+    if ((event.type === "delegation_recorded" || event.type === "tool_result_recorded") && !event.causationId) {
       ctx.addIssue({
         code: "custom",
         path: ["causationId"],
-        message: "must reference the allowed authorization event",
+        message: `must reference the allowed authorization event for ${event.type}`,
       })
     }
   })
