@@ -1,7 +1,8 @@
 # Next sprint: close the remaining conformance gaps
 
 Status: planned; implementation has not started. Recorded 2026-09-20 at the
-maintainer's request. Owner: Codex. Baseline: DAX v1.5.0, commit
+maintainer's request. Implementation model: to be selected next session.
+Reviewer: Astra 6, high reasoning. Baseline: DAX v1.5.0, commit
 `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`.
 
 The sprint backlog contains all nine entries in the
@@ -11,6 +12,21 @@ permissions, and governed project memory. No release number or completion date
 is assigned. Nine entries are the target scope, not an estimate that all nine
 will fit in one sprint; unfinished entries remain open and are carried forward
 explicitly at sprint review.
+
+## Next-session handoff
+
+The current session completes planning only. The maintainer will select a suitable
+implementation model next session; do not begin runtime work as part of this
+roadmap task. Reserve Astra 6 high for review of the proposed design, code diff,
+and validation evidence rather than routine implementation.
+
+The implementation model should read this plan, the gap ledger, and the relevant
+conformance tests, then take one bounded item on a feature branch. Its review
+handoff must pin the source commit, state the acceptance criteria covered, include
+commands/results and negative controls, and identify any remaining limitations.
+The reviewer independently checks those claims against the exact artifact and
+version. Model selection alone does not make a review independent; record who
+implemented and who reviewed, and follow the SOP when a second agent is active.
 
 ## Work order
 

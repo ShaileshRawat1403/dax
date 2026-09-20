@@ -1,6 +1,8 @@
 # DAX current ownership and release work
 
-Codex owns all implementation lanes after Claude's withdrawal on 2026-09-19.
+Codex retains DAX ownership after Claude's withdrawal on 2026-09-19. For the next
+sprint, the maintainer will select an implementation model in the next session;
+Astra 6 high is reserved for review. No implementation starts in this planning session.
 The [original handover](HANDOVER_CLAUDE_TO_CODEX.md) is preserved verbatim; this
 record supersedes its status and open findings. Work remains on feature branches;
 the maintainer has authorized Codex to integrate validated branches into `main`
@@ -23,8 +25,8 @@ GitHub asset digests; the published macOS installer was exercised and the local
 
 All nine remaining gaps are scheduled in the
 [next-sprint conformance plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
-[product roadmap](product/ROADMAP.md). Codex owns the work; implementation has not
-started. Closure is measured through production behavior, not structural checks.
+[product roadmap](product/ROADMAP.md). The next-session implementation/reviewer split is recorded there; implementation
+has not started. Closure is measured through production behavior, not structural checks.
 
 ## Evidence corrections
 

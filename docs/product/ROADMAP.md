@@ -19,7 +19,8 @@ as historical context.
 
 ## Next Sprint — Conformance Closure
 
-Owner: Codex. Status: planned; implementation has not started. All nine gaps are
+Implementation model: selected next session. Reviewer: Astra 6 high.
+Status: planned; implementation has not started. All nine gaps are
 in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
 
 | Workstream | Gaps | Intended outcome |
