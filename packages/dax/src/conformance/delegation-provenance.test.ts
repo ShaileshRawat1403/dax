@@ -9,11 +9,14 @@ import { SessionSummary } from "@/session/summary"
 import { LLM } from "@/session/llm"
 import { Provider } from "@/provider/provider"
 import { TaskTool } from "@/tool/task"
+import { Permission } from "@/governance"
+import { Storage } from "@/storage/storage"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import {
   beginNativeInvocation,
   completeNativeAuthorization,
+  denyNativeAuthorization,
   discardNativeSettlement,
   noteNativePolicyDecision,
   recordNativeDelegation,
@@ -354,6 +357,158 @@ describe("production delegation provenance", () => {
     })
   }, 30_000)
 
+  test("denied real TaskTool dispatch creates no child, delegation record, or child model call", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        const invocationId = "call_denied_task"
+        await beginNativeInvocation({
+          sessionID: root.id,
+          invocationId,
+          toolId: "task",
+          executor: { kind: "builtin", id: "task" },
+          args: { description: "deny child", prompt: "must not run", subagent_type: "general" },
+          originTurnId: "msg_denied_task",
+        })
+
+        const sessionsBefore = await Array.fromAsync(Session.list()).then((sessions) =>
+          sessions.map((session) => session.id),
+        )
+        let childModelCalls = 0
+        const stream = spyOn(LLM, "stream").mockImplementation(async () => {
+          childModelCalls++
+          return modelText("must not run")
+        })
+        const task = await TaskTool.init()
+        try {
+          let denialError: unknown
+          try {
+            await task.execute(
+              { description: "deny child", prompt: "must not run", subagent_type: "general" },
+              {
+                sessionID: root.id,
+                messageID: "msg_denied_task",
+                callID: invocationId,
+                agent: "build",
+                abort: new AbortController().signal,
+                messages: [],
+                metadata() {},
+                async ask() {
+                  await denyNativeAuthorization(invocationId, {
+                    finalDisposition: "denied",
+                    runtimeGuardDisposition: "allowed",
+                    permissionDisposition: "denied",
+                    approvalIds: [],
+                    reasonCodes: ["permission_denied"],
+                  })
+                  throw new Permission.RejectedError()
+                },
+                async authorize() {
+                  throw new Error("authorization must not run after denial")
+                },
+              },
+            )
+          } catch (error) {
+            denialError = error
+          }
+          expect(denialError).toBeInstanceOf(Permission.RejectedError)
+
+          const sessionsAfter = await Array.fromAsync(Session.list()).then((sessions) =>
+            sessions.map((session) => session.id),
+          )
+          const events = await readRunEvents(root.id)
+          expect(sessionsAfter).toEqual(sessionsBefore)
+          expect(childModelCalls).toBe(0)
+          expect(events.filter((event) => event.type === "delegation_recorded")).toHaveLength(0)
+          expect(
+            events.find((event) => event.type === "authorization_recorded" && event.correlationId === invocationId),
+          ).toMatchObject({ payload: { finalDisposition: "denied" } })
+        } finally {
+          discardNativeSettlement(invocationId)
+          stream.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("delegation persistence failure prevents the real TaskTool child model call", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        const invocationId = "call_delegation_io_failure"
+        await beginNativeInvocation({
+          sessionID: root.id,
+          invocationId,
+          toolId: "task",
+          executor: { kind: "builtin", id: "task" },
+          args: { description: "fail persistence", prompt: "must not run", subagent_type: "general" },
+          originTurnId: "msg_delegation_io_failure",
+        })
+
+        const sessionsBefore = await Array.fromAsync(Session.list()).then((sessions) =>
+          sessions.map((session) => session.id),
+        )
+        let childModelCalls = 0
+        const stream = spyOn(LLM, "stream").mockImplementation(async () => {
+          childModelCalls++
+          return modelText("must not run")
+        })
+        let renameFailure: { mockRestore(): void } | undefined
+        const task = await TaskTool.init()
+        try {
+          let persistenceError: unknown
+          try {
+            await task.execute(
+              { description: "fail persistence", prompt: "must not run", subagent_type: "general" },
+              {
+                sessionID: root.id,
+                messageID: "msg_delegation_io_failure",
+                callID: invocationId,
+                agent: "build",
+                abort: new AbortController().signal,
+                messages: [],
+                metadata() {},
+                async ask() {
+                  noteNativePolicyDecision(invocationId, {
+                    finalDisposition: "allowed",
+                    runtimeGuardDisposition: "allowed",
+                    permissionDisposition: "allowed",
+                    approvalIds: [],
+                    reasonCodes: [],
+                  })
+                },
+                async authorize() {
+                  await completeNativeAuthorization(invocationId)
+                  renameFailure = spyOn(Storage, "rename").mockRejectedValue(
+                    new Error("forced delegation persistence failure"),
+                  )
+                },
+              },
+            )
+          } catch (error) {
+            persistenceError = error
+          }
+          expect(String(persistenceError)).toMatch(
+            /Failed to durably record delegation.*forced delegation persistence failure/,
+          )
+
+          const sessionsAfter = await Array.fromAsync(Session.list()).then((sessions) =>
+            sessions.map((session) => session.id),
+          )
+          expect(sessionsAfter).toHaveLength(sessionsBefore.length + 1)
+          expect(childModelCalls).toBe(0)
+          expect((await readRunEvents(root.id)).filter((event) => event.type === "delegation_recorded")).toHaveLength(0)
+        } finally {
+          renameFailure?.mockRestore()
+          discardNativeSettlement(invocationId)
+          stream.mockRestore()
+        }
+      },
+    })
+  })
+
   test("duplicate durable delegation fails closed before a second child prompt", async () => {
     await Instance.provide({
       directory: testProject,
@@ -466,7 +621,7 @@ describe("production delegation provenance", () => {
     })
   })
 
-  test("authorized append without child execution remains an unsettled dispatch record", async () => {
+  test("production TaskTool interruption after append replays without child re-execution", async () => {
     await Instance.provide({
       directory: testProject,
       async fn() {
@@ -478,32 +633,77 @@ describe("production delegation provenance", () => {
           toolId: "task",
           executor: { kind: "builtin", id: "task" },
           args: { description: "interrupt", prompt: "interrupt", subagent_type: "general" },
+          originTurnId: "msg_interrupted_after_delegation",
         })
-        noteNativePolicyDecision(invocationId, {
-          finalDisposition: "allowed",
-          runtimeGuardDisposition: "allowed",
-          permissionDisposition: "allowed",
-          approvalIds: [],
-          reasonCodes: [],
-        })
-        await completeNativeAuthorization(invocationId)
-        await recordNativeDelegation(invocationId, {
-          parentSessionId: root.id,
-          childSessionId: "ses_selected_not_started",
-          agent: "general",
-          mode: "created",
-        })
-        discardNativeSettlement(invocationId)
 
-        const replayed = await projectRunStateFromEvents(root.id)
-        expect(replayed?.invocations[invocationId]).toMatchObject({
-          status: "authorized",
-          resultEventId: null,
+        let childPromptAttempts = 0
+        let childModelCalls = 0
+        let selectedChildId = ""
+        const stream = spyOn(LLM, "stream").mockImplementation(async () => {
+          childModelCalls++
+          return modelText("must not run")
         })
-        expect(replayed?.delegationHistory).toMatchObject({
-          coverage: "complete",
-          records: [{ invocationId, childSessionId: "ses_selected_not_started" }],
-        })
+        const interruptAfterAppend = (async (input: Parameters<typeof SessionPrompt.prompt>[0]) => {
+          childPromptAttempts++
+          selectedChildId = input.sessionID
+          expect(
+            (await readRunEvents(root.id)).find(
+              (event) => event.type === "delegation_recorded" && event.correlationId === invocationId,
+            ),
+          ).toMatchObject({ payload: { childSessionId: input.sessionID } })
+          throw new Error("interrupted immediately after delegation append")
+        }) as unknown as typeof SessionPrompt.prompt
+        const prompt = spyOn(SessionPrompt, "prompt").mockImplementation(interruptAfterAppend)
+        const task = await TaskTool.init()
+        try {
+          let interruptionError: unknown
+          try {
+            await task.execute(
+              { description: "interrupt", prompt: "interrupt", subagent_type: "general" },
+              {
+                sessionID: root.id,
+                messageID: "msg_interrupted_after_delegation",
+                callID: invocationId,
+                agent: "build",
+                abort: new AbortController().signal,
+                messages: [],
+                metadata() {},
+                async ask() {
+                  noteNativePolicyDecision(invocationId, {
+                    finalDisposition: "allowed",
+                    runtimeGuardDisposition: "allowed",
+                    permissionDisposition: "allowed",
+                    approvalIds: [],
+                    reasonCodes: [],
+                  })
+                },
+                async authorize() {
+                  await completeNativeAuthorization(invocationId)
+                },
+              },
+            )
+          } catch (error) {
+            interruptionError = error
+          }
+          expect(String(interruptionError)).toContain("interrupted immediately after delegation append")
+          discardNativeSettlement(invocationId)
+
+          const replayed = await projectRunStateFromEvents(root.id)
+          expect(replayed?.invocations[invocationId]).toMatchObject({
+            status: "authorized",
+            resultEventId: null,
+          })
+          expect(replayed?.delegationHistory).toMatchObject({
+            coverage: "complete",
+            records: [{ invocationId, childSessionId: selectedChildId }],
+          })
+          expect(childPromptAttempts).toBe(1)
+          expect(childModelCalls).toBe(0)
+        } finally {
+          discardNativeSettlement(invocationId)
+          prompt.mockRestore()
+          stream.mockRestore()
+        }
       },
     })
   })
