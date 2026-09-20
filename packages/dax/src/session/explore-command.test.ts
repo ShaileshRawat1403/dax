@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test"
 import os from "os"
 import path from "path"
-import { rm } from "node:fs/promises"
+import { mkdtemp as createTempDirectory, mkdir, rm } from "node:fs/promises"
 import { bootstrap } from "../cli/bootstrap"
 import * as Intent from "../intent/interpret"
 import * as Planner from "../planner/planner"
@@ -163,16 +163,26 @@ describe("session /explore command", () => {
         }
       })
     } finally {
-      await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      // Bun 1.4.0 on Windows returned EBUSY immediately despite fs.rm's
+      // maxRetries option. Yield between bounded attempts so released handles
+      // can settle; retain the cleanup failure if the directory stays locked.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await rm(root, { recursive: true, force: true })
+          break
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code
+          if (attempt >= 50 || (code !== "EBUSY" && code !== "EPERM")) throw error
+          await Bun.sleep(100)
+        }
+      }
     }
   }, 40000)
 })
 
 async function mkdtemp() {
-  const root = await Bun.$`mktemp -d ${path.join(os.tmpdir(), "dax-explore-session-XXXXXX")}`.text()
-  const dir = root.trim()
-  await Bun.$`mkdir -p ${path.join(dir, "src")}`.quiet()
-  await Bun.$`mkdir -p ${path.join(dir, "bin")}`.quiet()
+  const dir = await createTempDirectory(path.join(os.tmpdir(), "dax-explore-session-"))
+  await Promise.all([mkdir(path.join(dir, "src")), mkdir(path.join(dir, "bin"))])
 
   await Bun.write(
     path.join(dir, "package.json"),
