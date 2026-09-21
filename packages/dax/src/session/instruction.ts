@@ -7,6 +7,8 @@ import { Instance } from "../project/instance"
 import { Flag } from "@/flag/flag"
 import { Log } from "../util/log"
 import type { MessageV2 } from "./message-v2"
+import { createHash } from "node:crypto"
+import type { PromptInstructionSourceKind } from "@/execution/prompt-provenance"
 
 const log = Log.create({ service: "instruction" })
 
@@ -147,7 +149,27 @@ export namespace InstructionPrompt {
     return paths
   }
 
-  export async function system() {
+  export type SystemContribution = {
+    text: string
+    source: { kind: Extract<PromptInstructionSourceKind, "instruction_file" | "instruction_url">; reference: string }
+  }
+
+  function privateLocatorReference(prefix: string, locator: string): string {
+    const digest = createHash("sha256").update(locator, "utf8").digest("hex")
+    return `${prefix}:sha256:${digest}`
+  }
+
+  function fileReference(filepath: string): string {
+    if (Filesystem.contains(Instance.worktree, filepath)) {
+      return `project:${path.relative(Instance.worktree, filepath).replaceAll("\\", "/")}`
+    }
+    if (Filesystem.contains(Global.Path.config, filepath)) {
+      return `dax-config:${path.relative(Global.Path.config, filepath).replaceAll("\\", "/")}`
+    }
+    return privateLocatorReference("external-file", filepath)
+  }
+
+  export async function systemContributions(): Promise<SystemContribution[]> {
     const config = await Config.get()
     const paths = await systemPaths()
     const urlAllowlist = Array.from(
@@ -160,7 +182,12 @@ export namespace InstructionPrompt {
         const content = await Bun.file(p)
           .text()
           .catch(() => "")
-        return content ? "Instructions from: " + p + "\n" + truncateInstruction(p, content) : ""
+        return content
+          ? {
+              text: "Instructions from: " + p + "\n" + truncateInstruction(p, content),
+              source: { kind: "instruction_file" as const, reference: fileReference(p) },
+            }
+          : null
       })
 
     const urls = new Set<string>()
@@ -181,10 +208,23 @@ export namespace InstructionPrompt {
         fetch(url, { signal: AbortSignal.timeout(5000) })
           .then((res) => (res.ok ? res.text() : ""))
           .catch(() => "")
-          .then((x) => (x ? "Instructions from: " + url + "\n" + truncateInstruction(url, x) : "")),
+          .then((x) =>
+            x
+              ? {
+                  text: "Instructions from: " + url + "\n" + truncateInstruction(url, x),
+                  source: { kind: "instruction_url" as const, reference: privateLocatorReference("url", url) },
+                }
+              : null,
+          ),
       )
 
-    return Promise.all([...files, ...fetches]).then((result) => result.filter(Boolean))
+    return Promise.all([...files, ...fetches]).then((result) =>
+      result.flatMap((item) => (item ? [item as SystemContribution] : [])),
+    )
+  }
+
+  export async function system() {
+    return (await systemContributions()).map((contribution) => contribution.text)
   }
 
   export function loaded(messages: MessageV2.WithParts[]) {

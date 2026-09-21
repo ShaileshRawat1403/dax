@@ -34,6 +34,8 @@ export type RunState = {
   delegationHistory: DelegationHistory
   /** Durable, commitment-only provenance for SessionProcessor assistant output. */
   assistantHistory: AssistantHistory
+  /** Durable commitments for DAX-generated instructions at the provider-adapter boundary. */
+  promptHistory: PromptHistory
   pendingApprovalIds: string[]
   /**
    * The approvals this run requested, as the operator saw them. Distinct from
@@ -274,6 +276,7 @@ export type AssistantMessageRecord = {
         mode: "created" | "resumed"
       }
   openedEventId: string
+  openedSeq: number
   openedAt: string
   settlement: {
     status: "completed" | "failed" | "cancelled"
@@ -301,6 +304,10 @@ export type AssistantMessageRecord = {
     }
     reasoningPartCount: number
     reasoningUtf8Bytes: number
+    promptDispatch?: {
+      count: number
+      finalEventId: string | null
+    }
     eventId: string
     settledAt: string
   } | null
@@ -323,6 +330,34 @@ export type AssistantHistory = {
   sessions: AssistantSessionCoverage[]
   messages: AssistantMessageRecord[]
   unsettledMessageIds: string[]
+}
+
+type PromptContributionPayload = Extract<RunEventPayload, { type: "prompt_contribution_recorded" }>["payload"]
+
+export type PromptDispatchRecord = Omit<PromptContributionPayload, "commitment"> & {
+  commitment: PromptContributionPayload["commitment"]
+  eventId: string
+  recordedAt: string
+}
+
+export type PromptSessionCoverage = {
+  sessionId: string
+  coverage: "complete" | "partial" | "unavailable"
+  markerEventId: string | null
+  markerSeq: number | null
+  priorScopeHistory: "none" | "unavailable" | null
+  copiedHistory: "none" | "excluded" | null
+  sourceSessionId?: string
+  cutoverMessageId?: string
+}
+
+export type PromptHistory = {
+  scope: "session_processor_instructions_v1"
+  /** Aggregate over the declared SessionProcessor instruction producer only. */
+  coverage: "complete" | "partial" | "unavailable"
+  sessions: PromptSessionCoverage[]
+  dispatches: PromptDispatchRecord[]
+  missingMessageIds: string[]
 }
 
 export type DraftRecord = {
@@ -424,6 +459,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       sessions: [],
       messages: [],
       unsettledMessageIds: [],
+    },
+    promptHistory: {
+      scope: "session_processor_instructions_v1",
+      coverage: "unavailable",
+      sessions: [],
+      dispatches: [],
+      missingMessageIds: [],
     },
     pendingApprovalIds: [],
     approvals: [],
@@ -743,6 +785,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             summary: payload.summary,
             source: payload.source,
             openedEventId: event.eventId,
+            openedSeq: event.seq,
             openedAt: event.occurredAt,
             settlement: null,
           })
@@ -758,6 +801,34 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (event.causationId !== message.openedEventId) {
           throw new Error(`Assistant settlement must be caused by its open event: ${payload.messageId}`)
         }
+        const promptMarker = state.promptHistory.sessions.find(
+          (candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId,
+        )
+        const promptEnrolled = Boolean(
+          promptMarker &&
+            (promptMarker.cutoverMessageId === payload.messageId ||
+              (promptMarker.markerSeq !== null && message.openedSeq > promptMarker.markerSeq)),
+        )
+        const promptDispatches = state.promptHistory.dispatches.filter(
+          (dispatch) => dispatch.messageId === payload.messageId,
+        )
+        if (promptEnrolled) {
+          if (!payload.promptDispatch) {
+            throw new Error(`Assistant settlement is missing prompt dispatch binding: ${payload.messageId}`)
+          }
+          if (payload.promptDispatch.count !== promptDispatches.length) {
+            throw new Error(`Assistant settlement prompt dispatch count does not match: ${payload.messageId}`)
+          }
+          const finalDispatch = promptDispatches.at(-1)?.eventId ?? null
+          if (payload.promptDispatch.finalEventId !== finalDispatch) {
+            throw new Error(`Assistant settlement final prompt dispatch does not match: ${payload.messageId}`)
+          }
+          if (payload.status === "completed" && promptDispatches.length === 0) {
+            throw new Error(`Completed assistant message has no prompt dispatch: ${payload.messageId}`)
+          }
+        } else if (payload.promptDispatch) {
+          throw new Error(`Assistant settlement cannot claim unenrolled prompt dispatches: ${payload.messageId}`)
+        }
         message.settlement = {
           status: payload.status,
           ...(payload.finishReason ? { finishReason: payload.finishReason } : {}),
@@ -767,9 +838,105 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           text: payload.text,
           reasoningPartCount: payload.reasoningPartCount,
           reasoningUtf8Bytes: payload.reasoningUtf8Bytes,
+          ...(payload.promptDispatch ? { promptDispatch: payload.promptDispatch } : {}),
           eventId: event.eventId,
           settledAt: event.occurredAt,
         }
+        break
+      }
+
+      case "prompt_recording_started": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "prompt_recording_started" }>["payload"]
+        if (isTerminalStatus(state.status)) {
+          throw new Error(`Cannot start prompt recording for ${payload.sessionId} after run settlement`)
+        }
+        if (event.correlationId !== payload.sessionId) {
+          throw new Error(`Prompt coverage marker correlation does not match session: ${payload.sessionId}`)
+        }
+        if (state.promptHistory.sessions.some((candidate) => candidate.sessionId === payload.sessionId)) {
+          throw new Error(`Prompt coverage marker already exists for session: ${payload.sessionId}`)
+        }
+        const message = state.assistantHistory.messages.find(
+          (candidate) => candidate.messageId === payload.cutoverMessageId,
+        )
+        if (!message || message.sessionId !== payload.sessionId) {
+          throw new Error(`Prompt coverage marker cutover must identify an opened assistant message`)
+        }
+        if (message.settlement) {
+          throw new Error(`Prompt coverage cannot enroll settled message: ${payload.cutoverMessageId}`)
+        }
+        if (event.causationId !== message.openedEventId) {
+          throw new Error(`Prompt coverage marker must be caused by its cutover assistant message`)
+        }
+        const knownPrior = state.assistantHistory.messages.some(
+          (candidate) => candidate.sessionId === payload.sessionId && candidate.openedSeq < message.openedSeq,
+        )
+        if (knownPrior && payload.priorScopeHistory === "none") {
+          throw new Error(`Prompt coverage marker cannot declare known prior history absent: ${payload.sessionId}`)
+        }
+        const assistantSession = state.assistantHistory.sessions.find(
+          (candidate) => candidate.sessionId === payload.sessionId,
+        )
+        if (payload.copiedHistory === "excluded") {
+          if (!assistantSession?.sourceSessionId || assistantSession.sourceSessionId !== payload.sourceSessionId) {
+            throw new Error(`Prompt copied-history source does not match assistant session lineage`)
+          }
+        }
+        state.promptHistory.sessions.push({
+          sessionId: payload.sessionId,
+          coverage: payload.priorScopeHistory === "none" ? "complete" : "partial",
+          markerEventId: event.eventId,
+          markerSeq: event.seq,
+          priorScopeHistory: payload.priorScopeHistory,
+          copiedHistory: payload.copiedHistory,
+          ...(payload.sourceSessionId ? { sourceSessionId: payload.sourceSessionId } : {}),
+          cutoverMessageId: payload.cutoverMessageId,
+        })
+        break
+      }
+
+      case "prompt_contribution_recorded": {
+        const payload = event.payload as PromptContributionPayload
+        if (isTerminalStatus(state.status)) {
+          throw new Error(`Cannot record prompt contribution after run settlement: ${payload.messageId}`)
+        }
+        if (event.correlationId !== payload.messageId) {
+          throw new Error(`Prompt contribution correlation does not match message: ${payload.messageId}`)
+        }
+        const message = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.messageId)
+        if (!message) throw new Error(`Prompt contribution references unopened assistant message: ${payload.messageId}`)
+        if (message.settlement) throw new Error(`Prompt contribution references settled assistant message: ${payload.messageId}`)
+        if (
+          message.sessionId !== payload.sessionId ||
+          message.providerId !== payload.providerId ||
+          message.modelId !== payload.modelId
+        ) {
+          throw new Error(`Prompt contribution identity does not match opened assistant message: ${payload.messageId}`)
+        }
+        if (event.causationId !== message.openedEventId) {
+          throw new Error(`Prompt contribution must be caused by its assistant open event: ${payload.messageId}`)
+        }
+        const marker = state.promptHistory.sessions.find(
+          (candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId,
+        )
+        if (!marker) throw new Error(`Prompt contribution has no producer coverage marker: ${payload.sessionId}`)
+        const enrolled =
+          marker.cutoverMessageId === payload.messageId ||
+          (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)
+        if (!enrolled) throw new Error(`Prompt contribution predates its session cutover: ${payload.messageId}`)
+        const existing = state.promptHistory.dispatches.filter(
+          (dispatch) => dispatch.messageId === payload.messageId,
+        )
+        if (payload.dispatchOrdinal !== existing.length + 1) {
+          throw new Error(
+            `Prompt dispatch ordinal is not contiguous for ${payload.messageId}: expected ${existing.length + 1}, got ${payload.dispatchOrdinal}`,
+          )
+        }
+        state.promptHistory.dispatches.push({
+          ...payload,
+          eventId: event.eventId,
+          recordedAt: event.occurredAt,
+        })
         break
       }
 
@@ -1059,6 +1226,32 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           if (unsettled.length > 0) {
             throw new Error(`Run cannot complete with unsettled assistant messages: ${unsettled.join(", ")}`)
           }
+          const missingPromptMessages = state.assistantHistory.messages.flatMap((message) => {
+            const marker = state.promptHistory.sessions.find(
+              (candidate) => candidate.sessionId === message.sessionId && candidate.markerEventId,
+            )
+            const enrolled = Boolean(
+              marker &&
+                (marker.cutoverMessageId === message.messageId ||
+                  (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)),
+            )
+            if (!enrolled || message.settlement?.status !== "completed") return []
+            const dispatches = state.promptHistory.dispatches.filter(
+              (dispatch) => dispatch.messageId === message.messageId,
+            )
+            const binding = message.settlement.promptDispatch
+            if (
+              !binding ||
+              binding.count !== dispatches.length ||
+              binding.finalEventId !== (dispatches.at(-1)?.eventId ?? null)
+            ) {
+              return [message.messageId]
+            }
+            return []
+          })
+          if (missingPromptMessages.length > 0) {
+            throw new Error(`Run cannot complete with missing prompt provenance: ${missingPromptMessages.join(", ")}`)
+          }
           if (state.pendingApprovalIds.length > 0) {
             throw new Error(`Run cannot complete with pending approvals: ${state.pendingApprovalIds.join(", ")}`)
           }
@@ -1296,6 +1489,50 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     markedSessions.length === 0
       ? "unavailable"
       : state.assistantHistory.sessions.every((session) => session.coverage === "complete")
+        ? "complete"
+        : "partial"
+
+  const promptKnownSessionIds = new Set<string>([
+    ...knownSessionIds,
+    ...state.promptHistory.sessions.map((session) => session.sessionId),
+    ...state.promptHistory.dispatches.map((dispatch) => dispatch.sessionId),
+  ])
+  for (const sessionId of promptKnownSessionIds) {
+    if (state.promptHistory.sessions.some((session) => session.sessionId === sessionId)) continue
+    state.promptHistory.sessions.push({
+      sessionId,
+      coverage: "unavailable",
+      markerEventId: null,
+      markerSeq: null,
+      priorScopeHistory: null,
+      copiedHistory: null,
+    })
+  }
+  state.promptHistory.sessions.sort((a, b) => a.sessionId.localeCompare(b.sessionId))
+  state.promptHistory.missingMessageIds = state.assistantHistory.messages.flatMap((message) => {
+    const marker = state.promptHistory.sessions.find(
+      (candidate) => candidate.sessionId === message.sessionId && candidate.markerEventId,
+    )
+    const enrolled = Boolean(
+      marker &&
+        (marker.cutoverMessageId === message.messageId ||
+          (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)),
+    )
+    if (!enrolled || message.settlement?.status !== "completed") return []
+    const dispatches = state.promptHistory.dispatches.filter((dispatch) => dispatch.messageId === message.messageId)
+    const binding = message.settlement.promptDispatch
+    return binding &&
+      binding.count === dispatches.length &&
+      binding.finalEventId === (dispatches.at(-1)?.eventId ?? null)
+      ? []
+      : [message.messageId]
+  })
+  const promptMarkedSessions = state.promptHistory.sessions.filter((session) => session.markerEventId !== null)
+  state.promptHistory.coverage =
+    promptMarkedSessions.length === 0
+      ? "unavailable"
+      : state.promptHistory.sessions.every((session) => session.coverage === "complete") &&
+          state.promptHistory.missingMessageIds.length === 0
         ? "complete"
         : "partial"
 

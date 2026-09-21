@@ -18,13 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sources, reported usage, and per-session cutover coverage replay without
   retaining assistant text or previews. Unsettled captured messages block native
   output acceptance and both run and workflow completion.
+- Governed provider dispatches now record commitment-only provenance for DAX
+  instruction contributions, provider options, and tool definitions at the
+  provider-adapter boundary. Per-session cutover markers, contiguous dispatch
+  ordinals, exact assistant-settlement bindings, and supplied-versus-effective
+  source attribution replay without retaining instruction or conversation text.
 
 ### Compatibility
 
 - The run-event vocabulary remains fail-closed. Older DAX binaries do not know
   `delegation_recorded`, `assistant_recording_started`, or
-  `assistant_message_recorded`; they reject logs containing those events instead
-  of projecting partial history.
+  `assistant_message_recorded`, `prompt_recording_started`, or
+  `prompt_contribution_recorded`; they reject logs containing those events
+  instead of projecting partial history.
 
 ## [1.5.0] - 2026-09-20
 

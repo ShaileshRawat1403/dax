@@ -397,6 +397,51 @@ export async function recordAssistantMessageSettled(
   )
 }
 
+export async function startPromptRecording(
+  runId: string,
+  openedEventId: string,
+  details: {
+    sessionId: string
+    priorScopeHistory: "none" | "unavailable"
+    copiedHistory: "none" | "excluded"
+    sourceSessionId?: string
+    cutoverMessageId: string
+  },
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "prompt_recording_started",
+    {
+      sessionId: details.sessionId,
+      scope: "session_processor_instructions_v1",
+      priorScopeHistory: details.priorScopeHistory,
+      copiedHistory: details.copiedHistory,
+      ...(details.sourceSessionId ? { sourceSessionId: details.sourceSessionId } : {}),
+      cutoverMessageId: details.cutoverMessageId,
+    },
+    `cmd_prompt_recording_${details.sessionId}`,
+    { correlationId: details.sessionId, causationId: openedEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+type PromptContributionPayload = Extract<RunEventPayload, { type: "prompt_contribution_recorded" }>["payload"]
+
+export async function recordPromptContribution(
+  runId: string,
+  openedEventId: string,
+  payload: PromptContributionPayload,
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "prompt_contribution_recorded",
+    payload,
+    `cmd_prompt_dispatch_${payload.messageId}_${payload.dispatchOrdinal}`,
+    { correlationId: payload.messageId, causationId: openedEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
 export type ToolResultOutcome =
   | {
       status: "completed"

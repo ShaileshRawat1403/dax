@@ -26,11 +26,12 @@ GitHub asset digests; the published macOS installer was exercised and the local
 All nine remaining aggregate gaps are scheduled in the
 [next-sprint conformance plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
 [product roadmap](product/ROADMAP.md). The next-session implementation/reviewer split is recorded there; implementation
-is in progress. Delegation provenance is integrated in `main`; durable
-assistant-message provenance is the next bounded Tier 2 slice. Record-class
-coverage is 7/11 on `main` and advances to 8/11 only on the reviewed assistant
-slice. The aggregate `inv1.record-classes` gap stays open. Closure is measured
-through production behavior, not structural checks.
+is in progress. Delegation and durable assistant-message provenance are integrated
+in `main`, bringing reviewed record-class coverage to 8/11. Durable prompt
+provenance is the current bounded Tier 2 slice; its 9/11 result remains conditional
+on reviewed production, replay, and platform evidence. The aggregate
+`inv1.record-classes` gap stays open, and all nine aggregate gaps remain recorded.
+Closure is measured through production behavior, not structural checks.
 
 ## Evidence corrections
 

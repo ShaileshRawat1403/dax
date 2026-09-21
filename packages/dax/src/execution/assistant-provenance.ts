@@ -11,6 +11,7 @@ import {
 } from "@/state/events/event-transitions"
 import type { AssistantMessageRecord } from "@/state/events/run-reducer"
 import type { AssistantErrorCode } from "@/state/events/run-event-types"
+import type { PromptDispatchSettlement } from "./prompt-provenance"
 
 export const ASSISTANT_PRODUCER_SCOPE = "session_processor_v1" as const
 export const ASSISTANT_CANONICALIZATION = "assistant-visible-parts-v1" as const
@@ -56,6 +57,7 @@ export type AssistantSettlement = {
   textParts: CapturedAssistantTextPart[]
   reasoningPartCount: number
   reasoningUtf8Bytes: number
+  promptDispatch?: PromptDispatchSettlement
 }
 
 export type AssistantProvenanceContext = {
@@ -333,6 +335,7 @@ export async function settleAssistantMessageProvenance(
       text: commitAssistantTextParts(settlement.textParts),
       reasoningPartCount: settlement.reasoningPartCount,
       reasoningUtf8Bytes: settlement.reasoningUtf8Bytes,
+      ...(settlement.promptDispatch ? { promptDispatch: settlement.promptDispatch } : {}),
     })
   } catch (error) {
     throw new AssistantProvenancePersistenceError("settle", context.messageId, error)

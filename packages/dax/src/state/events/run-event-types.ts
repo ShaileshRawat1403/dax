@@ -287,6 +287,105 @@ const AssistantUsageSchema = closed({
   cost: z.number().nonnegative(),
 })
 
+const PromptProducerScopeSchema = z.literal("session_processor_instructions_v1")
+
+const PromptInstructionSourceKindSchema = z.enum([
+  "agent_prompt",
+  "provider_prompt",
+  "environment",
+  "instruction_file",
+  "instruction_url",
+  "user_system",
+  "reflection_policy",
+  "reflection_context",
+  "plan_reminder",
+  "queued_user_reminder",
+  "compaction_prompt",
+  "turn_limit",
+  "provider_instructions",
+  "tool_definition",
+])
+
+const PromptInstructionChannelSchema = z.enum(["system", "message", "provider_option", "tool"])
+const PromptInstructionRoleSchema = z.enum(["system", "user", "assistant", "tool"])
+
+const PromptSuppliedSourceSchema = closed({
+  sourceId: z.string().min(1),
+  kind: PromptInstructionSourceKindSchema,
+  reference: z.string().min(1),
+  channel: PromptInstructionChannelSchema,
+  role: PromptInstructionRoleSchema.optional(),
+  ordinal: z.number().int().nonnegative(),
+  canonicalization: z.literal("sorted-json-v1"),
+  digest: Sha256DigestSchema,
+  utf8Bytes: z.number().int().nonnegative(),
+})
+
+const PromptEffectiveContributionSchema = closed({
+  channel: PromptInstructionChannelSchema,
+  role: PromptInstructionRoleSchema.optional(),
+  ordinal: z.number().int().nonnegative(),
+  canonicalization: z.literal("sorted-json-v1"),
+  digest: Sha256DigestSchema,
+  utf8Bytes: z.number().int().nonnegative(),
+  origin: z.enum(["supplied", "transform_output"]),
+  sourceIds: z.array(z.string().min(1)),
+}).superRefine((contribution, ctx) => {
+  if (contribution.origin === "supplied" && contribution.sourceIds.length === 0) {
+    ctx.addIssue({ code: "custom", path: ["sourceIds"], message: "supplied content requires source identity" })
+  }
+  if (contribution.origin === "transform_output" && contribution.sourceIds.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sourceIds"],
+      message: "transform output must not imply that supplied sources survived",
+    })
+  }
+})
+
+const PromptCommitmentSchema = closed({
+  canonicalization: z.literal("provider-adapter-instructions-v1"),
+  digest: Sha256DigestSchema,
+  suppliedCount: z.number().int().nonnegative(),
+  effectiveCount: z.number().int().nonnegative(),
+  supplied: z.array(PromptSuppliedSourceSchema),
+  effective: z.array(PromptEffectiveContributionSchema),
+}).superRefine((commitment, ctx) => {
+  if (commitment.suppliedCount !== commitment.supplied.length) {
+    ctx.addIssue({ code: "custom", path: ["suppliedCount"], message: "must equal supplied.length" })
+  }
+  if (commitment.effectiveCount !== commitment.effective.length) {
+    ctx.addIssue({ code: "custom", path: ["effectiveCount"], message: "must equal effective.length" })
+  }
+  const sourceIds = commitment.supplied.map((source) => source.sourceId)
+  if (new Set(sourceIds).size !== sourceIds.length) {
+    ctx.addIssue({ code: "custom", path: ["supplied"], message: "source ids must be unique" })
+  }
+  if (commitment.supplied.some((source, index) => source.ordinal !== index)) {
+    ctx.addIssue({ code: "custom", path: ["supplied"], message: "source ordinals must be contiguous" })
+  }
+  if (commitment.effective.some((entry, index) => entry.ordinal !== index)) {
+    ctx.addIssue({ code: "custom", path: ["effective"], message: "effective ordinals must be contiguous" })
+  }
+  const known = new Set(sourceIds)
+  if (commitment.effective.some((entry) => entry.sourceIds.some((sourceId) => !known.has(sourceId)))) {
+    ctx.addIssue({ code: "custom", path: ["effective"], message: "effective source ids must reference supplied sources" })
+  }
+})
+
+const PromptDispatchSettlementSchema = closed({
+  count: z.number().int().nonnegative(),
+  finalEventId: z.string().min(1).nullable(),
+}).superRefine((dispatch, ctx) => {
+  if ((dispatch.count === 0) !== (dispatch.finalEventId === null)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["finalEventId"],
+      message: "must be null exactly when no provider dispatch was recorded",
+    })
+  }
+})
+
 const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
   closed({
     phase: z.literal("opened"),
@@ -313,6 +412,7 @@ const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
     text: AssistantMessageCommitmentSchema,
     reasoningPartCount: z.number().int().nonnegative(),
     reasoningUtf8Bytes: z.number().int().nonnegative(),
+    promptDispatch: PromptDispatchSettlementSchema.optional(),
   }).superRefine((payload, ctx) => {
     if (payload.status === "completed" && !payload.finishReason) {
       ctx.addIssue({ code: "custom", path: ["finishReason"], message: "completed settlement requires a finish reason" })
@@ -328,6 +428,13 @@ const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
         code: "custom",
         path: ["finishReason"],
         message: "unsuccessful settlement cannot carry a finish reason",
+      })
+    }
+    if (payload.status === "completed" && payload.promptDispatch && payload.promptDispatch.count === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["promptDispatch", "count"],
+        message: "completed settlement requires a provider dispatch",
       })
     }
   }),
@@ -355,6 +462,37 @@ const RunEventVariants = [
   z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
   z.object({ type: z.literal("assistant_recording_started"), payload: AssistantRecordingStartedPayloadSchema }),
   z.object({ type: z.literal("assistant_message_recorded"), payload: AssistantMessageRecordedPayloadSchema }),
+  z.object({
+    type: z.literal("prompt_recording_started"),
+    payload: closed({
+      sessionId: z.string().min(1),
+      scope: PromptProducerScopeSchema,
+      priorScopeHistory: z.enum(["none", "unavailable"]),
+      copiedHistory: z.enum(["none", "excluded"]),
+      sourceSessionId: z.string().min(1).optional(),
+      cutoverMessageId: z.string().min(1),
+    }).superRefine((payload, ctx) => {
+      if ((payload.copiedHistory === "excluded") !== Boolean(payload.sourceSessionId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["sourceSessionId"],
+          message: "must identify copied-history source exactly when copied history is excluded",
+        })
+      }
+    }),
+  }),
+  z.object({
+    type: z.literal("prompt_contribution_recorded"),
+    payload: closed({
+      scope: PromptProducerScopeSchema,
+      sessionId: z.string().min(1),
+      messageId: z.string().min(1),
+      providerId: z.string().min(1),
+      modelId: z.string().min(1),
+      dispatchOrdinal: z.number().int().positive(),
+      commitment: PromptCommitmentSchema,
+    }),
+  }),
   z.object({ type: z.literal("tool_result_recorded"), payload: ToolResultRecordedPayloadSchema }),
   z.object({
     type: z.literal("approval_requested"),
@@ -549,10 +687,13 @@ export const RunEventEnvelopeSchema = z
       event.type === "authorization_recorded" ||
       event.type === "delegation_recorded" ||
       event.type === "assistant_message_recorded" ||
+      event.type === "prompt_contribution_recorded" ||
       event.type === "tool_result_recorded"
     ) {
       const correlationId =
-        event.type === "assistant_message_recorded" ? event.payload.messageId : event.payload.invocationId
+        event.type === "assistant_message_recorded" || event.type === "prompt_contribution_recorded"
+          ? event.payload.messageId
+          : event.payload.invocationId
       if (event.correlationId !== correlationId) {
         ctx.addIssue({
           code: "custom",
@@ -564,6 +705,8 @@ export const RunEventEnvelopeSchema = z
     if (
       (event.type === "delegation_recorded" ||
         event.type === "assistant_message_recorded" ||
+        event.type === "prompt_recording_started" ||
+        event.type === "prompt_contribution_recorded" ||
         event.type === "tool_result_recorded") &&
       !event.causationId
     ) {
@@ -578,6 +721,13 @@ export const RunEventEnvelopeSchema = z
         code: "custom",
         path: ["correlationId"],
         message: "must equal payload.sessionId for assistant_recording_started",
+      })
+    }
+    if (event.type === "prompt_recording_started" && event.correlationId !== event.payload.sessionId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["correlationId"],
+        message: "must equal payload.sessionId for prompt_recording_started",
       })
     }
   })

@@ -25,7 +25,7 @@ const RECORD_CLASSES = [
   {
     id: "prompt_contribution",
     why: "What the model was told to be. Changes what the output means.",
-    eventTypes: [] as string[],
+    eventTypes: ["prompt_recording_started", "prompt_contribution_recorded"],
   },
   {
     id: "context_contribution",

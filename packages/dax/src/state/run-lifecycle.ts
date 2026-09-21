@@ -106,6 +106,12 @@ export class RunLifecycle {
           state.assistantHistory.unsettledMessageIds.map((messageId) => `assistant_message_unsettled:${messageId}`),
         )
       }
+      if (state && state.promptHistory.missingMessageIds.length > 0) {
+        throw new RunCompletionBlockedError(
+          `Run ${runId} cannot complete with missing prompt provenance.`,
+          state.promptHistory.missingMessageIds.map((messageId) => `prompt_provenance_missing:${messageId}`),
+        )
+      }
       const proof = await RunLifecycle.assertCompletionProof(runId, options)
       if (proof && typeof payload === "object" && payload !== null) {
         payload = { ...(payload as Record<string, unknown>), completionProof: proof }

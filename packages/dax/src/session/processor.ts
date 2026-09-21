@@ -25,6 +25,10 @@ import {
   type AssistantUsage,
   type CapturedAssistantTextPart,
 } from "@/execution/assistant-provenance"
+import {
+  createPromptProvenanceTracker,
+  findPromptProvenancePersistenceError,
+} from "@/execution/prompt-provenance"
 
 class AssistantTextPluginError extends Error {
   constructor(cause: unknown) {
@@ -102,6 +106,7 @@ export namespace SessionProcessor {
           assistantMessage: input.assistantMessage,
           delegation: input.assistantProvenance,
         })
+        const promptProvenance = createPromptProvenanceTracker(provenance)
         let terminalErrorCode: AssistantSettlement["errorCode"]
         while (true) {
           try {
@@ -219,6 +224,7 @@ export namespace SessionProcessor {
             const stream = await LLM.stream({
               ...streamInput,
               abort: combinedAbort,
+              promptProvenance,
             })
 
             try {
@@ -559,6 +565,8 @@ export namespace SessionProcessor {
               clearTimeout(stallTimer)
             }
           } catch (caught: unknown) {
+            const promptPersistenceError = findPromptProvenancePersistenceError(caught)
+            if (promptPersistenceError) throw promptPersistenceError
             const e =
               !input.abort.aborted && caught instanceof Error && caught.name === "AbortError"
                 ? new Error(
@@ -648,6 +656,7 @@ export namespace SessionProcessor {
             : input.assistantMessage.error
               ? "failed"
               : "completed"
+          const promptDispatch = promptProvenance.settlement()
           await settleAssistantMessageProvenance(provenance, {
             status: settlementStatus,
             ...(settlementStatus === "completed" && input.assistantMessage.finish
@@ -665,6 +674,7 @@ export namespace SessionProcessor {
             textParts: capturedTextParts,
             reasoningPartCount,
             reasoningUtf8Bytes,
+            ...(provenance && promptDispatch.count > 0 ? { promptDispatch } : {}),
           })
           if (needsCompaction) return "compact"
           if (blocked) return "stop"

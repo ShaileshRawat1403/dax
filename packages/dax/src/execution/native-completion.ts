@@ -132,6 +132,16 @@ export async function adjudicateNativeCompletionCandidate(input: {
       ),
     }
   }
+  if (state.promptHistory.missingMessageIds.length > 0) {
+    return {
+      candidate: true,
+      accepted: false,
+      runId,
+      reasonCodes: state.promptHistory.missingMessageIds.map(
+        (messageId) => `prompt_provenance_missing:${messageId}`,
+      ),
+    }
+  }
 
   const authorityReasons = [
     ...invocationRejectionReasons(state.invocations),

@@ -93,6 +93,10 @@ import {
   AssistantDelegationReceiptSchema,
   requireAssistantProvenanceRecoveryBeforeDispatch,
 } from "@/execution/assistant-provenance"
+import type {
+  PromptEffectiveCandidate,
+  PromptInstructionSource,
+} from "@/execution/prompt-provenance"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -921,11 +925,12 @@ export namespace SessionPrompt {
         break
       }
       const isLastStep = step >= maxSteps
-      msgs = await insertReminders({
+      const reminderResult = await insertReminders({
         messages: msgs,
         agent,
         session,
       })
+      msgs = reminderResult.messages
 
       const processor = SessionProcessor.create({
         assistantMessage: (await Session.updateMessage({
@@ -982,6 +987,7 @@ export namespace SessionPrompt {
       }
 
       const sessionMessages = clone(msgs)
+      const queuedReminderSources: PromptInstructionSource[] = []
 
       // Ephemerally wrap queued user messages with a reminder to stay on track
       if (step > 1 && lastFinished) {
@@ -998,6 +1004,15 @@ export namespace SessionPrompt {
               "Please address this message and continue with your tasks.",
               "</system-reminder>",
             ].join("\n")
+            queuedReminderSources.push({
+              sourceId: `queued_user_reminder:${part.id}`,
+              kind: "queued_user_reminder",
+              reference: part.id,
+              channel: "message",
+              role: "user",
+              value: part.text,
+              locator: { messageId: msg.info.id, partId: part.id },
+            })
           }
         }
       }
@@ -1011,31 +1026,99 @@ export namespace SessionPrompt {
         "Skip reflection for trivial conversational replies or when the current reflection already matches the next step.",
         "</reflection-policy>",
       ]
+      const environmentInstructions = await SystemPrompt.environment(model)
+      const configuredInstructions = await InstructionPrompt.systemContributions()
+      const reflectionInstructions = reflectionSummary
+        ? [
+            `<reflection-context>`,
+            `Goal: ${reflectionSummary.goal}`,
+            `Decision: ${reflectionSummary.decision}`,
+            reflectionSummary.justification_summary
+              ? `Justification: ${reflectionSummary.justification_summary}`
+              : "",
+            reflectionSummary.requiresApproval ? `⚠️ Requires approval before proceeding` : "",
+            `</reflection-context>`,
+          ].filter(Boolean)
+        : []
+      const systemInstructions = [
+        ...environmentInstructions,
+        ...configuredInstructions.map((instruction) => instruction.text),
+        ...reflectionPolicy,
+        ...reflectionInstructions,
+      ]
+      const systemSources: PromptInstructionSource[] = [
+        ...environmentInstructions.map((value, index) => ({
+          sourceId: `environment:${index}`,
+          kind: "environment" as const,
+          reference: `environment:${index}`,
+          channel: "system" as const,
+          role: "system" as const,
+          value,
+        })),
+        ...configuredInstructions.map((instruction, index) => ({
+          sourceId: `${instruction.source.kind}:${index}:${instruction.source.reference}`,
+          kind: instruction.source.kind,
+          reference: instruction.source.reference,
+          channel: "system" as const,
+          role: "system" as const,
+          value: instruction.text,
+        })),
+        ...reflectionPolicy.map((value, index) => ({
+          sourceId: `reflection_policy:${index}`,
+          kind: "reflection_policy" as const,
+          reference: "native-reflection-policy",
+          channel: "system" as const,
+          role: "system" as const,
+          value,
+        })),
+        ...reflectionInstructions.map((value, index) => ({
+          sourceId: `reflection_context:${index}`,
+          kind: "reflection_context" as const,
+          reference: "session-reflection-state",
+          channel: "system" as const,
+          role: "system" as const,
+          value,
+        })),
+      ]
+      const modelMessages = MessageV2.toModelMessages(sessionMessages, model)
+      const turnLimitSource: PromptInstructionSource | undefined = isLastStep
+        ? {
+            sourceId: `turn_limit:${processor.message.id}`,
+            kind: "turn_limit",
+            reference: "max-steps",
+            channel: "message",
+            role: "assistant",
+            value: MAX_STEPS,
+          }
+        : undefined
+      const messageSources = [
+        ...reminderResult.instructions,
+        ...queuedReminderSources,
+        ...(turnLimitSource ? [turnLimitSource] : []),
+      ]
+      const instructionCandidates: PromptEffectiveCandidate[] = [
+        ...locateMessageInstructionCandidates(sessionMessages, model, messageSources),
+        ...(turnLimitSource
+          ? [
+              {
+                channel: "message" as const,
+                role: "assistant" as const,
+                value: turnLimitSource.value,
+                sourceIds: [turnLimitSource.sourceId],
+                locator: { messageIndex: modelMessages.length, contentPartIndex: 0 },
+              },
+            ]
+          : []),
+      ]
 
       const result = await processor.process({
         user: lastUser,
         agent,
         abort,
         sessionID,
-        system: [
-          ...(await SystemPrompt.environment(model)),
-          ...(await InstructionPrompt.system()),
-          ...reflectionPolicy,
-          ...(reflectionSummary
-            ? [
-                `<reflection-context>`,
-                `Goal: ${reflectionSummary.goal}`,
-                `Decision: ${reflectionSummary.decision}`,
-                reflectionSummary.justification_summary
-                  ? `Justification: ${reflectionSummary.justification_summary}`
-                  : "",
-                reflectionSummary.requiresApproval ? `⚠️ Requires approval before proceeding` : "",
-                `</reflection-context>`,
-              ].filter(Boolean)
-            : []),
-        ],
+        system: systemInstructions,
         messages: [
-          ...MessageV2.toModelMessages(sessionMessages, model),
+          ...modelMessages,
           ...(isLastStep
             ? [
                 {
@@ -1047,6 +1130,8 @@ export namespace SessionPrompt {
         ],
         tools,
         model,
+        instructionSources: [...systemSources, ...messageSources],
+        instructionCandidates,
       })
       if (processor.message.finish === "stop") {
         if (completionPolicy === "on_provider_stop") {
@@ -1847,34 +1932,91 @@ export namespace SessionPrompt {
     }
   }
 
+  function locateMessageInstructionCandidates(
+    messages: MessageV2.WithParts[],
+    model: Provider.Model,
+    sources: PromptInstructionSource[],
+  ): PromptEffectiveCandidate[] {
+    const pending = new Map(
+      sources.flatMap((source) => (source.locator ? [[source.locator.partId, source] as const] : [])),
+    )
+    const result: PromptEffectiveCandidate[] = []
+    let messageOffset = 0
+
+    for (const message of messages) {
+      const converted = MessageV2.toModelMessages([message], model)
+      const localMessageIndex = converted.findIndex((candidate) => candidate.role === message.info.role)
+      if (message.info.role === "user" && localMessageIndex >= 0) {
+        let contentPartIndex = 0
+        for (const part of message.parts) {
+          const source = pending.get(part.id)
+          if (source) {
+            result.push({
+              channel: "message",
+              role: source.role,
+              value: source.value,
+              sourceIds: [source.sourceId],
+              locator: { messageIndex: messageOffset + localMessageIndex, contentPartIndex },
+            })
+            pending.delete(part.id)
+          }
+          if (part.type === "text" && !part.ignored) contentPartIndex++
+          else if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
+            contentPartIndex++
+          } else if (part.type === "compaction" || part.type === "subtask") contentPartIndex++
+        }
+      }
+      messageOffset += converted.length
+    }
+
+    return result
+  }
+
   async function insertReminders(input: { messages: MessageV2.WithParts[]; agent: Agent.Info; session: Session.Info }) {
+    const instructions: PromptInstructionSource[] = []
     const userMessage = input.messages.findLast((msg) => msg.info.role === "user")
-    if (!userMessage) return input.messages
+    if (!userMessage) return { messages: input.messages, instructions }
+
+    const noteInstruction = (kind: "plan_reminder", reference: string, value: string, partId: string) => {
+      instructions.push({
+        sourceId: `${kind}:${userMessage.info.id}:${instructions.length}`,
+        kind,
+        reference,
+        channel: "message",
+        role: "user",
+        value,
+        locator: { messageId: userMessage.info.id, partId },
+      })
+    }
 
     // Original logic when experimental plan mode is disabled
     if (!Flag.DAX_EXPERIMENTAL_PLAN_MODE) {
       if (input.agent.name === "plan") {
-        userMessage.parts.push({
+        const part = {
           id: Identifier.ascending("part"),
           messageID: userMessage.info.id,
           sessionID: userMessage.info.sessionID,
           type: "text",
           text: PROMPT_PLAN,
           synthetic: true,
-        })
+        } as MessageV2.TextPart
+        userMessage.parts.push(part)
+        noteInstruction("plan_reminder", "legacy-plan-mode", PROMPT_PLAN, part.id)
       }
       const wasPlan = input.messages.some((msg) => msg.info.role === "assistant" && msg.info.agent === "plan")
       if (wasPlan && input.agent.name === "build") {
-        userMessage.parts.push({
+        const part = {
           id: Identifier.ascending("part"),
           messageID: userMessage.info.id,
           sessionID: userMessage.info.sessionID,
           type: "text",
           text: BUILD_SWITCH,
           synthetic: true,
-        })
+        } as MessageV2.TextPart
+        userMessage.parts.push(part)
+        noteInstruction("plan_reminder", "legacy-build-switch", BUILD_SWITCH, part.id)
       }
-      return input.messages
+      return { messages: input.messages, instructions }
     }
 
     // New plan mode logic when flag is enabled
@@ -1885,18 +2027,19 @@ export namespace SessionPrompt {
       const plan = Session.plan(input.session)
       const exists = await Bun.file(plan).exists()
       if (exists) {
+        const text = BUILD_SWITCH + "\n\n" + `A plan file exists at ${plan}. You should execute on the plan defined within it`
         const part = await Session.updatePart({
           id: Identifier.ascending("part"),
           messageID: userMessage.info.id,
           sessionID: userMessage.info.sessionID,
           type: "text",
-          text:
-            BUILD_SWITCH + "\n\n" + `A plan file exists at ${plan}. You should execute on the plan defined within it`,
+          text,
           synthetic: true,
         })
         userMessage.parts.push(part)
+        noteInstruction("plan_reminder", "build-switch", text, part.id)
       }
-      return input.messages
+      return { messages: input.messages, instructions }
     }
 
     // Entering plan mode
@@ -2026,9 +2169,10 @@ ${
         synthetic: true,
       })
       userMessage.parts.push(part)
-      return input.messages
+      noteInstruction("plan_reminder", "plan-workflow", (part as MessageV2.TextPart).text, part.id)
+      return { messages: input.messages, instructions }
     }
-    return input.messages
+    return { messages: input.messages, instructions }
   }
 
   export const ShellInput = z.object({

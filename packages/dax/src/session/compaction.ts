@@ -15,6 +15,7 @@ import { fn } from "@/util/fn"
 import { Agent } from "@/agent/agent"
 import { Plugin } from "@/plugin"
 import { Config } from "@/config/config"
+import type { PromptInstructionSource } from "@/execution/prompt-provenance"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -145,6 +146,20 @@ export namespace SessionCompaction {
     const defaultPrompt =
       "Provide a detailed prompt for continuing our conversation above. Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next considering new session will not have access to our conversation."
     const promptText = compacting.prompt ?? [defaultPrompt, ...compacting.context].join("\n\n")
+    const promptSource: PromptInstructionSource = {
+      sourceId: `compaction_prompt:${msg.id}`,
+      kind: "compaction_prompt",
+      reference:
+        compacting.prompt !== undefined
+          ? "plugin-replacement"
+          : compacting.context.length > 0
+            ? "plugin-augmented"
+            : "default",
+      channel: "message",
+      role: "user",
+      value: promptText,
+    }
+    const modelMessages = MessageV2.toModelMessages(input.messages, model)
     const result = await processor.process({
       user: userMessage,
       agent,
@@ -153,7 +168,7 @@ export namespace SessionCompaction {
       tools: {},
       system: [],
       messages: [
-        ...MessageV2.toModelMessages(input.messages, model),
+        ...modelMessages,
         {
           role: "user",
           content: [
@@ -165,6 +180,16 @@ export namespace SessionCompaction {
         },
       ],
       model,
+      instructionSources: [promptSource],
+      instructionCandidates: [
+        {
+          channel: "message",
+          role: "user",
+          value: promptText,
+          sourceIds: [promptSource.sourceId],
+          locator: { messageIndex: modelMessages.length, contentPartIndex: 0 },
+        },
+      ],
     })
 
     if (result === "continue" && input.auto) {

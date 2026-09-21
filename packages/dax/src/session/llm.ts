@@ -11,6 +11,7 @@ import {
   tool,
   jsonSchema,
 } from "ai"
+import { asSchema } from "@ai-sdk/provider-utils"
 import { clone, mergeDeep, pipe } from "remeda"
 import { ProviderTransform } from "@/provider/transform"
 import { Config } from "@/config/config"
@@ -23,6 +24,12 @@ import { Flag } from "@/flag/flag"
 import { Permission } from "@/governance"
 import { Auth } from "@/auth"
 import { assertProviderAuth } from "@/provider/auth-preflight"
+import {
+  PromptProvenancePersistenceError,
+  type PromptEffectiveCandidate,
+  type PromptInstructionSource,
+  type PromptProvenanceTracker,
+} from "@/execution/prompt-provenance"
 
 export namespace LLM {
   const log = Log.create({ service: "llm" })
@@ -40,6 +47,9 @@ export namespace LLM {
     small?: boolean
     tools: Record<string, Tool>
     retries?: number
+    instructionSources?: PromptInstructionSource[]
+    instructionCandidates?: PromptEffectiveCandidate[]
+    promptProvenance?: PromptProvenanceTracker
   }
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
@@ -66,20 +76,60 @@ export namespace LLM {
     ])
     const isCodex = provider.id === "openai" && auth?.type === "oauth"
 
-    const system = []
-    system.push(
-      [
-        // use agent prompt otherwise provider prompt
-        // For Codex sessions, skip SystemPrompt.provider() since it's sent via options.instructions
-        ...(input.agent.prompt ? [input.agent.prompt] : isCodex ? [] : SystemPrompt.provider(input.model)),
-        // any custom prompt passed into this call
-        ...input.system,
-        // any custom prompt from last user message
-        ...(input.user.system ? [input.user.system] : []),
-      ]
-        .filter((x) => x)
-        .join("\n"),
-    )
+    const callerInstructionSources = input.instructionSources ?? []
+    const supplied: PromptInstructionSource[] = [...callerInstructionSources]
+    const systemParts: Array<{ text: string; sourceId: string }> = []
+    if (input.agent.prompt) {
+      const sourceId = `agent_prompt:${input.agent.name}`
+      supplied.push({
+        sourceId,
+        kind: "agent_prompt",
+        reference: input.agent.name,
+        channel: "system",
+        role: "system",
+        value: input.agent.prompt,
+      })
+      systemParts.push({ text: input.agent.prompt, sourceId })
+    } else if (!isCodex) {
+      for (const [index, text] of SystemPrompt.provider(input.model).entries()) {
+        const sourceId = `provider_prompt:${input.model.api.id}:${index}`
+        supplied.push({
+          sourceId,
+          kind: "provider_prompt",
+          reference: input.model.api.id,
+          channel: "system",
+          role: "system",
+          value: text,
+        })
+        systemParts.push({ text, sourceId })
+      }
+    }
+    const callerSystemSources = callerInstructionSources.filter((source) => source.channel === "system")
+    for (const [index, text] of input.system.entries()) {
+      const source = callerSystemSources[index]
+      if ((!source || source.value !== text) && input.promptProvenance) {
+        throw new PromptProvenancePersistenceError(
+          "dispatch",
+          input.promptProvenance.messageId ?? input.user.id,
+          new Error(`System instruction ${index} has no typed source metadata`),
+        )
+      }
+      systemParts.push({ text, sourceId: source?.sourceId ?? `unscoped_system:${index}` })
+    }
+    if (input.user.system) {
+      const sourceId = `user_system:${input.user.id}`
+      supplied.push({
+        sourceId,
+        kind: "user_system",
+        reference: input.user.id,
+        channel: "system",
+        role: "system",
+        value: input.user.system,
+      })
+      systemParts.push({ text: input.user.system, sourceId })
+    }
+
+    const system = [systemParts.map((part) => part.text).filter(Boolean).join("\n")]
 
     const header = system[0]
     const original = clone(system)
@@ -115,6 +165,13 @@ export namespace LLM {
     )
     if (isCodex) {
       options.instructions = SystemPrompt.instructions()
+      supplied.push({
+        sourceId: `provider_instructions:${input.model.api.id}`,
+        kind: "provider_instructions",
+        reference: input.model.api.id,
+        channel: "provider_option",
+        value: options.instructions,
+      })
     }
 
     const params = await Plugin.trigger(
@@ -167,6 +224,30 @@ export namespace LLM {
       })
       tools = {}
     }
+    for (const [name, definition] of Object.entries(tools)) {
+      const value =
+        definition.type === "provider-defined"
+          ? {
+              type: "provider-defined",
+              name,
+              id: definition.id,
+              args: definition.args,
+            }
+          : {
+              type: "function",
+              name,
+              description: definition.description,
+              inputSchema: asSchema(definition.inputSchema).jsonSchema,
+              providerOptions: definition.providerOptions,
+            }
+      supplied.push({
+        sourceId: `tool_definition:${name}`,
+        kind: "tool_definition",
+        reference: name,
+        channel: "tool",
+        value,
+      })
+    }
 
     // LiteLLM and some Anthropic proxies require the tools parameter to be present
     // when message history contains tool calls, even if no tools are being used.
@@ -185,6 +266,39 @@ export namespace LLM {
           "Placeholder for LiteLLM/Anthropic proxy compatibility - required when message history contains tool calls but no active tools are needed",
         inputSchema: jsonSchema({ type: "object", properties: {} }),
         execute: async () => ({ output: "", title: "", metadata: {} }),
+      })
+    }
+
+    const effectiveCandidates: PromptEffectiveCandidate[] = (input.instructionCandidates ?? []).map((candidate) => ({
+      ...candidate,
+      ...(candidate.locator
+        ? {
+            locator: {
+              ...candidate.locator,
+              messageIndex: system.length + candidate.locator.messageIndex,
+            },
+          }
+        : {}),
+    }))
+    const originalSourceIds = systemParts.filter((part) => part.text).map((part) => part.sourceId)
+    for (const [messageIndex, text] of system.entries()) {
+      effectiveCandidates.push({
+        channel: "system",
+        role: "system",
+        value: text,
+        sourceIds: text === original[0] ? originalSourceIds : [],
+        locator: { messageIndex },
+      })
+    }
+    if (isCodex && params.options.instructions !== undefined) {
+      const originalInstructions = supplied.find((source) => source.kind === "provider_instructions")
+      effectiveCandidates.push({
+        channel: "provider_option",
+        value: params.options.instructions,
+        sourceIds:
+          originalInstructions && params.options.instructions === originalInstructions.value
+            ? [originalInstructions.sourceId]
+            : [],
       })
     }
 
@@ -239,7 +353,11 @@ export namespace LLM {
         ...input.model.headers,
         ...headers,
       },
-      maxRetries: input.retries ?? 0,
+      // SDK-level retries happen below the provenance middleware and would make
+      // one durable input commitment cover multiple provider calls. Governed
+      // SessionProcessor dispatches therefore retry only in SessionProcessor,
+      // where each adapter call receives its own ordinal and event.
+      maxRetries: input.promptProvenance ? 0 : (input.retries ?? 0),
       messages: [
         ...system.map(
           (x): ModelMessage => ({
@@ -257,6 +375,15 @@ export namespace LLM {
               if (args.type === "stream") {
                 // @ts-expect-error
                 args.params.prompt = ProviderTransform.message(args.params.prompt, input.model, options)
+                await input.promptProvenance?.record({
+                  providerId: input.model.providerID,
+                  modelId: input.model.id,
+                  prompt: args.params.prompt,
+                  tools: args.params.tools,
+                  providerOptions: args.params.providerOptions,
+                  supplied,
+                  effectiveCandidates,
+                })
               }
               return args.params
             },
