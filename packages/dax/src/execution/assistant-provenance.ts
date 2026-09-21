@@ -79,6 +79,19 @@ export class AssistantProvenancePersistenceError extends Error {
   }
 }
 
+export class AssistantProvenanceRecoveryRequiredError extends Error {
+  readonly code = "assistant_provenance_recovery_required"
+
+  constructor(
+    public readonly runId: string,
+    public readonly sessionId: string,
+    public readonly unsettledMessageIds: string[],
+  ) {
+    super(`Assistant provenance recovery is required for session ${sessionId}`)
+    this.name = "AssistantProvenanceRecoveryRequiredError"
+  }
+}
+
 function digest(value: string): string {
   return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`
 }
@@ -113,26 +126,63 @@ export function commitAssistantTextParts(parts: CapturedAssistantTextPart[]) {
   }
 }
 
-export function verifyAssistantTextCommitment(
+export function verifiedAssistantTextParts(
   record: NonNullable<AssistantMessageRecord["settlement"]>["text"],
   parts: MessageV2.Part[],
-): boolean {
-  const textById = new Map(
-    parts.filter((part): part is MessageV2.TextPart => part.type === "text").map((part) => [part.id, part.text]),
+): MessageV2.TextPart[] | null {
+  const eligible = parts.filter(
+    (part): part is MessageV2.TextPart =>
+      part.type === "text" && part.synthetic !== true && part.ignored !== true,
   )
+  if (eligible.length !== record.parts.length) return null
+  if (new Set(record.parts.map((part) => part.partId)).size !== record.parts.length) return null
+
+  const textById = new Map(eligible.map((part) => [part.id, part]))
+  if (record.parts.some((part) => !textById.has(part.partId))) return null
+
   const captured: CapturedAssistantTextPart[] = []
   for (const committed of record.parts) {
-    const text = textById.get(committed.partId)
-    if (text === undefined) return false
+    const part = textById.get(committed.partId)
+    if (!part) return null
     captured.push({
       partId: committed.partId,
       ordinal: committed.ordinal,
       attempt: committed.attempt,
       finalization: committed.finalization,
-      text,
+      text: part.text,
     })
   }
-  return JSON.stringify(commitAssistantTextParts(captured)) === JSON.stringify(record)
+  if (JSON.stringify(commitAssistantTextParts(captured)) !== JSON.stringify(record)) return null
+
+  return record.parts.flatMap((committed) => {
+    if (committed.finalization !== "finalized_post_plugin") return []
+    const part = textById.get(committed.partId)
+    return part ? [part] : []
+  })
+}
+
+export function verifyAssistantTextCommitment(
+  record: NonNullable<AssistantMessageRecord["settlement"]>["text"],
+  parts: MessageV2.Part[],
+): boolean {
+  return verifiedAssistantTextParts(record, parts) !== null
+}
+
+export async function requireAssistantProvenanceRecoveryBeforeDispatch(sessionId: string): Promise<void> {
+  const session = await Session.get(sessionId)
+  const authority = await resolveExecutionAuthority(session.id, session.governingRunId)
+  const runId = authority.governingRunId
+  if (!runId || !authority.contract) return
+  if ((await getRunAuthority(runId)) !== "event-log") return
+
+  const state = await projectRunStateFromEvents(runId)
+  const unsettledMessageIds =
+    state?.assistantHistory.messages
+      .filter((message) => message.sessionId === sessionId && message.settlement === null)
+      .map((message) => message.messageId) ?? []
+  if (unsettledMessageIds.length > 0) {
+    throw new AssistantProvenanceRecoveryRequiredError(runId, sessionId, unsettledMessageIds)
+  }
 }
 
 async function ensureRecordingMarker(input: {

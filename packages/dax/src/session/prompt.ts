@@ -89,7 +89,10 @@ import {
   type NativeCompletionDecision,
 } from "@/execution/native-completion"
 import { Sandbox } from "../shell/sandbox"
-import { AssistantDelegationReceiptSchema } from "@/execution/assistant-provenance"
+import {
+  AssistantDelegationReceiptSchema,
+  requireAssistantProvenanceRecoveryBeforeDispatch,
+} from "@/execution/assistant-provenance"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -637,6 +640,12 @@ export namespace SessionPrompt {
         session = await Session.get(sessionID)
         authorityEstablished = true
       }
+
+      // An opened assistant lifecycle is durable evidence that a producer began
+      // this message. After a restart, automatically starting a replacement
+      // message would lose the interruption boundary and may duplicate work.
+      // Surface a stable recovery-required error before any provider dispatch.
+      await requireAssistantProvenanceRecoveryBeforeDispatch(sessionID)
 
       step++
       if (step === 1)

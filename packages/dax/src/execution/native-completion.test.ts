@@ -239,6 +239,82 @@ describe("native canonical completion", () => {
     })
   })
 
+  test("text added after settlement invalidates the complete eligible commitment population", async () => {
+    await Instance.provide({
+      directory: testHome,
+      async fn() {
+        const { session } = await createNativeRun()
+        const messageID = await createAssistantCandidate(session.id, "")
+        await Session.updatePart({
+          id: Identifier.ascending("part"),
+          messageID,
+          sessionID: session.id,
+          type: "text",
+          text: "Added after durable settlement",
+        })
+
+        const decision = await adjudicateNativeCompletionCandidate({
+          sessionID: session.id,
+          assistantMessageID: messageID,
+          finishReason: "stop",
+        })
+
+        expect(decision).toMatchObject({ accepted: false, reasonCodes: ["assistant_commitment_mismatch"] })
+        const events = await readRunEvents(session.id)
+        expect(events.some((event) => event.type === "artifact_created")).toBe(false)
+        expect(events.some((event) => event.type === "run_completed")).toBe(false)
+      },
+    })
+  })
+
+  test("another unsettled message blocks verification and artifacts before completion side effects", async () => {
+    await Instance.provide({
+      directory: testHome,
+      async fn() {
+        let verificationCalls = 0
+        NativeVerificationEffects.set({
+          async run(check) {
+            verificationCalls++
+            return checkResult(check, "passed")
+          },
+        })
+        const { session } = await createNativeRun({ verificationRequired: true })
+        const messageID = await createAssistantCandidate(session.id)
+        const state = await getEventAuthorityState(session.id)
+        const marker = state?.assistantHistory.sessions.find(
+          (candidate) => candidate.sessionId === session.id,
+        )?.markerEventId
+        if (!marker) throw new Error("missing assistant marker")
+        await recordAssistantMessageOpened(session.id, marker, {
+          phase: "opened",
+          scope: "session_processor_v1",
+          messageId: "msg_unsettled_sibling",
+          sessionId: session.id,
+          parentMessageId: "msg_parent",
+          providerId: "test-provider",
+          modelId: "test-model",
+          agent: "build",
+          summary: false,
+          source: { kind: "root" },
+        })
+        const before = await readRunEvents(session.id)
+
+        const decision = await adjudicateNativeCompletionCandidate({
+          sessionID: session.id,
+          assistantMessageID: messageID,
+          finishReason: "stop",
+        })
+
+        expect(decision).toMatchObject({
+          accepted: false,
+          reasonCodes: ["assistant_message_unsettled:msg_unsettled_sibling"],
+        })
+        expect(verificationCalls).toBe(0)
+        expect((await readRunEvents(session.id)).slice(before.length)).toEqual([])
+      },
+    })
+  })
+
   test("provider stop executes the complete contract verification plan before completion", async () => {
     await Instance.provide({
       directory: testHome,

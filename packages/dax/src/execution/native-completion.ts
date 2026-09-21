@@ -7,7 +7,7 @@ import type { CanonicalRunState } from "@/state/events/run-reducer"
 import { RunCompletionBlockedError, RunLifecycle } from "@/state/run-lifecycle"
 import { Instance } from "@/project/instance"
 import { recordNativeVerification } from "./native-verification"
-import { verifyAssistantTextCommitment } from "./assistant-provenance"
+import { verifiedAssistantTextParts } from "./assistant-provenance"
 
 export type NativeCompletionDecision = {
   candidate: boolean
@@ -117,8 +117,20 @@ export async function adjudicateNativeCompletionCandidate(input: {
       reasonCodes: [`assistant_settlement_finish:${assistantRecord.settlement.finishReason ?? "missing"}`],
     }
   }
-  if (!verifyAssistantTextCommitment(assistantRecord.settlement.text, assistant.parts)) {
+  const verifiedTextParts = verifiedAssistantTextParts(assistantRecord.settlement.text, assistant.parts)
+  if (!verifiedTextParts) {
     return { candidate: true, accepted: false, runId, reasonCodes: ["assistant_commitment_mismatch"] }
+  }
+
+  if (state.assistantHistory.unsettledMessageIds.length > 0) {
+    return {
+      candidate: true,
+      accepted: false,
+      runId,
+      reasonCodes: state.assistantHistory.unsettledMessageIds.map(
+        (messageId) => `assistant_message_unsettled:${messageId}`,
+      ),
+    }
   }
 
   const authorityReasons = [
@@ -141,9 +153,7 @@ export async function adjudicateNativeCompletionCandidate(input: {
     })
   }
 
-  const hasTextOutput = assistant.parts.some(
-    (part) => part.type === "text" && part.synthetic !== true && part.text.trim().length > 0,
-  )
+  const hasTextOutput = verifiedTextParts.some((part) => part.text.trim().length > 0)
   const hasMutationOutput =
     state.governance.mutationReceiptIds.length > 0 && state.governance.touchedFiles.length > 0
   const outputTypes = new Set(

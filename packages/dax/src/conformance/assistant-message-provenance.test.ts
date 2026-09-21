@@ -18,7 +18,12 @@ import { Storage } from "@/storage/storage"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
-import { AssistantProvenancePersistenceError, markDerivedAssistantSession } from "@/execution/assistant-provenance"
+import {
+  AssistantProvenancePersistenceError,
+  AssistantProvenanceRecoveryRequiredError,
+  markDerivedAssistantSession,
+  openAssistantMessageProvenance,
+} from "@/execution/assistant-provenance"
 import {
   beginNativeInvocation,
   completeNativeAuthorization,
@@ -459,6 +464,62 @@ describe("production assistant-message provenance", () => {
         } finally {
           renameFailure?.mockRestore()
           retryable.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("restart with an unfinished opened message requires recovery before provider dispatch", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await prepareConversation(root.id)
+        const messages = await Session.messages({ sessionID: root.id })
+        const user = messages.findLast((message) => message.info.role === "user")
+        if (!user) throw new Error("missing user message")
+        const assistant = (await Session.updateMessage({
+          id: Identifier.ascending("message"),
+          parentID: user.info.id,
+          role: "assistant",
+          mode: "build",
+          agent: "build",
+          path: { cwd: testProject, root: testProject },
+          cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: testModel.id,
+          providerID: testModel.providerID,
+          time: { created: Date.now() },
+          sessionID: root.id,
+        })) as MessageV2.Assistant
+        await openAssistantMessageProvenance({ assistantMessage: assistant })
+        await Instance.disposeAll()
+
+        let modelCalls = 0
+        const spies = installModelSpies(async () => {
+          modelCalls++
+          return modelText("replacement response")
+        })
+        try {
+          const error = await SessionPrompt.loop({
+            sessionID: root.id,
+            completionPolicy: "on_provider_stop",
+          }).catch((cause) => cause)
+
+          expect(error).toBeInstanceOf(AssistantProvenanceRecoveryRequiredError)
+          expect(error).toMatchObject({
+            code: "assistant_provenance_recovery_required",
+            runId: root.id,
+            sessionId: root.id,
+            unsettledMessageIds: [assistant.id],
+          })
+          expect(modelCalls).toBe(0)
+          const state = await projectRunStateFromEvents(root.id)
+          expect(state?.assistantHistory.messages).toHaveLength(1)
+          expect(state?.assistantHistory.unsettledMessageIds).toEqual([assistant.id])
+          expect((await Session.messages({ sessionID: root.id })).filter((message) => message.info.role === "assistant")).toHaveLength(1)
+        } finally {
           spies.restore()
         }
       },
