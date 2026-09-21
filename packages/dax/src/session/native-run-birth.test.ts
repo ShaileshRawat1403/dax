@@ -97,7 +97,7 @@ describe("canonical native run birth", () => {
             contract?.workflowClass === "generic" &&
             contract.runtimePolicy?.postconditions?.verificationRequired === true &&
             events.map((event) => event.type).join(",") ===
-              "contract_compiled,execution_queued,execution_started" &&
+              "contract_compiled,execution_queued,execution_started,assistant_recording_started,assistant_message_recorded" &&
             projected?.status === "running"
           return {
             fullStream: (async function* () {
@@ -258,6 +258,7 @@ describe("canonical native run birth", () => {
           "contract_compiled",
           "execution_queued",
           "execution_started",
+          "assistant_recording_started",
         ])
       },
     })

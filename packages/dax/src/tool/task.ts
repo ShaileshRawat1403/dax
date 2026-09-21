@@ -13,6 +13,7 @@ import { Permission } from "@/governance"
 import { resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { getRunAuthority } from "@/state/events/run-event-store"
 import { recordNativeDelegation } from "@/execution/native-settlement"
+import { markDerivedAssistantSession } from "@/execution/assistant-provenance"
 
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
@@ -85,9 +86,10 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
 
       // Creating a derived session is itself an execution effect. Do it only
       // after the parent invocation's combined authority is durable.
-      session ??= await Session.fork({ sessionID: ctx.sessionID })
+      session ??= await Session.fork({ sessionID: ctx.sessionID, deferAssistantMarker: true })
 
       const authorityRunId = parentAuthority.governingRunId ?? parentSession.id
+      let assistantProvenance: Awaited<ReturnType<typeof recordNativeDelegation>> | undefined
       if ((await getRunAuthority(authorityRunId)) === "event-log") {
         if (!ctx.callID) {
           throw new Error(`Canonical task delegation from ${ctx.sessionID} has no invocation identity`)
@@ -95,12 +97,15 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
         // This record proves authorized child selection and dispatch intent.
         // It deliberately precedes the child prompt, which supplies separate
         // execution/result evidence and may still fail or be interrupted.
-        await recordNativeDelegation(ctx.callID, {
+        assistantProvenance = await recordNativeDelegation(ctx.callID, {
           parentSessionId: ctx.sessionID,
           childSessionId: session.id,
           agent: agentName,
           mode,
         })
+        if (mode === "created") {
+          await markDerivedAssistantSession({ sessionId: session.id, copiedFromSessionId: ctx.sessionID })
+        }
       }
 
       const approved = await Permission.getApproved()
@@ -119,6 +124,7 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
           ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
         },
         parts: promptParts,
+        assistantProvenance,
       })
 
       const text = result.parts.findLast((x: MessageV2.Part) => x.type === "text")?.text ?? ""

@@ -348,6 +348,20 @@ describe("production delegation provenance", () => {
             coverage: "complete",
             records: [{ parentSessionId: root.id, agent: "general", mode: "created" }],
           })
+          const delegation = state?.delegationHistory.records[0]
+          if (!delegation) throw new Error("missing durable delegation")
+          const childMessage = state?.assistantHistory.messages.find(
+            (message) => message.sessionId === delegation.childSessionId,
+          )
+          expect(childMessage?.source).toEqual({
+            kind: "task_delegated",
+            invocationId: delegation?.invocationId,
+            delegationEventId: delegation?.eventId,
+            authorizationEventId: delegation?.authorizationEventId,
+            parentSessionId: root.id,
+            agent: "general",
+            mode: "created",
+          })
         } finally {
           stream.mockRestore()
           summary.mockRestore()

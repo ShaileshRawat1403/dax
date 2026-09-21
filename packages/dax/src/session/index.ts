@@ -64,6 +64,8 @@ export namespace Session {
        * reference preserves authority across derived sessions.
        */
       governingRunId: Identifier.schema("session").optional(),
+      /** Conversation lineage only. Execution delegation is recorded separately. */
+      derivedFromSessionId: Identifier.schema("session").optional(),
       externalAgent: AntigravitySessionState.optional(),
       summary: z
         .object({
@@ -169,6 +171,7 @@ export namespace Session {
     z.object({
       sessionID: Identifier.schema("session"),
       messageID: Identifier.schema("message").optional(),
+      deferAssistantMarker: z.boolean().optional(),
     }),
     async (input) => {
       const original = await get(input.sessionID)
@@ -180,7 +183,14 @@ export namespace Session {
         directory: Instance.directory,
         title,
         governingRunId: authority.governingRunId,
+        derivedFromSessionId: original.id,
       })
+      // Establish the producer cutover before copied messages are written. The
+      // copies remain history, not newly produced assistant output in the child.
+      if (!input.deferAssistantMarker) {
+        const { markDerivedAssistantSession } = await import("@/execution/assistant-provenance")
+        await markDerivedAssistantSession({ sessionId: session.id, copiedFromSessionId: original.id })
+      }
       const msgs = await messages({ sessionID: input.sessionID })
       const idMap = new Map<string, string>()
 
@@ -221,6 +231,7 @@ export namespace Session {
     title?: string
     parentID?: string
     governingRunId?: string
+    derivedFromSessionId?: string
     directory: string
     permission?: Permission.Ruleset
   }) {
@@ -234,6 +245,7 @@ export namespace Session {
       directory: input.directory,
       parentID: input.parentID,
       governingRunId,
+      derivedFromSessionId: input.derivedFromSessionId,
       title: input.title ?? createDefaultTitle(!!input.parentID),
       permission: input.permission,
       time: {

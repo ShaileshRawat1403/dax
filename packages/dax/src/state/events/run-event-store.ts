@@ -123,8 +123,12 @@ async function appendRunEventUnderLock(input: {
     event.type === "tool_invocation_recorded" ||
     event.type === "authorization_recorded" ||
     event.type === "delegation_recorded" ||
+    event.type === "assistant_recording_started" ||
+    event.type === "assistant_message_recorded" ||
     event.type === "tool_result_recorded" ||
-    event.type === "mutation_recorded"
+    event.type === "mutation_recorded" ||
+    event.type === "run_completed" ||
+    event.type === "workflow_completed"
   ) {
     reduceRunState([...existingEvents, validatedNewEvent])
   }
@@ -233,6 +237,13 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
         records: [],
         missingInvocationIds: [],
         uncapturedCreationSessionIds: [],
+      },
+      assistantHistory: {
+        scope: "session_processor_v1",
+        coverage: "unavailable",
+        sessions: [],
+        messages: [],
+        unsettledMessageIds: [],
       },
     } as RunState
   }

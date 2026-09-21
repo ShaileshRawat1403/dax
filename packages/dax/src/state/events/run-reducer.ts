@@ -32,6 +32,8 @@ export type RunState = {
    * prompt, context, assistant-message, or compaction history.
    */
   delegationHistory: DelegationHistory
+  /** Durable, commitment-only provenance for SessionProcessor assistant output. */
+  assistantHistory: AssistantHistory
   pendingApprovalIds: string[]
   /**
    * The approvals this run requested, as the operator saw them. Distinct from
@@ -242,6 +244,87 @@ export type DelegationHistory = {
   uncapturedCreationSessionIds: string[]
 }
 
+export type AssistantTextPartCommitment = {
+  partId: string
+  ordinal: number
+  attempt: number
+  finalization: "finalized_post_plugin" | "interrupted_before_text_end" | "text_end_unfinalized"
+  utf8Bytes: number
+  digest: string
+}
+
+export type AssistantMessageRecord = {
+  messageId: string
+  sessionId: string
+  parentMessageId: string
+  providerId: string
+  modelId: string
+  agent: string
+  summary: boolean
+  source:
+    | { kind: "root" }
+    | { kind: "derived"; parentSessionId?: string }
+    | {
+        kind: "task_delegated"
+        invocationId: string
+        delegationEventId: string
+        authorizationEventId: string
+        parentSessionId: string
+        agent: string
+        mode: "created" | "resumed"
+      }
+  openedEventId: string
+  openedAt: string
+  settlement: {
+    status: "completed" | "failed" | "cancelled"
+    finishReason?: string
+    errorCode?: string
+    attemptCount: number
+    usage: {
+      basis: "reported_finish_steps_only"
+      finishStepCount: number
+      input: number
+      output: number
+      reasoning: number
+      cacheRead: number
+      cacheWrite: number
+      cost: number
+    }
+    text: {
+      canonicalization: "assistant-visible-parts-v1"
+      digest: string
+      partCount: number
+      finalizedPartCount: number
+      interruptedPartCount: number
+      utf8Bytes: number
+      parts: AssistantTextPartCommitment[]
+    }
+    reasoningPartCount: number
+    reasoningUtf8Bytes: number
+    eventId: string
+    settledAt: string
+  } | null
+}
+
+export type AssistantSessionCoverage = {
+  sessionId: string
+  coverage: "complete" | "partial" | "unavailable"
+  markerEventId: string | null
+  priorScopeHistory: "none" | "unavailable" | null
+  copiedHistory: "none" | "excluded" | null
+  sourceSessionId?: string
+  cutoverMessageId?: string
+}
+
+export type AssistantHistory = {
+  scope: "session_processor_v1"
+  /** Aggregate over the journal-known producer population, never all model history. */
+  coverage: "complete" | "partial" | "unavailable"
+  sessions: AssistantSessionCoverage[]
+  messages: AssistantMessageRecord[]
+  unsettledMessageIds: string[]
+}
+
 export type DraftRecord = {
   draftId: string
   type: string
@@ -334,6 +417,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       records: [],
       missingInvocationIds: [],
       uncapturedCreationSessionIds: [],
+    },
+    assistantHistory: {
+      scope: "session_processor_v1",
+      coverage: "unavailable",
+      sessions: [],
+      messages: [],
+      unsettledMessageIds: [],
     },
     pendingApprovalIds: [],
     approvals: [],
@@ -543,6 +633,143 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           eventId: event.eventId,
           recordedAt: event.occurredAt,
         })
+        break
+      }
+
+      case "assistant_recording_started": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "assistant_recording_started" }>["payload"]
+        if (isTerminalStatus(state.status)) {
+          throw new Error(`Cannot start assistant recording for ${payload.sessionId} after run settlement`)
+        }
+        if (event.correlationId !== payload.sessionId) {
+          throw new Error(`Assistant coverage marker correlation does not match session: ${payload.sessionId}`)
+        }
+        if (state.assistantHistory.sessions.some((candidate) => candidate.sessionId === payload.sessionId)) {
+          throw new Error(`Assistant coverage marker already exists for session: ${payload.sessionId}`)
+        }
+        state.assistantHistory.sessions.push({
+          sessionId: payload.sessionId,
+          coverage: payload.priorScopeHistory === "none" ? "complete" : "partial",
+          markerEventId: event.eventId,
+          priorScopeHistory: payload.priorScopeHistory,
+          copiedHistory: payload.copiedHistory,
+          ...(payload.sourceSessionId ? { sourceSessionId: payload.sourceSessionId } : {}),
+          ...(payload.cutoverMessageId ? { cutoverMessageId: payload.cutoverMessageId } : {}),
+        })
+        break
+      }
+
+      case "assistant_message_recorded": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "assistant_message_recorded" }>["payload"]
+        if (event.correlationId !== payload.messageId) {
+          throw new Error(`Assistant message correlation does not match message: ${payload.messageId}`)
+        }
+        const marker = state.assistantHistory.sessions.find((candidate) => candidate.sessionId === payload.sessionId)
+        if (!marker?.markerEventId) {
+          throw new Error(`Assistant message has no producer coverage marker for session: ${payload.sessionId}`)
+        }
+
+        if (payload.phase === "opened") {
+          if (isTerminalStatus(state.status)) {
+            throw new Error(`Cannot open assistant message ${payload.messageId} after run settlement`)
+          }
+          if (state.assistantHistory.messages.some((candidate) => candidate.messageId === payload.messageId)) {
+            throw new Error(`Assistant message already opened: ${payload.messageId}`)
+          }
+          const firstSessionMessage = !state.assistantHistory.messages.some(
+            (candidate) => candidate.sessionId === payload.sessionId,
+          )
+          if (firstSessionMessage && marker.cutoverMessageId && marker.cutoverMessageId !== payload.messageId) {
+            throw new Error(`Assistant message does not match its session cutover: ${payload.messageId}`)
+          }
+          if (payload.source.kind === "root") {
+            if (payload.sessionId !== state.runId) {
+              throw new Error(`Root assistant source must use the governing run session: ${payload.messageId}`)
+            }
+            if (marker.sourceSessionId) {
+              throw new Error(`Root assistant source cannot claim copied session history: ${payload.messageId}`)
+            }
+            if (event.causationId !== marker.markerEventId) {
+              throw new Error(`Root assistant source must be caused by its session marker: ${payload.messageId}`)
+            }
+          } else if (payload.source.kind === "derived") {
+            if (payload.sessionId === state.runId) {
+              throw new Error(`Derived assistant source cannot use the root session: ${payload.messageId}`)
+            }
+            if (marker.sourceSessionId && payload.source.parentSessionId !== marker.sourceSessionId) {
+              throw new Error(`Derived assistant source does not match its session lineage: ${payload.messageId}`)
+            }
+            if (event.causationId !== marker.markerEventId) {
+              throw new Error(`Derived assistant source must be caused by its session marker: ${payload.messageId}`)
+            }
+          } else {
+            const source = payload.source
+            const delegation = state.delegationHistory.records.find(
+              (candidate) => candidate.eventId === source.delegationEventId,
+            )
+            if (!delegation) {
+              throw new Error(`Assistant message references unknown delegation: ${payload.messageId}`)
+            }
+            if (
+              delegation.invocationId !== source.invocationId ||
+              delegation.authorizationEventId !== source.authorizationEventId ||
+              delegation.parentSessionId !== source.parentSessionId ||
+              delegation.childSessionId !== payload.sessionId ||
+              delegation.agent !== source.agent ||
+              delegation.mode !== source.mode
+            ) {
+              throw new Error(
+                `Assistant message delegation identity does not match durable provenance: ${payload.messageId}`,
+              )
+            }
+            if (
+              source.mode === "created" &&
+              marker.sourceSessionId &&
+              marker.sourceSessionId !== source.parentSessionId
+            ) {
+              throw new Error(`Created delegation does not match the child session lineage: ${payload.messageId}`)
+            }
+            if (event.causationId !== delegation.eventId) {
+              throw new Error(`Delegated assistant source must be caused by the exact delegation: ${payload.messageId}`)
+            }
+          }
+          state.assistantHistory.messages.push({
+            messageId: payload.messageId,
+            sessionId: payload.sessionId,
+            parentMessageId: payload.parentMessageId,
+            providerId: payload.providerId,
+            modelId: payload.modelId,
+            agent: payload.agent,
+            summary: payload.summary,
+            source: payload.source,
+            openedEventId: event.eventId,
+            openedAt: event.occurredAt,
+            settlement: null,
+          })
+          break
+        }
+
+        const message = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.messageId)
+        if (!message) throw new Error(`Assistant settlement references unopened message: ${payload.messageId}`)
+        if (message.sessionId !== payload.sessionId) {
+          throw new Error(`Assistant settlement session does not match opened message: ${payload.messageId}`)
+        }
+        if (message.settlement) throw new Error(`Assistant message already settled: ${payload.messageId}`)
+        if (event.causationId !== message.openedEventId) {
+          throw new Error(`Assistant settlement must be caused by its open event: ${payload.messageId}`)
+        }
+        message.settlement = {
+          status: payload.status,
+          ...(payload.finishReason ? { finishReason: payload.finishReason } : {}),
+          ...(payload.errorCode ? { errorCode: payload.errorCode } : {}),
+          attemptCount: payload.attemptCount,
+          usage: payload.usage,
+          text: payload.text,
+          reasoningPartCount: payload.reasoningPartCount,
+          reasoningUtf8Bytes: payload.reasoningUtf8Bytes,
+          eventId: event.eventId,
+          settledAt: event.occurredAt,
+        }
         break
       }
 
@@ -826,6 +1053,12 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       case "workflow_completed":
       case "run_completed": {
         if (!isTerminalStatus(state.status)) {
+          const unsettled = state.assistantHistory.messages
+            .filter((message) => message.settlement === null)
+            .map((message) => message.messageId)
+          if (unsettled.length > 0) {
+            throw new Error(`Run cannot complete with unsettled assistant messages: ${unsettled.join(", ")}`)
+          }
           if (state.pendingApprovalIds.length > 0) {
             throw new Error(`Run cannot complete with pending approvals: ${state.pendingApprovalIds.join(", ")}`)
           }
@@ -1037,6 +1270,34 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       ? "partial"
       : "unavailable"
     : "complete"
+
+  const knownSessionIds = new Set<string>([
+    state.runId,
+    ...state.delegationHistory.records.map((record) => record.childSessionId),
+    ...state.assistantHistory.sessions.map((session) => session.sessionId),
+    ...state.assistantHistory.messages.map((message) => message.sessionId),
+  ])
+  for (const sessionId of knownSessionIds) {
+    if (state.assistantHistory.sessions.some((session) => session.sessionId === sessionId)) continue
+    state.assistantHistory.sessions.push({
+      sessionId,
+      coverage: "unavailable",
+      markerEventId: null,
+      priorScopeHistory: null,
+      copiedHistory: null,
+    })
+  }
+  state.assistantHistory.sessions.sort((a, b) => a.sessionId.localeCompare(b.sessionId))
+  state.assistantHistory.unsettledMessageIds = state.assistantHistory.messages
+    .filter((message) => message.settlement === null)
+    .map((message) => message.messageId)
+  const markedSessions = state.assistantHistory.sessions.filter((session) => session.markerEventId !== null)
+  state.assistantHistory.coverage =
+    markedSessions.length === 0
+      ? "unavailable"
+      : state.assistantHistory.sessions.every((session) => session.coverage === "complete")
+        ? "complete"
+        : "partial"
 
   return state
 }

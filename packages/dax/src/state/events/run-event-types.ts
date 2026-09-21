@@ -196,6 +196,143 @@ const DelegationRecordedPayloadSchema = closed({
   }
 })
 
+const AssistantProducerScopeSchema = z.literal("session_processor_v1")
+
+export const ASSISTANT_ERROR_CODES = [
+  "aborted",
+  "assistant_text_plugin_failed",
+  "stream_exhausted_without_finish",
+  "provider_api_error",
+  "provider_timeout",
+  "provider_or_processor_failed",
+] as const
+export type AssistantErrorCode = (typeof ASSISTANT_ERROR_CODES)[number]
+
+const AssistantRecordingStartedPayloadSchema = closed({
+  sessionId: z.string().min(1),
+  scope: AssistantProducerScopeSchema,
+  priorScopeHistory: z.enum(["none", "unavailable"]),
+  copiedHistory: z.enum(["none", "excluded"]),
+  sourceSessionId: z.string().min(1).optional(),
+  cutoverMessageId: z.string().min(1).optional(),
+}).superRefine((payload, ctx) => {
+  if ((payload.copiedHistory === "excluded") !== Boolean(payload.sourceSessionId)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sourceSessionId"],
+      message: "must identify the copied-history source exactly when copied history is excluded",
+    })
+  }
+})
+
+const AssistantMessageSourceSchema = z.discriminatedUnion("kind", [
+  closed({ kind: z.literal("root") }),
+  closed({
+    kind: z.literal("derived"),
+    parentSessionId: z.string().min(1).optional(),
+  }),
+  closed({
+    kind: z.literal("task_delegated"),
+    invocationId: z.string().min(1),
+    delegationEventId: z.string().min(1),
+    authorizationEventId: z.string().min(1),
+    parentSessionId: z.string().min(1),
+    agent: z.string().min(1),
+    mode: z.enum(["created", "resumed"]),
+  }),
+])
+
+const AssistantTextPartCommitmentSchema = closed({
+  partId: z.string().min(1),
+  ordinal: z.number().int().nonnegative(),
+  attempt: z.number().int().positive(),
+  finalization: z.enum(["finalized_post_plugin", "interrupted_before_text_end", "text_end_unfinalized"]),
+  utf8Bytes: z.number().int().nonnegative(),
+  digest: Sha256DigestSchema,
+})
+
+const AssistantMessageCommitmentSchema = closed({
+  canonicalization: z.literal("assistant-visible-parts-v1"),
+  digest: Sha256DigestSchema,
+  partCount: z.number().int().nonnegative(),
+  finalizedPartCount: z.number().int().nonnegative(),
+  interruptedPartCount: z.number().int().nonnegative(),
+  utf8Bytes: z.number().int().nonnegative(),
+  parts: z.array(AssistantTextPartCommitmentSchema),
+}).superRefine((commitment, ctx) => {
+  if (commitment.partCount !== commitment.parts.length) {
+    ctx.addIssue({ code: "custom", path: ["partCount"], message: "must equal parts.length" })
+  }
+  const finalized = commitment.parts.filter((part) => part.finalization === "finalized_post_plugin").length
+  const interrupted = commitment.parts.length - finalized
+  if (commitment.finalizedPartCount !== finalized) {
+    ctx.addIssue({ code: "custom", path: ["finalizedPartCount"], message: "must match finalized parts" })
+  }
+  if (commitment.interruptedPartCount !== interrupted) {
+    ctx.addIssue({ code: "custom", path: ["interruptedPartCount"], message: "must match interrupted parts" })
+  }
+  if (commitment.utf8Bytes !== commitment.parts.reduce((total, part) => total + part.utf8Bytes, 0)) {
+    ctx.addIssue({ code: "custom", path: ["utf8Bytes"], message: "must equal the sum of part bytes" })
+  }
+})
+
+const AssistantUsageSchema = closed({
+  basis: z.literal("reported_finish_steps_only"),
+  finishStepCount: z.number().int().nonnegative(),
+  input: z.number().nonnegative(),
+  output: z.number().nonnegative(),
+  reasoning: z.number().nonnegative(),
+  cacheRead: z.number().nonnegative(),
+  cacheWrite: z.number().nonnegative(),
+  cost: z.number().nonnegative(),
+})
+
+const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
+  closed({
+    phase: z.literal("opened"),
+    scope: AssistantProducerScopeSchema,
+    messageId: z.string().min(1),
+    sessionId: z.string().min(1),
+    parentMessageId: z.string().min(1),
+    providerId: z.string().min(1),
+    modelId: z.string().min(1),
+    agent: z.string().min(1),
+    summary: z.boolean(),
+    source: AssistantMessageSourceSchema,
+  }),
+  closed({
+    phase: z.literal("settled"),
+    scope: AssistantProducerScopeSchema,
+    messageId: z.string().min(1),
+    sessionId: z.string().min(1),
+    status: z.enum(["completed", "failed", "cancelled"]),
+    finishReason: z.string().min(1).optional(),
+    errorCode: z.enum(ASSISTANT_ERROR_CODES).optional(),
+    attemptCount: z.number().int().positive(),
+    usage: AssistantUsageSchema,
+    text: AssistantMessageCommitmentSchema,
+    reasoningPartCount: z.number().int().nonnegative(),
+    reasoningUtf8Bytes: z.number().int().nonnegative(),
+  }).superRefine((payload, ctx) => {
+    if (payload.status === "completed" && !payload.finishReason) {
+      ctx.addIssue({ code: "custom", path: ["finishReason"], message: "completed settlement requires a finish reason" })
+    }
+    if (payload.status === "completed" && payload.errorCode) {
+      ctx.addIssue({ code: "custom", path: ["errorCode"], message: "completed settlement cannot carry an error code" })
+    }
+    if (payload.status !== "completed" && !payload.errorCode) {
+      ctx.addIssue({ code: "custom", path: ["errorCode"], message: "unsuccessful settlement requires a stable code" })
+    }
+    if (payload.status !== "completed" && payload.finishReason) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["finishReason"],
+        message: "unsuccessful settlement cannot carry a finish reason",
+      })
+    }
+  }),
+])
+
 /**
  * The closed canonical event vocabulary and each event's durable payload are
  * one runtime contract. This is deliberately the source of truth for both
@@ -216,6 +353,8 @@ const RunEventVariants = [
   z.object({ type: z.literal("tool_invocation_recorded"), payload: ToolInvocationRecordedPayloadSchema }),
   z.object({ type: z.literal("authorization_recorded"), payload: AuthorizationRecordedPayloadSchema }),
   z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
+  z.object({ type: z.literal("assistant_recording_started"), payload: AssistantRecordingStartedPayloadSchema }),
+  z.object({ type: z.literal("assistant_message_recorded"), payload: AssistantMessageRecordedPayloadSchema }),
   z.object({ type: z.literal("tool_result_recorded"), payload: ToolResultRecordedPayloadSchema }),
   z.object({
     type: z.literal("approval_requested"),
@@ -409,21 +548,36 @@ export const RunEventEnvelopeSchema = z
     if (
       event.type === "authorization_recorded" ||
       event.type === "delegation_recorded" ||
+      event.type === "assistant_message_recorded" ||
       event.type === "tool_result_recorded"
     ) {
-      if (event.correlationId !== event.payload.invocationId) {
+      const correlationId =
+        event.type === "assistant_message_recorded" ? event.payload.messageId : event.payload.invocationId
+      if (event.correlationId !== correlationId) {
         ctx.addIssue({
           code: "custom",
           path: ["correlationId"],
-          message: `must equal payload.invocationId for ${event.type}`,
+          message: `must equal the payload identity for ${event.type}`,
         })
       }
     }
-    if ((event.type === "delegation_recorded" || event.type === "tool_result_recorded") && !event.causationId) {
+    if (
+      (event.type === "delegation_recorded" ||
+        event.type === "assistant_message_recorded" ||
+        event.type === "tool_result_recorded") &&
+      !event.causationId
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["causationId"],
-        message: `must reference the allowed authorization event for ${event.type}`,
+        message: `must reference the governing prior event for ${event.type}`,
+      })
+    }
+    if (event.type === "assistant_recording_started" && event.correlationId !== event.payload.sessionId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["correlationId"],
+        message: "must equal payload.sessionId for assistant_recording_started",
       })
     }
   })

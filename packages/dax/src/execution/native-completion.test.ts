@@ -17,14 +17,18 @@ import {
   createEventAuthorityRun,
   getEventAuthorityState,
   recordAuthorization,
+  recordAssistantMessageOpened,
+  recordAssistantMessageSettled,
   recordToolInvocation,
   resolveApprovalEvent,
+  startAssistantRecording,
   transitionEventAuthority,
 } from "@/state/events/event-transitions"
 import { readRunEvents } from "@/state/events/run-event-store"
 import type { ExecutionContract } from "./execution-contract"
 import { NativeVerificationEffects } from "./native-verification"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
+import { commitAssistantTextParts } from "./assistant-provenance"
 
 let testHome = ""
 let previousTestHome: string | undefined
@@ -97,9 +101,10 @@ function checkResult(check: CheckDefinition, status: "passed" | "failed"): Check
 
 async function createAssistantCandidate(sessionID: string, text = "Governed work is complete.") {
   const messageID = Identifier.ascending("message")
+  const parentMessageID = Identifier.ascending("message")
   await Session.updateMessage({
     id: messageID,
-    parentID: Identifier.ascending("message"),
+    parentID: parentMessageID,
     role: "assistant",
     mode: "build",
     agent: "build",
@@ -112,9 +117,10 @@ async function createAssistantCandidate(sessionID: string, text = "Governed work
     sessionID,
     finish: "stop",
   })
+  const partID = Identifier.ascending("part")
   if (text) {
     await Session.updatePart({
-      id: Identifier.ascending("part"),
+      id: partID,
       messageID,
       sessionID,
       type: "text",
@@ -122,6 +128,67 @@ async function createAssistantCandidate(sessionID: string, text = "Governed work
       time: { start: Date.now(), end: Date.now() },
     })
   }
+  let state = await getEventAuthorityState(sessionID)
+  if (!state) return messageID
+  let marker = state?.assistantHistory.sessions.find((session) => session.sessionId === sessionID)?.markerEventId
+  if (!marker) {
+    state = await startAssistantRecording(sessionID, {
+      sessionId: sessionID,
+      priorScopeHistory: "none",
+      copiedHistory: "none",
+      cutoverMessageId: messageID,
+    })
+    marker = state.assistantHistory.sessions.find((session) => session.sessionId === sessionID)?.markerEventId
+  }
+  if (!marker) throw new Error("missing assistant marker")
+  state = await recordAssistantMessageOpened(sessionID, marker, {
+    phase: "opened",
+    scope: "session_processor_v1",
+    messageId: messageID,
+    sessionId: sessionID,
+    parentMessageId: parentMessageID,
+    providerId: "test-provider",
+    modelId: "test-model",
+    agent: "build",
+    summary: false,
+    source: { kind: "root" },
+  })
+  const opened = state.assistantHistory.messages.find((message) => message.messageId === messageID)
+  if (!opened) throw new Error("missing assistant open")
+  await recordAssistantMessageSettled(sessionID, opened.openedEventId, {
+    phase: "settled",
+    scope: "session_processor_v1",
+    messageId: messageID,
+    sessionId: sessionID,
+    status: "completed",
+    finishReason: "stop",
+    attemptCount: 1,
+    usage: {
+      basis: "reported_finish_steps_only",
+      finishStepCount: 1,
+      input: 0,
+      output: 0,
+      reasoning: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+    },
+    text: commitAssistantTextParts(
+      text
+        ? [
+            {
+              partId: partID,
+              ordinal: 0,
+              attempt: 1,
+              finalization: "finalized_post_plugin",
+              text,
+            },
+          ]
+        : [],
+    ),
+    reasoningPartCount: 0,
+    reasoningUtf8Bytes: 0,
+  })
   return messageID
 }
 
@@ -408,9 +475,15 @@ describe("native canonical completion", () => {
         await transitionEventAuthority(session.id, "queued", "execution_queued", {})
         await transitionEventAuthority(session.id, "running", "execution_started", {})
 
-        const error = await RunLifecycle.transition(session.id, "completed", "run_completed", {}, {
-          requirePassingCompletionProof: true,
-        }).catch((cause) => cause)
+        const error = await RunLifecycle.transition(
+          session.id,
+          "completed",
+          "run_completed",
+          {},
+          {
+            requirePassingCompletionProof: true,
+          },
+        ).catch((cause) => cause)
 
         expect(error).toBeInstanceOf(RunCompletionBlockedError)
         expect((error as RunCompletionBlockedError).failedChecks).toEqual(["missing_execution_contract"])
@@ -425,15 +498,18 @@ describe("native canonical completion", () => {
       directory: testHome,
       async fn() {
         const session = await Session.create({ title: "Missing canonical completion state" })
-        const { contract } = compileWithRunId(
-          { request: { intent: { input: "Prove completion." } } },
-          session.id,
-        )
+        const { contract } = compileWithRunId({ request: { intent: { input: "Prove completion." } } }, session.id)
         await ContractGuardian.create(session.id, contract)
 
-        const error = await RunLifecycle.transition(session.id, "completed", "run_completed", {}, {
-          requirePassingCompletionProof: true,
-        }).catch((cause) => cause)
+        const error = await RunLifecycle.transition(
+          session.id,
+          "completed",
+          "run_completed",
+          {},
+          {
+            requirePassingCompletionProof: true,
+          },
+        ).catch((cause) => cause)
 
         expect(error).toBeInstanceOf(RunCompletionBlockedError)
         expect((error as RunCompletionBlockedError).failedChecks).toEqual(["missing_canonical_state"])
@@ -449,9 +525,15 @@ describe("native canonical completion", () => {
         const { session } = await createNativeRun()
         await Storage.write(["execution_contract", Instance.project.id, session.id], { malformed: true })
 
-        const completion = RunLifecycle.transition(session.id, "completed", "run_completed", {}, {
-          requirePassingCompletionProof: true,
-        })
+        const completion = RunLifecycle.transition(
+          session.id,
+          "completed",
+          "run_completed",
+          {},
+          {
+            requirePassingCompletionProof: true,
+          },
+        )
 
         await expect(completion).rejects.toThrow(/Invalid ExecutionContract/i)
         expect((await getEventAuthorityState(session.id))?.status).toBe("running")

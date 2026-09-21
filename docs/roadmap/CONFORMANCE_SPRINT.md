@@ -1,9 +1,9 @@
 # Next sprint: close the remaining conformance gaps
 
-Status: planned; implementation has not started. Recorded 2026-09-20 at the
-maintainer's request. Implementation model: to be selected next session.
-Reviewer: Astra 6, high reasoning. Baseline: DAX v1.5.0, commit
-`88e74c97c25a8bf1e304554d8e2c4ff45533ff09`.
+Status: in progress. Recorded 2026-09-20 at the maintainer's request.
+Implementation model: Sol. Reviewer: Astra 6, high reasoning. Released baseline:
+DAX v1.5.0 at `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`;
+current sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`.
 
 The sprint backlog contains all nine entries in the
 [gap ledger](../../packages/dax/src/conformance/known-gaps.ts).

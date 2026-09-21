@@ -18,6 +18,7 @@ import {
   prepareNativeMutationObservation,
   settleNativeMutationObservation,
 } from "./native-mutation-observation"
+import type { AssistantDelegationReceipt } from "./assistant-provenance"
 
 export type NativeExecutorKind = "builtin" | "plugin" | "mcp"
 type PolicyDisposition = "allowed" | "denied" | "approval_required" | "not_evaluated"
@@ -331,7 +332,7 @@ export async function recordNativeDelegation(
     agent: string
     mode: "created" | "resumed"
   },
-): Promise<void> {
+): Promise<AssistantDelegationReceipt> {
   const state = pending.get(invocationId)
   if (!state) throw new NativeSettlementStateError(invocationId, "delegation has no pending invocation")
   if (state.denied) throw new NativeSettlementStateError(invocationId, "delegation authorization was denied")
@@ -343,7 +344,18 @@ export async function recordNativeDelegation(
   }
 
   try {
-    await recordDelegation(state.authorityRunId, invocationId, state.authorizationEventId, details)
+    const updated = await recordDelegation(state.authorityRunId, invocationId, state.authorizationEventId, details)
+    const record = updated.delegationHistory.records.find((candidate) => candidate.invocationId === invocationId)
+    if (!record) throw new Error("delegation event did not project")
+    return {
+      kind: "task_delegated",
+      invocationId,
+      delegationEventId: record.eventId,
+      authorizationEventId: record.authorizationEventId,
+      parentSessionId: record.parentSessionId,
+      agent: record.agent,
+      mode: record.mode,
+    }
   } catch (error) {
     throw new NativeSettlementAppendError("delegation", invocationId, error)
   }

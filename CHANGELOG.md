@@ -12,12 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Governed task delegation now records run-owned parent/child session provenance,
   the resolved agent, and fresh-versus-resumed dispatch intent before the child
   prompt begins. Replay reports incomplete historical coverage explicitly.
+- Governed `SessionProcessor` output now records a durable lifecycle and
+  commitment-only text provenance for ordinary turns and compaction summaries.
+  Provider retries, interrupted parts, stable terminal codes, exact delegation
+  sources, reported usage, and per-session cutover coverage replay without
+  retaining assistant text or previews. Unsettled captured messages block native
+  output acceptance and both run and workflow completion.
 
 ### Compatibility
 
 - The run-event vocabulary remains fail-closed. Older DAX binaries do not know
-  `delegation_recorded` and will reject logs containing it instead of projecting
-  partial history.
+  `delegation_recorded`, `assistant_recording_started`, or
+  `assistant_message_recorded`; they reject logs containing those events instead
+  of projecting partial history.
 
 ## [1.5.0] - 2026-09-20
 

@@ -89,6 +89,7 @@ import {
   type NativeCompletionDecision,
 } from "@/execution/native-completion"
 import { Sandbox } from "../shell/sandbox"
+import { AssistantDelegationReceiptSchema } from "@/execution/assistant-provenance"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -341,6 +342,7 @@ export namespace SessionPrompt {
       ]),
     ),
     completionPolicy: z.enum(["explicit", "on_provider_stop"]).optional(),
+    assistantProvenance: AssistantDelegationReceiptSchema.optional(),
   })
   export type PromptInput = z.infer<typeof PromptInput>
 
@@ -433,7 +435,11 @@ export namespace SessionPrompt {
       return message
     }
 
-    return loop({ sessionID: input.sessionID, completionPolicy: input.completionPolicy })
+    return loop({
+      sessionID: input.sessionID,
+      completionPolicy: input.completionPolicy,
+      assistantProvenance: input.assistantProvenance,
+    })
   })
 
   /**
@@ -560,10 +566,11 @@ export namespace SessionPrompt {
     sessionID: Identifier.schema("session"),
     resume_existing: z.boolean().optional(),
     completionPolicy: z.enum(["explicit", "on_provider_stop"]).optional(),
+    assistantProvenance: AssistantDelegationReceiptSchema.optional(),
   })
   export const loop = fn(LoopInput, async (input) => {
     if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("AGY sessions cannot enter the native model loop.")
-    const { sessionID, resume_existing, completionPolicy } = input
+    const { sessionID, resume_existing, completionPolicy, assistantProvenance } = input
 
     const abort = resume_existing ? resume(sessionID) : start(sessionID)
     if (!abort) {
@@ -870,6 +877,7 @@ export namespace SessionPrompt {
           abort,
           sessionID,
           auto: task.auto,
+          assistantProvenance,
         })
         if (result === "stop") break
         continue
@@ -939,6 +947,7 @@ export namespace SessionPrompt {
         sessionID: sessionID,
         model,
         abort,
+        assistantProvenance,
       })
       using _ = defer(() => InstructionPrompt.clear(processor.message.id))
 

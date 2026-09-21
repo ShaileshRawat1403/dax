@@ -87,8 +87,11 @@ target. They fail with a number, and that number is the progress metric.
   None contributes points to the 16-point denominator.
 
 - `event-authority.test.ts` scores 11 authoritative record classes for durable
-  representation. Current coverage: **7 / 11** (tool invocation, tool result,
-  approval, policy decision, delegation, verification and completion).
+  representation. Current coverage: **8 / 11** (assistant message, tool
+  invocation, tool result, approval, policy decision, delegation, verification
+  and completion). Assistant-message coverage is explicitly limited to
+  `SessionProcessor` output after a per-session cutover marker; copied or older
+  unknown history is not promoted to complete coverage.
 
 The record-class meter counts whether a class has *any* durable event type. It is
 deliberately generous: approval scores, yet a separate test shows the payload cannot

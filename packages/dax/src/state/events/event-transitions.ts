@@ -338,6 +338,65 @@ export async function recordDelegation(
   )
 }
 
+export async function startAssistantRecording(
+  runId: string,
+  details: {
+    sessionId: string
+    priorScopeHistory: "none" | "unavailable"
+    copiedHistory: "none" | "excluded"
+    sourceSessionId?: string
+    cutoverMessageId?: string
+  },
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "assistant_recording_started",
+    {
+      sessionId: details.sessionId,
+      scope: "session_processor_v1",
+      priorScopeHistory: details.priorScopeHistory,
+      copiedHistory: details.copiedHistory,
+      ...(details.sourceSessionId ? { sourceSessionId: details.sourceSessionId } : {}),
+      ...(details.cutoverMessageId ? { cutoverMessageId: details.cutoverMessageId } : {}),
+    },
+    `cmd_assistant_recording_${details.sessionId}`,
+    { correlationId: details.sessionId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+type AssistantMessagePayload = Extract<RunEventPayload, { type: "assistant_message_recorded" }>["payload"]
+
+export async function recordAssistantMessageOpened(
+  runId: string,
+  causationId: string,
+  payload: Extract<AssistantMessagePayload, { phase: "opened" }>,
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "assistant_message_recorded",
+    payload,
+    `cmd_assistant_open_${payload.messageId}`,
+    { correlationId: payload.messageId, causationId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+export async function recordAssistantMessageSettled(
+  runId: string,
+  openedEventId: string,
+  payload: Extract<AssistantMessagePayload, { phase: "settled" }>,
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "assistant_message_recorded",
+    payload,
+    `cmd_assistant_settle_${payload.messageId}`,
+    { correlationId: payload.messageId, causationId: openedEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
 export type ToolResultOutcome =
   | {
       status: "completed"

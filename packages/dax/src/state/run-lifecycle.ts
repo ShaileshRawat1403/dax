@@ -99,6 +99,13 @@ export class RunLifecycle {
     options?: { requirePassingCompletionProof?: boolean },
   ): Promise<RunState> {
     if (newStatus === "completed") {
+      const state = await projectRunStateFromEvents(runId)
+      if (state && state.assistantHistory.unsettledMessageIds.length > 0) {
+        throw new RunCompletionBlockedError(
+          `Run ${runId} cannot complete with unsettled assistant messages.`,
+          state.assistantHistory.unsettledMessageIds.map((messageId) => `assistant_message_unsettled:${messageId}`),
+        )
+      }
       const proof = await RunLifecycle.assertCompletionProof(runId, options)
       if (proof && typeof payload === "object" && payload !== null) {
         payload = { ...(payload as Record<string, unknown>), completionProof: proof }

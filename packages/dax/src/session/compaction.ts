@@ -10,6 +10,7 @@ import { SessionPrompt } from "./prompt"
 import { Token } from "../util/token"
 import { Log } from "../util/log"
 import { SessionProcessor } from "./processor"
+import type { AssistantDelegationReceipt } from "@/execution/assistant-provenance"
 import { fn } from "@/util/fn"
 import { Agent } from "@/agent/agent"
 import { Plugin } from "@/plugin"
@@ -95,6 +96,7 @@ export namespace SessionCompaction {
     sessionID: string
     abort: AbortSignal
     auto: boolean
+    assistantProvenance?: AssistantDelegationReceipt
   }) {
     const userMessage = input.messages.findLast((m) => m.info.id === input.parentID)!.info as MessageV2.User
     const agent = await Agent.get("compaction")
@@ -132,6 +134,7 @@ export namespace SessionCompaction {
       sessionID: input.sessionID,
       model,
       abort: input.abort,
+      assistantProvenance: input.assistantProvenance,
     })
     // Allow plugins to inject context or replace compaction prompt
     const compacting = await Plugin.trigger(

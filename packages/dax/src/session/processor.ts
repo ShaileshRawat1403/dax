@@ -17,6 +17,37 @@ import { Permission } from "@/governance"
 import { Question } from "@/question"
 import { updateProviderPressure } from "@/state/events/event-transitions"
 import { getGeminiSubscriptionPressure } from "@/plugin/gemini-scheduler"
+import {
+  openAssistantMessageProvenance,
+  settleAssistantMessageProvenance,
+  type AssistantDelegationReceipt,
+  type AssistantSettlement,
+  type AssistantUsage,
+  type CapturedAssistantTextPart,
+} from "@/execution/assistant-provenance"
+
+class AssistantTextPluginError extends Error {
+  constructor(cause: unknown) {
+    super("Assistant text post-processing failed", { cause })
+    this.name = "AssistantTextPluginError"
+  }
+}
+
+class StreamExhaustedWithoutFinishError extends Error {
+  constructor() {
+    super("Provider stream exhausted without a finish-step signal")
+    this.name = "StreamExhaustedWithoutFinishError"
+  }
+}
+
+function stableAssistantErrorCode(error: unknown, aborted: boolean): NonNullable<AssistantSettlement["errorCode"]> {
+  if (aborted) return "aborted"
+  if (error instanceof AssistantTextPluginError) return "assistant_text_plugin_failed"
+  if (error instanceof StreamExhaustedWithoutFinishError) return "stream_exhausted_without_finish"
+  if (error instanceof Error && error.name === "APIError") return "provider_api_error"
+  if (error instanceof Error && error.name === "AbortError") return "provider_timeout"
+  return "provider_or_processor_failed"
+}
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -33,12 +64,28 @@ export namespace SessionProcessor {
     sessionID: string
     model: Provider.Model
     abort: AbortSignal
+    assistantProvenance?: AssistantDelegationReceipt
   }) {
     const toolcalls: Record<string, MessageV2.ToolPart> = {}
     let snapshot: string | undefined
     let blocked = false
     let attempt = 0
+    let providerAttempts = 0
     let needsCompaction = false
+    const capturedTextParts: CapturedAssistantTextPart[] = []
+    let textOrdinal = 0
+    let reasoningPartCount = 0
+    let reasoningUtf8Bytes = 0
+    const reportedUsage: AssistantUsage = {
+      basis: "reported_finish_steps_only",
+      finishStepCount: 0,
+      input: 0,
+      output: 0,
+      reasoning: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+    }
 
     const result = {
       get message() {
@@ -51,9 +98,16 @@ export namespace SessionProcessor {
         log.info("process")
         needsCompaction = false
         const shouldBreak = (await Config.get()).experimental?.continue_loop_on_deny !== true
+        const provenance = await openAssistantMessageProvenance({
+          assistantMessage: input.assistantMessage,
+          delegation: input.assistantProvenance,
+        })
+        let terminalErrorCode: AssistantSettlement["errorCode"]
         while (true) {
           try {
             let currentText: MessageV2.TextPart | undefined
+            let currentTextCapture: CapturedAssistantTextPart | undefined
+            let sawFinishStep = false
             const reasoningMap: Record<string, MessageV2.ReasoningPart> = {}
             const shouldTrackDelayedProvider = true
             let lastProgressAt = Date.now()
@@ -161,6 +215,7 @@ export namespace SessionProcessor {
               }, 1000)
 
             trackPressure()
+            providerAttempts++
             const stream = await LLM.stream({
               ...streamInput,
               abort: combinedAbort,
@@ -212,6 +267,7 @@ export namespace SessionProcessor {
                     if (value.id in reasoningMap) {
                       continue
                     }
+                    reasoningPartCount++
                     reasoningMap[value.id] = {
                       id: Identifier.ascending("part"),
                       messageID: input.assistantMessage.id,
@@ -229,6 +285,7 @@ export namespace SessionProcessor {
                     if (value.id in reasoningMap) {
                       const part = reasoningMap[value.id]
                       part.text += value.text
+                      reasoningUtf8Bytes += Buffer.byteLength(value.text, "utf8")
                       if (value.providerMetadata) part.metadata = value.providerMetadata
                       if (part.text) await Session.updatePart({ part, delta: value.text })
                     }
@@ -362,6 +419,7 @@ export namespace SessionProcessor {
                     break
 
                   case "finish-step":
+                    sawFinishStep = true
                     const usage = Session.getUsage({
                       model: input.model,
                       usage: value.usage,
@@ -370,6 +428,13 @@ export namespace SessionProcessor {
                     input.assistantMessage.finish = value.finishReason
                     input.assistantMessage.cost += usage.cost
                     input.assistantMessage.tokens = usage.tokens
+                    reportedUsage.finishStepCount++
+                    reportedUsage.input += usage.tokens.input
+                    reportedUsage.output += usage.tokens.output
+                    reportedUsage.reasoning += usage.tokens.reasoning
+                    reportedUsage.cacheRead += usage.tokens.cache.read
+                    reportedUsage.cacheWrite += usage.tokens.cache.write
+                    reportedUsage.cost += usage.cost
                     await Session.updatePart({
                       id: Identifier.ascending("part"),
                       reason: value.finishReason,
@@ -421,11 +486,20 @@ export namespace SessionProcessor {
                       },
                       metadata: value.providerMetadata,
                     }
+                    currentTextCapture = {
+                      partId: currentText.id,
+                      ordinal: textOrdinal++,
+                      attempt: providerAttempts,
+                      finalization: "interrupted_before_text_end",
+                      text: "",
+                    }
+                    capturedTextParts.push(currentTextCapture)
                     break
 
                   case "text-delta":
                     if (currentText) {
                       currentText.text += value.text
+                      if (currentTextCapture) currentTextCapture.text += value.text
                       if (value.providerMetadata) currentText.metadata = value.providerMetadata
                       if (currentText.text)
                         await Session.updatePart({
@@ -438,6 +512,7 @@ export namespace SessionProcessor {
                   case "text-end":
                     if (currentText) {
                       currentText.text = currentText.text.trimEnd()
+                      if (currentTextCapture) currentTextCapture.finalization = "text_end_unfinalized"
                       const textOutput = await Plugin.trigger(
                         "experimental.text.complete",
                         {
@@ -446,7 +521,9 @@ export namespace SessionProcessor {
                           partID: currentText.id,
                         },
                         { text: currentText.text },
-                      )
+                      ).catch((error) => {
+                        throw new AssistantTextPluginError(error)
+                      })
                       currentText.text = textOutput.text
                       currentText.time = {
                         start: currentText.time?.start ?? Date.now(),
@@ -454,8 +531,13 @@ export namespace SessionProcessor {
                       }
                       if (value.providerMetadata) currentText.metadata = value.providerMetadata
                       await Session.updatePart(currentText)
+                      if (currentTextCapture) {
+                        currentTextCapture.text = textOutput.text
+                        currentTextCapture.finalization = "finalized_post_plugin"
+                      }
                     }
                     currentText = undefined
+                    currentTextCapture = undefined
                     break
 
                   case "finish":
@@ -468,6 +550,9 @@ export namespace SessionProcessor {
                     continue
                 }
                 if (needsCompaction) break
+              }
+              if (!sawFinishStep && !needsCompaction && !blocked && !input.assistantMessage.error) {
+                throw new StreamExhaustedWithoutFinishError()
               }
             } finally {
               if (delayedMonitor) clearInterval(delayedMonitor)
@@ -488,7 +573,11 @@ export namespace SessionProcessor {
             })
             const error = MessageV2.fromError(e, { providerID: input.model.providerID })
             const retry = SessionRetry.retryable(error, attempt)
-            if (retry !== undefined) {
+            if (
+              retry !== undefined &&
+              !(e instanceof AssistantTextPluginError) &&
+              !(e instanceof StreamExhaustedWithoutFinishError)
+            ) {
               attempt++
               const delay = SessionRetry.delay(attempt, error.name === "APIError" ? error : undefined)
               SessionStatus.set(input.sessionID, {
@@ -498,9 +587,18 @@ export namespace SessionProcessor {
                 next: Date.now() + delay,
               })
               await SessionRetry.sleep(delay, input.abort).catch(() => {})
-              continue
+              if (!input.abort.aborted) continue
             }
-            input.assistantMessage.error = error
+            const terminalError = input.abort.aborted
+              ? MessageV2.fromError(
+                  input.abort.reason instanceof Error
+                    ? input.abort.reason
+                    : new DOMException("The operation was aborted", "AbortError"),
+                  { providerID: input.model.providerID },
+                )
+              : error
+            terminalErrorCode = stableAssistantErrorCode(e, input.abort.aborted)
+            input.assistantMessage.error = terminalError
             Bus.publish(Session.Event.Error, {
               sessionID: input.assistantMessage.sessionID,
               error: input.assistantMessage.error,
@@ -545,6 +643,29 @@ export namespace SessionProcessor {
           }
           input.assistantMessage.time.completed = Date.now()
           await Session.updateMessage(input.assistantMessage)
+          const settlementStatus = input.abort.aborted
+            ? "cancelled"
+            : input.assistantMessage.error
+              ? "failed"
+              : "completed"
+          await settleAssistantMessageProvenance(provenance, {
+            status: settlementStatus,
+            ...(settlementStatus === "completed" && input.assistantMessage.finish
+              ? { finishReason: input.assistantMessage.finish }
+              : {}),
+            ...(settlementStatus !== "completed"
+              ? {
+                  errorCode:
+                    terminalErrorCode ??
+                    (settlementStatus === "cancelled" ? "aborted" : "provider_or_processor_failed"),
+                }
+              : {}),
+            attemptCount: providerAttempts,
+            usage: reportedUsage,
+            textParts: capturedTextParts,
+            reasoningPartCount,
+            reasoningUtf8Bytes,
+          })
           if (needsCompaction) return "compact"
           if (blocked) return "stop"
           if (input.assistantMessage.error) return "stop"

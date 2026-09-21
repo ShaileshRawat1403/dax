@@ -35,7 +35,7 @@ const RECORD_CLASSES = [
   {
     id: "assistant_message",
     why: "What the model claimed. The claim is the thing verification is checked against.",
-    eventTypes: [],
+    eventTypes: ["assistant_recording_started", "assistant_message_recorded"],
   },
   {
     id: "tool_invocation",
@@ -88,7 +88,7 @@ describe("invariant 1 — durable authority", () => {
   test("every authoritative record class has durable event representation", () => {
     const missing = RECORD_CLASSES.filter((c) => !isDurable(c)).map((c) => c.id)
 
-    // Prompts, context, assistant messages, delegation and compaction still
+    // Prompts, context and compaction still
     // influence authorisation or correctness without durable event records.
     expectGap("inv1.record-classes", () => {
       expect(missing).toEqual([])

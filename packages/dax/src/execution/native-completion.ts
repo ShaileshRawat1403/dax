@@ -7,6 +7,7 @@ import type { CanonicalRunState } from "@/state/events/run-reducer"
 import { RunCompletionBlockedError, RunLifecycle } from "@/state/run-lifecycle"
 import { Instance } from "@/project/instance"
 import { recordNativeVerification } from "./native-verification"
+import { verifyAssistantTextCommitment } from "./assistant-provenance"
 
 export type NativeCompletionDecision = {
   candidate: boolean
@@ -86,6 +87,38 @@ export async function adjudicateNativeCompletionCandidate(input: {
   }
   if (state.status !== "running" && state.status !== "waiting_approval") {
     return { candidate: true, accepted: false, runId, reasonCodes: [`run_not_running:${state.status}`] }
+  }
+
+  const assistantRecord = state.assistantHistory.messages.find(
+    (message) => message.messageId === input.assistantMessageID,
+  )
+  if (!assistantRecord) {
+    return { candidate: true, accepted: false, runId, reasonCodes: ["assistant_settlement_unavailable"] }
+  }
+  if (assistantRecord.sessionId !== session.id) {
+    return { candidate: true, accepted: false, runId, reasonCodes: ["assistant_session_mismatch"] }
+  }
+  if (!assistantRecord.settlement) {
+    return { candidate: true, accepted: false, runId, reasonCodes: ["assistant_message_unsettled"] }
+  }
+  if (assistantRecord.settlement.status !== "completed") {
+    return {
+      candidate: true,
+      accepted: false,
+      runId,
+      reasonCodes: [`assistant_message_${assistantRecord.settlement.status}`],
+    }
+  }
+  if (assistantRecord.settlement.finishReason !== "stop") {
+    return {
+      candidate: true,
+      accepted: false,
+      runId,
+      reasonCodes: [`assistant_settlement_finish:${assistantRecord.settlement.finishReason ?? "missing"}`],
+    }
+  }
+  if (!verifyAssistantTextCommitment(assistantRecord.settlement.text, assistant.parts)) {
+    return { candidate: true, accepted: false, runId, reasonCodes: ["assistant_commitment_mismatch"] }
   }
 
   const authorityReasons = [
