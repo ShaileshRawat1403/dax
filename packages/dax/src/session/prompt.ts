@@ -1937,8 +1937,10 @@ export namespace SessionPrompt {
     model: Provider.Model,
     sources: PromptInstructionSource[],
   ): PromptEffectiveCandidate[] {
-    const pending = new Map(
-      sources.flatMap((source) => (source.locator ? [[source.locator.partId, source] as const] : [])),
+    const locatedSources = new Map(
+      sources.flatMap((source) =>
+        source.locator ? [[`${source.locator.messageId}\u0000${source.locator.partId}`, source] as const] : [],
+      ),
     )
     const result: PromptEffectiveCandidate[] = []
     let messageOffset = 0
@@ -1949,7 +1951,7 @@ export namespace SessionPrompt {
       if (message.info.role === "user" && localMessageIndex >= 0) {
         let contentPartIndex = 0
         for (const part of message.parts) {
-          const source = pending.get(part.id)
+          const source = locatedSources.get(`${message.info.id}\u0000${part.id}`)
           if (source) {
             result.push({
               channel: "message",
@@ -1958,7 +1960,6 @@ export namespace SessionPrompt {
               sourceIds: [source.sourceId],
               locator: { messageIndex: messageOffset + localMessageIndex, contentPartIndex },
             })
-            pending.delete(part.id)
           }
           if (part.type === "text" && !part.ignored) contentPartIndex++
           else if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
@@ -1969,7 +1970,15 @@ export namespace SessionPrompt {
       messageOffset += converted.length
     }
 
-    return result
+    const sourceOccurrences = new Map<string, number>()
+    for (const candidate of result) {
+      for (const sourceId of candidate.sourceIds) {
+        sourceOccurrences.set(sourceId, (sourceOccurrences.get(sourceId) ?? 0) + 1)
+      }
+    }
+    return result.filter((candidate) =>
+      candidate.sourceIds.every((sourceId) => sourceOccurrences.get(sourceId) === 1),
+    )
   }
 
   async function insertReminders(input: { messages: MessageV2.WithParts[]; agent: Agent.Info; session: Session.Info }) {

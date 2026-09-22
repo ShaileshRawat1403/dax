@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
+import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 import { simulateReadableStream, type ModelMessage } from "ai"
@@ -294,6 +295,114 @@ describe("durable prompt provenance", () => {
           expect(JSON.stringify(await readRunEvents(root.id))).not.toContain("plugin replacement secret")
         } finally {
           plugin.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("message transformation commits the final instruction without claiming the supplied source survived", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await SessionPrompt.prompt({
+          sessionID: root.id,
+          agent: "plan",
+          model: { providerID: testModel.providerID, modelID: testModel.id },
+          parts: [{ type: "text", text: "Plan the work." }],
+          noReply: true,
+        })
+        const replacement = "transformed plan instruction secret"
+        const model = languageModel(async () => streamResult(successfulChunks()))
+        const spies = installActualStreamingModel(model)
+        const originalTrigger = Plugin.trigger
+        const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
+          if (name === "experimental.chat.messages.transform") {
+            const output = args[1] as { messages: MessageV2.WithParts[] }
+            for (const message of output.messages) {
+              if (message.info.role !== "user") continue
+              for (const part of message.parts) {
+                if (part.type === "text" && part.synthetic) part.text = replacement
+              }
+            }
+            return Promise.resolve(output)
+          }
+          return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
+        }) as typeof Plugin.trigger)
+        try {
+          await SessionPrompt.loop({ sessionID: root.id })
+          expect(JSON.stringify(model.doStreamCalls[0]?.prompt)).toContain(replacement)
+          const dispatch = (await projectRunStateFromEvents(root.id))?.promptHistory.dispatches[0]
+          const source = dispatch?.commitment.supplied.find((candidate) => candidate.kind === "plan_reminder")
+          expect(source).toBeDefined()
+          const digest = `sha256:${createHash("sha256").update(JSON.stringify(replacement), "utf8").digest("hex")}`
+          expect(dispatch?.commitment.effective).toContainEqual(
+            expect.objectContaining({
+              channel: "message",
+              role: "user",
+              origin: "transform_output",
+              sourceIds: [],
+              digest,
+            }),
+          )
+          expect(JSON.stringify(await readRunEvents(root.id))).not.toContain(replacement)
+        } finally {
+          plugin.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("message transformation that destroys instruction identity fails before provider dispatch", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await SessionPrompt.prompt({
+          sessionID: root.id,
+          agent: "plan",
+          model: { providerID: testModel.providerID, modelID: testModel.id },
+          parts: [{ type: "text", text: "Plan the work." }],
+          noReply: true,
+        })
+        let providerCalls = 0
+        const model = languageModel(async () => {
+          providerCalls++
+          return streamResult(successfulChunks())
+        })
+        const spies = installActualStreamingModel(model)
+        const retryable = spyOn(SessionRetry, "retryable").mockReturnValue("must-not-retry")
+        const originalTrigger = Plugin.trigger
+        const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
+          if (name === "experimental.chat.messages.transform") {
+            const output = args[1] as { messages: MessageV2.WithParts[] }
+            for (const message of output.messages) {
+              if (message.info.role !== "user") continue
+              message.parts = message.parts.filter((part) => part.type !== "text" || !part.synthetic)
+            }
+            return Promise.resolve(output)
+          }
+          return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
+        }) as typeof Plugin.trigger)
+        try {
+          const error = await rejection(SessionPrompt.loop({ sessionID: root.id }))
+          expect(error).toMatchObject({
+            name: "PromptProvenancePersistenceError",
+            code: "prompt_provenance_persistence_failed",
+            stage: "dispatch",
+          })
+          expect(providerCalls).toBe(0)
+          expect(retryable).not.toHaveBeenCalled()
+          const state = await projectRunStateFromEvents(root.id)
+          expect(state?.promptHistory.dispatches).toHaveLength(0)
+          expect(state?.assistantHistory.unsettledMessageIds).toHaveLength(1)
+          expect(state?.completion).toBeNull()
+          expect(state?.artifactIds).toEqual([])
+        } finally {
+          plugin.mockRestore()
+          retryable.mockRestore()
           spies.restore()
         }
       },
@@ -643,6 +752,9 @@ describe("durable prompt provenance", () => {
           settlement() {
             return { count: requested, finalEventId: realTracker.settlement().finalEventId }
           },
+          enrolled() {
+            return realTracker.enrolled()
+          },
         } satisfies PromptProvenanceTracker
         let providerCalls = 0
         const model = languageModel(async () => {
@@ -696,6 +808,47 @@ describe("durable prompt provenance", () => {
           expect(state?.promptHistory.dispatches).toHaveLength(0)
           expect(state?.assistantHistory.messages[0]?.settlement?.status).toBe("failed")
           expect(state?.assistantHistory.messages[0]?.settlement).not.toHaveProperty("promptDispatch")
+        } finally {
+          retryable.mockRestore()
+          summary.mockRestore()
+          getLanguage.mockRestore()
+          getModel.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("an enrolled later predispatch failure settles with an explicit zero-dispatch binding", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await prepareConversation(root.id)
+        const model = languageModel(async () => streamResult(successfulChunks()))
+        const spies = installActualStreamingModel(model)
+        try {
+          await SessionPrompt.loop({ sessionID: root.id })
+        } finally {
+          spies.restore()
+        }
+
+        await prepareConversation(root.id, "Second request.")
+        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+        const getLanguage = spyOn(Provider, "getLanguage").mockRejectedValue(new Error("model unavailable"))
+        const summary = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
+        const retryable = spyOn(SessionRetry, "retryable").mockReturnValue(undefined)
+        try {
+          expect(await SessionPrompt.loop({ sessionID: root.id }).then(() => null, (error) => error)).toBeNull()
+          const state = await projectRunStateFromEvents(root.id)
+          const message = state?.assistantHistory.messages.at(-1)
+          expect(message?.settlement).toMatchObject({
+            status: "failed",
+            promptDispatch: { count: 0, finalEventId: null },
+          })
+          expect(state?.assistantHistory.unsettledMessageIds).not.toContain(message?.messageId)
+          expect(
+            state?.promptHistory.dispatches.filter((dispatch) => dispatch.messageId === message?.messageId),
+          ).toHaveLength(0)
         } finally {
           retryable.mockRestore()
           summary.mockRestore()

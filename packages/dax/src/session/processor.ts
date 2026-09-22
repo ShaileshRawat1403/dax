@@ -657,6 +657,7 @@ export namespace SessionProcessor {
               ? "failed"
               : "completed"
           const promptDispatch = promptProvenance.settlement()
+          const promptEnrolled = await promptProvenance.enrolled()
           await settleAssistantMessageProvenance(provenance, {
             status: settlementStatus,
             ...(settlementStatus === "completed" && input.assistantMessage.finish
@@ -674,7 +675,7 @@ export namespace SessionProcessor {
             textParts: capturedTextParts,
             reasoningPartCount,
             reasoningUtf8Bytes,
-            ...(provenance && promptDispatch.count > 0 ? { promptDispatch } : {}),
+            ...(provenance && promptEnrolled ? { promptDispatch } : {}),
           })
           if (needsCompaction) return "compact"
           if (blocked) return "stop"

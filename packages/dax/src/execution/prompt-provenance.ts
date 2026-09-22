@@ -68,7 +68,7 @@ export class PromptProvenancePersistenceError extends Error {
   readonly code = "prompt_provenance_persistence_failed"
 
   constructor(
-    public readonly stage: "marker" | "dispatch",
+    public readonly stage: "marker" | "dispatch" | "settlement",
     public readonly messageId: string,
     cause: unknown,
   ) {
@@ -228,19 +228,18 @@ export function commitProviderAdapterInstructions(input: ProviderAdapterPromptIn
 
   const messages = promptMessages(input.prompt)
   for (const candidate of candidates.filter((item) => item.channel === "message")) {
-    if (!candidate.locator) continue
+    if (!candidate.locator) throw new Error("Message instruction candidate has no adapter locator")
     const located = locatedMessageValue(messages, candidate.locator)
-    if (
-      !located ||
-      located.role !== candidate.role ||
-      digestCanonical(located.value).digest !== candidate.commitment.digest
-    ) continue
+    if (!located || located.role !== candidate.role) {
+      throw new Error("Message instruction identity was destroyed before provider dispatch")
+    }
     candidate.matched = true
+    const sourceSurvived = digestCanonical(located.value).digest === candidate.commitment.digest
     add({
       channel: "message",
       role: located.role,
       value: located.value,
-      sourceIds: candidate.sourceIds,
+      sourceIds: sourceSurvived ? candidate.sourceIds : [],
     })
   }
 
@@ -375,8 +374,8 @@ export function createPromptProvenanceTracker(context: AssistantProvenanceContex
         throw new PromptProvenancePersistenceError("marker", context.messageId, error)
       }
       const dispatchOrdinal = count + 1
-      const commitment = commitProviderAdapterInstructions(input)
       try {
+        const commitment = commitProviderAdapterInstructions(input)
         const state = await recordPromptContribution(context.runId, context.openedEventId, {
           scope: PROMPT_PRODUCER_SCOPE,
           sessionId: context.sessionId,
@@ -399,6 +398,25 @@ export function createPromptProvenanceTracker(context: AssistantProvenanceContex
     },
     settlement(): PromptDispatchSettlement {
       return { count, finalEventId }
+    },
+    async enrolled(): Promise<boolean> {
+      if (!context) return false
+      try {
+        const state = await projectRunStateFromEvents(context.runId)
+        const marker = state?.promptHistory.sessions.find(
+          (session) => session.sessionId === context.sessionId && session.markerEventId,
+        )
+        const message = state?.assistantHistory.messages.find(
+          (candidate) => candidate.messageId === context.messageId,
+        )
+        if (!marker || !message) return false
+        return (
+          marker.cutoverMessageId === context.messageId ||
+          (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)
+        )
+      } catch (error) {
+        throw new PromptProvenancePersistenceError("settlement", context.messageId, error)
+      }
     },
   }
 }

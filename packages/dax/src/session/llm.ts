@@ -280,6 +280,19 @@ export namespace LLM {
           }
         : {}),
     }))
+    if (input.promptProvenance) {
+      const locatedSourceIds = new Set(effectiveCandidates.flatMap((candidate) => candidate.sourceIds))
+      const missingMessageSource = supplied.find(
+        (source) => source.channel === "message" && !locatedSourceIds.has(source.sourceId),
+      )
+      if (missingMessageSource) {
+        throw new PromptProvenancePersistenceError(
+          "dispatch",
+          input.promptProvenance.messageId ?? input.user.id,
+          new Error(`Message instruction ${missingMessageSource.sourceId} lost its assembly identity`),
+        )
+      }
+    }
     const originalSourceIds = systemParts.filter((part) => part.text).map((part) => part.sourceId)
     for (const [messageIndex, text] of system.entries()) {
       effectiveCandidates.push({
