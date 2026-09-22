@@ -33,9 +33,190 @@ import {
 import { ContextProvenancePersistenceError, type ContextProvenanceTracker } from "@/execution/context-provenance"
 import {
   buildProviderInputPartition,
+  commitProviderInputValue,
   type ProviderInputPartition,
   type ProviderInputSourceCandidate,
 } from "@/execution/provider-input-partition"
+
+const PROVIDER_INPUT_IDENTITY = Symbol("dax.provider-input-identity")
+
+type ProviderInputIdentity = { message: number; part?: number }
+
+function taggedProviderPrompt(prompt: ModelMessage[]): ModelMessage[] {
+  return prompt.map((message, messageIndex) => {
+    const tagged = {
+      ...message,
+      [PROVIDER_INPUT_IDENTITY]: { message: messageIndex },
+    } as ModelMessage & { [PROVIDER_INPUT_IDENTITY]: ProviderInputIdentity }
+    if (Array.isArray(message.content)) {
+      tagged.content = message.content.map((part, partIndex) =>
+        part && typeof part === "object"
+          ? { ...part, [PROVIDER_INPUT_IDENTITY]: { message: messageIndex, part: partIndex } }
+          : part,
+      ) as typeof tagged.content
+    }
+    return tagged
+  })
+}
+
+function readProviderInputIdentity(value: unknown): ProviderInputIdentity | null {
+  if (!value || typeof value !== "object") return null
+  const identity = (value as Record<PropertyKey, unknown>)[PROVIDER_INPUT_IDENTITY]
+  if (!identity || typeof identity !== "object") return null
+  const candidate = identity as { message?: unknown; part?: unknown }
+  if (!Number.isInteger(candidate.message)) return null
+  if (candidate.part !== undefined && !Number.isInteger(candidate.part)) return null
+  return candidate as ProviderInputIdentity
+}
+
+function sdkProviderInputMetadata(input: {
+  prompt: ModelMessage[]
+  effectiveCandidates: PromptEffectiveCandidate[]
+  contextSources: ProviderInputSourceCandidate[]
+}): {
+  effectiveCandidates: PromptEffectiveCandidate[]
+  contextSources: ProviderInputSourceCandidate[]
+} {
+  const promptParts = input.prompt.flatMap((message, messageIndex) => {
+    const content = Array.isArray(message.content) ? message.content : [message.content]
+    return content.map((value, part) => ({ message: messageIndex, part, role: message.role, value }))
+  })
+  const sameValue = (left: unknown, right: unknown, kind: ProviderInputSourceCandidate["kind"] = "other") =>
+    commitProviderInputValue(left, kind).digest === commitProviderInputValue(right, kind).digest
+
+  const effectiveCandidates = input.effectiveCandidates.map((candidate) => {
+    if (candidate.channel !== "message" || !candidate.locator) return candidate
+    const identityValue = candidate.identityValue ?? candidate.value
+    const matches = promptParts.filter((part) => {
+      if (part.role !== candidate.role) return false
+      if (typeof identityValue === "string") {
+        return (
+          (typeof part.value === "string" && part.value === identityValue) ||
+          (part.value !== null &&
+            typeof part.value === "object" &&
+            (part.value as { type?: unknown }).type === "text" &&
+            (part.value as { text?: unknown }).text === identityValue)
+        )
+      }
+      return sameValue(part.value, identityValue)
+    })
+    const hinted = matches.filter((part) => part.message === candidate.locator!.messageIndex)
+    const selected = hinted.length === 1 ? hinted[0] : hinted.length === 0 && matches.length === 1 ? matches[0] : null
+    if (!selected) throw new Error("Message instruction identity was ambiguous before provider normalization")
+    return {
+      ...candidate,
+      locator: { messageIndex: selected.message, contentPartIndex: selected.part },
+    }
+  })
+
+  const contextSources = input.contextSources.flatMap((source) => {
+    const matches: Array<{ message: number; part?: number }> =
+      source.locator.part === undefined
+        ? input.prompt.flatMap((message, messageIndex) => {
+            const { content: _content, ...envelope } = message
+            return sameValue(envelope, source.value, source.kind) ? [{ message: messageIndex }] : []
+          })
+        : promptParts.flatMap((part) =>
+            sameValue(part.value, source.value, source.kind) ? [{ message: part.message, part: part.part }] : [],
+          )
+    const hinted = matches.filter(
+      (location) =>
+        location.message === source.locator.message &&
+        (source.locator.part === undefined || ("part" in location && location.part === source.locator.part)),
+    )
+    const selected = hinted.length === 1 ? hinted[0] : hinted.length === 0 && matches.length === 1 ? matches[0] : null
+    return selected ? [{ ...source, locator: selected }] : []
+  })
+  const occurrences = new Map<string, number>()
+  for (const source of contextSources) {
+    const key = `${source.locator.message}:${source.locator.part ?? "*"}`
+    occurrences.set(key, (occurrences.get(key) ?? 0) + 1)
+  }
+  return {
+    effectiveCandidates,
+    contextSources: contextSources.filter(
+      (source) => occurrences.get(`${source.locator.message}:${source.locator.part ?? "*"}`) === 1,
+    ),
+  }
+}
+
+function rebaseProviderInputMetadata(input: {
+  prompt: ModelMessage[]
+  effectiveCandidates: PromptEffectiveCandidate[]
+  contextSources: ProviderInputSourceCandidate[]
+}): {
+  effectiveCandidates: PromptEffectiveCandidate[]
+  contextSources: ProviderInputSourceCandidate[]
+} {
+  const messages = new Map<number, number>()
+  const parts = new Map<string, { message: number; part: number }>()
+  const addMessage = (original: number, current: number) => {
+    if (messages.has(original)) throw new Error("Provider transformation duplicated a message identity")
+    messages.set(original, current)
+  }
+  const addPart = (identity: Required<ProviderInputIdentity>, message: number, part: number) => {
+    const key = `${identity.message}:${identity.part}`
+    if (parts.has(key)) throw new Error("Provider transformation duplicated a content identity")
+    parts.set(key, { message, part })
+  }
+
+  for (const [messageIndex, value] of input.prompt.entries()) {
+    const messageIdentity = readProviderInputIdentity(value)
+    if (messageIdentity) {
+      if (messageIdentity.part !== undefined) throw new Error("Provider message carried a content identity")
+      addMessage(messageIdentity.message, messageIndex)
+    }
+    if (!Array.isArray(value.content)) continue
+    for (const [partIndex, part] of value.content.entries()) {
+      const partIdentity = readProviderInputIdentity(part)
+      if (!partIdentity) continue
+      if (partIdentity.part === undefined) throw new Error("Provider content carried a message identity")
+      if (messageIdentity && messageIdentity.message !== partIdentity.message) {
+        throw new Error("Provider transformation moved content across message identities")
+      }
+      addPart(partIdentity as Required<ProviderInputIdentity>, messageIndex, partIndex)
+    }
+  }
+
+  for (const value of input.prompt) {
+    delete (value as unknown as Record<PropertyKey, unknown>)[PROVIDER_INPUT_IDENTITY]
+    if (!Array.isArray(value.content)) continue
+    for (const part of value.content) {
+      if (part && typeof part === "object") {
+        delete (part as unknown as Record<PropertyKey, unknown>)[PROVIDER_INPUT_IDENTITY]
+      }
+    }
+  }
+
+  const locate = (locator: { messageIndex: number; contentPartIndex?: number }) => {
+    if (locator.contentPartIndex === undefined) {
+      const messageIndex = messages.get(locator.messageIndex)
+      return messageIndex === undefined ? null : { messageIndex }
+    }
+    const location = parts.get(`${locator.messageIndex}:${locator.contentPartIndex}`)
+    return location ? { messageIndex: location.message, contentPartIndex: location.part } : null
+  }
+  const effectiveCandidates = input.effectiveCandidates.map((candidate) => {
+    if (!candidate.locator) return candidate
+    const locator = locate(candidate.locator)
+    if (!locator) throw new Error("Message instruction identity was destroyed before provider dispatch")
+    return { ...candidate, locator }
+  })
+  const contextSources = input.contextSources.flatMap((source) => {
+    const locator =
+      source.locator.part === undefined
+        ? (() => {
+            const message = messages.get(source.locator.message)
+            return message === undefined ? null : { message }
+          })()
+        : (() => {
+            const location = parts.get(`${source.locator.message}:${source.locator.part}`)
+            return location ? { message: location.message, part: location.part } : null
+          })()
+    return locator ? [{ ...source, locator }] : []
+  })
+  return { effectiveCandidates, contextSources }
+}
 
 export namespace LLM {
   const log = Log.create({ service: "llm" })
@@ -406,10 +587,46 @@ export namespace LLM {
           {
             async transformParams(args) {
               if (args.type === "stream") {
+                if (!input.promptProvenance && !input.contextProvenance) {
+                  // @ts-expect-error AI SDK middleware prompt types lag the concrete provider prompt.
+                  args.params.prompt = ProviderTransform.message(args.params.prompt, input.model, options)
+                  return args.params
+                }
+                let sdkMetadata: ReturnType<typeof sdkProviderInputMetadata>
+                try {
+                  sdkMetadata = sdkProviderInputMetadata({
+                    prompt: args.params.prompt,
+                    effectiveCandidates,
+                    contextSources,
+                  })
+                } catch (error) {
+                  throw new PromptProvenancePersistenceError(
+                    "dispatch",
+                    input.promptProvenance?.messageId ?? input.contextProvenance?.messageId ?? input.user.id,
+                    error,
+                  )
+                }
                 // @ts-expect-error
-                args.params.prompt = ProviderTransform.message(args.params.prompt, input.model, options)
-                if (!input.promptProvenance && !input.contextProvenance) return args.params
-                const instructionLocators = effectiveCandidates.flatMap((candidate) => {
+                args.params.prompt = ProviderTransform.message(
+                  taggedProviderPrompt(args.params.prompt),
+                  input.model,
+                  options,
+                )
+                let dispatchMetadata: ReturnType<typeof rebaseProviderInputMetadata>
+                try {
+                  dispatchMetadata = rebaseProviderInputMetadata({
+                    prompt: args.params.prompt,
+                    effectiveCandidates: sdkMetadata.effectiveCandidates,
+                    contextSources: sdkMetadata.contextSources,
+                  })
+                } catch (error) {
+                  throw new PromptProvenancePersistenceError(
+                    "dispatch",
+                    input.promptProvenance?.messageId ?? input.contextProvenance?.messageId ?? input.user.id,
+                    error,
+                  )
+                }
+                const instructionLocators = dispatchMetadata.effectiveCandidates.flatMap((candidate) => {
                   if ((candidate.channel !== "system" && candidate.channel !== "message") || !candidate.locator) {
                     return []
                   }
@@ -429,7 +646,7 @@ export namespace LLM {
                     tools: args.params.tools,
                     providerOptions: args.params.providerOptions,
                     instructionLocators,
-                    sources: contextSources,
+                    sources: dispatchMetadata.contextSources,
                   })
                 } catch (error) {
                   throw new ContextProvenancePersistenceError(
@@ -446,7 +663,7 @@ export namespace LLM {
                   tools: args.params.tools,
                   providerOptions: args.params.providerOptions,
                   supplied,
-                  effectiveCandidates,
+                  effectiveCandidates: dispatchMetadata.effectiveCandidates,
                   partition: partitionSummary,
                 })
                 if (input.contextProvenance) {

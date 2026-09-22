@@ -99,27 +99,50 @@ describe("provider-input instruction/context partition", () => {
   })
 
   test("decodes base64 only for explicitly typed media fields", () => {
-    expect(commitProviderInputValue({ type: "file", data: "Zg==" }).digest).toBe(
-      commitProviderInputValue({ type: "file", data: "Zg" }).digest,
+    expect(commitProviderInputValue({ type: "file", data: "Zg==" }, "file").digest).toBe(
+      commitProviderInputValue({ type: "file", data: "Zg" }, "file").digest,
     )
-    expect(commitProviderInputValue({ type: "file", data: "Zg==" }).digest).toBe(
-      commitProviderInputValue({ type: "file", data: new Uint8Array([102]) }).digest,
+    expect(commitProviderInputValue({ type: "file", data: "Zg==" }, "file").digest).toBe(
+      commitProviderInputValue({ type: "file", data: new Uint8Array([102]) }, "file").digest,
     )
-    expect(commitProviderInputValue({ type: "image", image: "Zg==" }).digest).toBe(
-      commitProviderInputValue({ type: "image", image: new Uint8Array([102]) }).digest,
+    expect(commitProviderInputValue({ type: "image", image: "Zg==" }, "image").digest).toBe(
+      commitProviderInputValue({ type: "image", image: new Uint8Array([102]) }, "image").digest,
     )
-    expect(commitProviderInputValue({ type: "image", image: "https://example.invalid/image.png" }).digest).toBe(
-      commitProviderInputValue({ type: "image", image: new URL("https://example.invalid/image.png") }).digest,
+    expect(
+      commitProviderInputValue({ type: "image", image: "https://example.invalid/image.png" }, "image").digest,
+    ).toBe(
+      commitProviderInputValue({ type: "image", image: new URL("https://example.invalid/image.png") }, "image").digest,
     )
-    expect(commitProviderInputValue({ type: "file", data: "data:text/plain;base64,Zg==" }).digest).toBe(
-      commitProviderInputValue({ type: "file", data: "data:text/plain,f" }).digest,
+    expect(commitProviderInputValue({ type: "file", data: "data:text/plain;base64,Zg==" }, "file").digest).toBe(
+      commitProviderInputValue({ type: "file", data: "data:text/plain,f" }, "file").digest,
     )
     expect(commitProviderInputValue("Zg==").digest).not.toBe(commitProviderInputValue("Zg").digest)
-    expect(() => commitProviderInputValue({ type: "file", data: "not-base64!" })).toThrow(/typed media base64/i)
+    expect(() => commitProviderInputValue({ type: "file", data: "not-base64!" }, "file")).toThrow(/typed media base64/i)
     expect(() => commitProviderInputValue(new Uint8Array([1, 2, 3]))).toThrow(/typed media fields/i)
-    expect(commitProviderInputValue({ type: "image", image: new Uint8Array([1, 2, 3]) }).digest).toMatch(
+    expect(commitProviderInputValue({ type: "image", image: new Uint8Array([1, 2, 3]) }, "image").digest).toMatch(
       /^sha256:[a-f0-9]{64}$/,
     )
+  })
+
+  test("keeps media-shaped values inside ordinary tool JSON literal", () => {
+    const toolCall = (data: string) => ({
+      type: "tool-call",
+      toolCallId: "call-1",
+      toolName: "custom",
+      input: { type: "file", data },
+    })
+    expect(commitProviderInputValue(toolCall("Zg==")).digest).not.toBe(commitProviderInputValue(toolCall("Zg")).digest)
+    expect(() => commitProviderInputValue(toolCall("ordinary text!"))).not.toThrow()
+  })
+
+  test("rejects unsupported object types instead of erasing their contents", () => {
+    expect(() =>
+      commitProviderInputValue({
+        type: "text",
+        text: "hello",
+        providerOptions: { invalid: new Map([["a", 1]]) },
+      }),
+    ).toThrow(/unsupported provider input object type/i)
   })
 
   test("recomputed partition digests bind order, ownership, and atom commitments", () => {

@@ -440,6 +440,162 @@ describe("durable prompt provenance", () => {
     })
   })
 
+  test("provider normalization preserves instruction ownership after removing an earlier part", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await SessionPrompt.prompt({
+          sessionID: root.id,
+          agent: "plan",
+          model: { providerID: testModel.providerID, modelID: testModel.id },
+          parts: [{ type: "text", text: "Plan the work." }],
+          noReply: true,
+        })
+        const model = languageModel(async () => streamResult(successfulChunks()))
+        const spies = installActualStreamingModel(model)
+        const oldNpm = testModel.api.npm
+        testModel.api.npm = "@ai-sdk/anthropic"
+        const originalTrigger = Plugin.trigger
+        let instructionText = ""
+        const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
+          if (name === "experimental.chat.messages.transform") {
+            const output = args[1] as { messages: MessageV2.WithParts[] }
+            for (const message of output.messages) {
+              if (message.info.role !== "user") continue
+              const normal = message.parts.find((part) => part.type === "text" && !part.synthetic)
+              const instruction = message.parts.find((part) => part.type === "text" && part.synthetic)
+              if (normal?.type === "text") normal.text = ""
+              if (instruction?.type === "text") instructionText = instruction.text
+              message.parts.push({
+                id: Identifier.ascending("part"),
+                messageID: message.info.id,
+                sessionID: root.id,
+                type: "text",
+                text: "ordinary following context",
+              })
+            }
+            return Promise.resolve(output)
+          }
+          return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
+        }) as typeof Plugin.trigger)
+        try {
+          await SessionPrompt.loop({ sessionID: root.id })
+          expect(model.doStreamCalls).toHaveLength(1)
+          const userMessage = model.doStreamCalls[0]?.prompt.find(
+            (message) =>
+              message.role === "user" &&
+              Array.isArray(message.content) &&
+              message.content.some((part) => part.type === "text" && part.text === instructionText),
+          )
+          if (!userMessage || !Array.isArray(userMessage.content)) throw new Error("missing normalized user message")
+          const instructionIndex = userMessage.content.findIndex(
+            (part) => part.type === "text" && part.text === instructionText,
+          )
+          const ordinaryIndex = userMessage.content.findIndex(
+            (part) => part.type === "text" && part.text === "ordinary following context",
+          )
+          expect(instructionIndex).toBeGreaterThanOrEqual(0)
+          expect(ordinaryIndex).toBeGreaterThanOrEqual(0)
+          const userMessageIndex = model.doStreamCalls[0]!.prompt.indexOf(userMessage)
+          const atoms = (await projectRunStateFromEvents(root.id))?.contextHistory.dispatches[0]?.partition.atoms
+          expect(atoms).toContainEqual(
+            expect.objectContaining({
+              location: { kind: "message_content", message: userMessageIndex, part: instructionIndex },
+              owner: "instruction",
+            }),
+          )
+          expect(atoms).toContainEqual(
+            expect.objectContaining({
+              location: { kind: "message_content", message: userMessageIndex, part: ordinaryIndex },
+              owner: "context",
+            }),
+          )
+        } finally {
+          testModel.api.npm = oldNpm
+          plugin.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("ordinary media-shaped tool JSON survives actual processor dispatch", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await prepareConversation(root.id)
+        const user = (await Session.messages({ sessionID: root.id })).findLast(
+          (message) => message.info.role === "user",
+        )
+        if (!user || user.info.role !== "user") throw new Error("missing user")
+        const assistant = (await Session.updateMessage({
+          id: Identifier.ascending("message"),
+          parentID: user.info.id,
+          role: "assistant",
+          mode: "build",
+          agent: "build",
+          path: { cwd: Instance.directory, root: Instance.worktree },
+          cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: testModel.id,
+          providerID: testModel.providerID,
+          time: { created: Date.now() },
+          sessionID: root.id,
+        })) as MessageV2.Assistant
+        const processor = SessionProcessor.create({
+          assistantMessage: assistant,
+          sessionID: root.id,
+          model: testModel,
+          abort: new AbortController().signal,
+        })
+        const model = languageModel(async () => streamResult(successfulChunks()))
+        const spies = installActualStreamingModel(model)
+        try {
+          await processor.process({
+            user: user.info,
+            sessionID: root.id,
+            model: testModel,
+            agent: await Agent.get("build"),
+            abort: new AbortController().signal,
+            system: [],
+            tools: {},
+            messages: [
+              ...MessageV2.toModelMessages([user], testModel),
+              {
+                role: "assistant",
+                content: [
+                  {
+                    type: "tool-call",
+                    toolCallId: "call-1",
+                    toolName: "custom",
+                    input: { type: "file", data: "ordinary text!" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                content: [
+                  {
+                    type: "tool-result",
+                    toolCallId: "call-1",
+                    toolName: "custom",
+                    output: { type: "text", value: "done" },
+                  },
+                ],
+              },
+            ],
+          })
+          expect(model.doStreamCalls).toHaveLength(1)
+          expect((await projectRunStateFromEvents(root.id))?.assistantHistory.unsettledMessageIds).toEqual([])
+        } finally {
+          spies.restore()
+        }
+      },
+    })
+  })
+
   test.each(["removed", "ignored", "duplicated"] as const)(
     "%s instruction identity fails before provider dispatch",
     async (scenario) => {

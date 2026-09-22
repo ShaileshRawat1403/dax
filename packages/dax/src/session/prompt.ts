@@ -1096,6 +1096,7 @@ export namespace SessionPrompt {
                 channel: "message" as const,
                 role: "assistant" as const,
                 value: turnLimitSource.value,
+                identityValue: turnLimitSource.value,
                 sourceIds: [turnLimitSource.sourceId],
                 locator: { messageIndex: modelMessages.length, contentPartIndex: 0 },
               },
@@ -1943,26 +1944,47 @@ export namespace SessionPrompt {
 
     for (const message of messages) {
       const converted = MessageV2.toModelMessages([message], model)
-      const localMessageIndex = converted.findIndex((candidate) => candidate.role === message.info.role)
-      if (message.info.role === "user" && localMessageIndex >= 0) {
-        let contentPartIndex = 0
-        for (const part of message.parts) {
+      if (message.info.role === "user") {
+        for (const [partIndex, part] of message.parts.entries()) {
           const source = locatedSources.get(`${message.info.id}\u0000${part.id}`)
-          // Only emitted text owns this adapter position. An ignored or
-          // retyped instruction must not borrow the following part's identity.
-          if (source && part.type === "text" && !part.ignored) {
-            result.push({
-              channel: "message",
-              role: source.role,
-              value: source.value,
-              sourceIds: [source.sourceId],
-              locator: { messageIndex: messageOffset + localMessageIndex, contentPartIndex },
-            })
+          if (!source || part.type !== "text" || part.ignored) continue
+
+          // Probe the real MessageV2 conversion with an opaque sentinel. This
+          // carries part identity across conversion rules (including omitted
+          // empty text) without guessing an output index from source shapes.
+          const sentinel = `dax-instruction-locator:${messageOffset}:${partIndex}`
+          const probe = {
+            ...message,
+            parts: message.parts.map((candidate, index) =>
+              index === partIndex && candidate.type === "text" ? { ...candidate, text: sentinel } : candidate,
+            ),
           }
-          if (part.type === "text" && !part.ignored) contentPartIndex++
-          else if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
-            contentPartIndex++
-          } else if (part.type === "compaction" || part.type === "subtask") contentPartIndex++
+          const probeMessages = MessageV2.toModelMessages([probe], model)
+          const locations = probeMessages.flatMap((candidate, localMessageIndex) =>
+            Array.isArray(candidate.content)
+              ? candidate.content.flatMap((content, contentPartIndex) =>
+                  content.type === "text" && content.text === sentinel ? [{ localMessageIndex, contentPartIndex }] : [],
+                )
+              : [],
+          )
+          if (locations.length !== 1) continue
+          const location = locations[0]!
+          const actualMessage = converted[location.localMessageIndex]
+          const actualPart = Array.isArray(actualMessage?.content)
+            ? actualMessage.content[location.contentPartIndex]
+            : undefined
+          if (!actualPart || actualPart.type !== "text" || actualPart.text !== part.text) continue
+          result.push({
+            channel: "message",
+            role: source.role,
+            value: source.value,
+            identityValue: part.text,
+            sourceIds: [source.sourceId],
+            locator: {
+              messageIndex: messageOffset + location.localMessageIndex,
+              contentPartIndex: location.contentPartIndex,
+            },
+          })
         }
       }
       messageOffset += converted.length

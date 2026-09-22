@@ -48,6 +48,8 @@ export type PromptEffectiveCandidate = {
   channel: PromptInstructionChannel
   role?: PromptInstructionRole
   value: unknown
+  /** Current structured value used only to preserve identity before persistence. */
+  identityValue?: unknown
   sourceIds: string[]
   /** Exact adapter-prompt location assigned before the SDK flattens messages. */
   locator?: { messageIndex: number; contentPartIndex?: number }

@@ -188,6 +188,7 @@ export namespace SessionCompaction {
           channel: "message",
           role: "user",
           value: promptText,
+          identityValue: promptText,
           sourceIds: [promptSource.sourceId],
           locator: { messageIndex: modelMessages.length, contentPartIndex: 0 },
         },

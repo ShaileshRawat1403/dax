@@ -175,7 +175,12 @@ function typedMediaString(key: string | null, parentType: string | null, value: 
   return frame("typed-media-reference", [new TextEncoder().encode(value)])
 }
 
-function canonicalBytes(value: unknown, key: string | null = null, parentType: string | null = null): Uint8Array {
+function canonicalBytes(
+  value: unknown,
+  key: string | null = null,
+  parentType: string | null = null,
+  allowTypedMediaRoot = false,
+): Uint8Array {
   const encoder = new TextEncoder()
   if (value === null) return frame("null", [])
   if (typeof value === "string") {
@@ -209,24 +214,36 @@ function canonicalBytes(value: unknown, key: string | null = null, parentType: s
   if (Array.isArray(value))
     return frame(
       "array",
-      value.map((item) => canonicalBytes(item)),
+      value.map((item) => canonicalBytes(item, null, null, false)),
     )
   if (typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new Error(`Unsupported provider input object type: ${value.constructor?.name ?? "unknown"}`)
+    }
     const record = value as Record<string, unknown>
-    const type = typeof record.type === "string" ? record.type : parentType
+    // Media decoding is allowed only when the value itself occupies a typed
+    // provider-content position. Nested objects inside tool input/output are
+    // ordinary JSON even when they happen to contain `{ type: "file" }`.
+    const type =
+      allowTypedMediaRoot &&
+      typeof record.type === "string" &&
+      (record.type === "file" || record.type === "image" || record.type === "media")
+        ? record.type
+        : null
     const chunks: Uint8Array[] = []
     for (const name of Object.keys(record).sort()) {
       const item = record[name]
       if (item === undefined || typeof item === "function" || typeof item === "symbol") continue
-      chunks.push(frame("entry", [encoder.encode(name), canonicalBytes(item, name, type)]))
+      chunks.push(frame("entry", [encoder.encode(name), canonicalBytes(item, name, type, false)]))
     }
     return frame("object", chunks)
   }
   throw new Error(`Unsupported provider input value: ${typeof value}`)
 }
 
-export function commitProviderInputValue(value: unknown) {
-  const bytes = canonicalBytes(value)
+export function commitProviderInputValue(value: unknown, kind: ProviderInputAtom["kind"] = "other") {
+  const bytes = canonicalBytes(value, null, null, kind === "file" || kind === "image")
   return {
     canonicalization: PROVIDER_INPUT_ATOM_CANONICALIZATION,
     digest: sha256(bytes),
@@ -324,8 +341,8 @@ export function buildProviderInputPartition(input: {
     value: unknown
     source?: ProviderInputSourceCandidate
   }) => {
-    const commitment = commitProviderInputValue(details.value)
-    const sourceCommitment = details.source ? commitProviderInputValue(details.source.value) : null
+    const commitment = commitProviderInputValue(details.value, details.kind)
+    const sourceCommitment = details.source ? commitProviderInputValue(details.source.value, details.source.kind) : null
     const sourceSurvived = Boolean(sourceCommitment && sourceCommitment.digest === commitment.digest)
     atoms.push({
       ordinal: atoms.length,
