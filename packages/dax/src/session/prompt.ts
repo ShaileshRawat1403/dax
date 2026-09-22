@@ -1952,7 +1952,9 @@ export namespace SessionPrompt {
         let contentPartIndex = 0
         for (const part of message.parts) {
           const source = locatedSources.get(`${message.info.id}\u0000${part.id}`)
-          if (source) {
+          // Only emitted text owns this adapter position. An ignored or
+          // retyped instruction must not borrow the following part's identity.
+          if (source && part.type === "text" && !part.ignored) {
             result.push({
               channel: "message",
               role: source.role,

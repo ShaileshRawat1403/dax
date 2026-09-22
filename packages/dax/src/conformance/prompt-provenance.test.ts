@@ -355,7 +355,7 @@ describe("durable prompt provenance", () => {
     })
   })
 
-  test("message transformation that destroys instruction identity fails before provider dispatch", async () => {
+  test.each(["removed", "ignored", "duplicated"] as const)("%s instruction identity fails before provider dispatch", async (scenario) => {
     await Instance.provide({
       directory: testProject,
       async fn() {
@@ -380,7 +380,24 @@ describe("durable prompt provenance", () => {
             const output = args[1] as { messages: MessageV2.WithParts[] }
             for (const message of output.messages) {
               if (message.info.role !== "user") continue
-              message.parts = message.parts.filter((part) => part.type !== "text" || !part.synthetic)
+              const instruction = message.parts.find((part) => part.type === "text" && part.synthetic)
+              if (!instruction || instruction.type !== "text") continue
+              if (scenario === "removed") {
+                message.parts = message.parts.filter((part) => part !== instruction)
+              } else if (scenario === "ignored") {
+                instruction.ignored = true
+                // Conversion drops the instruction. Its old index now points
+                // at this ordinary context, which must not become provenance.
+                message.parts.push({
+                  id: Identifier.ascending("part"),
+                  messageID: message.info.id,
+                  sessionID: root.id,
+                  type: "text",
+                  text: "Ordinary context after the ignored instruction",
+                })
+              } else {
+                message.parts.push({ ...instruction })
+              }
             }
             return Promise.resolve(output)
           }
