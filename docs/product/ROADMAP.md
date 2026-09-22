@@ -19,9 +19,10 @@ as historical context.
 
 ## Next Sprint — Conformance Closure
 
-Implementation model: selected next session. Reviewer: Astra 6 high.
-Status: planned; implementation has not started. All nine gaps are
-in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
+Implementation model: Sol. Reviewer: Astra 6 high.
+Status: in progress. Reviewed record-class coverage is 9/11; all nine aggregate
+gaps remain open in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
+See [current status](../DAX_STATUS.md) for the integrated commit and validation evidence.
 
 | Workstream | Gaps | Intended outcome |
 | --- | --- | --- |
@@ -37,6 +38,30 @@ number or calendar deadline is committed yet.
 
 The two integrity gaps closed in v1.5.0 remain regression requirements, not new
 backlog items. The historical v1.4.0 claims pack remains frozen.
+
+## Discussion backlog — bounded advisory checks
+
+Recorded 2026-09-22. **Idea only: unscheduled, not approved for implementation.**
+This does not add work to the active conformance sprint.
+
+Explore Jev's pattern of narrow independent questions against one stable snapshot,
+adapted to DAX's existing Shadow Auditor. The candidate questions are whether a
+compiled contract matches the user's intent and whether its validation plan would
+demonstrate the requested outcome. DAX retains execution and approval authority.
+
+Before runtime development, discuss a small evaluation comparing the current
+single audit, one structured call answering both questions, and two concurrent
+calls using existing providers. Use the same manually reviewed cases and compare
+useful findings, missed problems, false alarms, latency, and usage. Concurrent
+calls must earn their added cost; they do not reproduce Jev's internal model
+architecture or establish calibrated confidence.
+
+Any later pilot would remain optional and advisory, with bounded input, timeouts,
+and explicit unavailable results. The current auditor runs asynchronously; this
+idea does not promise assessment before execution. Authorization changes,
+parallel coding workers, a generic judgment framework, cross-project rollout,
+and Jev API integration are outside this candidate's initial scope. No new
+conformance claim or gap closure follows from an advisory experiment.
 
 ## Historical Phase-3 Roadmap
 

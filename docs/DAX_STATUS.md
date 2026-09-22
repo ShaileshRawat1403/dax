@@ -25,12 +25,17 @@ GitHub asset digests; the published macOS installer was exercised and the local
 
 All nine remaining aggregate gaps are scheduled in the
 [next-sprint conformance plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
-[product roadmap](product/ROADMAP.md). The next-session implementation/reviewer split is recorded there; implementation
-is in progress. Delegation and durable assistant-message provenance are integrated
-in `main`, bringing reviewed record-class coverage to 8/11. Durable prompt
-provenance is the current bounded Tier 2 slice; its 9/11 result remains conditional
-on reviewed production, replay, and platform evidence. The aggregate
-`inv1.record-classes` gap stays open, and all nine aggregate gaps remain recorded.
+[product roadmap](product/ROADMAP.md). Implementation is in progress, with Sol
+implementing and Astra reviewing. Delegation, durable assistant-message, and
+prompt provenance are integrated in `main` at
+`fd9bbf7ae4c9acbbe21f864a77c4e72c4bf2a4ce`. Reviewed record-class coverage is
+accepted at **9/11**, following Astra's review and Sol's independent review of
+the final identity correction. [Integrated main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35682448339)
+passed on Ubuntu, macOS, and Windows, including Rust tests. This integration did
+not publish a release; v1.5.0 remains the released baseline.
+
+The aggregate `inv1.record-classes` gap stays open: context contributions and
+compaction replacement remain missing. All nine aggregate gaps remain recorded.
 Closure is measured through production behavior, not structural checks.
 
 ## Evidence corrections
