@@ -16,6 +16,7 @@ import { Agent } from "@/agent/agent"
 import { Plugin } from "@/plugin"
 import { Config } from "@/config/config"
 import type { PromptInstructionSource } from "@/execution/prompt-provenance"
+import { opaqueProviderInputSources } from "@/execution/provider-input-partition"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -160,6 +161,18 @@ export namespace SessionCompaction {
       value: promptText,
     }
     const modelMessages = MessageV2.toModelMessages(input.messages, model)
+    const adapterMessages = [
+      ...modelMessages,
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: promptText,
+          },
+        ],
+      },
+    ]
     const result = await processor.process({
       user: userMessage,
       agent,
@@ -167,18 +180,7 @@ export namespace SessionCompaction {
       sessionID: input.sessionID,
       tools: {},
       system: [],
-      messages: [
-        ...modelMessages,
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: promptText,
-            },
-          ],
-        },
-      ],
+      messages: adapterMessages,
       model,
       instructionSources: [promptSource],
       instructionCandidates: [
@@ -190,6 +192,7 @@ export namespace SessionCompaction {
           locator: { messageIndex: modelMessages.length, contentPartIndex: 0 },
         },
       ],
+      contextSources: opaqueProviderInputSources(adapterMessages),
     })
 
     if (result === "continue" && input.auto) {

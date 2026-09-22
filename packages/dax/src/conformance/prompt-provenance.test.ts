@@ -4,11 +4,7 @@ import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 import { simulateReadableStream, type ModelMessage } from "ai"
-import type {
-  LanguageModelV2,
-  LanguageModelV2CallOptions,
-  LanguageModelV2StreamPart,
-} from "@ai-sdk/provider"
+import type { LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2StreamPart } from "@ai-sdk/provider"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
@@ -30,10 +26,7 @@ import {
   settleAssistantMessageProvenance,
   type AssistantProvenanceContext,
 } from "@/execution/assistant-provenance"
-import {
-  createPromptProvenanceTracker,
-  type PromptProvenanceTracker,
-} from "@/execution/prompt-provenance"
+import { createPromptProvenanceTracker, type PromptProvenanceTracker } from "@/execution/prompt-provenance"
 import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
 import {
   createEventAuthorityRun,
@@ -42,11 +35,12 @@ import {
   startAssistantRecording,
   transitionEventAuthority,
 } from "@/state/events/event-transitions"
-import {
-  appendRunEventAtTail,
-  projectRunStateFromEvents,
-  readRunEvents,
-} from "@/state/events/run-event-store"
+import { appendRunEventAtTail, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
+import { reduceRunState } from "@/state/events/run-reducer"
+import type { RunEventEnvelope, RunEventPayload } from "@/state/events/run-event-types"
+
+type ContextContributionEvent = Omit<RunEventEnvelope, "type" | "payload"> &
+  Extract<RunEventPayload, { type: "context_contribution_recorded" }>
 
 let testHome = ""
 let previousTestHome: string | undefined
@@ -157,10 +151,7 @@ function installActualStreamingModel(model: LanguageModelV2) {
 
 async function governedRoot() {
   const root = await Session.create({ title: "Prompt provenance root" })
-  const { contract } = compileWithRunId(
-    { request: { intent: { input: "Produce one governed response." } } },
-    root.id,
-  )
+  const { contract } = compileWithRunId({ request: { intent: { input: "Produce one governed response." } } }, root.id)
   await ContractGuardian.create(root.id, contract)
   await Session.bindGoverningRun(root.id, root.id)
   await createEventAuthorityRun(root.id, contract.contractId)
@@ -193,7 +184,10 @@ async function consume(stream: Awaited<ReturnType<typeof LLM.stream>>) {
   }
 }
 
-function settlement(context: AssistantProvenanceContext, promptDispatch: { count: number; finalEventId: string | null }) {
+function settlement(
+  context: AssistantProvenanceContext,
+  promptDispatch: { count: number; finalEventId: string | null },
+) {
   return settleAssistantMessageProvenance(context, {
     status: "completed",
     finishReason: "stop",
@@ -240,9 +234,50 @@ describe("durable prompt provenance", () => {
             providerId: testModel.providerID,
             modelId: testModel.id,
             commitment: {
-              canonicalization: "provider-adapter-instructions-v1",
+              canonicalization: "provider-adapter-instructions-v2",
             },
           })
+          const contextRecord = events.find((event) => event.type === "context_contribution_recorded") as
+            | ContextContributionEvent
+            | undefined
+          expect(contextRecord?.payload).toMatchObject({
+            scope: "session_processor_context_v1",
+            sessionId: root.id,
+            dispatchOrdinal: 1,
+            providerId: testModel.providerID,
+            modelId: testModel.id,
+            promptEventId: record?.eventId,
+            partition: {
+              canonicalization: "provider-semantic-input-v1",
+            },
+          })
+          if (!contextRecord) throw new Error("missing context record")
+          expect(contextRecord.payload.partition.atoms.map((atom) => atom.ordinal)).toEqual(
+            contextRecord.payload.partition.atoms.map((_, index) => index),
+          )
+          expect(
+            [
+              ...contextRecord.payload.partition.instructionAtomOrdinals,
+              ...contextRecord.payload.partition.contextAtomOrdinals,
+            ].sort((a, b) => a - b),
+          ).toEqual(contextRecord.payload.partition.atoms.map((atom) => atom.ordinal))
+          const tamperedAtoms = structuredClone(events)
+          const tamperedAtomRecord = tamperedAtoms.find((event) => event.type === "context_contribution_recorded") as
+            | ContextContributionEvent
+            | undefined
+          if (!tamperedAtomRecord) throw new Error("missing replay record")
+          tamperedAtomRecord.payload.partition.atoms[0]!.digest = `sha256:${"f".repeat(64)}`
+          expect(() => reduceRunState(tamperedAtoms)).toThrow(/partition digest does not replay/i)
+
+          const tamperedComplement = structuredClone(events)
+          const tamperedComplementRecord = tamperedComplement.find(
+            (event) => event.type === "context_contribution_recorded",
+          ) as ContextContributionEvent | undefined
+          if (!tamperedComplementRecord) {
+            throw new Error("missing replay record")
+          }
+          tamperedComplementRecord.payload.partition.contextAtomOrdinals = []
+          expect(() => reduceRunState(tamperedComplement)).toThrow(/exact complement/i)
           const serialized = JSON.stringify(events)
           expect(serialized).not.toContain("sk-user-not-retained")
           expect(serialized).not.toContain("sk-output-not-retained")
@@ -259,6 +294,16 @@ describe("durable prompt provenance", () => {
           expect(replayed?.assistantHistory.messages[0]?.settlement?.promptDispatch).toEqual({
             count: 1,
             finalEventId: replayed?.promptHistory.dispatches[0]?.eventId ?? null,
+          })
+          expect(replayed?.contextHistory).toMatchObject({
+            coverage: "complete",
+            missingMessageIds: [],
+            sessions: [{ sessionId: root.id, coverage: "complete" }],
+            dispatches: [{ sessionId: root.id, dispatchOrdinal: 1 }],
+          })
+          expect(replayed?.assistantHistory.messages[0]?.settlement?.contextDispatch).toEqual({
+            count: 1,
+            finalEventId: replayed?.contextHistory.dispatches[0]?.eventId ?? null,
           })
         } finally {
           spies.restore()
@@ -289,9 +334,7 @@ describe("durable prompt provenance", () => {
           const dispatch = (await projectRunStateFromEvents(root.id))?.promptHistory.dispatches[0]
           expect(dispatch?.commitment.supplied.some((source) => source.kind === "reflection_policy")).toBe(true)
           const system = dispatch?.commitment.effective.filter((entry) => entry.channel === "system") ?? []
-          expect(system).toEqual([
-            expect.objectContaining({ origin: "transform_output", sourceIds: [] }),
-          ])
+          expect(system).toEqual([expect.objectContaining({ origin: "transform_output", sourceIds: [] })])
           expect(JSON.stringify(await readRunEvents(root.id))).not.toContain("plugin replacement secret")
         } finally {
           plugin.mockRestore()
@@ -355,48 +398,23 @@ describe("durable prompt provenance", () => {
     })
   })
 
-  test.each(["removed", "ignored", "duplicated"] as const)("%s instruction identity fails before provider dispatch", async (scenario) => {
+  test("message transformation commits final ordinary context as transform output", async () => {
     await Instance.provide({
       directory: testProject,
       async fn() {
         const { root } = await governedRoot()
-        await SessionPrompt.prompt({
-          sessionID: root.id,
-          agent: "plan",
-          model: { providerID: testModel.providerID, modelID: testModel.id },
-          parts: [{ type: "text", text: "Plan the work." }],
-          noReply: true,
-        })
-        let providerCalls = 0
-        const model = languageModel(async () => {
-          providerCalls++
-          return streamResult(successfulChunks())
-        })
+        await prepareConversation(root.id, "ordinary source context")
+        const replacement = "transformed ordinary context sk-context-not-retained"
+        const model = languageModel(async () => streamResult(successfulChunks()))
         const spies = installActualStreamingModel(model)
-        const retryable = spyOn(SessionRetry, "retryable").mockReturnValue("must-not-retry")
         const originalTrigger = Plugin.trigger
         const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
           if (name === "experimental.chat.messages.transform") {
             const output = args[1] as { messages: MessageV2.WithParts[] }
             for (const message of output.messages) {
               if (message.info.role !== "user") continue
-              const instruction = message.parts.find((part) => part.type === "text" && part.synthetic)
-              if (!instruction || instruction.type !== "text") continue
-              if (scenario === "removed") {
-                message.parts = message.parts.filter((part) => part !== instruction)
-              } else if (scenario === "ignored") {
-                instruction.ignored = true
-                // Conversion drops the instruction. Its old index now points
-                // at this ordinary context, which must not become provenance.
-                message.parts.push({
-                  id: Identifier.ascending("part"),
-                  messageID: message.info.id,
-                  sessionID: root.id,
-                  type: "text",
-                  text: "Ordinary context after the ignored instruction",
-                })
-              } else {
-                message.parts.push({ ...instruction })
+              for (const part of message.parts) {
+                if (part.type === "text" && !part.synthetic) part.text = replacement
               }
             }
             return Promise.resolve(output)
@@ -404,27 +422,97 @@ describe("durable prompt provenance", () => {
           return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
         }) as typeof Plugin.trigger)
         try {
-          const error = await rejection(SessionPrompt.loop({ sessionID: root.id }))
-          expect(error).toMatchObject({
-            name: "PromptProvenancePersistenceError",
-            code: "prompt_provenance_persistence_failed",
-            stage: "dispatch",
-          })
-          expect(providerCalls).toBe(0)
-          expect(retryable).not.toHaveBeenCalled()
-          const state = await projectRunStateFromEvents(root.id)
-          expect(state?.promptHistory.dispatches).toHaveLength(0)
-          expect(state?.assistantHistory.unsettledMessageIds).toHaveLength(1)
-          expect(state?.completion).toBeNull()
-          expect(state?.artifactIds).toEqual([])
+          await SessionPrompt.loop({ sessionID: root.id })
+          expect(JSON.stringify(model.doStreamCalls[0]?.prompt)).toContain(replacement)
+          const dispatch = (await projectRunStateFromEvents(root.id))?.contextHistory.dispatches[0]
+          const transformed = dispatch?.partition.atoms.filter(
+            (atom) => atom.location.kind === "message_content" && atom.role === "user" && atom.owner === "context",
+          )
+          expect(transformed).toContainEqual(
+            expect.objectContaining({ origin: "transform_output", sourceOrdinals: [] }),
+          )
+          expect(JSON.stringify(await readRunEvents(root.id))).not.toContain(replacement)
         } finally {
           plugin.mockRestore()
-          retryable.mockRestore()
           spies.restore()
         }
       },
     })
   })
+
+  test.each(["removed", "ignored", "duplicated"] as const)(
+    "%s instruction identity fails before provider dispatch",
+    async (scenario) => {
+      await Instance.provide({
+        directory: testProject,
+        async fn() {
+          const { root } = await governedRoot()
+          await SessionPrompt.prompt({
+            sessionID: root.id,
+            agent: "plan",
+            model: { providerID: testModel.providerID, modelID: testModel.id },
+            parts: [{ type: "text", text: "Plan the work." }],
+            noReply: true,
+          })
+          let providerCalls = 0
+          const model = languageModel(async () => {
+            providerCalls++
+            return streamResult(successfulChunks())
+          })
+          const spies = installActualStreamingModel(model)
+          const retryable = spyOn(SessionRetry, "retryable").mockReturnValue("must-not-retry")
+          const originalTrigger = Plugin.trigger
+          const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
+            if (name === "experimental.chat.messages.transform") {
+              const output = args[1] as { messages: MessageV2.WithParts[] }
+              for (const message of output.messages) {
+                if (message.info.role !== "user") continue
+                const instruction = message.parts.find((part) => part.type === "text" && part.synthetic)
+                if (!instruction || instruction.type !== "text") continue
+                if (scenario === "removed") {
+                  message.parts = message.parts.filter((part) => part !== instruction)
+                } else if (scenario === "ignored") {
+                  instruction.ignored = true
+                  // Conversion drops the instruction. Its old index now points
+                  // at this ordinary context, which must not become provenance.
+                  message.parts.push({
+                    id: Identifier.ascending("part"),
+                    messageID: message.info.id,
+                    sessionID: root.id,
+                    type: "text",
+                    text: "Ordinary context after the ignored instruction",
+                  })
+                } else {
+                  message.parts.push({ ...instruction })
+                }
+              }
+              return Promise.resolve(output)
+            }
+            return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
+          }) as typeof Plugin.trigger)
+          try {
+            const error = await rejection(SessionPrompt.loop({ sessionID: root.id }))
+            expect(error).toMatchObject({
+              name: "PromptProvenancePersistenceError",
+              code: "prompt_provenance_persistence_failed",
+              stage: "dispatch",
+            })
+            expect(providerCalls).toBe(0)
+            expect(retryable).not.toHaveBeenCalled()
+            const state = await projectRunStateFromEvents(root.id)
+            expect(state?.promptHistory.dispatches).toHaveLength(0)
+            expect(state?.assistantHistory.unsettledMessageIds).toHaveLength(1)
+            expect(state?.completion).toBeNull()
+            expect(state?.artifactIds).toEqual([])
+          } finally {
+            plugin.mockRestore()
+            retryable.mockRestore()
+            spies.restore()
+          }
+        },
+      })
+    },
+  )
 
   test("captures a plugin-replaced compaction prompt as an effective user-role instruction", async () => {
     await Instance.provide({
@@ -463,6 +551,21 @@ describe("durable prompt provenance", () => {
               role: "user",
               origin: "supplied",
               sourceIds: [source?.sourceId],
+            }),
+          )
+          const context = (await projectRunStateFromEvents(root.id))?.contextHistory.dispatches[0]
+          expect(context?.partition.atoms).toContainEqual(
+            expect.objectContaining({
+              location: expect.objectContaining({ kind: "message_content" }),
+              role: "user",
+              owner: "instruction",
+            }),
+          )
+          expect(context?.partition.atoms).toContainEqual(
+            expect.objectContaining({
+              location: expect.objectContaining({ kind: "message_content" }),
+              role: "user",
+              owner: "context",
             }),
           )
           expect(JSON.stringify(await readRunEvents(root.id))).not.toContain("replacement compaction secret")
@@ -526,9 +629,17 @@ describe("durable prompt provenance", () => {
           expect(model.doStreamCalls).toHaveLength(2)
           const state = await projectRunStateFromEvents(root.id)
           expect(state?.promptHistory.dispatches.map((dispatch) => dispatch.dispatchOrdinal)).toEqual([1, 2])
+          expect(state?.contextHistory.dispatches.map((dispatch) => dispatch.dispatchOrdinal)).toEqual([1, 2])
+          expect(state?.contextHistory.dispatches.map((dispatch) => dispatch.promptEventId)).toEqual(
+            state?.promptHistory.dispatches.map((dispatch) => dispatch.eventId),
+          )
           expect(state?.assistantHistory.messages[0]?.settlement?.promptDispatch).toEqual({
             count: 2,
             finalEventId: state?.promptHistory.dispatches[1]?.eventId ?? null,
+          })
+          expect(state?.assistantHistory.messages[0]?.settlement?.contextDispatch).toEqual({
+            count: 2,
+            finalEventId: state?.contextHistory.dispatches[1]?.eventId ?? null,
           })
         } finally {
           sleep.mockRestore()
@@ -578,6 +689,140 @@ describe("durable prompt provenance", () => {
           expect(state?.completion).toBeNull()
           expect(state?.artifactIds).toEqual([])
           expect(JSON.stringify(await readRunEvents(root.id))).not.toContain("storage detail containing secret")
+        } finally {
+          write.mockRestore()
+          retryable.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("a rejected context append escapes the streaming stack before any provider call", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await prepareConversation(root.id)
+        let providerCalls = 0
+        const model = languageModel(async () => {
+          providerCalls++
+          return streamResult(successfulChunks())
+        })
+        const spies = installActualStreamingModel(model)
+        const retryable = spyOn(SessionRetry, "retryable").mockReturnValue("must-not-retry")
+        const originalWrite = Storage.write
+        let rejectedWrites = 0
+        const write = spyOn(Storage, "write").mockImplementation(async (key, value) => {
+          if (
+            key[0] === "run_events" &&
+            Array.isArray(value) &&
+            value.at(-1)?.type === "context_contribution_recorded"
+          ) {
+            rejectedWrites++
+            throw new Error("context storage detail containing secret")
+          }
+          return originalWrite(key, value)
+        })
+        try {
+          const error = await rejection(SessionPrompt.loop({ sessionID: root.id }))
+          expect(error).toMatchObject({
+            name: "ContextProvenancePersistenceError",
+            code: "context_provenance_persistence_failed",
+            stage: "dispatch",
+          })
+          expect(rejectedWrites).toBe(1)
+          expect(providerCalls).toBe(0)
+          expect(retryable).not.toHaveBeenCalled()
+          const state = await projectRunStateFromEvents(root.id)
+          expect(state?.promptHistory.dispatches).toHaveLength(1)
+          expect(state?.contextHistory.dispatches).toHaveLength(0)
+          expect(state?.assistantHistory.unsettledMessageIds).toHaveLength(1)
+          expect(state?.completion).toBeNull()
+          expect(state?.artifactIds).toEqual([])
+          expect(JSON.stringify(await readRunEvents(root.id))).not.toContain("context storage detail containing secret")
+        } finally {
+          write.mockRestore()
+          retryable.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("configured SDK retries cannot repeat a rejected context append", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await prepareConversation(root.id)
+        const user = (await Session.messages({ sessionID: root.id })).findLast(
+          (message) => message.info.role === "user",
+        )
+        if (!user || user.info.role !== "user") throw new Error("missing user")
+        const assistant = (await Session.updateMessage({
+          id: Identifier.ascending("message"),
+          parentID: user.info.id,
+          role: "assistant",
+          mode: "build",
+          agent: "build",
+          path: { cwd: Instance.directory, root: Instance.worktree },
+          cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: testModel.id,
+          providerID: testModel.providerID,
+          time: { created: Date.now() },
+          sessionID: root.id,
+        })) as MessageV2.Assistant
+        const processor = SessionProcessor.create({
+          assistantMessage: assistant,
+          sessionID: root.id,
+          model: testModel,
+          abort: new AbortController().signal,
+        })
+        let providerCalls = 0
+        const model = languageModel(async () => {
+          providerCalls++
+          return streamResult(successfulChunks())
+        })
+        const spies = installActualStreamingModel(model)
+        const retryable = spyOn(SessionRetry, "retryable").mockReturnValue("must-not-retry")
+        const originalWrite = Storage.write
+        let rejectedContextWrites = 0
+        const write = spyOn(Storage, "write").mockImplementation(async (key, value) => {
+          if (
+            key[0] === "run_events" &&
+            Array.isArray(value) &&
+            value.at(-1)?.type === "context_contribution_recorded"
+          ) {
+            rejectedContextWrites++
+            throw new Error("reject context append")
+          }
+          return originalWrite(key, value)
+        })
+        try {
+          const error = await rejection(
+            processor.process({
+              user: user.info,
+              sessionID: root.id,
+              model: testModel,
+              agent: await Agent.get("build"),
+              abort: new AbortController().signal,
+              system: [],
+              messages: MessageV2.toModelMessages([user], testModel) as ModelMessage[],
+              tools: {},
+              retries: 3,
+            }),
+          )
+          expect(error).toMatchObject({ code: "context_provenance_persistence_failed", stage: "dispatch" })
+          expect(rejectedContextWrites).toBe(1)
+          expect(providerCalls).toBe(0)
+          expect(retryable).not.toHaveBeenCalled()
+          const state = await projectRunStateFromEvents(root.id)
+          expect(state?.promptHistory.dispatches).toHaveLength(1)
+          expect(state?.contextHistory.dispatches).toHaveLength(0)
+          expect(state?.completion).toBeNull()
+          expect(state?.artifactIds).toEqual([])
         } finally {
           write.mockRestore()
           retryable.mockRestore()
@@ -686,9 +931,7 @@ describe("durable prompt provenance", () => {
         const originalWrite = Storage.write
         const write = spyOn(Storage, "write").mockImplementation(async (key, value) => {
           promptWriteReached =
-            key[0] === "run_events" &&
-            Array.isArray(value) &&
-            value.at(-1)?.type === "prompt_contribution_recorded"
+            key[0] === "run_events" && Array.isArray(value) && value.at(-1)?.type === "prompt_contribution_recorded"
           return originalWrite(key, value)
         })
         const rename = spyOn(Storage, "rename").mockImplementation(async (from, to) => {
@@ -699,7 +942,9 @@ describe("durable prompt provenance", () => {
           const error = await rejection(SessionPrompt.loop({ sessionID: root.id }))
           expect(error).toMatchObject({ code: "prompt_provenance_persistence_failed", stage: "dispatch" })
           expect(providerCalls).toBe(0)
-          expect((await readRunEvents(root.id)).filter((event) => event.type === "prompt_contribution_recorded")).toHaveLength(1)
+          expect(
+            (await readRunEvents(root.id)).filter((event) => event.type === "prompt_contribution_recorded"),
+          ).toHaveLength(1)
         } finally {
           rename.mockRestore()
           write.mockRestore()
@@ -721,7 +966,76 @@ describe("durable prompt provenance", () => {
           const error = await rejection(SessionPrompt.loop({ sessionID }))
           expect(error).toMatchObject({ code: "assistant_provenance_recovery_required" })
           expect(providerCalls).toBe(0)
-          expect((await Session.messages({ sessionID })).filter((message) => message.info.role === "assistant")).toHaveLength(1)
+          expect(
+            (await Session.messages({ sessionID })).filter((message) => message.info.role === "assistant"),
+          ).toHaveLength(1)
+          const state = await projectRunStateFromEvents(sessionID)
+          expect(state?.completion).toBeNull()
+          expect(state?.artifactIds).toEqual([])
+        } finally {
+          spies.restore()
+        }
+      },
+    })
+  })
+
+  test("an uncertain context append prevents dispatch and restart does not execute a replacement message", async () => {
+    let sessionID = ""
+    let providerCalls = 0
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        sessionID = root.id
+        await prepareConversation(root.id)
+        const model = languageModel(async () => {
+          providerCalls++
+          return streamResult(successfulChunks())
+        })
+        const spies = installActualStreamingModel(model)
+        const originalRename = Storage.rename
+        const originalWrite = Storage.write
+        let contextWriteReached = false
+        const write = spyOn(Storage, "write").mockImplementation(async (key, value) => {
+          contextWriteReached =
+            key[0] === "run_events" && Array.isArray(value) && value.at(-1)?.type === "context_contribution_recorded"
+          return originalWrite(key, value)
+        })
+        const rename = spyOn(Storage, "rename").mockImplementation(async (from, to) => {
+          await originalRename(from, to)
+          if (contextWriteReached) throw new Error("uncertain context rename result")
+        })
+        try {
+          const error = await rejection(SessionPrompt.loop({ sessionID: root.id }))
+          expect(error).toMatchObject({ code: "context_provenance_persistence_failed", stage: "dispatch" })
+          expect(providerCalls).toBe(0)
+          expect(
+            (await readRunEvents(root.id)).filter((event) => event.type === "context_contribution_recorded"),
+          ).toHaveLength(1)
+        } finally {
+          rename.mockRestore()
+          write.mockRestore()
+          spies.restore()
+        }
+      },
+    })
+
+    await Instance.disposeAll()
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const model = languageModel(async () => {
+          providerCalls++
+          return streamResult(successfulChunks())
+        })
+        const spies = installActualStreamingModel(model)
+        try {
+          const error = await rejection(SessionPrompt.loop({ sessionID }))
+          expect(error).toMatchObject({ code: "assistant_provenance_recovery_required" })
+          expect(providerCalls).toBe(0)
+          expect(
+            (await Session.messages({ sessionID })).filter((message) => message.info.role === "assistant"),
+          ).toHaveLength(1)
           const state = await projectRunStateFromEvents(sessionID)
           expect(state?.completion).toBeNull()
           expect(state?.artifactIds).toEqual([])
@@ -855,16 +1169,25 @@ describe("durable prompt provenance", () => {
         const summary = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
         const retryable = spyOn(SessionRetry, "retryable").mockReturnValue(undefined)
         try {
-          expect(await SessionPrompt.loop({ sessionID: root.id }).then(() => null, (error) => error)).toBeNull()
+          expect(
+            await SessionPrompt.loop({ sessionID: root.id }).then(
+              () => null,
+              (error) => error,
+            ),
+          ).toBeNull()
           const state = await projectRunStateFromEvents(root.id)
           const message = state?.assistantHistory.messages.at(-1)
           expect(message?.settlement).toMatchObject({
             status: "failed",
             promptDispatch: { count: 0, finalEventId: null },
+            contextDispatch: { count: 0, finalEventId: null },
           })
           expect(state?.assistantHistory.unsettledMessageIds).not.toContain(message?.messageId)
           expect(
             state?.promptHistory.dispatches.filter((dispatch) => dispatch.messageId === message?.messageId),
+          ).toHaveLength(0)
+          expect(
+            state?.contextHistory.dispatches.filter((dispatch) => dispatch.messageId === message?.messageId),
           ).toHaveLength(0)
         } finally {
           retryable.mockRestore()
@@ -952,6 +1275,13 @@ describe("durable prompt provenance", () => {
             expect.objectContaining({ sessionId: child.id, coverage: "complete" }),
           )
           expect(state?.promptHistory.coverage).toBe("partial")
+          expect(state?.contextHistory.sessions).toContainEqual(
+            expect.objectContaining({ sessionId: root.id, coverage: "unavailable", markerEventId: null }),
+          )
+          expect(state?.contextHistory.sessions).toContainEqual(
+            expect.objectContaining({ sessionId: child.id, coverage: "complete" }),
+          )
+          expect(state?.contextHistory.coverage).toBe("partial")
         } finally {
           spies.restore()
         }
@@ -997,7 +1327,9 @@ describe("durable prompt provenance", () => {
           })
           expect(decision.accepted).toBe(false)
           expect((await projectRunStateFromEvents(root.id))?.artifactIds).toEqual([])
-          expect(await rejection(appendRunEventAtTail(root.id, { type: "run_completed", payload: {} }))).toBeInstanceOf(Error)
+          expect(await rejection(appendRunEventAtTail(root.id, { type: "run_completed", payload: {} }))).toBeInstanceOf(
+            Error,
+          )
           expect(await readRunEvents(root.id)).toEqual(before)
         } finally {
           spies.restore()

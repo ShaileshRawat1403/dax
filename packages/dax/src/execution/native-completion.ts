@@ -137,9 +137,15 @@ export async function adjudicateNativeCompletionCandidate(input: {
       candidate: true,
       accepted: false,
       runId,
-      reasonCodes: state.promptHistory.missingMessageIds.map(
-        (messageId) => `prompt_provenance_missing:${messageId}`,
-      ),
+      reasonCodes: state.promptHistory.missingMessageIds.map((messageId) => `prompt_provenance_missing:${messageId}`),
+    }
+  }
+  if (state.contextHistory.missingMessageIds.length > 0) {
+    return {
+      candidate: true,
+      accepted: false,
+      runId,
+      reasonCodes: state.contextHistory.missingMessageIds.map((messageId) => `context_provenance_missing:${messageId}`),
     }
   }
 
@@ -164,8 +170,7 @@ export async function adjudicateNativeCompletionCandidate(input: {
   }
 
   const hasTextOutput = verifiedTextParts.some((part) => part.text.trim().length > 0)
-  const hasMutationOutput =
-    state.governance.mutationReceiptIds.length > 0 && state.governance.touchedFiles.length > 0
+  const hasMutationOutput = state.governance.mutationReceiptIds.length > 0 && state.governance.touchedFiles.length > 0
   const outputTypes = new Set(
     authority.contract.expectedOutputs
       .map((output) => output.type)

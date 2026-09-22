@@ -343,7 +343,7 @@ const PromptEffectiveContributionSchema = closed({
   }
 })
 
-const PromptCommitmentSchema = closed({
+const PromptCommitmentV1Schema = closed({
   canonicalization: z.literal("provider-adapter-instructions-v1"),
   digest: Sha256DigestSchema,
   suppliedCount: z.number().int().nonnegative(),
@@ -369,7 +369,103 @@ const PromptCommitmentSchema = closed({
   }
   const known = new Set(sourceIds)
   if (commitment.effective.some((entry) => entry.sourceIds.some((sourceId) => !known.has(sourceId)))) {
-    ctx.addIssue({ code: "custom", path: ["effective"], message: "effective source ids must reference supplied sources" })
+    ctx.addIssue({
+      code: "custom",
+      path: ["effective"],
+      message: "effective source ids must reference supplied sources",
+    })
+  }
+})
+
+const ProviderInputAtomLocationSchema = z.discriminatedUnion("kind", [
+  closed({ kind: z.literal("message_envelope"), message: z.number().int().nonnegative() }),
+  closed({
+    kind: z.literal("message_content"),
+    message: z.number().int().nonnegative(),
+    part: z.number().int().nonnegative(),
+  }),
+  closed({ kind: z.literal("tool"), index: z.number().int().nonnegative() }),
+  closed({ kind: z.literal("provider_instruction"), index: z.number().int().nonnegative() }),
+])
+
+const ProviderInputAtomSchema = closed({
+  ordinal: z.number().int().nonnegative(),
+  location: ProviderInputAtomLocationSchema,
+  owner: z.enum(["instruction", "context"]),
+  kind: z.enum([
+    "message_envelope",
+    "text",
+    "reasoning",
+    "file",
+    "image",
+    "tool_call",
+    "tool_result",
+    "content",
+    "tool_definition",
+    "provider_instruction",
+    "other",
+  ]),
+  role: PromptInstructionRoleSchema.optional(),
+  origin: z.enum(["source_exact", "dax_derived", "transform_output"]),
+  sourceOrdinals: z.array(z.number().int().nonnegative()),
+  canonicalization: z.literal("provider-semantic-atom-v1"),
+  digest: Sha256DigestSchema,
+  canonicalBytes: z.number().int().nonnegative(),
+})
+
+const ProviderInputPartitionSummarySchema = closed({
+  canonicalization: z.literal("provider-semantic-input-v1"),
+  digest: Sha256DigestSchema,
+  atomCount: z.number().int().nonnegative(),
+  instructionAtomOrdinals: z.array(z.number().int().nonnegative()),
+  contextAtomOrdinals: z.array(z.number().int().nonnegative()),
+})
+
+const PromptCommitmentV2Schema = closed({
+  canonicalization: z.literal("provider-adapter-instructions-v2"),
+  digest: Sha256DigestSchema,
+  suppliedCount: z.number().int().nonnegative(),
+  effectiveCount: z.number().int().nonnegative(),
+  supplied: z.array(PromptSuppliedSourceSchema),
+  effective: z.array(PromptEffectiveContributionSchema),
+  partition: ProviderInputPartitionSummarySchema,
+}).superRefine((commitment, ctx) => {
+  if (commitment.suppliedCount !== commitment.supplied.length) {
+    ctx.addIssue({ code: "custom", path: ["suppliedCount"], message: "must equal supplied.length" })
+  }
+  if (commitment.effectiveCount !== commitment.effective.length) {
+    ctx.addIssue({ code: "custom", path: ["effectiveCount"], message: "must equal effective.length" })
+  }
+  const sourceIds = commitment.supplied.map((source) => source.sourceId)
+  if (new Set(sourceIds).size !== sourceIds.length) {
+    ctx.addIssue({ code: "custom", path: ["supplied"], message: "source ids must be unique" })
+  }
+  if (commitment.supplied.some((source, index) => source.ordinal !== index)) {
+    ctx.addIssue({ code: "custom", path: ["supplied"], message: "source ordinals must be contiguous" })
+  }
+  if (commitment.effective.some((entry, index) => entry.ordinal !== index)) {
+    ctx.addIssue({ code: "custom", path: ["effective"], message: "effective ordinals must be contiguous" })
+  }
+  const known = new Set(sourceIds)
+  if (commitment.effective.some((entry) => entry.sourceIds.some((sourceId) => !known.has(sourceId)))) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["effective"],
+      message: "effective source ids must reference supplied sources",
+    })
+  }
+})
+
+const PromptCommitmentSchema = z.union([PromptCommitmentV1Schema, PromptCommitmentV2Schema])
+
+const ProviderInputPartitionSchema = ProviderInputPartitionSummarySchema.extend({
+  atoms: z.array(ProviderInputAtomSchema),
+}).superRefine((partition, ctx) => {
+  if (partition.atomCount !== partition.atoms.length) {
+    ctx.addIssue({ code: "custom", path: ["atomCount"], message: "must equal atoms.length" })
+  }
+  if (partition.atoms.some((atom, index) => atom.ordinal !== index)) {
+    ctx.addIssue({ code: "custom", path: ["atoms"], message: "atom ordinals must be contiguous" })
   }
 })
 
@@ -385,6 +481,8 @@ const PromptDispatchSettlementSchema = closed({
     })
   }
 })
+
+const ContextDispatchSettlementSchema = PromptDispatchSettlementSchema
 
 const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
   closed({
@@ -413,6 +511,7 @@ const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
     reasoningPartCount: z.number().int().nonnegative(),
     reasoningUtf8Bytes: z.number().int().nonnegative(),
     promptDispatch: PromptDispatchSettlementSchema.optional(),
+    contextDispatch: ContextDispatchSettlementSchema.optional(),
   }).superRefine((payload, ctx) => {
     if (payload.status === "completed" && !payload.finishReason) {
       ctx.addIssue({ code: "custom", path: ["finishReason"], message: "completed settlement requires a finish reason" })
@@ -491,6 +590,38 @@ const RunEventVariants = [
       modelId: z.string().min(1),
       dispatchOrdinal: z.number().int().positive(),
       commitment: PromptCommitmentSchema,
+    }),
+  }),
+  z.object({
+    type: z.literal("context_recording_started"),
+    payload: closed({
+      sessionId: z.string().min(1),
+      scope: z.literal("session_processor_context_v1"),
+      priorScopeHistory: z.enum(["none", "unavailable"]),
+      copiedHistory: z.enum(["none", "excluded"]),
+      sourceSessionId: z.string().min(1).optional(),
+      cutoverMessageId: z.string().min(1),
+    }).superRefine((payload, ctx) => {
+      if ((payload.copiedHistory === "excluded") !== Boolean(payload.sourceSessionId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["sourceSessionId"],
+          message: "must identify copied-history source exactly when copied history is excluded",
+        })
+      }
+    }),
+  }),
+  z.object({
+    type: z.literal("context_contribution_recorded"),
+    payload: closed({
+      scope: z.literal("session_processor_context_v1"),
+      sessionId: z.string().min(1),
+      messageId: z.string().min(1),
+      providerId: z.string().min(1),
+      modelId: z.string().min(1),
+      dispatchOrdinal: z.number().int().positive(),
+      promptEventId: z.string().min(1),
+      partition: ProviderInputPartitionSchema,
     }),
   }),
   z.object({ type: z.literal("tool_result_recorded"), payload: ToolResultRecordedPayloadSchema }),
@@ -688,10 +819,13 @@ export const RunEventEnvelopeSchema = z
       event.type === "delegation_recorded" ||
       event.type === "assistant_message_recorded" ||
       event.type === "prompt_contribution_recorded" ||
+      event.type === "context_contribution_recorded" ||
       event.type === "tool_result_recorded"
     ) {
       const correlationId =
-        event.type === "assistant_message_recorded" || event.type === "prompt_contribution_recorded"
+        event.type === "assistant_message_recorded" ||
+        event.type === "prompt_contribution_recorded" ||
+        event.type === "context_contribution_recorded"
           ? event.payload.messageId
           : event.payload.invocationId
       if (event.correlationId !== correlationId) {
@@ -707,6 +841,8 @@ export const RunEventEnvelopeSchema = z
         event.type === "assistant_message_recorded" ||
         event.type === "prompt_recording_started" ||
         event.type === "prompt_contribution_recorded" ||
+        event.type === "context_recording_started" ||
+        event.type === "context_contribution_recorded" ||
         event.type === "tool_result_recorded") &&
       !event.causationId
     ) {
@@ -728,6 +864,13 @@ export const RunEventEnvelopeSchema = z
         code: "custom",
         path: ["correlationId"],
         message: "must equal payload.sessionId for prompt_recording_started",
+      })
+    }
+    if (event.type === "context_recording_started" && event.correlationId !== event.payload.sessionId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["correlationId"],
+        message: "must equal payload.sessionId for context_recording_started",
       })
     }
   })

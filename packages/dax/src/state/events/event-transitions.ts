@@ -236,7 +236,13 @@ export async function recordToolInvocation(
   invocationId: string,
   details: {
     toolId: string
-    input: { basis: "validated_tool_input"; canonicalization: "sorted-json-v1"; digest: string; redactedPreview: string; truncated: boolean }
+    input: {
+      basis: "validated_tool_input"
+      canonicalization: "sorted-json-v1"
+      digest: string
+      redactedPreview: string
+      truncated: boolean
+    }
     contractId: string
     executor: { kind: "builtin" | "plugin" | "mcp"; id: string }
     originTurnId?: string
@@ -442,10 +448,61 @@ export async function recordPromptContribution(
   )
 }
 
+export async function startContextRecording(
+  runId: string,
+  openedEventId: string,
+  details: {
+    sessionId: string
+    priorScopeHistory: "none" | "unavailable"
+    copiedHistory: "none" | "excluded"
+    sourceSessionId?: string
+    cutoverMessageId: string
+  },
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "context_recording_started",
+    {
+      sessionId: details.sessionId,
+      scope: "session_processor_context_v1",
+      priorScopeHistory: details.priorScopeHistory,
+      copiedHistory: details.copiedHistory,
+      ...(details.sourceSessionId ? { sourceSessionId: details.sourceSessionId } : {}),
+      cutoverMessageId: details.cutoverMessageId,
+    },
+    `cmd_context_recording_${details.sessionId}`,
+    { correlationId: details.sessionId, causationId: openedEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+type ContextContributionPayload = Extract<RunEventPayload, { type: "context_contribution_recorded" }>["payload"]
+
+export async function recordContextContribution(
+  runId: string,
+  promptEventId: string,
+  payload: ContextContributionPayload,
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "context_contribution_recorded",
+    payload,
+    `cmd_context_dispatch_${payload.messageId}_${payload.dispatchOrdinal}`,
+    { correlationId: payload.messageId, causationId: promptEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
 export type ToolResultOutcome =
   | {
       status: "completed"
-      result: { basis: "validated_dax_result_pre_truncation"; canonicalization: "sorted-json-v1"; digest: string; redactedPreview: string; truncated: boolean }
+      result: {
+        basis: "validated_dax_result_pre_truncation"
+        canonicalization: "sorted-json-v1"
+        digest: string
+        redactedPreview: string
+        truncated: boolean
+      }
     }
   | { status: "failed"; failure: { code: string; message: string; retryable: boolean } }
   | { status: "cancelled"; cancellation: { code: string; message: string } }

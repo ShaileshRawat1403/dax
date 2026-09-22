@@ -30,7 +30,7 @@ const RECORD_CLASSES = [
   {
     id: "context_contribution",
     why: "What the model could see. A reviewer cannot judge a decision without its inputs.",
-    eventTypes: [],
+    eventTypes: ["context_recording_started", "context_contribution_recorded"],
   },
   {
     id: "assistant_message",
@@ -88,8 +88,8 @@ describe("invariant 1 — durable authority", () => {
   test("every authoritative record class has durable event representation", () => {
     const missing = RECORD_CLASSES.filter((c) => !isDurable(c)).map((c) => c.id)
 
-    // Prompts, context and compaction still
-    // influence authorisation or correctness without durable event records.
+    // Compaction replacement still influences authorisation or correctness
+    // without a durable event record.
     expectGap("inv1.record-classes", () => {
       expect(missing).toEqual([])
     })

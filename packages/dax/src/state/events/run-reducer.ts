@@ -12,6 +12,7 @@ import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
  * path.
  */
 import { isLegalTransition, isTerminalStatus } from "@/state/run-state"
+import { recomputeProviderInputPartitionDigest } from "@/execution/provider-input-partition"
 
 export type RunState = {
   runId: string
@@ -36,6 +37,8 @@ export type RunState = {
   assistantHistory: AssistantHistory
   /** Durable commitments for DAX-generated instructions at the provider-adapter boundary. */
   promptHistory: PromptHistory
+  /** Durable commitments for non-instruction SessionProcessor input at the same adapter boundary. */
+  contextHistory: ContextHistory
   pendingApprovalIds: string[]
   /**
    * The approvals this run requested, as the operator saw them. Distinct from
@@ -308,6 +311,10 @@ export type AssistantMessageRecord = {
       count: number
       finalEventId: string | null
     }
+    contextDispatch?: {
+      count: number
+      finalEventId: string | null
+    }
     eventId: string
     settledAt: string
   } | null
@@ -357,6 +364,33 @@ export type PromptHistory = {
   coverage: "complete" | "partial" | "unavailable"
   sessions: PromptSessionCoverage[]
   dispatches: PromptDispatchRecord[]
+  missingMessageIds: string[]
+}
+
+type ContextContributionPayload = Extract<RunEventPayload, { type: "context_contribution_recorded" }>["payload"]
+
+export type ContextDispatchRecord = ContextContributionPayload & {
+  eventId: string
+  recordedAt: string
+}
+
+export type ContextSessionCoverage = {
+  sessionId: string
+  coverage: "complete" | "partial" | "unavailable"
+  markerEventId: string | null
+  markerSeq: number | null
+  priorScopeHistory: "none" | "unavailable" | null
+  copiedHistory: "none" | "excluded" | null
+  sourceSessionId?: string
+  cutoverMessageId?: string
+}
+
+export type ContextHistory = {
+  scope: "session_processor_context_v1"
+  /** Aggregate over the declared SessionProcessor context producer only. */
+  coverage: "complete" | "partial" | "unavailable"
+  sessions: ContextSessionCoverage[]
+  dispatches: ContextDispatchRecord[]
   missingMessageIds: string[]
 }
 
@@ -462,6 +496,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     },
     promptHistory: {
       scope: "session_processor_instructions_v1",
+      coverage: "unavailable",
+      sessions: [],
+      dispatches: [],
+      missingMessageIds: [],
+    },
+    contextHistory: {
+      scope: "session_processor_context_v1",
       coverage: "unavailable",
       sessions: [],
       dispatches: [],
@@ -829,6 +870,37 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         } else if (payload.promptDispatch) {
           throw new Error(`Assistant settlement cannot claim unenrolled prompt dispatches: ${payload.messageId}`)
         }
+        const contextMarker = state.contextHistory.sessions.find(
+          (candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId,
+        )
+        const contextEnrolled = Boolean(
+          contextMarker &&
+            (contextMarker.cutoverMessageId === payload.messageId ||
+              (contextMarker.markerSeq !== null && message.openedSeq > contextMarker.markerSeq)),
+        )
+        const contextDispatches = state.contextHistory.dispatches.filter(
+          (dispatch) => dispatch.messageId === payload.messageId,
+        )
+        if (contextEnrolled) {
+          if (!payload.contextDispatch) {
+            throw new Error(`Assistant settlement is missing context dispatch binding: ${payload.messageId}`)
+          }
+          if (payload.contextDispatch.count !== contextDispatches.length) {
+            throw new Error(`Assistant settlement context dispatch count does not match: ${payload.messageId}`)
+          }
+          const finalDispatch = contextDispatches.at(-1)?.eventId ?? null
+          if (payload.contextDispatch.finalEventId !== finalDispatch) {
+            throw new Error(`Assistant settlement final context dispatch does not match: ${payload.messageId}`)
+          }
+          if (payload.status === "completed" && contextDispatches.length === 0) {
+            throw new Error(`Completed assistant message has no context dispatch: ${payload.messageId}`)
+          }
+          if (contextDispatches.length !== promptDispatches.length) {
+            throw new Error(`Assistant settlement prompt/context dispatch counts differ: ${payload.messageId}`)
+          }
+        } else if (payload.contextDispatch) {
+          throw new Error(`Assistant settlement cannot claim unenrolled context dispatches: ${payload.messageId}`)
+        }
         message.settlement = {
           status: payload.status,
           ...(payload.finishReason ? { finishReason: payload.finishReason } : {}),
@@ -839,6 +911,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           reasoningPartCount: payload.reasoningPartCount,
           reasoningUtf8Bytes: payload.reasoningUtf8Bytes,
           ...(payload.promptDispatch ? { promptDispatch: payload.promptDispatch } : {}),
+          ...(payload.contextDispatch ? { contextDispatch: payload.contextDispatch } : {}),
           eventId: event.eventId,
           settledAt: event.occurredAt,
         }
@@ -905,7 +978,8 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         }
         const message = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.messageId)
         if (!message) throw new Error(`Prompt contribution references unopened assistant message: ${payload.messageId}`)
-        if (message.settlement) throw new Error(`Prompt contribution references settled assistant message: ${payload.messageId}`)
+        if (message.settlement)
+          throw new Error(`Prompt contribution references settled assistant message: ${payload.messageId}`)
         if (
           message.sessionId !== payload.sessionId ||
           message.providerId !== payload.providerId ||
@@ -924,15 +998,165 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           marker.cutoverMessageId === payload.messageId ||
           (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)
         if (!enrolled) throw new Error(`Prompt contribution predates its session cutover: ${payload.messageId}`)
-        const existing = state.promptHistory.dispatches.filter(
-          (dispatch) => dispatch.messageId === payload.messageId,
-        )
+        const existing = state.promptHistory.dispatches.filter((dispatch) => dispatch.messageId === payload.messageId)
         if (payload.dispatchOrdinal !== existing.length + 1) {
           throw new Error(
             `Prompt dispatch ordinal is not contiguous for ${payload.messageId}: expected ${existing.length + 1}, got ${payload.dispatchOrdinal}`,
           )
         }
         state.promptHistory.dispatches.push({
+          ...payload,
+          eventId: event.eventId,
+          recordedAt: event.occurredAt,
+        })
+        break
+      }
+
+      case "context_recording_started": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "context_recording_started" }>["payload"]
+        if (isTerminalStatus(state.status)) {
+          throw new Error(`Cannot start context recording for ${payload.sessionId} after run settlement`)
+        }
+        if (event.correlationId !== payload.sessionId) {
+          throw new Error(`Context coverage marker correlation does not match session: ${payload.sessionId}`)
+        }
+        if (state.contextHistory.sessions.some((candidate) => candidate.sessionId === payload.sessionId)) {
+          throw new Error(`Context coverage marker already exists for session: ${payload.sessionId}`)
+        }
+        const message = state.assistantHistory.messages.find(
+          (candidate) => candidate.messageId === payload.cutoverMessageId,
+        )
+        if (!message || message.sessionId !== payload.sessionId) {
+          throw new Error(`Context coverage marker cutover must identify an opened assistant message`)
+        }
+        if (message.settlement) {
+          throw new Error(`Context coverage cannot enroll settled message: ${payload.cutoverMessageId}`)
+        }
+        if (event.causationId !== message.openedEventId) {
+          throw new Error(`Context coverage marker must be caused by its cutover assistant message`)
+        }
+        const knownPrior = state.assistantHistory.messages.some(
+          (candidate) => candidate.sessionId === payload.sessionId && candidate.openedSeq < message.openedSeq,
+        )
+        if (knownPrior && payload.priorScopeHistory === "none") {
+          throw new Error(`Context coverage marker cannot declare known prior history absent: ${payload.sessionId}`)
+        }
+        const assistantSession = state.assistantHistory.sessions.find(
+          (candidate) => candidate.sessionId === payload.sessionId,
+        )
+        if (payload.copiedHistory === "excluded") {
+          if (!assistantSession?.sourceSessionId || assistantSession.sourceSessionId !== payload.sourceSessionId) {
+            throw new Error(`Context copied-history source does not match assistant session lineage`)
+          }
+        }
+        state.contextHistory.sessions.push({
+          sessionId: payload.sessionId,
+          coverage: payload.priorScopeHistory === "none" ? "complete" : "partial",
+          markerEventId: event.eventId,
+          markerSeq: event.seq,
+          priorScopeHistory: payload.priorScopeHistory,
+          copiedHistory: payload.copiedHistory,
+          ...(payload.sourceSessionId ? { sourceSessionId: payload.sourceSessionId } : {}),
+          cutoverMessageId: payload.cutoverMessageId,
+        })
+        break
+      }
+
+      case "context_contribution_recorded": {
+        const payload = event.payload as ContextContributionPayload
+        if (isTerminalStatus(state.status)) {
+          throw new Error(`Cannot record context contribution after run settlement: ${payload.messageId}`)
+        }
+        if (event.correlationId !== payload.messageId) {
+          throw new Error(`Context contribution correlation does not match message: ${payload.messageId}`)
+        }
+        if (event.causationId !== payload.promptEventId) {
+          throw new Error(`Context contribution must be caused by its prompt dispatch: ${payload.messageId}`)
+        }
+        const message = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.messageId)
+        if (!message)
+          throw new Error(`Context contribution references unopened assistant message: ${payload.messageId}`)
+        if (message.settlement)
+          throw new Error(`Context contribution references settled assistant message: ${payload.messageId}`)
+        if (
+          message.sessionId !== payload.sessionId ||
+          message.providerId !== payload.providerId ||
+          message.modelId !== payload.modelId
+        ) {
+          throw new Error(`Context contribution identity does not match opened assistant message: ${payload.messageId}`)
+        }
+        const marker = state.contextHistory.sessions.find(
+          (candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId,
+        )
+        if (!marker) throw new Error(`Context contribution has no producer coverage marker: ${payload.sessionId}`)
+        const enrolled =
+          marker.cutoverMessageId === payload.messageId ||
+          (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)
+        if (!enrolled) throw new Error(`Context contribution predates its session cutover: ${payload.messageId}`)
+
+        const promptDispatch = state.promptHistory.dispatches.find(
+          (dispatch) => dispatch.eventId === payload.promptEventId,
+        )
+        if (
+          !promptDispatch ||
+          promptDispatch.messageId !== payload.messageId ||
+          promptDispatch.sessionId !== payload.sessionId ||
+          promptDispatch.providerId !== payload.providerId ||
+          promptDispatch.modelId !== payload.modelId ||
+          promptDispatch.dispatchOrdinal !== payload.dispatchOrdinal
+        ) {
+          throw new Error(`Context contribution does not match its prompt dispatch: ${payload.messageId}`)
+        }
+        if (promptDispatch.commitment.canonicalization !== "provider-adapter-instructions-v2") {
+          throw new Error(`Context contribution requires a partitioned prompt commitment: ${payload.messageId}`)
+        }
+
+        const partition = payload.partition
+        if (recomputeProviderInputPartitionDigest(partition.atoms) !== partition.digest) {
+          throw new Error(`Context contribution partition digest does not replay: ${payload.messageId}`)
+        }
+        const instructionOrdinals = partition.atoms
+          .filter((atom) => atom.owner === "instruction")
+          .map((atom) => atom.ordinal)
+        const contextOrdinals = partition.atoms.filter((atom) => atom.owner === "context").map((atom) => atom.ordinal)
+        if (
+          JSON.stringify(instructionOrdinals) !== JSON.stringify(partition.instructionAtomOrdinals) ||
+          JSON.stringify(contextOrdinals) !== JSON.stringify(partition.contextAtomOrdinals) ||
+          instructionOrdinals.length + contextOrdinals.length !== partition.atoms.length
+        ) {
+          throw new Error(`Context contribution partition is not an exact complement: ${payload.messageId}`)
+        }
+        const locationKeys = partition.atoms.map((atom) => JSON.stringify(atom.location))
+        if (new Set(locationKeys).size !== locationKeys.length) {
+          throw new Error(`Context contribution atom locations are not unique: ${payload.messageId}`)
+        }
+        if (
+          partition.atoms.some(
+            (atom) =>
+              (atom.origin === "transform_output" && atom.sourceOrdinals.length > 0) ||
+              (atom.origin !== "transform_output" && atom.sourceOrdinals.length === 0) ||
+              new Set(atom.sourceOrdinals).size !== atom.sourceOrdinals.length,
+          )
+        ) {
+          throw new Error(`Context contribution source attribution is invalid: ${payload.messageId}`)
+        }
+        const promptPartition = promptDispatch.commitment.partition
+        if (
+          promptPartition.canonicalization !== partition.canonicalization ||
+          promptPartition.digest !== partition.digest ||
+          promptPartition.atomCount !== partition.atomCount ||
+          JSON.stringify(promptPartition.instructionAtomOrdinals) !== JSON.stringify(instructionOrdinals) ||
+          JSON.stringify(promptPartition.contextAtomOrdinals) !== JSON.stringify(contextOrdinals)
+        ) {
+          throw new Error(`Context contribution partition does not match prompt commitment: ${payload.messageId}`)
+        }
+        const existing = state.contextHistory.dispatches.filter((dispatch) => dispatch.messageId === payload.messageId)
+        if (payload.dispatchOrdinal !== existing.length + 1) {
+          throw new Error(
+            `Context dispatch ordinal is not contiguous for ${payload.messageId}: expected ${existing.length + 1}, got ${payload.dispatchOrdinal}`,
+          )
+        }
+        state.contextHistory.dispatches.push({
           ...payload,
           eventId: event.eventId,
           recordedAt: event.occurredAt,
@@ -1252,6 +1476,32 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           if (missingPromptMessages.length > 0) {
             throw new Error(`Run cannot complete with missing prompt provenance: ${missingPromptMessages.join(", ")}`)
           }
+          const missingContextMessages = state.assistantHistory.messages.flatMap((message) => {
+            const marker = state.contextHistory.sessions.find(
+              (candidate) => candidate.sessionId === message.sessionId && candidate.markerEventId,
+            )
+            const enrolled = Boolean(
+              marker &&
+                (marker.cutoverMessageId === message.messageId ||
+                  (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)),
+            )
+            if (!enrolled || message.settlement?.status !== "completed") return []
+            const dispatches = state.contextHistory.dispatches.filter(
+              (dispatch) => dispatch.messageId === message.messageId,
+            )
+            const binding = message.settlement.contextDispatch
+            if (
+              !binding ||
+              binding.count !== dispatches.length ||
+              binding.finalEventId !== (dispatches.at(-1)?.eventId ?? null)
+            ) {
+              return [message.messageId]
+            }
+            return []
+          })
+          if (missingContextMessages.length > 0) {
+            throw new Error(`Run cannot complete with missing context provenance: ${missingContextMessages.join(", ")}`)
+          }
           if (state.pendingApprovalIds.length > 0) {
             throw new Error(`Run cannot complete with pending approvals: ${state.pendingApprovalIds.join(", ")}`)
           }
@@ -1533,6 +1783,50 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       ? "unavailable"
       : state.promptHistory.sessions.every((session) => session.coverage === "complete") &&
           state.promptHistory.missingMessageIds.length === 0
+        ? "complete"
+        : "partial"
+
+  const contextKnownSessionIds = new Set<string>([
+    ...knownSessionIds,
+    ...state.contextHistory.sessions.map((session) => session.sessionId),
+    ...state.contextHistory.dispatches.map((dispatch) => dispatch.sessionId),
+  ])
+  for (const sessionId of contextKnownSessionIds) {
+    if (state.contextHistory.sessions.some((session) => session.sessionId === sessionId)) continue
+    state.contextHistory.sessions.push({
+      sessionId,
+      coverage: "unavailable",
+      markerEventId: null,
+      markerSeq: null,
+      priorScopeHistory: null,
+      copiedHistory: null,
+    })
+  }
+  state.contextHistory.sessions.sort((a, b) => a.sessionId.localeCompare(b.sessionId))
+  state.contextHistory.missingMessageIds = state.assistantHistory.messages.flatMap((message) => {
+    const marker = state.contextHistory.sessions.find(
+      (candidate) => candidate.sessionId === message.sessionId && candidate.markerEventId,
+    )
+    const enrolled = Boolean(
+      marker &&
+        (marker.cutoverMessageId === message.messageId ||
+          (marker.markerSeq !== null && message.openedSeq > marker.markerSeq)),
+    )
+    if (!enrolled || message.settlement?.status !== "completed") return []
+    const dispatches = state.contextHistory.dispatches.filter((dispatch) => dispatch.messageId === message.messageId)
+    const binding = message.settlement.contextDispatch
+    return binding &&
+      binding.count === dispatches.length &&
+      binding.finalEventId === (dispatches.at(-1)?.eventId ?? null)
+      ? []
+      : [message.messageId]
+  })
+  const contextMarkedSessions = state.contextHistory.sessions.filter((session) => session.markerEventId !== null)
+  state.contextHistory.coverage =
+    contextMarkedSessions.length === 0
+      ? "unavailable"
+      : state.contextHistory.sessions.every((session) => session.coverage === "complete") &&
+          state.contextHistory.missingMessageIds.length === 0
         ? "complete"
         : "partial"
 

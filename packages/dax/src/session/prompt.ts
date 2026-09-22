@@ -12,7 +12,7 @@ import { Agent } from "../agent/agent"
 import { SENSITIVE_PATH_RULES } from "../agent/sensitive-paths"
 import { Wildcard } from "../util/wildcard"
 import { Provider } from "../provider/provider"
-import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema } from "ai"
+import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema, type ModelMessage } from "ai"
 import { SessionCompaction } from "./compaction"
 import { Instance } from "../project/instance"
 import { Bus } from "../bus"
@@ -84,19 +84,14 @@ import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { acquireRunLock } from "@/util/fs-lock"
 import { RunStore } from "@/state/run-store"
-import {
-  adjudicateNativeCompletionCandidate,
-  type NativeCompletionDecision,
-} from "@/execution/native-completion"
+import { adjudicateNativeCompletionCandidate, type NativeCompletionDecision } from "@/execution/native-completion"
 import { Sandbox } from "../shell/sandbox"
 import {
   AssistantDelegationReceiptSchema,
   requireAssistantProvenanceRecoveryBeforeDispatch,
 } from "@/execution/assistant-provenance"
-import type {
-  PromptEffectiveCandidate,
-  PromptInstructionSource,
-} from "@/execution/prompt-provenance"
+import type { PromptEffectiveCandidate, PromptInstructionSource } from "@/execution/prompt-provenance"
+import type { ProviderInputSourceCandidate } from "@/execution/provider-input-partition"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -194,10 +189,7 @@ export namespace SessionPrompt {
       if (!authority.contract) {
         // resolveExecutionAuthority returns null only for a genuinely ungoverned
         // session. An explicit but unreadable governing reference throws above.
-        const availableTools = [
-          ...(await ToolRegistry.ids()),
-          ...Object.keys(await MCP.tools()),
-        ]
+        const availableTools = [...(await ToolRegistry.ids()), ...Object.keys(await MCP.tools())]
         const { contract } = compileWithRunId(
           {
             request: {
@@ -276,9 +268,7 @@ export namespace SessionPrompt {
         status = "running"
       }
       if (status !== "running") {
-        throw new Error(
-          `Run ${governingRunId} is ${status}; refusing native execution outside an active canonical run`,
-        )
+        throw new Error(`Run ${governingRunId} is ${status}; refusing native execution outside an active canonical run`)
       }
     } finally {
       await birthLock.dispose()
@@ -576,7 +566,8 @@ export namespace SessionPrompt {
     assistantProvenance: AssistantDelegationReceiptSchema.optional(),
   })
   export const loop = fn(LoopInput, async (input) => {
-    if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("AGY sessions cannot enter the native model loop.")
+    if (await AntigravityConversation.isBound(input.sessionID))
+      throw new Error("AGY sessions cannot enter the native model loop.")
     const { sessionID, resume_existing, completionPolicy, assistantProvenance } = input
 
     const abort = resume_existing ? resume(sessionID) : start(sessionID)
@@ -786,11 +777,7 @@ export namespace SessionPrompt {
           if (settled && !canonicalResult) {
             throw new NativeSettlementStateError(part.callID, "task did not expose its validated pre-truncation result")
           }
-          await Plugin.trigger(
-            "tool.execute.after",
-            { tool: "task", sessionID, callID: part.callID },
-            result,
-          )
+          await Plugin.trigger("tool.execute.after", { tool: "task", sessionID, callID: part.callID }, result)
         } catch (error) {
           if (settled && isNativeInvocationAuthorized(part.callID)) {
             const message = error instanceof Error ? error.message : String(error)
@@ -1017,6 +1004,7 @@ export namespace SessionPrompt {
         }
       }
 
+      const messagesBeforeTransform = clone(sessionMessages)
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: sessionMessages })
 
       const reflectionSummary = createReflectionSummary(session.state_v2?.reflection)
@@ -1033,9 +1021,7 @@ export namespace SessionPrompt {
             `<reflection-context>`,
             `Goal: ${reflectionSummary.goal}`,
             `Decision: ${reflectionSummary.decision}`,
-            reflectionSummary.justification_summary
-              ? `Justification: ${reflectionSummary.justification_summary}`
-              : "",
+            reflectionSummary.justification_summary ? `Justification: ${reflectionSummary.justification_summary}` : "",
             reflectionSummary.requiresApproval ? `⚠️ Requires approval before proceeding` : "",
             `</reflection-context>`,
           ].filter(Boolean)
@@ -1081,6 +1067,12 @@ export namespace SessionPrompt {
         })),
       ]
       const modelMessages = MessageV2.toModelMessages(sessionMessages, model)
+      const contextSources = locateContextSourceCandidates(
+        messagesBeforeTransform,
+        sessionMessages,
+        model,
+        modelMessages,
+      )
       const turnLimitSource: PromptInstructionSource | undefined = isLastStep
         ? {
             sourceId: `turn_limit:${processor.message.id}`,
@@ -1132,6 +1124,7 @@ export namespace SessionPrompt {
         model,
         instructionSources: [...systemSources, ...messageSources],
         instructionCandidates,
+        contextSources,
       })
       if (processor.message.finish === "stop") {
         if (completionPolicy === "on_provider_stop") {
@@ -1337,7 +1330,10 @@ export namespace SessionPrompt {
                 ctx.abort.aborted
                   ? {
                       status: "cancelled",
-                      cancellation: { code: "aborted", message: error instanceof Error ? error.message : String(error) },
+                      cancellation: {
+                        code: "aborted",
+                        message: error instanceof Error ? error.message : String(error),
+                      },
                     }
                   : {
                       status: "failed",
@@ -1978,9 +1974,73 @@ export namespace SessionPrompt {
         sourceOccurrences.set(sourceId, (sourceOccurrences.get(sourceId) ?? 0) + 1)
       }
     }
-    return result.filter((candidate) =>
-      candidate.sourceIds.every((sourceId) => sourceOccurrences.get(sourceId) === 1),
-    )
+    return result.filter((candidate) => candidate.sourceIds.every((sourceId) => sourceOccurrences.get(sourceId) === 1))
+  }
+
+  function contextAtomKind(value: unknown): ProviderInputSourceCandidate["kind"] {
+    if (typeof value === "string") return "text"
+    if (!value || typeof value !== "object") return "other"
+    const type = String((value as { type?: unknown }).type ?? "")
+    if (type === "text") return "text"
+    if (type === "reasoning") return "reasoning"
+    if (type === "file" || type === "media") return "file"
+    if (type === "image") return "image"
+    if (type === "tool-call") return "tool_call"
+    if (type === "tool-result") return "tool_result"
+    return type ? "content" : "other"
+  }
+
+  /**
+   * Carry opaque source ordinals beside the exact ModelMessage conversion.
+   * Identity comes from MessageV2 ids before the plugin runs; modified or newly
+   * injected messages deliberately receive no candidate and are later recorded
+   * as transform_output rather than borrowing a neighbouring location.
+   */
+  function locateContextSourceCandidates(
+    before: MessageV2.WithParts[],
+    after: MessageV2.WithParts[],
+    model: Provider.Model,
+    converted: ModelMessage[],
+  ): ProviderInputSourceCandidate[] {
+    const originals = new Map(before.map((message) => [message.info.id, JSON.stringify(message)]))
+    const candidates: ProviderInputSourceCandidate[] = []
+    let messageOffset = 0
+    let sourceOrdinal = 0
+
+    for (const message of after) {
+      const local = MessageV2.toModelMessages([message], model)
+      const unchanged = originals.get(message.info.id) === JSON.stringify(message)
+      const aligned = local.every(
+        (value, index) => JSON.stringify(value) === JSON.stringify(converted[messageOffset + index]),
+      )
+      if (unchanged && aligned) {
+        for (const [localIndex, value] of local.entries()) {
+          const messageIndex = messageOffset + localIndex
+          if (!value || typeof value !== "object") continue
+          const record = value as unknown as Record<string, unknown>
+          const { content, ...envelope } = record
+          candidates.push({
+            locator: { message: messageIndex },
+            kind: "message_envelope",
+            origin: "dax_derived",
+            sourceOrdinal: sourceOrdinal++,
+            value: envelope,
+          })
+          const parts = Array.isArray(content) ? content : [content]
+          for (const [part, item] of parts.entries()) {
+            candidates.push({
+              locator: { message: messageIndex, part },
+              kind: contextAtomKind(item),
+              origin: "dax_derived",
+              sourceOrdinal: sourceOrdinal++,
+              value: item,
+            })
+          }
+        }
+      }
+      messageOffset += local.length
+    }
+    return candidates
   }
 
   async function insertReminders(input: { messages: MessageV2.WithParts[]; agent: Agent.Info; session: Session.Info }) {
@@ -2038,7 +2098,8 @@ export namespace SessionPrompt {
       const plan = Session.plan(input.session)
       const exists = await Bun.file(plan).exists()
       if (exists) {
-        const text = BUILD_SWITCH + "\n\n" + `A plan file exists at ${plan}. You should execute on the plan defined within it`
+        const text =
+          BUILD_SWITCH + "\n\n" + `A plan file exists at ${plan}. You should execute on the plan defined within it`
         const part = await Session.updatePart({
           id: Identifier.ascending("part"),
           messageID: userMessage.info.id,
@@ -2199,7 +2260,8 @@ ${
   })
   export type ShellInput = z.infer<typeof ShellInput>
   export async function shell(input: ShellInput) {
-    if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("Direct shell execution is unavailable in an AGY governed conversation.")
+    if (await AntigravityConversation.isBound(input.sessionID))
+      throw new Error("Direct shell execution is unavailable in an AGY governed conversation.")
     const abort = start(input.sessionID)
     if (!abort) {
       throw new Session.BusyError(input.sessionID)
@@ -2467,7 +2529,8 @@ ${
    */
 
   export async function command(input: CommandInput) {
-    if (await AntigravityConversation.isBound(input.sessionID)) throw new Error("Agent commands are unavailable in an AGY governed conversation. Use the AGY session controls.")
+    if (await AntigravityConversation.isBound(input.sessionID))
+      throw new Error("Agent commands are unavailable in an AGY governed conversation. Use the AGY session controls.")
     log.info("command", input)
     if (input.command === Command.Default.PM) {
       const result = await commandPM(input)

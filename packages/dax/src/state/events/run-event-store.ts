@@ -127,6 +127,8 @@ async function appendRunEventUnderLock(input: {
     event.type === "assistant_message_recorded" ||
     event.type === "prompt_recording_started" ||
     event.type === "prompt_contribution_recorded" ||
+    event.type === "context_recording_started" ||
+    event.type === "context_contribution_recorded" ||
     event.type === "tool_result_recorded" ||
     event.type === "mutation_recorded" ||
     event.type === "run_completed" ||
@@ -249,6 +251,13 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
       },
       promptHistory: {
         scope: "session_processor_instructions_v1",
+        coverage: "unavailable",
+        sessions: [],
+        dispatches: [],
+        missingMessageIds: [],
+      },
+      contextHistory: {
+        scope: "session_processor_context_v1",
         coverage: "unavailable",
         sessions: [],
         dispatches: [],

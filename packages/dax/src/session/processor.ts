@@ -25,10 +25,8 @@ import {
   type AssistantUsage,
   type CapturedAssistantTextPart,
 } from "@/execution/assistant-provenance"
-import {
-  createPromptProvenanceTracker,
-  findPromptProvenancePersistenceError,
-} from "@/execution/prompt-provenance"
+import { createPromptProvenanceTracker, findPromptProvenancePersistenceError } from "@/execution/prompt-provenance"
+import { createContextProvenanceTracker, findContextProvenancePersistenceError } from "@/execution/context-provenance"
 
 class AssistantTextPluginError extends Error {
   constructor(cause: unknown) {
@@ -107,6 +105,7 @@ export namespace SessionProcessor {
           delegation: input.assistantProvenance,
         })
         const promptProvenance = createPromptProvenanceTracker(provenance)
+        const contextProvenance = createContextProvenanceTracker(provenance)
         let terminalErrorCode: AssistantSettlement["errorCode"]
         while (true) {
           try {
@@ -225,6 +224,7 @@ export namespace SessionProcessor {
               ...streamInput,
               abort: combinedAbort,
               promptProvenance,
+              contextProvenance,
             })
 
             try {
@@ -567,6 +567,8 @@ export namespace SessionProcessor {
           } catch (caught: unknown) {
             const promptPersistenceError = findPromptProvenancePersistenceError(caught)
             if (promptPersistenceError) throw promptPersistenceError
+            const contextPersistenceError = findContextProvenancePersistenceError(caught)
+            if (contextPersistenceError) throw contextPersistenceError
             const e =
               !input.abort.aborted && caught instanceof Error && caught.name === "AbortError"
                 ? new Error(
@@ -658,6 +660,8 @@ export namespace SessionProcessor {
               : "completed"
           const promptDispatch = promptProvenance.settlement()
           const promptEnrolled = await promptProvenance.enrolled()
+          const contextDispatch = contextProvenance.settlement()
+          const contextEnrolled = await contextProvenance.enrolled()
           await settleAssistantMessageProvenance(provenance, {
             status: settlementStatus,
             ...(settlementStatus === "completed" && input.assistantMessage.finish
@@ -676,6 +680,7 @@ export namespace SessionProcessor {
             reasoningPartCount,
             reasoningUtf8Bytes,
             ...(provenance && promptEnrolled ? { promptDispatch } : {}),
+            ...(provenance && contextEnrolled ? { contextDispatch } : {}),
           })
           if (needsCompaction) return "compact"
           if (blocked) return "stop"

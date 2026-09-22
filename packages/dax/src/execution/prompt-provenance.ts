@@ -3,9 +3,11 @@ import type { AssistantProvenanceContext } from "./assistant-provenance"
 import { DuplicateCommandError, projectRunStateFromEvents } from "@/state/events/run-event-store"
 import { recordPromptContribution, startPromptRecording } from "@/state/events/event-transitions"
 import type { RunEventPayload } from "@/state/events/run-event-types"
+import type { ProviderInputPartition } from "./provider-input-partition"
 
 export const PROMPT_PRODUCER_SCOPE = "session_processor_instructions_v1" as const
 export const PROMPT_CANONICALIZATION = "provider-adapter-instructions-v1" as const
+export const PROMPT_CANONICALIZATION_V2 = "provider-adapter-instructions-v2" as const
 
 export type PromptInstructionSourceKind =
   | "agent_prompt"
@@ -59,6 +61,7 @@ export type ProviderAdapterPromptInput = {
   providerOptions: unknown
   supplied: PromptInstructionSource[]
   effectiveCandidates: PromptEffectiveCandidate[]
+  partition?: Omit<ProviderInputPartition, "atoms">
 }
 
 type PromptContributionPayload = Extract<RunEventPayload, { type: "prompt_contribution_recorded" }>["payload"]
@@ -266,10 +269,7 @@ export function commitProviderAdapterInstructions(input: ProviderAdapterPromptIn
   for (const instruction of providerInstructions(input.providerOptions)) {
     const commitment = digestCanonical(instruction)
     const candidate = candidates.find(
-      (item) =>
-        !item.matched &&
-        item.channel === "provider_option" &&
-        item.commitment.digest === commitment.digest,
+      (item) => !item.matched && item.channel === "provider_option" && item.commitment.digest === commitment.digest,
     )
     if (candidate) {
       candidate.matched = true
@@ -281,9 +281,7 @@ export function commitProviderAdapterInstructions(input: ProviderAdapterPromptIn
 
   for (const tool of adapterTools(input.tools)) {
     const source = tool.name
-      ? input.supplied.find(
-          (candidate) => candidate.kind === "tool_definition" && candidate.reference === tool.name,
-        )
+      ? input.supplied.find((candidate) => candidate.kind === "tool_definition" && candidate.reference === tool.name)
       : undefined
     const sourceSurvived = source && digestCanonical(source.value).digest === digestCanonical(tool.value).digest
     add({ channel: "tool", value: tool.value, sourceIds: sourceSurvived ? [source.sourceId] : [] })
@@ -295,14 +293,28 @@ export function commitProviderAdapterInstructions(input: ProviderAdapterPromptIn
     }
   }
 
+  const canonicalization = input.partition ? PROMPT_CANONICALIZATION_V2 : PROMPT_CANONICALIZATION
   const body = {
-    canonicalization: PROMPT_CANONICALIZATION,
+    canonicalization,
     supplied,
     effective,
+    ...(input.partition ? { partition: input.partition } : {}),
+  }
+  const digest = `sha256:${createHash("sha256").update(canonical(body), "utf8").digest("hex")}`
+  if (input.partition) {
+    return {
+      canonicalization: PROMPT_CANONICALIZATION_V2,
+      digest,
+      suppliedCount: supplied.length,
+      effectiveCount: effective.length,
+      supplied,
+      effective,
+      partition: input.partition,
+    }
   }
   return {
     canonicalization: PROMPT_CANONICALIZATION,
-    digest: `sha256:${createHash("sha256").update(canonical(body), "utf8").digest("hex")}`,
+    digest,
     suppliedCount: supplied.length,
     effectiveCount: effective.length,
     supplied,
@@ -386,8 +398,7 @@ export function createPromptProvenanceTracker(context: AssistantProvenanceContex
           commitment,
         })
         const record = state.promptHistory.dispatches.find(
-          (candidate) =>
-            candidate.messageId === context.messageId && candidate.dispatchOrdinal === dispatchOrdinal,
+          (candidate) => candidate.messageId === context.messageId && candidate.dispatchOrdinal === dispatchOrdinal,
         )
         if (!record) throw new Error("prompt contribution did not project")
         count = dispatchOrdinal
@@ -406,9 +417,7 @@ export function createPromptProvenanceTracker(context: AssistantProvenanceContex
         const marker = state?.promptHistory.sessions.find(
           (session) => session.sessionId === context.sessionId && session.markerEventId,
         )
-        const message = state?.assistantHistory.messages.find(
-          (candidate) => candidate.messageId === context.messageId,
-        )
+        const message = state?.assistantHistory.messages.find((candidate) => candidate.messageId === context.messageId)
         if (!marker || !message) return false
         return (
           marker.cutoverMessageId === context.messageId ||

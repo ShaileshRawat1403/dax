@@ -23,6 +23,9 @@ Implementation model: Sol. Reviewer: Astra 6 high.
 Status: in progress. Reviewed record-class coverage is 9/11; all nine aggregate
 gaps remain open in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
 See [current status](../DAX_STATUS.md) for the integrated commit and validation evidence.
+Context-contribution provenance is the current implementation candidate and
+targets 10/11 only after review; compaction-replacement provenance remains the
+final record-class slice.
 
 | Workstream | Gaps | Intended outcome |
 | --- | --- | --- |

@@ -34,9 +34,17 @@ the final identity correction. [Integrated main CI](https://github.com/ShaileshR
 passed on Ubuntu, macOS, and Windows, including Rust tests. This integration did
 not publish a release; v1.5.0 remains the released baseline.
 
-The aggregate `inv1.record-classes` gap stays open: context contributions and
-compaction replacement remain missing. All nine aggregate gaps remain recorded.
-Closure is measured through production behavior, not structural checks.
+In accepted `main`, the aggregate `inv1.record-classes` gap stays open: context
+contributions and compaction replacement remain missing. All nine aggregate gaps
+remain recorded. Closure is measured through production behavior, not structural
+checks.
+
+The current context-provenance implementation candidate adds commitment-only,
+ordered instruction/context partition evidence at the provider-adapter boundary.
+It targets **10/11** record classes, conditional on Astra's review and production
+replay evidence; accepted coverage remains **9/11** until that review. Compaction
+replacement remains separate, and `inv1.record-classes` plus all nine aggregate
+gaps remain open. No release is authorized or published by this candidate.
 
 ## Evidence corrections
 

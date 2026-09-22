@@ -23,14 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider-adapter boundary. Per-session cutover markers, contiguous dispatch
   ordinals, exact assistant-settlement bindings, and supplied-versus-effective
   source attribution replay without retaining instruction or conversation text.
+- The same governed dispatch boundary now records an ordered commitment-only
+  partition of instruction and context atoms. Replay recomputes the shared
+  manifest digest and exact complement, while typed media canonicalization,
+  opaque locations, per-session cutover coverage, and fail-closed settlement
+  avoid retaining conversation, tool-name, or binary payload content.
 
 ### Compatibility
 
 - The run-event vocabulary remains fail-closed. Older DAX binaries do not know
   `delegation_recorded`, `assistant_recording_started`, or
   `assistant_message_recorded`, `prompt_recording_started`, or
-  `prompt_contribution_recorded`; they reject logs containing those events
-  instead of projecting partial history.
+  `prompt_contribution_recorded`, `context_recording_started`, or
+  `context_contribution_recorded`; they reject logs containing those events
+  instead of projecting partial history. Prompt commitments carrying the v2
+  provider-input partition are likewise not readable by older binaries.
 
 ## [1.5.0] - 2026-09-20
 

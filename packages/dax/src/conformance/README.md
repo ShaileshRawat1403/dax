@@ -87,9 +87,11 @@ target. They fail with a number, and that number is the progress metric.
   None contributes points to the 16-point denominator.
 
 - `event-authority.test.ts` scores 11 authoritative record classes for durable
-  representation. Current coverage: **8 / 11** (assistant message, tool
-  invocation, tool result, approval, policy decision, delegation, verification
-  and completion). Assistant-message coverage is explicitly limited to
+  representation. Current implementation coverage: **10 / 11** (prompt, context,
+  assistant message, tool invocation, tool result, approval, policy decision,
+  delegation, verification and completion). Context coverage is explicitly
+  limited to the provider-adapter input produced by enrolled `SessionProcessor`
+  messages; assistant-message coverage is explicitly limited to
   `SessionProcessor` output after a per-session cutover marker; copied or older
   unknown history is not promoted to complete coverage.
 

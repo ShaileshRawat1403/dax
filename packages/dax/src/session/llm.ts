@@ -30,6 +30,12 @@ import {
   type PromptInstructionSource,
   type PromptProvenanceTracker,
 } from "@/execution/prompt-provenance"
+import { ContextProvenancePersistenceError, type ContextProvenanceTracker } from "@/execution/context-provenance"
+import {
+  buildProviderInputPartition,
+  type ProviderInputPartition,
+  type ProviderInputSourceCandidate,
+} from "@/execution/provider-input-partition"
 
 export namespace LLM {
   const log = Log.create({ service: "llm" })
@@ -50,6 +56,8 @@ export namespace LLM {
     instructionSources?: PromptInstructionSource[]
     instructionCandidates?: PromptEffectiveCandidate[]
     promptProvenance?: PromptProvenanceTracker
+    contextProvenance?: ContextProvenanceTracker
+    contextSources?: ProviderInputSourceCandidate[]
   }
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
@@ -129,7 +137,12 @@ export namespace LLM {
       systemParts.push({ text: input.user.system, sourceId })
     }
 
-    const system = [systemParts.map((part) => part.text).filter(Boolean).join("\n")]
+    const system = [
+      systemParts
+        .map((part) => part.text)
+        .filter(Boolean)
+        .join("\n"),
+    ]
 
     const header = system[0]
     const original = clone(system)
@@ -280,6 +293,13 @@ export namespace LLM {
           }
         : {}),
     }))
+    const contextSources: ProviderInputSourceCandidate[] = (input.contextSources ?? []).map((source) => ({
+      ...source,
+      locator: {
+        ...source.locator,
+        message: system.length + source.locator.message,
+      },
+    }))
     if (input.promptProvenance) {
       const locatedSourceIds = new Set(effectiveCandidates.flatMap((candidate) => candidate.sourceIds))
       const missingMessageSource = supplied.find(
@@ -370,7 +390,7 @@ export namespace LLM {
       // one durable input commitment cover multiple provider calls. Governed
       // SessionProcessor dispatches therefore retry only in SessionProcessor,
       // where each adapter call receives its own ordinal and event.
-      maxRetries: input.promptProvenance ? 0 : (input.retries ?? 0),
+      maxRetries: input.promptProvenance || input.contextProvenance ? 0 : (input.retries ?? 0),
       messages: [
         ...system.map(
           (x): ModelMessage => ({
@@ -388,6 +408,37 @@ export namespace LLM {
               if (args.type === "stream") {
                 // @ts-expect-error
                 args.params.prompt = ProviderTransform.message(args.params.prompt, input.model, options)
+                if (!input.promptProvenance && !input.contextProvenance) return args.params
+                const instructionLocators = effectiveCandidates.flatMap((candidate) => {
+                  if ((candidate.channel !== "system" && candidate.channel !== "message") || !candidate.locator) {
+                    return []
+                  }
+                  return [
+                    {
+                      message: candidate.locator.messageIndex,
+                      ...(candidate.locator.contentPartIndex === undefined
+                        ? {}
+                        : { part: candidate.locator.contentPartIndex }),
+                    },
+                  ]
+                })
+                let partition: ProviderInputPartition
+                try {
+                  partition = buildProviderInputPartition({
+                    prompt: args.params.prompt,
+                    tools: args.params.tools,
+                    providerOptions: args.params.providerOptions,
+                    instructionLocators,
+                    sources: contextSources,
+                  })
+                } catch (error) {
+                  throw new ContextProvenancePersistenceError(
+                    "dispatch",
+                    input.contextProvenance?.messageId ?? input.promptProvenance?.messageId ?? input.user.id,
+                    error,
+                  )
+                }
+                const { atoms: _atoms, ...partitionSummary } = partition
                 await input.promptProvenance?.record({
                   providerId: input.model.providerID,
                   modelId: input.model.id,
@@ -396,7 +447,25 @@ export namespace LLM {
                   providerOptions: args.params.providerOptions,
                   supplied,
                   effectiveCandidates,
+                  partition: partitionSummary,
                 })
+                if (input.contextProvenance) {
+                  const promptRecord = input.promptProvenance?.settlement()
+                  if (!promptRecord?.finalEventId || promptRecord.count < 1) {
+                    throw new ContextProvenancePersistenceError(
+                      "dispatch",
+                      input.contextProvenance.messageId ?? input.user.id,
+                      new Error("Context provenance requires a durable prompt dispatch"),
+                    )
+                  }
+                  await input.contextProvenance.record({
+                    providerId: input.model.providerID,
+                    modelId: input.model.id,
+                    promptEventId: promptRecord.finalEventId,
+                    dispatchOrdinal: promptRecord.count,
+                    partition,
+                  })
+                }
               }
               return args.params
             },

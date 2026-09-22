@@ -12,6 +12,7 @@ import {
 import type { AssistantMessageRecord } from "@/state/events/run-reducer"
 import type { AssistantErrorCode } from "@/state/events/run-event-types"
 import type { PromptDispatchSettlement } from "./prompt-provenance"
+import type { ContextDispatchSettlement } from "./context-provenance"
 
 export const ASSISTANT_PRODUCER_SCOPE = "session_processor_v1" as const
 export const ASSISTANT_CANONICALIZATION = "assistant-visible-parts-v1" as const
@@ -58,6 +59,7 @@ export type AssistantSettlement = {
   reasoningPartCount: number
   reasoningUtf8Bytes: number
   promptDispatch?: PromptDispatchSettlement
+  contextDispatch?: ContextDispatchSettlement
 }
 
 export type AssistantProvenanceContext = {
@@ -133,8 +135,7 @@ export function verifiedAssistantTextParts(
   parts: MessageV2.Part[],
 ): MessageV2.TextPart[] | null {
   const eligible = parts.filter(
-    (part): part is MessageV2.TextPart =>
-      part.type === "text" && part.synthetic !== true && part.ignored !== true,
+    (part): part is MessageV2.TextPart => part.type === "text" && part.synthetic !== true && part.ignored !== true,
   )
   if (eligible.length !== record.parts.length) return null
   if (new Set(record.parts.map((part) => part.partId)).size !== record.parts.length) return null
@@ -336,6 +337,7 @@ export async function settleAssistantMessageProvenance(
       reasoningPartCount: settlement.reasoningPartCount,
       reasoningUtf8Bytes: settlement.reasoningUtf8Bytes,
       ...(settlement.promptDispatch ? { promptDispatch: settlement.promptDispatch } : {}),
+      ...(settlement.contextDispatch ? { contextDispatch: settlement.contextDispatch } : {}),
     })
   } catch (error) {
     throw new AssistantProvenancePersistenceError("settle", context.messageId, error)

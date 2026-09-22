@@ -112,6 +112,12 @@ export class RunLifecycle {
           state.promptHistory.missingMessageIds.map((messageId) => `prompt_provenance_missing:${messageId}`),
         )
       }
+      if (state && state.contextHistory.missingMessageIds.length > 0) {
+        throw new RunCompletionBlockedError(
+          `Run ${runId} cannot complete with missing context provenance.`,
+          state.contextHistory.missingMessageIds.map((messageId) => `context_provenance_missing:${messageId}`),
+        )
+      }
       const proof = await RunLifecycle.assertCompletionProof(runId, options)
       if (proof && typeof payload === "object" && payload !== null) {
         payload = { ...(payload as Record<string, unknown>), completionProof: proof }
@@ -142,10 +148,9 @@ export class RunLifecycle {
     const contract = await ContractGuardian.get(runId)
     if (!contract) {
       if (!requirePassingProof) return null
-      throw new RunCompletionBlockedError(
-        `Run ${runId} cannot complete without a governing ExecutionContract.`,
-        ["missing_execution_contract"],
-      )
+      throw new RunCompletionBlockedError(`Run ${runId} cannot complete without a governing ExecutionContract.`, [
+        "missing_execution_contract",
+      ])
     }
 
     const state = await projectRunStateFromEvents(runId)
