@@ -23,30 +23,26 @@ both passed. All eleven published archive digests matched the manifest and
 GitHub asset digests; the published macOS installer was exercised and the local
 1.4.0 executable replaced with 1.5.0.
 
-All nine remaining aggregate gaps are scheduled in the
-[next-sprint conformance plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
-[product roadmap](product/ROADMAP.md). Implementation is in progress, with Sol
-implementing and Astra reviewing. Delegation, durable assistant-message, prompt,
-and context-contribution provenance are integrated in `main` through
-`524c757b4b2be1f15ada84b0c6eea4f192b91e39`. Reviewed record-class coverage is
-accepted at **10/11**. The earlier [integrated main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35682448339)
-passed on Ubuntu, macOS, and Windows, including Rust tests; Astra separately
-verified the context slice's exact-SHA three-platform CI before its integration.
-Neither integration published a release; v1.5.0 remains the released baseline.
+The [conformance sprint plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
+[product roadmap](product/ROADMAP.md), retains the original scope of nine aggregate
+gaps. Sol implemented and Astra reviewed the delegation, durable assistant-message,
+prompt, context-contribution, and compaction-replacement provenance slices. The
+complete-event-history workstream is integrated in `main` at
+`7ccfc8a4cdd93ff054cabe2c43197438b88e8995`. Accepted record-class coverage is
+**11/11**; `inv1.record-classes` is closed, leaving **eight aggregate gaps** in the
+[gap ledger](../packages/dax/src/conformance/known-gaps.ts). The
+[post-merge main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
+passed on Ubuntu, macOS, and Windows, including Rust tests. This integration did
+not publish a release; v1.5.0 remains the released baseline.
 
-In accepted `main`, compaction replacement remains the missing record class.
-`inv1.record-classes` and all nine aggregate gaps remain open. Closure is measured
-through production behavior, not structural checks.
-
-The current Tier 2 compaction-replacement candidate binds the active prefix and
-summary before provider dispatch. Successful adoption records a replacement
-boundary linked to final prompt/context and assistant commitments; failed,
-cancelled, truncated, and empty summaries close without replacement. Journal-only
-replay reconstructs boundaries and commitments, while actual continuation needs
-stored summary text to pass commitment verification. This branch proposes
-**11/11** and closure of `inv1.record-classes`, leaving eight aggregate gaps,
-conditional on independent review and integration. Historical unmarked history
-remains unavailable, not inferred complete. No UI work or release is authorized.
+Compaction replacement binds the active prefix and summary before provider
+dispatch. Successful adoption records a replacement boundary linked to final
+prompt/context and assistant commitments; failed, cancelled, truncated, and empty
+summaries close without replacement. Journal-only replay reconstructs boundaries
+and commitments, while actual continuation needs stored summary text to pass
+commitment verification. Historical unmarked history remains unavailable, not
+inferred complete. The 11/11 measure is record-class coverage within its documented
+producer scope, not a claim of complete model history or overall defect freedom.
 
 ## Evidence corrections
 
@@ -68,7 +64,8 @@ remains unavailable, not inferred complete. No UI work or release is authorized.
 
 Implemented shared filesystem locking for contract replacement and authority
 establishment, plus recovery from a persisted initialization intent. Both original
-gap checks reported CLOSED before being unwrapped; nine other gaps remain recorded.
+gap checks reported CLOSED before being unwrapped; nine other gaps formed the
+original conformance-sprint scope.
 Seven initialization regressions now pass, including cross-process contention,
 concurrent retries, exact recovery settings, and corrupt/missing intent rejection.
 The broader authority/recovery selection passed 32 tests before the final added

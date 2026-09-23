@@ -1,36 +1,34 @@
-# Next sprint: close the remaining conformance gaps
+# Conformance sprint: original nine-gap scope
 
 Status: in progress. Recorded 2026-09-20 at the maintainer's request.
 Implementation model: Sol. Reviewer: Astra 6, high reasoning. Released baseline:
 DAX v1.5.0 at `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`;
 current sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`.
 
-Accepted `main` still has all nine entries in the
-[gap ledger](../../packages/dax/src/conformance/known-gaps.ts).
-The current compaction-provenance candidate proposes removing `inv1.record-classes`
-from that ledger only if production and replay evidence passes independent review;
-the other eight entries remain open. The link above points at the candidate tree
-when read from this feature branch.
+The original sprint scope was nine aggregate gaps. The complete-event-history
+workstream, including compaction-replacement provenance, is integrated in `main`
+at `7ccfc8a4cdd93ff054cabe2c43197438b88e8995`. Accepted record-class
+coverage is **11/11**. `inv1.record-classes` is closed after production and replay
+review; the [gap ledger](../../packages/dax/src/conformance/known-gaps.ts) now has
+**eight open entries**. The
+[post-merge main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
+passed on Ubuntu, macOS, and Windows. This did not publish a release.
 The objective is stronger reconstruction of run history, consistent contract
 permissions, and governed project memory. No release number or completion date
-is assigned. Nine entries are the target scope, not an estimate that all nine
-will fit in one sprint; unfinished entries remain open and are carried forward
+is assigned. Nine entries were the original target scope, not an estimate that all
+nine would fit in one sprint; unfinished entries remain open and are carried forward
 explicitly at sprint review.
 
-## Next-session handoff
+## Implementation and review handoff
 
-The current session completes planning only. The maintainer will select a suitable
-implementation model next session; do not begin runtime work as part of this
-roadmap task. Reserve Astra 6 high for review of the proposed design, code diff,
-and validation evidence rather than routine implementation.
-
-The implementation model should read this plan, the gap ledger, and the relevant
-conformance tests, then take one bounded item on a feature branch. Its review
+The complete-event-history workstream is integrated. For each remaining gap, the
+implementation model should read this plan, the current ledger, and relevant
+conformance tests, then propose one bounded item before runtime work. Its review
 handoff must pin the source commit, state the acceptance criteria covered, include
-commands/results and negative controls, and identify any remaining limitations.
-The reviewer independently checks those claims against the exact artifact and
-version. Model selection alone does not make a review independent; record who
-implemented and who reviewed, and follow the SOP when a second agent is active.
+commands/results and negative controls, and identify remaining limitations.
+Astra independently checks claims against the exact artifact and version. Model
+selection alone does not make a review independent; record who implemented and
+who reviewed, and follow the SOP when a second agent is active.
 
 ## Work order
 
@@ -48,7 +46,9 @@ implemented and who reviewed, and follow the SOP when a second agent is active.
 
 ## Backlog and acceptance
 
-Every row starts **open**. Dependencies refer to the gap IDs below.
+The rows preserve the original nine-gap sprint scope. `inv1.record-classes` is
+**closed** at the integrated SHA above; the other eight rows remain **open** in the
+current ledger. Dependencies refer to the gap IDs below.
 
 | Gap ID | Deliverable | Acceptance evidence | Depends on |
 | --- | --- | --- | --- |

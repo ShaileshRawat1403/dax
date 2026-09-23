@@ -13,30 +13,32 @@ tags:
 
 # DAX Roadmap
 
-Current baseline: **DAX v1.5.0**, released 2026-09-20. The next sprint focuses
-on the nine remaining conformance gaps. The older release plan below is retained
-as historical context.
+Released baseline: **DAX v1.5.0**, released 2026-09-20. The conformance sprint's
+original scope was nine aggregate gaps; eight remain open. The older release plan
+below is retained as historical context.
 
-## Next Sprint — Conformance Closure
+## Conformance Sprint — Closure in Progress
 
 Implementation model: Sol. Reviewer: Astra 6 high.
-Status: in progress. Reviewed `main` record-class coverage is 10/11; all nine aggregate
-gaps remain open in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
-See [current status](../DAX_STATUS.md) for the integrated commit and validation evidence.
-Compaction-replacement provenance is the current implementation candidate and
-targets 11/11 and closure of the record-class gap only after independent review
-and integration. Eight other aggregate gaps require their own work.
+Status: in progress. The complete-event-history workstream, including compaction
+replacement, is integrated in `main` at `7ccfc8a4cdd93ff054cabe2c43197438b88e8995`.
+Accepted record-class coverage is **11/11** and `inv1.record-classes` is closed;
+the other **eight aggregate gaps** remain open in the
+[sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
+See [current status](../DAX_STATUS.md) and the
+[post-merge CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
+for integration evidence. This is not a new release.
 
 | Workstream | Gaps | Intended outcome |
 | --- | --- | --- |
-| Complete event history | 1 | Reconstruct prompt, context, assistant, delegation, and compaction history from durable records. |
+| Complete event history | 1 closed | Integrated within documented producer and historical-coverage boundaries. |
 | Shared capability permissions | 4 | Name capabilities, validate their properties, express contract grants, and enforce them consistently across execution paths. |
 | Project scope and governed memory | 4 | Reuse journal machinery, identify event ownership, persist project facts, and connect an authorized memory writer. |
 
 Dependencies determine implementation order: project journaling and grant
-resolution precede memory promotion. Completion requires production behavior and
-regression evidence; a file-existence check is insufficient. Unfinished work stays
-open in the ledger and is explicitly carried forward at sprint review. No release
+resolution precede memory promotion. Closure requires production behavior and
+regression evidence; a file-existence check is insufficient. The eight unfinished
+gaps stay open in the ledger and are carried forward at sprint review. No release
 number or calendar deadline is committed yet.
 
 The two integrity gaps closed in v1.5.0 remain regression requirements, not new
