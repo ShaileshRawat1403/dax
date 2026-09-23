@@ -2,6 +2,7 @@ import { EOL } from "os"
 import { Audit } from "./audit"
 import { RAOLedger } from "../rao"
 import { Session } from "../session"
+import { SessionPrompt } from "../session/prompt"
 import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { deriveSessionLifecycleFromMessages, type SessionLifecycleState } from "../session/lifecycle"
 import { Locale } from "../util/locale"
@@ -28,7 +29,9 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
 
 export async function collectVerificationSignals(sessionID: string): Promise<SessionVerificationSignals> {
   const session = await withLockedRetry(() => Session.get(sessionID))
-  const messages = await resolveCompactedMessages(sessionID)
+  const messages = await resolveCompactedMessages(sessionID, {
+    allowInFlight: SessionPrompt.hasActiveExecution(sessionID),
+  })
   const projectAudit = await resolveProjectAudit(session.projectID)
   const sessionPolicy = await resolveSessionPolicy(session.projectID, sessionID)
   const approvals = await listPendingApprovals(sessionID)

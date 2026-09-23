@@ -156,7 +156,8 @@ async function produceCompaction(sessionId: string, input: Awaited<ReturnType<ty
 }
 
 async function rejection(promise: Promise<unknown>) {
-  try { await promise; throw new Error("expected rejection") } catch (error) { return error }
+  try { await promise } catch (error) { return error }
+  throw new Error("expected promise to reject")
 }
 
 describe("production compaction-replacement provenance", () => {
@@ -690,6 +691,139 @@ describe("production compaction-replacement provenance", () => {
       expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1)
       expect(results.filter((result) => result.status === "rejected")).toHaveLength(1)
       expect((await projectRunStateFromEvents(root.id))?.compactionHistory.attempts).toHaveLength(1)
+    } })
+  })
+
+  test.each(["queue", "verification"] as const)("healthy active turn permits %s while restart protection remains strict", async (scenario) => {
+    await Instance.provide({ directory: project, async fn() {
+      const root = await governed()
+      await marker(root.id, "First live request")
+      const provider = installProvider(() => chunks("Ordinary response"))
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const originalTrigger = Plugin.trigger
+      const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
+        if (name === "experimental.chat.system.transform") {
+          entered.resolve()
+          return release.promise.then(() => args[1])
+        }
+        return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
+      }) as typeof Plugin.trigger)
+      const running = SessionPrompt.loop({ sessionID: root.id })
+      try {
+        await entered.promise
+        expect(SessionPrompt.hasActiveExecution(root.id)).toBe(true)
+        if (scenario === "verification") {
+          expect(await collectVerificationSignals(root.id)).toBeDefined()
+        } else {
+          await SessionPrompt.prompt({
+            sessionID: root.id,
+            model: { providerID: testModel.providerID, modelID: testModel.id },
+            parts: [{ type: "text", text: "Queued while the first turn is healthy" }],
+            noReply: true,
+          })
+          expect(JSON.stringify(await Session.messages({ sessionID: root.id }))).toContain("Queued while the first turn is healthy")
+        }
+      } finally {
+        release.resolve()
+        await running.catch(() => {})
+        plugin.mockRestore()
+        provider.restore()
+      }
+    } })
+  })
+
+  test("healthy in-flight compaction permits status reads and queued input without adopting early", async () => {
+    await Instance.provide({ directory: project, async fn() {
+      const root = await governed()
+      await marker(root.id, "History to compact")
+      await SessionCompaction.create({
+        sessionID: root.id,
+        agent: "build",
+        model: { providerID: testModel.providerID, modelID: testModel.id },
+        auto: false,
+      })
+      const provider = installProvider(() => chunks("Completed summary"))
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const originalTrigger = Plugin.trigger
+      const plugin = spyOn(Plugin, "trigger").mockImplementation(((name: string, ...args: unknown[]) => {
+        if (name === "experimental.session.compacting") {
+          entered.resolve()
+          return release.promise.then(() => args[1])
+        }
+        return (originalTrigger as (...input: unknown[]) => Promise<unknown>)(name, ...args)
+      }) as typeof Plugin.trigger)
+      const running = SessionPrompt.loop({ sessionID: root.id })
+      try {
+        await entered.promise
+        expect((await projectRunStateFromEvents(root.id))?.compactionHistory.openAttemptEventIds).toHaveLength(1)
+        expect(await collectVerificationSignals(root.id)).toBeDefined()
+        await SessionPrompt.prompt({
+          sessionID: root.id,
+          model: { providerID: testModel.providerID, modelID: testModel.id },
+          parts: [{ type: "text", text: "Queued during compaction" }],
+          noReply: true,
+        })
+        expect((await projectRunStateFromEvents(root.id))?.compactionHistory.attempts[0]?.status).toBe("open")
+      } finally {
+        release.resolve()
+        await running.catch(() => {})
+        plugin.mockRestore()
+        provider.restore()
+      }
+    } })
+  })
+
+  test.each(["omit_previous_boundary", "include_future_summary"] as const)("rejects %s prefix before journal append", async (scenario) => {
+    await Instance.provide({ directory: project, async fn() {
+      const root = await governed()
+      const first = await marker(root.id)
+      const provider = installProvider(() => chunks("A valid first summary"))
+      try {
+        await produceCompaction(root.id, first)
+        const second = await marker(root.id, "Next compaction marker")
+        const state = (await projectRunStateFromEvents(root.id))!
+        const coverage = state.compactionHistory.sessions.find((session) => session.sessionId === root.id)!
+        const summaryMessageId = Identifier.ascending("message")
+        const prefixIds = scenario === "omit_previous_boundary"
+          ? [second.parent.info.id]
+          : [summaryMessageId, ...(await resolveCompactedMessages(root.id)).map((message) => message.info.id)]
+        const before = await readRunEvents(root.id)
+        const error = await rejection(appendRunEventAtTail(root.id, {
+          type: "compaction_attempt_bound",
+          payload: {
+            scope: "session_compaction_replacement_v1", sessionId: root.id,
+            markerMessageId: second.parent.info.id, summaryMessageId,
+            previousReplacementEventId: coverage.replacementEventId,
+            prefix: commitCompactionPrefix(prefixIds),
+          },
+          commandId: `invalid_prefix_${scenario}`,
+          correlationId: summaryMessageId,
+          causationId: coverage.markerEventId!,
+        }, { rejectDuplicateCommand: true }))
+        expect(error).toBeInstanceOf(Error)
+        expect(await readRunEvents(root.id)).toEqual(before)
+        expect((await projectRunStateFromEvents(root.id))?.compactionHistory.attempts).toHaveLength(1)
+        expect(provider.calls).toBe(1)
+      } finally { provider.restore() }
+    } })
+  })
+
+  test("a second adoption for one marker is rejected before summary creation", async () => {
+    await Instance.provide({ directory: project, async fn() {
+      const root = await governed()
+      await marker(root.id, "Older history")
+      const input = await marker(root.id)
+      const provider = installProvider(() => chunks("A usable summary"))
+      try {
+        await produceCompaction(root.id, input)
+        const before = await readRunEvents(root.id)
+        expect(await rejection(produceCompaction(root.id, input))).toBeInstanceOf(CompactionProvenancePersistenceError)
+        expect(provider.calls).toBe(1)
+        expect((await projectRunStateFromEvents(root.id))?.compactionHistory.attempts.filter((attempt) => attempt.status === "adopted")).toHaveLength(1)
+        expect(await readRunEvents(root.id)).toEqual(before)
+      } finally { provider.restore() }
     } })
   })
 })

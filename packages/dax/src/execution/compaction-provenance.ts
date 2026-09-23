@@ -57,13 +57,20 @@ function streamOf(messages: MessageV2.WithParts[]): AsyncIterable<MessageV2.With
 }
 
 /** The sole history selection boundary for canonical and historical sessions. */
-export async function resolveCompactedMessages(sessionId: string): Promise<MessageV2.WithParts[]> {
-  return resolveCompactedMessagesInternal(sessionId, false)
+export async function resolveCompactedMessages(
+  sessionId: string,
+  options?: { allowInFlight?: boolean },
+): Promise<MessageV2.WithParts[]> {
+  return resolveCompactedMessagesInternal(sessionId, false, options?.allowInFlight === true)
 }
 
-async function resolveCompactedMessagesInternal(sessionId: string, allowJustCreatedMarker: boolean): Promise<MessageV2.WithParts[]> {
+async function resolveCompactedMessagesInternal(
+  sessionId: string,
+  allowJustCreatedMarker: boolean,
+  allowInFlight = false,
+): Promise<MessageV2.WithParts[]> {
   const runId = await canonicalRun(sessionId)
-  if (runId) await requireAssistantProvenanceRecoveryBeforeDispatch(sessionId)
+  if (runId && !allowInFlight) await requireAssistantProvenanceRecoveryBeforeDispatch(sessionId)
   const newestFirst = await Array.fromAsync(MessageV2.stream(sessionId))
   if (!runId) return MessageV2.filterCompacted(streamOf(newestFirst))
   const state = await projectRunStateFromEvents(runId)
@@ -73,12 +80,12 @@ async function resolveCompactedMessagesInternal(sessionId: string, allowJustCrea
     // Explicit compatibility for a canonical session that predates this producer.
     return MessageV2.filterCompacted(streamOf(newestFirst))
   }
-  if (!allowJustCreatedMarker && !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === sessionId)) {
+  if (!allowJustCreatedMarker && !allowInFlight && !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === sessionId)) {
     // A marker without its first attempt may be a crash or uncertain append.
     // Only the in-flight producer that just wrote this marker may continue.
     throw new CompactionRecoveryRequiredError(sessionId, "open_attempt")
   }
-  if (state.compactionHistory.attempts.some((attempt) => attempt.sessionId === sessionId && attempt.status === "open")) {
+  if (!allowInFlight && state.compactionHistory.attempts.some((attempt) => attempt.sessionId === sessionId && attempt.status === "open")) {
     throw new CompactionRecoveryRequiredError(sessionId, "open_attempt")
   }
 

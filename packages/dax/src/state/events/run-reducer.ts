@@ -1008,11 +1008,37 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (state.compactionHistory.attempts.some((attempt) => attempt.summaryMessageId === payload.summaryMessageId)) {
           throw new Error(`Compaction summary identity already bound`)
         }
+        if (!state.compactionHistory.attempts.some((attempt) => attempt.sessionId === payload.sessionId) &&
+          payload.markerMessageId !== session.cutoverMarkerId) {
+          throw new Error(`First compaction attempt must use its cutover marker`)
+        }
+        if (state.compactionHistory.attempts.some((attempt) =>
+          attempt.sessionId === payload.sessionId && attempt.markerMessageId === payload.markerMessageId)) {
+          throw new Error(`Compaction marker already used by an attempt`)
+        }
         if (
           payload.prefix.messageIds.at(-1) !== payload.markerMessageId ||
+          payload.prefix.messageIds.includes(payload.summaryMessageId) ||
           commitCompactionPrefix(payload.prefix.messageIds).digest !== payload.prefix.digest
         ) {
           throw new Error(`Compaction attempt prefix does not replay`)
+        }
+        const previous = state.compactionHistory.attempts.find((attempt) =>
+          attempt.outcomeEventId === payload.previousReplacementEventId && attempt.status === "adopted")
+        if (payload.previousReplacementEventId) {
+          if (!previous || previous.sessionId !== payload.sessionId ||
+            payload.prefix.messageIds[0] !== previous.markerMessageId ||
+            !payload.prefix.messageIds.includes(previous.summaryMessageId)) {
+            throw new Error(`Compaction prefix omits the previous replacement boundary`)
+          }
+        }
+        const mostRecent = state.compactionHistory.attempts.findLast((attempt) => attempt.sessionId === payload.sessionId)
+        if (mostRecent?.status === "not_adopted") {
+          const priorPrefix = mostRecent.prefix.messageIds
+          if (!priorPrefix.every((messageId, index) => payload.prefix.messageIds[index] === messageId) ||
+            !payload.prefix.messageIds.includes(mostRecent.summaryMessageId)) {
+            throw new Error(`Compaction prefix skips a non-adopted attempt`)
+          }
         }
         state.compactionHistory.attempts.push({
           ...payload,
@@ -1056,6 +1082,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         const summary = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.summaryMessageId)
         if (!attempt || attempt.status !== "open" || !session?.markerEventId || isTerminalStatus(state.status)) {
           throw new Error(`Compaction replacement has no active attempt`)
+        }
+        if (state.compactionHistory.attempts.some((candidate) =>
+          candidate !== attempt && candidate.sessionId === payload.sessionId &&
+          candidate.markerMessageId === payload.markerMessageId && candidate.status === "adopted")) {
+          throw new Error(`Compaction marker already has an adopted replacement`)
         }
         if (
           event.correlationId !== payload.summaryMessageId ||

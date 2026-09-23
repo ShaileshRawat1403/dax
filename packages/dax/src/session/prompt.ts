@@ -142,6 +142,12 @@ export namespace SessionPrompt {
     if (match) throw new Session.BusyError(sessionID)
   }
 
+  /** Process-local evidence that this session still has a live producer. */
+  export function hasActiveExecution(sessionID: string): boolean {
+    const active = state()[sessionID]
+    return Boolean(active && !active.abort.signal.aborted)
+  }
+
   function promptIntent(parts: PromptInput["parts"]): string {
     const text = parts
       .filter((part): part is Extract<PromptInput["parts"][number], { type: "text" }> => part.type === "text")
@@ -367,7 +373,9 @@ export namespace SessionPrompt {
     }
     await SessionRevert.cleanup(session)
 
-    const existingMessages = await resolveCompactedMessages(input.sessionID)
+    const existingMessages = await resolveCompactedMessages(input.sessionID, {
+      allowInFlight: hasActiveExecution(input.sessionID),
+    })
     if (input.noReply !== true && existingMessages.length === 0) {
       const rawPrompt = input.parts.find((p) => p.type === "text")?.text || ""
       if (rawPrompt) {
