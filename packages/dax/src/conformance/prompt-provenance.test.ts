@@ -27,6 +27,7 @@ import {
   type AssistantProvenanceContext,
 } from "@/execution/assistant-provenance"
 import { createPromptProvenanceTracker, type PromptProvenanceTracker } from "@/execution/prompt-provenance"
+import { opaqueProviderInputSources } from "@/execution/provider-input-partition"
 import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
 import {
   createEventAuthorityRun,
@@ -591,6 +592,125 @@ describe("durable prompt provenance", () => {
           expect((await projectRunStateFromEvents(root.id))?.assistantHistory.unsettledMessageIds).toEqual([])
         } finally {
           spies.restore()
+        }
+      },
+    })
+  })
+
+  test.each(["data-url", "remote-url"] as const)(
+    "text-plus-image %s survives source matching and production dispatch",
+    async (representation) => {
+      await Instance.provide({
+        directory: testProject,
+        async fn() {
+          const { root } = await governedRoot()
+          const oldImage = testModel.capabilities.input.image
+          const oldAttachment = testModel.capabilities.attachment
+          testModel.capabilities.input.image = true
+          testModel.capabilities.attachment = true
+          const model = languageModel(async () => streamResult(successfulChunks()))
+          model.supportedUrls = { "image/*": [/^https:\/\/example\.invalid\//] }
+          const spies = installActualStreamingModel(model)
+          try {
+            await SessionPrompt.prompt({
+              sessionID: root.id,
+              model: { providerID: testModel.providerID, modelID: testModel.id },
+              noReply: true,
+              parts: [
+                { type: "text", text: "Describe this image." },
+                {
+                  type: "file",
+                  mime: "image/png",
+                  filename: "pixel.png",
+                  url:
+                    representation === "remote-url"
+                      ? "https://example.invalid/pixel.png"
+                      : "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
+                },
+              ],
+            })
+            await SessionPrompt.loop({ sessionID: root.id })
+            expect(model.doStreamCalls).toHaveLength(1)
+            expect((await projectRunStateFromEvents(root.id))?.assistantHistory.unsettledMessageIds).toEqual([])
+          } finally {
+            spies.restore()
+            testModel.capabilities.input.image = oldImage
+            testModel.capabilities.attachment = oldAttachment
+          }
+        },
+      })
+    },
+  )
+
+  test("native binary media survives source matching and production dispatch", async () => {
+    await Instance.provide({
+      directory: testProject,
+      async fn() {
+        const { root } = await governedRoot()
+        await prepareConversation(root.id)
+        const user = (await Session.messages({ sessionID: root.id })).findLast(
+          (message) => message.info.role === "user",
+        )
+        if (!user || user.info.role !== "user") throw new Error("missing user")
+        const assistant = (await Session.updateMessage({
+          id: Identifier.ascending("message"),
+          parentID: user.info.id,
+          role: "assistant",
+          mode: "build",
+          agent: "build",
+          path: { cwd: Instance.directory, root: Instance.worktree },
+          cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: testModel.id,
+          providerID: testModel.providerID,
+          time: { created: Date.now() },
+          sessionID: root.id,
+        })) as MessageV2.Assistant
+        const processor = SessionProcessor.create({
+          assistantMessage: assistant,
+          sessionID: root.id,
+          model: testModel,
+          abort: new AbortController().signal,
+        })
+        const oldImage = testModel.capabilities.input.image
+        testModel.capabilities.input.image = true
+        const model = languageModel(async () => streamResult(successfulChunks()))
+        const spies = installActualStreamingModel(model)
+        const messages: ModelMessage[] = [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Describe this image." },
+              {
+                type: "file",
+                mediaType: "image/png",
+                data: new Uint8Array(
+                  Buffer.from(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
+                    "base64",
+                  ),
+                ),
+              },
+            ],
+          },
+        ]
+        try {
+          await processor.process({
+            user: user.info,
+            sessionID: root.id,
+            model: testModel,
+            agent: await Agent.get("build"),
+            abort: new AbortController().signal,
+            system: [],
+            tools: {},
+            messages,
+            contextSources: opaqueProviderInputSources(messages),
+          })
+          expect(model.doStreamCalls).toHaveLength(1)
+          expect((await projectRunStateFromEvents(root.id))?.assistantHistory.unsettledMessageIds).toEqual([])
+        } finally {
+          spies.restore()
+          testModel.capabilities.input.image = oldImage
         }
       },
     })

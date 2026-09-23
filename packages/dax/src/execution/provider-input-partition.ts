@@ -74,7 +74,7 @@ export function opaqueProviderInputSources(
     for (const [part, item] of parts.entries()) {
       result.push({
         locator: { message, part },
-        kind: atomKind(item),
+        kind: providerInputAtomKind(item),
         origin,
         sourceOrdinal: sourceOrdinal++,
         value: item,
@@ -168,6 +168,9 @@ function typedMediaString(key: string | null, parentType: string | null, value: 
     ])
   }
   if (key === "data" || key === "image") {
+    if (/^https?:\/\//i.test(value)) {
+      return frame("typed-media-reference", [new TextEncoder().encode(new URL(value).toString())])
+    }
     const decoded = strictBase64(value)
     if (decoded) return frame("typed-media-bytes", [decoded])
     if (key === "data") throw new Error("Malformed typed media base64 field")
@@ -264,7 +267,7 @@ function locationKey(location: ProviderInputAtomLocation): string {
   }
 }
 
-function atomKind(value: unknown): ProviderInputAtom["kind"] {
+export function providerInputAtomKind(value: unknown): ProviderInputAtom["kind"] {
   if (typeof value === "string") return "text"
   if (!value || typeof value !== "object") return "other"
   const type = String((value as { type?: unknown }).type ?? "")
@@ -383,7 +386,7 @@ export function buildProviderInputPartition(input: {
       add({
         location: { kind: "message_content", message: messageIndex, part: partIndex },
         owner,
-        kind: atomKind(part),
+        kind: providerInputAtomKind(part),
         role: typedRole,
         value: part,
         source: sources.get(`${messageIndex}:${partIndex}`),

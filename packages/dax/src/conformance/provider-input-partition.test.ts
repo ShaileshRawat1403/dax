@@ -113,6 +113,9 @@ describe("provider-input instruction/context partition", () => {
     ).toBe(
       commitProviderInputValue({ type: "image", image: new URL("https://example.invalid/image.png") }, "image").digest,
     )
+    expect(commitProviderInputValue({ type: "file", data: "https://example.invalid/file.png" }, "file").digest).toBe(
+      commitProviderInputValue({ type: "file", data: new URL("https://example.invalid/file.png") }, "file").digest,
+    )
     expect(commitProviderInputValue({ type: "file", data: "data:text/plain;base64,Zg==" }, "file").digest).toBe(
       commitProviderInputValue({ type: "file", data: "data:text/plain,f" }, "file").digest,
     )

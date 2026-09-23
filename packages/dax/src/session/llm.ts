@@ -34,6 +34,7 @@ import { ContextProvenancePersistenceError, type ContextProvenanceTracker } from
 import {
   buildProviderInputPartition,
   commitProviderInputValue,
+  providerInputAtomKind,
   type ProviderInputPartition,
   type ProviderInputSourceCandidate,
 } from "@/execution/provider-input-partition"
@@ -81,8 +82,9 @@ function sdkProviderInputMetadata(input: {
     const content = Array.isArray(message.content) ? message.content : [message.content]
     return content.map((value, part) => ({ message: messageIndex, part, role: message.role, value }))
   })
-  const sameValue = (left: unknown, right: unknown, kind: ProviderInputSourceCandidate["kind"] = "other") =>
-    commitProviderInputValue(left, kind).digest === commitProviderInputValue(right, kind).digest
+  const sameValue = (left: unknown, right: unknown) =>
+    commitProviderInputValue(left, providerInputAtomKind(left)).digest ===
+    commitProviderInputValue(right, providerInputAtomKind(right)).digest
 
   const effectiveCandidates = input.effectiveCandidates.map((candidate) => {
     if (candidate.channel !== "message" || !candidate.locator) return candidate
@@ -114,10 +116,10 @@ function sdkProviderInputMetadata(input: {
       source.locator.part === undefined
         ? input.prompt.flatMap((message, messageIndex) => {
             const { content: _content, ...envelope } = message
-            return sameValue(envelope, source.value, source.kind) ? [{ message: messageIndex }] : []
+            return sameValue(envelope, source.value) ? [{ message: messageIndex }] : []
           })
         : promptParts.flatMap((part) =>
-            sameValue(part.value, source.value, source.kind) ? [{ message: part.message, part: part.part }] : [],
+            sameValue(part.value, source.value) ? [{ message: part.message, part: part.part }] : [],
           )
     const hinted = matches.filter(
       (location) =>
