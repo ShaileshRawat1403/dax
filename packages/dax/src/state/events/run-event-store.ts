@@ -125,6 +125,10 @@ async function appendRunEventUnderLock(input: {
     event.type === "delegation_recorded" ||
     event.type === "assistant_recording_started" ||
     event.type === "assistant_message_recorded" ||
+    event.type === "compaction_recording_started" ||
+    event.type === "compaction_attempt_bound" ||
+    event.type === "compaction_attempt_closed" ||
+    event.type === "compaction_replacement_recorded" ||
     event.type === "prompt_recording_started" ||
     event.type === "prompt_contribution_recorded" ||
     event.type === "context_recording_started" ||
@@ -262,6 +266,13 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
         sessions: [],
         dispatches: [],
         missingMessageIds: [],
+      },
+      compactionHistory: {
+        scope: "session_compaction_replacement_v1",
+        coverage: "unavailable",
+        sessions: [],
+        attempts: [],
+        openAttemptEventIds: [],
       },
     } as RunState
   }

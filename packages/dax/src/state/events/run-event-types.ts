@@ -484,6 +484,16 @@ const PromptDispatchSettlementSchema = closed({
 
 const ContextDispatchSettlementSchema = PromptDispatchSettlementSchema
 
+const CompactionPrefixSchema = closed({
+  canonicalization: z.literal("ordered-message-ids-v1"),
+  digest: Sha256DigestSchema,
+  messageIds: z.array(z.string().min(1)).min(1),
+}).superRefine((prefix, ctx) => {
+  if (new Set(prefix.messageIds).size !== prefix.messageIds.length) {
+    ctx.addIssue({ code: "custom", path: ["messageIds"], message: "message ids must be unique" })
+  }
+})
+
 const AssistantMessageRecordedPayloadSchema = z.discriminatedUnion("phase", [
   closed({
     phase: z.literal("opened"),
@@ -561,6 +571,56 @@ const RunEventVariants = [
   z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
   z.object({ type: z.literal("assistant_recording_started"), payload: AssistantRecordingStartedPayloadSchema }),
   z.object({ type: z.literal("assistant_message_recorded"), payload: AssistantMessageRecordedPayloadSchema }),
+  z.object({
+    type: z.literal("compaction_recording_started"),
+    payload: closed({
+      scope: z.literal("session_compaction_replacement_v1"),
+      sessionId: z.string().min(1),
+      cutoverMarkerId: z.string().min(1),
+      priorScopeHistory: z.enum(["none", "unavailable"]),
+      copiedHistory: z.enum(["none", "excluded"]),
+      sourceSessionId: z.string().min(1).optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal("compaction_attempt_bound"),
+    payload: closed({
+      scope: z.literal("session_compaction_replacement_v1"),
+      sessionId: z.string().min(1),
+      markerMessageId: z.string().min(1),
+      summaryMessageId: z.string().min(1),
+      previousReplacementEventId: z.string().min(1).nullable(),
+      prefix: CompactionPrefixSchema,
+    }),
+  }),
+  z.object({
+    type: z.literal("compaction_attempt_closed"),
+    payload: closed({
+      scope: z.literal("session_compaction_replacement_v1"),
+      sessionId: z.string().min(1),
+      attemptEventId: z.string().min(1),
+      summaryMessageId: z.string().min(1),
+      summarySettlementEventId: z.string().min(1),
+      reason: z.enum(["failed", "cancelled", "finish_not_stop", "empty_summary"]),
+    }),
+  }),
+  z.object({
+    type: z.literal("compaction_replacement_recorded"),
+    payload: closed({
+      scope: z.literal("session_compaction_replacement_v1"),
+      sessionId: z.string().min(1),
+      attemptEventId: z.string().min(1),
+      markerMessageId: z.string().min(1),
+      summaryMessageId: z.string().min(1),
+      previousReplacementEventId: z.string().min(1).nullable(),
+      prefixDigest: Sha256DigestSchema,
+      summarySettlementEventId: z.string().min(1),
+      promptEventId: z.string().min(1),
+      contextEventId: z.string().min(1),
+      contextPartitionDigest: Sha256DigestSchema,
+      summaryDigest: Sha256DigestSchema,
+    }),
+  }),
   z.object({
     type: z.literal("prompt_recording_started"),
     payload: closed({

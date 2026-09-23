@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { expectGap } from "./known-gaps"
 import { RUN_EVENT_TYPES, RunEventPayloadSchema, type RunEventType } from "@/state/events/run-event-types"
 
 /**
@@ -65,7 +64,12 @@ const RECORD_CLASSES = [
   {
     id: "compaction_replacement",
     why: "Context that was removed or summarised. Without it, replay reconstructs a context the model never saw.",
-    eventTypes: [],
+    eventTypes: [
+      "compaction_recording_started",
+      "compaction_attempt_bound",
+      "compaction_attempt_closed",
+      "compaction_replacement_recorded",
+    ],
   },
   {
     id: "verification",
@@ -80,7 +84,6 @@ const RECORD_CLASSES = [
 ] as const
 
 function isDurable(cls: (typeof RECORD_CLASSES)[number]): boolean {
-  if (cls.eventTypes.length === 0) return false
   return cls.eventTypes.every((t) => (RUN_EVENT_TYPES as readonly string[]).includes(t))
 }
 
@@ -88,11 +91,7 @@ describe("invariant 1 — durable authority", () => {
   test("every authoritative record class has durable event representation", () => {
     const missing = RECORD_CLASSES.filter((c) => !isDurable(c)).map((c) => c.id)
 
-    // Compaction replacement still influences authorisation or correctness
-    // without a durable event record.
-    expectGap("inv1.record-classes", () => {
-      expect(missing).toEqual([])
-    })
+    expect(missing).toEqual([])
   })
 
   test("meter: durable record-class coverage", () => {
@@ -100,9 +99,7 @@ describe("invariant 1 — durable authority", () => {
     const total = RECORD_CLASSES.length
 
     // The progress number. It moves as record classes gain events.
-    expectGap("inv1.record-classes", () => {
-      expect({ covered, total }).toEqual({ covered: total, total })
-    })
+    expect({ covered, total }).toEqual({ covered: total, total })
   })
 
   test("approval is durable in substance, not only in name", () => {

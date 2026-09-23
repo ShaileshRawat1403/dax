@@ -403,6 +403,63 @@ export async function recordAssistantMessageSettled(
   )
 }
 
+export async function startCompactionRecording(
+  runId: string,
+  payload: Extract<RunEventPayload, { type: "compaction_recording_started" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "compaction_recording_started",
+    payload,
+    `cmd_compaction_recording_${payload.sessionId}`,
+    { correlationId: payload.sessionId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+export async function bindCompactionAttempt(
+  runId: string,
+  markerEventId: string,
+  payload: Extract<RunEventPayload, { type: "compaction_attempt_bound" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "compaction_attempt_bound",
+    payload,
+    `cmd_compaction_attempt_${payload.summaryMessageId}`,
+    { correlationId: payload.summaryMessageId, causationId: markerEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+export async function closeCompactionAttempt(
+  runId: string,
+  payload: Extract<RunEventPayload, { type: "compaction_attempt_closed" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "compaction_attempt_closed",
+    payload,
+    `cmd_compaction_outcome_${payload.summaryMessageId}`,
+    { correlationId: payload.summaryMessageId, causationId: payload.summarySettlementEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+export async function recordCompactionReplacement(
+  runId: string,
+  payload: Extract<RunEventPayload, { type: "compaction_replacement_recorded" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "compaction_replacement_recorded",
+    payload,
+    `cmd_compaction_outcome_${payload.summaryMessageId}`,
+    { correlationId: payload.summaryMessageId, causationId: payload.summarySettlementEventId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
 export async function startPromptRecording(
   runId: string,
   openedEventId: string,

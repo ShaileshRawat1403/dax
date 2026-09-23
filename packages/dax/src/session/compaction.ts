@@ -17,6 +17,7 @@ import { Plugin } from "@/plugin"
 import { Config } from "@/config/config"
 import type { PromptInstructionSource } from "@/execution/prompt-provenance"
 import { opaqueProviderInputSources } from "@/execution/provider-input-partition"
+import { beginCompactionAttempt, finishCompactionAttempt } from "@/execution/compaction-provenance"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -105,8 +106,14 @@ export namespace SessionCompaction {
     const model = agent.model
       ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
       : await Provider.getModel(userMessage.model.providerID, userMessage.model.modelID)
+    const summaryMessageId = Identifier.ascending("message")
+    const bound = await beginCompactionAttempt({
+      sessionId: input.sessionID,
+      markerMessageId: input.parentID,
+      summaryMessageId,
+    })
     const msg = (await Session.updateMessage({
-      id: Identifier.ascending("message"),
+      id: summaryMessageId,
       role: "assistant",
       parentID: input.parentID,
       sessionID: input.sessionID,
@@ -160,7 +167,7 @@ export namespace SessionCompaction {
       role: "user",
       value: promptText,
     }
-    const modelMessages = MessageV2.toModelMessages(input.messages, model)
+    const modelMessages = MessageV2.toModelMessages(bound?.messages ?? input.messages, model)
     const adapterMessages = [
       ...modelMessages,
       {
@@ -195,6 +202,8 @@ export namespace SessionCompaction {
       ],
       contextSources: opaqueProviderInputSources(adapterMessages),
     })
+
+    if (bound && !(await finishCompactionAttempt(bound))) return "stop"
 
     if (result === "continue" && input.auto) {
       const continueMsg = await Session.updateMessage({

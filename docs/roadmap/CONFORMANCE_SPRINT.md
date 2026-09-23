@@ -5,8 +5,12 @@ Implementation model: Sol. Reviewer: Astra 6, high reasoning. Released baseline:
 DAX v1.5.0 at `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`;
 current sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`.
 
-The sprint backlog contains all nine entries in the
+Accepted `main` still has all nine entries in the
 [gap ledger](../../packages/dax/src/conformance/known-gaps.ts).
+The current compaction-provenance candidate proposes removing `inv1.record-classes`
+from that ledger only if production and replay evidence passes independent review;
+the other eight entries remain open. The link above points at the candidate tree
+when read from this feature branch.
 The objective is stronger reconstruction of run history, consistent contract
 permissions, and governed project memory. No release number or completion date
 is assigned. Nine entries are the target scope, not an estimate that all nine

@@ -8,6 +8,7 @@ import { RunCompletionBlockedError, RunLifecycle } from "@/state/run-lifecycle"
 import { Instance } from "@/project/instance"
 import { recordNativeVerification } from "./native-verification"
 import { verifiedAssistantTextParts } from "./assistant-provenance"
+import { CompactionRecoveryRequiredError, resolveCompactedMessages } from "./compaction-provenance"
 
 export type NativeCompletionDecision = {
   candidate: boolean
@@ -87,6 +88,19 @@ export async function adjudicateNativeCompletionCandidate(input: {
   }
   if (state.status !== "running" && state.status !== "waiting_approval") {
     return { candidate: true, accepted: false, runId, reasonCodes: [`run_not_running:${state.status}`] }
+  }
+  if (state.compactionHistory.openAttemptEventIds.length > 0) {
+    return { candidate: true, accepted: false, runId, reasonCodes: ["compaction_attempt_open"] }
+  }
+  try {
+    for (const covered of state.compactionHistory.sessions) {
+      if (covered.markerEventId) await resolveCompactedMessages(covered.sessionId)
+    }
+  } catch (error) {
+    if (error instanceof CompactionRecoveryRequiredError) {
+      return { candidate: true, accepted: false, runId, reasonCodes: [`compaction_${error.reason}`] }
+    }
+    throw error
   }
 
   const assistantRecord = state.assistantHistory.messages.find(

@@ -20,12 +20,12 @@ as historical context.
 ## Next Sprint — Conformance Closure
 
 Implementation model: Sol. Reviewer: Astra 6 high.
-Status: in progress. Reviewed record-class coverage is 9/11; all nine aggregate
+Status: in progress. Reviewed `main` record-class coverage is 10/11; all nine aggregate
 gaps remain open in the [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
 See [current status](../DAX_STATUS.md) for the integrated commit and validation evidence.
-Context-contribution provenance is the current implementation candidate and
-targets 10/11 only after review; compaction-replacement provenance remains the
-final record-class slice.
+Compaction-replacement provenance is the current implementation candidate and
+targets 11/11 and closure of the record-class gap only after independent review
+and integration. Eight other aggregate gaps require their own work.
 
 | Workstream | Gaps | Intended outcome |
 | --- | --- | --- |

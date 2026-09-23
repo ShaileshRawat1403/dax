@@ -17,6 +17,8 @@ import { adjudicateNativeCompletionCandidate } from "@/execution/native-completi
 import { MessageV2 } from "@/session/message-v2"
 import { Identifier } from "@/id/id"
 import { Bus } from "@/bus"
+import { simulateReadableStream } from "ai"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 import { SessionSummary } from "@/session/summary"
 import * as Interpret from "@/intent/interpret"
@@ -101,6 +103,48 @@ function mockStreamingResponse(text: string) {
       yield { type: "finish" }
     })(),
   } as unknown as Awaited<ReturnType<typeof LLM.stream>>
+}
+
+function actualStreamingModel(text: string) {
+  const previousOpenAIKey = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = "dax-native-test-key"
+  const model: LanguageModelV2 = {
+    specificationVersion: "v2",
+    provider: testModel.providerID,
+    modelId: testModel.id,
+    supportedUrls: {},
+    async doGenerate() { throw new Error("unexpected generation") },
+    async doStream() {
+      return {
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start" as const, warnings: [] },
+            { type: "text-start" as const, id: "summary" },
+            { type: "text-delta" as const, id: "summary", delta: text },
+            { type: "text-end" as const, id: "summary" },
+            { type: "finish" as const, finishReason: "stop" as const, usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 } },
+          ],
+          initialDelayInMs: null,
+          chunkDelayInMs: null,
+        }),
+      }
+    },
+  }
+  const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+  const getProvider = spyOn(Provider, "getProvider").mockResolvedValue(Provider.Info.parse({
+    id: testModel.providerID,
+    name: "Native test provider",
+    source: "custom",
+    env: [],
+    options: {},
+    models: { [testModel.id]: testModel },
+  }))
+  const getLanguage = spyOn(Provider, "getLanguage").mockResolvedValue(model)
+  return { restore() {
+    getLanguage.mockRestore(); getProvider.mockRestore(); getModel.mockRestore()
+    if (previousOpenAIKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousOpenAIKey
+  } }
 }
 
 describe("Native Execution & Conversational Lifetime Separation", () => {
@@ -188,10 +232,7 @@ describe("Native Execution & Conversational Lifetime Separation", () => {
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Compaction session" })
-        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
-        const stream = spyOn(LLM, "stream").mockImplementation(async () => {
-          return mockStreamingResponse("Conversation or compaction response")
-        })
+        const model = actualStreamingModel("Conversation or compaction response")
 
         try {
           // Send initial user message
@@ -224,8 +265,7 @@ describe("Native Execution & Conversational Lifetime Separation", () => {
           const stateAfterNextPrompt = await getEventAuthorityState(session.id)
           expect(stateAfterNextPrompt?.status).toBe("running")
         } finally {
-          getModel.mockRestore()
-          stream.mockRestore()
+          model.restore()
         }
       },
     })
@@ -372,10 +412,7 @@ describe("Native Execution & Conversational Lifetime Separation", () => {
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Internal model stops" })
-        const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
-        const stream = spyOn(LLM, "stream").mockImplementation(async () =>
-          mockStreamingResponse("Internal synthetic stop"),
-        )
+        const model = actualStreamingModel("Internal synthetic stop")
 
         try {
           await SessionPrompt.prompt({
@@ -422,8 +459,7 @@ describe("Native Execution & Conversational Lifetime Separation", () => {
           expect((await getEventAuthorityState(session.id))?.status).toBe("running")
           expect((await readRunEvents(session.id)).some((e) => e.type === "run_completed")).toBe(false)
         } finally {
-          getModel.mockRestore()
-          stream.mockRestore()
+          model.restore()
         }
       },
     })

@@ -100,6 +100,22 @@ export class RunLifecycle {
   ): Promise<RunState> {
     if (newStatus === "completed") {
       const state = await projectRunStateFromEvents(runId)
+      const unboundCompactionSessions = state?.compactionHistory.sessions
+        .filter((session) => session.markerEventId &&
+          !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === session.sessionId))
+        .map((session) => session.sessionId) ?? []
+      if (unboundCompactionSessions.length > 0) {
+        throw new RunCompletionBlockedError(
+          `Run ${runId} cannot complete with unbound compaction markers.`,
+          unboundCompactionSessions.map((sessionId) => `compaction_attempt_unbound:${sessionId}`),
+        )
+      }
+      if (state && state.compactionHistory.openAttemptEventIds.length > 0) {
+        throw new RunCompletionBlockedError(
+          `Run ${runId} cannot complete with open compaction attempts.`,
+          state.compactionHistory.openAttemptEventIds.map((eventId) => `compaction_attempt_open:${eventId}`),
+        )
+      }
       if (state && state.assistantHistory.unsettledMessageIds.length > 0) {
         throw new RunCompletionBlockedError(
           `Run ${runId} cannot complete with unsettled assistant messages.`,

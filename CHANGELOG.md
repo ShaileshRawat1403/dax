@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manifest digest and exact complement, while typed media canonicalization,
   opaque locations, per-session cutover coverage, and fail-closed settlement
   avoid retaining conversation, tool-name, or binary payload content.
+- Governed compaction now binds the active message prefix and summary identity
+  before dispatch, then durably records either terminal non-adoption or an
+  atomic replacement boundary linked to the settled assistant and final
+  provider-input commitments. Replay reconstructs boundaries without retaining
+  summary text; continuation verifies the stored summary against its commitment.
 
 ### Compatibility
 
@@ -37,7 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `prompt_contribution_recorded`, `context_recording_started`, or
   `context_contribution_recorded`; they reject logs containing those events
   instead of projecting partial history. Prompt commitments carrying the v2
-  provider-input partition are likewise not readable by older binaries.
+  provider-input partition are likewise not readable by older binaries. Older
+  binaries also reject the new compaction recording, attempt, close, and
+  replacement events. Historical unmarked sessions keep legacy filtering with
+  explicitly unavailable compaction coverage; marked sessions fail closed on
+  interrupted attempts or summary-content mismatch.
 
 ## [1.5.0] - 2026-09-20
 

@@ -26,25 +26,27 @@ GitHub asset digests; the published macOS installer was exercised and the local
 All nine remaining aggregate gaps are scheduled in the
 [next-sprint conformance plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
 [product roadmap](product/ROADMAP.md). Implementation is in progress, with Sol
-implementing and Astra reviewing. Delegation, durable assistant-message, and
-prompt provenance are integrated in `main` at
-`fd9bbf7ae4c9acbbe21f864a77c4e72c4bf2a4ce`. Reviewed record-class coverage is
-accepted at **9/11**, following Astra's review and Sol's independent review of
-the final identity correction. [Integrated main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35682448339)
-passed on Ubuntu, macOS, and Windows, including Rust tests. This integration did
-not publish a release; v1.5.0 remains the released baseline.
+implementing and Astra reviewing. Delegation, durable assistant-message, prompt,
+and context-contribution provenance are integrated in `main` through
+`524c757b4b2be1f15ada84b0c6eea4f192b91e39`. Reviewed record-class coverage is
+accepted at **10/11**. The earlier [integrated main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35682448339)
+passed on Ubuntu, macOS, and Windows, including Rust tests; Astra separately
+verified the context slice's exact-SHA three-platform CI before its integration.
+Neither integration published a release; v1.5.0 remains the released baseline.
 
-In accepted `main`, the aggregate `inv1.record-classes` gap stays open: context
-contributions and compaction replacement remain missing. All nine aggregate gaps
-remain recorded. Closure is measured through production behavior, not structural
-checks.
+In accepted `main`, compaction replacement remains the missing record class.
+`inv1.record-classes` and all nine aggregate gaps remain open. Closure is measured
+through production behavior, not structural checks.
 
-The current context-provenance implementation candidate adds commitment-only,
-ordered instruction/context partition evidence at the provider-adapter boundary.
-It targets **10/11** record classes, conditional on Astra's review and production
-replay evidence; accepted coverage remains **9/11** until that review. Compaction
-replacement remains separate, and `inv1.record-classes` plus all nine aggregate
-gaps remain open. No release is authorized or published by this candidate.
+The current Tier 2 compaction-replacement candidate binds the active prefix and
+summary before provider dispatch. Successful adoption records a replacement
+boundary linked to final prompt/context and assistant commitments; failed,
+cancelled, truncated, and empty summaries close without replacement. Journal-only
+replay reconstructs boundaries and commitments, while actual continuation needs
+stored summary text to pass commitment verification. This branch proposes
+**11/11** and closure of `inv1.record-classes`, leaving eight aggregate gaps,
+conditional on independent review and integration. Historical unmarked history
+remains unavailable, not inferred complete. No UI work or release is authorized.
 
 ## Evidence corrections
 

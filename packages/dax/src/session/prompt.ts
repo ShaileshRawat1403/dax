@@ -86,12 +86,10 @@ import { acquireRunLock } from "@/util/fs-lock"
 import { RunStore } from "@/state/run-store"
 import { adjudicateNativeCompletionCandidate, type NativeCompletionDecision } from "@/execution/native-completion"
 import { Sandbox } from "../shell/sandbox"
-import {
-  AssistantDelegationReceiptSchema,
-  requireAssistantProvenanceRecoveryBeforeDispatch,
-} from "@/execution/assistant-provenance"
+import { AssistantDelegationReceiptSchema } from "@/execution/assistant-provenance"
 import type { PromptEffectiveCandidate, PromptInstructionSource } from "@/execution/prompt-provenance"
 import type { ProviderInputSourceCandidate } from "@/execution/provider-input-partition"
+import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -369,7 +367,7 @@ export namespace SessionPrompt {
     }
     await SessionRevert.cleanup(session)
 
-    const existingMessages = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
+    const existingMessages = await resolveCompactedMessages(input.sessionID)
     if (input.noReply !== true && existingMessages.length === 0) {
       const rawPrompt = input.parts.find((p) => p.type === "text")?.text || ""
       if (rawPrompt) {
@@ -587,7 +585,15 @@ export namespace SessionPrompt {
       SessionStatus.set(sessionID, { type: "busy" })
       log.info("loop", { step, sessionID })
       if (abort.aborted) break
-      let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+      if (!authorityEstablished) {
+        const raw = await Array.fromAsync(MessageV2.stream(sessionID))
+        const lastRawUser = raw.find((message) => message.info.role === "user")
+        if (!lastRawUser) throw new Error("No user message found in stream. This should never happen.")
+        await ensureCanonicalRunBirth({ sessionID, intent: messageIntent(lastRawUser) })
+        session = await Session.get(sessionID)
+        authorityEstablished = true
+      }
+      let msgs = await resolveCompactedMessages(sessionID)
 
       let lastUser: MessageV2.User | undefined
       let lastAssistant: MessageV2.Assistant | undefined
@@ -626,22 +632,6 @@ export namespace SessionPrompt {
         log.info("exiting loop", { sessionID })
         break
       }
-      if (!authorityEstablished) {
-        const lastUserMessage = msgs.find((message) => message.info.id === lastUser.id)
-        await ensureCanonicalRunBirth({
-          sessionID,
-          intent: lastUserMessage ? messageIntent(lastUserMessage) : "Continue the governed session.",
-        })
-        session = await Session.get(sessionID)
-        authorityEstablished = true
-      }
-
-      // An opened assistant lifecycle is durable evidence that a producer began
-      // this message. After a restart, automatically starting a replacement
-      // message would lose the interruption boundary and may duplicate work.
-      // Surface a stable recovery-required error before any provider dispatch.
-      await requireAssistantProvenanceRecoveryBeforeDispatch(sessionID)
-
       step++
       if (step === 1)
         ensureTitle({

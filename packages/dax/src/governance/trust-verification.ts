@@ -2,7 +2,7 @@ import { EOL } from "os"
 import { Audit } from "./audit"
 import { RAOLedger } from "../rao"
 import { Session } from "../session"
-import { MessageV2 } from "../session/message-v2"
+import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { deriveSessionLifecycleFromMessages, type SessionLifecycleState } from "../session/lifecycle"
 import { Locale } from "../util/locale"
 import { withLockedRetry } from "../util/locked-retry"
@@ -28,7 +28,7 @@ export async function collectSessionVerification(sessionID: string): Promise<Ses
 
 export async function collectVerificationSignals(sessionID: string): Promise<SessionVerificationSignals> {
   const session = await withLockedRetry(() => Session.get(sessionID))
-  const messages = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+  const messages = await resolveCompactedMessages(sessionID)
   const projectAudit = await resolveProjectAudit(session.projectID)
   const sessionPolicy = await resolveSessionPolicy(session.projectID, sessionID)
   const approvals = await listPendingApprovals(sessionID)

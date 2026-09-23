@@ -13,6 +13,7 @@ import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
  */
 import { isLegalTransition, isTerminalStatus } from "@/state/run-state"
 import { recomputeProviderInputPartitionDigest } from "@/execution/provider-input-partition"
+import { commitCompactionPrefix } from "@/execution/compaction-prefix"
 
 export type RunState = {
   runId: string
@@ -39,6 +40,8 @@ export type RunState = {
   promptHistory: PromptHistory
   /** Durable commitments for non-instruction SessionProcessor input at the same adapter boundary. */
   contextHistory: ContextHistory
+  /** Bound summary attempts and applied history-replacement boundaries. */
+  compactionHistory: CompactionHistory
   pendingApprovalIds: string[]
   /**
    * The approvals this run requested, as the operator saw them. Distinct from
@@ -394,6 +397,35 @@ export type ContextHistory = {
   missingMessageIds: string[]
 }
 
+export type CompactionAttempt = {
+  sessionId: string
+  markerMessageId: string
+  summaryMessageId: string
+  previousReplacementEventId: string | null
+  prefix: { canonicalization: "ordered-message-ids-v1"; digest: string; messageIds: string[] }
+  eventId: string
+  status: "open" | "not_adopted" | "adopted"
+  outcomeEventId: string | null
+  reason?: "failed" | "cancelled" | "finish_not_stop" | "empty_summary"
+}
+
+export type CompactionHistory = {
+  scope: "session_compaction_replacement_v1"
+  coverage: "complete" | "partial" | "unavailable"
+  sessions: Array<{
+    sessionId: string
+    coverage: "complete" | "partial" | "unavailable"
+    markerEventId: string | null
+    cutoverMarkerId?: string
+    priorScopeHistory: "none" | "unavailable" | null
+    copiedHistory: "none" | "excluded" | null
+    sourceSessionId?: string
+    replacementEventId: string | null
+  }>
+  attempts: CompactionAttempt[]
+  openAttemptEventIds: string[]
+}
+
 export type DraftRecord = {
   draftId: string
   type: string
@@ -507,6 +539,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       sessions: [],
       dispatches: [],
       missingMessageIds: [],
+    },
+    compactionHistory: {
+      scope: "session_compaction_replacement_v1",
+      coverage: "unavailable",
+      sessions: [],
+      attempts: [],
+      openAttemptEventIds: [],
     },
     pendingApprovalIds: [],
     approvals: [],
@@ -759,6 +798,15 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           if (state.assistantHistory.messages.some((candidate) => candidate.messageId === payload.messageId)) {
             throw new Error(`Assistant message already opened: ${payload.messageId}`)
           }
+          if (
+            payload.summary &&
+            state.compactionHistory.sessions.some((candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId) &&
+            !state.compactionHistory.attempts.some(
+              (attempt) => attempt.sessionId === payload.sessionId && attempt.summaryMessageId === payload.messageId && attempt.status === "open",
+            )
+          ) {
+            throw new Error(`Compaction summary has no bound attempt: ${payload.messageId}`)
+          }
           const firstSessionMessage = !state.assistantHistory.messages.some(
             (candidate) => candidate.sessionId === payload.sessionId,
           )
@@ -915,6 +963,131 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           eventId: event.eventId,
           settledAt: event.occurredAt,
         }
+        break
+      }
+
+      case "compaction_recording_started": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "compaction_recording_started" }>["payload"]
+        if (isTerminalStatus(state.status)) throw new Error(`Cannot enroll compaction after run settlement`)
+        if (event.correlationId !== payload.sessionId) throw new Error(`Compaction marker correlation mismatch`)
+        if (state.compactionHistory.sessions.some((candidate) => candidate.sessionId === payload.sessionId)) {
+          throw new Error(`Compaction coverage marker already exists: ${payload.sessionId}`)
+        }
+        if (
+          payload.priorScopeHistory === "none" &&
+          state.assistantHistory.messages.some((message) => message.sessionId === payload.sessionId && message.summary)
+        ) {
+          throw new Error(`Compaction marker cannot erase known prior summaries`)
+        }
+        state.compactionHistory.sessions.push({
+          sessionId: payload.sessionId,
+          coverage: payload.priorScopeHistory === "none" ? "complete" : "partial",
+          markerEventId: event.eventId,
+          cutoverMarkerId: payload.cutoverMarkerId,
+          priorScopeHistory: payload.priorScopeHistory,
+          copiedHistory: payload.copiedHistory,
+          ...(payload.sourceSessionId ? { sourceSessionId: payload.sourceSessionId } : {}),
+          replacementEventId: null,
+        })
+        break
+      }
+
+      case "compaction_attempt_bound": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "compaction_attempt_bound" }>["payload"]
+        const session = state.compactionHistory.sessions.find((candidate) => candidate.sessionId === payload.sessionId)
+        if (!session?.markerEventId || isTerminalStatus(state.status)) throw new Error(`Compaction attempt has no active marker`)
+        if (event.correlationId !== payload.summaryMessageId || event.causationId !== session.markerEventId) {
+          throw new Error(`Compaction attempt identity mismatch`)
+        }
+        if (session.replacementEventId !== payload.previousReplacementEventId) {
+          throw new Error(`Compaction attempt uses a stale replacement boundary`)
+        }
+        if (state.compactionHistory.attempts.some((attempt) => attempt.sessionId === payload.sessionId && attempt.status === "open")) {
+          throw new Error(`Compaction session already has an open attempt`)
+        }
+        if (state.compactionHistory.attempts.some((attempt) => attempt.summaryMessageId === payload.summaryMessageId)) {
+          throw new Error(`Compaction summary identity already bound`)
+        }
+        if (
+          payload.prefix.messageIds.at(-1) !== payload.markerMessageId ||
+          commitCompactionPrefix(payload.prefix.messageIds).digest !== payload.prefix.digest
+        ) {
+          throw new Error(`Compaction attempt prefix does not replay`)
+        }
+        state.compactionHistory.attempts.push({
+          ...payload,
+          eventId: event.eventId,
+          status: "open",
+          outcomeEventId: null,
+        })
+        break
+      }
+
+      case "compaction_attempt_closed": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "compaction_attempt_closed" }>["payload"]
+        const attempt = state.compactionHistory.attempts.find((candidate) => candidate.eventId === payload.attemptEventId)
+        const summary = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.summaryMessageId)
+        if (!attempt || attempt.status !== "open" || attempt.sessionId !== payload.sessionId || attempt.summaryMessageId !== payload.summaryMessageId) {
+          throw new Error(`Compaction close does not match an open attempt`)
+        }
+        if (event.correlationId !== payload.summaryMessageId || event.causationId !== payload.summarySettlementEventId) {
+          throw new Error(`Compaction close causation mismatch`)
+        }
+        if (!summary?.summary || summary.sessionId !== payload.sessionId || summary.settlement?.eventId !== payload.summarySettlementEventId) {
+          throw new Error(`Compaction close has no matching settled summary`)
+        }
+        const settlement = summary.settlement
+        const validReason =
+          (payload.reason === "failed" && settlement.status === "failed") ||
+          (payload.reason === "cancelled" && settlement.status === "cancelled") ||
+          (payload.reason === "finish_not_stop" && settlement.status === "completed" && settlement.finishReason !== "stop") ||
+          (payload.reason === "empty_summary" && settlement.status === "completed" && settlement.finishReason === "stop")
+        if (!validReason) throw new Error(`Compaction close reason does not match summary settlement`)
+        attempt.status = "not_adopted"
+        attempt.outcomeEventId = event.eventId
+        attempt.reason = payload.reason
+        break
+      }
+
+      case "compaction_replacement_recorded": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "compaction_replacement_recorded" }>["payload"]
+        const attempt = state.compactionHistory.attempts.find((candidate) => candidate.eventId === payload.attemptEventId)
+        const session = state.compactionHistory.sessions.find((candidate) => candidate.sessionId === payload.sessionId)
+        const summary = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.summaryMessageId)
+        if (!attempt || attempt.status !== "open" || !session?.markerEventId || isTerminalStatus(state.status)) {
+          throw new Error(`Compaction replacement has no active attempt`)
+        }
+        if (
+          event.correlationId !== payload.summaryMessageId ||
+          event.causationId !== payload.summarySettlementEventId ||
+          attempt.sessionId !== payload.sessionId ||
+          attempt.markerMessageId !== payload.markerMessageId ||
+          attempt.summaryMessageId !== payload.summaryMessageId ||
+          attempt.previousReplacementEventId !== payload.previousReplacementEventId ||
+          attempt.prefix.digest !== payload.prefixDigest ||
+          session.replacementEventId !== payload.previousReplacementEventId
+        ) {
+          throw new Error(`Compaction replacement does not match bound attempt and active boundary`)
+        }
+        const settlement = summary?.settlement
+        if (
+          !summary?.summary || summary.sessionId !== payload.sessionId || summary.parentMessageId !== payload.markerMessageId ||
+          !settlement || settlement.eventId !== payload.summarySettlementEventId ||
+          settlement.status !== "completed" || settlement.finishReason !== "stop" ||
+          !settlement.text.parts.some((part) => part.finalization === "finalized_post_plugin" && part.utf8Bytes > 0) ||
+          settlement.text.digest !== payload.summaryDigest ||
+          settlement.promptDispatch?.finalEventId !== payload.promptEventId ||
+          settlement.contextDispatch?.finalEventId !== payload.contextEventId
+        ) {
+          throw new Error(`Compaction replacement has no eligible settled summary`)
+        }
+        const context = state.contextHistory.dispatches.find((dispatch) => dispatch.eventId === payload.contextEventId)
+        if (!context || context.messageId !== payload.summaryMessageId || context.partition.digest !== payload.contextPartitionDigest) {
+          throw new Error(`Compaction replacement context commitment mismatch`)
+        }
+        attempt.status = "adopted"
+        attempt.outcomeEventId = event.eventId
+        session.replacementEventId = event.eventId
         break
       }
 
@@ -1444,6 +1617,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       case "workflow_completed":
       case "run_completed": {
         if (!isTerminalStatus(state.status)) {
+          if (state.compactionHistory.sessions.some((session) => session.markerEventId &&
+            !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === session.sessionId))) {
+            throw new Error(`Run cannot complete with a compaction marker lacking its first attempt`)
+          }
+          if (state.compactionHistory.attempts.some((attempt) => attempt.status === "open")) {
+            throw new Error(`Run cannot complete with open compaction attempts`)
+          }
           const unsettled = state.assistantHistory.messages
             .filter((message) => message.settlement === null)
             .map((message) => message.messageId)
@@ -1829,6 +2009,40 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           state.contextHistory.missingMessageIds.length === 0
         ? "complete"
         : "partial"
+
+  const compactionKnownSessionIds = new Set<string>([
+    ...knownSessionIds,
+    ...state.compactionHistory.sessions.map((session) => session.sessionId),
+    ...state.compactionHistory.attempts.map((attempt) => attempt.sessionId),
+  ])
+  for (const sessionId of compactionKnownSessionIds) {
+    if (state.compactionHistory.sessions.some((session) => session.sessionId === sessionId)) continue
+    state.compactionHistory.sessions.push({
+      sessionId,
+      coverage: "unavailable",
+      markerEventId: null,
+      priorScopeHistory: null,
+      copiedHistory: null,
+      replacementEventId: null,
+    })
+  }
+  state.compactionHistory.sessions.sort((a, b) => a.sessionId.localeCompare(b.sessionId))
+  for (const session of state.compactionHistory.sessions) {
+    if (!session.markerEventId) continue
+    const attempts = state.compactionHistory.attempts.filter((attempt) => attempt.sessionId === session.sessionId)
+    session.coverage = session.priorScopeHistory === "none" && attempts.length > 0 &&
+      attempts.every((attempt) => attempt.status !== "open") ? "complete" : "partial"
+  }
+  state.compactionHistory.openAttemptEventIds = state.compactionHistory.attempts
+    .filter((attempt) => attempt.status === "open")
+    .map((attempt) => attempt.eventId)
+  state.compactionHistory.coverage = state.compactionHistory.sessions.every(
+    (session) => session.markerEventId && session.coverage === "complete",
+  ) && state.compactionHistory.openAttemptEventIds.length === 0
+    ? "complete"
+    : state.compactionHistory.sessions.some((session) => session.markerEventId)
+      ? "partial"
+      : "unavailable"
 
   return state
 }

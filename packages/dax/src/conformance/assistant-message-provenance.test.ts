@@ -38,6 +38,8 @@ import {
   transitionEventAuthority,
 } from "@/state/events/event-transitions"
 import { appendRunEventAtTail, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
+import { simulateReadableStream } from "ai"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 let testHome = ""
 let previousTestHome: string | undefined
@@ -134,6 +136,42 @@ function installModelSpies(stream: (input: LLM.StreamInput) => Promise<Awaited<R
       getModel.mockRestore()
     },
   }
+}
+
+function installActualModel(text: string) {
+  const model: LanguageModelV2 = {
+    specificationVersion: "v2",
+    provider: testModel.providerID,
+    modelId: testModel.id,
+    supportedUrls: {},
+    async doGenerate() { throw new Error("unexpected generation") },
+    async doStream() {
+      return {
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start" as const, warnings: [] },
+            { type: "text-start" as const, id: "summary" },
+            { type: "text-delta" as const, id: "summary", delta: text },
+            { type: "text-end" as const, id: "summary" },
+            { type: "finish" as const, finishReason: "stop" as const, usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } },
+          ],
+          initialDelayInMs: null,
+          chunkDelayInMs: null,
+        }),
+      }
+    },
+  }
+  const getModel = spyOn(Provider, "getModel").mockResolvedValue(testModel)
+  const getProvider = spyOn(Provider, "getProvider").mockResolvedValue(Provider.Info.parse({
+    id: testModel.providerID,
+    name: "Assistant provenance test provider",
+    source: "custom",
+    env: [],
+    options: {},
+    models: { [testModel.id]: testModel },
+  }))
+  const getLanguage = spyOn(Provider, "getLanguage").mockResolvedValue(model)
+  return { restore() { getLanguage.mockRestore(); getProvider.mockRestore(); getModel.mockRestore() } }
 }
 
 describe("production assistant-message provenance", () => {
@@ -449,10 +487,11 @@ describe("production assistant-message provenance", () => {
           renameFailure = undefined
 
           await Instance.disposeAll()
-          await SessionPrompt.loop({
+          const resumed = await SessionPrompt.loop({
             sessionID: root.id,
             completionPolicy: "on_provider_stop",
-          })
+          }).then(() => null, (cause) => cause)
+          expect(resumed).toMatchObject({ code: "assistant_provenance_recovery_required" })
           expect(modelCalls).toBe(1)
           const state = await projectRunStateFromEvents(root.id)
           const events = await readRunEvents(root.id)
@@ -571,7 +610,7 @@ describe("production assistant-message provenance", () => {
         const messages = await Session.messages({ sessionID: delegated.id })
         const parent = messages.findLast((message) => message.info.role === "user")
         if (!parent) throw new Error("missing copied user message")
-        const compactionSpies = installModelSpies(async () => modelText("compaction summary"))
+        const compactionSpies = installActualModel("compaction summary")
         try {
           await SessionCompaction.process({
             parentID: parent.info.id,
@@ -608,6 +647,16 @@ describe("production assistant-message provenance", () => {
           copiedHistory: "excluded",
           sourceSessionId: root.id,
         })
+        expect(state?.compactionHistory.sessions.find((session) => session.sessionId === ordinary.id)).toMatchObject({
+          coverage: "unavailable",
+          markerEventId: null,
+        })
+        expect(state?.compactionHistory.sessions.find((session) => session.sessionId === delegated.id)).toMatchObject({
+          coverage: "complete",
+          copiedHistory: "excluded",
+          sourceSessionId: root.id,
+        })
+        expect(state?.compactionHistory.coverage).toBe("partial")
       },
     })
   })
