@@ -296,7 +296,7 @@ export function Session() {
   })
 
   const streamItems = createMemo((): RenderableStreamItem[] => {
-    return buildStreamItems(projectedRun(), messages(), sync.data.part)
+    return buildStreamItems(projectedRun(), messages(), sync.data.part, route.sessionID)
   })
 
   const lastMessageIndex = createMemo(() => {

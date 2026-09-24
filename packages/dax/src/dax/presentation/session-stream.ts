@@ -3,22 +3,6 @@ import { asString, extractToolTarget, toolInput } from "./tool-target"
 import type { ProjectedRun, RunNarrativeItem } from "@/server/run-contract"
 import type { MessageV2 } from "@/session/message-v2"
 
-// Agents that only appear as sub-tasks spawned by the `task` tool.
-// Their messages are implementation details — the task BlockTool already surfaces
-// a summary. Emitting them as stream items causes internal template text to leak.
-const SUB_TASK_AGENTS = new Set([
-  "explore",
-  "explorer",
-  "review",
-  "reviewer",
-  "verify",
-  "verifier",
-  "audit",
-  "auditor",
-  "summarize",
-  "summarizer",
-])
-
 export type StreamItemKind =
   | "phase.marker"
   | "run.event"
@@ -507,11 +491,16 @@ export function buildStreamItems(
   projectedRun: ProjectedRun | undefined,
   messages: any[],
   partsByMessageId: Record<string, Part[]>,
+  selectedSessionID: string,
 ): RenderableStreamItem[] {
   const streamItems: RenderableStreamItem[] = []
+  // The task tool gives delegated agents their own child sessions. Agent names
+  // are not delegation identity: a user can also select Explore as the primary
+  // agent. Render only the open session's messages, including its primary agent.
+  const sessionMessages = messages.filter((message) => message.sessionID === selectedSessionID)
 
   if (!projectedRun) {
-    return buildLegacyStreamItems(messages, partsByMessageId)
+    return buildLegacyStreamItems(sessionMessages, partsByMessageId)
   }
 
   const narrative = projectedRun.narrative ?? []
@@ -632,7 +621,7 @@ export function buildStreamItems(
     })
   }
 
-  for (const message of messages) {
+  for (const message of sessionMessages) {
     if (message.role === "user") {
       const parts = partsByMessageId[message.id] ?? []
       const compactionPart = parts.find((p: any) => p.type === "compaction") as
@@ -665,13 +654,6 @@ export function buildStreamItems(
         (message as any).mode === "compaction" ||
         (message as any).summary === true
       ) {
-        continue
-      }
-      // Sub-task agents are spawned internally by the `task` tool — their messages are
-      // captured inside the task BlockTool already; emitting them separately creates noise
-      // and can leak internal prompt templates (e.g. "[file paths]" placeholders).
-      const agentName: string | undefined = (message as any).agent?.toLowerCase()
-      if (projectedRun && agentName && SUB_TASK_AGENTS.has(agentName)) {
         continue
       }
       streamItems.push({

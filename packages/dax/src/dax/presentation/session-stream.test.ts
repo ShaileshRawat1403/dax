@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import {
-  buildStreamItems,
+  buildStreamItems as buildSessionStreamItems,
   deriveLiveNarrativeStatus,
   deriveToolNarrativeDescriptor,
   getCurrentPhase,
@@ -867,4 +867,129 @@ describe("deriveLiveNarrativeStatus — additional cases", () => {
     // The pending shell tool is findLast — it should be the active one
     expect(s.now).toContain("Running")
   })
+})
+
+function buildStreamItems(
+  projectedRun: ProjectedRun | undefined,
+  messages: Parameters<typeof buildSessionStreamItems>[1],
+  partsByMessageId: Parameters<typeof buildSessionStreamItems>[2],
+  selectedSessionID = messages[0]?.sessionID ?? "session-123",
+) {
+  return buildSessionStreamItems(projectedRun, messages, partsByMessageId, selectedSessionID)
+}
+
+describe("selected-session stream regression", () => {
+    it("renders a selected Explore assistant reply while a run is projected", () => {
+      // Observed session shape: the selected primary Explore agent completed a
+      // greeting, but the projected-run stream hid its persisted answer.
+      const projectedRun = createMockProjectedRun([
+        { type: "run.created", message: "Session initialized" },
+        { type: "run.completed", message: "Completed" },
+      ])
+      const messages = [
+        {
+          id: "msg-explore-user",
+          role: "user" as const,
+          sessionID: "session-123",
+          time: { created: 1000 },
+          agent: "explore",
+        },
+        {
+          id: "msg-explore-answer",
+          role: "assistant" as const,
+          sessionID: "session-123",
+          parentID: "msg-explore-user",
+          time: { created: 1100, completed: 1200 },
+          agent: "explore",
+          mode: "explore",
+          finish: "stop",
+        },
+      ]
+      const items = buildStreamItems(projectedRun, messages, {
+        "msg-explore-answer": [createTextPart("part-explore-answer", "Hello from Explore.") as never],
+      })
+
+      expect(items.filter((item) => item.kind === "message.assistant")).toHaveLength(1)
+      expect(items.find((item) => item.id === "msg-explore-answer")?.parts?.[0]).toMatchObject({
+        type: "text",
+        text: "Hello from Explore.",
+      })
+    })
+
+    it("keeps primary Explore visible while streaming, after completion, and after reopen", () => {
+      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+      const user = { id: "user", role: "user", sessionID: "primary", time: { created: 1000 } }
+      const answer = {
+        id: "answer", role: "assistant", sessionID: "primary", parentID: "user",
+        agent: "explore", time: { created: 1100 },
+      }
+      const parts = { answer: [createTextPart("answer-text", "Hello from Explore.") as never] }
+
+      const streaming = buildStreamItems(projectedRun, [user, answer], parts, "primary")
+      expect(streaming.find((item) => item.id === "answer")?.status).toBe("active")
+      expect(streaming.find((item) => item.id === "answer")?.parts).toEqual(parts.answer)
+
+      const completed = { ...answer, time: { created: 1100, completed: 1200 }, finish: "stop" }
+      const persisted = buildStreamItems(projectedRun, [user, completed], parts, "primary")
+      expect(persisted.find((item) => item.id === "answer")?.status).toBe("completed")
+      expect(buildStreamItems(projectedRun, [user, completed], parts, "primary")
+        .find((item) => item.id === "answer")?.parts).toEqual(parts.answer)
+    })
+
+    it("keeps Plan, Build, and another primary agent visible with a projected run", () => {
+      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+      for (const agent of ["plan", "build", "review"]) {
+        const messages = [
+          { id: "user", role: "user", sessionID: "primary", time: { created: 1000 } },
+          { id: "answer", role: "assistant", sessionID: "primary", parentID: "user", agent,
+            time: { created: 1100, completed: 1200 } },
+        ]
+        const items = buildStreamItems(projectedRun, messages, {
+          answer: [createTextPart("answer-text", `${agent} reply`) as never],
+        }, "primary")
+        expect(items.filter((item) => item.kind === "message.assistant").map((item) => item.id)).toEqual(["answer"])
+      }
+    })
+
+    it("shows delegated output only through the parent task, but shows the child conversation when opened", () => {
+      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+      const messages = [
+        { id: "parent-user", role: "user", sessionID: "parent", time: { created: 1000 } },
+        { id: "parent-task", role: "assistant", sessionID: "parent", parentID: "parent-user",
+          agent: "build", time: { created: 1100, completed: 1500 } },
+        { id: "child-user", role: "user", sessionID: "child", time: { created: 1200 } },
+        { id: "child-answer", role: "assistant", sessionID: "child", parentID: "child-user",
+          agent: "explore", time: { created: 1300, completed: 1400 } },
+      ]
+      const parts = {
+        "parent-task": [createToolPart("task", "task", "completed", { subagent_type: "explore" },
+          { sessionId: "child" }) as never],
+        "child-answer": [createTextPart("internal", "[file paths] Internal child response") as never],
+      }
+
+      const parent = buildStreamItems(projectedRun, messages, parts, "parent")
+      expect(parent.filter((item) => item.kind === "message.assistant").map((item) => item.id)).toEqual(["parent-task"])
+      expect(parent.find((item) => item.id === "parent-task")?.parts?.[0]).toMatchObject({ type: "tool", tool: "task" })
+      expect(parent.some((item) => item.id === "child-user" || item.id === "child-answer")).toBe(false)
+
+      const child = buildStreamItems(projectedRun, messages, parts, "child")
+      expect(child.filter((item) => item.kind.startsWith("message.")).map((item) => item.id))
+        .toEqual(["child-user", "child-answer"])
+      expect(child.find((item) => item.id === "child-answer")?.parts).toEqual(parts["child-answer"])
+    })
+
+    it("excludes compaction summaries in the selected session", () => {
+      const projectedRun = createMockProjectedRun([{ type: "run.created", message: "Session initialized" }])
+      const messages = [
+        { id: "summary", role: "assistant", sessionID: "primary", agent: "compaction",
+          mode: "compaction", summary: true, time: { created: 1000, completed: 1100 } },
+        { id: "answer", role: "assistant", sessionID: "primary", agent: "explore",
+          time: { created: 1200, completed: 1300 } },
+      ]
+      const items = buildStreamItems(projectedRun, messages, {
+        answer: [createTextPart("answer-text", "Visible reply") as never],
+      }, "primary")
+      expect(items.filter((item) => item.kind === "message.assistant").map((item) => item.id)).toEqual(["answer"])
+    })
+
 })
