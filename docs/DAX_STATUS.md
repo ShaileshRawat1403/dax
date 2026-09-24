@@ -59,17 +59,19 @@ The checkpoint merges the approved status documentation at
 ancestor `a8043169adb35a7fcc9e73967bf31160581d2835`. The only runtime change
 relative to `7ccfc8a4cdd93ff054cabe2c43197438b88e8995` is the reviewed home
 UI diff. The [checkpoint validation record](tooling/dax-pause-checkpoint-validation.md)
-documents the pinned Bun gate, local link check, and initial environment-sensitive
-test failures. Exact-SHA CI belongs to the review handoff; this source checkpoint
-is not a release-readiness claim.
+documents the reported local gates, missing raw logs, and verified exact-SHA CI.
+This source checkpoint is not a release-readiness claim.
 
-For local validation, use Bun 1.4.0 at
-`/private/tmp/dax-bun-1.4.0/bun-darwin-aarch64/bun` (verified with `--version`),
-not the system Bun 1.3.9. To restart after the maintainer returns: fetch `main`,
-confirm the checkpoint's integration and clean parity, read this status and the
-eight open ledger entries, then choose one bounded gap on its own branch and
-obtain Astra's review before integration. Keep development journals with their
-matching development binary.
+For local validation on macOS ARM64, follow the checksum-verified
+[Bun 1.4.0 provisioning procedure](tooling/bun-toolchain-verification.md#reproduce-the-isolated-setup)
+in a fresh DAX checkout. Confirm the resulting
+`artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun --version` prints `1.4.0`
+before putting that binary first on `PATH` and running the frozen install and
+gates. Do not rely on a previous `/private/tmp` binary; it is no longer present.
+To restart after the maintainer returns: fetch `main`, confirm the checkpoint's
+integration and clean parity, read this status and the eight open ledger entries,
+then choose one bounded gap on its own branch and obtain Astra's review before
+integration. Keep development journals with their matching development binary.
 
 ## Evidence corrections
 
