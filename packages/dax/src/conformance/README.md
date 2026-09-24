@@ -87,7 +87,7 @@ target. They fail with a number, and that number is the progress metric.
   None contributes points to the 16-point denominator.
 
 - `event-authority.test.ts` scores 11 authoritative record classes for durable
-  representation. Candidate implementation coverage: **11 / 11** (prompt, context,
+  representation. Accepted implementation coverage: **11 / 11** (prompt, context,
   assistant message, tool invocation, tool result, approval, policy decision,
   delegation, compaction replacement, verification and completion). Context
   coverage is explicitly limited to the provider-adapter input produced by enrolled `SessionProcessor`
@@ -96,7 +96,8 @@ target. They fail with a number, and that number is the progress metric.
   unknown history is not promoted to complete coverage. Compaction coverage is
   limited to the enrolled producer population; journal replay proves replacement
   boundaries and commitments, while continuation requires stored summary text
-  to match the assistant commitment. Review and integration are pending.
+  to match the assistant commitment. The complete-event-history workstream was
+  reviewed and integrated at `7ccfc8a4cdd93ff054cabe2c43197438b88e8995`.
 
 The record-class meter counts whether a class has *any* durable event type. It is
 deliberately generous: approval scores, yet a separate test shows the payload cannot
