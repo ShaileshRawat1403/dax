@@ -98,6 +98,11 @@ target. They fail with a number, and that number is the progress metric.
   boundaries and commitments, while continuation requires stored summary text
   to match the assistant commitment. The complete-event-history workstream was
   reviewed and integrated at `7ccfc8a4cdd93ff054cabe2c43197438b88e8995`.
+  Provider-adapter commitments do not prove provider receipt, and digests do not
+  reconstruct transcripts. Historical coverage remains unknown. OS process-kill
+  recovery is untested. The other eight aggregate gaps remain open and are deferred
+  during the maintainer's absence. This development vocabulary is unreadable by
+  older binaries; do not point published v1.5.0 at newer development journals.
 
 The record-class meter counts whether a class has *any* durable event type. It is
 deliberately generous: approval scores, yet a separate test shows the payload cannot

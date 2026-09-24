@@ -1,6 +1,7 @@
 # Conformance sprint: original nine-gap scope
 
-Status: in progress. Recorded 2026-09-20 at the maintainer's request.
+Status: paused at the source checkpoint during the maintainer's absence. Recorded
+2026-09-20 at the maintainer's request.
 Implementation model: Sol. Reviewer: Astra 6, high reasoning. Released baseline:
 DAX v1.5.0 at `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`;
 current sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`.
@@ -12,7 +13,9 @@ coverage is **11/11**. `inv1.record-classes` is closed after production and repl
 review; the [gap ledger](../../packages/dax/src/conformance/known-gaps.ts) now has
 **eight open entries**. The
 [post-merge main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
-passed on Ubuntu, macOS, and Windows. This did not publish a release.
+passed on Ubuntu, macOS, and Windows. This did not publish a release. The eight
+remaining gaps are deferred during the maintainer's absence; resume only after
+reviewing the checkpoint and selecting a bounded next item.
 The objective is stronger reconstruction of run history, consistent contract
 permissions, and governed project memory. No release number or completion date
 is assigned. Nine entries were the original target scope, not an estimate that all
@@ -21,7 +24,9 @@ explicitly at sprint review.
 
 ## Implementation and review handoff
 
-The complete-event-history workstream is integrated. For each remaining gap, the
+The complete-event-history workstream is integrated. The reviewed home visual pass
+is integrated in checkpoint source and is not part of this gap ledger. For each
+remaining gap, the
 implementation model should read this plan, the current ledger, and relevant
 conformance tests, then propose one bounded item before runtime work. Its review
 handoff must pin the source commit, state the acceptance criteria covered, include

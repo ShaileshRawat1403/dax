@@ -23,7 +23,7 @@ both passed. All eleven published archive digests matched the manifest and
 GitHub asset digests; the published macOS installer was exercised and the local
 1.4.0 executable replaced with 1.5.0.
 
-The [conformance sprint plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
+At this pause checkpoint, the [conformance sprint plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
 [product roadmap](product/ROADMAP.md), retains the original scope of nine aggregate
 gaps. Sol implemented and Astra reviewed the delegation, durable assistant-message,
 prompt, context-contribution, and compaction-replacement provenance slices. The
@@ -33,7 +33,9 @@ complete-event-history workstream is integrated in `main` at
 [gap ledger](../packages/dax/src/conformance/known-gaps.ts). The
 [post-merge main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
 passed on Ubuntu, macOS, and Windows, including Rust tests. This integration did
-not publish a release; v1.5.0 remains the released baseline.
+not publish a release; v1.5.0 remains the released baseline. The reviewed home
+visual pass is integrated into the checkpoint source, also unreleased. The eight
+remaining aggregate gaps are explicitly deferred during the maintainer's absence.
 
 Compaction replacement binds the active prefix and summary before provider
 dispatch. Successful adoption records a replacement boundary linked to final
@@ -43,6 +45,31 @@ and commitments, while actual continuation needs stored summary text to pass
 commitment verification. Historical unmarked history remains unavailable, not
 inferred complete. The 11/11 measure is record-class coverage within its documented
 producer scope, not a claim of complete model history or overall defect freedom.
+Provider-adapter input commitments do not prove provider receipt. Digests cannot
+reconstruct transcripts, and coverage of historical runs remains unknown. Recovery
+from an OS process kill has not been tested. Older binaries cannot read the new
+event vocabulary: do not direct the published v1.5.0 binary at newer development-state
+journals.
+
+## Pause checkpoint and restart
+
+The checkpoint merges the approved status documentation at
+`c10f48f9887968535500f7128c1f37508cd972ab` and home UI at
+`9e245b839f9cf0871a18cb4194533789298587e3`, retaining the UI branch's design
+ancestor `a8043169adb35a7fcc9e73967bf31160581d2835`. The only runtime change
+relative to `7ccfc8a4cdd93ff054cabe2c43197438b88e8995` is the reviewed home
+UI diff. The [checkpoint validation record](tooling/dax-pause-checkpoint-validation.md)
+documents the pinned Bun gate, local link check, and initial environment-sensitive
+test failures. Exact-SHA CI belongs to the review handoff; this source checkpoint
+is not a release-readiness claim.
+
+For local validation, use Bun 1.4.0 at
+`/private/tmp/dax-bun-1.4.0/bun-darwin-aarch64/bun` (verified with `--version`),
+not the system Bun 1.3.9. To restart after the maintainer returns: fetch `main`,
+confirm the checkpoint's integration and clean parity, read this status and the
+eight open ledger entries, then choose one bounded gap on its own branch and
+obtain Astra's review before integration. Keep development journals with their
+matching development binary.
 
 ## Evidence corrections
 
@@ -77,7 +104,7 @@ checks passed. Hosted CI passed on all three platforms. The tag workflow repeate
 the gates in release mode before publication. Preserve the claims pack's `v1.4.0`
 statements; describe newer behavior in a separately versioned update.
 
-This is solo validation, not independent second-model review. The multi-agent
+The v1.5.0 validation was solo, not independent second-model review. The multi-agent
 SOP's historical lane split is dormant; its evidence discipline and gate table
 still apply. Release publication requires a coherent clean tag, package version,
 changelog, artifacts, and passing release-mode checks.

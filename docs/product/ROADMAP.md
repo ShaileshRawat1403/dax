@@ -14,20 +14,23 @@ tags:
 # DAX Roadmap
 
 Released baseline: **DAX v1.5.0**, released 2026-09-20. The conformance sprint's
-original scope was nine aggregate gaps; eight remain open. The older release plan
+original scope was nine aggregate gaps; eight remain open and are deferred during
+the maintainer's absence. The home visual pass is integrated in checkpoint source,
+which remains unreleased. The older release plan
 below is retained as historical context.
 
 ## Conformance Sprint — Closure in Progress
 
 Implementation model: Sol. Reviewer: Astra 6 high.
-Status: in progress. The complete-event-history workstream, including compaction
+Status: paused at the source checkpoint. The complete-event-history workstream, including compaction
 replacement, is integrated in `main` at `7ccfc8a4cdd93ff054cabe2c43197438b88e8995`.
 Accepted record-class coverage is **11/11** and `inv1.record-classes` is closed;
 the other **eight aggregate gaps** remain open in the
 [sprint backlog and acceptance plan](../roadmap/CONFORMANCE_SPRINT.md).
 See [current status](../DAX_STATUS.md) and the
 [post-merge CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
-for integration evidence. This is not a new release.
+for integration evidence. This is not a new release. The checkpoint does not claim
+complete historical coverage, provider receipt, or release readiness.
 
 | Workstream | Gaps | Intended outcome |
 | --- | --- | --- |
