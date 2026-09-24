@@ -16,7 +16,6 @@ import { useKV } from "../context/kv"
 import { useCommandDialog } from "../component/dialog-command"
 import { useTerminalDimensions } from "@opentui/solid"
 import { isEli12Mode, nextIntentMode } from "@/dax/intent"
-import { DAX_BRAND } from "@/dax/brand"
 import { DAX_SETTING } from "@/dax/settings"
 import { useLocal } from "../context/local"
 import { useSDK } from "../context/sdk"
@@ -33,6 +32,7 @@ import { MacOSScrollAccel } from "@opentui/core"
 
 const HOME_WORKFLOW_MODES = ["plan", "build", "explore", "docs"] as const
 type HomeWorkflowMode = (typeof HOME_WORKFLOW_MODES)[number]
+const HOME_WORDMARK = ["█▀▀▀▄ ▄▀▀▀▄ ▀▄ ▄▀", "█   █ █▀▀▀█  ▄▀▄", "▀▀▀▀  ▀   ▀ ▀   ▀"] as const
 
 function formatAge(ms: number): string {
   const minutes = Math.floor(ms / 60000)
@@ -53,68 +53,6 @@ function getGreeting(): string {
 }
 
 let once = false
-
-// ── Brand letters with animated cycling colors ────────────────────────────────
-function BrandLetters(props: { theme: any; small?: boolean }) {
-  const [tick, setTick] = createSignal(0)
-  onMount(() => {
-    const t = setInterval(() => setTick((v) => v + 1), 80)
-    onCleanup(() => clearInterval(t))
-  })
-  const letters = DAX_BRAND.name.toUpperCase().slice(0, 3).split("")
-  const letterColor = (index: number) => {
-    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
-    const offset = (tick() + index * 3) % (colors.length * 4)
-    if (offset < colors.length) return colors[offset]
-    return colors[colors.length - 1 - (offset - colors.length)]
-  }
-  const letterBlink = (index: number) => {
-    const phase = (tick() + index * 4) % 8
-    return phase < 2
-  }
-  return (
-    <box flexDirection="row" gap={0} height={1}>
-      <For each={letters}>
-        {(letter, index) => (
-          <text fg={letterColor(index())} attributes={letterBlink(index()) ? TextAttributes.BOLD : undefined}>
-            {letter}
-          </text>
-        )}
-      </For>
-    </box>
-  )
-}
-
-// ── Mascot — unchanged animation, repositioned to top-right ──────────────────
-function DaxMascot(props: { theme: any }) {
-  const [tick, setTick] = createSignal(0)
-  onMount(() => {
-    const t = setInterval(() => setTick((v) => v + 1), 480)
-    onCleanup(() => clearInterval(t))
-  })
-  const EYE_FRAMES = ["◎", "◉", "◎", "◉", "●", "◉", "◎"]
-  const eyeL = createMemo(() => EYE_FRAMES[tick() % EYE_FRAMES.length])
-  const eyeR = createMemo(() => EYE_FRAMES[(tick() + 3) % EYE_FRAMES.length])
-  const scan = createMemo(() => {
-    const s = ["─", "═", "─", "·"]
-    return s[Math.floor(tick() / 2) % s.length]
-  })
-  const eyeColor = createMemo(() => {
-    const colors = [props.theme.primary, props.theme.accent, props.theme.secondary]
-    return colors[Math.floor(tick() / 3) % colors.length]
-  })
-
-  return (
-    <box flexDirection="column" gap={0} paddingRight={1}>
-      <box flexDirection="row" gap={0}>
-        <text fg={eyeColor()}>{eyeL()}</text>
-        <text fg={props.theme.textMuted}>{scan()}</text>
-        <text fg={eyeColor()}>{eyeR()}</text>
-      </box>
-      <text fg={props.theme.borderSubtle}> ┴ </text>
-    </box>
-  )
-}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Main Home view
@@ -315,7 +253,7 @@ export function Home() {
 
   const tiny = createMemo(() => width() < 60)
   const small = createMemo(() => width() < 90)
-  const showMascot = createMemo(() => width() > 70 && height() > 24)
+  const showBlockWordmark = createMemo(() => width() >= 70 && height() >= 22)
   const showActions = createMemo(() => height() > 20)
   const showSessions = createMemo(() => height() > 28)
 
@@ -334,29 +272,30 @@ export function Home() {
         width="100%"
         scrollAcceleration={process.platform === "darwin" ? new MacOSScrollAccel() : undefined}
       >
-        <box flexDirection="column" alignItems="center" paddingTop={2} paddingBottom={4} gap={tiny() ? 1 : 2}>
-          <box width="100%" maxWidth={layout().maxWidth} alignItems="center" gap={tiny() ? 0 : 1}>
-            {/* ── Greeting row: text left, mascot right ── */}
-            <box width="100%" flexDirection="row" justifyContent="space-between" alignItems="flex-start">
-              <box flexDirection="column" gap={0} flexGrow={1}>
-                {/* Time-aware greeting with username */}
-                <Show when={!tiny()}>
+        <box flexDirection="column" alignItems="center" paddingTop={1} paddingBottom={4} gap={tiny() ? 1 : 2}>
+          <box width="100%" maxWidth={layout().maxWidth} flexDirection="column" alignItems="flex-start" gap={0}>
+            {/* Static home-body identity; shared session header remains unchanged. */}
+            <box width="100%" flexDirection="column" gap={0} paddingLeft={2}>
+              <Show
+                when={showBlockWordmark()}
+                fallback={
+                  <box flexDirection="row" gap={1}>
+                    <text fg={theme.primary} attributes={TextAttributes.BOLD}>DAX</text>
+                    <text fg={theme.primary}>━━━━</text>
+                  </box>
+                }
+              >
+                <For each={HOME_WORDMARK}>
+                  {(row) => <text fg={theme.primary} attributes={TextAttributes.BOLD}>{row}</text>}
+                </For>
+              </Show>
+              <Show when={!tiny()}>
+                <box flexDirection="column" gap={0}>
                   <text fg={theme.text} attributes={TextAttributes.BOLD}>
                     {greeting}, {displayName}.
                   </text>
-                </Show>
-                {/* Animated D A X letters + tagline */}
-                <box flexDirection="row" gap={1} alignItems="center">
-                  <BrandLetters theme={theme} />
-                  <Show when={!tiny()}>
-                    <text fg={theme.textMuted} dim>
-                      · operative · online
-                    </text>
-                  </Show>
+                  <text fg={theme.textMuted} dim>· operative · online</text>
                 </box>
-              </box>
-              <Show when={showMascot()}>
-                <DaxMascot theme={theme} />
               </Show>
             </box>
 
@@ -378,11 +317,9 @@ export function Home() {
 
             {/* ── Smart chips ── */}
             <Show when={showActions() && !tiny()}>
-              <box width="100%" flexDirection="column" gap={1}>
-                <text fg={theme.textMuted} attributes={TextAttributes.BOLD} dim>
-                  QUICK START
-                </text>
-                <box flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-start">
+              <box width="100%" flexDirection="column" gap={0}>
+                <SectionDivider label="QUICK START" theme={theme} />
+                <box flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-start" paddingLeft={2}>
                   <For each={smartChips()}>
                     {(chip) => (
                       <SmartChip
@@ -403,11 +340,6 @@ export function Home() {
                 width="100%"
                 flexDirection="column"
                 gap={0}
-                backgroundColor={theme.backgroundPanel}
-                borderStyle="round"
-                borderColor={theme.borderSubtle}
-                paddingTop={1}
-                paddingBottom={1}
               >
                 {/* First-time guide */}
                 <Show when={isFirstTimeUser()}>
@@ -502,7 +434,7 @@ export function Home() {
 
             {/* Tips */}
             <Show when={showHomeTips()}>
-              <box width="100%" maxWidth={56} alignItems="center">
+              <box width="100%" maxWidth={56} paddingLeft={2} alignItems="flex-start">
                 <Tips />
               </box>
             </Show>
@@ -518,12 +450,11 @@ export function Home() {
 
 function SectionDivider(props: { label: string; theme: any }) {
   return (
-    <box flexDirection="row" gap={1} alignItems="center" marginTop={1} marginBottom={1} paddingLeft={1}>
-      <text fg={props.theme.border}>──</text>
+    <box flexDirection="row" gap={1} alignItems="center" marginTop={1} paddingLeft={2} paddingRight={2}>
       <text fg={props.theme.textMuted} attributes={TextAttributes.BOLD}>
         {props.label}
       </text>
-      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.border} marginBottom={0} />
+      <box flexGrow={1} height={1} border={["bottom"]} borderColor={props.theme.borderSubtle} marginBottom={0} />
     </box>
   )
 }
@@ -532,37 +463,29 @@ function WorkspaceCard(props: { dirName: string; branch?: string; modelName: str
   return (
     <box
       width="100%"
-      flexDirection="row"
-      gap={2}
+      flexDirection="column"
+      gap={0}
       paddingLeft={2}
       paddingRight={2}
-      paddingTop={1}
-      paddingBottom={1}
-      backgroundColor={tint(props.theme.background, props.theme.textMuted, 0.02)}
-      borderStyle="round"
-      borderColor={props.theme.borderSubtle}
     >
-      <box flexDirection="column" gap={0}>
-        <text fg={props.theme.textMuted} dim>
-          PROJECT
-        </text>
-        <text fg={props.theme.text} attributes={TextAttributes.BOLD}>
-          {props.dirName}
-        </text>
-      </box>
-      <Show when={props.branch}>
+      <text fg={props.theme.borderSubtle}>{"─".repeat(56)}</text>
+      <box flexDirection="row" gap={4}>
         <box flexDirection="column" gap={0}>
           <text fg={props.theme.textMuted} dim>
-            BRANCH
+            PROJECT
           </text>
-          <text fg={props.theme.accent}>{props.branch}</text>
+          <text fg={props.theme.text} attributes={TextAttributes.BOLD}>{props.dirName}</text>
         </box>
-      </Show>
-      <box flexDirection="column" gap={0}>
-        <text fg={props.theme.textMuted} dim>
-          MODEL
-        </text>
-        <text fg={props.theme.secondary}>{props.modelName}</text>
+        <Show when={props.branch}>
+          <box flexDirection="column" gap={0}>
+            <text fg={props.theme.textMuted} dim>BRANCH</text>
+            <text fg={props.theme.text}>{props.branch}</text>
+          </box>
+        </Show>
+        <box flexDirection="column" gap={0}>
+          <text fg={props.theme.textMuted} dim>MODEL</text>
+          <text fg={props.theme.text}>{props.modelName}</text>
+        </box>
       </box>
     </box>
   )
@@ -574,20 +497,15 @@ function SmartChip(props: {
   theme: any
   onPress: () => void
 }) {
-  const color = () => {
-    if (props.tone === "primary") return props.theme.primary
-    if (props.tone === "accent") return props.theme.accent
-    if (props.tone === "warning") return props.theme.warning
-    return props.theme.textMuted
-  }
+  const color = () => props.tone === "accent" ? props.theme.primary : props.theme.text
   return (
     <box
       onMouseUp={props.onPress}
       paddingLeft={1}
       paddingRight={1}
-      backgroundColor={tint(props.theme.background, color(), 0.08)}
+      backgroundColor={tint(props.theme.background, props.theme.primary, 0.03)}
       borderStyle="round"
-      borderColor={tint(color(), props.theme.background, 0.4)}
+      borderColor={props.theme.borderSubtle}
     >
       <text fg={color()}>{props.label}</text>
     </box>
