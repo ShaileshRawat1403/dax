@@ -77,15 +77,6 @@ afterEach(async () => {
         handles: observable._getActiveHandles?.().map((handle) => handle.constructor?.name),
       }),
     )
-    if (process.platform === "win32") {
-      const children = Bun.spawnSync([
-        "powershell.exe",
-        "-NoProfile",
-        "-Command",
-        `Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${process.pid} } | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress`,
-      ])
-      console.error("TEARDOWN_CHILD_PROCESSES", children.stdout.toString(), children.stderr.toString())
-    }
   }
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
   else process.env.DAX_TEST_HOME = previousHome
@@ -120,6 +111,15 @@ afterEach(async () => {
         }
       }
       await probe(home)
+      if (process.platform === "win32") {
+        const children = Bun.spawnSync([
+          "powershell.exe",
+          "-NoProfile",
+          "-Command",
+          `Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${process.pid} } | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress`,
+        ])
+        console.error("TEARDOWN_CHILD_PROCESSES", children.stdout.toString(), children.stderr.toString())
+      }
     }
     throw error
   }
