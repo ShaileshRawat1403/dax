@@ -103,7 +103,10 @@ target. They fail with a number, and that number is the progress metric.
   recovery is untested. The other eight aggregate gaps remain open; work resumed
   on 2026-09-26 with a [proposal-only capability slice](../../../../docs/roadmap/CAPABILITY_REGISTRY_PROPOSAL.md)
   after their deferral during the maintainer's absence. No additional ledger
-  closure is claimed. This development vocabulary is unreadable by
+  closure is claimed. The native-only capability slice adds descriptive registry
+  enrollment, not contract grants or shared enforcement; plugin/MCP,
+  operator/workflow, and worker/context adapters remain separate followups.
+  Vocabulary and property aggregates both stay open. This development vocabulary is unreadable by
   older binaries; do not point published v1.5.0 at newer development journals.
 
 The record-class meter counts whether a class has *any* durable event type. It is

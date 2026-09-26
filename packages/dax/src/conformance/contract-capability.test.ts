@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test"
 import { expectGap } from "./known-gaps"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { join } from "node:path"
+import { nativeCapabilities, createCapabilityRegistry } from "@/capability/registry"
+import { CapabilityDescriptor } from "@/capability/capability-types"
+import { ToolRegistry } from "@/tool/registry"
+import { Tool } from "@/tool/tool"
+import { Instance } from "@/project/instance"
+import { tmpdir } from "node:os"
+import { mkdtemp, mkdir, rm } from "node:fs/promises"
+import z from "zod"
 
 /**
  * Invariant 5 — Contract-Defined Authority.
@@ -22,39 +30,70 @@ import { join } from "node:path"
  * may not declare authority. Authority belongs to the contract, because the
  * contract is the artifact an operator reviews.
  *
- * Nothing here exists at v1.3.0. This file specifies the shape rather than
- * measuring drift — it is the only test in the suite that fails because a thing is
- * absent rather than wrong.
+ * The initial v1.3.0 specification was structural. Native enrollment now has
+ * ordinary behavioral checks; the aggregate vocabulary/property gaps remain
+ * open because other executor families still lack enrollment.
  */
 
 const SRC = join(import.meta.dir, "..")
 
 describe("invariant 5 — contract-defined authority", () => {
-  test("a capability vocabulary exists", () => {
-    // Expected: a single registry naming every executable capability —
-    // filesystem.write, shell.execute, git.patch, codex.delegate, repo.inspect, …
-    // Today these are separate architectural categories (tool, worker, agent,
-    // plugin, sandbox, provider) with no shared vocabulary between them.
-    expectGap("inv5.capability-vocabulary", () => {
-      expect(existsSync(join(SRC, "capability"))).toBe(true)
-    })
+  test("enrolled native vocabulary rejects unknown and duplicate capabilities", () => {
+    expect(nativeCapabilities.require("native.tool.write").scopeSupport).toBe("filesystem")
+    expect(() => nativeCapabilities.require("native.tool.not_real")).toThrow("Unknown capability")
+    const descriptor = nativeCapabilities.require("native.tool.write")
+    expect(() => createCapabilityRegistry([descriptor, descriptor])).toThrow("Duplicate capability")
   })
 
-  test("capabilities declare intrinsic properties but not authority", () => {
-    const path = join(SRC, "capability/capability-types.ts")
+  test("native intrinsic descriptors reject malformed values and authority fields", () => {
+    const descriptor = nativeCapabilities.require("native.tool.shell")
+    expect(descriptor.scopeSupport).toBe("opaque")
+    for (const field of ["writeScope", "forbiddenPaths", "allowHosts", "budgets", "grants", "approvalPolicy"]) {
+      expect(CapabilityDescriptor.safeParse({ ...descriptor, [field]: [] }).success).toBe(false)
+    }
+    expect(CapabilityDescriptor.safeParse({ ...descriptor, riskClass: "safe" }).success).toBe(false)
+    expect(CapabilityDescriptor.safeParse({ ...descriptor, requiresVerification: "false" }).success).toBe(false)
+    expect(CapabilityDescriptor.safeParse({ id: descriptor.id }).success).toBe(false)
+    expect(Object.isFrozen(descriptor)).toBe(true)
+  })
 
-    expectGap("inv5.capability-properties", () => {
-      const declared = readFileSync(path, "utf8")
-
-      // Intrinsic — what this capability is:
-      expect(declared).toMatch(/risk_class|riskClass/)
-      expect(declared).toMatch(/requires_verification|requiresVerification/)
-      expect(declared).toMatch(/supports_scope|supportsScope/)
-
-      // Not intrinsic — what this run may do. A capability naming concrete paths,
-      // budgets or hosts has become a second policy system.
-      expect(declared).not.toMatch(/writeScope|forbiddenPaths|mutation_budget|allowHosts/)
-    })
+  test("aggregate vocabulary/properties remain open: real registered plugin lacks enrollment", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "dax-capability-gap-"))
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = directory
+    await mkdir(join(directory, ".config", "dax"), { recursive: true })
+    try {
+      await Instance.provide({
+        directory,
+        async fn() {
+          await ToolRegistry.register(
+            Tool.define("capability-gap-probe", {
+              description: "Unenrolled plugin-shaped executor",
+              parameters: z.object({}),
+              result: Tool.result(z.object({})),
+              async execute() {
+                return { title: "probe", output: "probe", metadata: {} }
+              },
+            }),
+          )
+          const tools = await ToolRegistry.tools({ providerID: "", modelID: "" })
+          const plugin = tools.find((item) => item.id === "capability-gap-probe")!
+          const identity = ToolRegistry.executionIdentity(plugin)
+          expect(identity.kind).toBe("plugin")
+          expectGap("inv5.capability-vocabulary", () => {
+            expect(identity.capability?.id).toBeDefined()
+          })
+          expectGap("inv5.capability-properties", () => {
+            expect(CapabilityDescriptor.safeParse(identity.capability).success).toBe(true)
+          })
+        },
+      })
+    } finally {
+      await Instance.disposeAll()
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   test("the contract expresses authority as capability grants", () => {

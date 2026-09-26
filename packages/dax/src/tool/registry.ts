@@ -30,9 +30,90 @@ import { ApplyPatchTool } from "./apply_patch"
 import { PMNoteTool } from "./pm_note"
 import { ReflectionTool } from "./reflection"
 import { GitBranchTool } from "./git_branch"
+import { nativeCapabilities } from "@/capability/registry"
+import type { CapabilityDescriptor } from "@/capability/capability-types"
+
+// Identity is attached to the actual built-in definition, never inferred from
+// its public name (a plugin may legitimately use the same name).
+const nativeDefinitions = new Map<Tool.Info, { id: string; init: Tool.Info["init"] }>(
+  [
+    InvalidTool,
+    QuestionTool,
+    ShellTool,
+    ReadTool,
+    GlobTool,
+    GrepTool,
+    EditTool,
+    WriteTool,
+    TaskTool,
+    WebFetchTool,
+    TodoWriteTool,
+    PMNoteTool,
+    WebSearchTool,
+    CodeSearchTool,
+    SkillTool,
+    ApplyPatchTool,
+    GitBranchTool,
+    LspTool,
+    BatchTool,
+    PlanExitTool,
+    PlanEnterTool,
+    ReflectionTool,
+  ].map((info) => [info, { id: info.id, init: info.init }]),
+)
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
+  type Executor = (...args: never[]) => Promise<unknown>
+  const executorBindings = new WeakMap<
+    object,
+    {
+      id: string
+      execute: Executor
+      kind: "builtin" | "plugin"
+    }
+  >()
+
+  /** Resolve before hooks/effects; descriptors do not change permission. */
+  export function executionIdentity<T extends { id: string; execute: Executor }>(
+    item: T,
+  ): {
+    kind: "builtin" | "plugin"
+    id: string
+    execute: T["execute"]
+    capability?: CapabilityDescriptor
+  } {
+    const binding = executorBindings.get(item)
+    if (!binding || binding.id !== item.id || binding.execute !== item.execute) {
+      throw new Error(`Unbound or changed tool executor: ${item.id}`)
+    }
+    return {
+      kind: binding.kind,
+      id: binding.id,
+      execute: binding.execute as T["execute"],
+      ...(binding.kind === "builtin" ? { capability: nativeCapabilities.require(`native.tool.${binding.id}`) } : {}),
+    }
+  }
+
+  async function initialize(t: Tool.Info, kind: "builtin" | "plugin", agent?: Agent.Info) {
+    const id = t.id
+    const init = t.init
+    if (kind === "builtin") {
+      const expected = nativeDefinitions.get(t)
+      if (!expected || expected.id !== id || expected.init !== init) {
+        throw new Error(`Unknown or changed native executor definition: ${id}`)
+      }
+      nativeCapabilities.require(`native.tool.${id}`)
+    }
+    const item = { id, ...(await init({ agent })) }
+    executorBindings.set(item, { id, execute: item.execute, kind })
+    return item
+  }
+
+  /** Queued task dispatch uses the genuine native definition, not a name. */
+  export async function initializeNative(t: Tool.Info, agent?: Agent.Info) {
+    return initialize(t, "builtin", agent)
+  }
 
   export const state = Instance.state(async () => {
     const custom = [] as Tool.Info[]
@@ -110,11 +191,11 @@ export namespace ToolRegistry {
     custom.push(tool)
   }
 
-  async function all(): Promise<Tool.Info[]> {
+  async function all() {
     const custom = await state().then((x) => x.custom)
     const config = await Config.get()
 
-    return [
+    const builtins = [
       InvalidTool,
       ...(["app", "cli", "desktop"].includes(Flag.DAX_CLIENT) ? [QuestionTool] : []),
       ShellTool,
@@ -137,12 +218,15 @@ export namespace ToolRegistry {
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.DAX_EXPERIMENTAL_PLAN_MODE && Flag.DAX_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),
       ReflectionTool,
-      ...custom,
+    ]
+    return [
+      ...builtins.map((info) => ({ info, kind: "builtin" as const })),
+      ...custom.map((info) => ({ info, kind: "plugin" as const })),
     ]
   }
 
   export async function ids() {
-    return all().then((x) => x.map((t) => t.id))
+    return all().then((x) => x.map((t) => t.info.id))
   }
 
   /**
@@ -166,7 +250,7 @@ export namespace ToolRegistry {
     const tools = await all()
     const result = await Promise.all(
       tools
-        .filter((t) => {
+        .filter(({ info: t }) => {
           // Enable websearch/codesearch for zen users OR via enable flag
           if (t.id === "codesearch" || t.id === "websearch") {
             return model.providerID === "dax" || Flag.DAX_ENABLE_EXA
@@ -180,12 +264,9 @@ export namespace ToolRegistry {
 
           return true
         })
-        .map(async (t) => {
+        .map(async ({ info: t, kind }) => {
           using _ = log.time(t.id)
-          return {
-            id: t.id,
-            ...(await t.init({ agent })),
-          }
+          return initialize(t, kind, agent)
         }),
     )
     return result

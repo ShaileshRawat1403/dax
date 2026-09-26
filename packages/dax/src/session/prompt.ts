@@ -654,7 +654,8 @@ export namespace SessionPrompt {
 
       // pending subtask
       if (task?.type === "subtask") {
-        const taskTool = await TaskTool.init()
+        const taskTool = await ToolRegistry.initializeNative(TaskTool)
+        const taskExecutor = ToolRegistry.executionIdentity(taskTool)
         const taskModel = task.model ? await Provider.getModel(task.model.providerID, task.model.modelID) : model
         const assistantMessage = (await Session.updateMessage({
           id: Identifier.ascending("message"),
@@ -711,7 +712,7 @@ export namespace SessionPrompt {
           sessionID,
           invocationId: part.callID,
           toolId: "task",
-          executor: { kind: "builtin", id: "task" },
+          executor: { kind: taskExecutor.kind, id: taskExecutor.id },
           args: taskArgs,
           originTurnId: assistantMessage.id,
         })
@@ -768,7 +769,7 @@ export namespace SessionPrompt {
           canonicalResult = value
         }
         try {
-          result = Tool.parseResult("task", await taskTool.execute(taskArgs, taskCtx))
+          result = Tool.parseResult("task", await taskExecutor.execute(taskArgs, taskCtx))
           if (settled && !isNativeInvocationAuthorized(part.callID)) {
             throw new NativeSettlementStateError(part.callID, "task returned before final authorization")
           }
@@ -1251,8 +1252,6 @@ export namespace SessionPrompt {
       },
     })
 
-    const pluginToolIds = await ToolRegistry.pluginIds()
-
     for (const item of await ToolRegistry.tools(
       { modelID: input.model.api.id, providerID: input.model.providerID },
       input.agent,
@@ -1265,6 +1264,7 @@ export namespace SessionPrompt {
         description: item.description,
         inputSchema: jsonSchema(schema as any),
         async execute(args, options) {
+          const executor = ToolRegistry.executionIdentity(item)
           let canonicalResult: Tool.Result | undefined
           let beforeTriggered = false
           const runBefore = async () => {
@@ -1287,7 +1287,7 @@ export namespace SessionPrompt {
                 sessionID: ctx.sessionID,
                 invocationId,
                 toolId: item.id,
-                executor: { kind: pluginToolIds.has(item.id) ? "plugin" : "builtin", id: item.id },
+                executor: { kind: executor.kind, id: executor.id },
                 args,
                 originTurnId: ctx.messageID,
               })
@@ -1307,7 +1307,7 @@ export namespace SessionPrompt {
 
           let result: Awaited<ReturnType<typeof item.execute>>
           try {
-            result = await item.execute(args, ctx)
+            result = await executor.execute(args, ctx)
             if (settled && invocationId && !isNativeInvocationAuthorized(invocationId)) {
               throw new NativeSettlementStateError(invocationId, `${item.id} returned before final authorization`)
             }

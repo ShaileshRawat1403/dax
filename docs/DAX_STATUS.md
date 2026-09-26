@@ -51,12 +51,26 @@ installed binary are unchanged.
 All **eight aggregate gaps remain open**; scoped record-class coverage remains
 **11/11**, and `inv1.record-classes` remains closed. Sol implements bounded
 slices; Astra reviews architecture and every Tier 2 change before integration.
-The first deliverable is the [capability registry proposal](roadmap/CAPABILITY_REGISTRY_PROPOSAL.md),
-not runtime implementation or gap closure. Planned order is capability vocabulary
+The [capability registry proposal](roadmap/CAPABILITY_REGISTRY_PROPOSAL.md) received
+Astra's architecture approval for a native-only implementation slice. The current
+feature branch adds strict descriptive native enrollment and executor binding;
+runtime review is still required before integration. Plugin/MCP, operator/workflow,
+and worker/context enrollment follow on smaller separate branches. No additional
+gap is closed. Planned order is capability vocabulary
 and intrinsic properties, contract grants, shared enforcement, scoped journals,
 project journal, then governed memory promotion. Models cannot authorize durable
 memory promotion. An empty ledger would not itself approve a release; installation,
 compatibility, recovery, and real user-flow acceptance still require evidence.
+
+The [native-slice validation record](tooling/native-capability-registry-validation.md)
+records production dispatch controls, passing final-source local gates, retained
+earlier failures and the unchanged debug authority limitation.
+
+The initial registry does not implement grants, shared grant enforcement,
+contract migration, or a new no-contract policy. Existing v1 and no-contract
+behavior, approval, sandbox, scope, and verification checks remain in force.
+The proposal's successor-run requirement for legacy consequential execution still
+needs later operator-flow approval; architecture approval did not authorize it.
 
 The post-greeting Running/Brooding label is a separate unresolved observation,
 not an established cause of reply visibility or part of that correction. Earlier

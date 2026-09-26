@@ -53,9 +53,10 @@ export const AgentCommand = cmd({
           process.stderr.write(`Tool ${toolID} is disabled for agent ${agentName}` + EOL)
           process.exit(1)
         }
+        const executor = ToolRegistry.executionIdentity(tool)
         const params = parseToolParams(args.params as string | undefined)
         const ctx = await createToolContext(agent)
-        const result = await tool.execute(params, ctx)
+        const result = await executor.execute(params, ctx)
         process.stdout.write(JSON.stringify({ tool: toolID, input: params, result }, null, 2) + EOL)
         return
       }

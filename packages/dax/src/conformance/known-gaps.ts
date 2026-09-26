@@ -26,8 +26,8 @@
 
 export const KNOWN_GAPS = {
   "inv5.capability-vocabulary":
-    "No capability registry exists; capabilities are still separate architectural categories",
-  "inv5.capability-properties": "Capabilities do not declare intrinsic properties distinct from contract authority",
+    "Native model tools are enrolled; plugin/MCP, graph/workflow, worker and context entry points lack shared capability enrollment",
+  "inv5.capability-properties": "Native descriptors are validated and descriptive; unenrolled plugin/MCP, graph/workflow, worker and context executors lack validated intrinsic descriptors",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
   "scope.journal-primitive":
     "The journal machinery (append, sequence validation, locking, envelope validation, replay) is not generic over scope, so a second scope would copy it rather than instantiate it",

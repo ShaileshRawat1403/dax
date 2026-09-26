@@ -22,7 +22,6 @@ import { RunGateway } from "@/server/run-gateway"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { ToolRegistry } from "@/tool/registry"
 import { Tool } from "@/tool/tool"
-import { TaskTool } from "@/tool/task"
 import { Plugin } from "@/plugin"
 import { Truncate } from "@/tool/truncation"
 import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
@@ -201,9 +200,7 @@ describe("P0 authority integrity", () => {
           expect(executorRuns).toBe(1)
           expect(beforeHookStatus).toBe("authorized")
           expect(executorStatus).toBe("authorized")
-          expect((await getEventAuthorityState(session.id))?.invocations?.call_no_ask_probe?.status).toBe(
-            "completed",
-          )
+          expect((await getEventAuthorityState(session.id))?.invocations?.call_no_ask_probe?.status).toBe("completed")
           const resultEvent = (await readRunEvents(session.id)).find((event) => event.type === "tool_result_recorded")
           const expectedCommitment = await computeCanonicalCommitment({
             title: "probe",
@@ -230,6 +227,10 @@ describe("P0 authority integrity", () => {
     const testProject = path.join(testHome, "queued-subtask-project")
     await fs.mkdir(testProject, { recursive: true })
     await fs.mkdir(path.join(testHome, ".config", "dax"), { recursive: true })
+    await fs.writeFile(
+      path.join(testProject, "dax.json"),
+      JSON.stringify({ agent: { general: { model: "openai/gpt-4o" } } }),
+    )
 
     await Instance.provide({
       directory: testProject,
@@ -250,31 +251,30 @@ describe("P0 authority integrity", () => {
         await transitionEventAuthority(session.id, "running", "execution_started", {})
 
         let executorStatus: string | undefined
-        const realTask = await TaskTool.init()
-        const taskInit = spyOn(TaskTool, "init").mockResolvedValue({
-          ...realTask,
-          async execute(_args, ctx) {
-            await ctx.ask({ permission: "task", patterns: ["general"], always: ["general"], metadata: {} })
-            await ctx.authorize()
-            const authority = await getEventAuthorityState(session.id)
-            executorStatus = Object.values(authority?.invocations ?? {}).find(
-              (invocation) => invocation.toolId === "task",
-            )?.status
-            const result = {
-              title: "queued task",
-              output: "settled",
-              metadata: { sessionId: "ses_probe", model: false as const },
-            }
-            ctx.captureValidatedResult?.(result)
-            return result
-          },
-        })
         const originalGetModel = Provider.getModel
         const getModel = spyOn(Provider, "getModel").mockImplementation(async (providerID, modelID) => {
           if (providerID === "openai" && modelID === "gpt-4o") return settlementModel
           return originalGetModel(providerID, modelID)
         })
         const summarySpy = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
+        // Genuine TaskTool creates/binds the child and records delegation. Only
+        // its child prompt boundary is controlled, avoiding replay of the
+        // parent's copied queued-subtask fixture into a recursive child task.
+        const originalPrompt = SessionPrompt.prompt
+        const promptTarget = SessionPrompt as {
+          prompt(input: SessionPrompt.PromptInput): ReturnType<typeof SessionPrompt.prompt>
+        }
+        const childPrompt = spyOn(promptTarget, "prompt").mockImplementation(async (input) => {
+          if (input.sessionID === session.id) return originalPrompt(input)
+          const authority = await getEventAuthorityState(session.id)
+          executorStatus = Object.values(authority?.invocations ?? {}).find(
+            (invocation) => invocation.toolId === "task",
+          )?.status
+          expect((await Session.get(input.sessionID)).governingRunId).toBe(session.id)
+          return { parts: [{ type: "text", text: "settled" }] } as unknown as Awaited<
+            ReturnType<typeof SessionPrompt.prompt>
+          >
+        })
         const stream = spyOn(LLM, "stream").mockResolvedValue({
           fullStream: (async function* () {
             yield { type: "start" }
@@ -301,8 +301,7 @@ describe("P0 authority integrity", () => {
           const events = await readRunEvents(session.id)
           const invocation = events.find(
             (event) =>
-              event.type === "tool_invocation_recorded" &&
-              (event.payload as { toolId: string }).toolId === "task",
+              event.type === "tool_invocation_recorded" && (event.payload as { toolId: string }).toolId === "task",
           )
           expect(invocation).toBeDefined()
           const invocationId = (invocation?.payload as { invocationId: string } | undefined)?.invocationId
@@ -310,7 +309,7 @@ describe("P0 authority integrity", () => {
           expect(events.find((event) => event.type === "tool_result_recorded")?.correlationId).toBe(invocationId)
           expect((await getEventAuthorityState(session.id))?.invocations?.[invocationId!]?.status).toBe("completed")
         } finally {
-          taskInit.mockRestore()
+          childPrompt.mockRestore()
           getModel.mockRestore()
           summarySpy.mockRestore()
           stream.mockRestore()

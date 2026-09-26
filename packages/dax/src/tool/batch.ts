@@ -61,7 +61,6 @@ export const BatchTool = Tool.define("batch", async () => {
       const { ToolRegistry } = await import("./registry")
       const availableTools = await ToolRegistry.tools({ modelID: "", providerID: "" })
       const toolMap = new Map(availableTools.map((t) => [t.id, t]))
-      const pluginToolIds = await ToolRegistry.pluginIds()
 
       const executeCall = async (call: (typeof toolCalls)[0]) => {
         const callStartTime = Date.now()
@@ -82,6 +81,8 @@ export const BatchTool = Tool.define("batch", async () => {
             )
           }
 
+          const executor = ToolRegistry.executionIdentity(tool)
+
           // A batch wrapper is not authority for its leaves. Read the immutable
           // contract immediately before the nested executable boundary so a
           // registry entry alone cannot grant the nested tool permission.
@@ -98,7 +99,7 @@ export const BatchTool = Tool.define("batch", async () => {
             sessionID: ctx.sessionID,
             invocationId: partID,
             toolId: call.tool,
-            executor: { kind: pluginToolIds.has(call.tool) ? "plugin" : "builtin", id: call.tool },
+            executor: { kind: executor.kind, id: executor.id },
             args: validatedParams,
             originTurnId: ctx.messageID,
             parentInvocationId: ctx.callID && isNativeSettlementPending(ctx.callID) ? ctx.callID : undefined,
@@ -148,7 +149,7 @@ export const BatchTool = Tool.define("batch", async () => {
 
           let result: Tool.Result
           try {
-            result = Tool.parseResult(call.tool, await tool.execute(validatedParams, leafCtx))
+            result = Tool.parseResult(call.tool, await executor.execute(validatedParams, leafCtx))
             if (settled && !isNativeInvocationAuthorized(partID)) {
               throw new NativeSettlementStateError(partID, `${call.tool} returned before final authorization`)
             }
