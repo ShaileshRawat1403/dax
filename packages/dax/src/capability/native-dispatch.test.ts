@@ -181,6 +181,19 @@ async function direct(sessionID: string, id: string, args: Record<string, unknow
 }
 
 describe("native capability enrollment at production dispatch", () => {
+  if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1" && process.platform === "win32") {
+    for (const change of [false, true]) {
+      test(`Windows cwd contrast: ${change ? "chdir and restore" : "no chdir"}, no bootstrap`, () => {
+        const previous = process.cwd()
+        try {
+          if (change) process.chdir(directory)
+        } finally {
+          process.chdir(previous)
+        }
+        expect(process.cwd()).toBe(previous)
+      })
+    }
+  }
   test("production built-ins are enrolled; same-name plugin stays unenrolled and executes", async () => {
     await Instance.provide({
       directory,
@@ -549,8 +562,10 @@ describe("native capability enrollment at production dispatch", () => {
         output += String(text)
         return true
       })
+      const cwdQuery =
+        process.env.DAX_DEBUG_CWD_QUERY_ONLY === "1" ? spyOn(process, "cwd").mockReturnValue(directory) : undefined
       try {
-        process.chdir(directory)
+        if (!cwdQuery) process.chdir(directory)
         const handler = AgentCommand.handler
         if (typeof handler !== "function") throw new Error("Debug handler unavailable")
         let error: unknown
@@ -579,7 +594,8 @@ describe("native capability enrollment at production dispatch", () => {
         defaultModel.mockRestore()
         create.mockRestore()
         tools.mockRestore()
-        process.chdir(previousDirectory)
+        cwdQuery?.mockRestore()
+        if (!cwdQuery) process.chdir(previousDirectory)
       }
     })
   }

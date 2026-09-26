@@ -77,6 +77,23 @@ jobs:
           DAX_DISABLE_RUN_NOTICE: "1"
         run: bun test packages/dax/src/capability/native-dispatch.test.ts -t 'real debug handler'
 
+      - name: Windows bare cwd teardown contrasts (temporary diagnostic)
+        if: failure() && steps.windows_debug_repro.outcome == 'failure'
+        env:
+          DAX_DEBUG_TEARDOWN_DIAGNOSTICS: "1"
+        run: bun test packages/dax/src/capability/native-dispatch.test.ts -t 'Windows cwd contrast'
+
+      - name: Windows real debug query-only cwd contrast (temporary diagnostic)
+        if: failure() && steps.windows_debug_repro.outcome == 'failure'
+        env:
+          DAX_DEBUG_CWD_QUERY_ONLY: "1"
+          DAX_DISABLE_MODELS_FETCH: "1"
+          DAX_EXPERIMENTAL_DISABLE_FILEWATCHER: "1"
+          DAX_DISABLE_CONFIG_AUTO_INSTALL: "1"
+          DAX_DISABLE_SHADOW_AUDIT: "1"
+          DAX_DISABLE_RUN_NOTICE: "1"
+        run: bun test packages/dax/src/capability/native-dispatch.test.ts -t 'real debug handler'
+
       - name: Check repo integrity
         run: bun run check:repo
 
