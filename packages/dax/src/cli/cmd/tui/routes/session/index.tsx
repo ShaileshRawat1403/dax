@@ -136,6 +136,7 @@ import {
 } from "@/dax/presentation/session-stream"
 import { StreamItem } from "../../component/stream"
 import { TodoStreamBlock } from "../../component/stream/todo-stream-block"
+import { shouldRenderSessionText } from "./session-text"
 
 const HIDDEN_TOOLS = new Set(["todowrite", "reflection"])
 const COMPACT_TOOLS = new Set(["read", "glob", "grep", "list"])
@@ -2241,19 +2242,6 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   )
 }
 
-// Sub-task agents whose text output is suppressed entirely from the main stream.
-// These are also filtered at the session-stream layer; this is a belt-and-suspenders guard.
-const SUB_TASK_AGENTS_UI = new Set([
-  "explore",
-  "explorer",
-  "review",
-  "reviewer",
-  "verify",
-  "verifier",
-  "audit",
-  "auditor",
-])
-
 function TextPart(props: {
   last: boolean
   part: TextPart
@@ -2264,9 +2252,6 @@ function TextPart(props: {
   const ctx = use()
   const { syntax, theme } = useTheme()
   const isStreaming = createMemo(() => props.last && !(props.message.time as any).completed)
-  const agentName = createMemo(() => (props.message as AssistantMessage).agent?.toLowerCase() ?? "")
-  // Sub-task agent text is suppressed entirely — their output is not meaningful to the user
-  const isSubTaskAgent = createMemo(() => SUB_TASK_AGENTS_UI.has(agentName()))
   const [cursorOn, setCursorOn] = createSignal(true)
   createEffect(() => {
     if (!isStreaming()) {
@@ -2286,7 +2271,7 @@ function TextPart(props: {
   )
 
   return (
-    <Show when={props.part.text.trim() && !isSubTaskAgent()}>
+    <Show when={shouldRenderSessionText(props.part)}>
       <Show
         when={!externalReport()}
         fallback={
