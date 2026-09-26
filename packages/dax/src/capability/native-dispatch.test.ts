@@ -65,9 +65,64 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await Instance.disposeAll()
+  if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
+    const observable = process as unknown as { _getActiveHandles?: () => { constructor?: { name?: string } }[] }
+    console.error(
+      "TEARDOWN_CONTEXT",
+      JSON.stringify({
+        cwd: process.cwd(),
+        home,
+        directory,
+        pid: process.pid,
+        handles: observable._getActiveHandles?.().map((handle) => handle.constructor?.name),
+      }),
+    )
+    if (process.platform === "win32") {
+      const children = Bun.spawnSync([
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        `Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${process.pid} } | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress`,
+      ])
+      console.error("TEARDOWN_CHILD_PROCESSES", children.stdout.toString(), children.stderr.toString())
+    }
+  }
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
   else process.env.DAX_TEST_HOME = previousHome
-  await fs.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  try {
+    await fs.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  } catch (error) {
+    if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
+      // Only the freshly created synthetic fixture is probed; the original
+      // cleanup failure is still thrown. This inventory cannot prove no handles.
+      const probe = async (target: string): Promise<void> => {
+        const entries = await fs.readdir(target, { withFileTypes: true }).catch(() => [])
+        console.error(
+          "TEARDOWN_ENTRIES",
+          target,
+          entries.map((entry) => entry.name),
+        )
+        for (const entry of entries) {
+          const child = path.join(target, entry.name)
+          try {
+            await fs.rm(child, { recursive: true, force: true })
+            console.error("TEARDOWN_REMOVED", child)
+          } catch (childError) {
+            console.error("TEARDOWN_LOCKED", child, String(childError))
+            if (entry.isDirectory()) await probe(child)
+          }
+        }
+        try {
+          await fs.rmdir(target)
+          console.error("TEARDOWN_DIRECTORY_REMOVED", target)
+        } catch (directoryError) {
+          console.error("TEARDOWN_DIRECTORY_LOCKED", target, String(directoryError))
+        }
+      }
+      await probe(home)
+    }
+    throw error
+  }
 })
 
 function context(sessionID: string): Tool.Context {
