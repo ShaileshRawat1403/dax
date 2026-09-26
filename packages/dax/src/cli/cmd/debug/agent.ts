@@ -56,7 +56,7 @@ export const AgentCommand = cmd({
         const executor = ToolRegistry.executionIdentity(tool)
         const params = parseToolParams(args.params as string | undefined)
         const ctx = await createToolContext(agent)
-        const result = await executor.execute(params, ctx)
+        const result = await executor.execute.call(executor.receiver, params, ctx)
         process.stdout.write(JSON.stringify({ tool: toolID, input: params, result }, null, 2) + EOL)
         return
       }

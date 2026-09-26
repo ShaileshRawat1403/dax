@@ -769,7 +769,7 @@ export namespace SessionPrompt {
           canonicalResult = value
         }
         try {
-          result = Tool.parseResult("task", await taskExecutor.execute(taskArgs, taskCtx))
+          result = Tool.parseResult("task", await taskExecutor.execute.call(taskExecutor.receiver, taskArgs, taskCtx))
           if (settled && !isNativeInvocationAuthorized(part.callID)) {
             throw new NativeSettlementStateError(part.callID, "task returned before final authorization")
           }
@@ -1307,7 +1307,7 @@ export namespace SessionPrompt {
 
           let result: Awaited<ReturnType<typeof item.execute>>
           try {
-            result = await executor.execute(args, ctx)
+            result = await executor.execute.call(executor.receiver, args, ctx)
             if (settled && invocationId && !isNativeInvocationAuthorized(invocationId)) {
               throw new NativeSettlementStateError(invocationId, `${item.id} returned before final authorization`)
             }

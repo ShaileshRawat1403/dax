@@ -81,6 +81,7 @@ export namespace ToolRegistry {
     kind: "builtin" | "plugin"
     id: string
     execute: T["execute"]
+    receiver: T
     capability?: CapabilityDescriptor
   } {
     const binding = executorBindings.get(item)
@@ -91,6 +92,7 @@ export namespace ToolRegistry {
       kind: binding.kind,
       id: binding.id,
       execute: binding.execute as T["execute"],
+      receiver: item,
       ...(binding.kind === "builtin" ? { capability: nativeCapabilities.require(`native.tool.${binding.id}`) } : {}),
     }
   }
@@ -105,7 +107,7 @@ export namespace ToolRegistry {
       }
       nativeCapabilities.require(`native.tool.${id}`)
     }
-    const item = { id, ...(await init({ agent })) }
+    const item = { id, ...(await init.call(t, { agent })) }
     executorBindings.set(item, { id, execute: item.execute, kind })
     return item
   }

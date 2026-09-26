@@ -149,7 +149,10 @@ export const BatchTool = Tool.define("batch", async () => {
 
           let result: Tool.Result
           try {
-            result = Tool.parseResult(call.tool, await executor.execute(validatedParams, leafCtx))
+            result = Tool.parseResult(
+              call.tool,
+              await executor.execute.call(executor.receiver, validatedParams, leafCtx),
+            )
             if (settled && !isNativeInvocationAuthorized(partID)) {
               throw new NativeSettlementStateError(partID, `${call.tool} returned before final authorization`)
             }
@@ -166,7 +169,10 @@ export const BatchTool = Tool.define("batch", async () => {
                 ctx.abort.aborted
                   ? {
                       status: "cancelled",
-                      cancellation: { code: "aborted", message: error instanceof Error ? error.message : String(error) },
+                      cancellation: {
+                        code: "aborted",
+                        message: error instanceof Error ? error.message : String(error),
+                      },
                     }
                   : {
                       status: "failed",

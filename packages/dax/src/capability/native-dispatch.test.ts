@@ -67,7 +67,7 @@ afterEach(async () => {
   await Instance.disposeAll()
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
   else process.env.DAX_TEST_HOME = previousHome
-  await fs.rm(home, { recursive: true, force: true })
+  await fs.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 function context(sessionID: string): Tool.Context {
@@ -186,6 +186,80 @@ describe("native capability enrollment at production dispatch", () => {
     expect(error).toBeInstanceOf(Error)
     expect(error.message).toContain("Unknown or changed native executor definition")
   })
+
+  test("unenrolled custom initializer retains its original receiver", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const custom: Tool.Info = {
+          id: "receiver-probe",
+          async init() {
+            return {
+              description: this.id,
+              parameters: z.object({}),
+              result: Tool.Result,
+              async execute() {
+                return { title: "receiver", output: "unchanged", metadata: {} }
+              },
+            }
+          },
+        }
+        await ToolRegistry.register(custom)
+        const item = (await ToolRegistry.tools({ modelID: "", providerID: "" })).find((item) => item.id === custom.id)!
+        expect(item.description).toBe(custom.id)
+        expect(ToolRegistry.executionIdentity(item).kind).toBe("plugin")
+        expect(ToolRegistry.executionIdentity(item).capability).toBeUndefined()
+      },
+    })
+  })
+
+  for (const route of ["direct", "batch"] as const) {
+    test(`${route}: unenrolled custom executor retains its initialized receiver`, async () => {
+      await Instance.provide({
+        directory,
+        async fn() {
+          let received = ""
+          await ToolRegistry.register({
+            id: "execute-receiver-probe",
+            async init() {
+              return {
+                description: "original initialized receiver",
+                parameters: z.object({}),
+                result: Tool.Result,
+                async execute(this: { description: string }, _args: unknown, ctx: Tool.Context) {
+                  received = this.description
+                  const result = Tool.parseResult("execute-receiver-probe", {
+                    title: "receiver",
+                    output: received,
+                    metadata: {},
+                  })
+                  ctx.captureValidatedResult?.(result)
+                  return result
+                },
+              }
+            },
+          })
+          const session = await Session.create({ title: "Custom receiver" })
+          await Session.update(session.id, (draft) => {
+            draft.permission = [{ permission: "*", pattern: "*", action: "allow" }]
+          })
+          if (route === "direct") {
+            const result = await direct(session.id, "execute-receiver-probe", {})
+            expect(result.entered).toBe(true)
+            expect(result.outcome).not.toBeInstanceOf(Error)
+          } else {
+            const batch = await BatchTool.init()
+            const result = await batch.execute(
+              { tool_calls: [{ tool: "execute-receiver-probe", parameters: {} }] },
+              context(session.id),
+            )
+            expect(result.metadata).toMatchObject({ successful: 1, failed: 0 })
+          }
+          expect(received).toBe("original initialized receiver")
+        },
+      })
+    })
+  }
 
   test("genuine native definition cannot acquire another ID or a replacement initializer", async () => {
     const id = WriteTool.id

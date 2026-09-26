@@ -11,7 +11,9 @@ hosted CI are supplied in the handoff, not inferred from a moving branch.
 Strict, immutable descriptive native capability catalog and private bindings to
 the genuine definition's captured ID/initializer and initialized executor.
 SessionPrompt direct tools, queued native task, batch leaves, and the actual
-debug agent handler resolve before hooks/dispatch and call the captured function.
+debug agent handler resolve before hooks/dispatch and call the captured function
+with its original initialized receiver. Captured initializers retain their
+original definition receiver too.
 Same-name plugins retain plugin provenance and have no native descriptor; their
 existing execution remains available. MCP execution is unchanged and unenrolled.
 
@@ -37,16 +39,18 @@ meaningful missing-descriptor checks on a real registered plugin.
 - Durable Bun:
   `/Users/Shailesh/MYAIAGENTS/dax/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun`;
   explicit `--version`: `1.4.0`. Frozen install passed; lockfile/manifests unchanged.
-- Focused tests: **36 passed, 0 failed, 175 assertions** across native-dispatch,
+- Focused tests: **39 passed, 0 failed, 183 assertions** across native-dispatch,
   contract-capability, batch-contract-authority, governing-run-authority and
   authority-integrity. Genuine definition ID/initializer mutation is rejected;
   changed executors are rejected before body/hooks; post-lookup mutation during
   a hook, ask callback or debug context await cannot replace captured execution.
   Same-name plugin dispatch succeeds without native enrollment. Frozen descriptor
   mutation cannot weaken a contract-blocked write; no-contract write permission
-  flow and governing-child scope denials remain covered.
+  flow and governing-child scope denials remain covered. Raw custom Tool.Info
+  controls retain initializer and direct/batch execute receivers; these preserve
+  plugin compatibility, not plugin capability enrollment.
 - Stable final-source `release:gates`: **exit 0**. Integrity, legacy guard,
-  typecheck, lint, **1,880 passed / 2 skipped / 0 failed**, smoke evaluations,
+  typecheck, lint, **1,883 passed / 2 skipped / 0 failed**, smoke evaluations,
   Rust format/clippy/tests and release check passed. This is source validation,
   not `DAX_RELEASE=1` tagged release approval.
 - Final gate environment: pinned Bun directory first on PATH;
@@ -58,13 +62,26 @@ meaningful missing-descriptor checks on a real registered plugin.
 
 Durable raw logs are under the owned worktree's ignored
 `artifacts/validation/native-capability-registry/` directory, outside discovery:
-`focused-complete.log`, `typecheck-complete.log`, `lint-complete.log`, and
-`release-gates-complete.log`. The handoff provides their absolute location.
+`focused-final.log` and `release-gates-final-stable.log`. The handoff provides
+their absolute location. Earlier completed green runs are retained in
+`release-gates-complete.log` and `release-gates-receiver.log`, but predate the
+combined receiver/fixture correction and are not final-tree evidence.
 
 ## Earlier failures and fixture corrections
 
 Retained, not called passing evidence:
 
+- `ci-f62c22d-windows-failed.log`: the superseded f62c22d CI passed Ubuntu/macOS
+  but failed two debug-handler tests at synthetic afterEach cleanup with Windows
+  EBUSY. Instance disposal already ran; cleanup now uses bounded fs.rm retries
+  (10 retries, 100 ms delay) and still throws on final failure. No test is skipped
+  and no authority assertion is weakened.
+- `focused-receivers-final.log`: the first raw custom executor fixture reached
+  its receiver but failed the existing canonical-result requirement; it now
+  validates and publishes its result through captureValidatedResult, as required
+  by the unchanged production settlement boundary.
+- `release-gates-receivers-stable.log`: explicitly cancelled with exit 143 before
+  the Windows cleanup fixture correction; partial, superseded, not final evidence.
 - `focused-initial.log`, `focused-corrected.log`, `focused.log`: fixture failures
   included absent Git observation baseline, checking a batch summary rather than
   the persisted error part, missing isolated conformance home, and existing
