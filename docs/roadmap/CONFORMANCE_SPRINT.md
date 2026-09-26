@@ -1,10 +1,11 @@
 # Conformance sprint: original nine-gap scope
 
-Status: paused at the source checkpoint during the maintainer's absence. Recorded
-2026-09-20 at the maintainer's request.
+Status: resumed on 2026-09-26 at the maintainer's request, proposal before runtime.
+The 2026-09-20 pause during the maintainer's absence remains historical evidence.
 Implementation model: Sol. Reviewer: Astra 6, high reasoning. Released baseline:
 DAX v1.5.0 at `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`;
-current sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`.
+original sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`;
+resumed source baseline: `0170d2f8137bbd0abab7d9f6d72837ca5cec59f0`.
 
 The original sprint scope was nine aggregate gaps. The complete-event-history
 workstream, including compaction-replacement provenance, is integrated in `main`
@@ -14,8 +15,13 @@ review; the [gap ledger](../../packages/dax/src/conformance/known-gaps.ts) now h
 **eight open entries**. The
 [post-merge main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
 passed on Ubuntu, macOS, and Windows. This did not publish a release. The eight
-remaining gaps are deferred during the maintainer's absence; resume only after
-reviewing the checkpoint and selecting a bounded next item.
+remaining gaps were deferred during the maintainer's absence and remain open.
+The resumed first item is a [capability registry proposal](CAPABILITY_REGISTRY_PROPOSAL.md)
+for Astra's architecture review. This bookkeeping does not implement runtime or
+close a gap. The later Explore visibility correction is integrated at the resumed
+baseline, with [three-platform main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36222148982)
+and maintainer-confirmed interactive submission/reopen acceptance; it is not a
+conformance gap closure or new release.
 The objective is stronger reconstruction of run history, consistent contract
 permissions, and governed project memory. No release number or completion date
 is assigned. Nine entries were the original target scope, not an estimate that all
@@ -41,9 +47,11 @@ who reviewed, and follow the SOP when a second agent is active.
    Existing filename and source-pattern checks are tracking aids, not sufficient
    proof of implemented behavior. Decide event schemas, capability/grant semantics,
    and memory promotion authority before wiring production paths.
-2. Deliver event-history coverage and capability permissions as separate bounded
-   changes. The missing record classes can be delivered incrementally; the single
-   ledger entry stays open until all five are covered.
+2. Event-history coverage is integrated within its documented producer scope.
+   Deliver capability vocabulary/properties, then contract grants, then shared
+   enforcement as separate reviewed slices. Registry descriptors never grant
+   execution authority; unknown or unmapped consequential actions fail closed
+   at enrolled boundaries, without removing existing approval or sandbox checks.
 3. Generalize journal storage and add scope ownership, then introduce the project
    journal. Preserve independent run replay and historical event compatibility.
 4. Connect a governed memory writer only after project ownership, provenance,
@@ -75,6 +83,11 @@ current ledger. Dependencies refer to the gap IDs below.
 - Remove a ledger entry and unwrap its `expectGap` checks only when the entire
   invariant is demonstrated. Replace weak structural checks with behavior checks
   as part of that change; do not suppress failures or mark missing coverage done.
+- Ledger closure requires independently reviewed production behavior, not an
+  empty list. Release approval separately requires compatibility, installation,
+  recovery, and actual user-flow checks. User-facing changes require real UI
+  acceptance, not only fixtures. Keep the unexplained Running label and
+  intermittent test failures as separate observations, not causes or gap fixes.
 - Preserve the v1.5.0 integrity fixes and all existing authority, approval,
   verification, sandbox, and worker safeguards. Models and companion products
   cannot become the owner of DAX authority.

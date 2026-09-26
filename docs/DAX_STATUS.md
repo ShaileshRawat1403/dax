@@ -23,7 +23,7 @@ both passed. All eleven published archive digests matched the manifest and
 GitHub asset digests; the published macOS installer was exercised and the local
 1.4.0 executable replaced with 1.5.0.
 
-At this pause checkpoint, the [conformance sprint plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
+At the historical pause checkpoint, the [conformance sprint plan](roadmap/CONFORMANCE_SPRINT.md), linked from the
 [product roadmap](product/ROADMAP.md), retains the original scope of nine aggregate
 gaps. Sol implemented and Astra reviewed the delegation, durable assistant-message,
 prompt, context-contribution, and compaction-replacement provenance slices. The
@@ -35,7 +35,33 @@ complete-event-history workstream is integrated in `main` at
 passed on Ubuntu, macOS, and Windows, including Rust tests. This integration did
 not publish a release; v1.5.0 remains the released baseline. The reviewed home
 visual pass is integrated into the checkpoint source, also unreleased. The eight
-remaining aggregate gaps are explicitly deferred during the maintainer's absence.
+remaining aggregate gaps were explicitly deferred during the maintainer's absence.
+
+## Resumed conformance work — 2026-09-26
+
+The maintainer has resumed conformance work from published source `main` at
+`0170d2f8137bbd0abab7d9f6d72837ca5cec59f0`, verified by fetch and clean
+local/remote parity. The Explore reply-visibility correction is integrated;
+[exact-SHA main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36222148982)
+passed on Ubuntu, macOS, and Windows. The maintainer confirmed a fresh interactive
+Explore greeting and `--continue` reopen displayed the same persisted reply.
+These source changes remain unreleased: published v1.5.0, its assets, and the
+installed binary are unchanged.
+
+All **eight aggregate gaps remain open**; scoped record-class coverage remains
+**11/11**, and `inv1.record-classes` remains closed. Sol implements bounded
+slices; Astra reviews architecture and every Tier 2 change before integration.
+The first deliverable is the [capability registry proposal](roadmap/CAPABILITY_REGISTRY_PROPOSAL.md),
+not runtime implementation or gap closure. Planned order is capability vocabulary
+and intrinsic properties, contract grants, shared enforcement, scoped journals,
+project journal, then governed memory promotion. Models cannot authorize durable
+memory promotion. An empty ledger would not itself approve a release; installation,
+compatibility, recovery, and real user-flow acceptance still require evidence.
+
+The post-greeting Running/Brooding label is a separate unresolved observation,
+not an established cause of reply visibility or part of that correction. Earlier
+intermittent relay-test failures and the macOS approval-wait failure remain
+unexplained; preserve their historical evidence and do not assert a root cause.
 
 Compaction replacement binds the active prefix and summary before provider
 dispatch. Successful adoption records a replacement boundary linked to final
@@ -51,12 +77,12 @@ from an OS process kill has not been tested. Older binaries cannot read the new
 event vocabulary: do not direct the published v1.5.0 binary at newer development-state
 journals.
 
-## Pause checkpoint and restart
+## Historical pause checkpoint and development setup
 
 The checkpoint merges the approved status documentation at
 `c10f48f9887968535500f7128c1f37508cd972ab` and home UI at
 `9e245b839f9cf0871a18cb4194533789298587e3`, retaining the UI branch's design
-ancestor `a8043169adb35a7fcc9e73967bf31160581d2835`. The only runtime change
+ancestor `a8043169adb35a7fcc9e73967bf31160581d2835`. At that checkpoint, the only runtime change
 relative to `7ccfc8a4cdd93ff054cabe2c43197438b88e8995` is the reviewed home
 UI diff. The [checkpoint validation record](tooling/dax-pause-checkpoint-validation.md)
 documents the reported local gates, missing raw logs, and verified exact-SHA CI.
@@ -68,8 +94,8 @@ in a fresh DAX checkout. Confirm the resulting
 `artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun --version` prints `1.4.0`
 before putting that binary first on `PATH` and running the frozen install and
 gates. Do not rely on a previous `/private/tmp` binary; it is no longer present.
-To restart after the maintainer returns: fetch `main`, confirm the checkpoint's
-integration and clean parity, read this status and the eight open ledger entries,
+For each resumed slice: fetch `main`, confirm its integration and clean parity,
+read this status and the eight open ledger entries,
 then choose one bounded gap on its own branch and obtain Astra's review before
 integration. Keep development journals with their matching development binary.
 
