@@ -20,10 +20,15 @@ import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { MessageV2 } from "@/session/message-v2"
 import { AgentCommand } from "@/cli/cmd/debug/agent"
+import { File } from "@/file"
+import { Ripgrep } from "@/file/ripgrep"
+import { Vcs } from "@/project/vcs"
 
 let home: string
 let directory: string
 let previousHome: string | undefined
+let observedScans: { cwd: string; complete: boolean }[] = []
+let restoreScan = () => {}
 const model = Provider.Model.parse({
   id: "gpt-4o",
   providerID: "openai",
@@ -47,6 +52,20 @@ const model = Provider.Model.parse({
 })
 
 beforeEach(async () => {
+  observedScans = []
+  if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
+    const original = Ripgrep.files
+    const scan = spyOn(Ripgrep, "files").mockImplementation(async function* (input) {
+      const observation = { cwd: input.cwd, complete: false }
+      observedScans.push(observation)
+      try {
+        yield* original(input)
+      } finally {
+        observation.complete = true
+      }
+    })
+    restoreScan = () => scan.mockRestore()
+  }
   previousHome = process.env.DAX_TEST_HOME
   home = await fs.mkdtemp(path.join(os.tmpdir(), "dax-native-capability-"))
   directory = path.join(home, "project")
@@ -65,6 +84,7 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await Instance.disposeAll()
+  restoreScan()
   if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
     const observable = process as unknown as { _getActiveHandles?: () => { constructor?: { name?: string } }[] }
     console.error(
@@ -75,6 +95,7 @@ afterEach(async () => {
         directory,
         pid: process.pid,
         handles: observable._getActiveHandles?.().map((handle) => handle.constructor?.name),
+        scans: observedScans,
       }),
     )
   }
@@ -182,6 +203,17 @@ async function direct(sessionID: string, id: string, args: Record<string, unknow
 
 describe("native capability enrollment at production dispatch", () => {
   if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1" && process.platform === "win32") {
+    for (const resource of ["file", "vcs"] as const) {
+      test(`Windows bootstrap resource contrast: real ${resource} init`, async () => {
+        await Instance.provide({
+          directory,
+          async fn() {
+            if (resource === "file") File.init()
+            else await Vcs.init()
+          },
+        })
+      })
+    }
     for (const change of [false, true]) {
       test(`Windows cwd contrast: ${change ? "chdir and restore" : "no chdir"}, no bootstrap`, () => {
         const previous = process.cwd()

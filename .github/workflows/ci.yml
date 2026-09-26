@@ -94,6 +94,12 @@ jobs:
           DAX_DISABLE_RUN_NOTICE: "1"
         run: bun test packages/dax/src/capability/native-dispatch.test.ts -t 'real debug handler'
 
+      - name: Windows real bootstrap resource contrasts (temporary diagnostic)
+        if: failure() && steps.windows_debug_repro.outcome == 'failure'
+        env:
+          DAX_DEBUG_TEARDOWN_DIAGNOSTICS: "1"
+        run: bun test packages/dax/src/capability/native-dispatch.test.ts -t 'Windows bootstrap resource contrast'
+
       - name: Check repo integrity
         run: bun run check:repo
 
