@@ -93,6 +93,21 @@ with actual terminal captures, not an API-created session or unit test.
 - Initial typecheck caught overly narrow inferred adapter-table types; the public
   Record<string, Tool> contract is preserved. Initial lint caught test receiver
   aliasing and declaration style. Those checks were not weakened.
+- First committed candidate c07b972 passed 124 focused tests (625 assertions),
+  but release-gates-c07b972.log stopped at one obsolete MCP floating-promise
+  suppression. The notification handler now awaits Bus.publish. ESLint's prune
+  command removes only that unused count (2 to 1), with no active suppression
+  added and no rule disabled. lint-prune.log records an initial incorrect relative
+  command path; lint-prune-corrected.log is the successful package-root command.
+
+The actual 80x24 PTY submission typed "Check the synthetic MCP collision." and
+sent Enter on the separate input action. Two real stdio protocol names normalize
+to one alias. The existing toast rendered "Capability identity rejected: ambiguous";
+the controlled loopback provider counted zero calls, also after --continue reopen.
+Raw operator-tui.ansi, operator-reopen.ansi and operator-provider.ansi are retained.
+operator-rendered.txt is an approximate frame extracted from the real capture,
+not a native screenshot or mockup. The existing HTTP error console can clutter the
+terminal; general error/status presentation is not changed by this slice.
 
 IDs are logical source identity, not code/remote attestation, encryption or receipt.
 No new arguments/results/credentials/endpoints are retained for identity. Private
