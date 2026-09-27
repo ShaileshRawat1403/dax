@@ -1,7 +1,7 @@
 # Native capability registry slice — validation and limits
 
 Recorded 2026-09-26; scan lifecycle correction resumed 2026-09-27.
-Owner: Sol. Review: Astra, Tier 2 required before merge.
+Owner: Sol. Tier 2 reviewer: Astra; accepted and integrated on 2026-09-27.
 Branch: `feat/native-capability-registry`, based on approved proposal
 `0cb2b34b5531a090da97f1d29dc0d537ca0bb586`; published source main was
 `0170d2f8137bbd0abab7d9f6d72837ca5cec59f0`. Exact pushed review SHA and
@@ -62,8 +62,11 @@ meaningful missing-descriptor checks on a real registered plugin.
 - No operator-visible UI behavior changed in this slice; no new interactive UI
   acceptance is claimed. Published v1.5.0/assets/installed executable unchanged.
 
-Durable raw logs are under the owned worktree's ignored
-`artifacts/validation/native-capability-registry/` directory, outside discovery:
+Durable raw logs were copied, with a recursive comparison confirming parity, to
+the maintainer checkout's ignored directory outside discovery:
+`/Users/Shailesh/MYAIAGENTS/dax/artifacts/validation/native-capability-integrated/native-capability-registry/`.
+The original owned checkout is reused for the next docs-only proposal, not deleted
+with its dependency installation or artifacts. Logs include
 `focused-final.log` and `release-gates-final-stable.log` cover the earlier native
 tree. The scan correction uses `file-owner-focused-final.log`,
 `focused-file-owner-complete.log`, and `release-gates-file-owner-unrestricted.log`.
@@ -172,7 +175,8 @@ Retained additional attempts:
 Exact-SHA three-platform evidence is supplied in the handoff and raw hosted logs
 are retained alongside the local results. Passing Windows cleanup demonstrates
 the observable lifecycle fix,
-not identification of the precise OS handle. Review remains pending.
+not identification of the precise OS handle. The permission-denial follow-up below
+supersedes this source for final acceptance.
 
 ## Global-home permission-denied-child follow-up
 
@@ -204,5 +208,29 @@ check (`home-denial-release-gates.log`). The task-local `profile-home-denial`
 home and XDG directories and CI's 4 GiB Node heap setting were used, with
 permission for loopback and OS-sandbox tests; no runtime edits occurred during
 the gate run. Exact pushed platform CI is supplied in the review handoff.
-Earlier logs remain preserved;
-no merge, release, gap closure, grant authority or new adapter scope is claimed.
+Earlier logs remain preserved. These local results are Sol's validation, not
+independent review evidence.
+
+## Accepted integration — 2026-09-27
+
+Astra accepted `d2ef0b0f510c70df29d3855f399e02902fbe4014`, reporting independent
+**57 passed, 269 assertions**, including the previously failing permission-denial
+probe, and no remaining blocking finding. Feature
+[exact-SHA CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36292563240)
+passed on Ubuntu, macOS, and Windows. Sol fast-forwarded and pushed `main` to that
+same SHA; [post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364)
+passed on all three platforms, including Rust tests. Local/remote main parity and
+a clean tracked maintainer tree were verified before cleanup.
+
+Both merged proposal/implementation branch names were deleted locally and remotely
+after ancestry checks. The clean old proposal checkout was retired after preserving
+its validation log; the implementation checkout is reused on
+`docs/plugin-mcp-capability-proposal`. Astra's reviewer checkout, local development
+configuration, dependency installation and caches, and validation evidence were
+left intact. No new runtime work is part of the follow-up proposal.
+
+This integration publishes source, not a release. **v1.5.0** remains the latest
+published release; its assets and the installed binary were not changed. All
+**eight aggregate gaps remain open**. The exact Windows handle holder remains
+unidentified: the demonstrated claim is owned scan settlement before strict
+cleanup, not identification of an OS resource or general process-kill recovery.

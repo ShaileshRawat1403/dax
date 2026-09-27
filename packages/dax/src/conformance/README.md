@@ -103,8 +103,12 @@ target. They fail with a number, and that number is the progress metric.
   recovery is untested. The other eight aggregate gaps remain open; work resumed
   on 2026-09-26 with a [proposal-only capability slice](../../../../docs/roadmap/CAPABILITY_REGISTRY_PROPOSAL.md)
   after their deferral during the maintainer's absence. No additional ledger
-  closure is claimed. The native-only capability slice adds descriptive registry
-  enrollment, not contract grants or shared enforcement; plugin/MCP,
+  closure is claimed. The native-only capability slice was reviewed and integrated
+  at `d2ef0b0f510c70df29d3855f399e02902fbe4014`, with
+  [three-platform post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364).
+  It adds descriptive registry enrollment, not contract grants or shared enforcement.
+  The [plugin/MCP tool-identity proposal](../../../../docs/roadmap/PLUGIN_MCP_CAPABILITY_PROPOSAL.md)
+  awaits architecture review before implementation; plugin/MCP,
   operator/workflow, and worker/context adapters remain separate followups.
   Vocabulary and property aggregates both stay open. This development vocabulary is unreadable by
   older binaries; do not point published v1.5.0 at newer development journals.

@@ -16,9 +16,13 @@ review; the [gap ledger](../../packages/dax/src/conformance/known-gaps.ts) now h
 [post-merge main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/35872303816)
 passed on Ubuntu, macOS, and Windows. This did not publish a release. The eight
 remaining gaps were deferred during the maintainer's absence and remain open.
-The resumed first item is a [capability registry proposal](CAPABILITY_REGISTRY_PROPOSAL.md)
-for Astra's architecture review. This bookkeeping does not implement runtime or
-close a gap. The later Explore visibility correction is integrated at the resumed
+The resumed native-only [capability registry slice](CAPABILITY_REGISTRY_PROPOSAL.md)
+was accepted by Astra and integrated at `d2ef0b0f510c70df29d3855f399e02902fbe4014`,
+with [green post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364)
+on Ubuntu, macOS, and Windows. Native descriptors do not grant authority; both
+vocabulary/property aggregates remain open. The next bounded
+[plugin/MCP tool-identity proposal](PLUGIN_MCP_CAPABILITY_PROPOSAL.md) awaits
+architecture review before implementation. The later Explore visibility correction is integrated at the resumed
 baseline, with [three-platform main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36222148982)
 and maintainer-confirmed interactive submission/reopen acceptance; it is not a
 conformance gap closure or new release.

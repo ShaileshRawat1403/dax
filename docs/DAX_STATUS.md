@@ -52,11 +52,15 @@ All **eight aggregate gaps remain open**; scoped record-class coverage remains
 **11/11**, and `inv1.record-classes` remains closed. Sol implements bounded
 slices; Astra reviews architecture and every Tier 2 change before integration.
 The [capability registry proposal](roadmap/CAPABILITY_REGISTRY_PROPOSAL.md) received
-Astra's architecture approval for a native-only implementation slice. The current
-feature branch adds strict descriptive native enrollment and executor binding;
-runtime review is still required before integration. Plugin/MCP, operator/workflow,
-and worker/context enrollment follow on smaller separate branches. No additional
-gap is closed. Planned order is capability vocabulary
+Astra's architecture approval for a native-only implementation slice. Astra accepted
+the corrected implementation at `d2ef0b0f510c70df29d3855f399e02902fbe4014`, now
+integrated and published on `main`. [Post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364)
+passed on Ubuntu, macOS, and Windows at that exact SHA. This adds strict descriptive
+native enrollment and executor binding, not execution authority. Sol's next
+[plugin/MCP tool-identity proposal](roadmap/PLUGIN_MCP_CAPABILITY_PROPOSAL.md)
+awaits architecture review; no adapter implementation is started. Operator/workflow
+and worker/context enrollment remain separate followups. No additional gap is
+closed. Planned order is capability vocabulary
 and intrinsic properties, contract grants, shared enforcement, scoped journals,
 project journal, then governed memory promotion. Models cannot authorize durable
 memory promotion. An empty ledger would not itself approve a release; installation,
