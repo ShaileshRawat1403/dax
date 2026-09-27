@@ -58,7 +58,10 @@ integrated and published on `main`. [Post-integration CI](https://github.com/Sha
 passed on Ubuntu, macOS, and Windows at that exact SHA. This adds strict descriptive
 native enrollment and executor binding, not execution authority. Sol's next
 [plugin/MCP tool-identity proposal](roadmap/PLUGIN_MCP_CAPABILITY_PROPOSAL.md)
-awaits architecture review; no adapter implementation is started. Operator/workflow
+has Astra's architecture approval for loader-backed tools, with custom registration
+kept compatible and unenrolled. Plugin and MCP delivery use separate commits and
+independently runnable tests; substantial plugin work is reviewed before MCP begins.
+Runtime integration still requires Astra's review. Operator/workflow
 and worker/context enrollment remain separate followups. No additional gap is
 closed. Planned order is capability vocabulary
 and intrinsic properties, contract grants, shared enforcement, scoped journals,

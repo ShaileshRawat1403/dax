@@ -21,8 +21,9 @@ was accepted by Astra and integrated at `d2ef0b0f510c70df29d3855f399e02902fbe401
 with [green post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364)
 on Ubuntu, macOS, and Windows. Native descriptors do not grant authority; both
 vocabulary/property aggregates remain open. The next bounded
-[plugin/MCP tool-identity proposal](PLUGIN_MCP_CAPABILITY_PROPOSAL.md) awaits
-architecture review before implementation. The later Explore visibility correction is integrated at the resumed
+[plugin/MCP tool-identity proposal](PLUGIN_MCP_CAPABILITY_PROPOSAL.md) has architecture
+approval for separate plugin and MCP delivery, with runtime review before integration.
+Custom registration stays compatible and unenrolled. The later Explore visibility correction is integrated at the resumed
 baseline, with [three-platform main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36222148982)
 and maintainer-confirmed interactive submission/reopen acceptance; it is not a
 conformance gap closure or new release.

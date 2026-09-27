@@ -108,7 +108,8 @@ target. They fail with a number, and that number is the progress metric.
   [three-platform post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364).
   It adds descriptive registry enrollment, not contract grants or shared enforcement.
   The [plugin/MCP tool-identity proposal](../../../../docs/roadmap/PLUGIN_MCP_CAPABILITY_PROPOSAL.md)
-  awaits architecture review before implementation; plugin/MCP,
+  has architecture approval for separate plugin/MCP delivery with runtime review
+  before integration; plugin/MCP,
   operator/workflow, and worker/context adapters remain separate followups.
   Vocabulary and property aggregates both stay open. This development vocabulary is unreadable by
   older binaries; do not point published v1.5.0 at newer development journals.

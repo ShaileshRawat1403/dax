@@ -4,7 +4,8 @@ Owner: Sol. Architecture/Tier 2 reviewer: Astra. Recorded 2026-09-27.
 Inspected published baseline: `d2ef0b0f510c70df29d3855f399e02902fbe4014`.
 [Post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364)
 is green on Ubuntu, macOS, and Windows. Native enrollment is integrated; this
-document proposes the next bounded adapter slice, not runtime implementation.
+document specifies the approved next bounded adapter slice; implementation remains
+on a feature branch for Tier 2 review before integration.
 Published v1.5.0 remains unchanged; scoped provenance coverage is 11/11 and all
 eight aggregate gaps, including vocabulary/properties, remain open.
 
@@ -86,15 +87,10 @@ continues its legacy replacement behavior, explicitly unenrolled, and cannot
 steal an enrolled descriptor. This introduces fail-closed behavior for ambiguous
 dynamic catalogs; that compatibility change needs Astra's approval.
 
-Programmatic `register(tool)` remains usable and visibly unenrolled. A narrow,
-optional typed source argument can opt a custom registration into enrollment,
-using a distinct `registered_custom` origin kind and caller-supplied source key.
-That key is declared provenance, not verified module attribution; it cannot impersonate
-loader, MCP or native origin metadata. Binding its genuine initializer/executor
-works just like loader-backed entries; it
-cannot accept arbitrary descriptor/permission claims. This is the smallest
-internal interface extension for origins unavailable today, not a blanket registry
-requirement that disables all historical custom tools. Unenrolled paths remain
+Programmatic `register(tool)` remains usable and visibly unenrolled, with its API
+unchanged. Optional caller-declared provenance/enrollment is **deferred** for a
+separate interface decision. Legacy custom tools participate in ambiguity checks
+but cannot acquire a loader or native descriptor by name. Unenrolled paths remain
 an explicit coverage obligation, not a fallback for an invalid enrolled record.
 
 ## Lookup, invalidation and failures
@@ -105,6 +101,15 @@ Require the same identity at the adapter's direct first-effect boundary so calli
 the DAX-produced MCP tool directly cannot bypass binding validation. Direct calls
 made by arbitrary trusted code to its own SDK client are outside this boundary;
 we do not claim containment of that code.
+
+Catalog equality compares source ownership, captured function/receiver identity,
+alias, and execution-relevant metadata (description, validated input schema and
+adapter options); equality is not merely equal capability IDs. Unchanged
+rediscovery preserves healthy bindings. Changed execution-relevant metadata,
+source replacement, disconnect and tools-changed notifications invalidate affected
+bindings only. Discovery uses monotonically ordered tickets: an older asynchronous
+result cannot overwrite or restore state after a newer discovery/replacement.
+Overlapping discovery and unrelated-source isolation are required controls.
 
 Each binding captures a private generation token. Replacing a registration,
 disconnecting/replacing a client, or a tools-changed notification invalidates old
@@ -219,6 +224,21 @@ acceptance. Astra independently reviews the Tier 2 diff before any integration.
 No release, binary replacement, UI polish or unrelated Running-label/test-flake
 investigation is included.
 
-Decision requested: approve/refute this bounded tool-only enrollment, source-sidecar
-and optional registration metadata, conservative opaque properties, ambiguity
-compatibility rule and binding invalidation semantics before implementation.
+## Binding architecture decision — 2026-09-27
+
+Astra approved the loader-backed plugin-tool and MCP-tool direction after green
+[proposal CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293812475),
+with these constraints: custom-registration enrollment is deferred; native/plugin
+override selection is preserved; ambiguous aliases including legacy custom tools
+reject before offered-table publication; unchanged rediscovery preserves healthy
+bindings while execution-relevant changes invalidate affected sources; stale
+asynchronous discovery cannot overwrite newer state; identity is checked before
+hooks and again at the effect boundary after awaited approval/hooks. No retargeting
+or execution retry follows invalidation. Interpretation remains instance-scoped,
+descriptive, without authority, historical attestation or public source metadata.
+
+Deliver plugin and MCP in separate commits with independently runnable tests.
+If either is substantial, hand it off for review before starting the other. Full
+pinned-runtime gates, exact-SHA platform CI and an operator-visible collision/error
+check are required. All eight aggregate gaps remain open; this is not universal
+plugin/MCP enforcement. No runtime merge or release is authorized.

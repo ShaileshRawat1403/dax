@@ -28,7 +28,8 @@ The native-only [capability registry slice](../roadmap/CAPABILITY_REGISTRY_PROPO
 was reviewed and integrated at `d2ef0b0f510c70df29d3855f399e02902fbe4014`;
 [post-integration CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36293195364)
 passed on all three platforms. The next [plugin/MCP tool-identity proposal](../roadmap/PLUGIN_MCP_CAPABILITY_PROPOSAL.md)
-awaits architecture approval; no adapter implementation or new gap closure is claimed.
+has architecture approval for separate plugin/MCP delivery; runtime review remains
+required and no new gap closure is claimed.
 The complete-event-history workstream, including compaction
 replacement, is integrated in `main` at `7ccfc8a4cdd93ff054cabe2c43197438b88e8995`.
 Accepted record-class coverage is **11/11** and `inv1.record-classes` is closed;
