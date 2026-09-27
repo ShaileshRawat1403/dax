@@ -168,10 +168,7 @@ test("unexpected scan failure is logged, partial result excluded, and a later se
     yield "recovered.txt"
     input.signal!.throwIfAborted()
   })
-  restore.push(
-    () => files.mockRestore(),
-    () => error.mockRestore(),
-  )
+  restore.push(() => files.mockRestore(), () => error.mockRestore())
   await inProject(async () => {
     File.init()
     await drainUntil(() => error.mock.calls.length === 1)
@@ -262,7 +259,10 @@ test("disposal does not mask an unrelated scan error that races cancellation", a
     await new Promise<void>((resolve) => input.signal!.addEventListener("abort", () => resolve(), { once: true }))
     throw failure
   })
-  restore.push(() => files.mockRestore(), () => error.mockRestore())
+  restore.push(
+    () => files.mockRestore(),
+    () => error.mockRestore(),
+  )
   await inProject(async () => {
     File.init()
     await entered.promise
@@ -371,11 +371,19 @@ for (const failureCase of [
     await fs.promises.mkdir(path.join(root, "visible", "nested"), { recursive: true })
     const failure = Object.assign(new Error("controlled scan failure"), { code: failureCase.code })
     const original = fs.promises.readdir
+    // This fixture tests controlled failures and atomic cache preservation, not
+    // OS scheduling. Resolve its real directory snapshots before the tick loop.
+    const snapshots = new Map([
+      [root, await original(root, { withFileTypes: true })],
+      [path.join(root, "visible"), await original(path.join(root, "visible"), { withFileTypes: true })],
+    ])
     const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
     let reject = false
     const failingDirectory = failureCase.at === "root" ? root : path.join(root, "visible")
     const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
       if (reject && directory === failingDirectory) throw failure
+      const snapshot = snapshots.get(directory)
+      if (snapshot) return [...snapshot]
       return original(directory, options)
     })
     const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
@@ -406,6 +414,48 @@ for (const failureCase of [
     })
   })
 }
+
+test("pending global-home I/O stays nonblocking and publishes only after release", async () => {
+  await fs.promises.mkdir(path.join(root, "visible", "nested"), { recursive: true })
+  const original = fs.promises.readdir
+  const snapshots = new Map([
+    [root, await original(root, { withFileTypes: true })],
+    [path.join(root, "visible"), await original(path.join(root, "visible"), { withFileTypes: true })],
+  ])
+  const entered = deferred()
+  const release = deferred()
+  const childRead = deferred()
+  let reads = 0
+  const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
+  const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
+    if (directory === root && ++reads === 1) {
+      entered.resolve()
+      await release.promise
+    }
+    if (directory === path.join(root, "visible")) childRead.resolve()
+    const snapshot = snapshots.get(directory)
+    return snapshot ? [...snapshot] : original(directory, options)
+  })
+  restore.push(() => read.mockRestore())
+  await Instance.provide({
+    directory: root,
+    async fn() {
+      File.init()
+      await entered.promise
+      for (let i = 0; i < 100; i++) expect(await File.search({ query: "", type: "directory" })).toEqual([])
+      expect(reads).toBe(1)
+      release.resolve()
+      await childRead.promise
+      // Only controlled promise continuations remain, not pending OS I/O.
+      let result: string[] = []
+      for (let i = 0; i < 30 && !result.includes("visible/nested/"); i++) {
+        result = await File.search({ query: "", type: "directory" })
+      }
+      expect(result).toEqual(["visible/", "visible/nested/"])
+      await Instance.dispose()
+    },
+  })
+})
 
 test("global-home disposal during a denied child read does not publish partial cache or report cancellation as denial", async () => {
   await fs.promises.mkdir(path.join(root, "restricted"), { recursive: true })

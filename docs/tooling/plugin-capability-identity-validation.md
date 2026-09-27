@@ -109,6 +109,20 @@ Raw logs are retained under the handoff's absolute artifact directory:
   mutation escape. Typed initialized-schema checks close it; earlier green gate
   logs predate that hardening and are not final-source evidence.
 
+First published candidate `44721844080982b7b81e5f6516372c8c96ee31a0` passed
+local gates (1,939 passed, 2 skipped) but [CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36319906145)
+failed Ubuntu's global-home root-EACCES cache fixture; macOS/Windows were cancelled
+by matrix fail-fast. Logs are `ci-4472184-ubuntu.log` and `ci-4472184-failed.log`.
+The fixture exhausted 100 setImmediate ticks in 2.17 ms before initial cache
+publication. A controlled 25 ms root read reproduces the same assertion on the
+published `d2ef0b0` File runtime (`baseline-home-delay.log`); this demonstrates the
+fixture's timing assumption, not an identified runner/OS root cause.
+The separate test correction snapshots actual directory entries before controlled
+error assertions, preserves all failure/cache/cleanup assertions, and adds a
+barrier-based pending-I/O/nonblocking/publication control. It changes no File
+runtime, increases no retries, and skips no tests. Focused combined validation is
+76 passed, 0 failed, 446 assertions; final combined gates/CI are pinned in handoff.
+
 Trusted plugin module initialization/hooks/internal effects remain excluded. Bun's
 module cache is not a hot-code-reload/byte-attestation mechanism: equality concerns
 the actually loaded executor, not newly edited on-disk code. Source removal is
