@@ -294,11 +294,19 @@ export namespace File {
           const shouldIgnore = (name: string) => name.startsWith(".") || ignore.has(name)
           const shouldIgnoreNested = (name: string) => name.startsWith(".") || ignoreNested.has(name)
 
-          const readDirs = async (target: string) => {
+          const readDirs = async (target: string, child = false) => {
             const entries = await fs.promises
               .readdir(target, { withFileTypes: true })
               .catch((error: NodeJS.ErrnoException) => {
-                if (error.code === "ENOENT") return [] as fs.Dirent[]
+                // A child may disappear or be unreadable without invalidating
+                // accessible siblings. Root and unexpected failures still fail
+                // the scan; cancellation is checked before cache publication.
+                if (child && error.code === "ENOENT") return [] as fs.Dirent[]
+                if (child && (error.code === "EACCES" || error.code === "EPERM")) {
+                  if (!signal.aborted)
+                    log.warn("file index child directory inaccessible", { directory: target, code: error.code })
+                  return [] as fs.Dirent[]
+                }
                 throw error
               })
             signal.throwIfAborted()
@@ -312,7 +320,7 @@ export namespace File {
             dirs.add(entry.name + "/")
 
             const base = path.join(directory, entry.name)
-            const children = await readDirs(base)
+            const children = await readDirs(base, true)
             for (const child of children) {
               if (!child.isDirectory()) continue
               if (shouldIgnoreNested(child.name)) continue

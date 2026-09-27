@@ -305,6 +305,149 @@ test("global-home unexpected readdir failure is reported and a later scan recove
   })
 })
 
+for (const code of ["EACCES", "EPERM"]) {
+  test(`global-home persistent ${code} child denial preserves siblings on initialization and refresh`, async () => {
+    await fs.promises.mkdir(path.join(root, "visible", "nested"), { recursive: true })
+    await fs.promises.mkdir(path.join(root, "restricted", "private"), { recursive: true })
+    const original = fs.promises.readdir
+    const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
+    const rootEntries = (await original(root, { withFileTypes: true })).toSorted((a, b) => a.name.localeCompare(b.name))
+    let visibleEntries = await original(path.join(root, "visible"), { withFileTypes: true })
+    let deniedReads = 0
+    const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
+      if (directory === path.join(root, "restricted")) {
+        deniedReads++
+        throw Object.assign(new Error("controlled child denial"), { code })
+      }
+      // Exercise continuation to an accessible sibling after the denied child.
+      if (directory === root) return rootEntries
+      if (directory === path.join(root, "visible")) return visibleEntries
+      return original(directory, options)
+    })
+    const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
+    const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
+    restore.push(() => read.mockRestore(), () => warn.mockRestore(), () => error.mockRestore())
+    await Instance.provide({
+      directory: root,
+      async fn() {
+        File.init()
+        const initial = ["restricted/", "visible/", "visible/nested/"]
+        let result: string[] = []
+        for (let i = 0; i < 100 && !result.includes("visible/nested/"); i++) {
+          result = await File.search({ query: "", type: "directory" })
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        expect(result).toEqual(initial)
+        const initialDenials = deniedReads
+        expect(initialDenials).toBeGreaterThan(0)
+        await fs.promises.mkdir(path.join(root, "visible", "added"), { recursive: true })
+        visibleEntries = await original(path.join(root, "visible"), { withFileTypes: true })
+        const refreshed = ["restricted/", "visible/", "visible/added/", "visible/nested/"]
+        for (let i = 0; i < 100 && !result.includes("visible/added/"); i++) {
+          result = await File.search({ query: "", type: "directory" })
+          // Cache remains atomic even while every refresh encounters the denial.
+          expect([initial, refreshed]).toContainEqual(result)
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        expect(result).toEqual(refreshed)
+        expect(deniedReads).toBeGreaterThan(initialDenials)
+        expect(warn).toHaveBeenCalledWith("file index child directory inaccessible", {
+          directory: path.join(root, "restricted"),
+          code,
+        })
+        expect(error).not.toHaveBeenCalled()
+        await Instance.dispose()
+      },
+    })
+  })
+}
+
+for (const failureCase of [
+  { at: "root", code: "EACCES" },
+  { at: "root", code: "ENOENT" },
+  { at: "child", code: "EIO" },
+]) {
+  test(`global-home ${failureCase.at} ${failureCase.code} failure preserves prior cache and remains an error`, async () => {
+    await fs.promises.mkdir(path.join(root, "visible", "nested"), { recursive: true })
+    const failure = Object.assign(new Error("controlled scan failure"), { code: failureCase.code })
+    const original = fs.promises.readdir
+    const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
+    let reject = false
+    const failingDirectory = failureCase.at === "root" ? root : path.join(root, "visible")
+    const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
+      if (reject && directory === failingDirectory) throw failure
+      return original(directory, options)
+    })
+    const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
+    const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
+    restore.push(() => read.mockRestore(), () => warn.mockRestore(), () => error.mockRestore())
+    await Instance.provide({
+      directory: root,
+      async fn() {
+        File.init()
+        let result: string[] = []
+        for (let i = 0; i < 100 && !result.includes("visible/nested/"); i++) {
+          result = await File.search({ query: "", type: "directory" })
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        const initial = ["visible/", "visible/nested/"]
+        expect(result).toEqual(initial)
+        reject = true
+        for (let i = 0; i < 100 && !error.mock.calls.length; i++) {
+          result = await File.search({ query: "", type: "directory" })
+          expect(result).toEqual(initial)
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        expect(error).toHaveBeenCalledWith("file index scan failed", { directory: root, error: failure })
+        expect(warn).not.toHaveBeenCalled()
+        expect(await File.search({ query: "", type: "directory" })).toEqual(initial)
+        await Instance.dispose()
+      },
+    })
+  })
+}
+
+test("global-home disposal during a denied child read does not publish partial cache or report cancellation as denial", async () => {
+  await fs.promises.mkdir(path.join(root, "restricted"), { recursive: true })
+  await fs.promises.mkdir(path.join(root, "visible", "nested"), { recursive: true })
+  const entered = deferred()
+  const release = deferred()
+  const original = fs.promises.readdir
+  const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
+  let rootReads = 0
+  const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
+    if (directory === root) rootReads++
+    if (directory === path.join(root, "restricted")) {
+      entered.resolve()
+      await release.promise
+      throw Object.assign(new Error("controlled cancelled child read"), { code: "EACCES" })
+    }
+    return original(directory, options)
+  })
+  const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
+  const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
+  restore.push(() => read.mockRestore(), () => warn.mockRestore(), () => error.mockRestore())
+  await Instance.provide({
+    directory: root,
+    async fn() {
+      File.init()
+      await entered.promise
+      let settled = false
+      const disposing = Instance.dispose().then(() => {
+        settled = true
+      })
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      expect(await File.search({ query: "", type: "directory" })).toEqual([])
+      expect(rootReads).toBe(1)
+      release.resolve()
+      await disposing
+      expect(warn).not.toHaveBeenCalled()
+      expect(error).not.toHaveBeenCalled()
+    },
+  })
+})
+
 test("global-home scan is awaited during startup disposal and never falls through to ripgrep", async () => {
   const entered = deferred()
   const release = deferred()

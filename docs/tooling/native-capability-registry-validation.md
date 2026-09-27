@@ -141,7 +141,8 @@ Temporary CI diagnostics, cwd mocks and cleanup retries are removed.
 Two obsolete File floating-promise suppressions are pruned; no new suppression,
 skip, delay or weakened assertion is added.
 
-Corrected local results under the same durable Bun **1.4.0**:
+Local results at `beec35f` under the same durable Bun **1.4.0** (superseded by
+the permission-denied-child follow-up below):
 
 - Complete focused selection: **50 passed, 0 failed, 225 assertions** in six
   files: lifecycle, native dispatch, capability contract, batch authority,
@@ -172,3 +173,36 @@ Exact-SHA three-platform evidence is supplied in the handoff and raw hosted logs
 are retained alongside the local results. Passing Windows cleanup demonstrates
 the observable lifecycle fix,
 not identification of the precise OS handle. Review remains pending.
+
+## Global-home permission-denied-child follow-up
+
+Astra identified that `beec35f` incorrectly made a permission-denied home child
+fatal to the whole scan, losing accessible siblings on initial enumeration.
+The native capability review had no other blocking finding. Sol reproduced both
+`EACCES` and `EPERM`: `home-denial-beec35f-negative.log` records **two failing
+controls** against the reviewed runtime, before the correction.
+
+Only child `EACCES`/`EPERM` is skipped with a warning carrying directory and stable
+error code; a child that disappeared (`ENOENT`) is also skipped. A top-level child
+name observed in the root remains searchable, but its inaccessible descendants
+are not invented. Accessible siblings and their descendants are published together
+as one completed best-effort snapshot. No cache is published during enumeration
+or after cancellation. Root-read failures (including root `ENOENT`) and unexpected
+child errors remain scan failures, report an error, and retain the previous cache.
+Cancellation while a child read is pending still awaits settlement, discards the
+snapshot, prevents new scans and does not turn cancellation into a denial warning.
+Ripgrep lifecycle ownership and strict Windows teardown are unchanged.
+
+Six additional controls cover persistent child `EACCES` and `EPERM` through both
+initialization and refresh, atomic old/new cache publication, root `EACCES` and
+`ENOENT`, unexpected child `EIO`, and disposal while a denied child read is pending.
+The focused selection passed **56 tests, 0 failures, 267 assertions** across six
+files (`home-denial-focused.log`). Full Bun **1.4.0** `release:gates` passed with
+**1,900 passed, 2 skipped, 0 failed**, plus integrity/links, legacy guard,
+typechecks, lint, smoke evaluations, Rust fmt/clippy/tests and source release
+check (`home-denial-release-gates.log`). The task-local `profile-home-denial`
+home and XDG directories and CI's 4 GiB Node heap setting were used, with
+permission for loopback and OS-sandbox tests; no runtime edits occurred during
+the gate run. Exact pushed platform CI is supplied in the review handoff.
+Earlier logs remain preserved;
+no merge, release, gap closure, grant authority or new adapter scope is claimed.
