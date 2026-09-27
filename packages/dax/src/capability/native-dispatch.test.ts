@@ -20,15 +20,10 @@ import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { MessageV2 } from "@/session/message-v2"
 import { AgentCommand } from "@/cli/cmd/debug/agent"
-import { File } from "@/file"
-import { Ripgrep } from "@/file/ripgrep"
-import { Vcs } from "@/project/vcs"
 
 let home: string
 let directory: string
 let previousHome: string | undefined
-let observedScans: { cwd: string; complete: boolean }[] = []
-let restoreScan = () => {}
 const model = Provider.Model.parse({
   id: "gpt-4o",
   providerID: "openai",
@@ -52,20 +47,6 @@ const model = Provider.Model.parse({
 })
 
 beforeEach(async () => {
-  observedScans = []
-  if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
-    const original = Ripgrep.files
-    const scan = spyOn(Ripgrep, "files").mockImplementation(async function* (input) {
-      const observation = { cwd: input.cwd, complete: false }
-      observedScans.push(observation)
-      try {
-        yield* original(input)
-      } finally {
-        observation.complete = true
-      }
-    })
-    restoreScan = () => scan.mockRestore()
-  }
   previousHome = process.env.DAX_TEST_HOME
   home = await fs.mkdtemp(path.join(os.tmpdir(), "dax-native-capability-"))
   directory = path.join(home, "project")
@@ -84,66 +65,9 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await Instance.disposeAll()
-  restoreScan()
-  if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
-    const observable = process as unknown as { _getActiveHandles?: () => { constructor?: { name?: string } }[] }
-    console.error(
-      "TEARDOWN_CONTEXT",
-      JSON.stringify({
-        cwd: process.cwd(),
-        home,
-        directory,
-        pid: process.pid,
-        handles: observable._getActiveHandles?.().map((handle) => handle.constructor?.name),
-        scans: observedScans,
-      }),
-    )
-  }
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
   else process.env.DAX_TEST_HOME = previousHome
-  try {
-    await fs.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
-  } catch (error) {
-    if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1") {
-      // Only the freshly created synthetic fixture is probed; the original
-      // cleanup failure is still thrown. This inventory cannot prove no handles.
-      const probe = async (target: string): Promise<void> => {
-        const entries = await fs.readdir(target, { withFileTypes: true }).catch(() => [])
-        console.error(
-          "TEARDOWN_ENTRIES",
-          target,
-          entries.map((entry) => entry.name),
-        )
-        for (const entry of entries) {
-          const child = path.join(target, entry.name)
-          try {
-            await fs.rm(child, { recursive: true, force: true })
-            console.error("TEARDOWN_REMOVED", child)
-          } catch (childError) {
-            console.error("TEARDOWN_LOCKED", child, String(childError))
-            if (entry.isDirectory()) await probe(child)
-          }
-        }
-        try {
-          await fs.rmdir(target)
-          console.error("TEARDOWN_DIRECTORY_REMOVED", target)
-        } catch (directoryError) {
-          console.error("TEARDOWN_DIRECTORY_LOCKED", target, String(directoryError))
-        }
-      }
-      await probe(home)
-      if (process.platform === "win32") {
-        const children = Bun.spawnSync([
-          "powershell.exe",
-          "-NoProfile",
-          "-Command",
-          `Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${process.pid} } | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress`,
-        ])
-        console.error("TEARDOWN_CHILD_PROCESSES", children.stdout.toString(), children.stderr.toString())
-      }
-    }
-    throw error
-  }
+  await fs.rm(home, { recursive: true, force: true })
 })
 
 function context(sessionID: string): Tool.Context {
@@ -202,30 +126,6 @@ async function direct(sessionID: string, id: string, args: Record<string, unknow
 }
 
 describe("native capability enrollment at production dispatch", () => {
-  if (process.env.DAX_DEBUG_TEARDOWN_DIAGNOSTICS === "1" && process.platform === "win32") {
-    for (const resource of ["file", "vcs"] as const) {
-      test(`Windows bootstrap resource contrast: real ${resource} init`, async () => {
-        await Instance.provide({
-          directory,
-          async fn() {
-            if (resource === "file") File.init()
-            else await Vcs.init()
-          },
-        })
-      })
-    }
-    for (const change of [false, true]) {
-      test(`Windows cwd contrast: ${change ? "chdir and restore" : "no chdir"}, no bootstrap`, () => {
-        const previous = process.cwd()
-        try {
-          if (change) process.chdir(directory)
-        } finally {
-          process.chdir(previous)
-        }
-        expect(process.cwd()).toBe(previous)
-      })
-    }
-  }
   test("production built-ins are enrolled; same-name plugin stays unenrolled and executes", async () => {
     await Instance.provide({
       directory,
@@ -594,10 +494,8 @@ describe("native capability enrollment at production dispatch", () => {
         output += String(text)
         return true
       })
-      const cwdQuery =
-        process.env.DAX_DEBUG_CWD_QUERY_ONLY === "1" ? spyOn(process, "cwd").mockReturnValue(directory) : undefined
       try {
-        if (!cwdQuery) process.chdir(directory)
+        process.chdir(directory)
         const handler = AgentCommand.handler
         if (typeof handler !== "function") throw new Error("Debug handler unavailable")
         let error: unknown
@@ -626,8 +524,7 @@ describe("native capability enrollment at production dispatch", () => {
         defaultModel.mockRestore()
         create.mockRestore()
         tools.mockRestore()
-        cwdQuery?.mockRestore()
-        if (!cwdQuery) process.chdir(previousDirectory)
+        process.chdir(previousDirectory)
       }
     })
   }

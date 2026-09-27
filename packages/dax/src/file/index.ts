@@ -267,84 +267,121 @@ export namespace File {
     ),
   }
 
-  const state = Instance.state(async () => {
-    type Entry = { files: string[]; dirs: string[] }
-    let cache: Entry = { files: [], dirs: [] }
-    let fetching = false
+  const state = Instance.state(
+    async () => {
+      type Entry = { files: string[]; dirs: string[] }
+      let cache: Entry = { files: [], dirs: [] }
+      let disposed = false
+      let active: { controller: AbortController; promise: Promise<void> } | undefined
+      const directory = Instance.directory
 
-    const isGlobalHome = Instance.directory === Global.Path.home && Instance.project.id === "global"
+      const isGlobalHome = Instance.directory === Global.Path.home && Instance.project.id === "global"
 
-    const fn = async (result: Entry) => {
-      // Disable scanning if in root of file system
-      if (Instance.directory === path.parse(Instance.directory).root) return
-      fetching = true
+      const scan = async (signal: AbortSignal) => {
+        // Publish only a completed snapshot; an aborted/failed refresh retains
+        // the last good cache and never exposes partial enumeration.
+        const result: Entry = { files: [], dirs: [] }
+        signal.throwIfAborted()
 
-      if (isGlobalHome) {
-        const dirs = new Set<string>()
-        const ignore = new Set<string>()
+        if (isGlobalHome) {
+          const dirs = new Set<string>()
+          const ignore = new Set<string>()
 
-        if (process.platform === "darwin") ignore.add("Library")
-        if (process.platform === "win32") ignore.add("AppData")
+          if (process.platform === "darwin") ignore.add("Library")
+          if (process.platform === "win32") ignore.add("AppData")
 
-        const ignoreNested = new Set(["node_modules", "dist", "build", "target", "vendor"])
-        const shouldIgnore = (name: string) => name.startsWith(".") || ignore.has(name)
-        const shouldIgnoreNested = (name: string) => name.startsWith(".") || ignoreNested.has(name)
+          const ignoreNested = new Set(["node_modules", "dist", "build", "target", "vendor"])
+          const shouldIgnore = (name: string) => name.startsWith(".") || ignore.has(name)
+          const shouldIgnoreNested = (name: string) => name.startsWith(".") || ignoreNested.has(name)
 
-        const top = await fs.promises
-          .readdir(Instance.directory, { withFileTypes: true })
-          .catch(() => [] as fs.Dirent[])
+          const readDirs = async (target: string) => {
+            const entries = await fs.promises
+              .readdir(target, { withFileTypes: true })
+              .catch((error: NodeJS.ErrnoException) => {
+                if (error.code === "ENOENT") return [] as fs.Dirent[]
+                throw error
+              })
+            signal.throwIfAborted()
+            return entries
+          }
+          const top = await readDirs(directory)
 
-        for (const entry of top) {
-          if (!entry.isDirectory()) continue
-          if (shouldIgnore(entry.name)) continue
-          dirs.add(entry.name + "/")
+          for (const entry of top) {
+            if (!entry.isDirectory()) continue
+            if (shouldIgnore(entry.name)) continue
+            dirs.add(entry.name + "/")
 
-          const base = path.join(Instance.directory, entry.name)
-          const children = await fs.promises.readdir(base, { withFileTypes: true }).catch(() => [] as fs.Dirent[])
-          for (const child of children) {
-            if (!child.isDirectory()) continue
-            if (shouldIgnoreNested(child.name)) continue
-            dirs.add(entry.name + "/" + child.name + "/")
+            const base = path.join(directory, entry.name)
+            const children = await readDirs(base)
+            for (const child of children) {
+              if (!child.isDirectory()) continue
+              if (shouldIgnoreNested(child.name)) continue
+              dirs.add(entry.name + "/" + child.name + "/")
+            }
+          }
+
+          result.dirs = Array.from(dirs).toSorted()
+          signal.throwIfAborted()
+          cache = result
+          return
+        }
+
+        const set = new Set<string>()
+        for await (const file of Ripgrep.files({ cwd: directory, signal })) {
+          signal.throwIfAborted()
+          result.files.push(file)
+          let current = file
+          while (true) {
+            const dir = path.dirname(current)
+            if (dir === ".") break
+            if (dir === current) break
+            current = dir
+            if (set.has(dir)) continue
+            set.add(dir)
+            result.dirs.push(dir + "/")
           }
         }
-
-        result.dirs = Array.from(dirs).toSorted()
+        signal.throwIfAborted()
         cache = result
-        fetching = false
-        return
       }
 
-      const set = new Set<string>()
-      for await (const file of Ripgrep.files({ cwd: Instance.directory })) {
-        result.files.push(file)
-        let current = file
-        while (true) {
-          const dir = path.dirname(current)
-          if (dir === ".") break
-          if (dir === current) break
-          current = dir
-          if (set.has(dir)) continue
-          set.add(dir)
-          result.dirs.push(dir + "/")
-        }
-      }
-      cache = result
-      fetching = false
-    }
-    fn(cache)
-
-    return {
-      async files() {
-        if (!fetching) {
-          fn({
-            files: [],
-            dirs: [],
+      const start = () => {
+        if (disposed || active || directory === path.parse(directory).root) return
+        const controller = new AbortController()
+        const promise = scan(controller.signal)
+          .catch((error) => {
+            if (
+              controller.signal.aborted &&
+              (error === controller.signal.reason || (error instanceof Error && error.name === "AbortError"))
+            )
+              return
+            log.error("file index scan failed", { directory, error })
           })
-        }
-        return cache
-      },
-    }
-  })
+          .finally(() => {
+            active = undefined
+          })
+        active = { controller, promise }
+      }
+      start()
+
+      return {
+        async files() {
+          start()
+          return cache
+        },
+        async dispose() {
+          disposed = true
+          const owned = active
+          if (!owned) return
+          owned.controller.abort()
+          await owned.promise
+        },
+      }
+    },
+    async (state) => {
+      await state.dispose()
+    },
+  )
 
   export function init() {
     state()

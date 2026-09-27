@@ -1,6 +1,7 @@
 # Native capability registry slice — validation and limits
 
-Recorded 2026-09-26. Owner: Sol. Review: Astra, Tier 2 required before merge.
+Recorded 2026-09-26; scan lifecycle correction resumed 2026-09-27.
+Owner: Sol. Review: Astra, Tier 2 required before merge.
 Branch: `feat/native-capability-registry`, based on approved proposal
 `0cb2b34b5531a090da97f1d29dc0d537ca0bb586`; published source main was
 `0170d2f8137bbd0abab7d9f6d72837ca5cec59f0`. Exact pushed review SHA and
@@ -49,10 +50,11 @@ meaningful missing-descriptor checks on a real registered plugin.
   flow and governing-child scope denials remain covered. Raw custom Tool.Info
   controls retain initializer and direct/batch execute receivers; these preserve
   plugin compatibility, not plugin capability enrollment.
-- Stable final-source `release:gates`: **exit 0**. Integrity, legacy guard,
+- Earlier native-source `release:gates` at `7bc4092`: **exit 0**. Integrity, legacy guard,
   typecheck, lint, **1,883 passed / 2 skipped / 0 failed**, smoke evaluations,
   Rust format/clippy/tests and release check passed. This is source validation,
-  not `DAX_RELEASE=1` tagged release approval.
+  not `DAX_RELEASE=1` tagged release approval. It predates the scan ownership fix
+  and is not evidence of the corrected final tree.
 - Final gate environment: pinned Bun directory first on PATH;
   `NODE_OPTIONS=--max-old-space-size=4096`, matching CI; `DAX_TEST_HOME` and
   XDG config/data/cache set to task-local `profile-complete` directories.
@@ -62,7 +64,10 @@ meaningful missing-descriptor checks on a real registered plugin.
 
 Durable raw logs are under the owned worktree's ignored
 `artifacts/validation/native-capability-registry/` directory, outside discovery:
-`focused-final.log` and `release-gates-final-stable.log`. The handoff provides
+`focused-final.log` and `release-gates-final-stable.log` cover the earlier native
+tree. The scan correction uses `file-owner-focused-final.log`,
+`focused-file-owner-complete.log`, and `release-gates-file-owner-unrestricted.log`.
+The handoff provides
 their absolute location. Earlier completed green runs are retained in
 `release-gates-complete.log` and `release-gates-receiver.log`, but predate the
 combined receiver/fixture correction and are not final-tree evidence.
@@ -73,9 +78,9 @@ Retained, not called passing evidence:
 
 - `ci-f62c22d-windows-failed.log`: the superseded f62c22d CI passed Ubuntu/macOS
   but failed two debug-handler tests at synthetic afterEach cleanup with Windows
-  EBUSY. Instance disposal already ran; cleanup now uses bounded fs.rm retries
-  (10 retries, 100 ms delay) and still throws on final failure. No test is skipped
-  and no authority assertion is weakened.
+  EBUSY. Instance disposal already ran. A bounded fs.rm retry workaround did not
+  resolve it (`ci-7bc4092-windows-failed.log`) and is removed in the correction.
+  Cleanup is strict again; no test is skipped or authority assertion weakened.
 - `focused-receivers-final.log`: the first raw custom executor fixture reached
   its receiver but failed the existing canonical-result requirement; it now
   validates and publishes its result through captureValidatedResult, as required
@@ -105,3 +110,65 @@ Retained, not called passing evidence:
 Earlier intermittent relay/macOS failures and the post-greeting Running/Brooding
 observation remain separately tracked; this slice establishes no root cause or
 additional gap closure.
+
+## Bounded File lifecycle correction
+
+Windows diagnostics are retained in `windows-isolated-83f4887.log`,
+`windows-no-delay-1ad181c.log`, and `windows-resources-a4817ae.log`.
+After awaited instance disposal, the real File initialization scan was still
+unsettled. Bare chdir/restore without bootstrap and awaited Vcs-only initialization
+did not reproduce the teardown failure; File-only initialization did. Delaying
+teardown with process inventory masked the race and was not accepted as proof.
+The exact OS handle holder remains unidentified.
+
+The correction registers File disposal and tracks initialization and refresh
+as one owned scan at a time. Disposal prevents new scans, aborts active Ripgrep
+enumeration and awaits its settlement (including startup and subprocess exit).
+Global-home readdir work is not OS-abortable; disposal waits for it, checks
+cancellation after awaits, and does not publish its cancelled snapshot.
+Only completed snapshots replace cache. Failed refreshes retain prior results;
+failure resets the scan state for later searches. Expected disposal aborts are
+not error reports; unrelated failures are logged, including a race with abort.
+Search remains nonblocking and returns the last completed cache.
+
+Eleven lifecycle controls cover immediate disposal, active initialization and
+refresh, repeated disposal, independent instances, partial-result exclusion,
+failure recovery and old-cache preservation, unexpected errors during abort,
+global-home startup/exclusions/failure recovery, and real Ripgrep settlement
+followed by strict fixture deletion. The two real debug-handler tests retain
+production bootstrap, receiver/identity assertions and strict teardown.
+Temporary CI diagnostics, cwd mocks and cleanup retries are removed.
+Two obsolete File floating-promise suppressions are pruned; no new suppression,
+skip, delay or weakened assertion is added.
+
+Corrected local results under the same durable Bun **1.4.0**:
+
+- Complete focused selection: **50 passed, 0 failed, 225 assertions** in six
+  files: lifecycle, native dispatch, capability contract, batch authority,
+  governing-run authority and authority integrity.
+- Full `release:gates`: **exit 0**, **1,894 passed, 2 skipped, 0 failed;
+  5,972 assertions**, plus integrity/link checks, legacy guard, typechecks,
+  lint, smoke evaluations, Rust fmt/clippy/tests and source release check.
+  Isolated `profile-file-owner-unrestricted` home and XDG directories were used
+  with the pinned binary first on PATH and the CI 4 GiB Node heap setting.
+  No runtime files changed during this gate run. This remains source validation,
+  not release publication or `DAX_RELEASE=1` approval.
+
+Retained additional attempts:
+
+- `release-gates-file-owner.log`: stopped at obsolete ESLint suppression counts;
+  pruning reduced File no-floating-promises from three to one.
+- `release-gates-file-owner-final.log`: restricted-environment test run reported
+  **1,881 passed, 2 skipped, 7 failed, 1 error**, stopping before smoke/Rust.
+  Loopback HTTP/OAuth/egress sockets could not bind, and nested seatbelt reported
+  `sandbox_apply: Operation not permitted`. A minimal Bun.serve loopback/port-zero
+  control failed in that environment and succeeded with execution permission.
+  The unchanged runtime tree then passed full gates with that permission.
+- `focused-file-owner-combined.log`: **40 passed** in five files, not the complete
+  selection: its governing-run file path was mistyped and Bun ignored it.
+  `focused-file-owner-complete.log` uses the actual session path and covers all six.
+
+Exact-SHA three-platform evidence is supplied in the handoff and raw hosted logs
+are retained alongside the local results. Passing Windows cleanup demonstrates
+the observable lifecycle fix,
+not identification of the precise OS handle. Review remains pending.
