@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Compatibility
 
+- Loader-backed plugin tools now carry private descriptive executor identity.
+  Native/plugin override selection and unenrolled `register(tool)` remain
+  compatible. Ambiguous dynamic aliases, including legacy-custom collisions and
+  cross-family MCP overlays, fail before the offered table is published instead
+  of silently overwriting an executor. Changed or stale bindings fail without
+  retargeting execution. This adds no grants, new event types or historical
+  executor attestation; MCP enrollment remains a separate delivery.
 - The run-event vocabulary remains fail-closed. Older DAX binaries do not know
   `delegation_recorded`, `assistant_recording_started`, or
   `assistant_message_recorded`, `prompt_recording_started`, or

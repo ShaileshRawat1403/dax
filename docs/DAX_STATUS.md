@@ -69,6 +69,14 @@ project journal, then governed memory promotion. Models cannot authorize durable
 memory promotion. An empty ledger would not itself approve a release; installation,
 compatibility, recovery, and real user-flow acceptance still require evidence.
 
+The first plugin delivery is implemented on `feat/plugin-capability-identity`
+for Tier 2 review, not integrated. Its [validation record](tooling/plugin-capability-identity-validation.md)
+describes actual loader, prompt, batch and debug controls, atomic catalog
+publication, post-approval identity checks, and operator collision reporting.
+It keeps `register(tool)` compatible and unenrolled. This plugin work is
+substantial, so MCP enrollment has not begun; only the offered-table cross-family
+collision preflight is included. All eight aggregate gaps remain open.
+
 The [native-slice validation record](tooling/native-capability-registry-validation.md)
 records production dispatch controls, passing final-source local gates, retained
 earlier failures and the unchanged debug authority limitation.

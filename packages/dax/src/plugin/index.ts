@@ -21,10 +21,10 @@ export namespace Plugin {
   // Built-in plugins that are directly imported (not installed from npm).
   // Most plugin hooks remain experimental unless they are called out in docs
   // as a supported customization path.
-  const INTERNAL_PLUGINS: PluginInstance[] = [
-    CodexAuthPlugin,
-    GeminiAuthPlugin,
-    AnthropicAuthPlugin,
+  const INTERNAL_PLUGINS: [string, PluginInstance][] = [
+    ["codex-auth", CodexAuthPlugin],
+    ["gemini-auth", GeminiAuthPlugin],
+    ["anthropic-auth", AnthropicAuthPlugin],
   ]
 
   const state = Instance.state(async () => {
@@ -36,6 +36,7 @@ export namespace Plugin {
     })
     const config = await Config.get()
     const hooks: Hooks[] = []
+    const toolSources: { hooks: Hooks; origin: readonly string[] }[] = []
     const input: PluginInput = {
       client,
       project: Instance.project,
@@ -45,10 +46,11 @@ export namespace Plugin {
       $: Bun.$,
     }
 
-    for (const plugin of INTERNAL_PLUGINS) {
+    for (const [key, plugin] of INTERNAL_PLUGINS) {
       log.info("loading internal plugin", { name: plugin.name })
       const init = await plugin(input)
       hooks.push(init)
+      toolSources.push({ hooks: init, origin: ["internal", key] })
     }
 
     let plugins = config.plugin ?? []
@@ -58,6 +60,7 @@ export namespace Plugin {
     }
 
     for (let plugin of plugins) {
+      const configured = plugin
       // ignore old codex plugin since it is supported first party now
       if (plugin.includes("dax-openai-codex-auth") || plugin.includes("dax-copilot-auth")) continue
       log.info("loading plugin", { path: plugin })
@@ -90,17 +93,24 @@ export namespace Plugin {
       // as both a named export and default export (e.g., `export const X` and `export default X`).
       // Object.entries(mod) would return both entries pointing to the same function reference.
       const seen = new Set<PluginInstance>()
-      for (const [_name, fn] of Object.entries<PluginInstance>(mod)) {
+      for (const [name, fn] of Object.entries<PluginInstance>(mod)) {
         if (seen.has(fn)) continue
         seen.add(fn)
         const init = await fn(input)
         hooks.push(init)
+        const canonicalExport =
+          Object.entries<PluginInstance>(mod)
+            .filter(([, candidate]) => candidate === fn)
+            .map(([key]) => key)
+            .sort()[0] ?? name
+        toolSources.push({ hooks: init, origin: ["configured", configured, plugin, canonicalExport] })
       }
     }
 
     return {
       hooks,
       input,
+      toolSources,
     }
   })
 
@@ -123,6 +133,11 @@ export namespace Plugin {
 
   export async function list() {
     return state().then((x) => x.hooks)
+  }
+
+  /** Internal loader view; keep public hook consumers and tool descriptions unchanged. */
+  export async function toolsFromSources() {
+    return state().then((x) => x.toolSources)
   }
 
   export async function init() {

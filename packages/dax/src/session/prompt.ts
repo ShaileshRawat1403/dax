@@ -27,6 +27,7 @@ import MAX_STEPS from "../session/prompt/max-steps.txt"
 import { defer } from "../util/defer"
 import { clone } from "remeda"
 import { ToolRegistry } from "../tool/registry"
+import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { MCP } from "../mcp"
 import { LSP } from "../lsp"
 import { ReadTool } from "../tool/read"
@@ -347,6 +348,15 @@ export namespace SessionPrompt {
   })
   export type PromptInput = z.infer<typeof PromptInput>
 
+  async function rejectCapabilityIdentity(sessionID: string, error: unknown): Promise<never> {
+    // The message route has already opened its response stream. Use the existing
+    // operator notification; rejection stays a rejection, not successful output.
+    if (error instanceof CapabilityIdentityError) {
+      await Bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
+    }
+    throw error
+  }
+
   export const prompt = fn(PromptInput, async (input) => {
     if (await AntigravityConversation.isBound(input.sessionID)) return AntigravityConversation.prompt(input)
     if (input.model?.providerID === "worker:antigravity") return AntigravityConversation.startChat(input)
@@ -369,7 +379,9 @@ export namespace SessionPrompt {
       // This must precede intent interpretation as well as the main assistant
       // loop: interpretIntent may invoke a model, so placing birth later would
       // leave the first native model call outside canonical authority.
-      await ensureCanonicalRunBirth({ sessionID: input.sessionID, intent: promptIntent(input.parts) })
+      await ensureCanonicalRunBirth({ sessionID: input.sessionID, intent: promptIntent(input.parts) }).catch((error) =>
+        rejectCapabilityIdentity(input.sessionID, error),
+      )
     }
     await SessionRevert.cleanup(session)
 
@@ -963,7 +975,7 @@ export namespace SessionPrompt {
         processor,
         bypassAgentCheck,
         messages: msgs,
-      })
+      }).catch((error) => rejectCapabilityIdentity(sessionID, error))
 
       if (step === 1) {
         SessionSummary.summarize({
@@ -1363,6 +1375,9 @@ export namespace SessionPrompt {
 
     for (const [key, item] of Object.entries(await MCP.tools())) {
       if (!isToolAllowedByContract(contract, key)) continue
+      // MCP aliases cannot silently replace an offered native, loader-backed,
+      // or legacy custom executor. MCP enrollment itself is a separate slice.
+      if (Object.hasOwn(tools, key)) throw new CapabilityIdentityError("ambiguous")
 
       const execute = item.execute
       if (!execute) continue
