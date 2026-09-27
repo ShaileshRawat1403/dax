@@ -60,7 +60,9 @@ native enrollment and executor binding, not execution authority. Sol's next
 [plugin/MCP tool-identity proposal](roadmap/PLUGIN_MCP_CAPABILITY_PROPOSAL.md)
 has Astra's architecture approval for loader-backed tools, with custom registration
 kept compatible and unenrolled. Plugin and MCP delivery use separate commits and
-independently runnable tests; substantial plugin work is reviewed before MCP begins.
+independently runnable tests. While Astra is temporarily unavailable, the maintainer
+authorized Sol to continue bounded implementation but keep validated feature
+branches for later independent review; this does not authorize integration or release.
 Runtime integration still requires Astra's review. Operator/workflow
 and worker/context enrollment remain separate followups. No additional gap is
 closed. Planned order is capability vocabulary
@@ -74,8 +76,13 @@ for Tier 2 review, not integrated. Its [validation record](tooling/plugin-capabi
 describes actual loader, prompt, batch and debug controls, atomic catalog
 publication, post-approval identity checks, and operator collision reporting.
 It keeps `register(tool)` compatible and unenrolled. This plugin work is
-substantial, so MCP enrollment has not begun; only the offered-table cross-family
-collision preflight is included. All eight aggregate gaps remain open.
+preserved at `051c1752ae7842c6bb99ed1e121c13832ab6449f`, with
+[green exact-SHA CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36320660779).
+The separate `feat/mcp-capability-identity` branch builds on it and adds real
+HTTP/stdio MCP enrollment, ordered discovery, client invalidation and guarded
+session wrapping. Its [candidate validation record](tooling/mcp-capability-identity-validation.md)
+states the evidence and exclusions; neither delivery is integrated or independently
+accepted. All eight aggregate gaps remain open.
 
 The [native-slice validation record](tooling/native-capability-registry-validation.md)
 records production dispatch controls, passing final-source local gates, retained

@@ -1376,154 +1376,160 @@ export namespace SessionPrompt {
     for (const [key, item] of Object.entries(await MCP.tools())) {
       if (!isToolAllowedByContract(contract, key)) continue
       // MCP aliases cannot silently replace an offered native, loader-backed,
-      // or legacy custom executor. MCP enrollment itself is a separate slice.
+      // or legacy custom executor.
       if (Object.hasOwn(tools, key)) throw new CapabilityIdentityError("ambiguous")
 
-      const execute = item.execute
-      if (!execute) continue
+      const execute = MCP.executionIdentity(item).execute
 
       const transformed = ProviderTransform.schema(input.model, asSchema(item.inputSchema).jsonSchema)
-      item.inputSchema = jsonSchema(transformed)
-      // Wrap execute to add plugin hooks and format output
-      item.execute = async (args, opts) => {
-        let beforeTriggered = false
-        const runBefore = async () => {
-          if (beforeTriggered) return
-          beforeTriggered = true
-          await Plugin.trigger(
-            "tool.execute.before",
-            { tool: key, sessionID: input.session.id, callID: opts.toolCallId },
-            { args },
-          )
-        }
-        const ctx = context(args, opts, key, runBefore)
-        const invocationId = ctx.callID
-        const settlement = invocationId
-          ? await beginNativeInvocation({
-              sessionID: ctx.sessionID,
-              invocationId,
-              toolId: key,
-              executor: { kind: "mcp", id: key },
-              args,
-              originTurnId: ctx.messageID,
-            })
-          : { status: "not_canonical" as const }
-        const settled = settlement.status === "recorded"
-        let domainResult: Tool.Result | undefined
-        let protocolResult: Awaited<ReturnType<typeof execute>> | undefined
-
-        try {
-          await ctx.ask({
-            permission: key,
-            metadata: {},
-            patterns: ["*"],
-            always: ["*"],
-          })
-          if (settled) await ctx.authorize()
-          else await runBefore()
-
-          // MCP's protocol result was already parsed by MCP.convertMcpTool's
-          // CallToolResultSchema. Validate the translated DAX result as well,
-          // before truncation makes it model-visible.
-          protocolResult = await execute(args, opts)
-
-          await Plugin.trigger(
-            "tool.execute.after",
-            {
-              tool: key,
-              sessionID: ctx.sessionID,
-              callID: opts.toolCallId,
-            },
-            protocolResult,
-          )
-
-          const textParts: string[] = []
-          const attachments: MessageV2.FilePart[] = []
-
-          for (const contentItem of protocolResult.content) {
-            if (contentItem.type === "text") {
-              textParts.push(contentItem.text)
-            } else if (contentItem.type === "image") {
-              attachments.push({
-                id: Identifier.ascending("part"),
-                sessionID: input.session.id,
-                messageID: input.processor.message.id,
-                type: "file",
-                mime: contentItem.mimeType,
-                url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
+      // Never mutate the catalog's bound adapter. Schema transformation and
+      // session authorization belong to this offered wrapper, not its identity.
+      tools[key] = {
+        ...item,
+        inputSchema: jsonSchema(transformed),
+        execute: async (args, opts) => {
+          MCP.executionIdentity(item)
+          let beforeTriggered = false
+          const runBefore = async () => {
+            if (beforeTriggered) return
+            beforeTriggered = true
+            await Plugin.trigger(
+              "tool.execute.before",
+              { tool: key, sessionID: input.session.id, callID: opts.toolCallId },
+              { args },
+            )
+          }
+          const ctx = context(args, opts, key, runBefore)
+          const invocationId = ctx.callID
+          const settlement = invocationId
+            ? await beginNativeInvocation({
+                sessionID: ctx.sessionID,
+                invocationId,
+                toolId: key,
+                executor: { kind: "mcp", id: key },
+                args,
+                originTurnId: ctx.messageID,
               })
-            } else if (contentItem.type === "resource") {
-              const { resource } = contentItem
-              if (resource.text) {
-                textParts.push(resource.text)
-              }
-              if (resource.blob) {
+            : { status: "not_canonical" as const }
+          const settled = settlement.status === "recorded"
+          let domainResult: Tool.Result | undefined
+          let protocolResult: Awaited<ReturnType<typeof execute>> | undefined
+
+          try {
+            await ctx.ask({
+              permission: key,
+              metadata: {},
+              patterns: ["*"],
+              always: ["*"],
+            })
+            if (settled) await ctx.authorize()
+            else await runBefore()
+
+            // MCP's protocol result was already parsed by the bound adapter's
+            // CallToolResultSchema. Validate the translated DAX result as well,
+            // before truncation makes it model-visible.
+            protocolResult = await execute(args, opts)
+
+            await Plugin.trigger(
+              "tool.execute.after",
+              {
+                tool: key,
+                sessionID: ctx.sessionID,
+                callID: opts.toolCallId,
+              },
+              protocolResult,
+            )
+
+            const textParts: string[] = []
+            const attachments: MessageV2.FilePart[] = []
+
+            for (const contentItem of protocolResult.content) {
+              if (contentItem.type === "text") {
+                textParts.push(contentItem.text)
+              } else if (contentItem.type === "image") {
                 attachments.push({
                   id: Identifier.ascending("part"),
                   sessionID: input.session.id,
                   messageID: input.processor.message.id,
                   type: "file",
-                  mime: resource.mimeType ?? "application/octet-stream",
-                  url: `data:${resource.mimeType ?? "application/octet-stream"};base64,${resource.blob}`,
-                  filename: resource.uri,
+                  mime: contentItem.mimeType,
+                  url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
                 })
+              } else if (contentItem.type === "resource") {
+                const { resource } = contentItem
+                if (resource.text) {
+                  textParts.push(resource.text)
+                }
+                if (resource.blob) {
+                  attachments.push({
+                    id: Identifier.ascending("part"),
+                    sessionID: input.session.id,
+                    messageID: input.processor.message.id,
+                    type: "file",
+                    mime: resource.mimeType ?? "application/octet-stream",
+                    url: `data:${resource.mimeType ?? "application/octet-stream"};base64,${resource.blob}`,
+                    filename: resource.uri,
+                  })
+                }
               }
             }
-          }
 
-          domainResult = Tool.parseResult(key, {
-            title: "",
-            metadata: protocolResult.metadata ?? {},
-            output: textParts.join("\n\n"),
-            attachments,
-          })
-        } catch (error) {
-          if (settled && invocationId && isNativeInvocationAuthorized(invocationId)) {
-            await finalizeNativeResult(
-              invocationId,
-              ctx.abort.aborted
-                ? {
-                    status: "cancelled",
-                    cancellation: { code: "aborted", message: error instanceof Error ? error.message : String(error) },
-                  }
-                : {
-                    status: "failed",
-                    failure: {
-                      code: "executor_failed",
-                      message: error instanceof Error ? error.message : String(error),
-                      retryable: false,
+            domainResult = Tool.parseResult(key, {
+              title: "",
+              metadata: protocolResult.metadata ?? {},
+              output: textParts.join("\n\n"),
+              attachments,
+            })
+          } catch (error) {
+            if (settled && invocationId && isNativeInvocationAuthorized(invocationId)) {
+              await finalizeNativeResult(
+                invocationId,
+                ctx.abort.aborted
+                  ? {
+                      status: "cancelled",
+                      cancellation: {
+                        code: "aborted",
+                        message: error instanceof Error ? error.message : String(error),
+                      },
+                    }
+                  : {
+                      status: "failed",
+                      failure: {
+                        code: "executor_failed",
+                        message: error instanceof Error ? error.message : String(error),
+                        retryable: false,
+                      },
                     },
-                  },
-            )
+              )
+            }
+            throw error
           }
-          throw error
-        }
 
-        // A successful executor result is settled outside the executor-error
-        // catch. If this append fails, the invocation must remain authorized
-        // with an unknown outcome; it must not be rewritten as a failed call.
-        if (settled && invocationId) {
-          const commitment = await computeCanonicalCommitment(domainResult!)
-          await finalizeNativeResult(invocationId, {
-            status: "completed",
-            result: { basis: "validated_dax_result_pre_truncation", ...commitment },
+          // A successful executor result is settled outside the executor-error
+          // catch. If this append fails, the invocation must remain authorized
+          // with an unknown outcome; it must not be rewritten as a failed call.
+          if (settled && invocationId) {
+            const commitment = await computeCanonicalCommitment(domainResult!)
+            await finalizeNativeResult(invocationId, {
+              status: "completed",
+              result: { basis: "validated_dax_result_pre_truncation", ...commitment },
+            })
+          }
+
+          const truncated = await Truncate.output(domainResult!.output, {}, input.agent)
+
+          return Tool.parseResult(key, {
+            ...domainResult!,
+            metadata: {
+              ...domainResult!.metadata,
+              truncated: truncated.truncated,
+              ...(truncated.truncated ? { outputPath: truncated.outputPath } : {}),
+            },
+            output: truncated.content,
+            content: protocolResult!.content, // directly return content to preserve ordering when outputting to model
           })
-        }
-
-        const truncated = await Truncate.output(domainResult!.output, {}, input.agent)
-
-        return Tool.parseResult(key, {
-          ...domainResult!,
-          metadata: {
-            ...domainResult!.metadata,
-            truncated: truncated.truncated,
-            ...(truncated.truncated ? { outputPath: truncated.outputPath } : {}),
-          },
-          output: truncated.content,
-          content: protocolResult!.content, // directly return content to preserve ordering when outputting to model
-        })
+        },
       }
-      tools[key] = item
     }
 
     return tools

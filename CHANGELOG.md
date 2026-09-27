@@ -42,7 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-family MCP overlays, fail before the offered table is published instead
   of silently overwriting an executor. Changed or stale bindings fail without
   retargeting execution. This adds no grants, new event types or historical
-  executor attestation; MCP enrollment remains a separate delivery.
+  executor attestation.
+- DAX-adapted MCP tools now bind private descriptive identity to their connected
+  client and captured call method. Raw/sanitized alias collisions reject instead
+  of overwriting. Changed, disconnected or stale bindings cannot redirect a
+  prepared call after approval. Ordered discovery also protects SDK validation
+  caches. Existing contracts, permissions and unenrolled custom registration keep
+  their semantics; this is not universal MCP execution enforcement.
 - The run-event vocabulary remains fail-closed. Older DAX binaries do not know
   `delegation_recorded`, `assistant_recording_started`, or
   `assistant_message_recorded`, `prompt_recording_started`, or

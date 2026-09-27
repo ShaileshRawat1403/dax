@@ -26,8 +26,9 @@
 
 export const KNOWN_GAPS = {
   "inv5.capability-vocabulary":
-    "Native and loader-backed plugin model tools are enrolled; legacy custom registration, MCP, graph/workflow, worker, command and context executors remain outside the descriptive registry",
-  "inv5.capability-properties": "Native and loader-backed plugin descriptors are validated and descriptive; legacy custom, MCP, graph/workflow, worker and context executors lack validated intrinsic descriptors",
+    "Native, loader-backed plugin and DAX-adapted MCP model tools are enrolled; legacy custom registration, graph/workflow, worker, command and context executors remain outside the descriptive registry",
+  "inv5.capability-properties":
+    "Native, loader-backed plugin and DAX-adapted MCP descriptors are validated and descriptive; legacy custom, graph/workflow, worker and context executors lack validated intrinsic descriptors",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
   "scope.journal-primitive":
     "The journal machinery (append, sequence validation, locking, envelope validation, replay) is not generic over scope, so a second scope would copy it rather than instantiate it",

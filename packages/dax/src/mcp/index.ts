@@ -1,14 +1,9 @@
-import { dynamicTool, type Tool, jsonSchema, type JSONSchema7 } from "ai"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
-import {
-  CallToolResultSchema,
-  type Tool as MCPToolDef,
-  ToolListChangedNotificationSchema,
-} from "@modelcontextprotocol/sdk/types.js"
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
 import { Config } from "../config/config"
 import { Log } from "../util/log"
 import { NamedError } from "@dax-ai/util/error"
@@ -23,6 +18,8 @@ import { BusEvent } from "../bus/bus-event"
 import { Bus } from "@/bus"
 import { TuiEvent } from "@/cli/cmd/tui/event"
 import open from "open"
+import { CapabilityIdentityError } from "@/capability/dynamic-identity"
+import { createMcpToolCatalog, mcpExecutionIdentity, mcpToolSummary } from "./tool-identity"
 
 /**
  * A local MCP server is a child process declared by configuration, and DAX
@@ -190,44 +187,36 @@ export namespace MCP {
     .meta({ ref: "McpInspect" })
   export type Inspect = z.infer<typeof Inspect>
 
-  // Register notification handlers for MCP client
-  function registerNotificationHandlers(client: MCPClient, serverName: string) {
+  type State = {
+    clients: Record<string, MCPClient>
+    status: Record<string, Status>
+    catalog: ReturnType<typeof createMcpToolCatalog>
+    revisions: Map<string, number>
+    pending: Set<Promise<unknown>>
+    disposed: boolean
+  }
+
+  function installClient(s: State, serverName: string, client: MCPClient) {
+    s.clients[serverName] = client
+    s.status[serverName] = { status: "connected" }
     client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      if (s.disposed || s.clients[serverName] !== client) return
+      s.catalog.invalidate(serverName)
       log.info("tools list changed notification received", { server: serverName })
-      Bus.publish(ToolsChanged, { server: serverName })
+      await Bus.publish(ToolsChanged, { server: serverName })
     })
-  }
-
-  // Convert MCP tool definition to AI SDK Tool type
-  async function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: number): Promise<Tool> {
-    const inputSchema = mcpTool.inputSchema
-
-    // Spread first, then override type to ensure it's always "object"
-    const schema: JSONSchema7 = {
-      ...(inputSchema as JSONSchema7),
-      type: "object",
-      properties: (inputSchema.properties ?? {}) as JSONSchema7["properties"],
-      additionalProperties: false,
+    const previousClose = client.onclose
+    client.onclose = () => {
+      if (!s.disposed && s.clients[serverName] === client) {
+        s.catalog.invalidate(serverName)
+        delete s.clients[serverName]
+        s.status[serverName] = { status: "failed", error: "MCP connection closed" }
+      }
+      previousClose?.()
     }
-
-    return dynamicTool({
-      description: mcpTool.description ?? "",
-      inputSchema: jsonSchema(schema),
-      execute: async (args: unknown) => {
-        return client.callTool(
-          {
-            name: mcpTool.name,
-            arguments: (args || {}) as Record<string, unknown>,
-          },
-          CallToolResultSchema,
-          {
-            resetTimeoutOnProgress: true,
-            timeout,
-          },
-        )
-      },
-    })
   }
+
+  export const executionIdentity = mcpExecutionIdentity
 
   // Store transports for OAuth servers to allow finishing auth
   type TransportWithAuth = StreamableHTTPClientTransport | SSEClientTransport
@@ -248,6 +237,14 @@ export namespace MCP {
       const config = cfg.mcp ?? {}
       const clients: Record<string, MCPClient> = {}
       const status: Record<string, Status> = {}
+      const s: State = {
+        clients,
+        status,
+        catalog: createMcpToolCatalog(),
+        revisions: new Map(),
+        pending: new Set(),
+        disposed: false,
+      }
 
       await Promise.all(
         Object.entries(config).map(async ([key, mcp]) => {
@@ -268,16 +265,18 @@ export namespace MCP {
           status[key] = result.status
 
           if (result.mcpClient) {
-            clients[key] = result.mcpClient
+            installClient(s, key, result.mcpClient)
           }
         }),
       )
-      return {
-        status,
-        clients,
-      }
+      return s
     },
     async (state) => {
+      state.disposed = true
+      state.catalog.dispose()
+      // A connection still being created must settle and close before disposal
+      // completes; it may not install itself into an abandoned instance.
+      await Promise.allSettled(state.pending)
       await Promise.all(
         Object.values(state.clients).map((client) =>
           client.close().catch((error) => {
@@ -345,35 +344,52 @@ export namespace MCP {
    */
   export async function add(name: string, mcp: Config.Mcp) {
     const s = await state()
-    const result = await create(name, mcp)
-    if (!result) {
-      const status = {
-        status: "failed" as const,
-        error: "unknown error",
+    if (s.disposed) throw new CapabilityIdentityError("stale")
+    const revision = (s.revisions.get(name) ?? 0) + 1
+    s.revisions.set(name, revision)
+    s.catalog.invalidate(name)
+    const existingClient = s.clients[name]
+    delete s.clients[name]
+    s.status[name] = { status: "disabled" }
+    const work = (async () => {
+      // Invalidate before awaiting shutdown or discovery, never retarget prepared calls.
+      if (existingClient)
+        await existingClient.close().catch((error) => {
+          log.error("Failed to close existing MCP client", { name, error })
+        })
+      if (s.disposed || s.revisions.get(name) !== revision) throw new CapabilityIdentityError("stale")
+      const result = await create(name, mcp)
+      if (s.disposed || s.revisions.get(name) !== revision) {
+        await result?.mcpClient?.close()
+        throw new CapabilityIdentityError("stale")
       }
-      s.status[name] = status
-      return {
-        status,
+      if (!result) {
+        const status = {
+          status: "failed" as const,
+          error: "unknown error",
+        }
+        s.status[name] = status
+        return {
+          status,
+        }
       }
-    }
-    if (!result.mcpClient) {
-      s.status[name] = result.status
+      if (!result.mcpClient) {
+        s.status[name] = result.status
+        return {
+          status: s.status,
+        }
+      }
+      installClient(s, name, result.mcpClient)
+
       return {
         status: s.status,
       }
-    }
-    // Close existing client if present to prevent memory leaks
-    const existingClient = s.clients[name]
-    if (existingClient) {
-      await existingClient.close().catch((error) => {
-        log.error("Failed to close existing MCP client", { name, error })
-      })
-    }
-    s.clients[name] = result.mcpClient
-    s.status[name] = result.status
-
-    return {
-      status: s.status,
+    })()
+    s.pending.add(work)
+    try {
+      return await work
+    } finally {
+      s.pending.delete(work)
     }
   }
 
@@ -440,7 +456,6 @@ export namespace MCP {
             version: Installation.VERSION,
           })
           await withTimeout(client.connect(transport), connectTimeout)
-          registerNotificationHandlers(client, key)
           mcpClient = client
           log.info("connected", { key, transport: name })
           status = { status: "connected" }
@@ -519,7 +534,6 @@ export namespace MCP {
           version: Installation.VERSION,
         })
         await withTimeout(client.connect(transport), connectTimeout)
-        registerNotificationHandlers(client, key)
         mcpClient = client
         status = {
           status: "connected",
@@ -632,29 +646,7 @@ export namespace MCP {
       return
     }
 
-    const result = await create(name, { ...mcp, enabled: true })
-
-    if (!result) {
-      const s = await state()
-      s.status[name] = {
-        status: "failed",
-        error: "Unknown error during connection",
-      }
-      return
-    }
-
-    const s = await state()
-    s.status[name] = result.status
-    if (result.mcpClient) {
-      // Close existing client if present to prevent memory leaks
-      const existingClient = s.clients[name]
-      if (existingClient) {
-        await existingClient.close().catch((error) => {
-          log.error("Failed to close existing MCP client", { name, error })
-        })
-      }
-      s.clients[name] = result.mcpClient
-    }
+    await add(name, { ...mcp, enabled: true })
   }
 
   /**
@@ -664,14 +656,17 @@ export namespace MCP {
    */
   export async function disconnect(name: string) {
     const s = await state()
+    if (s.disposed) throw new CapabilityIdentityError("stale")
+    s.revisions.set(name, (s.revisions.get(name) ?? 0) + 1)
+    s.catalog.invalidate(name)
     const client = s.clients[name]
+    delete s.clients[name]
+    s.status[name] = { status: "disabled" }
     if (client) {
       await client.close().catch((error) => {
         log.error("Failed to close MCP client", { name, error })
       })
-      delete s.clients[name]
     }
-    s.status[name] = { status: "disabled" }
   }
 
   /**
@@ -681,42 +676,54 @@ export namespace MCP {
    * @returns Record mapping tool name to MCP Tool definition
    */
   export async function tools() {
-    const result: Record<string, Tool> = {}
+    const ownerDirectory = Instance.directory
     const s = await state()
     const cfg = await Config.get()
     const config = cfg.mcp ?? {}
-    const clientsSnapshot = await clients()
+    const clientsSnapshot = { ...s.clients }
     const defaultTimeout = cfg.experimental?.mcp_timeout
 
-    for (const [clientName, client] of Object.entries(clientsSnapshot)) {
-      // Only include tools from connected MCPs (skip disabled ones)
-      if (s.status[clientName]?.status !== "connected") {
-        continue
-      }
-
-      const toolsResult = await client.listTools().catch((e) => {
-        log.error("failed to get tools", { clientName, error: e.message })
-        const failedStatus = {
-          status: "failed" as const,
-          error: e instanceof Error ? e.message : String(e),
+    return s.catalog.discover(
+      Object.entries(clientsSnapshot).flatMap(([clientName, client]) => {
+        // Only include tools from connected MCPs (skip disabled ones)
+        if (s.status[clientName]?.status !== "connected") {
+          return []
         }
-        s.status[clientName] = failedStatus
-        delete s.clients[clientName]
-        return undefined
-      })
-      if (!toolsResult) {
-        continue
-      }
-      const mcpConfig = config[clientName]
-      const entry = isMcpConfigured(mcpConfig) ? mcpConfig : undefined
-      const timeout = entry?.timeout ?? defaultTimeout
-      for (const mcpTool of toolsResult.tools) {
-        const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
-        const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_-]/g, "_")
-        result[sanitizedClientName + "_" + sanitizedToolName] = await convertMcpTool(mcpTool, client, timeout)
-      }
-    }
-    return result
+
+        const mcpConfig = config[clientName]
+        const entry = isMcpConfigured(mcpConfig) ? mcpConfig : undefined
+        const timeout = entry?.timeout ?? defaultTimeout
+        return [
+          {
+            name: clientName,
+            client,
+            timeout,
+            check() {
+              if (
+                Instance.directory !== ownerDirectory ||
+                s.disposed ||
+                s.clients[clientName] !== client ||
+                s.status[clientName]?.status !== "connected"
+              ) {
+                throw new CapabilityIdentityError("stale")
+              }
+              const current = config[clientName]
+              const configured = isMcpConfigured(current) ? current : undefined
+              if ((configured?.timeout ?? cfg.experimental?.mcp_timeout) !== timeout) {
+                s.catalog.invalidate(clientName)
+                throw new CapabilityIdentityError("changed")
+              }
+            },
+            async failed(error: unknown) {
+              log.error("failed to get tools", { clientName, error })
+              s.status[clientName] = { status: "failed", error: error instanceof Error ? error.message : String(error) }
+              delete s.clients[clientName]
+              await client.close().catch((error) => log.error("Failed to close MCP client", { error }))
+            },
+          },
+        ]
+      }),
+    )
   }
 
   /**
@@ -779,28 +786,11 @@ export namespace MCP {
    * @returns Array of ToolSummary with server, name, and description
    */
   export async function toolCatalog(name?: string) {
-    const clientsSnapshot = await clients()
-    const entries = name
-      ? Object.entries(clientsSnapshot).filter(([key]) => key === name)
-      : Object.entries(clientsSnapshot)
-    const result: ToolSummary[] = []
-
-    for (const [server, client] of entries) {
-      const tools = await client.listTools().catch((e) => {
-        log.error("failed to get tools", { server, error: e.message })
-        return undefined
-      })
-      if (!tools) continue
-      for (const item of tools.tools) {
-        result.push({
-          server,
-          name: item.name,
-          description: item.description,
-        })
-      }
-    }
-
-    return result
+    // Operator inventory must share discovery ordering: raw SDK listTools calls
+    // also change its cached output validators and task requirements.
+    return Object.values(await tools())
+      .map(mcpToolSummary)
+      .filter((tool) => !name || tool.server === name)
   }
 
   /**

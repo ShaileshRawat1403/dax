@@ -15,8 +15,16 @@ export class CapabilityIdentityError extends NamedError.Unknown {
 
 /** Private source encoding; an opaque logical identity, not a code attestation. */
 export function pluginCapability(parts: readonly string[]) {
+  return sourceCapability("plugin", parts)
+}
+
+export function mcpCapability(parts: readonly string[]) {
+  return sourceCapability("mcp", parts)
+}
+
+function sourceCapability(kind: "plugin" | "mcp", parts: readonly string[]) {
   if (!parts.length) throw new CapabilityIdentityError("malformed")
-  const hash = createHash("sha256").update("dax.plugin.tool.v1\0")
+  const hash = createHash("sha256").update(`dax.${kind}.tool.v1\0`)
   for (const part of parts) {
     if (
       typeof part !== "string" ||
@@ -30,7 +38,7 @@ export function pluginCapability(parts: readonly string[]) {
   }
   const descriptor = createCapabilityRegistry([
     {
-      id: `plugin.tool.v1.p${hash.digest("hex")}`,
+      id: `${kind}.tool.v1.${kind === "plugin" ? "p" : "m"}${hash.digest("hex")}`,
       riskClass: "high",
       scopeSupport: "opaque",
       requiresVerification: true,

@@ -242,3 +242,14 @@ If either is substantial, hand it off for review before starting the other. Full
 pinned-runtime gates, exact-SHA platform CI and an operator-visible collision/error
 check are required. All eight aggregate gaps remain open; this is not universal
 plugin/MCP enforcement. No runtime merge or release is authorized.
+
+## Reviewer availability — maintainer direction
+
+On 2026-09-27 the maintainer authorized continued bounded implementation while
+Astra is unavailable, and explicitly chose to keep validated feature branches
+for review. This supersedes the pause between substantial plugin and MCP delivery,
+not the independent acceptance, integration, release or gap-closure requirements.
+Plugin checkpoint `051c1752ae7842c6bb99ed1e121c13832ab6449f` is preserved;
+MCP implementation is a separate commit/branch based on that unmerged dependency.
+Later grant migration and no-contract policy are not approved by this descriptive
+identity architecture; those decisions must not be silently implemented here.

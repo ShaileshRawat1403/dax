@@ -10,7 +10,10 @@ This document is implementation evidence, not review acceptance or integration.
 ## Delivery and authority boundary
 
 This substantial delivery implements **plugin tools only**. MCP enrollment is
-deferred until Astra reviews it. The narrow MCP change rejects a foreign alias
+initially deferred until Astra reviews it. The maintainer later authorized
+continued implementation while Astra is unavailable, on separate unmerged
+feature branches; see the [separate MCP delivery](mcp-capability-identity-validation.md).
+This plugin checkpoint's narrow MCP change rejects a foreign alias
 overlaying an already offered native, loader or legacy tool; its fixture controls
 the foreign table and does not claim controlled-transport MCP identity proof.
 

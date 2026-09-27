@@ -35,6 +35,12 @@ explicitly at sprint review.
 
 ## Implementation and review handoff
 
+On 2026-09-27 the maintainer authorized continued bounded implementation while
+Astra is temporarily unavailable. Validated work stays on feature branches for
+later independent review, not main. Plugin checkpoint 051c175 is preserved and
+MCP identity follows separately under its approved descriptive-only architecture.
+Eight gaps remain open; solo checks are not independent acceptance or release approval.
+
 The complete-event-history workstream is integrated. The reviewed home visual pass
 is integrated in checkpoint source and is not part of this gap ledger. For each
 remaining gap, the
