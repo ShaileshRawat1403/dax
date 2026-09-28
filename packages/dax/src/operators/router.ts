@@ -19,10 +19,13 @@ export class OperatorRouter {
   private bindings: Map<string, BuiltinOperatorBinding> = new Map()
 
   register(operator: Operator) {
-    if (!operator.type || this.operators.has(operator.type)) throw new CapabilityIdentityError("ambiguous")
-    const binding = bindBuiltinOperator(operator)
-    this.operators.set(operator.type, operator)
-    if (binding) this.bindings.set(operator.type, binding)
+    const type = operator.type
+    if (typeof type !== "string" || !type || this.operators.has(type)) {
+      throw new CapabilityIdentityError("ambiguous")
+    }
+    const binding = bindBuiltinOperator(operator, type)
+    this.operators.set(type, operator)
+    if (binding) this.bindings.set(type, binding)
   }
 
   getOperator(type: string): Operator | undefined {

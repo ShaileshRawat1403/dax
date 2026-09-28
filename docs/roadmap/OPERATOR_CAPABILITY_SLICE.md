@@ -15,9 +15,13 @@ explicit local `--typeRoots` passed. This has no runtime effect.
 
 `OperatorRouter.register` resolves only the five DAX-owned graph executors:
 explore, git, verify, release, and artifact. The mapping binds the registered
-object's private construction brand, its exact prototype, its captured original
+object’s private construction brand, its exact prototype, its captured original
 execute function and the task's operator type. This is not a guarantee that
 trusted in-process code cannot alter helper methods inside an executor.
+Registration captures the operator type once; a custom getter cannot change the
+map key mid-registration. Git action identity rejects accessors and inherited
+values rather than reading a changing action while resolving and invoking the
+executor.
 `runGraph` resolves that binding before constructing a context pack and checks it
 again immediately before invoking the captured function. Git resolves one of
 add, commit, push, checkout, or status from the task action; the existing absent
@@ -49,7 +53,8 @@ introduced. No ledger entry closes on this partial coverage.
   the selected executor. Changed execute functions and unknown Git actions fail
   before effects. Prototype copies, proxies, and pre-registration replacement
   of the built-in method do not acquire identity. A post-lookup action switch
-  cannot reuse another capability.
+  cannot reuse another capability. Dynamic type/action getters and inherited
+  actions cannot retarget a registration or action.
 - All nine built-in descriptors validate, contain no grants, and remain frozen.
 
 Evidence must include focused tests, pinned Bun 1.4.0 `release:gates`, and

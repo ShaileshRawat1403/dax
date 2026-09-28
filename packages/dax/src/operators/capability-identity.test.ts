@@ -120,6 +120,28 @@ describe("built-in graph operator identity", () => {
     expect(router.getOperator("git")).toBe(selected)
   })
 
+  test("a changing custom type cannot transfer its registration to a built-in name", async () => {
+    let typeReads = 0
+    let effects = 0
+    const custom: Operator = {
+      get type() {
+        return ++typeReads === 1 ? "custom" : "git"
+      },
+      async execute() {
+        effects++
+        return { success: true, output: {} }
+      },
+    }
+    const router = new OperatorRouter()
+    router.register(custom)
+    expect(router.getOperator("git")).toBeUndefined()
+    const graph = task("custom")
+    const result = await dispatch(graph, router)
+    expect(result.success).toBe(false)
+    expect(graph.tasks.get("first")?.error?.message).toBe("Capability identity rejected: changed")
+    expect(effects).toBe(0)
+  })
+
   test("changed executor is rejected by real graph dispatch before its effect", async () => {
     const router = new OperatorRouter()
     const selected = new GitOperator()
@@ -142,6 +164,33 @@ describe("built-in graph operator identity", () => {
     const selected = new GitOperator()
     router.register(selected)
     const graph = task("git", "unspecified-remote-effect")
+    const result = await dispatch(graph, router)
+    expect(result.success).toBe(false)
+    expect(graph.tasks.get("first")?.error?.message).toBe("Capability identity rejected: malformed")
+  })
+
+  test("a dynamic Git action getter cannot change the selected action", async () => {
+    const router = new OperatorRouter()
+    router.register(new GitOperator())
+    const graph = task("git")
+    let actionReads = 0
+    Object.defineProperty(graph.tasks.get("first")!.context, "action", {
+      get() {
+        actionReads++
+        return actionReads === 1 ? "status" : "push"
+      },
+    })
+    const result = await dispatch(graph, router)
+    expect(result.success).toBe(false)
+    expect(graph.tasks.get("first")?.error?.message).toBe("Capability identity rejected: malformed")
+    expect(actionReads).toBe(0)
+  })
+
+  test("an inherited Git action cannot differ from the selected default", async () => {
+    const router = new OperatorRouter()
+    router.register(new GitOperator())
+    const graph = task("git")
+    Object.setPrototypeOf(graph.tasks.get("first")!.context, { action: "push" })
     const result = await dispatch(graph, router)
     expect(result.success).toBe(false)
     expect(graph.tasks.get("first")?.error?.message).toBe("Capability identity rejected: malformed")

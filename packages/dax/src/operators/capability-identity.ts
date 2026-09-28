@@ -42,8 +42,8 @@ export interface BuiltinOperatorBinding {
 }
 
 /** A custom operator stays compatible but explicitly unenrolled. */
-export function bindBuiltinOperator(operator: Operator): BuiltinOperatorBinding | undefined {
-  const specification = byType.get(operator.type)
+export function bindBuiltinOperator(operator: Operator, registeredType: string): BuiltinOperatorBinding | undefined {
+  const specification = byType.get(registeredType)
   if (!specification) return undefined
   if (
     !specification.genuine(operator) ||
@@ -76,7 +76,17 @@ export function requireBuiltinOperatorCapability(
 
   let action: string
   if (binding.type === "git") {
-    const supplied = task.context?.action
+    if (
+      task.context !== null &&
+      task.context !== undefined &&
+      (typeof task.context !== "object" || Array.isArray(task.context))
+    ) throw new CapabilityIdentityError("malformed")
+    const actionProperty = task.context && Object.getOwnPropertyDescriptor(task.context, "action")
+    if (actionProperty && !("value" in actionProperty)) throw new CapabilityIdentityError("malformed")
+    if (task.context && !actionProperty && "action" in task.context) {
+      throw new CapabilityIdentityError("malformed")
+    }
+    const supplied = actionProperty?.value
     action = supplied === undefined || supplied === null || supplied === "" ? "commit" : supplied
     if (typeof action !== "string" || !["add", "commit", "push", "checkout", "status"].includes(action)) {
       throw new CapabilityIdentityError("malformed")
