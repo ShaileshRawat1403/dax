@@ -1,6 +1,10 @@
 import z from "zod"
 import { isAbsolute, join } from "node:path"
+import { createHash } from "node:crypto"
 import { buildEgressAllowlist } from "./egress-allowlist"
+import { createCapabilityRegistry } from "@/capability/registry"
+import type { CapabilityDescriptor } from "@/capability/capability-types"
+import { CapabilityIdentityError, metadataKey } from "@/capability/dynamic-identity"
 
 /**
  * External worker adapters — the BYOA layer (docs/dax/byoa-strategy.md).
@@ -378,6 +382,116 @@ export const WORKER_PROFILES: Record<ExternalWorkerId, WorkerProfile> = {
   },
 }
 
+const builtinWorkerCapabilities = createCapabilityRegistry(
+  ExternalWorkerId.options.map((workerId) => ({
+    id: `worker.profile.${workerId}`,
+    riskClass: "high",
+    scopeSupport: "opaque",
+    requiresVerification: true,
+  })),
+)
+
+type BuiltinProfileBinding = {
+  provider: WorkerProvider
+  builder: WorkerProvider["buildInvocation"]
+  profile: WorkerProfile
+  metadata: string
+  callbacks: readonly unknown[]
+  descriptor: CapabilityDescriptor
+}
+
+const builtinBindings = new Map<ExternalWorkerId, BuiltinProfileBinding>()
+const invocationBindings = new WeakMap<
+  WorkerInvocation,
+  {
+    workerId: ExternalWorkerId
+    provider: WorkerProvider
+    builder: WorkerProvider["buildInvocation"]
+    digest: string
+  }
+>()
+
+function profileMetadata(profile: WorkerProfile) {
+  return {
+    key: metadataKey({
+      label: profile.label,
+      binary: profile.binary,
+      authLane: profile.authLane,
+      envAllowlist: profile.envAllowlist,
+      requiredEnv: profile.requiredEnv ?? null,
+      denyEnv: profile.denyEnv ?? null,
+    }),
+    callbacks: [profile.args, profile.injectEnv, profile.stateDirs] as const,
+  }
+}
+
+function requireStableBuiltin(workerId: ExternalWorkerId, provider: WorkerProvider): BuiltinProfileBinding {
+  const binding = builtinBindings.get(workerId)
+  const current = WORKER_PROFILES[workerId]
+  if (
+    !binding ||
+    binding.provider !== provider ||
+    binding.builder !== provider.buildInvocation ||
+    binding.profile !== current ||
+    provider.descriptor.id !== workerId ||
+    provider.descriptor.kind !== "external_cli"
+  ) {
+    throw new CapabilityIdentityError("changed")
+  }
+  const metadata = profileMetadata(current)
+  if (
+    metadata.key !== binding.metadata ||
+    metadata.callbacks.some((callback, index) => callback !== binding.callbacks[index])
+  ) {
+    throw new CapabilityIdentityError("changed")
+  }
+  return binding
+}
+
+function invocationDigest(invocation: WorkerInvocation): string {
+  const data = metadataKey({
+    providerId: invocation.providerId,
+    workerId: invocation.workerId ?? null,
+    command: invocation.command,
+    env: invocation.env,
+    network: invocation.network,
+    egress: invocation.egress,
+    writableStatePaths: invocation.writableStatePaths,
+    timeoutMs: invocation.timeoutMs,
+  })
+  return createHash("sha256").update("dax.worker.invocation.v1\0").update(data).digest("hex")
+}
+
+/** Descriptive built-in provider identity; never a grant or sandbox receipt. */
+export function listBuiltinWorkerCapabilities(): readonly CapabilityDescriptor[] {
+  return builtinWorkerCapabilities.list()
+}
+
+/** Resolve the selected built-in adapter before checkout or process effects. */
+export function requireBuiltinWorkerProfileCapability(workerId: ExternalWorkerId): CapabilityDescriptor {
+  const provider = DefaultWorkerProviderRegistry.get(workerId)
+  if (!provider) throw new CapabilityIdentityError("unbound")
+  return requireStableBuiltin(workerId, provider).descriptor
+}
+
+/** Recheck immediately before worker effects, including after awaited setup. */
+export function requireBuiltinWorkerInvocationCapability(invocation: WorkerInvocation): CapabilityDescriptor {
+  const binding = invocationBindings.get(invocation)
+  if (!binding) throw new CapabilityIdentityError("unbound")
+  const provider = DefaultWorkerProviderRegistry.get(binding.workerId)
+  if (!provider) throw new CapabilityIdentityError("changed")
+  requireStableBuiltin(binding.workerId, provider)
+  if (
+    provider !== binding.provider ||
+    provider.buildInvocation !== binding.builder ||
+    invocation.providerId !== binding.workerId ||
+    invocation.workerId !== binding.workerId ||
+    invocationDigest(invocation) !== binding.digest
+  )
+    throw new CapabilityIdentityError("changed")
+  return builtinWorkerCapabilities.require(`worker.profile.${binding.workerId}`)
+}
+
 export const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000
 
 /** Resolve the reviewed executable for an approved external worker. */
@@ -490,15 +604,33 @@ export function buildProviderInvocation(input: {
   if (!isAbsolute(input.workingDirectory)) {
     throw new Error("worker workingDirectory must be an absolute path")
   }
-  const provider = (input.registry ?? DefaultWorkerProviderRegistry).get(input.providerId)
+  const registry = input.registry ?? DefaultWorkerProviderRegistry
+  const provider = registry.get(input.providerId)
   if (!provider) throw new Error(`unknown worker provider '${input.providerId}'`)
-  return provider.buildInvocation({
+  const workerId = ExternalWorkerId.safeParse(input.providerId)
+  const builtin =
+    registry === DefaultWorkerProviderRegistry && workerId.success
+      ? requireStableBuiltin(workerId.data, provider)
+      : undefined
+  const invocation = provider.buildInvocation({
     contract,
     workingDirectory: input.workingDirectory,
     hostEnv: input.hostEnv ?? {},
     timeoutMs: input.timeoutMs,
     egress: input.egress,
   })
+  if (builtin) {
+    if (invocation.providerId !== workerId.data || invocation.workerId !== workerId.data) {
+      throw new CapabilityIdentityError("changed")
+    }
+    invocationBindings.set(invocation, {
+      workerId: workerId.data,
+      provider,
+      builder: builtin.builder,
+      digest: invocationDigest(invocation),
+    })
+  }
+  return invocation
 }
 
 /** Validate executor-owned terminal output before DAX accepts process success. */
@@ -593,5 +725,16 @@ function createExternalCliWorkerProvider(workerId: ExternalWorkerId): WorkerProv
  */
 export const DefaultWorkerProviderRegistry = new WorkerProviderRegistry()
 for (const workerId of ExternalWorkerId.options) {
-  DefaultWorkerProviderRegistry.register(createExternalCliWorkerProvider(workerId))
+  const provider = createExternalCliWorkerProvider(workerId)
+  DefaultWorkerProviderRegistry.register(provider)
+  const profile = WORKER_PROFILES[workerId]
+  const metadata = profileMetadata(profile)
+  builtinBindings.set(workerId, {
+    provider,
+    builder: provider.buildInvocation,
+    profile,
+    metadata: metadata.key,
+    callbacks: metadata.callbacks,
+    descriptor: builtinWorkerCapabilities.require(`worker.profile.${workerId}`),
+  })
 }

@@ -14,6 +14,8 @@ import {
   buildProviderInvocation,
   validateWorkerProcessOutput,
   missingWorkerAuthEnv,
+  requireBuiltinWorkerInvocationCapability,
+  requireBuiltinWorkerProfileCapability,
 } from "@/worker/worker-adapter"
 import type { WorkerInvocation } from "@/worker/worker-adapter"
 import type { RuntimePolicy } from "@/execution/execution-contract"
@@ -89,9 +91,11 @@ export type WorkerRunEffectsShape = {
 
 const defaultEffects: WorkerRunEffectsShape = {
   async runConversation(invocation, cwd, contract, effort) {
+    requireBuiltinWorkerInvocationCapability(invocation)
     if (invocation.providerId !== "antigravity") throw new Error("Conversational workers currently require AGY.")
     requireAntigravityModel(contract.modelHint, await discoverAntigravityModels({ forceRefresh: true }))
     const { AntigravityConversation } = await import("@/worker/antigravity-conversation")
+    requireBuiltinWorkerInvocationCapability(invocation)
     return AntigravityConversation.run({ invocation, cwd, contract, effort })
   },
   async createCheckout(repoPath, runId) {
@@ -117,6 +121,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     }
   },
   async runWorker(invocation, cwd) {
+    requireBuiltinWorkerInvocationCapability(invocation)
     assertWorkerBinaryAvailable(invocation)
     const network = invocation.network === "none" ? "none" : "full"
     const baseEnv = { ...invocation.env, PATH: process.env.PATH ?? "" }
@@ -138,6 +143,7 @@ const defaultEffects: WorkerRunEffectsShape = {
     // down whatever happens. Denied targets ride back as evidence.
     const proxy = await startEgressProxy({ allowHosts: invocation.egress.allowHosts })
     try {
+      requireBuiltinWorkerInvocationCapability(invocation)
       const result = await runSandboxedCommand({
         command: invocation.command,
         cwd,
@@ -330,6 +336,7 @@ export class WorkerRunWorkflow {
 
     let checkout: WorkerCheckout | null = null
     try {
+      requireBuiltinWorkerProfileCapability(workerId)
       const contract = workerContractFromPolicy(
         this.contract.intent,
         this.runId,
@@ -375,6 +382,8 @@ export class WorkerRunWorkflow {
         timeoutMs: this.contract.timeoutMs,
         egress: this.contract.runtimePolicy?.egress,
       })
+
+      requireBuiltinWorkerInvocationCapability(invocation)
 
       const result = WorkerProcessResultSchema.parse(
         this.contract.runtimePolicy?.workerConversation
