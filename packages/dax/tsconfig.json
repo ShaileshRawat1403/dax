@@ -14,6 +14,9 @@
     // Turning either on is its own piece of work, not a config edit.
     "noUncheckedIndexedAccess": false,
     "customConditions": ["browser"],
+    // Do not import unrelated ambient @types from ancestor directories outside
+    // this checkout; frozen installs must determine the typecheck result.
+    "typeRoots": ["./node_modules/@types"],
     "paths": {
       "@/*": ["./src/*"],
       "@tui/*": ["./src/cli/cmd/tui/*"]

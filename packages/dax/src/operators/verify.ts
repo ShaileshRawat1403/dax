@@ -12,6 +12,10 @@ interface VerificationCheck {
 }
 
 export class VerifyOperator implements Operator {
+  #capabilityBrand = true
+  static isGenuine(value: unknown): value is VerifyOperator {
+    return typeof value === "object" && value !== null && #capabilityBrand in value
+  }
   type = "verify"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {

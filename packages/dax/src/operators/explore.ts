@@ -14,6 +14,10 @@ import type { ArtifactRecord } from "../governance/artifact"
 import { writeWorkflowArtifact } from "./report-artifact"
 
 export class ExploreOperator implements Operator {
+  #capabilityBrand = true
+  static isGenuine(value: unknown): value is ExploreOperator {
+    return typeof value === "object" && value !== null && #capabilityBrand in value
+  }
   type = "explore"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {

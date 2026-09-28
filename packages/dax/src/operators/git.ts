@@ -3,6 +3,10 @@ import type { PlannedTask } from "../planner/task-graph"
 import { $ } from "bun"
 
 export class GitOperator implements Operator {
+  #capabilityBrand = true
+  static isGenuine(value: unknown): value is GitOperator {
+    return typeof value === "object" && value !== null && #capabilityBrand in value
+  }
   readonly type = "git"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {

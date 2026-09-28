@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Compatibility
 
+- Built-in task-graph operators now resolve strict descriptive identity at graph
+  dispatch. Git actions remain distinct; a custom operator claiming a built-in
+  type, an unknown Git action, or a duplicate registration rejects before that
+  executor runs. Caller-registered non-built-in operators remain unenrolled and
+  keep their prior execution behavior. No capability grants or existing approval
+  decisions change.
 - Loader-backed plugin tools now carry private descriptive executor identity.
   Native/plugin override selection and unenrolled `register(tool)` remain
   compatible. Ambiguous dynamic aliases, including legacy-custom collisions and

@@ -108,6 +108,7 @@ export async function runGraph(
 
       try {
         const operator = await router.route(task)
+        const execution = router.execution(task, operator)
 
         // Build context pack if state manager exists. Narrowed rather than
         // cast: an unrecognised operator must not silently receive a pack
@@ -117,7 +118,7 @@ export async function runGraph(
             ? buildContextPack(stateManager.getState(), task.id, operator.type)
             : undefined
 
-        const result = await operator.execute(task, {
+        const result = await execution.execute({
           ...ctx,
           graph,
           contextPack,

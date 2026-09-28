@@ -5,6 +5,10 @@ import { ARTIFACT_SCHEMA_VERSION } from "../workflows/artifact-schemas"
 import { writeWorkflowArtifact } from "./report-artifact"
 
 export class ArtifactOperator implements Operator {
+  #capabilityBrand = true
+  static isGenuine(value: unknown): value is ArtifactOperator {
+    return typeof value === "object" && value !== null && #capabilityBrand in value
+  }
   type = "artifact"
 
   async execute(task: PlannedTask, ctx: OperatorContext): Promise<OperatorResult> {
