@@ -16,6 +16,19 @@ import { bindCommandShell, listCommandShellCapabilities, requireCommandShellCapa
 let root = ""
 let previousHome: string | undefined
 
+async function captureRejection(promise: Promise<unknown>): Promise<unknown> {
+  let rejected = false
+  let reason: unknown
+  try {
+    await promise
+  } catch (error) {
+    rejected = true
+    reason = error
+  }
+  if (!rejected) throw new Error("Expected command rejection")
+  return reason
+}
+
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "dax-command-shell-identity-"))
   previousHome = process.env.DAX_TEST_HOME
@@ -80,14 +93,20 @@ describe("command-template shell identity", () => {
         const model = spyOn(Provider, "getModel").mockRejectedValue(new Error("controlled model boundary"))
         const input = { sessionID: session.id, command: "identity-probe", arguments: "", model: "openai/gpt-4o" }
         try {
-          await expect(SessionPrompt.command(input)).rejects.toThrow("controlled model boundary")
+          expect((await captureRejection(SessionPrompt.command(input))) as Error).toHaveProperty(
+            "message",
+            "controlled model boundary",
+          )
           expect(await Bun.file(marker).text()).toBe("ran")
           expect(ask).toHaveBeenCalledTimes(1)
           expect(wrap).toHaveBeenCalledTimes(1)
 
           await fs.rm(marker)
           ask.mockRejectedValueOnce(new Error("operator denied"))
-          await expect(SessionPrompt.command(input)).rejects.toThrow("operator denied")
+          expect((await captureRejection(SessionPrompt.command(input))) as Error).toHaveProperty(
+            "message",
+            "operator denied",
+          )
           expect(await Bun.file(marker).exists()).toBe(false)
           expect(wrap).toHaveBeenCalledTimes(1)
 
@@ -99,7 +118,7 @@ describe("command-template shell identity", () => {
               { force: Permission.ask.force, schema: Permission.ask.schema },
             ),
           )
-          await expect(SessionPrompt.command(input)).rejects.toThrow(CapabilityIdentityError)
+          expect(await captureRejection(SessionPrompt.command(input))).toBeInstanceOf(CapabilityIdentityError)
           expect(await Bun.file(marker).exists()).toBe(false)
           expect(wrap).toHaveBeenCalledTimes(1)
 
@@ -108,7 +127,7 @@ describe("command-template shell identity", () => {
             command!.name = "replaced-during-sandbox"
             return [process.execPath, "-e", "process.exit(9)"]
           })
-          await expect(SessionPrompt.command(input)).rejects.toThrow(CapabilityIdentityError)
+          expect(await captureRejection(SessionPrompt.command(input))).toBeInstanceOf(CapabilityIdentityError)
           expect(await Bun.file(marker).exists()).toBe(false)
           expect(model).toHaveBeenCalledTimes(1)
         } finally {
