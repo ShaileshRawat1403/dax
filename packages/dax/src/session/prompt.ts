@@ -91,6 +91,7 @@ import { AssistantDelegationReceiptSchema } from "@/execution/assistant-provenan
 import type { PromptEffectiveCandidate, PromptInstructionSource } from "@/execution/prompt-provenance"
 import type { ProviderInputSourceCandidate } from "@/execution/provider-input-partition"
 import { resolveCompactedMessages } from "@/execution/compaction-provenance"
+import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -2657,6 +2658,22 @@ ${
 
     const shell = ConfigMarkdown.shell(template)
     if (shell.length > 0) {
+      const binding = bindCommandShell({
+        command,
+        selectedName: input.command,
+        template,
+        snippets: shell.map(([, cmd]) => cmd),
+      })
+      const requireShell = (index: number, snippet: string) =>
+        requireCommandShellCapability({
+          binding,
+          command,
+          selectedName: input.command,
+          template,
+          index,
+          snippet,
+        })
+      shell.forEach(([, cmd], index) => requireShell(index, cmd))
       // Backtick-bang blocks in command markdown run raw shell. A hostile repo
       // can ship .dax/command/<name>.md, so typing /<name> used to execute
       // arbitrary commands with no approval card and no audit record. Gate them
@@ -2675,12 +2692,14 @@ ${
       })
 
       const results = await Promise.all(
-        shell.map(async ([, cmd]) => {
+        shell.map(async ([, cmd], index) => {
+          requireShell(index, cmd)
           try {
             // Honour the sandbox when one is active. Sandbox.wrap returns argv,
             // so the command travels as a single element and nothing in it -
             // or in the working directory - is re-parsed by an outer shell.
             const wrapped = await Sandbox.wrap(cmd, Instance.directory)
+            requireShell(index, cmd)
             if (wrapped) {
               const proc = Bun.spawn(wrapped, {
                 cwd: Instance.directory,
@@ -2692,6 +2711,7 @@ ${
             }
             return await $`${{ raw: cmd }}`.quiet().nothrow().text()
           } catch (error) {
+            if (error instanceof CapabilityIdentityError) throw error
             return `Error executing command: ${error instanceof Error ? error.message : String(error)}`
           }
         }),
