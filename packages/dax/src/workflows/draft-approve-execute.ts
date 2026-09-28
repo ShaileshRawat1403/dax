@@ -10,6 +10,8 @@ import { appendEventOnly, getEventAuthorityState } from "@/state/events/event-tr
 import { verifyWorkerPatch } from "@/worker/worker-verification"
 import { runCheck } from "@/sdlc/check-runner"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
+import { requireFixedWorkflowCapability } from "./capability-identity"
+import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 
 const log = Log.create({ service: "draft-approve-execute" })
 
@@ -103,6 +105,7 @@ export const DraftApproveExecuteEffects = {
 }
 
 export class DraftApproveExecuteWorkflow {
+  #identity = true
   private runId: string
   private contract: ExecutionContract
   private draftArtifact: DraftArtifact | null = null
@@ -113,6 +116,19 @@ export class DraftApproveExecuteWorkflow {
   }
 
   async execute(): Promise<WorkflowExecutionResult> {
+    if (
+      !this ||
+      !(#identity in this) ||
+      Object.getPrototypeOf(this) !== DraftApproveExecuteWorkflow.prototype ||
+      this.execute !== DraftApproveExecuteWorkflow.prototype.execute
+    )
+      throw new CapabilityIdentityError("changed")
+    requireFixedWorkflowCapability({
+      workflowClass: "draft_and_approve",
+      phase: "execute",
+      contract: this.contract,
+      runId: this.runId,
+    })
     const stepResults: WorkflowStepResult[] = []
 
     log.info("starting draft/approve/execute workflow", { runId: this.runId })
@@ -408,6 +424,19 @@ export class DraftApproveExecuteWorkflow {
   }
 
   async resumeAfterApproval(approvalId: string, decision: "approved" | "denied"): Promise<WorkflowExecutionResult> {
+    if (
+      !this ||
+      !(#identity in this) ||
+      Object.getPrototypeOf(this) !== DraftApproveExecuteWorkflow.prototype ||
+      this.resumeAfterApproval !== DraftApproveExecuteWorkflow.prototype.resumeAfterApproval
+    )
+      throw new CapabilityIdentityError("changed")
+    requireFixedWorkflowCapability({
+      workflowClass: "draft_and_approve",
+      phase: "resume_after_approval",
+      contract: this.contract,
+      runId: this.runId,
+    })
     log.info("resuming after approval", { runId: this.runId, approvalId, decision })
 
     if (decision === "denied") {
@@ -423,7 +452,9 @@ export class DraftApproveExecuteWorkflow {
     const executionResult = await this.executeCommitExecution(reconstructedDraft ? [reconstructedDraft] : [])
     return {
       success: executionResult.success,
-      finalArtifactId: executionResult.success ? executionResult.outputs.find((item) => item.artifactId)?.artifactId : undefined,
+      finalArtifactId: executionResult.success
+        ? executionResult.outputs.find((item) => item.artifactId)?.artifactId
+        : undefined,
       stepResults: [executionResult],
       error: executionResult.success ? undefined : executionResult.error,
     }

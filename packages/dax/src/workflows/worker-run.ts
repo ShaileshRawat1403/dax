@@ -23,6 +23,8 @@ import { runSandboxedCommand, runSandboxedWorkerCheck } from "@/worker/worker-sa
 import { startEgressProxy } from "@/worker/egress-proxy"
 import { z } from "zod"
 import { discoverAntigravityModels, requireAntigravityModel } from "@/worker/antigravity-models"
+import { requireFixedWorkflowCapability } from "./capability-identity"
+import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 
 const log = Log.create({ service: "worker-run-workflow" })
 
@@ -266,6 +268,7 @@ function formatScopeViolations(violations: WorkerScopeViolation[]): string {
 }
 
 export class WorkerRunWorkflow {
+  #identity = true
   private runId: string
   private contract: WorkflowContext["contract"]
 
@@ -275,6 +278,19 @@ export class WorkerRunWorkflow {
   }
 
   async execute(): Promise<WorkflowExecutionResult> {
+    if (
+      !this ||
+      !(#identity in this) ||
+      Object.getPrototypeOf(this) !== WorkerRunWorkflow.prototype ||
+      this.execute !== WorkerRunWorkflow.prototype.execute
+    )
+      throw new CapabilityIdentityError("changed")
+    requireFixedWorkflowCapability({
+      workflowClass: "worker_run",
+      phase: "execute",
+      contract: this.contract,
+      runId: this.runId,
+    })
     const stepResults: WorkflowStepResult[] = []
 
     const workerId = workerIdFromProviderHint(this.contract.providerHint)
@@ -565,6 +581,19 @@ export class WorkerRunWorkflow {
   }
 
   async resumeAfterApproval(approvalId: string, decision: "approved" | "denied"): Promise<WorkflowExecutionResult> {
+    if (
+      !this ||
+      !(#identity in this) ||
+      Object.getPrototypeOf(this) !== WorkerRunWorkflow.prototype ||
+      this.resumeAfterApproval !== WorkerRunWorkflow.prototype.resumeAfterApproval
+    )
+      throw new CapabilityIdentityError("changed")
+    requireFixedWorkflowCapability({
+      workflowClass: "worker_run",
+      phase: "resume_after_approval",
+      contract: this.contract,
+      runId: this.runId,
+    })
     if (decision === "denied") {
       await RunLifecycle.transition(this.runId, "failed", "approval_denied")
       return { success: false, stepResults: [], error: "Approval was denied" }

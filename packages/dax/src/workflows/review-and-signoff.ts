@@ -4,6 +4,8 @@ import { RunLifecycle } from "@/state/run-lifecycle"
 import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult, DraftArtifact } from "./types"
 import { Identifier } from "@/id/id"
+import { requireFixedWorkflowCapability } from "./capability-identity"
+import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 
 const log = Log.create({ service: "review-and-signoff" })
 
@@ -17,6 +19,7 @@ export interface SignoffResult {
 }
 
 export class ReviewAndSignoffWorkflow {
+  #identity = true
   private runId: string
   private contract: ExecutionContract
   private signoffResult: SignoffResult | null = null
@@ -34,6 +37,19 @@ export class ReviewAndSignoffWorkflow {
   }
 
   async execute(): Promise<WorkflowExecutionResult> {
+    if (
+      !this ||
+      !(#identity in this) ||
+      Object.getPrototypeOf(this) !== ReviewAndSignoffWorkflow.prototype ||
+      this.execute !== ReviewAndSignoffWorkflow.prototype.execute
+    )
+      throw new CapabilityIdentityError("changed")
+    requireFixedWorkflowCapability({
+      workflowClass: "review_and_signoff",
+      phase: "execute",
+      contract: this.contract,
+      runId: this.runId,
+    })
     const stepResults: WorkflowStepResult[] = []
 
     log.info("starting review_and_signoff workflow", { runId: this.runId })
