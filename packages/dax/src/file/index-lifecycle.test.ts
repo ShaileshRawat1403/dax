@@ -538,15 +538,30 @@ test("global-home completed directory cache preserves hidden and nested exclusio
   await fs.promises.mkdir(path.join(root, "visible", "nested"), { recursive: true })
   await fs.promises.mkdir(path.join(root, "visible", "node_modules"), { recursive: true })
   await fs.promises.mkdir(path.join(root, ".hidden"), { recursive: true })
+  const visibleRead = deferred()
+  const original = fs.promises.readdir
+  const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
+  const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
+    const entries = await original(directory, options)
+    if (directory === path.join(root, "visible")) {
+      // A delayed child read must not make the nonblocking cache look empty at
+      // the assertion boundary merely because the host scheduled other work.
+      await new Promise<void>((resolve) => setTimeout(resolve, 15))
+      visibleRead.resolve()
+    }
+    return entries
+  })
+  restore.push(() => read.mockRestore())
   await Instance.provide({
     directory: root,
     async fn() {
       File.init()
-      let result: string[] = []
-      for (let i = 0; i < 50 && !result.includes("visible/"); i++) {
-        result = await File.search({ query: "", type: "directory" })
-        if (!result.length) await new Promise<void>((resolve) => setImmediate(resolve))
-      }
+      // The real async enumeration may take longer than 50 event-loop turns on
+      // loaded CI hosts. Wait for the observable child read, then let its scan
+      // continuation publish the completed snapshot before asserting the cache.
+      await visibleRead.promise
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      const result = await File.search({ query: "", type: "directory" })
       expect(result).toEqual(["visible/", "visible/nested/"])
       await Instance.dispose()
     },
