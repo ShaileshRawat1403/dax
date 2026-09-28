@@ -9,7 +9,7 @@ import { Instance } from "@/project/instance"
 import { RunStore } from "@/state/run-store"
 import { $ } from "bun"
 import path from "path"
-import fs from "fs"
+import { relativeGuardPath } from "./runtime-guard-path"
 import { resolveGuardEnforcementMode, shouldBlockViolation } from "./guard-mode"
 import { deriveCompletionProof } from "./completion-proof"
 import { MessageV2 } from "@/session/message-v2"
@@ -94,22 +94,7 @@ function violationFingerprint(input: RuntimeGuardInput, code: string) {
 }
 
 function normalizeRelative(filePath: string) {
-  if (!filePath) return filePath
-  const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(Instance.directory, filePath)
-
-  // Assigned by both branches below; a default here would mask a future
-  // path that forgets to resolve.
-  let resolvedAbsolute: string
-  try {
-    // Follow symlinks and resolve '..' to get canonical path
-    resolvedAbsolute = fs.realpathSync(absolute)
-  } catch {
-    // If file doesn't exist, we still want to resolve '..' and normalize separators
-    resolvedAbsolute = path.resolve(absolute)
-  }
-
-  const relative = path.relative(Instance.worktree, resolvedAbsolute)
-  return relative
+  return relativeGuardPath({ filePath, directory: Instance.directory, worktree: Instance.worktree })
 }
 
 function collectTouchedPaths(req: GuardRequest): string[] {
@@ -250,7 +235,7 @@ function hasExplicitApprovalSignalForPath(input: string, relativePath: string) {
   if (!text) return false
   const approved = /\b(approve|approved|consent|allow|all clear|yes|y|ok|okay|go ahead|proceed|do it)\b/.test(text)
   if (!approved) return false
-  
+
   // If the user provides a short generic approval without caveats, accept it for a smooth UX
   if (text.length < 50 && !/\b(except|but|only|not|don't|do not)\b/.test(text)) {
     return true
