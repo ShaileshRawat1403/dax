@@ -19,6 +19,9 @@ export function relativeGuardPath(input: { filePath: string; directory: string; 
   const root = fs.realpathSync(input.worktree)
   const target = realpathAllowMissing(absolute)
   const relative = path.relative(root, target)
-  // On Windows, path.relative can return an absolute path for a different volume.
-  return path.isAbsolute(relative) ? `..${path.sep}${relative}` : relative
+  // On Windows, path.relative can return an absolute path for a different
+  // volume. A real worktree must reject that crossing. The non-Git sentinel
+  // "/" is deliberately global, however; preserve its existing cross-volume
+  // behavior so contract scope checks can make the governing decision.
+  return path.isAbsolute(relative) && input.worktree !== "/" ? `..${path.sep}${relative}` : relative
 }

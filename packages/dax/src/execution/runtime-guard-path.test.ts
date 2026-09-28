@@ -47,10 +47,17 @@ describe("runtime guard path normalization", () => {
       expect(relative.startsWith(`..${path.sep}`)).toBe(true)
     }))
 
-  test("unexpected resolution errors and absent workspace roots fail closed", () =>
+  test("the non-Git global root retains its cross-volume compatibility policy", () =>
     fixture(({ root }) => {
-      fs.writeFileSync(path.join(root, "src", "file.txt"), "content")
-      expect(() => relativeGuardPath({ filePath: "src/file.txt/child", directory: root, worktree: root })).toThrow()
+      const target = path.join(root, "src", "future.txt")
+      const globalRoot = fs.realpathSync("/")
+      expect(relativeGuardPath({ filePath: target, directory: root, worktree: "/" })).toBe(
+        path.relative(globalRoot, path.join(fs.realpathSync(path.join(root, "src")), "future.txt")),
+      )
+    }))
+
+  test("an absent workspace root fails closed", () =>
+    fixture(({ root }) => {
       expect(() =>
         relativeGuardPath({ filePath: "src/new.txt", directory: root, worktree: path.join(root, "missing") }),
       ).toThrow()
