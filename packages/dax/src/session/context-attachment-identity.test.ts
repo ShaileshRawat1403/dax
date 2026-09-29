@@ -147,4 +147,36 @@ describe("prompt-time local context identity", () => {
       },
     })
   })
+
+  test("identity failure during real attachment preparation cannot become synthetic context", async () => {
+    const folder = path.join(root, "project")
+    await fs.mkdir(folder)
+    const filepath = path.join(folder, "notes.txt")
+    await fs.writeFile(filepath, "controlled attachment text")
+    await Instance.provide({
+      directory: folder,
+      async fn() {
+        const session = await Session.create({ title: "Attachment identity failure" })
+        const getModel = spyOn(Provider, "getModel").mockRejectedValue(new CapabilityIdentityError("stale"))
+        let rejected = false
+        let reason: unknown
+        try {
+          await SessionPrompt.prompt({
+            sessionID: session.id,
+            model: { providerID: "openai", modelID: "gpt-4o" },
+            noReply: true,
+            parts: [{ type: "file", url: pathToFileURL(filepath).href, mime: "text/plain", filename: "notes.txt" }],
+          })
+        } catch (error) {
+          rejected = true
+          reason = error
+        } finally {
+          getModel.mockRestore()
+        }
+        expect(rejected).toBe(true)
+        expect(reason).toBeInstanceOf(CapabilityIdentityError)
+        expect(await Session.messages({ sessionID: session.id })).toEqual([])
+      },
+    })
+  })
 })
