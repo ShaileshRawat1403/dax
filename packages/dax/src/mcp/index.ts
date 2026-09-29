@@ -3,7 +3,11 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
-import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
+import {
+  ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  ToolListChangedNotificationSchema,
+} from "@modelcontextprotocol/sdk/types.js"
 import { Config } from "../config/config"
 import { Log } from "../util/log"
 import { NamedError } from "@dax-ai/util/error"
@@ -20,6 +24,7 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import open from "open"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { createMcpToolCatalog, mcpExecutionIdentity, mcpToolSummary } from "./tool-identity"
+import { bindMcpResourceRead, requireMcpResourceRead } from "./resource-identity"
 
 /**
  * A local MCP server is a child process declared by configuration, and DAX
@@ -205,10 +210,18 @@ export namespace MCP {
       log.info("tools list changed notification received", { server: serverName })
       await Bus.publish(ToolsChanged, { server: serverName })
     })
+    const resourceChanged = () => {
+      if (s.disposed || s.clients[serverName] !== client) return
+      s.revisions.set(serverName, (s.revisions.get(serverName) ?? 0) + 1)
+      log.info("resource notification received", { server: serverName })
+    }
+    client.setNotificationHandler(ResourceListChangedNotificationSchema, resourceChanged)
+    client.setNotificationHandler(ResourceUpdatedNotificationSchema, resourceChanged)
     const previousClose = client.onclose
     client.onclose = () => {
       if (!s.disposed && s.clients[serverName] === client) {
         s.catalog.invalidate(serverName)
+        s.revisions.set(serverName, (s.revisions.get(serverName) ?? 0) + 1)
         delete s.clients[serverName]
         s.status[serverName] = { status: "failed", error: "MCP connection closed" }
       }
@@ -934,8 +947,8 @@ export namespace MCP {
    * @returns Resource contents or undefined if not found
    */
   export async function readResource(clientName: string, resourceUri: string) {
-    const clientsSnapshot = await clients()
-    const client = clientsSnapshot[clientName]
+    const s = await state()
+    const client = s.clients[clientName]
 
     if (!client) {
       log.warn("client not found for prompt", {
@@ -944,20 +957,34 @@ export namespace MCP {
       return undefined
     }
 
-    const result = await client
-      .readResource({
-        uri: resourceUri,
+    const revision = s.revisions.get(clientName) ?? 0
+    const ownerDirectory = Instance.directory
+    const checkOwner = () => {
+      if (
+        s.disposed ||
+        Instance.directory !== ownerDirectory ||
+        s.clients[clientName] !== client ||
+        s.status[clientName]?.status !== "connected" ||
+        (s.revisions.get(clientName) ?? 0) !== revision
+      )
+        throw new CapabilityIdentityError("stale")
+    }
+    const binding = bindMcpResourceRead({ clientName, uri: resourceUri, client, checkOwner })
+    const selected = { binding, clientName, uri: resourceUri, client }
+    requireMcpResourceRead(selected)
+    try {
+      const result = await client.readResource({ uri: resourceUri })
+      requireMcpResourceRead(selected)
+      return result
+    } catch (error) {
+      requireMcpResourceRead(selected)
+      if (error instanceof CapabilityIdentityError) throw error
+      log.error("failed to read resource from MCP server", {
+        clientName,
+        error: error instanceof Error ? error.message : String(error),
       })
-      .catch((e) => {
-        log.error("failed to get prompt from MCP server", {
-          clientName: clientName,
-          resourceUri: resourceUri,
-          error: e.message,
-        })
-        return undefined
-      })
-
-    return result
+      return undefined
+    }
   }
 
   /**
