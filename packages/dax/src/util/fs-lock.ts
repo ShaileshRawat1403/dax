@@ -8,7 +8,9 @@ export interface FsLockOptions {
 }
 
 export interface FsLockMetadata {
-  runId: string
+  runId?: string
+  scopeType?: "project"
+  scopeId?: string
   pid: number
   hostname: string
   createdAt: string
@@ -22,15 +24,15 @@ export class FsLockError extends Error {
 }
 
 export class FsLockStaleError extends FsLockError {
-  constructor(runId: string) {
-    super(`Stale lock detected for run ${runId}`)
+  constructor(scopeId: string, scopeType: "run" | "project" = "run") {
+    super(`Stale lock detected for ${scopeType} ${scopeId}`)
     this.name = "FsLockStaleError"
   }
 }
 
 export class FsLockTimeoutError extends FsLockError {
-  constructor(runId: string) {
-    super(`Timeout waiting for lock on run ${runId}`)
+  constructor(scopeId: string, scopeType: "run" | "project" = "run") {
+    super(`Timeout waiting for lock on ${scopeType} ${scopeId}`)
     this.name = "FsLockTimeoutError"
   }
 }
@@ -40,18 +42,22 @@ function isLockContentionError(code: string | undefined) {
   return process.platform === "win32" && (code === "EACCES" || code === "EBUSY" || code === "EPERM")
 }
 
-export async function acquireRunLock(
-  runId: string,
+async function acquireScopeLock(
+  scopeType: "run" | "project",
+  scopeId: string,
   options: FsLockOptions = {},
 ): Promise<{ dispose: () => Promise<void> }> {
+  if (!scopeId || scopeId === "." || scopeId === ".." || /[/\\\0]/.test(scopeId)) {
+    throw new FsLockError(`Invalid ${scopeType} lock identity`)
+  }
   const timeoutMs = options.timeoutMs ?? 5000
   const retryIntervalMs = options.retryIntervalMs ?? 100
 
   const lockDir = path.join(Global.Path.data, "storage")
-  const lockPath = path.join(lockDir, "run_locks", `${runId}.lock`)
+  const lockPath = path.join(lockDir, scopeType === "run" ? "run_locks" : "project_locks", `${scopeId}.lock`)
 
   const metadata: FsLockMetadata = {
-    runId,
+    ...(scopeType === "run" ? { runId: scopeId } : { scopeType, scopeId }),
     pid: process.pid,
     hostname: process.env.HOSTNAME || "unknown",
     createdAt: new Date().toISOString(),
@@ -79,7 +85,7 @@ export async function acquireRunLock(
       const code = (error as NodeJS.ErrnoException).code
       if (isLockContentionError(code)) {
         if (Date.now() - startTime > timeoutMs) {
-          throw new FsLockTimeoutError(runId)
+          throw new FsLockTimeoutError(scopeId, scopeType)
         }
 
         if (code === "EEXIST") {
@@ -107,6 +113,14 @@ export async function acquireRunLock(
       throw error
     }
   }
+}
+
+export async function acquireRunLock(runId: string, options: FsLockOptions = {}) {
+  return acquireScopeLock("run", runId, options)
+}
+
+export async function acquireProjectLock(projectId: string, options: FsLockOptions = {}) {
+  return acquireScopeLock("project", projectId, options)
 }
 
 async function isLockStale(meta: FsLockMetadata): Promise<boolean> {

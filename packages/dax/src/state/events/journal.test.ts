@@ -120,4 +120,52 @@ describe("shared journal storage protocol", () => {
       rename.mockRestore()
     }
   })
+
+  test("a killed publisher leaves the previous journal readable and retryable", async () => {
+    const store = journal()
+    const original = await store.appendAtTail({ value: "first" })
+    const childCode = `
+      const { Storage } = await import(${JSON.stringify(path.join(import.meta.dir, "../../storage/storage.ts"))});
+      const { Journal } = await import(${JSON.stringify(path.join(import.meta.dir, "journal.ts"))});
+      const { acquireRunLock } = await import(${JSON.stringify(path.join(import.meta.dir, "../../util/fs-lock.ts"))});
+      const store = new Journal({
+        scope: { type: "project", id: "project_test" },
+        path: ["project_events", "project_test"],
+        lock: () => acquireRunLock("journal_primitive_test"),
+        parse: (events) => events,
+        create: (seq) => ({ eventId: "evt_interrupted", seq, scopeType: "project", scopeId: "project_test", schemaVersion: "v1", type: "fact", payload: { value: "interrupted" } }),
+        staleError: () => new Error("stale"),
+        duplicateError: () => new Error("duplicate"),
+      });
+      Storage.rename = async () => {
+        process.stderr.write("JOURNAL_READY\\n");
+        await new Promise(() => {});
+      };
+      await store.appendAtTail({});
+    `
+    const child = Bun.spawn([process.execPath, "-e", childCode], {
+      cwd: path.resolve(import.meta.dir, "../../../../.."),
+      env: { ...process.env, DAX_TEST_HOME: testHome },
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    try {
+      const reader = child.stderr.getReader()
+      let output = ""
+      while (!output.includes("JOURNAL_READY")) {
+        const next = await Promise.race([
+          reader.read(),
+          Bun.sleep(5_000).then(() => { throw new Error(`Timed out waiting for child publication boundary: ${output}`) }),
+        ])
+        if (next.done) throw new Error(`Child exited before publication boundary: ${output}`)
+        output += new TextDecoder().decode(next.value)
+      }
+    } finally {
+      child.kill()
+      await child.exited
+    }
+    expect(await store.read()).toEqual([original])
+    expect((await store.appendAtTail({ value: "retry" })).seq).toBe(1)
+    expect((await store.read()).map((event) => event.payload.value)).toEqual(["first", "retry"])
+  })
 })

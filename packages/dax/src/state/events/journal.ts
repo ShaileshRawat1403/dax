@@ -15,7 +15,7 @@ export type JournalOptions<Event extends JournalEvent, Input> = {
   lock: () => Promise<JournalLock>
   parse: (events: unknown[]) => Event[]
   create: (seq: number, input: Input) => Event
-  validateAppend?: (existing: Event[], candidate: Event) => void
+  validateAppend?: (existing: Event[], candidate: Event) => void | Promise<void>
   staleError: (expected: number, actual: number) => Error
   duplicateError: (commandId: string) => Error
 }
@@ -71,30 +71,49 @@ export class Journal<Event extends JournalEvent, Input> {
     existing: Event[],
     options?: { rejectDuplicateCommand?: boolean },
   ): Promise<Event> {
+    const [result] = await this.appendBatchUnderLock(expectedSeq, [input], existing, options)
+    return result
+  }
+
+  /** Validate every event under one scope lock, then publish the whole batch once. */
+  async appendBatchUnderLock(
+    expectedSeq: number,
+    inputs: Input[],
+    existing: Event[],
+    options?: { rejectDuplicateCommand?: boolean },
+  ): Promise<Event[]> {
     if (existing.length !== expectedSeq) throw this.options.staleError(expectedSeq, existing.length)
-
-    const commandId = (input as { commandId?: string }).commandId
-    if (commandId) {
-      const duplicate = existing.find((event) => event.commandId === commandId)
-      if (duplicate) {
-        if (options?.rejectDuplicateCommand) throw this.options.duplicateError(commandId)
-        return duplicate
+    if (inputs.length === 0) return []
+    const next = [...existing]
+    const results: Event[] = []
+    for (const input of inputs) {
+      const commandId = (input as { commandId?: string }).commandId
+      if (commandId) {
+        const duplicate = next.find((event) => event.commandId === commandId)
+        if (duplicate) {
+          if (options?.rejectDuplicateCommand) throw this.options.duplicateError(commandId)
+          results.push(duplicate)
+          continue
+        }
       }
-    }
 
-    const candidate = this.options.create(expectedSeq, input)
-    const [validated] = this.options.parse([candidate])
-    if (!validated || validated.seq !== expectedSeq) {
-      throw new Error(`Invalid ${this.options.scope.type} journal candidate for ${this.options.scope.id}`)
+      const candidate = this.options.create(next.length, input)
+      const [validated] = this.options.parse([candidate])
+      if (!validated || validated.seq !== next.length) {
+        throw new Error(`Invalid ${this.options.scope.type} journal candidate for ${this.options.scope.id}`)
+      }
+      if (next.some((event) => event.eventId === validated.eventId)) {
+        throw new Error(`${this.options.scope.type} journal ${this.options.scope.id} repeats eventId ${validated.eventId}`)
+      }
+      await this.options.validateAppend?.(next, validated)
+      next.push(validated)
+      results.push(validated)
     }
-    if (existing.some((event) => event.eventId === validated.eventId)) {
-      throw new Error(`${this.options.scope.type} journal ${this.options.scope.id} repeats eventId ${validated.eventId}`)
+    if (next.length > existing.length) {
+      await Storage.write(this.tempPath, next)
+      await Storage.rename(this.tempPath, this.eventsPath)
     }
-    this.options.validateAppend?.(existing, validated)
-    const next = [...existing, validated]
-    await Storage.write(this.tempPath, next)
-    await Storage.rename(this.tempPath, this.eventsPath)
-    return validated
+    return results
   }
 
   async append(expectedSeq: number, input: Input, options?: { rejectDuplicateCommand?: boolean }): Promise<Event> {

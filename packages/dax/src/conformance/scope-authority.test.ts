@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { existsSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import os from "node:os"
 import { Instance } from "@/project/instance"
 import { initializeRunEventAuthority, readRunEvents } from "@/state/events/run-event-store"
+import { appendProjectEvent, initializeProjectJournal, readProjectEvents } from "@/state/events/project-journal"
 import { expectAsyncGap, expectGap } from "./known-gaps"
 
 /**
@@ -92,7 +93,7 @@ describe("invariant 7 — scope authority", () => {
     process.env.DAX_TEST_HOME = testHome
     try {
       await Instance.provide({
-        directory: join(import.meta.dir, "../../../.."),
+        directory: join(import.meta.dir, "../../../../.."),
         async fn() {
           const runId = `run_scope_${crypto.randomUUID().replaceAll("-", "")}`
           await initializeRunEventAuthority(runId, {
@@ -115,12 +116,65 @@ describe("invariant 7 — scope authority", () => {
     }
   })
 
-  test("a project-scoped journal exists for facts that outlive their run", () => {
-    // Project memory is the first concrete instance: it is read by intent
-    // interpretation on every session, and has nowhere to be written that does
-    // not die with a run.
+  test("an unrelated run event cannot authorize a project fact", async () => {
+    // Storage-level approval binding is a normal regression, not proof that a
+    // production operator flow now owns the project-memory read/write path.
+    const testHome = await mkdtemp(join(os.tmpdir(), "dax-project-authority-"))
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+    try {
+      await Instance.provide({
+        directory: join(import.meta.dir, "../../../../.."),
+        async fn() {
+          const runId = `run_project_${crypto.randomUUID().replaceAll("-", "")}`
+          await initializeRunEventAuthority(runId, {
+            contractId: "ctr_project",
+            verificationRequired: false,
+            guardEnforcementMode: "warn",
+          })
+          const [source] = await readRunEvents(runId)
+          await initializeProjectJournal()
+          const before = await readProjectEvents()
+          let rejected = false
+          try {
+            await appendProjectEvent({
+              type: "project_fact_promoted",
+              payload: {
+                fact: {
+                  factId: "fact_unapproved",
+                  kind: "memory",
+                  category: "decision",
+                  title: "Unapproved",
+                  content: "No operator approved this fact",
+                  tags: [],
+                },
+              },
+              sourceRefs: [{ scopeType: "run", scopeId: runId, eventId: source.eventId }],
+              commandId: "unapproved_project_fact",
+            })
+          } catch (error) {
+            rejected = true
+            expect((error as Error).message).toBe("project_fact_authorization_required")
+          }
+          expect(rejected).toBe(true)
+          expect(await readProjectEvents()).toEqual(before)
+        },
+      })
+    } finally {
+      await Instance.disposeAll()
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      await rm(testHome, { recursive: true, force: true })
+    }
+  })
+
+  test("production project-memory reads and writes have not migrated to the project journal", () => {
+    // The standalone journal is not yet the PM producer/consumer. Keep this
+    // tracking check until a governed operator flow uses it end to end.
     expectGap("scope.project-journal", () => {
-      expect(existsSync(join(SRC, "state/events/project-journal.ts"))).toBe(true)
+      const pm = source("pm/index.ts")
+      expect(pm).toContain("appendProjectEvent(")
+      expect(pm).toContain("projectStateFromEvents(")
     })
   })
 

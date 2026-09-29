@@ -31,11 +31,11 @@ export const KNOWN_GAPS = {
     "Native, loader-backed plugin and DAX-adapted MCP descriptors are validated and descriptive; legacy custom, graph/workflow, worker and context executors lack validated intrinsic descriptors",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
   "scope.journal-primitive":
-    "The run journal uses shared append, locking, sequence, validation, and replay machinery, but no production project journal instantiates that machinery yet",
+    "Both run and project stores now instantiate shared journal machinery; production parity and interruption evidence are candidate-only pending independent review",
   "scope.aware-envelope":
     "The parser accepts v2 owner and source references while preserving v1 history, but production run events remain v1 and no project-owned producer proves cross-scope provenance",
   "scope.project-journal":
-    "No project-scoped journal exists, so facts that outlive their run — promoted memory, project conventions — have no authoritative owner",
+    "A project-owned journal replays approved facts after source-run removal, but production PM reads/writes and an operator review flow have not migrated to its authority",
   "memory.no-producer":
     "Project memory is read by intent interpretation on every session but no production code writes it; what may be promoted into memory is an open governance decision",
   "inv5.grant-resolution": "Execution paths do not resolve authority through one shared grant lookup",
