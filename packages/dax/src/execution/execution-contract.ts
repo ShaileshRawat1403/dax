@@ -10,7 +10,7 @@ import {
 import type { WorkflowClass, ExecutionMode, RiskLevel } from "./workflow-class"
 import { CapabilityGrants } from "@/capability/grant"
 
-export const SchemaVersion = z.enum(["v1", "v2"])
+export const SchemaVersion = z.literal("v1")
 export type SchemaVersion = z.infer<typeof SchemaVersion>
 
 export const ApprovalPolicy = z.object({
@@ -99,51 +99,51 @@ export const RuntimePolicy = z.object({
 })
 export type RuntimePolicy = z.infer<typeof RuntimePolicy>
 
-export const ExecutionContract = z
-  .object({
-    schemaVersion: SchemaVersion.default("v1"),
-    contractId: z.string(),
-    contractInstanceId: z.string().optional(),
-    contractDigest: z.string().optional(),
-    runId: z.string(),
-    workflowClass: WorkflowClassSchema,
-    workflowHint: WorkflowClassSchema.optional(),
-    workflowHintAccepted: z.boolean().optional(),
-    intent: z.string(),
-    executionMode: ExecutionModeSchema,
-    riskLevel: RiskLevelSchema,
-    toolAllowlist: z.string().array(),
-    toolBlocklist: z.string().array(),
-    /** Required for v2; absent in historical v1 contracts. Never inferred on replay. */
-    capabilityGrants: CapabilityGrants.optional(),
-    approvalPolicy: ApprovalPolicy,
-    expectedOutputs: OutputContract.array(),
-    timeoutMs: z.number().min(60000).max(3600000).default(1800000),
-    fallbackPolicy: FallbackPolicy.optional(),
-    retryPolicy: RetryPolicy.optional(),
-    runtimePolicy: RuntimePolicy.optional(),
-    providerHint: z.string().optional(),
-    modelHint: z.string().optional(),
-    repoPath: z.string().optional(),
-    branch: z.string().optional(),
-    workspaceId: z.string().optional(),
-    projectId: z.string().optional(),
-    initiatedBy: z.string().optional(),
-    createdAt: z.string(),
-  })
-  .superRefine((contract, ctx) => {
-    if (contract.schemaVersion === "v2" && !contract.capabilityGrants) {
-      ctx.addIssue({ code: "custom", path: ["capabilityGrants"], message: "v2 contract requires capability grants" })
-    }
-    if (contract.schemaVersion === "v1" && contract.capabilityGrants !== undefined) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["capabilityGrants"],
-        message: "v1 contract cannot claim capability grants",
-      })
-    }
-  })
+const ExecutionContractBase = z.object({
+  schemaVersion: SchemaVersion.default("v1"),
+  contractId: z.string(),
+  contractInstanceId: z.string().optional(),
+  contractDigest: z.string().optional(),
+  runId: z.string(),
+  workflowClass: WorkflowClassSchema,
+  workflowHint: WorkflowClassSchema.optional(),
+  workflowHintAccepted: z.boolean().optional(),
+  intent: z.string(),
+  executionMode: ExecutionModeSchema,
+  riskLevel: RiskLevelSchema,
+  toolAllowlist: z.string().array(),
+  toolBlocklist: z.string().array(),
+  /** Required for v2; absent in historical v1 contracts. Never inferred on replay. */
+  capabilityGrants: CapabilityGrants.optional(),
+  approvalPolicy: ApprovalPolicy,
+  expectedOutputs: OutputContract.array(),
+  timeoutMs: z.number().min(60000).max(3600000).default(1800000),
+  fallbackPolicy: FallbackPolicy.optional(),
+  retryPolicy: RetryPolicy.optional(),
+  runtimePolicy: RuntimePolicy.optional(),
+  providerHint: z.string().optional(),
+  modelHint: z.string().optional(),
+  repoPath: z.string().optional(),
+  branch: z.string().optional(),
+  workspaceId: z.string().optional(),
+  projectId: z.string().optional(),
+  initiatedBy: z.string().optional(),
+  createdAt: z.string(),
+})
+/** Existing runtime remains v1-only until grant enforcement is wired. */
+export const ExecutionContract = ExecutionContractBase.superRefine((contract, ctx) => {
+  if (contract.capabilityGrants !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["capabilityGrants"], message: "v1 contract cannot claim capability grants" })
+  }
+})
 export type ExecutionContract = z.infer<typeof ExecutionContract>
+
+/** Candidate wire format. Current runtime deliberately rejects it. */
+export const ExecutionContractV2 = ExecutionContractBase.omit({ schemaVersion: true, capabilityGrants: true }).extend({
+  schemaVersion: z.literal("v2"),
+  capabilityGrants: CapabilityGrants,
+})
+export type ExecutionContractV2 = z.infer<typeof ExecutionContractV2>
 
 export const ExecutionContractMeta = z.object({
   contractId: z.string(),
