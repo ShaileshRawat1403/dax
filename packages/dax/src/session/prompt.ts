@@ -93,6 +93,7 @@ import type { ProviderInputSourceCandidate } from "@/execution/provider-input-pa
 import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
 import { bindContextAttachment, requireContextAttachment } from "./context-attachment-identity"
+import { bindTemplateContext, requireTemplateContext } from "./template-context-identity"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -483,7 +484,15 @@ export namespace SessionPrompt {
           ? path.join(os.homedir(), name.slice(2))
           : path.resolve(Instance.worktree, name)
 
-        const stats = await fs.stat(filepath).catch(() => undefined)
+        const executor = fs.stat
+        const binding = bindTemplateContext({ reference: name, filepath, executor })
+        const requireStat = () => requireTemplateContext({ binding, reference: name, filepath, executor: fs.stat })
+        requireStat()
+        const stats = await executor(filepath).catch((error) => {
+          if (error instanceof CapabilityIdentityError) throw error
+          return undefined
+        })
+        requireStat()
         if (!stats) {
           const agent = await Agent.get(name)
           if (agent) {
