@@ -67,6 +67,12 @@ describe("versioned capability grant contracts", () => {
         const { contract } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, session.id)
         const candidate = ExecutionContractV2.parse({ ...contract, schemaVersion: "v2", capabilityGrants: grants })
         expect(ExecutionContractV2.parse(JSON.parse(JSON.stringify(candidate))).capabilityGrants).toEqual(grants)
+        const normalWrite = await ContractGuardian.create(session.id, candidate as unknown as ExecutionContract).then(
+          () => "unexpected success",
+          (error: unknown) => error,
+        )
+        expect(String(normalWrite)).toContain("Invalid ExecutionContract proposed")
+        expect(await resolveExecutionAuthority(session.id)).toEqual({ contract: null })
         await Storage.write(["execution_contract", Instance.project.id, session.id], candidate)
         const rejected = await resolveExecutionAuthority(session.id).then(
           () => "unexpected success",

@@ -68,6 +68,10 @@ export async function resolveExecutionAuthority(
 
 // Write contract only if run hasn't started or if it hasn't changed
 export async function writeContractIfNotStarted(runId: string, contract: ExecutionContract): Promise<void> {
+  // TypeScript callers are not the authority boundary. Refuse malformed or
+  // unsupported versions before any normal contract write can make them look
+  // like executable run authority.
+  if (!isValidContract(contract)) throw new Error(`Invalid ExecutionContract proposed for run ${runId}`)
   // Share the event store's cross-process lock: authorizing a rewrite and
   // persisting it must serialize with establishing canonical authority.
   const lock = await acquireRunLock(runId)
