@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
+import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
-import { expectGap } from "./known-gaps"
+import os from "node:os"
+import { Instance } from "@/project/instance"
+import { initializeRunEventAuthority, readRunEvents } from "@/state/events/run-event-store"
+import { expectAsyncGap, expectGap } from "./known-gaps"
 
 /**
  * Invariant 7 — Scope Authority.
@@ -79,15 +83,36 @@ describe("invariant 7 — scope authority", () => {
     })
   })
 
-  test("the envelope names the scope that owns the event", () => {
-    // Today RunEventEnvelope carries runId and nothing else, so an event cannot
-    // say which scope it belongs to — the answer is implied by which file it was
-    // read from. A project-scoped event needs to state its own ownership, and to
-    // carry provenance into the run that caused it without being owned by it.
-    expectGap("scope.aware-envelope", () => {
-      const types = source("state/events/run-event-types.ts")
-      expect(types).toMatch(/scopeType|scope_type/)
-    })
+  test("a newly produced canonical run event explicitly names its owner", async () => {
+    // The v2 parser accepts explicitly owned events and continues to read old
+    // v1 history. The producer remains v1 pending the durable-format cutover;
+    // merely finding scopeType in a schema is not evidence of scope coverage.
+    const testHome = await mkdtemp(join(os.tmpdir(), "dax-scope-owner-"))
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+    try {
+      await Instance.provide({
+        directory: join(import.meta.dir, "../../../.."),
+        async fn() {
+          const runId = `run_scope_${crypto.randomUUID().replaceAll("-", "")}`
+          await initializeRunEventAuthority(runId, {
+            contractId: "ctr_scope",
+            verificationRequired: false,
+            guardEnforcementMode: "warn",
+          })
+          const events = await readRunEvents(runId)
+          await expectAsyncGap("scope.aware-envelope", async () => {
+            expect(events).toHaveLength(1)
+            expect(events[0]).toMatchObject({ schemaVersion: "v2", scopeType: "run", scopeId: runId })
+          })
+        },
+      })
+    } finally {
+      await Instance.disposeAll()
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      await rm(testHome, { recursive: true, force: true })
+    }
   })
 
   test("a project-scoped journal exists for facts that outlive their run", () => {

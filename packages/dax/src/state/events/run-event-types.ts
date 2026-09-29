@@ -3,6 +3,7 @@ import { CheckResult } from "@/sdlc/check-types"
 import { EvidenceReceipt } from "@/sdlc/evidence-receipt"
 import { MutationReceiptSchema } from "@/sdlc/mutation-receipt"
 import { ApprovalContextSchema, ApprovalSourceSchema } from "@/approval/approval-types"
+import { ScopedEnvelopeFields, validateSourceReferences, type JournalEventReference } from "./scope-envelope"
 
 const closed = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape).strict()
 
@@ -840,31 +841,35 @@ export function isRunEventType(type: string): type is RunEventType {
   return RUN_EVENT_TYPES.includes(type as RunEventType)
 }
 
-export type RunEventEnvelope = {
+type RunEventEnvelopeBase = {
   eventId: string
   runId: string
   seq: number
   type: RunEventType
   payload: unknown
   occurredAt: string
-  schemaVersion: "v1"
   causationId?: string
   correlationId?: string
   commandId?: string
 }
+
+/** Historical v1 records remain readable as run-owned by their validated log location. */
+export type RunEventEnvelope = RunEventEnvelopeBase & (
+  | { schemaVersion: "v1"; scopeType?: never; scopeId?: never; sourceRefs?: never }
+  | { schemaVersion: "v2"; scopeType: "run"; scopeId: string; sourceRefs?: JournalEventReference[] }
+)
 
 /**
  * At the storage boundary the envelope and the event payload are parsed as a
  * single discriminated object. A known event with the wrong payload therefore
  * fails just as closedly as an unknown event type.
  */
-export const RunEventEnvelopeSchema = z
+const RunEventEnvelopeBaseSchema = z
   .object({
     eventId: z.string().min(1),
     runId: z.string().min(1),
     seq: z.number().int().nonnegative(),
     occurredAt: z.string().min(1),
-    schemaVersion: z.literal("v1"),
     causationId: z.string().optional(),
     correlationId: z.string().optional(),
     commandId: z.string().optional(),
@@ -872,8 +877,26 @@ export const RunEventEnvelopeSchema = z
     payload: z.unknown(),
   })
   .strict()
+
+export const RunEventEnvelopeSchema = z
+  .discriminatedUnion("schemaVersion", [
+    RunEventEnvelopeBaseSchema.extend({ schemaVersion: z.literal("v1") }),
+    RunEventEnvelopeBaseSchema.extend({
+      schemaVersion: z.literal("v2"),
+      scopeType: z.literal("run"),
+      scopeId: ScopedEnvelopeFields.scopeId,
+      sourceRefs: ScopedEnvelopeFields.sourceRefs,
+    }),
+  ])
   .and(RunEventPayloadSchema)
   .superRefine((event, ctx) => {
+    if (event.schemaVersion === "v2") {
+      if (event.scopeId !== event.runId) {
+        ctx.addIssue({ code: "custom", path: ["scopeId"], message: "must equal runId for run-owned events" })
+      }
+      const referenceError = validateSourceReferences(event)
+      if (referenceError) ctx.addIssue({ code: "custom", path: ["sourceRefs"], message: referenceError })
+    }
     if (
       event.type === "authorization_recorded" ||
       event.type === "delegation_recorded" ||

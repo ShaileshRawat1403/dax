@@ -33,7 +33,7 @@ export const KNOWN_GAPS = {
   "scope.journal-primitive":
     "The run journal uses shared append, locking, sequence, validation, and replay machinery, but no production project journal instantiates that machinery yet",
   "scope.aware-envelope":
-    "The event envelope carries runId only, so an event cannot state which scope owns it or cite provenance across scopes",
+    "The parser accepts v2 owner and source references while preserving v1 history, but production run events remain v1 and no project-owned producer proves cross-scope provenance",
   "scope.project-journal":
     "No project-scoped journal exists, so facts that outlive their run — promoted memory, project conventions — have no authoritative owner",
   "memory.no-producer":
@@ -68,6 +68,26 @@ export function expectGap(id: GapId, check: () => void): void {
         `  ${KNOWN_GAPS[id]}\n` +
         `If that is intended, delete the entry from KNOWN_GAPS and unwrap the check so it ` +
         `asserts on its own terms. Leaving it wrapped hides the fix from the next reader.`,
+    )
+  }
+}
+
+/** Async counterpart for production-path checks that cross a storage boundary. */
+export async function expectAsyncGap(id: GapId, check: () => Promise<void>): Promise<void> {
+  if (!(id in KNOWN_GAPS)) {
+    throw new Error(`Unknown gap id "${id}". Add it to KNOWN_GAPS with a description of what is missing.`)
+  }
+  let stillOpen = false
+  try {
+    await check()
+  } catch {
+    stillOpen = true
+  }
+  if (!stillOpen) {
+    throw new Error(
+      `Gap "${id}" appears to be CLOSED — its production conformance check now passes.\n` +
+        `${KNOWN_GAPS[id]}\n` +
+        "Delete the ledger entry and run this behavior test normally once independently reviewed.",
     )
   }
 }

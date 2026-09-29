@@ -170,6 +170,38 @@ describe("run event log validation at the storage boundary", () => {
     expect(() => parseRunEventLog(RUN_ID, events)).toThrow(/malformed/i)
   })
 
+  test("historical v1 remains readable without inventing explicit scope ownership", () => {
+    const historical = createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" })
+    expect(parseRunEventLog(RUN_ID, [historical])).toEqual([historical])
+    expect(() => parseRunEventLog(RUN_ID, [{ ...historical, scopeType: "run", scopeId: RUN_ID }])).toThrow(/scopeType/)
+  })
+
+  test("a v2 run envelope binds its owner and may cite project evidence without owning it", () => {
+    const scoped: RunEventEnvelope = {
+      ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      schemaVersion: "v2",
+      scopeType: "run",
+      scopeId: RUN_ID,
+      sourceRefs: [{ scopeType: "project", scopeId: "project_1", eventId: "evt_source" }],
+    }
+    expect(parseRunEventLog(RUN_ID, [scoped])).toEqual([scoped])
+    expect(() => parseRunEventLog(RUN_ID, [{ ...scoped, scopeId: "run_other" }])).toThrow(/scopeId/)
+    expect(() => parseRunEventLog(RUN_ID, [{ ...scoped, scopeType: "project" }])).toThrow(/scopeType/)
+    expect(() => parseRunEventLog(RUN_ID, [{ ...scoped, scopeId: "../escape" }])).toThrow(/scopeId/)
+  })
+
+  test("v2 source references reject duplicates and self-causation", () => {
+    const base: RunEventEnvelope = {
+      ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }),
+      schemaVersion: "v2",
+      scopeType: "run",
+      scopeId: RUN_ID,
+    }
+    const ref = { scopeType: "project", scopeId: "project_1", eventId: "evt_source" }
+    expect(() => parseRunEventLog(RUN_ID, [{ ...base, sourceRefs: [ref, ref] }])).toThrow(/sourceRefs/)
+    expect(() => parseRunEventLog(RUN_ID, [{ ...base, sourceRefs: [{ scopeType: "run", scopeId: RUN_ID, eventId: base.eventId }] }])).toThrow(/sourceRefs/)
+  })
+
   test("a negative or fractional seq is refused", () => {
     // seq is the log's identity. A non-integer one cannot address a position.
     const bad = [{ ...createEvent(RUN_ID, 0, "contract_compiled", { contractId: "ctr_1" }), seq: -1 }]
