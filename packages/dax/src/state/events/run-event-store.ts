@@ -6,6 +6,7 @@ import { acquireRunLock } from "@/util/fs-lock"
 import type { RunEventEnvelope } from "./run-event-types"
 import { reduceRunState, type CanonicalRunState, type RunState } from "./run-reducer"
 import { readRunState } from "@/state/run-store"
+import { Journal } from "./journal"
 
 const log = Log.create({ service: "event-store" })
 
@@ -52,101 +53,59 @@ export class InvalidRunAuthorityError extends Error {
 
 type NewRunEvent = Omit<RunEventEnvelope, "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion">
 
-async function readValidatedEvents(runId: string, eventsPath: string[]): Promise<RunEventEnvelope[]> {
-  try {
-    const persistedEvents = await Storage.read<unknown>(eventsPath)
-    if (!Array.isArray(persistedEvents)) throw new Error(`Invalid event log for run ${runId}: expected an array`)
-    return parseRunEventLog(runId, persistedEvents)
-  } catch (error) {
-    if (Storage.NotFoundError.isInstance(error)) {
-      return []
-    }
-    throw error
-  }
-}
-
-async function appendRunEventUnderLock(input: {
-  runId: string
-  expectedSeq: number
-  event: NewRunEvent
-  existingEvents: RunEventEnvelope[]
-  eventsPath: string[]
-  tempPath: string[]
-  rejectDuplicateCommand?: boolean
-}): Promise<RunEventEnvelope> {
-  const { runId, expectedSeq, event, existingEvents, eventsPath, tempPath, rejectDuplicateCommand } = input
-  const actualSeq = existingEvents.length
-  if (actualSeq !== expectedSeq) {
-    throw new StaleAppendError(runId, expectedSeq, actualSeq)
-  }
-
-  if (event.commandId) {
-    const existingCommand = existingEvents.find((candidate) => candidate.commandId === event.commandId)
-    if (existingCommand) {
-      if (rejectDuplicateCommand) {
-        throw new DuplicateCommandError(runId, event.commandId)
+async function runJournal(runId: string): Promise<Journal<RunEventEnvelope, NewRunEvent>> {
+  return new Journal<RunEventEnvelope, NewRunEvent>({
+    scope: { type: "run", id: runId },
+    path: await eventPath(runId),
+    lock: () => acquireRunLock(runId),
+    parse: (raw) => {
+      const events = parseRunEventLog(runId, raw)
+      for (const event of events) {
+        if (event.runId !== runId) throw new Error(`Run ${runId} journal contains event owned by ${event.runId}`)
       }
-      log.info("duplicate command detected, returning existing event", {
-        runId,
-        commandId: event.commandId,
-        existingEventId: existingCommand.eventId,
-      })
-      return existingCommand
-    }
-  }
-
-  const newEvent: RunEventEnvelope = {
-    eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-    runId,
-    seq: expectedSeq,
-    type: event.type,
-    payload: event.payload,
-    occurredAt: new Date().toISOString(),
-    schemaVersion: "v1",
-    ...(event.causationId ? { causationId: event.causationId } : {}),
-    ...(event.correlationId ? { correlationId: event.correlationId } : {}),
-    ...(event.commandId ? { commandId: event.commandId } : {}),
-  }
-
-  // Validate the write-side boundary as well as storage reads. This prevents
-  // a malformed in-process event from becoming durable evidence that a later
-  // projection would have to reject.
-  const validatedNewEvent = parseRunEventLog(runId, [newEvent])[0]
-
-  // Authority records must not become contradictory durable history. Validate
-  // their reducer semantics while the run lock is held, before persistence;
-  // projection after the write is too late because the canonical log would
-  // already be poisoned.
-  if (
-    event.type === "approval_requested" ||
-    event.type === "approval_resolved" ||
-    event.type === "tool_invocation_recorded" ||
-    event.type === "authorization_recorded" ||
-    event.type === "delegation_recorded" ||
-    event.type === "assistant_recording_started" ||
-    event.type === "assistant_message_recorded" ||
-    event.type === "compaction_recording_started" ||
-    event.type === "compaction_attempt_bound" ||
-    event.type === "compaction_attempt_closed" ||
-    event.type === "compaction_replacement_recorded" ||
-    event.type === "prompt_recording_started" ||
-    event.type === "prompt_contribution_recorded" ||
-    event.type === "context_recording_started" ||
-    event.type === "context_contribution_recorded" ||
-    event.type === "tool_result_recorded" ||
-    event.type === "mutation_recorded" ||
-    event.type === "run_completed" ||
-    event.type === "workflow_completed"
-  ) {
-    reduceRunState([...existingEvents, validatedNewEvent])
-  }
-  existingEvents.push(validatedNewEvent)
-
-  await Storage.write(tempPath, existingEvents)
-  await Storage.rename(tempPath, eventsPath)
-
-  log.info("appended event", { runId, seq: expectedSeq, type: event.type })
-  return validatedNewEvent
+      return events
+    },
+    create: (seq, event) => ({
+      eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      runId,
+      seq,
+      type: event.type,
+      payload: event.payload,
+      occurredAt: new Date().toISOString(),
+      schemaVersion: "v1",
+      ...(event.causationId ? { causationId: event.causationId } : {}),
+      ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+      ...(event.commandId ? { commandId: event.commandId } : {}),
+    }),
+    // Authority records must be valid under the run lock before persistence.
+    validateAppend: (existing, candidate) => {
+      if (
+        candidate.type === "approval_requested" ||
+        candidate.type === "approval_resolved" ||
+        candidate.type === "tool_invocation_recorded" ||
+        candidate.type === "authorization_recorded" ||
+        candidate.type === "delegation_recorded" ||
+        candidate.type === "assistant_recording_started" ||
+        candidate.type === "assistant_message_recorded" ||
+        candidate.type === "compaction_recording_started" ||
+        candidate.type === "compaction_attempt_bound" ||
+        candidate.type === "compaction_attempt_closed" ||
+        candidate.type === "compaction_replacement_recorded" ||
+        candidate.type === "prompt_recording_started" ||
+        candidate.type === "prompt_contribution_recorded" ||
+        candidate.type === "context_recording_started" ||
+        candidate.type === "context_contribution_recorded" ||
+        candidate.type === "tool_result_recorded" ||
+        candidate.type === "mutation_recorded" ||
+        candidate.type === "run_completed" ||
+        candidate.type === "workflow_completed"
+      ) {
+        reduceRunState([...existing, candidate])
+      }
+    },
+    staleError: (expected, actual) => new StaleAppendError(runId, expected, actual),
+    duplicateError: (commandId) => new DuplicateCommandError(runId, commandId),
+  })
 }
 
 export async function appendRunEvent(
@@ -154,17 +113,9 @@ export async function appendRunEvent(
   expectedSeq: number,
   event: NewRunEvent,
 ): Promise<RunEventEnvelope> {
-  const pathParts = await eventPath(runId)
-  const eventsPath = [...pathParts, "events.json"]
-  const tempPath = [...pathParts, "events.json.tmp"]
-
-  const fsLock = await acquireRunLock(runId)
-  try {
-    const existingEvents = await readValidatedEvents(runId, eventsPath)
-    return await appendRunEventUnderLock({ runId, expectedSeq, event, existingEvents, eventsPath, tempPath })
-  } finally {
-    await fsLock.dispose()
-  }
+  const result = await (await runJournal(runId)).append(expectedSeq, event)
+  log.info("appended event", { runId, seq: result.seq, type: result.type })
+  return result
 }
 
 /**
@@ -178,41 +129,15 @@ export async function appendRunEventAtTail(
   event: NewRunEvent,
   options?: { rejectDuplicateCommand?: boolean },
 ): Promise<RunEventEnvelope> {
-  const pathParts = await eventPath(runId)
-  const eventsPath = [...pathParts, "events.json"]
-  const tempPath = [...pathParts, "events.json.tmp"]
-
-  const fsLock = await acquireRunLock(runId)
-  try {
-    const existingEvents = await readValidatedEvents(runId, eventsPath)
-    return await appendRunEventUnderLock({
-      runId,
-      expectedSeq: existingEvents.length,
-      event,
-      existingEvents,
-      eventsPath,
-      tempPath,
-      rejectDuplicateCommand: options?.rejectDuplicateCommand,
-    })
-  } finally {
-    await fsLock.dispose()
-  }
+  const result = await (await runJournal(runId)).appendAtTail(event, options)
+  log.info("appended event", { runId, seq: result.seq, type: result.type })
+  return result
 }
 
 export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> {
-  const path = await eventPath(runId)
-  const fullPath = [...path, "events.json"]
-
   try {
-    const events = await Storage.read<unknown[]>(fullPath)
-    // The read is where the log crosses back into the process. Validating here
-    // means every projection downstream is working from a log that has actually
-    // been checked, rather than one TypeScript was told to trust.
-    return events ? parseRunEventLog(runId, events) : []
+    return await (await runJournal(runId)).read()
   } catch (error) {
-    if (Storage.NotFoundError.isInstance(error)) {
-      return []
-    }
     log.error("failed to read run events", { error, runId })
     throw error
   }
@@ -346,15 +271,7 @@ function parseInitialization(value: unknown, persisted = false): Initialization 
 }
 
 async function appendInitializationUnderLock(runId: string, payload: Initialization): Promise<void> {
-  const base = await eventPath(runId)
-  await appendRunEventUnderLock({
-    runId,
-    expectedSeq: 0,
-    event: { type: "contract_compiled", payload },
-    existingEvents: [],
-    eventsPath: [...base, "events.json"],
-    tempPath: [...base, "events.json.tmp"],
-  })
+  await (await runJournal(runId)).appendUnderLock(0, { type: "contract_compiled", payload }, [])
 }
 
 /** Establish authority with a durable recipe for an interrupted first append. */
@@ -363,7 +280,7 @@ export async function initializeRunEventAuthority(runId: string, input: Initiali
   const lock = await acquireRunLock(runId)
   try {
     const record = await readAuthorityRecord(runId)
-    const events = await readValidatedEvents(runId, [...(await eventPath(runId)), "events.json"])
+    const events = await (await runJournal(runId)).read()
     if (record?.authority === "legacy") throw new Error(`Run ${runId} already has legacy authority`)
     if (events.length > 0) {
       if (record?.authority !== "event-log" || events[0].type !== "contract_compiled") {
@@ -395,7 +312,7 @@ export async function repairRunInitialization(runId: string): Promise<void> {
   try {
     const record = await readAuthorityRecord(runId)
     if (record?.authority !== "event-log") return
-    const events = await readValidatedEvents(runId, [...(await eventPath(runId)), "events.json"])
+    const events = await (await runJournal(runId)).read()
     if (events.length > 0 || record.initialization === undefined) return
     await appendInitializationUnderLock(runId, parseInitialization(record.initialization, true))
   } finally {

@@ -29,9 +29,8 @@ import { expectGap } from "./known-gaps"
  * authority**. A project fact caused by run evidence cites that evidence; it does
  * not write a second copy of the transition into the run journal.
  *
- * None of this is implemented. The tests below describe the architecture rather
- * than measuring drift from it, and are recorded as gaps so the shape is settled
- * before code is written against a vaguer version of it.
+ * The run-side shared journal machinery exists. The other scope invariants remain
+ * open until a production project journal uses it and replay proves ownership.
  */
 
 const SRC = join(import.meta.dir, "..")
@@ -70,12 +69,13 @@ describe("invariant 7 — scope authority", () => {
   })
 
   test("the journal primitive is generic over scope, not copied per scope", () => {
-    // The failure mode to avoid: run-event-store.ts and project-event-store.ts
-    // drifting into two almost-equivalent implementations of append, sequence
-    // validation, locking, envelope validation and replay. The machinery is
-    // already generic in everything but its path and vocabulary.
+    // journal.test.ts exercises concurrent append, replay rejection, duplicate
+    // commands, and interrupted publication with a project-shaped test owner.
+    // This tracking check stays open until the *production* project journal
+    // invokes that same implementation rather than copying its mechanics.
     expectGap("scope.journal-primitive", () => {
-      expect(existsSync(join(SRC, "state/events/journal.ts"))).toBe(true)
+      expect(source("state/events/run-event-store.ts")).toContain('from "./journal"')
+      expect(source("state/events/project-journal.ts")).toContain('from "./journal"')
     })
   })
 

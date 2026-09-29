@@ -31,7 +31,7 @@ export const KNOWN_GAPS = {
     "Native, loader-backed plugin and DAX-adapted MCP descriptors are validated and descriptive; legacy custom, graph/workflow, worker and context executors lack validated intrinsic descriptors",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
   "scope.journal-primitive":
-    "The journal machinery (append, sequence validation, locking, envelope validation, replay) is not generic over scope, so a second scope would copy it rather than instantiate it",
+    "The run journal uses shared append, locking, sequence, validation, and replay machinery, but no production project journal instantiates that machinery yet",
   "scope.aware-envelope":
     "The event envelope carries runId only, so an event cannot state which scope owns it or cite provenance across scopes",
   "scope.project-journal":
