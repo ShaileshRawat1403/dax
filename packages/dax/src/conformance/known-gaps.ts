@@ -30,8 +30,6 @@ export const KNOWN_GAPS = {
   "inv5.capability-properties":
     "Native, loader-backed plugin and DAX-adapted MCP descriptors are validated and descriptive; legacy custom, graph/workflow, worker and context executors lack validated intrinsic descriptors",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
-  "scope.journal-primitive":
-    "Both run and project stores now instantiate shared journal machinery; production parity and interruption evidence are candidate-only pending independent review",
   "scope.aware-envelope":
     "The parser accepts v2 owner and source references while preserving v1 history, but production run events remain v1 and no project-owned producer proves cross-scope provenance",
   "scope.project-journal":

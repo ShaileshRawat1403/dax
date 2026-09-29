@@ -74,14 +74,11 @@ describe("invariant 7 — scope authority", () => {
   })
 
   test("the journal primitive is generic over scope, not copied per scope", () => {
-    // journal.test.ts exercises concurrent append, replay rejection, duplicate
-    // commands, and interrupted publication with a project-shaped test owner.
-    // This tracking check stays open until the *production* project journal
-    // invokes that same implementation rather than copying its mechanics.
-    expectGap("scope.journal-primitive", () => {
-      expect(source("state/events/run-event-store.ts")).toContain('from "./journal"')
-      expect(source("state/events/project-journal.ts")).toContain('from "./journal"')
-    })
+    // journal.test.ts exercises concurrency, replay rejection, duplicate
+    // commands, and interrupted publication. The production run and project
+    // stores must both instantiate that protocol; their own suites exercise it.
+    expect(source("state/events/run-event-store.ts")).toContain('from "./journal"')
+    expect(source("state/events/project-journal.ts")).toContain('from "./journal"')
   })
 
   test("a newly produced canonical run event explicitly names its owner", async () => {

@@ -3,6 +3,10 @@
 Branch: `feat/project-scoped-journal`, based on `5a5ebe10dafb8c7c7293e3648f280f3a6e6acb04`.
 This is Tier 2 state-authority work for the final independent review. It does not
 merge into `main`, publish a release, or close `scope.project-journal`.
+The branch removes `scope.journal-primitive` from its candidate ledger and turns
+the shared-protocol check into an ordinary regression. This is a proposed
+closure only: `main` still records eight open gaps until final review and
+integration.
 
 ## Boundary
 
@@ -29,20 +33,23 @@ migrated or declared covered.
 
 ## Focused evidence and limitations
 
-- Bun 1.4.0: `bun test packages/dax/src/state/events/journal.test.ts packages/dax/src/state/events/project-journal.test.ts` — 13 passed, 0 failed.
+- Bun 1.4.0: `bun test packages/dax/src/conformance/scope-authority.test.ts packages/dax/src/state/events/journal.test.ts packages/dax/src/state/events/project-journal.test.ts` — 20 passed, 0 failed, 89 assertions.
 - Bun 1.4.0: `bun run --cwd packages/dax typecheck` and `bun run --cwd packages/dax lint` — passed.
+- Bun 1.4.0: full `release:gates` with isolated test/XDG state — 2,053 passed,
+  2 skipped, 0 failed; typechecks, lint, smoke evaluations, Rust checks, and
+  release checks passed. The local raw log is retained at
+  `/private/tmp/dax-project-journal-gates.KpVKAj/gates.log` for this host.
 - `git diff --check` — passed.
 - Negative controls: denied first promotion leaves an absent journal; rejected
   approval, edited content, missing source, duplicate command, conflicting
   transition, malformed owner/sequence, and failed publication do not publish
   a fact. A killed child publisher leaves the prior journal readable and
   retryable.
-- Full-suite validation is **not established**. An initial run without an
-  isolated home hit sandbox `EPERM` and was stopped. The isolated sandbox run
-  reported 1,949 passed, 2 skipped, 97 failed, and 1 import error; most failures
-  involve sandbox-denied `/var/tmp`, local listener, or other host access, and
-  the `scope.journal-primitive` inverted gap check is red because the shared
-  implementation now exists. No broad pass claim is made from this run.
+- Before the successful host-access run, an initial run without an isolated home
+  hit sandbox `EPERM` and was stopped. An isolated sandbox run reported 1,949
+  passed, 2 skipped, 97 failed, and 1 import error, including host-access
+  denials and the stale inverted journal-primitive check. Those failed attempts
+  remain part of the record; they are not presented as product regressions.
 - Cross-platform CI, production operator review, PM read/write migration,
   historical coverage, and OS-kill recovery of the full DAX process remain
   unverified at this checkpoint.
