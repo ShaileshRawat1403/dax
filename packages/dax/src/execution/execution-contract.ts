@@ -8,8 +8,9 @@ import {
   RISK_TO_APPROVAL_MODE,
 } from "./workflow-class"
 import type { WorkflowClass, ExecutionMode, RiskLevel } from "./workflow-class"
+import { CapabilityGrants } from "@/capability/grant"
 
-export const SchemaVersion = z.literal("v1")
+export const SchemaVersion = z.enum(["v1", "v2"])
 export type SchemaVersion = z.infer<typeof SchemaVersion>
 
 export const ApprovalPolicy = z.object({
@@ -76,53 +77,72 @@ export const RuntimePolicy = z.object({
   postconditions: PostconditionPolicy,
   sensitivity: SensitivityPolicy,
   /** Per-field provenance for worker_run scope (see WorkerConstraints.ScopeProvenance). */
-  provenance: z.object({
-    writeScope: FieldProvenanceEnum,
-    forbiddenPaths: FieldProvenanceEnum,
-    verification: FieldProvenanceEnum,
-  }).optional(),
+  provenance: z
+    .object({
+      writeScope: FieldProvenanceEnum,
+      forbiddenPaths: FieldProvenanceEnum,
+      verification: FieldProvenanceEnum,
+    })
+    .optional(),
   /**
    * Governed-worker network egress confinement (worker_run). Absent means the
    * default: filter on with the provider host allowlist. `filter: false` is the
    * operator escape hatch; `allowHosts` widens the allowlist. Enforced by the
    * run's forward proxy (see worker/egress-allowlist.ts).
    */
-  egress: z.object({
-    filter: z.boolean().default(true),
-    allowHosts: z.string().array().default([]),
-  }).optional(),
+  egress: z
+    .object({
+      filter: z.boolean().default(true),
+      allowHosts: z.string().array().default([]),
+    })
+    .optional(),
 })
 export type RuntimePolicy = z.infer<typeof RuntimePolicy>
 
-export const ExecutionContract = z.object({
-  schemaVersion: SchemaVersion.default("v1"),
-  contractId: z.string(),
-  contractInstanceId: z.string().optional(),
-  contractDigest: z.string().optional(),
-  runId: z.string(),
-  workflowClass: WorkflowClassSchema,
-  workflowHint: WorkflowClassSchema.optional(),
-  workflowHintAccepted: z.boolean().optional(),
-  intent: z.string(),
-  executionMode: ExecutionModeSchema,
-  riskLevel: RiskLevelSchema,
-  toolAllowlist: z.string().array(),
-  toolBlocklist: z.string().array(),
-  approvalPolicy: ApprovalPolicy,
-  expectedOutputs: OutputContract.array(),
-  timeoutMs: z.number().min(60000).max(3600000).default(1800000),
-  fallbackPolicy: FallbackPolicy.optional(),
-  retryPolicy: RetryPolicy.optional(),
-  runtimePolicy: RuntimePolicy.optional(),
-  providerHint: z.string().optional(),
-  modelHint: z.string().optional(),
-  repoPath: z.string().optional(),
-  branch: z.string().optional(),
-  workspaceId: z.string().optional(),
-  projectId: z.string().optional(),
-  initiatedBy: z.string().optional(),
-  createdAt: z.string(),
-})
+export const ExecutionContract = z
+  .object({
+    schemaVersion: SchemaVersion.default("v1"),
+    contractId: z.string(),
+    contractInstanceId: z.string().optional(),
+    contractDigest: z.string().optional(),
+    runId: z.string(),
+    workflowClass: WorkflowClassSchema,
+    workflowHint: WorkflowClassSchema.optional(),
+    workflowHintAccepted: z.boolean().optional(),
+    intent: z.string(),
+    executionMode: ExecutionModeSchema,
+    riskLevel: RiskLevelSchema,
+    toolAllowlist: z.string().array(),
+    toolBlocklist: z.string().array(),
+    /** Required for v2; absent in historical v1 contracts. Never inferred on replay. */
+    capabilityGrants: CapabilityGrants.optional(),
+    approvalPolicy: ApprovalPolicy,
+    expectedOutputs: OutputContract.array(),
+    timeoutMs: z.number().min(60000).max(3600000).default(1800000),
+    fallbackPolicy: FallbackPolicy.optional(),
+    retryPolicy: RetryPolicy.optional(),
+    runtimePolicy: RuntimePolicy.optional(),
+    providerHint: z.string().optional(),
+    modelHint: z.string().optional(),
+    repoPath: z.string().optional(),
+    branch: z.string().optional(),
+    workspaceId: z.string().optional(),
+    projectId: z.string().optional(),
+    initiatedBy: z.string().optional(),
+    createdAt: z.string(),
+  })
+  .superRefine((contract, ctx) => {
+    if (contract.schemaVersion === "v2" && !contract.capabilityGrants) {
+      ctx.addIssue({ code: "custom", path: ["capabilityGrants"], message: "v2 contract requires capability grants" })
+    }
+    if (contract.schemaVersion === "v1" && contract.capabilityGrants !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["capabilityGrants"],
+        message: "v1 contract cannot claim capability grants",
+      })
+    }
+  })
 export type ExecutionContract = z.infer<typeof ExecutionContract>
 
 export const ExecutionContractMeta = z.object({
