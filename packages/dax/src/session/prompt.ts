@@ -92,6 +92,7 @@ import type { PromptEffectiveCandidate, PromptInstructionSource } from "@/execut
 import type { ProviderInputSourceCandidate } from "@/execution/provider-input-partition"
 import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
+import { bindContextAttachment, requireContextAttachment } from "./context-attachment-identity"
 
 /**
  * Path rules for user-attached files. Superset of SENSITIVE_PATH_RULES: the
@@ -422,7 +423,7 @@ export namespace SessionPrompt {
       }
     }
 
-    const message = await createUserMessage(input)
+    const message = await createUserMessage(input).catch((error) => rejectCapabilityIdentity(input.sessionID, error))
     await Session.touch(input.sessionID)
     void PM.append_event({
       project_id: Instance.project.id,
@@ -1669,7 +1670,7 @@ export namespace SessionPrompt {
                 ]
               }
               break
-            case "file:":
+            case "file:": {
               log.info("file", { mime: part.mime })
               // have to normalize, symbol search returns absolute paths
               // Decode the pathname since URL constructor doesn't automatically decode it
@@ -1694,9 +1695,11 @@ export namespace SessionPrompt {
                 ]
               }
 
-              const stat = await Bun.file(filepath)
-                .stat()
-                .catch(() => undefined)
+              const statFile = Bun.file(filepath)
+              const statBinding = bindContextAttachment({ part, filepath, operation: "stat", executor: statFile })
+              requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile })
+              const stat = await statFile.stat().catch(() => undefined)
+              requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile })
 
               if (stat?.isDirectory()) {
                 part.mime = "application/x-directory"
@@ -1717,7 +1720,22 @@ export namespace SessionPrompt {
                   // workspace/symbol searches, so we'll try to find the
                   // symbol in the document to get the full range
                   if (start === end) {
+                    const symbolBinding = bindContextAttachment({ part, filepath, operation: "read", executor: LSP })
+                    requireContextAttachment({
+                      binding: symbolBinding,
+                      part,
+                      filepath,
+                      operation: "read",
+                      executor: LSP,
+                    })
                     const symbols = await LSP.documentSymbol(filePathURI).catch(() => [])
+                    requireContextAttachment({
+                      binding: symbolBinding,
+                      part,
+                      filepath,
+                      operation: "read",
+                      executor: LSP,
+                    })
                     for (const symbol of symbols) {
                       let range: LSP.Range | undefined
                       if ("range" in symbol) {
@@ -1752,6 +1770,7 @@ export namespace SessionPrompt {
 
                 await ReadTool.init()
                   .then(async (t) => {
+                    const binding = bindContextAttachment({ part, filepath, operation: "read", executor: t })
                     const model = await Provider.getModel(info.model.providerID, info.model.modelID)
                     // INTENTIONAL: ask is a no-op because this read is initiated by
                     // the user attaching a file — operator approval is implicit.
@@ -1768,6 +1787,7 @@ export namespace SessionPrompt {
                       ask: async () => {},
                       authorize: async () => {},
                     }
+                    requireContextAttachment({ binding, part, filepath, operation: "read", executor: t })
                     const result = await t.execute(args, readCtx)
                     pieces.push({
                       id: Identifier.ascending("part"),
@@ -1797,6 +1817,7 @@ export namespace SessionPrompt {
                     }
                   })
                   .catch((error) => {
+                    if (error instanceof CapabilityIdentityError) throw error
                     log.error("failed to read file", { error })
                     const message = error instanceof Error ? error.message : error.toString()
                     Bus.publish(Session.Event.Error, {
@@ -1833,7 +1854,11 @@ export namespace SessionPrompt {
                   ask: async () => {},
                   authorize: async () => {},
                 }
-                const result = await ListTool.init().then((t) => t.execute(args, listCtx))
+                const result = await ListTool.init().then((t) => {
+                  const binding = bindContextAttachment({ part, filepath, operation: "list", executor: t })
+                  requireContextAttachment({ binding, part, filepath, operation: "list", executor: t })
+                  return t.execute(args, listCtx)
+                })
                 return [
                   {
                     id: Identifier.ascending("part"),
@@ -1861,6 +1886,8 @@ export namespace SessionPrompt {
               }
 
               const file = Bun.file(filepath)
+              const mediaBinding = bindContextAttachment({ part, filepath, operation: "media", executor: file })
+              requireContextAttachment({ binding: mediaBinding, part, filepath, operation: "media", executor: file })
               FileTime.read(input.sessionID, filepath)
               return [
                 {
@@ -1882,6 +1909,7 @@ export namespace SessionPrompt {
                   source: part.source,
                 },
               ]
+            }
           }
         }
 

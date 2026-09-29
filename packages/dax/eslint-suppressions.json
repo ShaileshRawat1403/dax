@@ -1553,9 +1553,6 @@
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
-    "no-case-declarations": {
-      "count": 3
-    },
     "no-useless-escape": {
       "count": 4
     }
