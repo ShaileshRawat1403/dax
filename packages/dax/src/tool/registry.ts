@@ -71,6 +71,16 @@ const nativeDefinitions = new Map<Tool.Info, { id: string; init: Tool.Info["init
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
+  /** An opt-in, caller-declared source identity; not proof of origin or permission. */
+  export interface EnrolledCustomTool<Parameters extends z.ZodType = z.ZodType, Result extends z.ZodType = z.ZodType> {
+    id: string
+    source: readonly string[]
+    description: string
+    parameters: Parameters
+    result: Result
+    authorization?: "self" | "caller"
+    execute(args: z.infer<Parameters>, ctx: Tool.Context): Promise<z.output<Result>>
+  }
   type Executor = (...args: never[]) => Promise<unknown>
   const executorBindings = new WeakMap<
     object,
@@ -169,6 +179,7 @@ export namespace ToolRegistry {
   export const state = Instance.state(
     () => ({
       custom: [] as Tool.Info[],
+      enrolled: [] as ReturnType<typeof fromEnrolledCustom>[],
       directory: Instance.directory,
       catalog: createDynamicCatalog(),
     }),
@@ -206,9 +217,11 @@ export namespace ToolRegistry {
       }
     }
 
+    const enrolled = [...s.enrolled]
     const custom = [...s.custom]
     const entries = [
       ...found.map((item) => item.entry),
+      ...enrolled.map((item) => item.entry),
       ...custom.map((info) => ({
         alias: info.id,
         source: "legacy_custom",
@@ -218,7 +231,7 @@ export namespace ToolRegistry {
       })),
     ]
     const checks = s.catalog.publish(ticket, entries)
-    for (const [index, item] of found.entries()) {
+    for (const [index, item] of [...found, ...enrolled].entries()) {
       const current = checks[index]
       item.bind(
         () => {
@@ -233,7 +246,7 @@ export namespace ToolRegistry {
       const init = info.init
       dynamicDefinitions.set(info, {
         check() {
-          checks[found.length + index]()
+          checks[found.length + enrolled.length + index]()
           if (Instance.directory !== s.directory) throw new CapabilityIdentityError("stale")
           if (info.id !== id || info.init !== init) {
             s.catalog.changed(id)
@@ -242,7 +255,113 @@ export namespace ToolRegistry {
         },
       })
     }
-    return [...found.map((item) => item.info), ...custom]
+    return [...found.map((item) => item.info), ...enrolled.map((item) => item.info), ...custom]
+  }
+
+  function fromEnrolledCustom(def: EnrolledCustomTool) {
+    if (
+      !def ||
+      Object.getPrototypeOf(def) !== Object.prototype ||
+      typeof def.id !== "string" ||
+      !def.id ||
+      !Array.isArray(def.source) ||
+      !def.source.length ||
+      typeof def.description !== "string" ||
+      !def.description ||
+      !(def.parameters instanceof z.core.$ZodType) ||
+      !(def.result instanceof z.core.$ZodType) ||
+      (def.authorization !== undefined && def.authorization !== "self" && def.authorization !== "caller") ||
+      typeof def.execute !== "function"
+    )
+      throw new CapabilityIdentityError("malformed")
+    const id = def.id
+    const sourceParts = [...def.source]
+    const sourceReference = def.source
+    const description = def.description
+    const parameters = def.parameters
+    const result = def.result
+    const authorization = def.authorization ?? "caller"
+    const execute = def.execute
+    const { descriptor, source } = pluginCapability(["registered", ...sourceParts])
+    const snapshot = () => {
+      try {
+        const validation = validationMetadata({ parameters: def.parameters, result: def.result })
+        return {
+          key: metadataKey({
+            description: def.description,
+            authorization: def.authorization ?? "caller",
+            validation: validation.key,
+          }),
+          references: validation.references,
+        }
+      } catch {
+        throw new CapabilityIdentityError("malformed")
+      }
+    }
+    const { key: metadata, references } = snapshot()
+    let current: (() => void) | undefined
+    let invalidate: (() => void) | undefined
+    const check = () => {
+      if (!current) throw new CapabilityIdentityError("unbound")
+      current()
+      try {
+        const live = snapshot()
+        if (
+          def.id === id &&
+          def.source === sourceReference &&
+          def.source.length === sourceParts.length &&
+          sourceParts.every((part, index) => def.source[index] === part) &&
+          def.description === description &&
+          def.parameters === parameters &&
+          def.result === result &&
+          (def.authorization ?? "caller") === authorization &&
+          def.execute === execute &&
+          live.key === metadata &&
+          live.references.length === references.length &&
+          live.references.every((value, index) => value === references[index])
+        )
+          return
+      } catch {
+        // A changed definition has a stable identity error, not parser text.
+      }
+      invalidate?.()
+      throw new CapabilityIdentityError("changed")
+    }
+    const info = Tool.define(id, {
+      description,
+      parameters,
+      result,
+      authorization,
+      async execute(args, ctx) {
+        // Recheck after awaited hooks/approval, at the captured effect boundary.
+        check()
+        return execute.call(def, args, ctx)
+      },
+    })
+    const init = info.init
+    return {
+      info,
+      entry: {
+        alias: id,
+        source,
+        receiver: def,
+        executor: execute,
+        metadata,
+        capability: descriptor,
+        references: [sourceReference, parameters, result, ...references],
+      },
+      bind(assertCurrent: () => void, reject: () => void) {
+        current = assertCurrent
+        invalidate = reject
+        dynamicDefinitions.set(info, {
+          capability: descriptor,
+          check() {
+            check()
+            if (info.id !== id || info.init !== init) throw new CapabilityIdentityError("changed")
+          },
+        })
+      },
+    }
   }
 
   function fromPlugin(id: string, def: ToolDefinition, origin: readonly string[], owns: () => boolean) {
@@ -371,7 +490,8 @@ export namespace ToolRegistry {
    * @param tool - Tool definition to register
    */
   export async function register(tool: Tool.Info) {
-    const { custom } = state()
+    const { custom, enrolled } = state()
+    if (enrolled.some((item) => item.info.id === tool.id)) throw new CapabilityIdentityError("ambiguous")
     state().catalog.changed(tool.id)
     const idx = custom.findIndex((t) => t.id === tool.id)
     if (idx >= 0) {
@@ -379,6 +499,23 @@ export namespace ToolRegistry {
       return
     }
     custom.push(tool)
+  }
+
+  /** Static opt-in identity. Existing register(tool) stays compatible and unenrolled. */
+  export async function registerEnrolled<Parameters extends z.ZodType, Result extends z.ZodType>(
+    tool: EnrolledCustomTool<Parameters, Result>,
+  ) {
+    const item = fromEnrolledCustom(tool)
+    const s = state()
+    if (
+      s.custom.some((other) => other.id === item.info.id) ||
+      s.enrolled.some(
+        (other) => other.info.id === item.info.id || other.entry.capability.id === item.entry.capability.id,
+      )
+    )
+      throw new CapabilityIdentityError("ambiguous")
+    s.catalog.changed(item.info.id)
+    s.enrolled.push(item)
   }
 
   async function all() {

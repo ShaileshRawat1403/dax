@@ -16,6 +16,7 @@ import { ReadTool } from "@/tool/read"
 import { WriteTool } from "@/tool/write"
 import { BatchTool } from "@/tool/batch"
 import { nativeCapabilities } from "./registry"
+import { CapabilityIdentityError } from "./dynamic-identity"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { MessageV2 } from "@/session/message-v2"
@@ -126,6 +127,299 @@ async function direct(sessionID: string, id: string, args: Record<string, unknow
 }
 
 describe("native capability enrollment at production dispatch", () => {
+  test("opt-in registration is source-qualified and still uses existing dispatch permission", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        let effects = 0
+        const tool = {
+          id: "custom_probe",
+          source: ["test-extension", "probe"],
+          description: "Static custom probe",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            effects++
+            return { title: "probe", output: "custom output", metadata: {} }
+          },
+        }
+        await ToolRegistry.registerEnrolled(tool)
+        const selected = (await ToolRegistry.tools({ modelID: "", providerID: "" })).find(
+          (item) => item.id === tool.id,
+        )!
+        const identity = ToolRegistry.executionIdentity(selected)
+        expect(identity.kind).toBe("plugin")
+        expect(identity.capability).toMatchObject({
+          riskClass: "high",
+          scopeSupport: "opaque",
+          requiresVerification: true,
+        })
+        expect(identity.capability?.id).toStartWith("plugin.tool.v1.p")
+        expect(JSON.stringify(identity.capability)).not.toContain("test-extension")
+        const again = (await ToolRegistry.tools({ modelID: "", providerID: "" })).find((item) => item.id === tool.id)!
+        expect(ToolRegistry.executionIdentity(selected).capability?.id).toBe(
+          ToolRegistry.executionIdentity(again).capability?.id,
+        )
+        const session = await Session.create({ title: "Opt-in custom identity" })
+        await Session.update(session.id, (draft) => {
+          draft.permission = [{ permission: "*", pattern: "*", action: "allow" }]
+        })
+        const directResult = await direct(session.id, tool.id, {})
+        expect(directResult.entered).toBe(true)
+        expect(directResult.outcome).not.toBeInstanceOf(Error)
+        // A fresh legacy session has no canonical invocation to settle; the
+        // batch control exercises the existing no-contract path separately.
+        const batchSession = await Session.create({ title: "Opt-in custom batch" })
+        const batch = await BatchTool.init()
+        const batchResult = await batch.execute(
+          { tool_calls: [{ tool: tool.id, parameters: {} }] },
+          context(batchSession.id),
+        )
+        expect(batchResult.metadata).toMatchObject({ successful: 1, failed: 0 })
+        expect(effects).toBe(2)
+      },
+    })
+  })
+
+  test("same-name custom enrollment never acquires native identity", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        await ToolRegistry.registerEnrolled({
+          id: "read",
+          source: ["test-extension", "read-override"],
+          description: "Custom read override",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        })
+        const reads = (await ToolRegistry.tools({ modelID: "", providerID: "" })).filter((item) => item.id === "read")
+        expect(reads).toHaveLength(2)
+        expect(ToolRegistry.executionIdentity(reads[0]).capability?.id).toBe("native.tool.read")
+        expect(ToolRegistry.executionIdentity(reads[1]).capability?.id).toStartWith("plugin.tool.v1.p")
+      },
+    })
+  })
+
+  test("duplicate custom aliases and sources reject before publication", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const make = (id: string, source: string) => ({
+          id,
+          source: [source],
+          description: "Custom",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        })
+        const legacy = (id: string) =>
+          Tool.define(id, {
+            description: "Legacy custom",
+            parameters: z.object({}),
+            result: Tool.result(z.object({})),
+            async execute() {
+              return { title: "legacy", output: "legacy", metadata: {} }
+            },
+          })
+        await ToolRegistry.register(legacy("one"))
+        expect(await ToolRegistry.registerEnrolled(make("one", "different")).catch((error) => error)).toBeInstanceOf(
+          CapabilityIdentityError,
+        )
+        await ToolRegistry.registerEnrolled(make("two", "same"))
+        expect(await ToolRegistry.registerEnrolled(make("three", "same")).catch((error) => error)).toMatchObject({
+          code: "ambiguous",
+        })
+        expect(await ToolRegistry.register(legacy("two")).catch((error) => error)).toMatchObject({
+          code: "ambiguous",
+        })
+        expect((await ToolRegistry.tools({ modelID: "", providerID: "" })).some((item) => item.id === "three")).toBe(
+          false,
+        )
+      },
+    })
+  })
+
+  test("loader alias collision rejects the offered table before effects", async () => {
+    const folder = path.join(home, ".config", "dax", "tool")
+    await fs.mkdir(folder, { recursive: true })
+    await fs.writeFile(
+      path.join(folder, "collision.js"),
+      'export default { description: "loader", args: {}, async execute() { return "loader" } }',
+    )
+    await Instance.provide({
+      directory,
+      async fn() {
+        let effects = 0
+        await ToolRegistry.registerEnrolled({
+          id: "collision",
+          source: ["test-extension", "collision"],
+          description: "Colliding registration",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            effects++
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        })
+        const error = await ToolRegistry.tools({ modelID: "", providerID: "" }).catch((value) => value)
+        expect(error).toMatchObject({ code: "ambiguous" })
+        expect(effects).toBe(0)
+      },
+    })
+  })
+
+  test("malformed declared source and schema are rejected without registration", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const base = {
+          id: "malformed_probe",
+          source: ["declared"],
+          description: "Static",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        }
+        for (const change of [{ source: [] }, { parameters: {} }, { authorization: "invalid" }]) {
+          expect(
+            await ToolRegistry.registerEnrolled({
+              ...base,
+              ...change,
+            } as unknown as ToolRegistry.EnrolledCustomTool).catch((error) => error),
+          ).toMatchObject({
+            code: "malformed",
+          })
+        }
+        expect((await ToolRegistry.tools({ modelID: "", providerID: "" })).some((item) => item.id === base.id)).toBe(
+          false,
+        )
+      },
+    })
+  })
+
+  test("denied custom invocation cannot be authorized by its descriptor", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        let effects = 0
+        await ToolRegistry.registerEnrolled({
+          id: "denied_probe",
+          source: ["test-extension", "denied"],
+          description: "No authority from identity",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            effects++
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        })
+        const session = await Session.create({ title: "Denied custom" })
+        await Session.update(session.id, (draft) => {
+          draft.permission = [{ permission: "*", pattern: "*", action: "deny" }]
+        })
+        const outcome = await direct(session.id, "denied_probe", {})
+        expect(outcome.entered).toBe(true)
+        expect(outcome.outcome).toBeInstanceOf(Error)
+        expect(effects).toBe(0)
+      },
+    })
+  })
+
+  test("mutation during awaited execution hook is rejected at the custom effect boundary", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        let effects = 0
+        const tool = {
+          id: "late_mutation_probe",
+          source: ["test-extension", "late"],
+          description: "Before hook",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            effects++
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        }
+        await ToolRegistry.registerEnrolled(tool)
+        const session = await Session.create({ title: "Late custom mutation" })
+        await Session.update(session.id, (draft) => {
+          draft.permission = [{ permission: "*", pattern: "*", action: "allow" }]
+        })
+        const trigger = Plugin.trigger
+        const hook = spyOn(Plugin, "trigger").mockImplementation(async (...args) => {
+          if (args[0] === "tool.execute.before") tool.description = "After hook"
+          return trigger(...args)
+        })
+        try {
+          const outcome = await direct(session.id, tool.id, {})
+          expect(outcome.entered).toBe(true)
+          expect(String(outcome.outcome)).toContain("Capability identity rejected")
+          expect(effects).toBe(0)
+        } finally {
+          hook.mockRestore()
+        }
+      },
+    })
+  })
+
+  test("changed enrolled definition fails before hooks or effects while another source stays healthy", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        let effects = 0
+        let hooksSeen = 0
+        const make = (id: string) => ({
+          id,
+          source: ["test-extension", id],
+          description: "Static custom",
+          parameters: z.object({}),
+          result: Tool.result(z.object({})),
+          async execute() {
+            effects++
+            return { title: "custom", output: "custom", metadata: {} }
+          },
+        })
+        const changed = make("changed_probe")
+        await ToolRegistry.registerEnrolled(changed)
+        await ToolRegistry.registerEnrolled(make("healthy_probe"))
+        const items = await ToolRegistry.tools({ modelID: "", providerID: "" })
+        expect(
+          ToolRegistry.executionIdentity(items.find((item) => item.id === "healthy_probe")!).capability,
+        ).toBeDefined()
+        const session = await Session.create({ title: "Changed custom binding" })
+        const realTools = ToolRegistry.tools
+        const tools = spyOn(ToolRegistry, "tools").mockImplementation(async (...args) => {
+          const offered = await realTools(...args)
+          changed.description = "changed after offer"
+          return offered
+        })
+        const trigger = Plugin.trigger
+        const hook = spyOn(Plugin, "trigger").mockImplementation(async (...args) => {
+          if (args[0] === "tool.execute.before") hooksSeen++
+          return trigger(...args)
+        })
+        try {
+          const outcome = await direct(session.id, changed.id, {})
+          expect(outcome.entered).toBe(true)
+          expect(String(outcome.outcome)).toContain("Capability identity rejected")
+          expect(effects).toBe(0)
+          expect(hooksSeen).toBe(0)
+        } finally {
+          hook.mockRestore()
+          tools.mockRestore()
+        }
+      },
+    })
+  })
+
   test("production built-ins are enrolled; same-name plugin stays unenrolled and executes", async () => {
     await Instance.provide({
       directory,
