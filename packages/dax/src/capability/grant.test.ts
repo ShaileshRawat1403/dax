@@ -11,6 +11,7 @@ import { ExecutionContract, ExecutionContractV2 } from "@/execution/execution-co
 import { CapabilityGrants } from "./grant"
 import { nativeCapabilities } from "./registry"
 import { resolveCapabilityGrant } from "./resolve-grant"
+import { decideNativeGrant } from "./native-grant-decision"
 
 let home: string
 let directory: string
@@ -113,6 +114,43 @@ describe("versioned capability grant contracts", () => {
 })
 
 describe("v2 grant decision semantics before production wiring", () => {
+  test("native decision intersects tool policy, executor identity and exact target scope", () => {
+    const contract = v2()
+    const read = nativeCapabilities.require("native.tool.read")
+    const base = {
+      contract,
+      authorityRunId: contract.runId,
+      toolId: "read",
+      executor: { kind: "builtin" as const, id: "read" },
+      capability: read,
+      directory,
+      worktree: directory,
+    }
+    expect(decideNativeGrant({ ...base, args: { filePath: "src/a.ts" } })).toEqual({
+      decision: "allow", capabilityId: "native.tool.read",
+    })
+    expect(decideNativeGrant({ ...base, args: { filePath: "docs/a.ts" } })).toMatchObject({
+      decision: "deny", reasonCode: "scope_outside",
+    })
+    expect(decideNativeGrant({ ...base, args: {} })).toMatchObject({ decision: "deny", reasonCode: "scope_unproven" })
+    expect(decideNativeGrant({ ...base, capability: nativeCapabilities.require("native.tool.write"), args: { filePath: "src/a.ts" } }))
+      .toMatchObject({ decision: "deny", reasonCode: "capability_identity_mismatch" })
+    expect(decideNativeGrant({ ...base, capability: undefined, args: { filePath: "src/a.ts" } }))
+      .toMatchObject({ decision: "deny", reasonCode: "capability_unenrolled" })
+    expect(decideNativeGrant({ ...base, executor: { kind: "plugin", id: "read" }, args: { filePath: "src/a.ts" } }))
+      .toMatchObject({ decision: "deny", reasonCode: "capability_identity_mismatch" })
+    expect(decideNativeGrant({ ...base, contract: { ...contract, toolBlocklist: ["read"] }, args: { filePath: "src/a.ts" } }))
+      .toMatchObject({ decision: "deny", reasonCode: "contract_tool_denied" })
+    expect(decideNativeGrant({ ...base, contract: { ...contract, capabilityGrants: [] }, args: { filePath: "src/a.ts" } }))
+      .toMatchObject({ decision: "deny", reasonCode: "grant_absent" })
+    expect(decideNativeGrant({ ...base, contract: { ...contract, capabilityGrants: [grants[0], grants[0]] }, args: { filePath: "src/a.ts" } }))
+      .toMatchObject({ decision: "deny", reasonCode: "contract_invalid" })
+    const { contract: v1 } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, contract.runId)
+    expect(decideNativeGrant({ ...base, contract: v1, capability: undefined, args: {} })).toEqual({
+      decision: "allow", capabilityId: null,
+    })
+  })
+
   test("missing, out-of-scope and mixed-path requests deny; an in-scope request allows", () => {
     const contract = v2()
     const base = {

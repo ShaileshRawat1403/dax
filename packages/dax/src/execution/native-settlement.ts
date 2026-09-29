@@ -10,7 +10,7 @@ import {
   type ToolResultOutcome,
 } from "@/state/events/event-transitions"
 import { computeCanonicalCommitment } from "./canonical-commitment"
-import { isToolAllowedByContract, type ExecutionContract } from "./execution-contract"
+import type { ExecutionContract } from "./execution-contract"
 import { isMutatingTool } from "@/tool/tool-class"
 import {
   discardNativeMutationObservation,
@@ -19,6 +19,10 @@ import {
   settleNativeMutationObservation,
 } from "./native-mutation-observation"
 import type { AssistantDelegationReceipt } from "./assistant-provenance"
+import type { CapabilityDescriptor } from "@/capability/capability-types"
+import { decideNativeGrant } from "@/capability/native-grant-decision"
+import type { ExecutionContractV2 } from "./execution-contract"
+import { Instance } from "@/project/instance"
 
 export type NativeExecutorKind = "builtin" | "plugin" | "mcp"
 type PolicyDisposition = "allowed" | "denied" | "approval_required" | "not_evaluated"
@@ -111,6 +115,7 @@ export async function beginNativeInvocation(params: {
   invocationId: string
   toolId: string
   executor: { kind: NativeExecutorKind; id: string }
+  capability?: CapabilityDescriptor
   args: unknown
   originTurnId?: string
   parentInvocationId?: string
@@ -134,9 +139,24 @@ export async function beginNativeInvocation(params: {
     }
 
     const input = await computeCanonicalCommitment(params.args)
+    const contractDecision = decideNativeGrant({
+      // The current guardian reads v1 only. The shared decision is installed
+      // before a v2 contract can be admitted by the reader.
+      contract: authority.contract as ExecutionContract | ExecutionContractV2,
+      authorityRunId: authority.authorityRunId,
+      toolId: params.toolId,
+      executor: params.executor,
+      capability: params.capability,
+      args: params.args,
+      directory: Instance.directory,
+      worktree: Instance.worktree,
+    })
     try {
       await recordToolInvocation(authority.authorityRunId, params.invocationId, {
         toolId: params.toolId,
+        ...(contractDecision.decision !== "deny" && contractDecision.capabilityId
+          ? { capabilityId: contractDecision.capabilityId }
+          : {}),
         input: { basis: "validated_tool_input", ...input },
         contractId: authority.contractId,
         executor: params.executor,
@@ -151,7 +171,7 @@ export async function beginNativeInvocation(params: {
     pending.set(params.invocationId, {
       authorityRunId: authority.authorityRunId,
       contractId: authority.contractId,
-      contractDisposition: isToolAllowedByContract(authority.contract, params.toolId) ? "allowed" : "denied",
+      contractDisposition: contractDecision.decision === "allow" ? "allowed" : "denied",
       authorizationEventId: null,
       denied: false,
       resultPending: false,
@@ -169,9 +189,12 @@ export async function beginNativeInvocation(params: {
     })
     const state = pending.get(params.invocationId)!
     if (state.contractDisposition === "denied") {
-      state.reasonCodes.add("contract_tool_denied")
+      const reasonCode = contractDecision.decision === "ask"
+        ? "capability_grant_approval_required"
+        : contractDecision.decision === "deny" ? contractDecision.reasonCode : "contract_tool_denied"
+      state.reasonCodes.add(reasonCode)
       await appendAuthorization(params.invocationId, state, "denied")
-      throw new NativeAuthorizationDeniedError(params.invocationId, "contract_tool_denied")
+      throw new NativeAuthorizationDeniedError(params.invocationId, reasonCode)
     }
     return { status: "recorded" }
   } finally {

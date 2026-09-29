@@ -245,6 +245,7 @@ export async function recordToolInvocation(
     }
     contractId: string
     executor: { kind: "builtin" | "plugin" | "mcp"; id: string }
+    capabilityId?: string
     originTurnId?: string
     workflowStepId?: string
     parentInvocationId?: string
@@ -262,6 +263,7 @@ export async function recordToolInvocation(
       input: details.input,
       contractId: details.contractId,
       executor: details.executor,
+      ...(details.capabilityId ? { capabilityId: details.capabilityId } : {}),
       ...(details.originTurnId ? { originTurnId: details.originTurnId } : {}),
       ...(details.workflowStepId ? { workflowStepId: details.workflowStepId } : {}),
       ...(details.parentInvocationId ? { parentInvocationId: details.parentInvocationId } : {}),

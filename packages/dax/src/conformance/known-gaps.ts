@@ -71,3 +71,26 @@ export function expectGap(id: GapId, check: () => void): void {
     )
   }
 }
+
+/** Async counterpart for production storage and dispatch boundaries. */
+export async function expectAsyncGap(id: GapId, check: () => Promise<void>): Promise<void> {
+  if (!(id in KNOWN_GAPS)) {
+    throw new Error(`Unknown gap id "${id}". Add it to KNOWN_GAPS with a description of what is missing.`)
+  }
+
+  let stillOpen = false
+  try {
+    await check()
+  } catch {
+    stillOpen = true
+  }
+
+  if (!stillOpen) {
+    throw new Error(
+      `Gap "${id}" appears to be CLOSED — its conformance check now passes.\n` +
+        `  ${KNOWN_GAPS[id]}\n` +
+        `If that is intended, delete the entry from KNOWN_GAPS and unwrap its check so it ` +
+        `asserts on its own terms. Leaving it wrapped hides the fix from the next reader.`,
+    )
+  }
+}

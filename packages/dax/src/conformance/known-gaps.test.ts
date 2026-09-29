@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { KNOWN_GAPS, expectGap, type GapId } from "./known-gaps"
+import { KNOWN_GAPS, expectAsyncGap, expectGap, type GapId } from "./known-gaps"
 
 /**
  * The ledger is load-bearing: it decides whether CI is green. If it silently
@@ -29,6 +29,23 @@ describe("known-gaps ledger", () => {
     // Wrapping a check under an id nobody registered would hide a failure behind
     // a typo.
     expect(() => expectGap("inv9.not-a-real-gap" as GapId, () => {})).toThrow(/Unknown gap id/)
+  })
+
+  test("async gap checks remain inverted and reject unknown IDs", async () => {
+    const open = await expectAsyncGap("inv5.contract-grants", async () => {
+      throw new Error("production write still rejects v2")
+    })
+    expect(open).toBeUndefined()
+    const closed = await expectAsyncGap("inv5.contract-grants", async () => {}).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(String(closed)).toMatch(/appears to be CLOSED/)
+    const unknown = await expectAsyncGap("inv9.not-a-real-gap" as GapId, async () => {}).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(String(unknown)).toMatch(/Unknown gap id/)
   })
 
   test("every recorded gap describes what is missing", () => {

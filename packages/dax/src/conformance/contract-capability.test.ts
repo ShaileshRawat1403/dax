@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { expectGap } from "./known-gaps"
-import { existsSync } from "node:fs"
+import { expectAsyncGap, expectGap } from "./known-gaps"
 import { join } from "node:path"
 import { nativeCapabilities, createCapabilityRegistry } from "@/capability/registry"
 import { CapabilityDescriptor } from "@/capability/capability-types"
@@ -9,6 +8,11 @@ import { Tool } from "@/tool/tool"
 import { Instance } from "@/project/instance"
 import { tmpdir } from "node:os"
 import { mkdtemp, mkdir, rm } from "node:fs/promises"
+import { Storage } from "@/storage/storage"
+import { Session } from "@/session"
+import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
+import { compileWithRunId } from "@/execution/compiler"
+import { ExecutionContractV2 } from "@/execution/execution-contract"
 import z from "zod"
 
 /**
@@ -34,8 +38,6 @@ import z from "zod"
  * ordinary behavioral checks; the aggregate vocabulary/property gaps remain
  * open because other executor families still lack enrollment.
  */
-
-const SRC = join(import.meta.dir, "..")
 
 describe("invariant 5 — contract-defined authority", () => {
   test("enrolled native vocabulary rejects unknown and duplicate capabilities", () => {
@@ -96,22 +98,63 @@ describe("invariant 5 — contract-defined authority", () => {
     }
   })
 
-  test("the contract expresses authority as capability grants", () => {
-    // The execution contract already carries writeScope, forbiddenPaths,
-    // verification, egress and provenance. Under this invariant those become the
-    // fields of a grant against a named capability, rather than a flat policy blob
-    // whose relationship to any particular action is implicit.
-    expectGap("inv5.contract-grants", () => {
-      expect(existsSync(join(SRC, "capability/grant.ts"))).toBe(true)
-    })
+  test("contract grant gap tracks the normal durable write boundary, not a filename", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "dax-contract-grant-gap-"))
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = directory
+    try {
+      await Instance.provide({
+        directory,
+        async fn() {
+          const session = await Session.create({ title: "Grant gap" })
+          const { contract } = compileWithRunId({ request: { intent: { input: "Inspect." } } }, session.id)
+          const candidate = ExecutionContractV2.parse({
+            ...contract,
+            schemaVersion: "v2",
+            capabilityGrants: [{ capabilityId: "native.tool.read", decision: "allow", scope: { kind: "run" } }],
+          })
+          await expectAsyncGap("inv5.contract-grants", async () => {
+            // Deliberately cross the TypeScript boundary to test runtime rejection.
+            await ContractGuardian.create(session.id, candidate as never)
+            expect((await ContractGuardian.get(session.id))?.capabilityGrants).toEqual(candidate.capabilityGrants)
+          })
+        },
+      })
+    } finally {
+      await Instance.disposeAll()
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
-  test("every execution path resolves authority through the same grant lookup", () => {
-    // The point of the vocabulary. A native edit, a worker patch and a delegated
-    // subagent action should all answer "am I permitted?" by resolving a grant,
-    // not by consulting three different mechanisms.
-    expectGap("inv5.grant-resolution", () => {
-      expect(existsSync(join(SRC, "capability/resolve-grant.ts"))).toBe(true)
-    })
+  test("grant resolution gap tracks the governing authority reader", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "dax-grant-resolution-gap-"))
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = directory
+    try {
+      await Instance.provide({
+        directory,
+        async fn() {
+          const session = await Session.create({ title: "Grant resolution gap" })
+          const { contract } = compileWithRunId({ request: { intent: { input: "Inspect." } } }, session.id)
+          const candidate = ExecutionContractV2.parse({
+            ...contract,
+            schemaVersion: "v2",
+            capabilityGrants: [{ capabilityId: "native.tool.read", decision: "allow", scope: { kind: "run" } }],
+          })
+          await Storage.write(["execution_contract", Instance.project.id, session.id], candidate)
+          await expectAsyncGap("inv5.grant-resolution", async () => {
+            const authority = await resolveExecutionAuthority(session.id)
+            expect(authority.contract?.capabilityGrants).toEqual(candidate.capabilityGrants)
+          })
+        },
+      })
+    } finally {
+      await Instance.disposeAll()
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })

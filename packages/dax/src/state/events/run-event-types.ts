@@ -86,6 +86,7 @@ export const NativeExecutorSchema = closed({
 const ToolInvocationRecordedPayloadSchema = closed({
   invocationId: z.string().min(1),
   toolId: z.string().min(1),
+  capabilityId: z.string().regex(/^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$/).optional(),
   input: CanonicalInvocationInputSchema,
   contractId: z.string().min(1),
   executor: NativeExecutorSchema,

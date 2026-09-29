@@ -216,6 +216,7 @@ export type NativeInvocationRecord = Pick<
   ToolInvocationPayload,
   | "invocationId"
   | "toolId"
+  | "capabilityId"
   | "executor"
   | "originTurnId"
   | "workflowStepId"
@@ -648,6 +649,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         invocations[payload.invocationId] = {
           invocationId: payload.invocationId,
           toolId: payload.toolId,
+          capabilityId: payload.capabilityId,
           executor: payload.executor,
           originTurnId: payload.originTurnId,
           workflowStepId: payload.workflowStepId,

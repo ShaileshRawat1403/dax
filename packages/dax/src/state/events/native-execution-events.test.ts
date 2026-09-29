@@ -141,6 +141,16 @@ describe("canonical native execution event schemas", () => {
     expect(parseRunEventLog(RUN_ID, allowed())).toHaveLength(4)
   })
 
+  test("optional capability identity survives replay without inventing one for historical invocations", () => {
+    const identified = seed(invocation("inv_1", { capabilityId: "native.tool.shell" }))
+    expect(parseRunEventLog(RUN_ID, identified)).toHaveLength(2)
+    expect(reduceRunState(identified)?.invocations.inv_1?.capabilityId).toBe("native.tool.shell")
+    expect(reduceRunState(seed(invocation()))?.invocations.inv_1?.capabilityId).toBeUndefined()
+    expect(() => parseRunEventLog(RUN_ID, seed(invocation("inv_1", { capabilityId: "unqualified" })))).toThrow(
+      /capabilityId/,
+    )
+  })
+
   test("failed and cancelled terminal result shapes parse", () => {
     expect(parseRunEventLog(RUN_ID, allowed("failed"))).toHaveLength(4)
     expect(parseRunEventLog(RUN_ID, allowed("cancelled"))).toHaveLength(4)

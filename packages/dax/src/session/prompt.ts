@@ -736,6 +736,7 @@ export namespace SessionPrompt {
           invocationId: part.callID,
           toolId: "task",
           executor: { kind: taskExecutor.kind, id: taskExecutor.id },
+          capability: taskExecutor.capability,
           args: taskArgs,
           originTurnId: assistantMessage.id,
         })
@@ -1311,6 +1312,7 @@ export namespace SessionPrompt {
                 invocationId,
                 toolId: item.id,
                 executor: { kind: executor.kind, id: executor.id },
+                capability: executor.capability,
                 args,
                 originTurnId: ctx.messageID,
               })
@@ -1390,7 +1392,8 @@ export namespace SessionPrompt {
       // or legacy custom executor.
       if (Object.hasOwn(tools, key)) throw new CapabilityIdentityError("ambiguous")
 
-      const execute = MCP.executionIdentity(item).execute
+      const mcpExecutor = MCP.executionIdentity(item)
+      const execute = mcpExecutor.execute
 
       const transformed = ProviderTransform.schema(input.model, asSchema(item.inputSchema).jsonSchema)
       // Never mutate the catalog's bound adapter. Schema transformation and
@@ -1418,6 +1421,7 @@ export namespace SessionPrompt {
                 invocationId,
                 toolId: key,
                 executor: { kind: "mcp", id: key },
+                capability: mcpExecutor.capability,
                 args,
                 originTurnId: ctx.messageID,
               })

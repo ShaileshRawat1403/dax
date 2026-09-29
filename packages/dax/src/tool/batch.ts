@@ -100,6 +100,7 @@ export const BatchTool = Tool.define("batch", async () => {
             invocationId: partID,
             toolId: call.tool,
             executor: { kind: executor.kind, id: executor.id },
+            capability: executor.capability,
             args: validatedParams,
             originTurnId: ctx.messageID,
             parentInvocationId: ctx.callID && isNativeSettlementPending(ctx.callID) ? ctx.callID : undefined,
