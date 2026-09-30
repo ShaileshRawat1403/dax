@@ -86,6 +86,38 @@ describe("command-template context lookup identity", () => {
     })
   })
 
+  test("parallel lookup completion cannot reorder template references", async () => {
+    const notes = path.join(root, "notes.md")
+    const folder = path.join(root, "folder")
+    await fs.writeFile(notes, "controlled context")
+    await fs.mkdir(folder)
+    await Instance.provide({
+      directory: root,
+      async fn() {
+        const original = fs.stat
+        let releaseNotes!: () => void
+        const folderFinished = new Promise<void>((resolve) => {
+          releaseNotes = resolve
+        })
+        const completed: string[] = []
+        const probe = spyOn(fs, "stat").mockImplementation((async (filepath) => {
+          if (filepath === notes) await folderFinished
+          const result = await original(filepath)
+          if (filepath === notes || filepath === folder) completed.push(String(filepath))
+          if (filepath === folder) releaseNotes()
+          return result
+        }) as typeof fs.stat)
+        try {
+          const parts = await SessionPrompt.resolvePromptParts(`Inspect @${notes}, @${folder} and repeat @${notes}`)
+          expect(completed).toEqual([folder, notes])
+          expect(parts.filter((part) => part.type === "file").map((part) => part.filename)).toEqual([notes, folder])
+        } finally {
+          probe.mockRestore()
+        }
+      },
+    })
+  })
+
   test("an executor change during the awaited stat rejects before a prompt part is returned", async () => {
     await fs.writeFile(path.join(root, "notes.md"), "controlled context")
     await Instance.provide({

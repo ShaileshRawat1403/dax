@@ -475,10 +475,10 @@ export namespace SessionPrompt {
     ]
     const files = ConfigMarkdown.files(template)
     const seen = new Set<string>()
-    await Promise.all(
-      files.map(async (match) => {
+    const resolved = await Promise.all(
+      files.map(async (match): Promise<PromptInput["parts"]> => {
         const name = match[1]
-        if (seen.has(name)) return
+        if (seen.has(name)) return []
         seen.add(name)
         const filepath = name.startsWith("~/")
           ? path.join(os.homedir(), name.slice(2))
@@ -496,32 +496,39 @@ export namespace SessionPrompt {
         if (!stats) {
           const agent = await Agent.get(name)
           if (agent) {
-            parts.push({
-              type: "agent",
-              name: agent.name,
-            })
+            return [
+              {
+                type: "agent",
+                name: agent.name,
+              },
+            ]
           }
-          return
+          return []
         }
 
         if (stats.isDirectory()) {
-          parts.push({
+          return [
+            {
+              type: "file",
+              url: pathToFileURL(filepath).href,
+              filename: name,
+              mime: "application/x-directory",
+            },
+          ]
+        }
+
+        return [
+          {
             type: "file",
             url: pathToFileURL(filepath).href,
             filename: name,
-            mime: "application/x-directory",
-          })
-          return
-        }
-
-        parts.push({
-          type: "file",
-          url: pathToFileURL(filepath).href,
-          filename: name,
-          mime: "text/plain",
-        })
+            mime: "text/plain",
+          },
+        ]
       }),
     )
+    // Preserve template order, not the completion order of parallel stat calls.
+    parts.push(...resolved.flat())
     return parts
   }
 
