@@ -92,6 +92,7 @@ import type { PromptEffectiveCandidate, PromptInstructionSource } from "@/execut
 import type { ProviderInputSourceCandidate } from "@/execution/provider-input-partition"
 import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
+import { bindOperatorShell, requireOperatorShellCapability } from "./operator-shell-identity"
 import { bindContextAttachment, requireContextAttachment } from "./context-attachment-identity"
 import { bindTemplateContext, requireTemplateContext } from "./template-context-identity"
 
@@ -2349,6 +2350,9 @@ ${
   export async function shell(input: ShellInput) {
     if (await AntigravityConversation.isBound(input.sessionID))
       throw new Error("Direct shell execution is unavailable in an AGY governed conversation.")
+    // Identity of the operator's direct shell, captured before awaited setup.
+    // This describes the dispatch; it does not consult the contract or permission.
+    const shellBinding = bindOperatorShell({ sessionID: input.sessionID, command: input.command, executor: spawn })
     const abort = start(input.sessionID)
     if (!abort) {
       throw new Session.BusyError(input.sessionID)
@@ -2497,6 +2501,12 @@ ${
 
     const cwd = Instance.directory
     const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
+    requireOperatorShellCapability({
+      binding: shellBinding,
+      sessionID: input.sessionID,
+      command: input.command,
+      executor: spawn,
+    })
     const proc = spawn(shell, args, {
       cwd,
       detached: process.platform !== "win32",
