@@ -28,9 +28,9 @@
 // Accepted main status remains eight open gaps until final review/integration.
 export const KNOWN_GAPS = {
   "inv5.capability-vocabulary":
-    "Native, loader-backed plugin and DAX-adapted MCP model tools are enrolled; legacy custom registration, graph/workflow, worker, command and context executors remain outside the descriptive registry",
+    "Native, loader plugin, opt-in custom, MCP tool/resource, built-in operator, fixed workflow, worker, command-shell and prompt-context executors are enrolled in separate per-family registries; there is no single registry, and legacy custom tools/operators, operator session shell, MCP prompts, verification commands and config-driven processes remain outside it",
   "inv5.capability-properties":
-    "Native, loader-backed plugin and DAX-adapted MCP descriptors are validated and descriptive; legacy custom, graph/workflow, worker and context executors lack validated intrinsic descriptors",
+    "Enrolled descriptors are validated and reject authority fields, but no production path reads their properties or records a capability ID; the unenrolled executors above have no descriptor",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
   "scope.project-journal":
     "A project-owned journal replays approved facts after source-run removal, but production PM reads/writes and an operator review flow have not migrated to its authority",
