@@ -34,7 +34,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider-input commitments. Replay reconstructs boundaries without retaining
   summary text; continuation verifies the stored summary against its commitment.
 
+### Security
+
+- **Workspace trust now covers a repository's tool files.** `.dax/tool` and
+  `.dax/tools` files were imported the first time tools were discovered, in a
+  worktree the operator had never trusted, so a cloned repository could run code
+  with the operator's full access. They are now withheld with the repository's
+  plugins, local MCP servers and dependency installs until `dax trust` approves
+  them. Approval is bound to each file's path and content, including helper files
+  beside the tools: adding, editing or removing one withholds that project's
+  tools until it is reviewed again. Tools in the operator's own global, home and
+  `DAX_CONFIG_DIR` directories load as before.
+
 ### Compatibility
+
+- A trust record written before tool files were covered stays valid for a
+  worktree that has no project tool files. A worktree that has them is withheld
+  as a whole until `dax trust` is run again: an earlier record never approved a
+  tool file and is not read as having done so.
 
 - New canonical runs use explicitly run-owned v2 envelopes. Existing v1 journals
   and interrupted v1 initialization recipes retain v1; a new initialization

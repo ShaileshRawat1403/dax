@@ -141,16 +141,27 @@ Those probes assert that the bypass succeeds. They are characterization, and eac
 becomes a negative regression when its fix lands. They must not remain as permanent
 assertions of bypass success.
 
-### Trust boundary, escalated
+### Trust boundary
 
 | Issue | Location | Severity | Status |
 | --- | --- | --- | --- |
-| A project's `.dax/tool/*.{js,ts}` is imported and offered at tool discovery in a worktree with no trust record. Workspace trust tracks plugins, local MCP and installs, not tool files | `tool/registry.ts` `discover`, `config/config.ts:185,231-234,296` | High | Open. Outside this workstream; escalated for a decision |
+| A project's `.dax/tool/*.{js,ts}` was imported and offered at tool discovery in a worktree with no trust record. Workspace trust tracked plugins, local MCP and installs, not tool files | `tool/registry.ts` `discover`, `config/config.ts` | High | Fixed in a separate slice after Astra reproduced it |
+| A project's `.dax/plugin/*` file is approved by path, not content, so editing an approved plugin file does not ask again | `project/trust.ts` `digest`, `config/config.ts` `loadPlugin` | Medium | Open; found while fixing the row above, not changed |
+| Project `formatter` and `lsp` configuration is not tracked by workspace trust | `config/config.ts`, `format/index.ts`, `lsp/index.ts` | Medium | Open; see service lifecycle effects |
 
-Reproduced by a throwaway probe, not committed: a `git init` project with
-`.dax/tool/probe.js` that writes a marker at module load. `ToolRegistry.ids()`
-wrote the marker and listed `probe`. The trusted-plugin exclusion assumes the
-operator chose to trust the code; here the repository supplies it and nothing asks.
+The fix puts every file under a project's `.dax/tool` and `.dax/tools` into the
+existing trust decision, each bound to its path and a SHA-256 of its content.
+Config load scans them without importing. Discovery re-reads them and imports only
+while they are exactly the approved set, so a file added, edited or removed after
+approval withholds that project's tools at once and again after a restart.
+Operator-owned global, home and `DAX_CONFIG_DIR` tool directories are untouched.
+
+Compatibility is explicit: a trust record written earlier stays valid for a
+worktree with no project tool files, and never approves one. Limits: a tool's
+imports from outside the tool folders and from `node_modules` are not covered, and
+there is a narrow window between the content check and the import.
+[tool-trust.test.ts](../../packages/dax/src/project/tool-trust.test.ts) keeps the
+reproduction as a regression.
 
 ### Vocabulary
 
