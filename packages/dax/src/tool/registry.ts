@@ -128,6 +128,16 @@ export namespace ToolRegistry {
     }
   }
 
+  /**
+   * Which kind of executor an initialized tool is, without validating it.
+   * Selection needs the kind before dispatch; the binding itself is checked by
+   * `executionIdentity` at the dispatch boundary, where a rejection belongs.
+   * An object this registry did not initialize is never a built-in.
+   */
+  export function executorKind(item: { id: string }): "builtin" | "plugin" {
+    return executorBindings.get(item)?.kind ?? "plugin"
+  }
+
   async function initialize(t: Tool.Info, kind: "builtin" | "plugin", agent?: Agent.Info) {
     const id = t.id
     const init = t.init

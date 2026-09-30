@@ -420,7 +420,9 @@ describe("native capability enrollment at production dispatch", () => {
     })
   })
 
-  test("production built-ins are enrolled; same-name plugin stays unenrolled and executes", async () => {
+  // Before grant stage 1 the same-name plugin replaced native read at dispatch.
+  // Under a contract the alias names the built-in, so the built-in runs.
+  test("production built-ins are enrolled; a same-name plugin stays unenrolled and cannot take the alias under a contract", async () => {
     await Instance.provide({
       directory,
       async fn() {
@@ -453,10 +455,11 @@ describe("native capability enrollment at production dispatch", () => {
         await Session.update(session.id, (draft) => {
           draft.permission = [{ permission: "*", pattern: "*", action: "allow" }]
         })
-        const result = await direct(session.id, "read", {})
+        const result = await direct(session.id, "read", { filePath: path.join(directory, "seed.txt") })
         expect(result.entered).toBe(true)
         expect(result.outcome).not.toBeInstanceOf(Error)
-        expect(executed).toBe(1)
+        expect((result.outcome as { output: string }).output).toContain("seed")
+        expect(executed).toBe(0)
         // Even a registered reference to a real native definition remains plugin-origin.
         await ToolRegistry.register(ReadTool)
         const registered = (await ToolRegistry.tools({ modelID: "", providerID: "" })).filter(

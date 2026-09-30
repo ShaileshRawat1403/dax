@@ -67,8 +67,8 @@ import { ExploreOperator } from "@/operators/explore"
 import { renderExploreResult, type RepoExploreResult } from "@/explore/repo-explore"
 import { shouldSkipDecorativeGeminiSubscriptionCall } from "@/provider/gemini-subscription"
 import { legacyToolTogglesToPermissionConfig } from "@/util/legacy-tools"
-import { isToolAllowedByContract } from "@/execution/execution-contract"
-import { permissionForToolId } from "@/tool/tool-class"
+import { decideContractTool } from "@/execution/execution-contract"
+import { permissionForExecutor } from "@/capability/native-alias"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
@@ -1288,7 +1288,10 @@ export namespace SessionPrompt {
       { modelID: input.model.api.id, providerID: input.model.providerID },
       input.agent,
     )) {
-      if (!isToolAllowedByContract(contract, item.id)) continue
+      // The contract is asked about the executor that would run, not its alias.
+      // A plugin holding a built-in's alias is skipped, which leaves the
+      // built-in offered under that alias instead of being replaced.
+      if (!decideContractTool(contract, item.id, { kind: ToolRegistry.executorKind(item) }).allowed) continue
 
       const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
       tools[item.id] = tool({
@@ -1329,7 +1332,7 @@ export namespace SessionPrompt {
           if (!settled) await runBefore()
           if (settled && item.authorization !== "self") {
             await ctx.ask({
-              permission: permissionForToolId(item.id),
+              permission: permissionForExecutor(item.id, executor.kind),
               patterns: ["*"],
               always: ["*"],
               metadata: {},
@@ -1394,7 +1397,7 @@ export namespace SessionPrompt {
     }
 
     for (const [key, item] of Object.entries(await MCP.tools())) {
-      if (!isToolAllowedByContract(contract, key)) continue
+      if (!decideContractTool(contract, key, { kind: "mcp" }).allowed) continue
       // MCP aliases cannot silently replace an offered native, loader-backed,
       // or legacy custom executor.
       if (Object.hasOwn(tools, key)) throw new CapabilityIdentityError("ambiguous")
@@ -1437,7 +1440,7 @@ export namespace SessionPrompt {
 
           try {
             await ctx.ask({
-              permission: key,
+              permission: permissionForExecutor(key, "mcp"),
               metadata: {},
               patterns: ["*"],
               always: ["*"],

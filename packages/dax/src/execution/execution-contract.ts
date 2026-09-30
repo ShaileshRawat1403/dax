@@ -8,6 +8,7 @@ import {
   RISK_TO_APPROVAL_MODE,
 } from "./workflow-class"
 import type { WorkflowClass, ExecutionMode, RiskLevel } from "./workflow-class"
+import { isNativeToolAlias } from "@/capability/native-alias"
 
 export const SchemaVersion = z.literal("v1")
 export type SchemaVersion = z.infer<typeof SchemaVersion>
@@ -154,6 +155,41 @@ export function isToolAllowedByContract(
   if (!contract) return true
   if (contract.toolBlocklist.includes(toolId)) return false
   return contract.toolAllowlist.length === 0 || contract.toolAllowlist.includes(toolId)
+}
+
+export type ContractToolDecision =
+  | { allowed: true }
+  | { allowed: false; reasonCode: "contract_tool_denied" | "contract_alias_executor_mismatch" }
+
+/**
+ * Contract tool authority for the executor that was actually selected.
+ *
+ * A v1 contract names tools by alias. The alias of a DAX built-in denotes that
+ * built-in. An executor that is not a built-in but holds a built-in's alias,
+ * such as a plugin named `read`, is not what the allowlist entry names, so the
+ * entry does not cover it: it cannot inherit the built-in's authority, or its
+ * place in a read-only contract, by sharing a name.
+ *
+ * This only narrows. A blocked alias stays blocked for every executor, an
+ * absent contract and an empty allowlist behave as before, and a stored
+ * contract is read exactly as it was written. It applies to executions that
+ * start now; it does not change how a recorded decision replays.
+ */
+export function decideContractTool(
+  contract: Pick<ExecutionContract, "toolAllowlist" | "toolBlocklist"> | null | undefined,
+  toolId: string,
+  executor: { kind: "builtin" | "plugin" | "mcp" },
+): ContractToolDecision {
+  if (!isToolAllowedByContract(contract, toolId)) return { allowed: false, reasonCode: "contract_tool_denied" }
+  if (
+    contract &&
+    contract.toolAllowlist.length > 0 &&
+    executor.kind !== "builtin" &&
+    isNativeToolAlias(toolId)
+  ) {
+    return { allowed: false, reasonCode: "contract_alias_executor_mismatch" }
+  }
+  return { allowed: true }
 }
 
 export function getContractSummary(contract: ExecutionContract): {

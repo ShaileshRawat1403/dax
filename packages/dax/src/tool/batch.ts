@@ -1,7 +1,7 @@
 import z from "zod"
 import { Tool } from "./tool"
 import DESCRIPTION from "./batch.txt"
-import { isToolAllowedByContract } from "@/execution/execution-contract"
+import { decideContractTool } from "@/execution/execution-contract"
 import {
   beginNativeInvocation,
   finalizeNativeResult,
@@ -11,7 +11,7 @@ import {
   NativeSettlementStateError,
 } from "@/execution/native-settlement"
 import { NativeMutationObservationError } from "@/execution/native-mutation-observation"
-import { permissionForToolId } from "./tool-class"
+import { permissionForExecutor } from "@/capability/native-alias"
 
 const DISALLOWED = new Set(["batch"])
 const FILTERED_FROM_SUGGESTIONS = new Set(["invalid", "patch", ...DISALLOWED])
@@ -60,6 +60,8 @@ export const BatchTool = Tool.define("batch", async () => {
 
       const { ToolRegistry } = await import("./registry")
       const availableTools = await ToolRegistry.tools({ modelID: "", providerID: "" })
+      // Several executors can share an alias. The last registered is the one
+      // named when no contract covers any of them; see selection below.
       const toolMap = new Map(availableTools.map((t) => [t.id, t]))
 
       const executeCall = async (call: (typeof toolCalls)[0]) => {
@@ -73,15 +75,13 @@ export const BatchTool = Tool.define("batch", async () => {
             )
           }
 
-          const tool = toolMap.get(call.tool)
-          if (!tool) {
+          const named = toolMap.get(call.tool)
+          if (!named) {
             const availableToolsList = Array.from(toolMap.keys()).filter((name) => !FILTERED_FROM_SUGGESTIONS.has(name))
             throw new Error(
               `Tool '${call.tool}' not in registry. External tools (MCP, environment) cannot be batched - call them directly. Available tools: ${availableToolsList.join(", ")}`,
             )
           }
-
-          const executor = ToolRegistry.executionIdentity(tool)
 
           // A batch wrapper is not authority for its leaves. Read the immutable
           // contract immediately before the nested executable boundary so a
@@ -89,9 +89,20 @@ export const BatchTool = Tool.define("batch", async () => {
           const session = await Session.get(ctx.sessionID)
           const { resolveExecutionAuthority } = await import("@/execution/contract-guardian")
           const { contract } = await resolveExecutionAuthority(session.id, session.governingRunId)
-          if (!isToolAllowedByContract(contract, call.tool)) {
-            throw new Error(`Tool '${call.tool}' is not permitted by the ExecutionContract`)
-          }
+
+          // Select the executor the same way direct dispatch does: the last one
+          // under this alias that the contract covers. A plugin holding a
+          // built-in's alias is passed over and the built-in is used. When the
+          // contract covers none, the named executor is kept so the denial is
+          // recorded against what would have run.
+          const covered = availableTools.filter(
+            (candidate) =>
+              candidate.id === call.tool &&
+              decideContractTool(contract, call.tool, { kind: ToolRegistry.executorKind(candidate) }).allowed,
+          )
+          const tool = covered.at(-1) ?? named
+          const executor = ToolRegistry.executionIdentity(tool)
+          const contractDecision = decideContractTool(contract, call.tool, executor)
 
           const validatedParams = tool.parameters.parse(call.parameters)
 
@@ -105,6 +116,12 @@ export const BatchTool = Tool.define("batch", async () => {
             parentInvocationId: ctx.callID && isNativeSettlementPending(ctx.callID) ? ctx.callID : undefined,
           })
           const settled = settlement.status === "recorded"
+          // A canonical run records the denial itself in beginNativeInvocation
+          // and does not reach here. Outside one there is no journal to record
+          // it in, and the leaf is refused as before.
+          if (!contractDecision.allowed) {
+            throw new Error(`Tool '${call.tool}' is not permitted by the ExecutionContract`)
+          }
 
           await Session.updatePart({
             id: partID,
@@ -139,7 +156,7 @@ export const BatchTool = Tool.define("batch", async () => {
 
           if (settled && tool.authorization !== "self") {
             await leafCtx.ask({
-              permission: permissionForToolId(call.tool),
+              permission: permissionForExecutor(call.tool, executor.kind),
               patterns: ["*"],
               always: ["*"],
               metadata: {},

@@ -10,7 +10,7 @@ import {
   type ToolResultOutcome,
 } from "@/state/events/event-transitions"
 import { computeCanonicalCommitment } from "./canonical-commitment"
-import { isToolAllowedByContract, type ExecutionContract } from "./execution-contract"
+import { decideContractTool, type ExecutionContract } from "./execution-contract"
 import { isMutatingTool } from "@/tool/tool-class"
 import {
   discardNativeMutationObservation,
@@ -148,10 +148,12 @@ export async function beginNativeInvocation(params: {
       throw new NativeSettlementAppendError("invocation", params.invocationId, error)
     }
 
+    // Decided for the executor that was selected, not for its alias.
+    const contractDecision = decideContractTool(authority.contract, params.toolId, params.executor)
     pending.set(params.invocationId, {
       authorityRunId: authority.authorityRunId,
       contractId: authority.contractId,
-      contractDisposition: isToolAllowedByContract(authority.contract, params.toolId) ? "allowed" : "denied",
+      contractDisposition: contractDecision.allowed ? "allowed" : "denied",
       authorizationEventId: null,
       denied: false,
       resultPending: false,
@@ -168,10 +170,10 @@ export async function beginNativeInvocation(params: {
       mutationObservationError: null,
     })
     const state = pending.get(params.invocationId)!
-    if (state.contractDisposition === "denied") {
-      state.reasonCodes.add("contract_tool_denied")
+    if (!contractDecision.allowed) {
+      state.reasonCodes.add(contractDecision.reasonCode)
       await appendAuthorization(params.invocationId, state, "denied")
-      throw new NativeAuthorizationDeniedError(params.invocationId, "contract_tool_denied")
+      throw new NativeAuthorizationDeniedError(params.invocationId, contractDecision.reasonCode)
     }
     return { status: "recorded" }
   } finally {

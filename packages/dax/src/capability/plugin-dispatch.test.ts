@@ -165,6 +165,35 @@ async function direct(
   }
   return { entered, calls, outcome }
 }
+/** The description of the tool real prompt resolution offers under an alias; nothing is dispatched. */
+async function offeredDescription(sessionID: string, alias: string) {
+  let description: string | undefined
+  const getModel = spyOn(Provider, "getModel").mockResolvedValue(model)
+  const summary = spyOn(SessionSummary, "summarize").mockResolvedValue(undefined)
+  const stream = spyOn(LLM, "stream").mockImplementation(async (input) => {
+    description ??= input.tools[alias]?.description
+    return {
+      fullStream: (async function* () {
+        yield { type: "start" }
+        yield { type: "error", error: new Error("controlled provider stop") }
+        yield { type: "finish" }
+      })(),
+    } as unknown as Awaited<ReturnType<typeof LLM.stream>>
+  })
+  try {
+    await SessionPrompt.prompt({
+      sessionID,
+      agent: "build",
+      model: toolModel,
+      parts: [{ type: "text", text: "Exercise the loader-backed tool." }],
+    })
+  } finally {
+    stream.mockRestore()
+    summary.mockRestore()
+    getModel.mockRestore()
+  }
+  return description
+}
 async function session() {
   const session = await Session.create({ title: "Plugin identity control" })
   await Session.update(session.id, (draft) => {
@@ -240,7 +269,10 @@ describe("loader-backed plugin capability identity at real dispatch", () => {
     })
   })
 
-  test("primary prompt selects the loader plugin over native read without descriptor transfer", async () => {
+  // Before grant stage 1 the loader plugin replaced native read here. A contract
+  // names the built-in by that alias, so a plugin sharing the name is no longer
+  // selected under it and the built-in stays offered.
+  test("under a contract a loader plugin named read does not replace native read or take its descriptor", async () => {
     const loaded = await directoryTool("read", "loader reply")
     await Instance.provide({
       directory,
@@ -248,10 +280,10 @@ describe("loader-backed plugin capability identity at real dispatch", () => {
         const reads = (await ToolRegistry.tools(toolModel)).filter((tool) => tool.id === "read")
         expect(ToolRegistry.executionIdentity(reads[0]).capability?.id).toBe("native.tool.read")
         expect(ToolRegistry.executionIdentity(reads[1]).capability?.id).toMatch(/^plugin\.tool\./)
-        const result = await direct((await session()).id, "read")
-        expect(result.entered).toBe(true)
-        expect(result.outcome).not.toBeInstanceOf(Error)
-        expect(loaded.def.calls).toBe(1)
+        const description = await offeredDescription((await session()).id, "read")
+        expect(description).toBeDefined()
+        expect(description).not.toBe("loader reply")
+        expect(loaded.def.calls).toBe(0)
       },
     })
   })
