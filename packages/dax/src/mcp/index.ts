@@ -24,6 +24,7 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import open from "open"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { createMcpToolCatalog, mcpExecutionIdentity, mcpToolSummary } from "./tool-identity"
+import type { CapabilityDescriptor } from "@/capability/capability-types"
 import {
   bindMcpPromptRead,
   bindMcpResourceRead,
@@ -236,9 +237,16 @@ export namespace MCP {
 
   export const executionIdentity = mcpExecutionIdentity
 
-  /** This instance's currently valid MCP tool descriptors. Performs no discovery. */
-  export async function capabilities() {
-    return (await state()).catalog.list()
+  /**
+   * This instance's currently valid MCP tool descriptors. It reads state the
+   * instance already created and never creates it: initializing MCP state
+   * connects to configured servers and launches local ones, which a listing
+   * must not cause.
+   */
+  export async function capabilities(): Promise<readonly CapabilityDescriptor[]> {
+    const existing = state.peek()
+    if (!existing) return Object.freeze([])
+    return (await existing).catalog.list()
   }
 
   // Store transports for OAuth servers to allow finishing auth

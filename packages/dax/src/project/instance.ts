@@ -76,7 +76,7 @@ export const Instance = {
     if (Instance.worktree === "/") return false
     return within(Instance.worktree, filepath)
   },
-  state<S>(init: () => S, dispose?: (state: Awaited<S>) => Promise<void>): () => S {
+  state<S>(init: () => S, dispose?: (state: Awaited<S>) => Promise<void>): (() => S) & { peek(): S | undefined } {
     return State.create(() => Instance.directory, init, dispose)
   },
   async dispose() {

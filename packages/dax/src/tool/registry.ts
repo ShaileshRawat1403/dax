@@ -187,9 +187,9 @@ export namespace ToolRegistry {
     async (s) => s.catalog.dispose(),
   )
 
-  /** This instance's currently valid loader and opt-in descriptors. Performs no discovery. */
+  /** This instance's currently valid loader and opt-in descriptors. Creates no state and performs no discovery. */
   export function capabilities(): readonly CapabilityDescriptor[] {
-    return state().catalog.list()
+    return state.peek()?.catalog.list() ?? Object.freeze([])
   }
 
   async function discover() {

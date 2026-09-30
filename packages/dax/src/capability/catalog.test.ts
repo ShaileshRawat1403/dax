@@ -18,6 +18,23 @@ const toolModel = { modelID: "gpt-4o", providerID: "openai" }
 let home = ""
 let previousHome: string | undefined
 let closers: (() => Promise<void>)[] = []
+let httpRequests = 0
+
+/**
+ * A local MCP entry whose command records that it was launched, then exits.
+ * Declared in global config: a project-declared local server is withheld until
+ * the worktree is trusted and would never launch here.
+ */
+async function launchRecorder() {
+  const marker = path.join(home, "mcp-process-launched.txt")
+  const script = path.join(home, "launch-recorder.js")
+  await fs.writeFile(script, `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "launched")`)
+  await fs.writeFile(
+    path.join(home, ".config", "dax", "dax.json"),
+    JSON.stringify({ mcp: { local: { type: "local", command: [process.execPath, script] } } }),
+  )
+  return { marker }
+}
 
 // Real SDK server and production HTTP transport; only the listed tools are controlled.
 async function mcpServer() {
@@ -26,6 +43,7 @@ async function mcpServer() {
     hostname: "127.0.0.1",
     port: 0,
     async fetch(request) {
+      httpRequests++
       const id = request.headers.get("mcp-session-id")
       let session = id ? sessions.get(id) : undefined
       if (!session && !id && request.method === "POST") {
@@ -74,6 +92,7 @@ beforeEach(async () => {
   home = await fs.mkdtemp(path.join(os.tmpdir(), "dax-capability-catalog-"))
   process.env.DAX_TEST_HOME = home
   closers = []
+  httpRequests = 0
   await fs.mkdir(path.join(home, ".config", "dax"), { recursive: true })
   await Instance.disposeAll()
   Config.global.reset()
@@ -148,6 +167,7 @@ describe("composed capability catalog", () => {
       async fn() {
         // No discovery has run for this instance yet, and a snapshot performs none.
         expect((await CapabilityCatalog.snapshot()).list()).toHaveLength(50)
+        expect(httpRequests).toBe(0)
 
         await ToolRegistry.register(
           Tool.define("legacy", {
@@ -179,6 +199,51 @@ describe("composed capability catalog", () => {
         // Legacy registration stays dispatchable and stays outside the vocabulary.
         const legacy = ToolRegistry.executionIdentity(tools.find((tool) => tool.id === "legacy")!)
         expect(legacy.capability).toBeUndefined()
+      },
+    })
+  })
+
+  test("enumeration never connects to a server or launches a process; discovery does", async () => {
+    const recorder = await launchRecorder()
+    const directory = await project("alpha", { mcp: { remote: await mcpServer() } })
+    let remote = ""
+    await Instance.provide({
+      directory,
+      async fn() {
+        // Repeated enumeration of a fresh instance creates no MCP or loader state.
+        for (let attempt = 0; attempt < 3; attempt++) {
+          expect((await CapabilityCatalog.snapshot()).list()).toHaveLength(50)
+          expect(await MCP.capabilities()).toEqual([])
+          expect(ToolRegistry.capabilities()).toEqual([])
+        }
+        expect(httpRequests).toBe(0)
+        expect(await Bun.file(recorder.marker).exists()).toBe(false)
+
+        // Discovery is what initializes MCP state: it connects and launches.
+        await MCP.tools()
+        expect(httpRequests).toBeGreaterThan(0)
+        expect(await Bun.file(recorder.marker).text()).toBe("launched")
+        ;[remote] = ids(await CapabilityCatalog.snapshot(), "mcp.tool.v1.")
+        expect(remote).toMatch(/^mcp\.tool\.v1\.m[0-9a-f]{64}$/)
+
+        // Enumerating discovered state causes no further traffic.
+        const settled = httpRequests
+        expect(ids(await CapabilityCatalog.snapshot(), "mcp.tool.v1.")).toEqual([remote])
+        expect(httpRequests).toBe(settled)
+      },
+    })
+
+    await Instance.disposeAll()
+    await fs.rm(recorder.marker)
+    const afterDisposal = httpRequests
+    await Instance.provide({
+      directory,
+      async fn() {
+        // A disposed instance's entries are gone, and listing does not bring them back.
+        expect(ids(await CapabilityCatalog.snapshot(), "mcp.tool.v1.")).toEqual([])
+        expect((await CapabilityCatalog.snapshot()).covers(remote)).toBe(false)
+        expect(httpRequests).toBe(afterDisposal)
+        expect(await Bun.file(recorder.marker).exists()).toBe(false)
       },
     })
   })

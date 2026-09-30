@@ -10,7 +10,7 @@ export namespace State {
   const recordsByKey = new Map<string, Map<any, Entry>>()
 
   export function create<S>(root: () => string, init: () => S, dispose?: (state: Awaited<S>) => Promise<void>) {
-    return () => {
+    const access = () => {
       const key = root()
       let entries = recordsByKey.get(key)
       if (!entries) {
@@ -26,6 +26,12 @@ export namespace State {
       })
       return state
     }
+    return Object.assign(access, {
+      /** The state if this root already created it. Never runs `init`. */
+      peek(): S | undefined {
+        return recordsByKey.get(root())?.get(init)?.state as S | undefined
+      },
+    })
   }
 
   export async function dispose(key: string) {
