@@ -24,7 +24,12 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import open from "open"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { createMcpToolCatalog, mcpExecutionIdentity, mcpToolSummary } from "./tool-identity"
-import { bindMcpResourceRead, requireMcpResourceRead } from "./resource-identity"
+import {
+  bindMcpPromptRead,
+  bindMcpResourceRead,
+  requireMcpPromptRead,
+  requireMcpResourceRead,
+} from "./resource-identity"
 
 /**
  * A local MCP server is a child process declared by configuration, and DAX
@@ -917,8 +922,8 @@ export namespace MCP {
    * @returns Prompt result or undefined if not found
    */
   export async function getPrompt(clientName: string, name: string, args?: Record<string, string>) {
-    const clientsSnapshot = await clients()
-    const client = clientsSnapshot[clientName]
+    const s = await state()
+    const client = s.clients[clientName]
 
     if (!client) {
       log.warn("client not found for prompt", {
@@ -927,21 +932,33 @@ export namespace MCP {
       return undefined
     }
 
-    const result = await client
-      .getPrompt({
+    // Resource notifications do not replace a prompt's source, so the owner
+    // check follows the connection rather than the resource revision.
+    const ownerDirectory = Instance.directory
+    const checkOwner = () => {
+      if (s.disposed || Instance.directory !== ownerDirectory || s.clients[clientName] !== client)
+        throw new CapabilityIdentityError("stale")
+    }
+    const binding = bindMcpPromptRead({ clientName, name, client, checkOwner })
+    const selected = { binding, clientName, name, client }
+    requireMcpPromptRead(selected)
+    try {
+      const result = await client.getPrompt({
         name: name,
         arguments: args,
       })
-      .catch((e) => {
-        log.error("failed to get prompt from MCP server", {
-          clientName,
-          promptName: name,
-          error: e.message,
-        })
-        return undefined
+      requireMcpPromptRead(selected)
+      return result
+    } catch (error) {
+      requireMcpPromptRead(selected)
+      if (error instanceof CapabilityIdentityError) throw error
+      log.error("failed to get prompt from MCP server", {
+        clientName,
+        promptName: name,
+        error: error instanceof Error ? error.message : String(error),
       })
-
-    return result
+      return undefined
+    }
   }
 
   /**
