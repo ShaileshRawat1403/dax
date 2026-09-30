@@ -53,6 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.dax/plugin` and `.dax/plugins`, and local files a project config names as
   plugins, are now bound to their content and checked again immediately before
   they are imported. Package plugins are still identified by name and version.
+- **Approved project code is the code that runs.** A module stays cached for the
+  life of the process, so approving an edited project tool or plugin used to
+  leave the earlier version running in a long-lived process. When approved
+  content differs from what the process already loaded, that project's tools or
+  plugins are now rejected with a restart-required error until DAX is restarted.
 
 ### Compatibility
 

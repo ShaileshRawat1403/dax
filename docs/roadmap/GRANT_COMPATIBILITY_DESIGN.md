@@ -169,6 +169,26 @@ production dispatch before anything depends on it.
    receipts before enforcement exists. It changes the event vocabulary for new
    events. Recommended: yes, optional field, no reader depends on it.
 
+## Review outcome
+
+Astra reviewed this proposal on 2026-09-30. Stage 1 may proceed. The proposals for
+decisions 1 to 4 are adopted: alias binding under v1, compiler-proposed grants with
+exact operator approval, initial v2 opt-in, and successor runs. v2 stays inactive
+pending review of each later stage. These amendments are binding and override the
+text above where they differ:
+
+| Amendment | Effect on the design |
+|---|---|
+| A missing grant means deny. Asking requires an explicit `ask` grant | Decision 5 changes: a server or capability with no grant is denied, not asked. Nothing falls back to a prompt |
+| An MCP selector identifies the source and the capability family, not a display alias | A grant for MCP content names the server and one of the tool, resource or prompt families. A sanitized model-facing alias is never a selector |
+| "Always" stays bound to the contract digest, the grant, the executor and the allowed scope | Decision 6 narrows: a remembered approval applies only to the same contract digest, the same grant, the same selected executor identity and the same scope. It never carries to another contract, a replaced executor or a wider target |
+| A record-only decision stays distinct from enforced authorization | Stage 2 writes its computed decision under its own record type or field. It is never stored as, or read as, an authorization that was enforced |
+| Historical replay is preserved, and the narrowing of future v1 execution is documented as intentional | Replay of a stored v1 run yields its original decisions. The stage 1 alias rule changes only executions that start after it lands, and its change record says so |
+| v2 opt-in alone cannot establish universal gap closure | Neither `inv5.contract-grants` nor `inv5.grant-resolution` can close while v1 and contract-less execution remain the default for any in-scope path |
+
+Binding a dependency install to its manifest content is tracked separately and is
+not part of this design.
+
 ## Acceptance evidence planned
 
 - A plugin named `read` is denied under a read-only contract, through the real

@@ -147,7 +147,7 @@ assertions of bypass success.
 | --- | --- | --- | --- |
 | A project's `.dax/tool/*.{js,ts}` was imported and offered at tool discovery in a worktree with no trust record. Workspace trust tracked plugins, local MCP and installs, not tool files | `tool/registry.ts` `discover`, `config/config.ts` | High | Fixed in a separate slice after Astra reproduced it |
 | A project's local plugin file was approved by path, not content, so editing an approved plugin did not ask again | `project/trust.ts` `digest`, `config/config.ts` `loadPlugin` | Medium | Fixed in a separate slice, approved by Astra |
-| A project's dependency install is approved by directory, not by `package.json` content | `project/trust.ts` `digest`, `config/config.ts` | Medium | Open; found while fixing the row above, not changed |
+| A project's dependency install is approved by directory, not by `package.json` content | `project/trust.ts` `digest`, `config/config.ts` | Medium | Open; tracked separately by decision, not part of these slices |
 | Project `formatter` and `lsp` configuration is not tracked by workspace trust | `config/config.ts`, `format/index.ts`, `lsp/index.ts` | Medium | Open; see service lifecycle effects |
 
 The fix puts every file under a project's `.dax/tool` and `.dax/tools` into the
@@ -183,6 +183,22 @@ and `.dax/plugins`, and any other local file a project config names as a plugin,
 enters the trust decision with its content digest and is rechecked immediately
 before plugins are imported. A package specifier stays identified by name and
 version. A named plugin file that does not exist is a failure, not an absent plugin.
+
+Approval binds content, and the runtime caches a module for the life of the
+process. Once a project file has been imported, importing that path again returns
+the cached module whatever the file now contains. So when approved content differs
+from content this process already imported, the project's tools or plugins are
+rejected with a stable restart-required error and nothing is imported or
+initialized, until the process restarts. The comparison covers the whole approved
+inventory, not only entry modules, so a changed helper is rejected even when the
+entry file is unchanged, and a loaded file that has since been removed counts too.
+Content restored to exactly what was loaded runs again, and a file never loaded in
+this process imports fresh. The version at
+`1c6f6dbda6c56e9310f46f661dc993fcf2bf4bb7` lacked this: after load A, edit and
+approve B, and a recreated instance, both loaders still ran cached A. Astra
+reproduced it for tools and plugins.
+[content-cache.test.ts](../../packages/dax/src/project/content-cache.test.ts)
+observes the version that actually executes, including in a process of its own.
 
 Tools and plugins classify one directory differently, and this is left as it is.
 A home `~/.dax` that lies above a project with no repository is operator-owned for
