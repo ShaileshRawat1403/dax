@@ -105,6 +105,30 @@ user-owned directory was removed and no typecheck was suppressed. A clean DAX
 validation worktree outside that contaminated parent is used for the next gate
 run. Its result must be recorded separately, not described as the first run.
 
+The clean worktree at dependency checkpoint
+`6eb9e2d1a76f4ce34a7aa7252c3012f479aa9567` passed full Bun 1.4.0 gates:
+2,063 passed, 2 skipped, 0 failed; all five workspace typechecks, lint, smoke,
+Rust and source release checks passed. Its frozen install preserved the lockfile
+and tracked tree. Evidence: `clean-worktree-release-gates.log` in the directory
+above.
+
+The [dependency-checkpoint CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36694379830)
+passed the audit but failed one macOS File lifecycle recovery fixture; sibling
+platform jobs were cancelled. That test assumed 50 event-loop ticks completed
+pending OS directory reads. The existing controlled-I/O test demonstrates that
+100 searches can legitimately remain empty until a scan is released. The separate
+`test/conformance-file-fixture-scheduling` branch corrects only the fixture:
+preload real directory snapshots, gate the retry explicitly, assert nonblocking
+empty cache while held, release it and assert recovery plus the original error
+and strict cleanup checks. No File runtime code, test skip, assertion weakening,
+wall-clock retry extension or CI policy change is included.
+
+File lifecycle focused validation: 18 passed, 0 failed, 281 assertions, including
+persistent permission denial, cancellation, independent instances and real
+Ripgrep strict cleanup. Evidence: `file-fixture-focused.log` alongside both failed
+CI logs. The final pushed test checkpoint must still pass full gates and all
+three platform jobs before the handoff can claim cross-platform completion.
+
 These are Sol's tests, not independent cross-validation. Astra's final review is
 still required. Claude Opus 5.5 is planned to join collaboration; no lane has
 been assigned and no Claude-authored validation is claimed here. Preserve the

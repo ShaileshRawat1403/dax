@@ -70,7 +70,10 @@ test("immediate disposal aborts initialization and awaits scan settlement", asyn
       settled = true
     }
   })
-  restore.push(() => files.mockRestore(), () => error.mockRestore())
+  restore.push(
+    () => files.mockRestore(),
+    () => error.mockRestore(),
+  )
   await inProject(async () => {
     File.init()
     await Instance.dispose()
@@ -168,7 +171,10 @@ test("unexpected scan failure is logged, partial result excluded, and a later se
     yield "recovered.txt"
     input.signal!.throwIfAborted()
   })
-  restore.push(() => files.mockRestore(), () => error.mockRestore())
+  restore.push(
+    () => files.mockRestore(),
+    () => error.mockRestore(),
+  )
   await inProject(async () => {
     File.init()
     await drainUntil(() => error.mock.calls.length === 1)
@@ -234,7 +240,10 @@ test("failed refresh retains completed cache and does not prevent a later refres
     }
     yield "recovered.txt"
   })
-  restore.push(() => files.mockRestore(), () => error.mockRestore())
+  restore.push(
+    () => files.mockRestore(),
+    () => error.mockRestore(),
+  )
   await inProject(async () => {
     File.init()
     for (let i = 0; i < 10 && calls < 2; i++) await File.search({ query: "", type: "file" })
@@ -277,6 +286,14 @@ test("global-home unexpected readdir failure is reported and a later scan recove
   const failure = Object.assign(new Error("controlled directory failure"), { code: "EACCES" })
   const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
   const original = fs.promises.readdir
+  // Resolve real fixture snapshots before the controlled failure. Event-loop
+  // ticks are not a completion signal for OS reads on a loaded CI runner.
+  const snapshots = new Map([
+    [root, await original(root, { withFileTypes: true })],
+    [path.join(root, "visible"), await original(path.join(root, "visible"), { withFileTypes: true })],
+  ])
+  const retryEntered = deferred()
+  const releaseRetry = deferred()
   const target = fs.promises as { readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]> }
   let failed = false
   const read = spyOn(target, "readdir").mockImplementation(async (directory, options) => {
@@ -284,20 +301,34 @@ test("global-home unexpected readdir failure is reported and a later scan recove
       failed = true
       throw failure
     }
-    return original(directory, options)
+    if (directory === root) {
+      retryEntered.resolve()
+      await releaseRetry.promise
+    }
+    const snapshot = snapshots.get(directory)
+    return snapshot ? [...snapshot] : original(directory, options)
   })
-  restore.push(() => read.mockRestore(), () => error.mockRestore())
+  restore.push(
+    () => read.mockRestore(),
+    () => error.mockRestore(),
+  )
   await Instance.provide({
     directory: root,
     async fn() {
       File.init()
       await drainUntil(() => error.mock.calls.length === 1)
       expect(error.mock.calls[0]).toEqual(["file index scan failed", expect.objectContaining({ error: failure })])
-      let result: string[] = []
-      for (let i = 0; i < 50 && !result.includes("visible/"); i++) {
-        result = await File.search({ query: "", type: "directory" })
-        if (!result.length) await new Promise<void>((resolve) => setImmediate(resolve))
+      try {
+        expect(await File.search({ query: "", type: "directory" })).toEqual([])
+        await retryEntered.promise
+        for (let i = 0; i < 100; i++) expect(await File.search({ query: "", type: "directory" })).toEqual([])
+      } finally {
+        releaseRetry.resolve()
       }
+      // Only bounded, controlled promise continuations remain; no OS timing.
+      let result: string[] = []
+      for (let i = 0; i < 30 && !result.includes("visible/"); i++)
+        result = await File.search({ query: "", type: "directory" })
       expect(result).toEqual(["visible/"])
       expect(error).toHaveBeenCalledTimes(1)
       await Instance.dispose()
@@ -326,7 +357,11 @@ for (const code of ["EACCES", "EPERM"]) {
     })
     const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
     const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
-    restore.push(() => read.mockRestore(), () => warn.mockRestore(), () => error.mockRestore())
+    restore.push(
+      () => read.mockRestore(),
+      () => warn.mockRestore(),
+      () => error.mockRestore(),
+    )
     await Instance.provide({
       directory: root,
       async fn() {
@@ -388,7 +423,11 @@ for (const failureCase of [
     })
     const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
     const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
-    restore.push(() => read.mockRestore(), () => warn.mockRestore(), () => error.mockRestore())
+    restore.push(
+      () => read.mockRestore(),
+      () => warn.mockRestore(),
+      () => error.mockRestore(),
+    )
     await Instance.provide({
       directory: root,
       async fn() {
@@ -476,7 +515,11 @@ test("global-home disposal during a denied child read does not publish partial c
   })
   const warn = spyOn(Log.create({ service: "file" }), "warn").mockImplementation(() => {})
   const error = spyOn(Log.create({ service: "file" }), "error").mockImplementation(() => {})
-  restore.push(() => read.mockRestore(), () => warn.mockRestore(), () => error.mockRestore())
+  restore.push(
+    () => read.mockRestore(),
+    () => warn.mockRestore(),
+    () => error.mockRestore(),
+  )
   await Instance.provide({
     directory: root,
     async fn() {
