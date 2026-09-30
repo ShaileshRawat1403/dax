@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider-input commitments. Replay reconstructs boundaries without retaining
   summary text; continuation verifies the stored summary against its commitment.
 
+- Governed runs record what the shared capability lookup concludes about each
+  tool call and operator shell command: the selected executor's identity, the
+  kind of contract that governed it, and the decision the lookup reached. The
+  record is marked record-only and changes nothing about what runs; the
+  enforced decision is still the authorization recorded separately. A grant
+  schema and a v2 contract format are defined and inactive.
+
 ### Changed
 
 - **A tool can no longer take over a built-in by sharing its name in a governed
@@ -75,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plugins are now rejected with a restart-required error until DAX is restarted.
 
 ### Compatibility
+
+- Governed runs now append a record-only `capability_resolution_recorded` event
+  beside tool invocations and operator shell commands. A journal containing it
+  cannot be read by an earlier binary, including the published v1.5.0; keep
+  development journals with their development binary. Earlier journals are
+  unaffected.
 
 - A trust record written before file content was covered stays valid for a
   worktree with no project tool files and no local project plugin files. A

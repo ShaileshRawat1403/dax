@@ -266,6 +266,78 @@ overriding a built-in by name was a supported pattern.
 - A batch leaf denied outside a canonical run has no journal to record in and is
   refused with an error, as before.
 
+## Stage 2, first delivery: shared lookup and record-only receipts
+
+Stage 2 adds the shared lookup and writes what it concludes. It enforces nothing,
+activates no v2 path and proposes no gap closure. This first delivery covers the
+tool paths and the operator shell. The remaining paths are listed below and are not
+claimed.
+
+**One lookup.** `resolveCapabilityAuthority` in
+[capability/authority.ts](../../packages/dax/src/capability/authority.ts) is pure.
+Its inputs are the governing contract, the selected executor's descriptor and the
+target evidence the path can prove. It never takes an alias as identity.
+
+| Governing authority | What the lookup concludes |
+|---|---|
+| No contract | `allow`, basis `no_contract`. The action is ungoverned, as it is today, and is recorded as such |
+| v1 contract | The stage 1 executor-bound tool rule, restated. Basis `v1_contract` |
+| v2 contract | A grant is required. A missing grant denies. Asking takes an explicit `ask` grant. An executor with no descriptor is denied as `capability_unenrolled` |
+
+Every result also says who initiated the action (`model`, `operator` or `system`)
+and whether the executor is enrolled. A legacy custom tool is recorded with
+`enrolled: false` and no capability ID: none is invented for it.
+
+**Grants.** The schema in
+[capability/grant.ts](../../packages/dax/src/capability/grant.ts) follows the
+review amendments. A grant's subject is a capability ID, or an MCP source: the
+configured server and one family of tool, resource or prompt. A source selector
+matches only when the claimed server and item name re-mint the exact identity being
+resolved, so a display alias can never satisfy it. There is no `deny` grant. The v2
+contract format is defined and inactive: the guardian refuses to write or read it.
+
+**Record only, and distinct from enforcement.** The conclusion is appended to the
+run journal as `capability_resolution_recorded`. Its `enforcement` field is the
+fixed literal `record_only`, so the schema itself refuses a record that claims to be
+enforced, and it carries no authority-bearing field. The decision that is enforced
+stays in `authorization_recorded`, unchanged. The reducer keeps resolutions in their
+own list and reads none of them for authority: a recorded deny does not deny, a
+recorded allow does not authorize, and a log with the resolutions removed replays
+to the same authority state.
+
+For a tool the order in the journal is invocation, resolution, authorization. An
+append failure for the resolution refuses the invocation, as an append failure for
+the invocation already does.
+
+| Path | Recorded | Identity recorded |
+|---|---|---|
+| Native tool, direct and queued task | Yes, in a canonical run | `native.tool.<id>` |
+| Loader and opt-in custom tool | Yes, in a canonical run | `plugin.tool.v1.*` |
+| Legacy custom tool | Yes, in a canonical run | none; `enrolled: false` |
+| MCP tool | Yes, in a canonical run | `mcp.tool.v1.*`, with its server and tool name as the proven source |
+| Batch leaf | Yes, as `batch_leaf`, separately from the batch | the leaf's own |
+| Operator shell | Yes, when the governing run has a journal | `session.shell.operator`, initiator `operator` |
+
+An operator action has no authorization event. Its shadow record covers the contract
+only; a permission rule that refuses it is a separate, enforced refusal recorded on
+the session's tool part.
+
+### Not recorded yet
+
+| Path | Why |
+|---|---|
+| Command-template shell, attachments, template references, MCP resources and prompts | Not wired in this delivery |
+| Fixed workflows, workers, verification commands | Not wired in this delivery |
+| Graph operators from `dax workflow` and `dax explore` | Operator-direct with no run journal to write to |
+| Any dispatch outside a canonical run | No journal exists; nothing is recorded, as before |
+
+### Compatibility
+
+The new event type is part of the development event vocabulary. A journal that
+contains it cannot be read by a binary that predates it, including the published
+v1.5.0. That was already true of development journals. Earlier journals contain no
+such event and replay unchanged.
+
 ## Acceptance evidence planned
 
 - A plugin named `read` is denied under a read-only contract, through the real
