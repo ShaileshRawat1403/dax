@@ -164,7 +164,11 @@ describe("invariant 5 — contract-defined authority", () => {
 
       // An unknown graph operator type has no executor; an unknown Git action has no identity.
       const unknown = plannedTask("deploy")
-      await expect(defaultRouter.route(unknown)).rejects.toThrow("No operator found")
+      let unrouted: unknown
+      await defaultRouter.route(unknown).catch((error) => {
+        unrouted = error
+      })
+      expect(unrouted).toHaveProperty("message", "No operator found for type: deploy")
       const rebase = plannedTask("git", "rebase")
       expect(() => defaultRouter.execution(rebase, defaultRouter.getOperator("git")!)).toThrow(CapabilityIdentityError)
 

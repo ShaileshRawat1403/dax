@@ -44,11 +44,19 @@ function staticFamilies(): CapabilityFamily[] {
   ]
 }
 
-export namespace CapabilityCatalog {
+function compose(plugin: readonly CapabilityDescriptor[], mcp: readonly CapabilityDescriptor[]) {
+  return composeCapabilityVocabulary([
+    ...staticFamilies(),
+    { name: "plugin_tool", namespace: PLUGIN_TOOL_NAMESPACE, enumeration: "listed", descriptors: plugin },
+    { name: "mcp_tool", namespace: MCP_TOOL_NAMESPACE, enumeration: "listed", descriptors: mcp },
+  ])
+}
+
+export const CapabilityCatalog = {
   /** Process-independent families only; loader and MCP tool families are listed empty. */
-  export function staticVocabulary() {
+  staticVocabulary() {
     return compose([], [])
-  }
+  },
 
   /**
    * A snapshot for the current instance: static families plus whatever this
@@ -56,15 +64,7 @@ export namespace CapabilityCatalog {
    * discovery, holds no reference that outlives the call, and a later
    * invalidation or disposal is simply absent from the next snapshot.
    */
-  export async function snapshot() {
+  async snapshot() {
     return compose(ToolRegistry.capabilities(), await MCP.capabilities())
-  }
-
-  function compose(plugin: readonly CapabilityDescriptor[], mcp: readonly CapabilityDescriptor[]) {
-    return composeCapabilityVocabulary([
-      ...staticFamilies(),
-      { name: "plugin_tool", namespace: PLUGIN_TOOL_NAMESPACE, enumeration: "listed", descriptors: plugin },
-      { name: "mcp_tool", namespace: MCP_TOOL_NAMESPACE, enumeration: "listed", descriptors: mcp },
-    ])
-  }
+  },
 }

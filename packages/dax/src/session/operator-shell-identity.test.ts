@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
-import { spawn } from "child_process"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -56,7 +55,9 @@ describe("operator session shell identity", () => {
   })
 
   test("binding rejects malformed, forged, and changed dispatch", () => {
-    const valid = { sessionID: "ses_control", command: "echo one", executor: spawn }
+    // Any launcher function stands in for the process primitive here; the real
+    // one is exercised through SessionPrompt.shell below.
+    const valid = { sessionID: "ses_control", command: "echo one", executor: () => {} }
     const binding = bindOperatorShell(valid)
     expect(requireOperatorShellCapability({ binding, ...valid }).id).toBe("session.shell.operator")
     expect(() => requireOperatorShellCapability({ binding: {}, ...valid })).toThrow(CapabilityIdentityError)
