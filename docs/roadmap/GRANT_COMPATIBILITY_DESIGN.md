@@ -199,15 +199,29 @@ settlement. The alias of a DAX built-in names that built-in. An executor that is
 a built-in but holds a built-in's alias is not covered by the allowlist entry, and is
 denied with `contract_alias_executor_mismatch`. Under that alias the built-in stays
 offered, so direct dispatch, a batch leaf and a delegated child all select the same
-executor. When an executor with a built-in's alias does run, because there is no
-contract or no allowlist, it is asked under its own permission, `plugin:<alias>` or
-`mcp:<alias>`, and a rule written for the built-in does not answer for it.
+executor.
+
+The permission name changed only where a permission check already existed. The
+dispatch wrapper asks for a loader or custom tool in a canonical run, and for an MCP
+tool always. At those points an executor holding a built-in's alias is now asked
+under `plugin:<alias>` or `mcp:<alias>`, so a rule written for the built-in does not
+answer for it. In practice that is a governed run whose contract has an empty
+allowlist, and an MCP tool whose alias matches a built-in that is not offered.
+
+Dispatch outside a canonical run performs no wrapper permission check for a loader
+or custom tool: a batch leaf invoked with no run authority, and the debug agent
+command. That was so before stage 1 and is unchanged. It is deferred noncanonical
+compatibility, not something stage 1 claims to govern, and no runtime scope was
+added to make this paragraph read better.
 
 **The operator shell is bound in a governed session.** Before spawning, and after
 the last awaited hook, a session that has a governing contract refuses the command
 when the contract does not allow `shell` or when a permission rule denies it. Only a
 denial refuses: a rule that would ask is not a second prompt for a command the
-operator typed. The authorization and the outcome are recorded on the persisted tool
+operator typed. Resolving the contract and the agent both await, so the session is
+read again after them and the decision is made on that snapshot: a denial installed
+while authority was being resolved is a denial. If that snapshot no longer names the
+governing run that was resolved, the command is refused. The authorization and the outcome are recorded on the persisted tool
 part. A session with no governing contract is unchanged. An unreadable governing
 reference refuses the command.
 
@@ -223,6 +237,16 @@ reducer changed, and a past decision is not re-evaluated.
 | That replacement was asked under the built-in's permission class | When it can run at all, it is asked under its own identity |
 | The operator shell ran in any session | In a governed session it is refused by a contract that does not allow `shell` and by a denying permission rule |
 
+The operator shell is subject to the contract's allowlist and its blocklist alike,
+with no implicit override. A contract compiled at native session birth uses the
+`generic` workflow hint, so keyword filtering of a read-only prompt can omit `shell`
+from the allowlist without blocklisting it, and the operator's shell is then refused
+for that session. Treating an omission as permission would weaken authority and
+would not cover the paths that blocklist `shell`. The remedy is an operator-reviewed
+successor authority in a later stage, never a silent change to an existing contract.
+
+Astra accepted the breadth of the first row on review: the narrowing applies to
+every governed session whose contract has a non-empty allowlist.
 The first row is wider than the proposal's wording suggested. A contract compiled at
 session birth lists every available tool by name, so its allowlist is never empty.
 In practice a tool that overrides a built-in by taking its name stops overriding it

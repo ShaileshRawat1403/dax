@@ -40,8 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   session.** A contract names tools by alias, and the alias of a built-in now
   means that built-in. A plugin, custom tool or MCP tool called `read` is not
   selected under a contract that allows `read`; the built-in is. Give such a tool
-  its own name. When one does run, outside any contract, it is asked under
-  `plugin:<name>` or `mcp:<name>` rather than the built-in's permission.
+  its own name. Where the dispatch wrapper asks for permission and such a tool
+  is still selected, it is asked under `plugin:<name>` or `mcp:<name>` rather
+  than the built-in's permission. Dispatch outside a governed run does not ask
+  there for plugin tools, and that is unchanged.
 - **The `!` shell respects a governed session.** In a session that has a governing
   contract, a shell command the operator types is refused when the contract does
   not allow `shell` or a permission rule denies it. Sessions with no contract are
