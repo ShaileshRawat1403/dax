@@ -189,6 +189,59 @@ text above where they differ:
 Binding a dependency install to its manifest content is tracked separately and is
 not part of this design.
 
+## Stage 1 as delivered
+
+Stage 1 changes no schema, activates no v2 path and proposes no gap closure.
+
+**Contract decisions follow the selected executor.** `decideContractTool` replaces
+the alias-only check at direct dispatch, MCP dispatch, batch leaves and native
+settlement. The alias of a DAX built-in names that built-in. An executor that is not
+a built-in but holds a built-in's alias is not covered by the allowlist entry, and is
+denied with `contract_alias_executor_mismatch`. Under that alias the built-in stays
+offered, so direct dispatch, a batch leaf and a delegated child all select the same
+executor. When an executor with a built-in's alias does run, because there is no
+contract or no allowlist, it is asked under its own permission, `plugin:<alias>` or
+`mcp:<alias>`, and a rule written for the built-in does not answer for it.
+
+**The operator shell is bound in a governed session.** Before spawning, and after
+the last awaited hook, a session that has a governing contract refuses the command
+when the contract does not allow `shell` or when a permission rule denies it. Only a
+denial refuses: a rule that would ask is not a second prompt for a command the
+operator typed. The authorization and the outcome are recorded on the persisted tool
+part. A session with no governing contract is unchanged. An unreadable governing
+reference refuses the command.
+
+### Intentional narrowing of future execution
+
+This changes what runs from the moment it lands. It does not change how anything
+already recorded replays: stored contracts are read exactly as written, no event or
+reducer changed, and a past decision is not re-evaluated.
+
+| Before | After |
+|---|---|
+| A plugin, legacy custom tool or MCP tool holding a built-in's alias replaced the built-in whenever the contract's allowlist named that alias | The built-in keeps the alias. The other executor is not offered and a batch leaf does not select it |
+| That replacement was asked under the built-in's permission class | When it can run at all, it is asked under its own identity |
+| The operator shell ran in any session | In a governed session it is refused by a contract that does not allow `shell` and by a denying permission rule |
+
+The first row is wider than the proposal's wording suggested. A contract compiled at
+session birth lists every available tool by name, so its allowlist is never empty.
+In practice a tool that overrides a built-in by taking its name stops overriding it
+in every governed session, not only under a restricted contract. Such a tool needs a
+name of its own. This is what the adopted rule requires; it is called out because
+overriding a built-in by name was a supported pattern.
+
+### Not in stage 1
+
+- Command-template shell, workflows, graph operators, workers, context reads and
+  verification commands still do not consult the contract's tool lists. That is
+  the shared resolution of stage 2.
+- The operator shell's authorization is recorded on the session's tool part, not as
+  a run journal event. The journal's executor kinds are `builtin`, `plugin` and
+  `mcp`; recording an operator action there changes the event vocabulary and is
+  left for the record-only stage.
+- A batch leaf denied outside a canonical run has no journal to record in and is
+  refused with an error, as before.
+
 ## Acceptance evidence planned
 
 - A plugin named `read` is denied under a read-only contract, through the real

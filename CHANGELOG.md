@@ -34,6 +34,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider-input commitments. Replay reconstructs boundaries without retaining
   summary text; continuation verifies the stored summary against its commitment.
 
+### Changed
+
+- **A tool can no longer take over a built-in by sharing its name in a governed
+  session.** A contract names tools by alias, and the alias of a built-in now
+  means that built-in. A plugin, custom tool or MCP tool called `read` is not
+  selected under a contract that allows `read`; the built-in is. Give such a tool
+  its own name. When one does run, outside any contract, it is asked under
+  `plugin:<name>` or `mcp:<name>` rather than the built-in's permission.
+- **The `!` shell respects a governed session.** In a session that has a governing
+  contract, a shell command the operator types is refused when the contract does
+  not allow `shell` or a permission rule denies it. Sessions with no contract are
+  unchanged.
+
 ### Security
 
 - **Workspace trust now covers a repository's tool files.** `.dax/tool` and

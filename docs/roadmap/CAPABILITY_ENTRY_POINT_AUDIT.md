@@ -21,7 +21,7 @@ without a descriptor, and that legacy path is kept compatible by decision.
 | Proposed closures | None |
 | Declared population | 13 families, 50 static descriptors, 2 dynamic and 2 on-demand families |
 | Remaining uncovered executors | Legacy `ToolRegistry.register` tools; caller-supplied graph operators |
-| Authority findings carried to workstream 2 | 2, both still reproducible by probe |
+| Authority findings from the first audit | 2, both fixed in grant stage 1 and held by negative regressions |
 
 ## Corrections to the first revision
 
@@ -128,18 +128,18 @@ its hooks, and no claim of containment is made.
 
 ## Findings
 
-### Authority boundary, carried to workstream 2
+### Authority boundary
 
 | Issue | Location | Severity | Status |
 | --- | --- | --- | --- |
-| Contract allowlist and permission class are keyed by alias, so a loader tool named `read` runs opaque effects inside a read-only contract | `execution/execution-contract.ts:150`, `tool/tool-class.ts:59`, `session/prompt.ts:1290,1331` | High | Open. Grants must resolve by the selected executor's capability identity, never its alias |
-| Operator session shell runs with no contract check, permission ask, or native invocation record | `session/prompt.ts` `shell` | High | Identity enrolled. Enforcement open: in governed sessions it must respect contract and permission denials before spawning, and record authorization and outcome |
+| Contract allowlist and permission class were keyed by alias, so a loader tool named `read` ran opaque effects inside a read-only contract | `execution/execution-contract.ts` `decideContractTool`, `capability/native-alias.ts` | High | Fixed in grant stage 1: a contract decision follows the selected executor |
+| Operator session shell ran with no contract check or permission check | `session/operator-shell-authority.ts`, `session/prompt.ts` `shell` | High | Fixed in grant stage 1: a governed session's contract and permission denials bind it before spawning |
 
-Both are demonstrated by
-[capability-inventory-audit.test.ts](../../packages/dax/src/conformance/capability-inventory-audit.test.ts).
-Those probes assert that the bypass succeeds. They are characterization, and each
-becomes a negative regression when its fix lands. They must not remain as permanent
-assertions of bypass success.
+Both were demonstrated by probes that asserted the bypass succeeded. Those probes
+are now negative regressions in
+[grant-stage1.test.ts](../../packages/dax/src/conformance/grant-stage1.test.ts).
+The [grant compatibility design](GRANT_COMPATIBILITY_DESIGN.md) records what stage 1
+changed and what it intentionally narrows.
 
 ### Trust boundary
 
