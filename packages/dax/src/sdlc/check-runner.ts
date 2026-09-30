@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import { Shell } from "@/shell/shell"
 import type { CheckDefinition, CheckResult } from "./check-types"
+import { bindVerificationCommand, requireVerificationCommandCapability } from "./verification-identity"
 
 /** True while any process in the group still exists. Delivers no signal. */
 function groupAlive(pgid: number): boolean {
@@ -47,6 +48,7 @@ function baseResult(check: CheckDefinition, startedAt: string, started: number):
 }
 
 export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
+  const binding = bindVerificationCommand({ runner: "direct", check, executor: runCheck })
   const started = Date.now()
   const startedAt = new Date(started).toISOString()
   const executable = Bun.which(check.command)
@@ -60,6 +62,9 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
       stderrPreview: `command not found: ${check.command}`,
     }
   }
+
+  // Identity only: which runner dispatches this planned check. Not a permission.
+  requireVerificationCommandCapability({ binding, runner: "direct", check, executor: runCheck })
 
   return await new Promise((resolve) => {
     let stdout = ""
