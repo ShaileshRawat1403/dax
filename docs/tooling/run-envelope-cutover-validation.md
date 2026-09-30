@@ -71,6 +71,40 @@ on other hosts; do not rely on a temporary runtime or change other projects.
 - The final handoff must identify the pushed SHA and its exact-SHA CI run; do
   not substitute the preceding failed project-journal run for this evidence.
 
+## Dependency-audit followup
+
+Cutover checkpoint: `05bf3b2e47660c1506b1aa34ae6059d3566a3c64`.
+Its [exact-SHA CI](https://github.com/ShaileshRawat1403/dax/actions/runs/36693166730)
+failed during the unchanged high-severity dependency audit on all three
+platforms, before code tests ran. The earlier project-journal test failure is
+separate. Both CI failure logs are retained in the local evidence directory.
+
+The separate branch `fix/conformance-audit-dependencies` builds on the preserved
+cutover checkpoint and changes only two transitive overrides and their lockfile
+entries: `brace-expansion` 5.0.11 and `undici` 6.28.1. These are the patched versions
+identified by the upstream [brace nesting advisory](https://github.com/advisories/GHSA-qhr7-859c-m2p7),
+[brace comma-parser advisory](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p),
+and [Undici advisory](https://github.com/advisories/GHSA-rfgv-xxqx-mfg5).
+No blanket dependency update, major-version change, audit exception or gate
+change is included. This commit does not alter the installed DAX release.
+
+Pinned Bun 1.4.0 frozen installation with scripts disabled passed and preserved
+the corrected lockfile hash
+`831bad444f35a22dd8469507f15aac499809502eed5b09781d0c86ba35e642de`.
+The high-severity audit passed across 745 packages; 20 findings are below that
+threshold, so this is not a claim of zero dependency findings. The resolution,
+frozen-install and audit logs are retained alongside the cutover evidence. Full
+gates on the updated dependency tree and exact-SHA CI must be checked for the
+followup handoff, not inferred from the earlier local run.
+
+The first updated-dependency gate attempt stopped at workspace typechecking.
+TypeScript's resolution trace identified broken implicit `d3-*` type libraries
+in `/Users/ananyalayek/node_modules/@types`, outside DAX. The locked DAX dependency
+tree contains none of those types. The failed gate and trace are retained; no
+user-owned directory was removed and no typecheck was suppressed. A clean DAX
+validation worktree outside that contaminated parent is used for the next gate
+run. Its result must be recorded separately, not described as the first run.
+
 These are Sol's tests, not independent cross-validation. Astra's final review is
 still required. Claude Opus 5.5 is planned to join collaboration; no lane has
 been assigned and no Claude-authored validation is claimed here. Preserve the
