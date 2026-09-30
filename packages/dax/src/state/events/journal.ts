@@ -14,7 +14,7 @@ export type JournalOptions<Event extends JournalEvent, Input> = {
   path: string[]
   lock: () => Promise<JournalLock>
   parse: (events: unknown[]) => Event[]
-  create: (seq: number, input: Input) => Event
+  create: (seq: number, input: Input, existing: readonly Event[]) => Event
   validateAppend?: (existing: Event[], candidate: Event) => void | Promise<void>
   staleError: (expected: number, actual: number) => Error
   duplicateError: (commandId: string) => Error
@@ -97,13 +97,15 @@ export class Journal<Event extends JournalEvent, Input> {
         }
       }
 
-      const candidate = this.options.create(next.length, input)
+      const candidate = this.options.create(next.length, input, next)
       const [validated] = this.options.parse([candidate])
       if (!validated || validated.seq !== next.length) {
         throw new Error(`Invalid ${this.options.scope.type} journal candidate for ${this.options.scope.id}`)
       }
       if (next.some((event) => event.eventId === validated.eventId)) {
-        throw new Error(`${this.options.scope.type} journal ${this.options.scope.id} repeats eventId ${validated.eventId}`)
+        throw new Error(
+          `${this.options.scope.type} journal ${this.options.scope.id} repeats eventId ${validated.eventId}`,
+        )
       }
       await this.options.validateAppend?.(next, validated)
       next.push(validated)

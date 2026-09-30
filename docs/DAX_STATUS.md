@@ -5,8 +5,28 @@ conformance sprint uses Sol for implementation and Astra 6 high for architecture
 and adversarial review.
 The [original handover](HANDOVER_CLAUDE_TO_CODEX.md) is preserved verbatim; this
 record supersedes its status and open findings. Work remains on feature branches;
-the maintainer has authorized Codex to integrate validated branches into `main`
-and delete them after verifying ancestry.
+earlier integration authorizations applied to individually approved checkpoints.
+Current gap-closure candidates stay on owned feature branches until Astra's
+final comprehensive review; solo validation does not authorize integration.
+
+## Candidate work and review cadence — 2026-09-30
+
+The maintainer authorized continued bounded implementation of the eight remaining
+gaps without intermediate architecture waits. Astra will review the complete
+candidate before integration or a future release. Published `main` remains at
+`d2ef0b0f510c70df29d3855f399e02902fbe4014`, with **eight accepted open gaps**.
+The feature-stack ledger is a candidate measurement, not an accepted main claim.
+The [run-envelope cutover record](tooling/run-envelope-cutover-validation.md)
+documents proposed closure of the journal primitive and scope-aware envelope
+entries, leaving six candidate entries. Contract grants/enforcement and governed
+project-memory production are not complete; no claim of eight-gap closure is made.
+
+Claude Opus 5.5 is expected to join collaboration at the maintainer's request.
+No Claude implementation lane or worktree has been assigned yet. Sol retains
+ownership of the current branches; activate the multi-agent SOP with separate
+worktrees and non-overlapping ownership before Claude makes changes. Historical
+handover evidence remains intact. v1.5.0, release assets and the installed binary
+remain unchanged.
 
 ## Released baseline and next sprint
 

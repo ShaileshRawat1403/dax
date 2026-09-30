@@ -35,6 +35,15 @@ explicitly at sprint review.
 
 ## Implementation and review handoff
 
+Current cadence (2026-09-30): the maintainer authorized bounded candidate work
+without intermediate review waits while Astra is unavailable. All runtime work
+stays on owned feature branches for one final comprehensive independent review
+before integration; no release is authorized. Main still has eight accepted open
+gaps. The candidate ledger may remove demonstrated checks only with ordinary
+regressions and explicit proposed-closure evidence, never as accepted main status.
+Claude Opus 5.5 is planned to join; assign a separate worktree and a non-overlapping
+lane before implementation. Sol-owned branches do not transfer implicitly.
+
 On 2026-09-27 the maintainer authorized continued bounded implementation while
 Astra is temporarily unavailable. Validated work stays on feature branches for
 later independent review, not main. Plugin checkpoint 051c175 is preserved and

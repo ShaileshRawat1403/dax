@@ -856,10 +856,11 @@ type RunEventEnvelopeBase = {
 }
 
 /** Historical v1 records remain readable as run-owned by their validated log location. */
-export type RunEventEnvelope = RunEventEnvelopeBase & (
-  | { schemaVersion: "v1"; scopeType?: never; scopeId?: never; sourceRefs?: never }
-  | { schemaVersion: "v2"; scopeType: "run"; scopeId: string; sourceRefs?: JournalEventReference[] }
-)
+export type RunEventEnvelope = RunEventEnvelopeBase &
+  (
+    | { schemaVersion: "v1"; scopeType?: never; scopeId?: never; sourceRefs?: never }
+    | { schemaVersion: "v2"; scopeType: "run"; scopeId: string; sourceRefs?: JournalEventReference[] }
+  )
 
 /**
  * At the storage boundary the envelope and the event payload are parsed as a
@@ -982,7 +983,7 @@ export function createEvent(runId: string, seq: number, type: RunEventType, payl
  * audit record is worse than an unreadable one, because it looks complete.
  */
 export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
-  return events.map((event, index) => {
+  const parsed = events.map((event, index) => {
     const result = RunEventEnvelopeSchema.safeParse(event)
     if (!result.success) {
       throw new Error(
@@ -993,4 +994,13 @@ export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnve
     }
     return result.data as RunEventEnvelope
   })
+  const version = parsed[0]?.schemaVersion
+  for (const event of parsed) {
+    if (event.schemaVersion !== version) {
+      throw new Error(
+        `Run ${runId} has mixed envelope versions at seq ${event.seq}. Refusing to project an ambiguous cutover.`,
+      )
+    }
+  }
+  return parsed
 }

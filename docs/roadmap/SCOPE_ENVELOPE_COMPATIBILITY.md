@@ -4,6 +4,12 @@ Branch: `feat/scope-aware-envelope`
 Base: `e2ac9cb1746e64b19515b330d77c0dfde957af5f`
 Status: v2 reader support only; the aggregate gap remains open.
 
+This is the preserved reader-only checkpoint. The later
+[run-envelope cutover candidate](../tooling/run-envelope-cutover-validation.md)
+records the maintainer's explicit approval for new-run v2 writes, while retaining
+v1 history and interrupted v1 recipes. Neither checkpoint is integrated or a
+release approval; accepted main status remains eight open gaps until final review.
+
 Historical run events retain their strict v1 schema. Their validated journal
 location establishes run ownership for replay, but does not retroactively prove
 that an explicit owner was recorded. A v1 event with new scope fields is refused.

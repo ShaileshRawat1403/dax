@@ -6,7 +6,7 @@ import os from "node:os"
 import { Instance } from "@/project/instance"
 import { initializeRunEventAuthority, readRunEvents } from "@/state/events/run-event-store"
 import { appendProjectEvent, initializeProjectJournal, readProjectEvents } from "@/state/events/project-journal"
-import { expectAsyncGap, expectGap } from "./known-gaps"
+import { expectGap } from "./known-gaps"
 
 /**
  * Invariant 7 — Scope Authority.
@@ -34,8 +34,8 @@ import { expectAsyncGap, expectGap } from "./known-gaps"
  * authority**. A project fact caused by run evidence cites that evidence; it does
  * not write a second copy of the transition into the run journal.
  *
- * The run-side shared journal machinery exists. The other scope invariants remain
- * open until a production project journal uses it and replay proves ownership.
+ * The run and project stores share journal machinery and explicitly owned new
+ * envelopes. Production PM migration and governed memory promotion remain open.
  */
 
 const SRC = join(import.meta.dir, "..")
@@ -55,7 +55,11 @@ const OWNERSHIP = [
   { fact: "verification receipt", owner: "run", why: "attests one run's checks" },
   { fact: "completion judgement", owner: "run", why: "concerns whether that run's objective was met" },
   { fact: "workspace mutation", owner: "run", why: "the change belongs to the run that made it" },
-  { fact: "promoted project memory", owner: "project", why: "governs sessions that have no relation to the run that discovered it" },
+  {
+    fact: "promoted project memory",
+    owner: "project",
+    why: "governs sessions that have no relation to the run that discovered it",
+  },
   { fact: "project convention", owner: "project", why: "outlives every run that observed it" },
   { fact: "retired project memory", owner: "project", why: "its retirement must survive the run that superseded it" },
 ] as const
@@ -83,8 +87,7 @@ describe("invariant 7 — scope authority", () => {
 
   test("a newly produced canonical run event explicitly names its owner", async () => {
     // The v2 parser accepts explicitly owned events and continues to read old
-    // v1 history. The producer remains v1 pending the durable-format cutover;
-    // merely finding scopeType in a schema is not evidence of scope coverage.
+    // v1 history. Exercise the actual initializer, not a constructed envelope.
     const testHome = await mkdtemp(join(os.tmpdir(), "dax-scope-owner-"))
     const previousHome = process.env.DAX_TEST_HOME
     process.env.DAX_TEST_HOME = testHome
@@ -99,10 +102,8 @@ describe("invariant 7 — scope authority", () => {
             guardEnforcementMode: "warn",
           })
           const events = await readRunEvents(runId)
-          await expectAsyncGap("scope.aware-envelope", async () => {
-            expect(events).toHaveLength(1)
-            expect(events[0]).toMatchObject({ schemaVersion: "v2", scopeType: "run", scopeId: runId })
-          })
+          expect(events).toHaveLength(1)
+          expect(events[0]).toMatchObject({ schemaVersion: "v2", scopeType: "run", scopeId: runId })
         },
       })
     } finally {

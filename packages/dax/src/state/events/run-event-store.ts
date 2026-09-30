@@ -51,9 +51,15 @@ export class InvalidRunAuthorityError extends Error {
   }
 }
 
-type NewRunEvent = Omit<RunEventEnvelope, "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion">
+type NewRunEvent = Omit<
+  RunEventEnvelope,
+  "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion" | "scopeType" | "scopeId"
+>
 
-async function runJournal(runId: string): Promise<Journal<RunEventEnvelope, NewRunEvent>> {
+async function runJournal(
+  runId: string,
+  initialVersion: "v1" | "v2" = "v2",
+): Promise<Journal<RunEventEnvelope, NewRunEvent>> {
   return new Journal<RunEventEnvelope, NewRunEvent>({
     scope: { type: "run", id: runId },
     path: await eventPath(runId),
@@ -65,20 +71,40 @@ async function runJournal(runId: string): Promise<Journal<RunEventEnvelope, NewR
       }
       return events
     },
-    create: (seq, event) => ({
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-      runId,
-      seq,
-      type: event.type,
-      payload: event.payload,
-      occurredAt: new Date().toISOString(),
-      schemaVersion: "v1",
-      ...(event.causationId ? { causationId: event.causationId } : {}),
-      ...(event.correlationId ? { correlationId: event.correlationId } : {}),
-      ...(event.commandId ? { commandId: event.commandId } : {}),
-    }),
+    create: (seq, event, existing) => {
+      // A run's format is fixed at birth. Historical journals are never
+      // rewritten or partly upgraded by a later development binary.
+      const version = existing[0]?.schemaVersion ?? initialVersion
+      for (const key of ["schemaVersion", "runId", "scopeType", "scopeId"]) {
+        if (Object.hasOwn(event, key)) throw new Error(`Run envelope field ${key} is store-owned`)
+      }
+      if (version === "v1" && event.sourceRefs !== undefined) {
+        throw new Error("Historical v1 run envelopes cannot carry source references")
+      }
+      const envelope = {
+        eventId: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+        runId,
+        seq,
+        type: event.type,
+        payload: event.payload,
+        occurredAt: new Date().toISOString(),
+        ...(event.causationId ? { causationId: event.causationId } : {}),
+        ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+        ...(event.commandId ? { commandId: event.commandId } : {}),
+      }
+      return version === "v1"
+        ? { ...envelope, schemaVersion: "v1" }
+        : {
+            ...envelope,
+            schemaVersion: "v2",
+            scopeType: "run",
+            scopeId: runId,
+            ...(event.sourceRefs === undefined ? {} : { sourceRefs: event.sourceRefs }),
+          }
+    },
     // Authority records must be valid under the run lock before persistence.
-    validateAppend: (existing, candidate) => {
+    validateAppend: async (existing, candidate) => {
+      validateEnvelopeRecipe(runId, await readAuthorityRecord(runId), [...existing, candidate])
       if (
         candidate.type === "approval_requested" ||
         candidate.type === "approval_resolved" ||
@@ -136,7 +162,9 @@ export async function appendRunEventAtTail(
 
 export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> {
   try {
-    return await (await runJournal(runId)).read()
+    const events = await (await runJournal(runId)).read()
+    validateEnvelopeRecipe(runId, await readAuthorityRecord(runId), events)
+    return events
   } catch (error) {
     log.error("failed to read run events", { error, runId })
     throw error
@@ -206,7 +234,16 @@ export async function getProjectedRunState(runId: string): Promise<RunState | nu
 }
 
 type Initialization = Extract<RunEventPayload, { type: "contract_compiled" }>["payload"]
-type AuthorityRecord = { authority: RunAuthority; initialization?: unknown }
+type AuthorityRecord = { authority: RunAuthority; initialization?: unknown; envelopeVersion?: "v1" | "v2" }
+
+function validateEnvelopeRecipe(runId: string, record: AuthorityRecord | null, events: RunEventEnvelope[]): void {
+  // A historical durable initialization recipe without a version is v1. Do
+  // not let a direct append race recovery and invent a different birth format.
+  const expected = record?.envelopeVersion ?? (record?.initialization === undefined ? undefined : "v1")
+  if (events.length && expected && events[0].schemaVersion !== expected) {
+    throw new Error(`Conflicting initialization envelope version for run ${runId}`)
+  }
+}
 
 async function readAuthorityRecord(runId: string): Promise<AuthorityRecord | null> {
   try {
@@ -216,6 +253,9 @@ async function readAuthorityRecord(runId: string): Promise<AuthorityRecord | nul
     }
     const record = result as AuthorityRecord
     if (record.authority !== "legacy" && record.authority !== "event-log") {
+      throw new InvalidRunAuthorityError(runId, result)
+    }
+    if (record.envelopeVersion !== undefined && record.envelopeVersion !== "v1" && record.envelopeVersion !== "v2") {
       throw new InvalidRunAuthorityError(runId, result)
     }
     return record
@@ -270,8 +310,12 @@ function parseInitialization(value: unknown, persisted = false): Initialization 
   }
 }
 
-async function appendInitializationUnderLock(runId: string, payload: Initialization): Promise<void> {
-  await (await runJournal(runId)).appendUnderLock(0, { type: "contract_compiled", payload }, [])
+async function appendInitializationUnderLock(
+  runId: string,
+  payload: Initialization,
+  version: "v1" | "v2",
+): Promise<void> {
+  await (await runJournal(runId, version)).appendUnderLock(0, { type: "contract_compiled", payload }, [])
 }
 
 /** Establish authority with a durable recipe for an interrupted first append. */
@@ -281,6 +325,7 @@ export async function initializeRunEventAuthority(runId: string, input: Initiali
   try {
     const record = await readAuthorityRecord(runId)
     const events = await (await runJournal(runId)).read()
+    validateEnvelopeRecipe(runId, record, events)
     if (record?.authority === "legacy") throw new Error(`Run ${runId} already has legacy authority`)
     if (events.length > 0) {
       if (record?.authority !== "event-log" || events[0].type !== "contract_compiled") {
@@ -288,6 +333,9 @@ export async function initializeRunEventAuthority(runId: string, input: Initiali
       }
       if (JSON.stringify(parseInitialization(events[0].payload)) !== JSON.stringify(payload)) {
         throw new Error(`Conflicting initialization for run ${runId}`)
+      }
+      if (record.envelopeVersion && record.envelopeVersion !== events[0].schemaVersion) {
+        throw new Error(`Conflicting initialization envelope version for run ${runId}`)
       }
       return // Exact retry; do not append a second genesis event.
     }
@@ -298,9 +346,9 @@ export async function initializeRunEventAuthority(runId: string, input: Initiali
         throw new Error(`Conflicting initialization for run ${runId}`)
       }
     } else {
-      await writeAuthorityRecord(runId, { authority: "event-log", initialization: payload })
+      await writeAuthorityRecord(runId, { authority: "event-log", initialization: payload, envelopeVersion: "v2" })
     }
-    await appendInitializationUnderLock(runId, payload)
+    await appendInitializationUnderLock(runId, payload, record ? (record.envelopeVersion ?? "v1") : "v2")
   } finally {
     await lock.dispose()
   }
@@ -313,8 +361,13 @@ export async function repairRunInitialization(runId: string): Promise<void> {
     const record = await readAuthorityRecord(runId)
     if (record?.authority !== "event-log") return
     const events = await (await runJournal(runId)).read()
+    validateEnvelopeRecipe(runId, record, events)
     if (events.length > 0 || record.initialization === undefined) return
-    await appendInitializationUnderLock(runId, parseInitialization(record.initialization, true))
+    await appendInitializationUnderLock(
+      runId,
+      parseInitialization(record.initialization, true),
+      record.envelopeVersion ?? "v1",
+    )
   } finally {
     await lock.dispose()
   }

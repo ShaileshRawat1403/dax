@@ -24,14 +24,14 @@
  * then pass on its own terms.
  */
 
+// On feature stacks this is a candidate ledger, not independent acceptance.
+// Accepted main status remains eight open gaps until final review/integration.
 export const KNOWN_GAPS = {
   "inv5.capability-vocabulary":
     "Native, loader-backed plugin and DAX-adapted MCP model tools are enrolled; legacy custom registration, graph/workflow, worker, command and context executors remain outside the descriptive registry",
   "inv5.capability-properties":
     "Native, loader-backed plugin and DAX-adapted MCP descriptors are validated and descriptive; legacy custom, graph/workflow, worker and context executors lack validated intrinsic descriptors",
   "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
-  "scope.aware-envelope":
-    "The parser accepts v2 owner and source references while preserving v1 history, but production run events remain v1 and no project-owned producer proves cross-scope provenance",
   "scope.project-journal":
     "A project-owned journal replays approved facts after source-run removal, but production PM reads/writes and an operator review flow have not migrated to its authority",
   "memory.no-producer":

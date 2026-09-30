@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Compatibility
 
+- New canonical runs use explicitly run-owned v2 envelopes. Existing v1 journals
+  and interrupted v1 initialization recipes retain v1; a new initialization
+  records its version durably before publishing genesis. Mixed-version logs or
+  conflicting initialization recipes require recovery and are never rewritten
+  automatically. Older binaries, including the published v1.5.0, cannot read
+  these v2 journals; keep development journals with their development binary.
 - Built-in task-graph operators now resolve strict descriptive identity at graph
   dispatch. Git actions remain distinct; a custom operator claiming a built-in
   type, an unknown Git action, or a duplicate registration rejects before that
