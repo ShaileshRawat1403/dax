@@ -51,6 +51,8 @@ async function effectLog() {
 
 const toolFolder = () => path.join(directory, ".dax", "tool")
 const pluginFolder = () => path.join(directory, ".dax", "plugin")
+/** The error names real files: the temporary directory is itself behind a link on some hosts. */
+const real = (file: string) => fs.realpath(file)
 
 /** A tool whose load and whose execution both report the version in its source. */
 async function writeTool(version: string, options: { helper?: string; name?: string } = {}) {
@@ -158,6 +160,7 @@ function expectRestartRequired(result: { error?: unknown }) {
   })
   // Stable and path-free: nothing about this machine is in the message.
   expect((result.error as Error).message).not.toContain(home)
+  expect((result.error as Error).message).not.toContain(path.basename(home))
 }
 
 describe("approved content is what executes: project tools", () => {
@@ -172,7 +175,7 @@ describe("approved content is what executes: project tools", () => {
     const stale = await runTool()
     expectRestartRequired(stale)
     expect((stale.error as ProjectTrust.ProjectRestartRequiredError).files).toEqual([
-      path.join(toolFolder(), "control.js"),
+      await real(path.join(toolFolder(), "control.js")),
     ])
     // Rejected before any effect: neither version was loaded or executed again.
     expect(await effectLog()).toEqual(["load control A none"])
@@ -193,7 +196,7 @@ describe("approved content is what executes: project tools", () => {
     const stale = await runTool()
     expectRestartRequired(stale)
     expect((stale.error as ProjectTrust.ProjectRestartRequiredError).files).toEqual([
-      path.join(toolFolder(), "lib", "helper.js"),
+      await real(path.join(toolFolder(), "lib", "helper.js")),
     ])
     expect(await effectLog()).toEqual(["load control A h1"])
 
@@ -231,6 +234,30 @@ describe("approved content is what executes: project tools", () => {
     await approve()
     expectRestartRequired(await runTool())
   })
+
+  // The module cache follows the real file, not the path used to reach it.
+  test.skipIf(process.platform === "win32")(
+    "the same files reached through another path are still the content this process loaded",
+    async () => {
+      await writeTool("A", { helper: "h1" })
+      await approve()
+      expect(await runTool()).toEqual({ offered: true, output: "A h1" })
+
+      // Open the same project through a symlink, as a second worktree path would.
+      const original = directory
+      const alias = path.join(home, "alias")
+      await fs.symlink(original, alias)
+      await writeTool("B", { helper: "h1" })
+      directory = alias
+      try {
+        await approve()
+        expectRestartRequired(await runTool())
+        expect(await effectLog()).toEqual(["load control A h1"])
+      } finally {
+        directory = original
+      }
+    },
+  )
 
   test("the real prompt path rejects with the stable error and notifies the operator", async () => {
     await writeTool("A")
@@ -277,7 +304,7 @@ describe("approved content is what executes: project plugins", () => {
     const stale = await loadPlugins()
     expectRestartRequired(stale)
     expect((stale.error as ProjectTrust.ProjectRestartRequiredError).files).toEqual([
-      path.join(pluginFolder(), "control.js"),
+      await real(path.join(pluginFolder(), "control.js")),
     ])
     // Rejected before any effect: the cached plugin was not initialized again.
     expect(await effectLog()).toEqual(["load plugin A none", "init plugin A none"])
@@ -302,13 +329,35 @@ describe("approved content is what executes: project plugins", () => {
     const stale = await loadPlugins()
     expectRestartRequired(stale)
     expect((stale.error as ProjectTrust.ProjectRestartRequiredError).files).toEqual([
-      path.join(pluginFolder(), "lib", "helper.js"),
+      await real(path.join(pluginFolder(), "lib", "helper.js")),
     ])
     expect(await effectLog()).toEqual(["load plugin A h1", "init plugin A h1"])
 
     expect(freshProcess("plugin")).toEqual({ loaded: true })
     expect((await effectLog()).slice(-2)).toEqual(["load plugin A h2", "init plugin A h2"])
   }, 60_000)
+
+  test.skipIf(process.platform === "win32")(
+    "a plugin reached through another path is still the content this process loaded",
+    async () => {
+      await writePlugin("A")
+      await approve()
+      expect(await loadPlugins()).toEqual({ loaded: true })
+
+      const original = directory
+      const alias = path.join(home, "alias")
+      await fs.symlink(original, alias)
+      await writePlugin("B")
+      directory = alias
+      try {
+        await approve()
+        expectRestartRequired(await loadPlugins())
+        expect(await effectLog()).toEqual(["load plugin A none", "init plugin A none"])
+      } finally {
+        directory = original
+      }
+    },
+  )
 
   test("an unchanged plugin initializes again in a new instance", async () => {
     await writePlugin("A")

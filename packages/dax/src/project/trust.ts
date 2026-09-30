@@ -227,7 +227,7 @@ export async function inspectProjectPlugins(
 }
 
 /**
- * Content this process has already imported, by file.
+ * Content this process has already imported, by real file path.
  *
  * The runtime caches a module for the life of the process. Once a project file
  * has been imported, importing the same path again returns the cached module,
@@ -263,6 +263,15 @@ export function projectPluginFolders(directories: readonly string[]) {
 }
 
 /**
+ * The file a path really names. The module cache follows the real file, so the
+ * same project opened through a symlink, another spelling or another worktree
+ * path must be recognized as content this process already loaded.
+ */
+async function realFile(file: string) {
+  return fs.realpath(file).catch((error) => scanFailure(file, error))
+}
+
+/**
  * Refuse to import approved content over content this process already loaded.
  *
  * Every file in the inventory is compared, not only the entry modules: a tool
@@ -271,15 +280,25 @@ export function projectPluginFolders(directories: readonly string[]) {
  * given folders counts too, since a cached module may still import it. Files
  * never loaded here, including ones added since, import fresh and are fine.
  */
-export function requireNotStale(entries: readonly string[], folders: readonly string[]) {
+export async function requireNotStale(entries: readonly string[], folders: readonly string[]) {
   if (entries.length === 0) return
-  const current = new Map(entries.map((entry) => [describeToolEntry(entry).file, describeToolEntry(entry).content]))
+  const current = new Map<string, string>()
+  for (const entry of entries) {
+    const { file, content } = describeToolEntry(entry)
+    current.set(await realFile(file), content)
+  }
+  const realFolders: string[] = []
+  for (const folder of folders) {
+    // A folder that is not there holds nothing this process could have loaded from it.
+    const real = await fs.realpath(folder).catch(() => undefined)
+    if (real) realFolders.push(real)
+  }
   const stale: string[] = []
   for (const [file, content] of loadedContent) {
     const now = current.get(file)
     if (now !== undefined) {
       if (now !== content) stale.push(file)
-    } else if (folders.some((folder) => file.startsWith(folder + path.sep))) {
+    } else if (realFolders.some((folder) => file.startsWith(folder + path.sep))) {
       stale.push(file)
     }
   }
@@ -287,11 +306,13 @@ export function requireNotStale(entries: readonly string[], folders: readonly st
 }
 
 /** Record that this process is about to import exactly this content. */
-export function markLoaded(entries: readonly string[]) {
+export async function markLoaded(entries: readonly string[]) {
+  const resolved: [string, string][] = []
   for (const entry of entries) {
     const { file, content } = describeToolEntry(entry)
-    loadedContent.set(file, content)
+    resolved.push([await realFile(file), content])
   }
+  for (const [file, content] of resolved) loadedContent.set(file, content)
 }
 
 /** True when two scans name the same files with the same content. */

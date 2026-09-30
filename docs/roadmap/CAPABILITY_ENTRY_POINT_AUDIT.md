@@ -193,7 +193,9 @@ initialized, until the process restarts. The comparison covers the whole approve
 inventory, not only entry modules, so a changed helper is rejected even when the
 entry file is unchanged, and a loaded file that has since been removed counts too.
 Content restored to exactly what was loaded runs again, and a file never loaded in
-this process imports fresh. The version at
+this process imports fresh. The record is kept by real file path, because the
+module cache follows the real file: the same project opened through a symlink or
+a second worktree path is recognized as content already loaded. The version at
 `1c6f6dbda6c56e9310f46f661dc993fcf2bf4bb7` lacked this: after load A, edit and
 approve B, and a recreated instance, both loaders still ran cached A. Astra
 reproduced it for tools and plugins.

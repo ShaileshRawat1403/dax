@@ -78,8 +78,8 @@ export namespace Plugin {
         // The approval is for this content. A module this process already
         // imported would run as it was, so refuse rather than initialize older
         // code under a newer approval.
-        ProjectTrust.requireNotStale(current.files, ProjectTrust.projectPluginFolders(project.directories))
-        ProjectTrust.markLoaded(current.files)
+        await ProjectTrust.requireNotStale(current.files, ProjectTrust.projectPluginFolders(project.directories))
+        await ProjectTrust.markLoaded(current.files)
       }
     }
     if (plugins.length) await Config.waitForDependencies()

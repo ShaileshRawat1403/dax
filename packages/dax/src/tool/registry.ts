@@ -224,8 +224,8 @@ export namespace ToolRegistry {
       // The approval is for this content. A module this process already
       // imported would run as it was, so refuse rather than run older code
       // under a newer approval.
-      ProjectTrust.requireNotStale(current.tools, ProjectTrust.projectToolFolders(project.directories))
-      ProjectTrust.markLoaded(current.tools)
+      await ProjectTrust.requireNotStale(current.tools, ProjectTrust.projectToolFolders(project.directories))
+      await ProjectTrust.markLoaded(current.tools)
     }
     const matches = await Config.directories().then((dirs) =>
       dirs.flatMap((dir) =>
