@@ -37,6 +37,7 @@ import {
   createDynamicCatalog,
   metadataKey,
   pluginCapability,
+  PLUGIN_TOOL_NAMESPACE,
   validationMetadata,
 } from "@/capability/dynamic-identity"
 
@@ -181,10 +182,15 @@ export namespace ToolRegistry {
       custom: [] as Tool.Info[],
       enrolled: [] as ReturnType<typeof fromEnrolledCustom>[],
       directory: Instance.directory,
-      catalog: createDynamicCatalog(),
+      catalog: createDynamicCatalog(PLUGIN_TOOL_NAMESPACE),
     }),
     async (s) => s.catalog.dispose(),
   )
+
+  /** This instance's currently valid loader and opt-in descriptors. Performs no discovery. */
+  export function capabilities(): readonly CapabilityDescriptor[] {
+    return state().catalog.list()
+  }
 
   async function discover() {
     const s = state()

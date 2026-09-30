@@ -6,6 +6,7 @@ import {
   CapabilityIdentityError,
   createDynamicCatalog,
   mcpCapability,
+  MCP_TOOL_NAMESPACE,
   metadataKey,
 } from "@/capability/dynamic-identity"
 
@@ -45,10 +46,11 @@ export function mcpToolSummary(tool: Tool) {
 
 /** Private instance-owned catalog; descriptions never authorize an effect. */
 export function createMcpToolCatalog() {
-  const catalog = createDynamicCatalog()
+  const catalog = createDynamicCatalog(MCP_TOOL_NAMESPACE)
   const epochs = new Map<string, number>()
   const listings = new Map<string, number>()
   const pending = new Map<string, AbortController>()
+  let published: { capability: CapabilityDescriptor; current(): void }[] = []
   let disposed = false
 
   function invalidate(name: string) {
@@ -58,6 +60,20 @@ export function createMcpToolCatalog() {
 
   return {
     invalidate,
+    /** Descriptors whose catalog generation and connection epoch are both current. */
+    list(): readonly CapabilityDescriptor[] {
+      if (disposed) return Object.freeze([])
+      return Object.freeze(
+        published.flatMap((item) => {
+          try {
+            item.current()
+            return [item.capability]
+          } catch {
+            return []
+          }
+        }),
+      )
+    },
     dispose() {
       disposed = true
       catalog.dispose()
@@ -71,6 +87,9 @@ export function createMcpToolCatalog() {
           connections.map(async (connection) => {
             const { name, client, timeout } = connection
             const epoch = epochs.get(name) ?? 0
+            const currentEpoch = () => {
+              if (disposed || (epochs.get(name) ?? 0) !== epoch) throw new CapabilityIdentityError("stale")
+            }
             const listing = (listings.get(name) ?? 0) + 1
             listings.set(name, listing)
             // listTools also mutates the SDK's output/task validation cache.
@@ -144,6 +163,7 @@ export function createMcpToolCatalog() {
                   metadata,
                   identity,
                   checkConnection,
+                  currentEpoch,
                   entry: {
                     alias,
                     source: identity.source,
@@ -186,6 +206,13 @@ export function createMcpToolCatalog() {
         ticket,
         candidates.map((candidate) => candidate.entry),
       )
+      published = candidates.map((candidate, index) => ({
+        capability: candidate.identity.descriptor,
+        current() {
+          checks[index]()
+          candidate.currentEpoch()
+        },
+      }))
       return Object.fromEntries(
         candidates.map((candidate, index) => {
           const description = candidate.definition.description ?? ""

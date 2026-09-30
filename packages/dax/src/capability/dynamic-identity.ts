@@ -13,6 +13,9 @@ export class CapabilityIdentityError extends NamedError.Unknown {
   }
 }
 
+export const PLUGIN_TOOL_NAMESPACE = "plugin.tool.v1."
+export const MCP_TOOL_NAMESPACE = "mcp.tool.v1."
+
 /** Private source encoding; an opaque logical identity, not a code attestation. */
 export function pluginCapability(parts: readonly string[]) {
   return sourceCapability("plugin", parts)
@@ -38,7 +41,7 @@ function sourceCapability(kind: "plugin" | "mcp", parts: readonly string[]) {
   }
   const descriptor = createCapabilityRegistry([
     {
-      id: `${kind}.tool.v1.${kind === "plugin" ? "p" : "m"}${hash.digest("hex")}`,
+      id: `${kind === "plugin" ? `${PLUGIN_TOOL_NAMESPACE}p` : `${MCP_TOOL_NAMESPACE}m`}${hash.digest("hex")}`,
       riskClass: "high",
       scopeSupport: "opaque",
       requiresVerification: true,
@@ -111,8 +114,12 @@ export type DynamicEntry = {
   references?: readonly object[]
 }
 
-/** One instance's dynamic catalog. Nothing here resolves execution permission. */
-export function createDynamicCatalog() {
+/**
+ * One instance's dynamic catalog. Nothing here resolves execution permission.
+ * A catalog that names its namespace refuses enrolled IDs outside it, so two
+ * catalogs composed into one vocabulary cannot publish the same identity.
+ */
+export function createDynamicCatalog(namespace?: string) {
   let latest = 0
   let disposed = false
   const records = new Map<string, { entry: DynamicEntry; active: boolean }>()
@@ -158,6 +165,15 @@ export function createDynamicCatalog() {
       ++latest
       for (const record of records.values()) record.active = false
     },
+    /** Descriptors of currently valid enrolled entries; empty once disposed. */
+    list(): readonly CapabilityDescriptor[] {
+      if (disposed) return Object.freeze([])
+      return Object.freeze(
+        [...records.values()].flatMap((record) =>
+          record.active && record.entry.capability ? [record.entry.capability] : [],
+        ),
+      )
+    },
     publish(ticket: number, entries: readonly DynamicEntry[]) {
       if (disposed) throw new CapabilityIdentityError("stale")
       try {
@@ -180,6 +196,9 @@ export function createDynamicCatalog() {
         }
         aliases.add(entry.alias)
         if (!entry.capability) continue // legacy custom registration, explicitly unenrolled
+        if (namespace !== undefined && !entry.capability.id.startsWith(namespace)) {
+          throw new CapabilityIdentityError("malformed")
+        }
         const previous = identities.get(entry.capability.id)
         if (previous !== undefined) {
           if (ticket === latest) {

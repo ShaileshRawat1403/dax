@@ -231,6 +231,11 @@ export namespace MCP {
 
   export const executionIdentity = mcpExecutionIdentity
 
+  /** This instance's currently valid MCP tool descriptors. Performs no discovery. */
+  export async function capabilities() {
+    return (await state()).catalog.list()
+  }
+
   // Store transports for OAuth servers to allow finishing auth
   type TransportWithAuth = StreamableHTTPClientTransport | SSEClientTransport
   const pendingOAuthTransports = new Map<string, TransportWithAuth>()
