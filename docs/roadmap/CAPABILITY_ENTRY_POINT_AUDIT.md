@@ -83,9 +83,18 @@ of each other, so no two families can mint the same ID.
 [capability/catalog.ts](../../packages/dax/src/capability/catalog.ts) declares the
 population and produces a snapshot for the current instance. There is no mutable
 global: a snapshot is composed on request from the static families and whatever the
-instance's loader and MCP catalogs currently hold as valid. It performs no
-discovery. Invalidated or disposed entries are absent from the next snapshot, and
-an earlier snapshot is not rewritten.
+instance's loader and MCP catalogs currently hold as valid. Enumeration reads only
+state the instance already created and never creates it: a snapshot of a fresh
+instance opens no MCP connection and launches no process. Discovery
+(`ToolRegistry.tools`, `MCP.tools`) is what initializes that state. Invalidated or
+disposed entries are absent from the next snapshot, and an earlier snapshot is not
+rewritten.
+
+The first delivery at `27cd8947d2d6317638015c689dece9f323a2929e` claimed this and
+did not do it: `MCP.capabilities()` called the initializing state accessor, so a
+fresh snapshot made four MCP HTTP requests. Astra's review reproduced it. The
+correction adds a non-initializing `peek` to instance state and a regression that
+counts requests and process launches.
 
 MCP resources and prompts mint one source-qualified ID per read. They cannot be
 listed in advance, so their families are `on_demand`: the vocabulary owns the
@@ -100,12 +109,14 @@ enrolled. The column that matters is the parent boundary that authorizes them.
 | --- | --- | --- | --- | --- |
 | Formatter | `format/index.ts:113` | `File.Event.Edited` after an edit, write or patch | The edit tool call's permission and contract check | Built-in formatters and `formatter` config |
 | LSP server | `lsp/index.ts:113`, `lsp/server.ts` | `LSP.touchFile` from read, edit, write, patch and the `lsp` tool | The triggering tool call; a plain `read` is enough | Built-in servers and `lsp` config; may download unless `DAX_DISABLE_LSP_DOWNLOAD` |
-| MCP stdio server | `mcp/index.ts:538` | Instance start for each enabled `mcp` config entry; `MCP.add` and `MCP.connect` from `server/routes/mcp.ts:59,313` | None per launch. Config presence, or an operator API call | `mcp.<name>.command` config |
+| MCP stdio server | `mcp/index.ts` `create` | First use of MCP state, for each enabled `mcp` config entry; `MCP.add` and `MCP.connect` from `server/routes/mcp.ts:59,313` | None per launch. Config presence, or an operator API call. A project-declared local server is withheld until the operator trusts the worktree (`project/trust.ts`) | `mcp.<name>.command` config |
 
 Two properties follow and are recorded as limitations, not fixed here. A formatter
 or LSP command runs under its parent's authorization without being named in it. An
-MCP stdio command runs at instance start with no per-launch authorization. In each
-case the command comes from configuration, including project configuration.
+MCP stdio command runs when MCP state is first used, with no per-launch
+authorization. Workspace trust withholds project-declared plugins, local MCP
+servers and dependency installs until the operator trusts the worktree. It does not
+track project `formatter` or `lsp` configuration.
 
 ## Documented exclusion: trusted plugin code
 
@@ -129,6 +140,17 @@ Both are demonstrated by
 Those probes assert that the bypass succeeds. They are characterization, and each
 becomes a negative regression when its fix lands. They must not remain as permanent
 assertions of bypass success.
+
+### Trust boundary, escalated
+
+| Issue | Location | Severity | Status |
+| --- | --- | --- | --- |
+| A project's `.dax/tool/*.{js,ts}` is imported and offered at tool discovery in a worktree with no trust record. Workspace trust tracks plugins, local MCP and installs, not tool files | `tool/registry.ts` `discover`, `config/config.ts:185,231-234,296` | High | Open. Outside this workstream; escalated for a decision |
+
+Reproduced by a throwaway probe, not committed: a `git init` project with
+`.dax/tool/probe.js` that writes a marker at module load. `ToolRegistry.ids()`
+wrote the marker and listed `probe`. The trusted-plugin exclusion assumes the
+operator chose to trust the code; here the repository supplies it and nothing asks.
 
 ### Vocabulary
 
@@ -158,16 +180,17 @@ differ from the baseline, all on a changed or stale identity:
   The baseline returned `undefined` or the late result. An ordinary server failure
   and an unknown client still return `undefined`.
 - The operator session shell rejects before spawning if the submitted command
-  changes during the awaited `shell.env` hook.
+  changes during the awaited `shell.env` hook. The tool part it had already
+  persisted as running is settled as an error and the assistant message is
+  completed, so the history has no unfinished record and reads the same after the
+  session is reopened. A `shell.env` hook that throws is settled the same way and
+  keeps its own error; at the baseline it left a running part behind. The first
+  delivery rejected correctly and left that part running, which Astra reproduced.
 - A verification runner rejects a check whose argv changes after binding. Through
   `verifyWorkerPatch` that becomes a blocking `error` result, as any runner crash does.
 
 ## Residual risk
 
-- Project `.dax/tool/*.{js,ts}` appears to be imported at discovery
-  (`config/config.ts:231-238`, `tool/registry.ts:199-207`) before any approval.
-  Read from source only; not exercised by a run. It falls under the trusted plugin
-  exclusion, which makes the project-configuration trust boundary the thing to review.
 - Operator direct actions other than the session shell (revert, worktree routes,
   PTY) were classified by reading call sites and are not in the declared population.
 - `cli/cmd/*` commands that spawn `git` and `gh`, and ACP and Soothsayer entry
