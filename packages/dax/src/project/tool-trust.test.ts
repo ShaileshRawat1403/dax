@@ -235,8 +235,10 @@ describe("workspace trust for project tool files", () => {
     const legacyDigest = createHash("sha256")
       .update(JSON.stringify({ plugins: legacy.plugins, mcp: legacy.mcp, install: legacy.install }))
       .digest("hex")
-    expect(ProjectTrust.digest({ ...legacy, tools: [] })).toBe(legacyDigest)
-    expect(ProjectTrust.digest({ ...legacy, tools: ["/repo/.dax/tool/a.js#sha256:00"] })).not.toBe(legacyDigest)
+    expect(ProjectTrust.digest({ ...legacy, tools: [], pluginFiles: [] })).toBe(legacyDigest)
+    expect(
+      ProjectTrust.digest({ ...legacy, tools: ["/repo/.dax/tool/a.js#sha256:00"], pluginFiles: [] }),
+    ).not.toBe(legacyDigest)
 
     // A worktree trusted for a local MCP server, recorded the earlier way.
     await fs.writeFile(

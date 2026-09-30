@@ -12,6 +12,7 @@ import { Session } from "../session"
 import { NamedError } from "@dax-ai/util/error"
 import { GeminiAuthPlugin } from "./gemini"
 import { AnthropicAuthPlugin } from "./anthropic"
+import * as ProjectTrust from "../project/trust"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -54,6 +55,27 @@ export namespace Plugin {
     }
 
     let plugins = config.plugin ?? []
+    // A project's plugins were approved as the content they had when config
+    // loaded. Re-read that content now, immediately before importing, so a file
+    // added or edited since is not run on the strength of an earlier approval.
+    const project = await Config.projectPlugins()
+    if (project.specifiers.length) {
+      const current = await ProjectTrust.inspectProjectPlugins(project.directories, project.specifiers)
+      const allowed =
+        current.failure === undefined &&
+        project.approved !== undefined &&
+        ProjectTrust.sameTools(current.files, project.approved)
+      if (!allowed) {
+        const withheldSpecifiers = new Set(project.specifiers)
+        plugins = plugins.filter((entry) => !withheldSpecifiers.has(entry))
+        if (current.failure) ProjectTrust.noteWithheldPluginScanFailure(project.specifiers, current.failure)
+        else ProjectTrust.noteWithheldPlugins(project.specifiers, current.files)
+        log.warn("withheld project plugins that changed since approval", {
+          plugins: project.specifiers.length,
+          failure: current.failure,
+        })
+      }
+    }
     if (plugins.length) await Config.waitForDependencies()
     if (!Flag.DAX_DISABLE_DEFAULT_PLUGINS) {
       plugins = [...BUILTIN, ...plugins]

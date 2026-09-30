@@ -9,7 +9,15 @@ import { Config } from "../../config/config"
 /** One line per withheld item, as `dax trust` prints it. */
 export function describeWithheld(value: ProjectTrust.Executable): string[] {
   const lines: string[] = []
-  for (const plugin of value.plugins) lines.push(`  plugin  ${plugin}`)
+  // A local plugin file is listed once, below, with the content being approved.
+  for (const plugin of value.plugins) if (!plugin.startsWith("file://")) lines.push(`  plugin  ${plugin}`)
+  for (const entry of value.pluginFiles) {
+    const { file, content } = ProjectTrust.describeToolEntry(entry)
+    lines.push(`  plugin  ${file} (imported and run in-process; sha256 ${content.slice(0, 16)})`)
+  }
+  if (value.pluginScanFailure) {
+    lines.push(`  plugin  ${value.pluginScanFailure.path} could not be read (${value.pluginScanFailure.code})`)
+  }
   for (const server of value.mcp) lines.push(`  mcp     ${server} (spawns a local process)`)
   for (const dir of value.install) lines.push(`  install ${dir} (runs dependency install scripts)`)
   for (const entry of value.tools) {
@@ -70,7 +78,7 @@ export const TrustCommand = cmd({
       for (const line of describeWithheld(withheld)) process.stdout.write(`${line}${EOL}`)
       process.stdout.write(`${EOL}`)
       if (!ProjectTrust.isApprovable(withheld)) {
-        process.stdout.write(`Its tool files could not be read completely, so there is nothing exact to approve.${EOL}`)
+        process.stdout.write(`Its executable files could not be read completely, so there is nothing exact to approve.${EOL}`)
         process.stdout.write(`Fix the path above and run dax trust again. Nothing was trusted.${EOL}`)
         process.exitCode = 1
         return

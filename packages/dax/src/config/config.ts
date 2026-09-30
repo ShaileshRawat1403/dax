@@ -182,7 +182,7 @@ export namespace Config {
     // execute, and a repository is not a trusted input. Track what each
     // project-scoped source contributes so it can be withheld until the
     // operator trusts this worktree - see ProjectTrust.
-    const executable: ProjectTrust.Executable = { plugins: [], mcp: [], install: [], tools: [] }
+    const executable: ProjectTrust.Executable = { plugins: [], mcp: [], install: [], tools: [], pluginFiles: [] }
     const trackProjectContribution = <T>(before: () => T, after: (snapshot: T) => void) => {
       const snapshot = before()
       return () => after(snapshot)
@@ -315,6 +315,17 @@ export namespace Config {
     // Undefined means nothing under a project tool directory may be imported.
     let approvedProjectTools: string[] | undefined
 
+    // A project plugin is approved as the content it had, not only the path it
+    // lives at. Every directory config treats as project-scoped for plugins is
+    // covered, which includes a home `.dax` that lies above a project with no
+    // repository: plugin classification there is stricter than for tools.
+    const projectPluginDirectories = unique(projectDirectories)
+    const projectPluginSpecifiers = [...executable.plugins]
+    const inspectedPlugins = await ProjectTrust.inspectProjectPlugins(projectPluginDirectories, projectPluginSpecifiers)
+    if (inspectedPlugins.failure) executable.pluginScanFailure = inspectedPlugins.failure
+    else executable.pluginFiles = inspectedPlugins.files
+    let approvedProjectPlugins: string[] | undefined
+
     // Inline config content overrides all non-managed config sources.
     if (Flag.DAX_CONFIG_CONTENT) {
       result = mergeConfigConcatArrays(result, JSON.parse(Flag.DAX_CONFIG_CONTENT))
@@ -338,11 +349,13 @@ export namespace Config {
     // adding a plugin to an already-trusted repo asks again.
     if (ProjectTrust.isEmpty(executable)) {
       approvedProjectTools = []
+      approvedProjectPlugins = []
     } else {
       const trustRoot = ProjectTrust.root(Instance.worktree, Instance.directory)
       if (await ProjectTrust.isTrusted(trustRoot, executable)) {
         ProjectTrust.setWithheld(ProjectTrust.empty)
         approvedProjectTools = executable.tools
+        approvedProjectPlugins = executable.pluginFiles
         for (const dir of executable.install) {
           deps.push(
             iife(async () => {
@@ -363,6 +376,8 @@ export namespace Config {
           install: executable.install.length,
           tools: executable.tools.length,
           toolScanFailure: executable.toolScanFailure,
+          pluginFiles: executable.pluginFiles.length,
+          pluginScanFailure: executable.pluginScanFailure,
         })
       }
     }
@@ -410,8 +425,23 @@ export namespace Config {
       directories,
       deps,
       projectTools: { directories: projectToolDirectories, approved: approvedProjectTools },
+      projectPlugins: {
+        directories: projectPluginDirectories,
+        // Empty while untrusted: those specifiers were already removed from `config.plugin`.
+        specifiers: approvedProjectPlugins === undefined ? [] : projectPluginSpecifiers,
+        approved: approvedProjectPlugins,
+      },
     }
   })
+
+  /**
+   * Project-scoped plugin directories and specifiers, and the plugin files the
+   * operator approved when this instance loaded its config. Plugin loading
+   * compares `approved` with the files as they are at import time.
+   */
+  export async function projectPlugins() {
+    return state().then((x) => x.projectPlugins)
+  }
 
   /**
    * Project-scoped tool directories and the tool files the operator approved

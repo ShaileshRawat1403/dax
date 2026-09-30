@@ -1,6 +1,7 @@
 import { createHash } from "crypto"
 import path from "path"
 import fs from "fs/promises"
+import { fileURLToPath } from "url"
 import { Global } from "../global"
 import { Log } from "../util/log"
 
@@ -39,6 +40,15 @@ export type Executable = {
    * of tool files is then unknown, so nothing here can be trusted or approved.
    */
   toolScanFailure?: ToolScanFailure
+  /**
+   * Files a project plugin import would load, each bound to its content: every
+   * file under a project's `.dax/plugin` and `.dax/plugins`, and any other local
+   * file a project config names as a plugin. See `scanProjectPlugins`. A
+   * `plugins` entry names what to load; this records what it contained.
+   */
+  pluginFiles: string[]
+  /** Set when those plugin files could not be read completely. */
+  pluginScanFailure?: ToolScanFailure
 }
 
 export type ToolScanFailure = { path: string; code: string }
@@ -49,7 +59,7 @@ export type TrustRecord = {
   trustedAt: number
 }
 
-export const empty: Executable = { plugins: [], mcp: [], install: [], tools: [] }
+export const empty: Executable = { plugins: [], mcp: [], install: [], tools: [], pluginFiles: [] }
 
 export function isEmpty(value: Executable) {
   return (
@@ -57,11 +67,14 @@ export function isEmpty(value: Executable) {
     value.mcp.length === 0 &&
     value.install.length === 0 &&
     value.tools.length === 0 &&
-    value.toolScanFailure === undefined
+    value.toolScanFailure === undefined &&
+    value.pluginFiles.length === 0 &&
+    value.pluginScanFailure === undefined
   )
 }
 
 const TOOL_DIRECTORIES = ["tool", "tools"]
+const PLUGIN_DIRECTORIES = ["plugin", "plugins"]
 
 /** One tool-file entry: the path the operator reviews and the content it had. */
 function toolEntry(file: string, content: Buffer) {
@@ -111,6 +124,10 @@ function scanFailure(target: string, error: unknown): never {
  * without ever having been reviewed.
  */
 export async function scanProjectTools(directories: readonly string[]): Promise<string[]> {
+  return scanFolders(directories, TOOL_DIRECTORIES)
+}
+
+async function scanFolders(directories: readonly string[], folderNames: readonly string[]): Promise<string[]> {
   const entries: string[] = []
   const visited = new Set<string>()
   async function walk(folder: string) {
@@ -133,7 +150,7 @@ export async function scanProjectTools(directories: readonly string[]): Promise<
     }
   }
   for (const directory of directories) {
-    for (const name of TOOL_DIRECTORIES) {
+    for (const name of folderNames) {
       const folder = path.join(directory, name)
       // lstat reports the link itself, so a dangling link is a failure in walk
       // rather than being mistaken for a folder that is not there.
@@ -159,6 +176,55 @@ export async function inspectProjectTools(
   }
 }
 
+/**
+ * Every local file a project plugin import would load, bound to its content.
+ *
+ * That is every file under the project `.dax` directories' `plugin` and
+ * `plugins` folders, covered whole for the same reason tool folders are, plus
+ * each other `file://` specifier the project contributed, such as a relative
+ * path in its `plugin` config. A package specifier is not a local file: it
+ * stays identified by name and version in `plugins`.
+ *
+ * A plugin folder that does not exist is absent. A named plugin file that does
+ * not exist is a failure, because the project declared it as code to run.
+ */
+export async function scanProjectPlugins(
+  directories: readonly string[],
+  specifiers: readonly string[],
+): Promise<string[]> {
+  const entries = await scanFolders(directories, PLUGIN_DIRECTORIES)
+  const covered = new Set(entries.map((entry) => describeToolEntry(entry).file))
+  for (const specifier of specifiers) {
+    if (!specifier.startsWith("file://")) continue
+    let file: string
+    try {
+      file = fileURLToPath(specifier)
+    } catch {
+      scanFailure(specifier, { code: "invalid_file_url" })
+    }
+    if (covered.has(file)) continue
+    const info = await fs.stat(file).catch((error) => scanFailure(file, error))
+    if (!info.isFile()) scanFailure(file, { code: "not_a_regular_file" })
+    const content = await fs.readFile(file).catch((error) => scanFailure(file, error))
+    entries.push(toolEntry(file, content))
+    covered.add(file)
+  }
+  return entries.sort()
+}
+
+/** The complete plugin-file inventory, or why it could not be produced. */
+export async function inspectProjectPlugins(
+  directories: readonly string[],
+  specifiers: readonly string[],
+): Promise<{ files: string[]; failure?: undefined } | { files?: undefined; failure: ToolScanFailure }> {
+  try {
+    return { files: await scanProjectPlugins(directories, specifiers) }
+  } catch (error) {
+    if (error instanceof ProjectToolScanError) return { failure: error.failure }
+    return { failure: { path: directories.join(", "), code: "unknown" } }
+  }
+}
+
 /** True when two scans name the same files with the same content. */
 export function sameTools(a: readonly string[], b: readonly string[]) {
   return a.length === b.length && a.every((entry, index) => entry === b[index])
@@ -177,12 +243,13 @@ export function root(worktree: string, directory: string): string {
 /**
  * Stable digest of what the operator is being asked to trust.
  *
- * Compatibility with records written before tool files were covered: when a
- * worktree has no project tool files, the canonical form is exactly the earlier
- * three-field form, so its existing record stays valid. When it has tool files,
- * they enter the digest, no earlier record can match, and the whole set is
- * withheld until the operator reviews it again. An earlier record never
- * approved a tool file, so it is not read as having done so.
+ * Compatibility with records written before file content was covered: when a
+ * worktree has no project tool files and no local project plugin files, the
+ * canonical form is exactly the earlier three-field form, so its existing
+ * record stays valid. When it has either, their content enters the digest, no
+ * earlier record can match, and the whole set is withheld until the operator
+ * reviews it again. An earlier record never approved a tool file, and approved
+ * a plugin file only by its path, so it is not read as approving content.
  */
 export function digest(value: Executable): string {
   const canonical = JSON.stringify({
@@ -190,6 +257,7 @@ export function digest(value: Executable): string {
     mcp: [...value.mcp].sort(),
     install: [...value.install].sort(),
     ...(value.tools.length > 0 ? { tools: [...value.tools].sort() } : {}),
+    ...(value.pluginFiles.length > 0 ? { pluginFiles: [...value.pluginFiles].sort() } : {}),
   })
   return createHash("sha256").update(canonical).digest("hex")
 }
@@ -221,15 +289,21 @@ export async function isTrusted(worktree: string, value: Executable): Promise<bo
  * digest, names nothing the operator could have reviewed.
  */
 export function isApprovable(value: Executable): boolean {
-  return value.toolScanFailure === undefined && value.tools.every(isContentCommitment)
+  return (
+    value.toolScanFailure === undefined &&
+    value.pluginScanFailure === undefined &&
+    value.tools.every(isContentCommitment) &&
+    value.pluginFiles.every(isContentCommitment)
+  )
 }
 
 export async function trust(worktree: string, value: Executable): Promise<TrustRecord> {
   if (!isApprovable(value)) {
+    const failure = value.toolScanFailure ?? value.pluginScanFailure
     throw new Error(
-      value.toolScanFailure
-        ? `Cannot trust ${path.resolve(worktree)}: its tool files could not be read (${value.toolScanFailure.code} at ${value.toolScanFailure.path})`
-        : `Cannot trust ${path.resolve(worktree)}: a tool file has no content digest`,
+      failure
+        ? `Cannot trust ${path.resolve(worktree)}: its executable files could not be read (${failure.code} at ${failure.path})`
+        : `Cannot trust ${path.resolve(worktree)}: an executable file has no content digest`,
     )
   }
   const record: TrustRecord = {
@@ -280,4 +354,18 @@ export function noteWithheldTools(tools: readonly string[]) {
 /** Tool discovery could not read the project's tool folders; nothing was imported. */
 export function noteWithheldToolScanFailure(failure: ToolScanFailure) {
   withheld = { ...withheld, tools: [], toolScanFailure: failure }
+}
+
+/**
+ * Plugin loading found the project's plugin files differ from what was approved
+ * when config loaded, so it did not import the project's plugins.
+ */
+export function noteWithheldPlugins(specifiers: readonly string[], files: readonly string[]) {
+  const { pluginScanFailure: _cleared, ...rest } = withheld
+  withheld = { ...rest, plugins: [...specifiers], pluginFiles: [...files] }
+}
+
+/** Plugin loading could not read the project's plugin files; none were imported. */
+export function noteWithheldPluginScanFailure(specifiers: readonly string[], failure: ToolScanFailure) {
+  withheld = { ...withheld, plugins: [...specifiers], pluginFiles: [], pluginScanFailure: failure }
 }
