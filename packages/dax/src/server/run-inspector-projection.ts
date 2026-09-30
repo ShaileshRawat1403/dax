@@ -471,6 +471,11 @@ function chronologyItem(event: RunEventEnvelope): z.infer<typeof ChronologyItem>
       return { ...base, category: "contract", subjectId: String(payload.contractId) }
     case "tool_invocation_recorded":
       return { ...base, category: "execution", subjectId: String(payload.invocationId) }
+    case "capability_resolution_recorded":
+      // A shadow record, shown as evidence. It deliberately has no disposition:
+      // what it concluded was not enforced, and only an authorization is shown
+      // as a decision.
+      return { ...base, category: "evidence", subjectId: String(payload.subjectId) }
     case "authorization_recorded":
       return {
         ...base,

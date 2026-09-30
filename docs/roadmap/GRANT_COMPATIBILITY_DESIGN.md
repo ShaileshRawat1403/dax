@@ -307,7 +307,16 @@ to the same authority state.
 
 For a tool the order in the journal is invocation, resolution, authorization. An
 append failure for the resolution refuses the invocation, as an append failure for
-the invocation already does.
+the invocation already does: both are writes to the same journal, and an invocation
+whose journal cannot be appended to was already refused.
+
+The operator shell is different, because it wrote nothing to the journal before. A
+record-only write must not become a new way for the operator's command to fail, so
+if its resolution cannot be written the failure is logged and the decision proceeds
+unrecorded. The contract and permission decision is unaffected either way.
+
+The run inspector lists a resolution as evidence, with no disposition. Only an
+authorization is shown as a decision.
 
 | Path | Recorded | Identity recorded |
 |---|---|---|

@@ -13,6 +13,7 @@ import {
   appendEventOnly,
   createEventAuthorityRun,
   recordAuthorization,
+  recordCapabilityResolution,
   recordNativeMutation,
   recordToolInvocation,
   resolveApprovalEvent,
@@ -151,6 +152,61 @@ describe("RunGateway canonical inspector projection", () => {
           runId,
           reason: "authority_marker_missing",
         })
+      },
+    })
+  })
+
+  test("a record-only capability resolution is shown as evidence and never as the authorization", async () => {
+    await Instance.provide({
+      directory: testHome,
+      async fn() {
+        const { runId, contract } = await createCanonicalRun()
+        await recordToolInvocation(runId, "inv_1", {
+          toolId: "read",
+          contractId: contract.contractId,
+          executor: { kind: "builtin", id: "read" },
+          input: {
+            basis: "validated_tool_input",
+            canonicalization: "sorted-json-v1",
+            digest: `sha256:${"a".repeat(64)}`,
+            redactedPreview: "{}",
+            truncated: false,
+          },
+        })
+        // The shadow concluded a denial. What was enforced is the allow below.
+        await recordCapabilityResolution(runId, {
+          subjectId: "inv_1",
+          enforcement: "record_only",
+          path: "native_tool",
+          initiator: "model",
+          capabilityId: "native.tool.read",
+          enrolled: true,
+          basis: "v1_contract",
+          contractId: contract.contractId,
+          decision: "deny",
+          reasonCode: "contract_tool_denied",
+        })
+        await recordAuthorization(runId, "inv_1", {
+          finalDisposition: "allowed",
+          contractDisposition: "allowed",
+          runtimeGuardDisposition: "allowed",
+          permissionDisposition: "allowed",
+          approvalIds: [],
+          reasonCodes: [],
+        })
+
+        const projection = await RunGateway.getInspectorProjection(runId)
+        if (projection.kind !== "canonical") throw new Error("expected canonical inspector")
+        const shadow = projection.chronology.items.find((item) => item.eventType === "capability_resolution_recorded")
+        expect(shadow).toMatchObject({ category: "evidence", subjectId: "inv_1" })
+        // No disposition: a shadow conclusion is not displayed as a decision.
+        expect(shadow?.disposition).toBeUndefined()
+        expect(projection.chronology.items.find((item) => item.category === "authorization")).toMatchObject({
+          subjectId: "inv_1",
+          disposition: "allowed",
+        })
+        expect(JSON.stringify(projection.durableAuthorization)).not.toContain("contract_tool_denied")
+        expect(JSON.stringify(projection.durableAuthorization)).not.toContain("record_only")
       },
     })
   })

@@ -5,6 +5,7 @@ import { Permission } from "@/governance"
 import { NamedError } from "@dax-ai/util/error"
 import { resolveCapabilityAuthority } from "@/capability/authority"
 import { Instance } from "@/project/instance"
+import { Log } from "@/util/log"
 import { recordCapabilityResolution } from "@/state/events/event-transitions"
 import { getRunAuthority } from "@/state/events/run-event-store"
 import { Session } from "."
@@ -12,6 +13,8 @@ import { Session } from "."
 export type OperatorShellAuthorization =
   | { governed: false }
   | { governed: true; disposition: "allowed"; contractId: string; governingRunId: string }
+
+const log = Log.create({ service: "operator-shell-authority" })
 
 /** The operator's shell command was refused by the session's governing authority. */
 export class OperatorShellDeniedError extends NamedError.Unknown {
@@ -66,21 +69,28 @@ export async function authorizeOperatorShell(input: {
   // it has one. This is a shadow of the contract decision only: it is written
   // before the permission snapshot below so that nothing is awaited between
   // that snapshot and the spawn, and it takes no part in the decision.
+  //
+  // A record-only write must not be able to refuse the operator's command. The
+  // shell wrote nothing to the journal before this existed, so a journal that
+  // cannot be appended to would otherwise become a new way for the shell to
+  // fail. If the write fails it is logged and the decision proceeds unrecorded.
   if (authority.contract && authority.governingRunId) {
-    if ((await getRunAuthority(authority.governingRunId)) === "event-log") {
-      await recordCapabilityResolution(authority.governingRunId, {
-        subjectId: input.callID,
-        ...resolveCapabilityAuthority({
-          path: "operator_shell",
-          initiator: "operator",
-          contract: authority.contract,
-          authorityRunId: authority.governingRunId,
-          executor: { kind: "builtin", alias: "shell", descriptor: input.capability },
-          directory: Instance.directory,
-          worktree: Instance.worktree,
-        }),
-      })
-    }
+    const governingRunId = authority.governingRunId
+    const resolution = resolveCapabilityAuthority({
+      path: "operator_shell",
+      initiator: "operator",
+      contract: authority.contract,
+      authorityRunId: governingRunId,
+      executor: { kind: "builtin", alias: "shell", descriptor: input.capability },
+      directory: Instance.directory,
+      worktree: Instance.worktree,
+    })
+    await (async () => {
+      if ((await getRunAuthority(governingRunId)) !== "event-log") return
+      await recordCapabilityResolution(governingRunId, { subjectId: input.callID, ...resolution })
+    })().catch((error) => {
+      log.warn("operator shell capability resolution was not recorded", { governingRunId, error })
+    })
   }
 
   // Nothing is awaited between this read and the decision below.

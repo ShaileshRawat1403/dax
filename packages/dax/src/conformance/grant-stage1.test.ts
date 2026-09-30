@@ -20,6 +20,7 @@ import { OperatorShellDeniedError } from "@/session/operator-shell-authority"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionSummary } from "@/session/summary"
 import { readRunEvents } from "@/state/events/run-event-store"
+import { Storage } from "@/storage/storage"
 import { ToolRegistry } from "@/tool/registry"
 import { Tool } from "@/tool/tool"
 import z from "zod"
@@ -940,6 +941,74 @@ describe("the shared lookup records its conclusion and enforces nothing", () => 
       },
     })
   })
+
+  /** Make reads of the run's journal authority fail, as a journal that cannot be opened would. */
+  function breakJournal() {
+    const original = Storage.read
+    const spy = spyOn(Storage, "read").mockImplementation((async (key: string[]) => {
+      if (key[0] === "run_authority") throw new Error("injected journal failure")
+      return original(key)
+    }) as typeof Storage.read)
+    return () => spy.mockRestore()
+  }
+
+  test("a shadow record that cannot be written does not change the operator shell's decision", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolBlocklist = [...new Set([...contract.toolBlocklist, "shell"])]
+        }, allowAll)
+        await dispatch(session.id, "no_such_tool", {})
+        const restore = breakJournal()
+        let denied: unknown
+        try {
+          denied = await SessionPrompt.shell({
+            sessionID: session.id,
+            agent: "build",
+            model: toolModel,
+            command: `printf executed > ${JSON.stringify(marker("shell"))}`,
+          }).catch((error) => error)
+        } finally {
+          restore()
+        }
+        // Still refused for the contract's reason, not for the failed write.
+        expect(denied).toMatchObject({ reasonCode: "contract_tool_denied" })
+        expect(await effect("shell")).toBe(false)
+        expect((await journal(session.id)).filter((item) => item.kind === "shadow")).toEqual([])
+      },
+    })
+  })
+
+  test.skipIf(process.platform === "win32")(
+    "a shadow record that cannot be written does not refuse an allowed operator command",
+    async () => {
+      await Instance.provide({
+        directory,
+        async fn() {
+          const session = await governed((contract) => {
+            contract.toolAllowlist = []
+            contract.toolBlocklist = []
+          }, allowAll)
+          await dispatch(session.id, "no_such_tool", {})
+          const restore = breakJournal()
+          try {
+            const result = await SessionPrompt.shell({
+              sessionID: session.id,
+              agent: "build",
+              model: toolModel,
+              command: `printf executed > ${JSON.stringify(marker("shell"))}`,
+            })
+            expect(result.parts[0]).toMatchObject({ state: { status: "completed" } })
+          } finally {
+            restore()
+          }
+          expect(await fs.readFile(marker("shell"), "utf8")).toBe("executed")
+          expect((await journal(session.id)).filter((item) => item.kind === "shadow")).toEqual([])
+        },
+      })
+    },
+  )
 
   test("an operator shell with no run journal records nothing and is unchanged", async () => {
     await Instance.provide({
