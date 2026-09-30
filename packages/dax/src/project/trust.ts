@@ -34,7 +34,14 @@ export type Executable = {
    * content: see `scanProjectTools`. Tool discovery imports these in-process.
    */
   tools: string[]
+  /**
+   * Set when the project's tool folders could not be read completely. The set
+   * of tool files is then unknown, so nothing here can be trusted or approved.
+   */
+  toolScanFailure?: ToolScanFailure
 }
+
+export type ToolScanFailure = { path: string; code: string }
 
 export type TrustRecord = {
   worktree: string
@@ -46,21 +53,44 @@ export const empty: Executable = { plugins: [], mcp: [], install: [], tools: [] 
 
 export function isEmpty(value: Executable) {
   return (
-    value.plugins.length === 0 && value.mcp.length === 0 && value.install.length === 0 && value.tools.length === 0
+    value.plugins.length === 0 &&
+    value.mcp.length === 0 &&
+    value.install.length === 0 &&
+    value.tools.length === 0 &&
+    value.toolScanFailure === undefined
   )
 }
 
 const TOOL_DIRECTORIES = ["tool", "tools"]
 
 /** One tool-file entry: the path the operator reviews and the content it had. */
-export function toolEntry(file: string, contentDigest: string) {
-  return `${file}#sha256:${contentDigest}`
+function toolEntry(file: string, content: Buffer) {
+  return `${file}#sha256:${createHash("sha256").update(content).digest("hex")}`
+}
+
+const CONTENT_COMMITMENT = /#sha256:[0-9a-f]{64}$/
+
+/** True only for an entry that binds a path to a real SHA-256 of its content. */
+export function isContentCommitment(entry: unknown): entry is string {
+  return typeof entry === "string" && CONTENT_COMMITMENT.test(entry)
 }
 
 /** Split an entry back into what a report shows. */
 export function describeToolEntry(entry: string): { file: string; content: string } {
   const at = entry.lastIndexOf("#sha256:")
   return at < 0 ? { file: entry, content: "" } : { file: entry.slice(0, at), content: entry.slice(at + 8) }
+}
+
+/** A project tool folder exists but could not be read completely. */
+export class ProjectToolScanError extends Error {
+  constructor(public readonly failure: ToolScanFailure) {
+    super(`Project tool files could not be scanned: ${failure.code} at ${failure.path}`)
+  }
+}
+
+function scanFailure(target: string, error: unknown): never {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "unknown"
+  throw new ProjectToolScanError({ path: target, code })
 }
 
 /**
@@ -73,39 +103,60 @@ export function describeToolEntry(entry: string): { file: string; content: strin
  * installing a project's dependencies is a separate trusted item. A file a
  * tool imports from outside these folders is not covered.
  *
- * A file that cannot be read gets an entry that can never match an approval.
+ * The result is either the complete inventory or a thrown
+ * `ProjectToolScanError`. Only a tool folder that does not exist counts as
+ * absent. A folder, entry or file that exists and cannot be resolved, listed,
+ * inspected or read is a failure, never an empty or partial inventory: an
+ * inventory that silently omitted a file would let that file be imported
+ * without ever having been reviewed.
  */
 export async function scanProjectTools(directories: readonly string[]): Promise<string[]> {
   const entries: string[] = []
   const visited = new Set<string>()
   async function walk(folder: string) {
-    const real = await fs.realpath(folder).catch(() => undefined)
-    if (!real || visited.has(real)) return
+    const real = await fs.realpath(folder).catch((error) => scanFailure(folder, error))
+    if (visited.has(real)) return
     visited.add(real)
-    const names = await fs.readdir(folder).catch(() => [] as string[])
+    const names = await fs.readdir(folder).catch((error) => scanFailure(folder, error))
     for (const name of names.sort()) {
       if (name === "node_modules") continue
       const file = path.join(folder, name)
       // stat follows symlinks: what matters is what an import would load.
-      const info = await fs.stat(file).catch(() => undefined)
-      if (!info) {
-        entries.push(toolEntry(file, "unreadable"))
-        continue
-      }
+      const info = await fs.stat(file).catch((error) => scanFailure(file, error))
       if (info.isDirectory()) {
         await walk(file)
         continue
       }
-      const content = await fs.readFile(file).catch(() => undefined)
-      entries.push(
-        toolEntry(file, content ? createHash("sha256").update(content).digest("hex") : "unreadable"),
-      )
+      if (!info.isFile()) scanFailure(file, { code: "not_a_regular_file" })
+      const content = await fs.readFile(file).catch((error) => scanFailure(file, error))
+      entries.push(toolEntry(file, content))
     }
   }
   for (const directory of directories) {
-    for (const name of TOOL_DIRECTORIES) await walk(path.join(directory, name))
+    for (const name of TOOL_DIRECTORIES) {
+      const folder = path.join(directory, name)
+      // lstat reports the link itself, so a dangling link is a failure in walk
+      // rather than being mistaken for a folder that is not there.
+      const present = await fs.lstat(folder).then(
+        () => true,
+        (error) => (error?.code === "ENOENT" ? false : scanFailure(folder, error)),
+      )
+      if (present) await walk(folder)
+    }
   }
   return entries.sort()
+}
+
+/** The complete inventory, or why it could not be produced. Never partial. */
+export async function inspectProjectTools(
+  directories: readonly string[],
+): Promise<{ tools: string[]; failure?: undefined } | { tools?: undefined; failure: ToolScanFailure }> {
+  try {
+    return { tools: await scanProjectTools(directories) }
+  } catch (error) {
+    if (error instanceof ProjectToolScanError) return { failure: error.failure }
+    return { failure: { path: directories.join(", "), code: "unknown" } }
+  }
 }
 
 /** True when two scans name the same files with the same content. */
@@ -158,12 +209,29 @@ async function read(worktree: string): Promise<TrustRecord | undefined> {
 /** True when this exact set of executable configuration was already trusted. */
 export async function isTrusted(worktree: string, value: Executable): Promise<boolean> {
   if (isEmpty(value)) return true
+  if (!isApprovable(value)) return false
   const record = await read(worktree)
   if (!record) return false
   return record.digest === digest(value)
 }
 
+/**
+ * An approval must name exactly what it approves. A set whose tool folders
+ * could not be read, or that carries a tool entry without a real content
+ * digest, names nothing the operator could have reviewed.
+ */
+export function isApprovable(value: Executable): boolean {
+  return value.toolScanFailure === undefined && value.tools.every(isContentCommitment)
+}
+
 export async function trust(worktree: string, value: Executable): Promise<TrustRecord> {
+  if (!isApprovable(value)) {
+    throw new Error(
+      value.toolScanFailure
+        ? `Cannot trust ${path.resolve(worktree)}: its tool files could not be read (${value.toolScanFailure.code} at ${value.toolScanFailure.path})`
+        : `Cannot trust ${path.resolve(worktree)}: a tool file has no content digest`,
+    )
+  }
   const record: TrustRecord = {
     worktree: path.resolve(worktree),
     digest: digest(value),
@@ -205,5 +273,11 @@ export function getWithheld(): Executable {
  * Keep the report current so `dax trust` shows the set that would be approved.
  */
 export function noteWithheldTools(tools: readonly string[]) {
-  withheld = { ...withheld, tools: [...tools] }
+  const { toolScanFailure: _cleared, ...rest } = withheld
+  withheld = { ...rest, tools: [...tools] }
+}
+
+/** Tool discovery could not read the project's tool folders; nothing was imported. */
+export function noteWithheldToolScanFailure(failure: ToolScanFailure) {
+  withheld = { ...withheld, tools: [], toolScanFailure: failure }
 }

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import { createHash } from "node:crypto"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -266,6 +266,222 @@ describe("workspace trust for project tool files", () => {
       expect(ProjectTrust.getWithheld().mcp).toEqual(["local"])
       expect(await ToolRegistry.ids()).not.toContain("alpha")
       expect(await imported("alpha")).toBe(false)
+    })
+  })
+})
+
+type Method = "lstat" | "realpath" | "readdir" | "stat" | "readFile"
+
+/**
+ * Make one filesystem call fail for paths under the project's tool folders, as
+ * a permission or I/O error would. Everything else reaches the real filesystem.
+ */
+function failScan(method: Method, code = "EACCES") {
+  const original = fs[method] as (...args: unknown[]) => Promise<unknown>
+  const toolFolders = path.join(directory, ".dax", "tool")
+  const spy = spyOn(fs, method).mockImplementation((async (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].startsWith(toolFolders)) {
+      throw Object.assign(new Error(`injected ${code}`), { code })
+    }
+    return original(...args)
+  }) as never)
+  return () => spy.mockRestore()
+}
+
+const methods: Method[] = ["lstat", "realpath", "readdir", "stat", "readFile"]
+
+describe("a project tool scan that fails is never an inventory", () => {
+  for (const method of methods) {
+    test(`${method} failing at config load and discovery imports nothing and cannot be approved`, async () => {
+      await projectTool("alpha")
+      const restore = failScan(method)
+      try {
+        await session(async (root) => {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            expect(await ToolRegistry.ids()).not.toContain("alpha")
+            await ToolRegistry.tools({ providerID: "openai", modelID: "gpt-4o" })
+          }
+          expect(await imported("alpha")).toBe(false)
+          expect((await Config.projectTools()).approved).toBeUndefined()
+
+          const withheld = ProjectTrust.getWithheld()
+          expect(withheld.toolScanFailure).toMatchObject({ code: "EACCES" })
+          expect(withheld.toolScanFailure!.path.startsWith(path.join(directory, ".dax", "tool"))).toBe(true)
+          expect(withheld.tools).toEqual([])
+          expect(ProjectTrust.isApprovable(withheld)).toBe(false)
+          expect(await ProjectTrust.isTrusted(root, withheld)).toBe(false)
+          let refusal: unknown
+          await ProjectTrust.trust(root, withheld).catch((error) => {
+            refusal = error
+          })
+          expect(refusal).toBeInstanceOf(Error)
+          expect(await ProjectTrust.status(root)).toBeUndefined()
+          expect(describeWithheld(withheld).at(-1)).toContain("could not be read (EACCES)")
+        })
+      } finally {
+        restore()
+      }
+      // With the failure gone the file is still unreviewed, so still withheld.
+      await session(async () => {
+        expect(await ToolRegistry.ids()).not.toContain("alpha")
+        expect(await imported("alpha")).toBe(false)
+        expect(ProjectTrust.getWithheld().toolScanFailure).toBeUndefined()
+        expect(ProjectTrust.getWithheld().tools).toHaveLength(1)
+      })
+    })
+
+    test(`${method} failing only at the discovery recheck withholds an approved tool`, async () => {
+      await projectTool("alpha")
+      await approve()
+      await session(async () => {
+        await Config.get()
+        expect((await Config.projectTools()).approved).toHaveLength(1)
+        const restore = failScan(method)
+        try {
+          expect(await ToolRegistry.ids()).not.toContain("alpha")
+          expect(await imported("alpha")).toBe(false)
+          expect(ProjectTrust.getWithheld().toolScanFailure).toMatchObject({ code: "EACCES" })
+        } finally {
+          restore()
+        }
+        // The same instance recovers once the folder is readable again.
+        expect(await ToolRegistry.ids()).toContain("alpha")
+        expect(await imported("alpha")).toBe(true)
+        expect(ProjectTrust.getWithheld().toolScanFailure).toBeUndefined()
+      })
+    })
+  }
+
+  test("a failure only at config load leaves an approved tool withheld for that instance", async () => {
+    await projectTool("alpha")
+    await approve()
+    await session(async () => {
+      const restore = failScan("readdir")
+      try {
+        await Config.get()
+      } finally {
+        restore()
+      }
+      expect((await Config.projectTools()).approved).toBeUndefined()
+      expect(await ToolRegistry.ids()).not.toContain("alpha")
+      expect(await imported("alpha")).toBe(false)
+    })
+  })
+
+  test("a failed scan withholds the project's other executable configuration too", async () => {
+    await fs.writeFile(
+      path.join(directory, "dax.json"),
+      JSON.stringify({ mcp: { local: { type: "local", command: ["true"], enabled: false } } }),
+    )
+    await approve()
+    await session(async () => {
+      expect(Object.keys((await Config.get()).mcp ?? {})).toEqual(["local"])
+    })
+    // A tool folder appears that cannot be read. The earlier record matched a set
+    // with no tools; an unknown set is not that set.
+    await projectTool("alpha")
+    const restore = failScan("readdir")
+    try {
+      await session(async () => {
+        expect(Object.keys((await Config.get()).mcp ?? {})).toEqual([])
+        expect(ProjectTrust.getWithheld()).toMatchObject({ mcp: ["local"], toolScanFailure: { code: "EACCES" } })
+        expect(await ToolRegistry.ids()).not.toContain("alpha")
+        expect(await imported("alpha")).toBe(false)
+      })
+    } finally {
+      restore()
+    }
+  })
+
+  test("an entry without a real content digest can never be approved or matched", async () => {
+    await session(async (root) => {
+      for (const entry of [
+        `${path.join(directory, ".dax", "tool", "alpha.js")}#sha256:unreadable`,
+        `${path.join(directory, ".dax", "tool", "alpha.js")}#sha256:`,
+        path.join(directory, ".dax", "tool", "alpha.js"),
+        `${path.join(directory, ".dax", "tool", "alpha.js")}#sha256:${"0".repeat(63)}`,
+      ]) {
+        const value = { ...ProjectTrust.empty, tools: [entry] }
+        expect(ProjectTrust.isContentCommitment(entry)).toBe(false)
+        expect(ProjectTrust.isApprovable(value)).toBe(false)
+        let refusal: unknown
+        await ProjectTrust.trust(root, value).catch((error) => {
+          refusal = error
+        })
+        expect(refusal).toBeInstanceOf(Error)
+        expect(await ProjectTrust.isTrusted(root, value)).toBe(false)
+      }
+      expect(await ProjectTrust.status(root)).toBeUndefined()
+      expect(ProjectTrust.isContentCommitment(`/repo/.dax/tool/a.js#sha256:${"0".repeat(64)}`)).toBe(true)
+    })
+  })
+
+  test("a project with no tool folder is normal: no failure, nothing withheld, global tools load", async () => {
+    await globalTool("operator")
+    await session(async () => {
+      expect(await ProjectTrust.inspectProjectTools([path.join(directory, ".dax")])).toEqual({ tools: [] })
+      expect(await ToolRegistry.ids()).toContain("operator")
+      expect((await Config.projectTools()).approved).toEqual([])
+      expect(ProjectTrust.getWithheld()).toEqual(ProjectTrust.empty)
+    })
+  })
+
+  // Real filesystem states rather than injected errors. Permission bits and
+  // unprivileged symlinks are POSIX behavior, and root bypasses permissions.
+  const posix = test.skipIf(process.platform === "win32" || process.getuid?.() === 0)
+
+  posix("a tool folder the process cannot list is a failure, observed on the real filesystem", async () => {
+    await projectTool("alpha")
+    const folder = path.join(directory, ".dax", "tool")
+    await fs.chmod(folder, 0o000)
+    try {
+      await session(async () => {
+        expect(await ToolRegistry.ids()).not.toContain("alpha")
+        expect(await imported("alpha")).toBe(false)
+        expect(ProjectTrust.getWithheld().toolScanFailure?.path).toBe(folder)
+      })
+    } finally {
+      await fs.chmod(folder, 0o755)
+    }
+  })
+
+  posix("an unreadable tool file is a failure, not an approvable entry", async () => {
+    const file = await projectTool("alpha")
+    await fs.chmod(file, 0o000)
+    try {
+      await session(async (root) => {
+        expect(await ToolRegistry.ids()).not.toContain("alpha")
+        expect(await imported("alpha")).toBe(false)
+        const withheld = ProjectTrust.getWithheld()
+        expect(withheld.toolScanFailure?.path).toBe(file)
+        expect(withheld.tools).toEqual([])
+        let refusal: unknown
+        await ProjectTrust.trust(root, withheld).catch((error) => {
+          refusal = error
+        })
+        expect(refusal).toBeInstanceOf(Error)
+      })
+    } finally {
+      await fs.chmod(file, 0o644)
+    }
+    // Readable again, it is an ordinary unreviewed file: still withheld.
+    await session(async () => {
+      expect(await ToolRegistry.ids()).not.toContain("alpha")
+      expect(await imported("alpha")).toBe(false)
+    })
+  })
+
+  posix("a dangling tool folder link is a failure rather than an absent folder", async () => {
+    const link = path.join(directory, ".dax", "tools")
+    await fs.symlink(path.join(home, "does-not-exist"), link)
+    await globalTool("operator")
+    await session(async () => {
+      expect(await ProjectTrust.inspectProjectTools([path.join(directory, ".dax")])).toMatchObject({
+        failure: { path: link, code: "ENOENT" },
+      })
+      // Operator-owned tools are unaffected by the project's failure.
+      expect(await ToolRegistry.ids()).toContain("operator")
+      expect(ProjectTrust.getWithheld().toolScanFailure?.path).toBe(link)
     })
   })
 })

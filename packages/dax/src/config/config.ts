@@ -307,7 +307,11 @@ export namespace Config {
       operatorDirectories.add(dir)
     }
     const projectToolDirectories = unique(projectDirectories).filter((dir) => !operatorDirectories.has(dir))
-    executable.tools = await ProjectTrust.scanProjectTools(projectToolDirectories)
+    // A folder that cannot be read leaves the set of tool files unknown. That is
+    // recorded as a failure, not as "no tools", so nothing is trusted on it.
+    const inspectedTools = await ProjectTrust.inspectProjectTools(projectToolDirectories)
+    if (inspectedTools.failure) executable.toolScanFailure = inspectedTools.failure
+    else executable.tools = inspectedTools.tools
     // Undefined means nothing under a project tool directory may be imported.
     let approvedProjectTools: string[] | undefined
 
@@ -358,6 +362,7 @@ export namespace Config {
           mcp: executable.mcp.length,
           install: executable.install.length,
           tools: executable.tools.length,
+          toolScanFailure: executable.toolScanFailure,
         })
       }
     }

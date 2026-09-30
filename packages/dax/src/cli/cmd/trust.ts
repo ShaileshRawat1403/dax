@@ -16,6 +16,9 @@ export function describeWithheld(value: ProjectTrust.Executable): string[] {
     const { file, content } = ProjectTrust.describeToolEntry(entry)
     lines.push(`  tool    ${file} (imported and run in-process; sha256 ${content.slice(0, 16)})`)
   }
+  if (value.toolScanFailure) {
+    lines.push(`  tool    ${value.toolScanFailure.path} could not be read (${value.toolScanFailure.code})`)
+  }
   return lines
 }
 
@@ -66,6 +69,12 @@ export const TrustCommand = cmd({
       process.stdout.write(`${root} declares executable configuration:${EOL}${EOL}`)
       for (const line of describeWithheld(withheld)) process.stdout.write(`${line}${EOL}`)
       process.stdout.write(`${EOL}`)
+      if (!ProjectTrust.isApprovable(withheld)) {
+        process.stdout.write(`Its tool files could not be read completely, so there is nothing exact to approve.${EOL}`)
+        process.stdout.write(`Fix the path above and run dax trust again. Nothing was trusted.${EOL}`)
+        process.exitCode = 1
+        return
+      }
       process.stdout.write(`Trusting this worktree lets the above run with your full access:${EOL}`)
       process.stdout.write(`the filesystem, the network, and every credential in your environment.${EOL}`)
       process.stdout.write(`Only continue if you wrote this code or have read it.${EOL}${EOL}`)

@@ -204,11 +204,21 @@ export namespace ToolRegistry {
     // approved: re-read them now, so a file added or edited since config load
     // is withheld along with the rest of that project's tools.
     const project = await Config.projectTools()
-    const current = project.directories.length ? await ProjectTrust.scanProjectTools(project.directories) : []
-    const projectAllowed = project.approved !== undefined && ProjectTrust.sameTools(current, project.approved)
-    if (!projectAllowed && current.length > 0) {
-      ProjectTrust.noteWithheldTools(current)
-      log.warn("withheld untrusted project tools", { files: current.length })
+    // A scan that fails is not an empty inventory: it withholds every project tool.
+    const current = await ProjectTrust.inspectProjectTools(project.directories)
+    const projectAllowed =
+      current.failure === undefined &&
+      project.approved !== undefined &&
+      ProjectTrust.sameTools(current.tools, project.approved)
+    if (current.failure) {
+      ProjectTrust.noteWithheldToolScanFailure(current.failure)
+      log.warn("withheld project tools that could not be scanned", current.failure)
+    } else if (projectAllowed) {
+      // Clears a failure or a changed-file report from an earlier discovery.
+      ProjectTrust.noteWithheldTools([])
+    } else if (current.tools.length > 0) {
+      ProjectTrust.noteWithheldTools(current.tools)
+      log.warn("withheld untrusted project tools", { files: current.tools.length })
     }
     const matches = await Config.directories().then((dirs) =>
       dirs.flatMap((dir) =>

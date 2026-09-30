@@ -156,6 +156,15 @@ while they are exactly the approved set, so a file added, edited or removed afte
 approval withholds that project's tools at once and again after a restart.
 Operator-owned global, home and `DAX_CONFIG_DIR` tool directories are untouched.
 
+The inventory is complete or it is a failure. Only a tool folder that does not
+exist counts as absent. A folder, entry or file that cannot be resolved, listed,
+inspected or read makes the set of tool files unknown: nothing is imported, the
+project's other executable configuration is withheld with it, and `dax trust`
+refuses to approve. An entry without a real content digest is never approvable.
+The first version of this fix at `3e13bba0d453e3ab67d2cd54feff03cd20801203`
+turned a failed folder scan into an empty inventory and recorded an unreadable
+file as an approvable `unreadable` entry. Astra reproduced an import through each.
+
 Compatibility is explicit: a trust record written earlier stays valid for a
 worktree with no project tool files, and never approves one. Limits: a tool's
 imports from outside the tool folders and from `node_modules` are not covered, and

@@ -43,8 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plugins, local MCP servers and dependency installs until `dax trust` approves
   them. Approval is bound to each file's path and content, including helper files
   beside the tools: adding, editing or removing one withholds that project's
-  tools until it is reviewed again. Tools in the operator's own global, home and
-  `DAX_CONFIG_DIR` directories load as before.
+  tools until it is reviewed again. A tool folder or file that cannot be read
+  withholds the project's executable configuration and cannot be approved. Tools
+  in the operator's own global, home and `DAX_CONFIG_DIR` directories load as
+  before.
 
 ### Compatibility
 
