@@ -275,6 +275,24 @@ export async function recordToolInvocation(
 }
 
 /**
+ * Appends what the shared capability lookup concluded about one action.
+ * Record only: it is not an authorization and nothing reads it as one.
+ */
+export async function recordCapabilityResolution(
+  runId: string,
+  resolution: Extract<RunEventPayload, { type: "capability_resolution_recorded" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "capability_resolution_recorded",
+    resolution,
+    `cmd_capability_resolution_${resolution.subjectId}`,
+    { correlationId: resolution.subjectId },
+    { rejectDuplicateCommand: true },
+  )
+}
+
+/**
  * Appends the canonical authority fact for one invocation: the combined,
  * already-resolved effective decision of contract, RuntimeGuard, Permission,
  * and any approvals used. Durable before the caller may proceed into the

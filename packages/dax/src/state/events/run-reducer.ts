@@ -138,6 +138,7 @@ export type RunStatus =
 /** Event replay always has the canonical invocation projection. */
 export type CanonicalRunState = RunState & {
   invocations: Record<string, NativeInvocationRecord>
+  capabilityResolutions: CapabilityResolutionRecord[]
 }
 
 /**
@@ -211,6 +212,15 @@ export type StepRecord = {
 }
 
 type ToolInvocationPayload = Extract<RunEventPayload, { type: "tool_invocation_recorded" }>["payload"]
+
+/**
+ * A shadow capability decision, kept for inspection only. Nothing in the
+ * reducer or the runtime reads it to decide whether an action may run.
+ */
+export type CapabilityResolutionRecord = Extract<
+  RunEventPayload,
+  { type: "capability_resolution_recorded" }
+>["payload"] & { eventId: string; recordedAt: string }
 
 export type NativeInvocationRecord = Pick<
   ToolInvocationPayload,
@@ -513,6 +523,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     currentStepId: null,
     steps: [],
     invocations: {},
+    capabilityResolutions: [],
     delegationHistory: {
       coverage: "complete",
       records: [],
@@ -659,6 +670,34 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           resultEventId: null,
           approvalIds: [],
         }
+        break
+      }
+
+      case "capability_resolution_recorded": {
+        // Record only. This case must never change an invocation, a status or
+        // anything else that authority is read from; it appends to a list.
+        const payload = event.payload as Extract<RunEventPayload, { type: "capability_resolution_recorded" }>["payload"]
+        if (event.correlationId !== payload.subjectId) {
+          throw new Error(`Capability resolution correlation does not match its subject: ${payload.subjectId}`)
+        }
+        if (payload.contractId !== undefined && payload.contractId !== state.contractId) {
+          throw new Error(
+            `Capability resolution ${payload.subjectId} contract ${payload.contractId} does not match run contract ${state.contractId}`,
+          )
+        }
+        if (state.capabilityResolutions.some((record) => record.subjectId === payload.subjectId)) {
+          throw new Error(`Capability resolution already recorded: ${payload.subjectId}`)
+        }
+        if (payload.path !== "operator_shell") {
+          const invocation = state.invocations[payload.subjectId]
+          if (!invocation) {
+            throw new Error(`Capability resolution references unknown invocation: ${payload.subjectId}`)
+          }
+          if (invocation.status !== "awaiting_authorization") {
+            throw new Error(`Capability resolution for ${payload.subjectId} must precede its authorization`)
+          }
+        }
+        state.capabilityResolutions.push({ ...payload, eventId: event.eventId, recordedAt: event.occurredAt })
         break
       }
 

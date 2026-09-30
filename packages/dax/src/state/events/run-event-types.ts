@@ -153,6 +153,41 @@ const AuthorizationRecordedPayloadSchema = closed({
   }
 })
 
+/**
+ * What the shared capability lookup concluded about one action, written beside
+ * it. RECORD ONLY: `enforcement` is a fixed literal so this can never be read as
+ * an authorization. The decision that was enforced is `authorization_recorded`.
+ * A record here neither permits nor prevents anything, on write or on replay.
+ */
+const CapabilityResolutionRecordedPayloadSchema = closed({
+  /** The action this is about: a native invocation ID, or an operator action's call ID. */
+  subjectId: z.string().min(1),
+  enforcement: z.literal("record_only"),
+  path: z.enum(["native_tool", "batch_leaf", "mcp_tool", "operator_shell"]),
+  initiator: z.enum(["model", "operator", "system"]),
+  /** The selected executor's source-qualified identity. Absent for an executor with no descriptor. */
+  capabilityId: z.string().min(1).optional(),
+  enrolled: z.boolean(),
+  basis: z.enum(["v2_grant", "v1_contract", "no_contract"]),
+  contractId: z.string().min(1).optional(),
+  decision: z.enum(["allow", "ask", "deny"]),
+  reasonCode: z.string().min(1).optional(),
+  grantScope: z.enum(["run", "filesystem", "delegation"]).optional(),
+}).superRefine((resolution, ctx) => {
+  if (resolution.enrolled !== (resolution.capabilityId !== undefined)) {
+    ctx.addIssue({ code: "custom", path: ["capabilityId"], message: "is present exactly when the executor is enrolled" })
+  }
+  if (resolution.decision === "deny" && resolution.reasonCode === undefined) {
+    ctx.addIssue({ code: "custom", path: ["reasonCode"], message: "a denial requires a stable reason" })
+  }
+  if ((resolution.grantScope !== undefined) !== (resolution.basis === "v2_grant" && resolution.decision !== "deny")) {
+    ctx.addIssue({ code: "custom", path: ["grantScope"], message: "is present exactly when a grant matched" })
+  }
+  if ((resolution.basis === "no_contract") !== (resolution.contractId === undefined)) {
+    ctx.addIssue({ code: "custom", path: ["contractId"], message: "is present exactly when a contract governed" })
+  }
+})
+
 const ExecutionFailureSchema = closed({
   code: z.string().min(1),
   message: z.string(),
@@ -570,6 +605,10 @@ const RunEventVariants = [
   z.object({ type: z.literal("workflow_started"), payload: z.object({}).strict() }),
   z.object({ type: z.literal("tool_invocation_recorded"), payload: ToolInvocationRecordedPayloadSchema }),
   z.object({ type: z.literal("authorization_recorded"), payload: AuthorizationRecordedPayloadSchema }),
+  z.object({
+    type: z.literal("capability_resolution_recorded"),
+    payload: CapabilityResolutionRecordedPayloadSchema,
+  }),
   z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
   z.object({ type: z.literal("assistant_recording_started"), payload: AssistantRecordingStartedPayloadSchema }),
   z.object({ type: z.literal("assistant_message_recorded"), payload: AssistantMessageRecordedPayloadSchema }),
