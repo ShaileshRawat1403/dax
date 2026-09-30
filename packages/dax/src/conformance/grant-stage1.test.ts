@@ -20,6 +20,9 @@ import { OperatorShellDeniedError } from "@/session/operator-shell-authority"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionSummary } from "@/session/summary"
 import { readRunEvents } from "@/state/events/run-event-store"
+import { ToolRegistry } from "@/tool/registry"
+import { Tool } from "@/tool/tool"
+import z from "zod"
 
 /**
  * Grant stage 1: a v1 contract decision is bound to the executor that was
@@ -691,6 +694,269 @@ describe("the operator shell is bound by the governing contract and permission d
         expect(await effect("shell")).toBe(true)
         const [part] = await parts(session.id)
         expect(part.metadata).toBeUndefined()
+      },
+    })
+  })
+})
+
+/**
+ * Grant stage 2: the shared lookup's conclusion is written beside each action,
+ * record only. These check what production actually appends, that it names the
+ * executor that ran, and that it never stands in for the enforced decision.
+ */
+describe("the shared lookup records its conclusion and enforces nothing", () => {
+  type Entry = { kind: "shadow" | "enforced"; tool?: string } & Record<string, unknown>
+
+  /** Every shadow record and enforced authorization in a run, in journal order. */
+  async function journal(runId: string): Promise<Entry[]> {
+    const events = await readRunEvents(runId)
+    const tools = new Map<string, string>()
+    for (const event of events) {
+      if (event.type === "tool_invocation_recorded") {
+        const payload = event.payload as { invocationId: string; toolId: string }
+        tools.set(payload.invocationId, payload.toolId)
+      }
+    }
+    return events.flatMap((event): Entry[] => {
+      if (event.type === "capability_resolution_recorded") {
+        const { subjectId, ...rest } = event.payload as { subjectId: string } & Record<string, unknown>
+        return [{ kind: "shadow", tool: tools.get(subjectId) ?? subjectId, ...rest }]
+      }
+      if (event.type === "authorization_recorded") {
+        const payload = event.payload as { invocationId: string; finalDisposition: string; reasonCodes: string[] }
+        return [
+          {
+            kind: "enforced",
+            tool: tools.get(payload.invocationId),
+            disposition: payload.finalDisposition,
+            reasons: payload.reasonCodes,
+          },
+        ]
+      }
+      return []
+    })
+  }
+
+  test("a direct native call records the built-in's identity before its authorization", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = ["read"]
+          contract.toolBlocklist = []
+        }, allowAll)
+        const contractId = (await readContract(session.id))!.contractId
+        await dispatch(session.id, "read", { filePath: seed() })
+        expect(await journal(session.id)).toEqual([
+          {
+            kind: "shadow",
+            tool: "read",
+            enforcement: "record_only",
+            path: "native_tool",
+            initiator: "model",
+            capabilityId: "native.tool.read",
+            enrolled: true,
+            basis: "v1_contract",
+            contractId,
+            decision: "allow",
+          },
+          { kind: "enforced", tool: "read", disposition: "allowed", reasons: [] },
+        ])
+      },
+    })
+  })
+
+  test("the recorded identity is the selected executor's, not the alias's", async () => {
+    await overrideTool("read")
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = []
+          contract.toolBlocklist = []
+        }, allowAll)
+        const result = await dispatch(session.id, "read", {})
+        expect(result.offered).toBe("override of read")
+        const [shadow] = await journal(session.id)
+        expect(shadow).toMatchObject({ kind: "shadow", tool: "read", enrolled: true, basis: "v1_contract" })
+        expect(shadow.capabilityId).toMatch(/^plugin\.tool\.v1\.p[0-9a-f]{64}$/)
+      },
+    })
+  })
+
+  test("a legacy custom tool is recorded as unenrolled, with no identity invented for it", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        let executed = 0
+        await ToolRegistry.register(
+          Tool.define("legacy_probe", {
+            description: "Legacy custom tool",
+            parameters: z.object({}),
+            result: Tool.result(z.object({})),
+            async execute() {
+              executed++
+              return { title: "legacy", output: "legacy output", metadata: {} }
+            },
+          }),
+        )
+        const session = await governed((contract) => {
+          contract.toolAllowlist = []
+          contract.toolBlocklist = []
+        }, allowAll)
+        await dispatch(session.id, "legacy_probe", {})
+        expect(executed).toBe(1)
+        const [shadow] = await journal(session.id)
+        expect(shadow).toMatchObject({ kind: "shadow", tool: "legacy_probe", enrolled: false, decision: "allow" })
+        expect("capabilityId" in shadow).toBe(false)
+      },
+    })
+  })
+
+  test("a batch and its leaf are recorded separately, each under its own identity and path", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = ["batch", "read"]
+          contract.toolBlocklist = []
+        }, allowAll)
+        await dispatch(session.id, "batch", { tool_calls: [{ tool: "read", parameters: { filePath: seed() } }] })
+        const shadows = (await journal(session.id)).filter((item) => item.kind === "shadow")
+        expect(shadows).toMatchObject([
+          { tool: "batch", path: "native_tool", capabilityId: "native.tool.batch", decision: "allow" },
+          { tool: "read", path: "batch_leaf", capabilityId: "native.tool.read", decision: "allow" },
+        ])
+      },
+    })
+  })
+
+  test("a denied leaf has a shadow denial and a separate enforced denial", async () => {
+    await overrideTool("lsp")
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = ["batch", "lsp"]
+          contract.toolBlocklist = []
+        }, allowAll)
+        await dispatch(session.id, "batch", { tool_calls: [{ tool: "lsp", parameters: {} }] })
+        const leaf = (await journal(session.id)).filter((item) => item.tool === "lsp")
+        expect(leaf).toMatchObject([
+          { kind: "shadow", path: "batch_leaf", decision: "deny", reasonCode: "contract_alias_executor_mismatch" },
+          { kind: "enforced", disposition: "denied", reasons: ["contract_alias_executor_mismatch"] },
+        ])
+        expect(await effect("lsp")).toBe(false)
+      },
+    })
+  })
+
+  test("a shadow allow is not an authorization: permission still denies and nothing runs", async () => {
+    await overrideTool("read")
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed(
+          (contract) => {
+            contract.toolAllowlist = []
+            contract.toolBlocklist = []
+          },
+          [{ permission: "plugin:read", pattern: "*", action: "deny" }],
+        )
+        const result = await dispatch(session.id, "read", {})
+        if (result.entered) expect(result.outcome).toBeInstanceOf(Error)
+        expect(await effect("read")).toBe(false)
+        const recorded = await journal(session.id)
+        if (recorded.length > 0) {
+          expect(recorded).toMatchObject([
+            { kind: "shadow", decision: "allow" },
+            { kind: "enforced", disposition: "denied", reasons: ["permission_denied"] },
+          ])
+        }
+      },
+    })
+  })
+
+  test("the operator shell is recorded as operator-initiated, and a permission denial still refuses it", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = []
+          contract.toolBlocklist = []
+        }, allowAll)
+        // A prompt gives the run its journal; a contract alone does not.
+        await dispatch(session.id, "no_such_tool", {})
+        await Session.update(session.id, (draft) => {
+          draft.permission = [{ permission: "shell", pattern: "*", action: "deny" }]
+        })
+        const denied = await SessionPrompt.shell({
+          sessionID: session.id,
+          agent: "build",
+          model: toolModel,
+          command: `printf executed > ${JSON.stringify(marker("shell"))}`,
+        }).catch((error) => error)
+        expect(denied).toMatchObject({ reasonCode: "permission_denied" })
+        expect(await effect("shell")).toBe(false)
+
+        // The shadow says the contract allows it. The refusal was the permission
+        // rule, which the shadow does not speak for and did not override.
+        const shadows = (await journal(session.id)).filter((item) => item.kind === "shadow")
+        expect(shadows).toMatchObject([
+          {
+            enforcement: "record_only",
+            path: "operator_shell",
+            initiator: "operator",
+            capabilityId: "session.shell.operator",
+            basis: "v1_contract",
+            decision: "allow",
+          },
+        ])
+        // No authorization event exists for an operator action.
+        expect((await journal(session.id)).filter((item) => item.kind === "enforced")).toEqual([])
+      },
+    })
+  })
+
+  test("a contract that refuses the operator shell is shadowed as a denial", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = ["read"]
+          contract.toolBlocklist = []
+        }, allowAll)
+        await dispatch(session.id, "no_such_tool", {})
+        const denied = await SessionPrompt.shell({
+          sessionID: session.id,
+          agent: "build",
+          model: toolModel,
+          command: `printf executed > ${JSON.stringify(marker("shell"))}`,
+        }).catch((error) => error)
+        expect(denied).toMatchObject({ reasonCode: "contract_tool_denied" })
+        expect(await journal(session.id)).toMatchObject([
+          { kind: "shadow", path: "operator_shell", decision: "deny", reasonCode: "contract_tool_denied" },
+        ])
+      },
+    })
+  })
+
+  test("an operator shell with no run journal records nothing and is unchanged", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        // Governed by a contract, but never prompted: there is no journal to write to.
+        const session = await governed((contract) => {
+          contract.toolBlocklist = ["shell"]
+        }, allowAll)
+        const denied = await SessionPrompt.shell({
+          sessionID: session.id,
+          agent: "build",
+          model: toolModel,
+          command: `printf executed > ${JSON.stringify(marker("shell"))}`,
+        }).catch((error) => error)
+        expect(denied).toMatchObject({ reasonCode: "contract_tool_denied" })
+        expect(await readRunEvents(session.id).catch(() => [])).toEqual([])
       },
     })
   })

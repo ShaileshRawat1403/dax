@@ -94,6 +94,7 @@ describe("native settlement crash windows", () => {
                 invocationId,
                 toolId: "shell",
                 executor: { kind: "builtin", id: "shell" },
+                capability: undefined,
                 args: { command: "echo hi" },
               })
               executorRan = true
@@ -120,6 +121,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "shell",
           executor: { kind: "builtin", id: "shell" },
+          capability: undefined,
           args: { command: "echo hi" },
         })
 
@@ -161,6 +163,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "shell",
           executor: { kind: "builtin", id: "shell" },
+          capability: undefined,
           args: { command: "echo hi" },
         })
 
@@ -202,6 +205,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "shell",
           executor: { kind: "builtin", id: "shell" },
+          capability: undefined,
           args: { command: "echo hi" },
         })
         await settleNativeAuthorization(invocationId, {
@@ -244,6 +248,7 @@ describe("native settlement crash windows", () => {
             invocationId,
             toolId: "shell",
             executor: { kind: "builtin", id: "shell" },
+            capability: undefined,
             args: { command: "echo hi" },
           }),
         ).rejects.toThrow("already in progress")
@@ -264,6 +269,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "shell",
           executor: { kind: "builtin", id: "shell" },
+          capability: undefined,
           args: { command: "echo hi" },
         })
         await settleNativeAuthorization(invocationId, {
@@ -302,6 +308,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "read",
           executor: { kind: "builtin", id: "read" },
+          capability: undefined,
           args: { filePath: "a.txt" },
         })
 
@@ -311,6 +318,7 @@ describe("native settlement crash windows", () => {
             invocationId,
             toolId: "read",
             executor: { kind: "builtin", id: "read" },
+            capability: undefined,
             args: { filePath: "a.txt" },
           }),
         ).rejects.toBeInstanceOf(NativeSettlementStateError)
@@ -320,6 +328,7 @@ describe("native settlement crash windows", () => {
             invocationId,
             toolId: "shell",
             executor: { kind: "plugin", id: "different" },
+            capability: undefined,
             args: { command: "echo changed" },
           }),
         ).rejects.toBeInstanceOf(NativeSettlementStateError)
@@ -371,6 +380,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "shell",
           executor: { kind: "builtin", id: "shell" },
+          capability: undefined,
           args: { command: "echo test" },
         })
 
@@ -424,6 +434,7 @@ describe("native settlement crash windows", () => {
           invocationId,
           toolId: "read",
           executor: { kind: "builtin", id: "read" },
+          capability: undefined,
           args: { filePath: "README.md" },
         })
         await governedAsk({
@@ -455,6 +466,7 @@ describe("native settlement crash windows", () => {
             invocationId: "call_contract_denied",
             toolId: "shell",
             executor: { kind: "builtin", id: "shell" },
+            capability: undefined,
             args: { command: "echo denied" },
           }),
         ).rejects.toThrow("contract_tool_denied")
@@ -553,6 +565,7 @@ describe("native settlement crash windows", () => {
           invocationId: "call_ungoverned",
           toolId: "shell",
           executor: { kind: "builtin", id: "shell" },
+          capability: undefined,
           args: {},
         })
         expect(result).toEqual({ status: "not_canonical" })

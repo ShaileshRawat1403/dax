@@ -77,6 +77,7 @@ async function authorize(sessionID: string, invocationId: string, toolId = "writ
     invocationId,
     toolId,
     executor: { kind: "builtin", id: toolId },
+    capability: undefined,
     args: toolId === "write" ? { filePath: "changed.txt", content: "changed\n" } : { command: "true" },
   })
   await settleNativeAuthorization(invocationId, {
@@ -202,6 +203,7 @@ describe("canonical native mutation observation", () => {
           invocationId,
           toolId: "write",
           executor: { kind: "builtin", id: "write" },
+          capability: undefined,
           args: { filePath: "must-not-exist.txt", content: "blocked\n" },
         })
         noteNativePolicyDecision(invocationId, {

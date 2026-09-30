@@ -746,6 +746,7 @@ export namespace SessionPrompt {
           invocationId: part.callID,
           toolId: "task",
           executor: { kind: taskExecutor.kind, id: taskExecutor.id },
+          capability: taskExecutor.capability,
           args: taskArgs,
           originTurnId: assistantMessage.id,
         })
@@ -1324,6 +1325,7 @@ export namespace SessionPrompt {
                 invocationId,
                 toolId: item.id,
                 executor: { kind: executor.kind, id: executor.id },
+                capability: executor.capability,
                 args,
                 originTurnId: ctx.messageID,
               })
@@ -1412,7 +1414,11 @@ export namespace SessionPrompt {
         ...item,
         inputSchema: jsonSchema(transformed),
         execute: async (args, opts) => {
-          MCP.executionIdentity(item)
+          const mcpIdentity = MCP.executionIdentity(item)
+          // The configured server and the server's own tool name: the source
+          // this identity was minted from, not the alias the model sees.
+          const summary = MCP.toolSummary(item)
+          const mcpSource = { server: summary.server, name: summary.name }
           let beforeTriggered = false
           const runBefore = async () => {
             if (beforeTriggered) return
@@ -1431,6 +1437,8 @@ export namespace SessionPrompt {
                 invocationId,
                 toolId: key,
                 executor: { kind: "mcp", id: key },
+                capability: mcpIdentity.capability,
+                source: mcpSource,
                 args,
                 originTurnId: ctx.messageID,
               })
@@ -2514,6 +2522,13 @@ ${
         sessionID: input.sessionID,
         agent: input.agent,
         command: input.command,
+        callID: part.callID,
+        capability: requireOperatorShellCapability({
+          binding: shellBinding,
+          sessionID: input.sessionID,
+          command: input.command,
+          executor: spawn,
+        }),
       })
       requireOperatorShellCapability({
         binding: shellBinding,

@@ -589,6 +589,7 @@ describe("production assistant-message provenance", () => {
           invocationId,
           toolId: "task",
           executor: { kind: "builtin", id: "task" },
+          capability: undefined,
           args: { prompt: "compact", subagent_type: "general" },
         })
         noteNativePolicyDecision(invocationId, {

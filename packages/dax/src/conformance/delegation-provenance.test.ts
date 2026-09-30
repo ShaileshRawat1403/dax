@@ -382,6 +382,7 @@ describe("production delegation provenance", () => {
           invocationId,
           toolId: "task",
           executor: { kind: "builtin", id: "task" },
+          capability: undefined,
           args: { description: "deny child", prompt: "must not run", subagent_type: "general" },
           originTurnId: "msg_denied_task",
         })
@@ -457,6 +458,7 @@ describe("production delegation provenance", () => {
           invocationId,
           toolId: "task",
           executor: { kind: "builtin", id: "task" },
+          capability: undefined,
           args: { description: "fail persistence", prompt: "must not run", subagent_type: "general" },
           originTurnId: "msg_delegation_io_failure",
         })
@@ -534,6 +536,7 @@ describe("production delegation provenance", () => {
           invocationId,
           toolId: "task",
           executor: { kind: "builtin", id: "task" },
+          capability: undefined,
           args: { description: "duplicate", prompt: "duplicate", subagent_type: "general" },
           originTurnId: "msg_duplicate",
         })
@@ -646,6 +649,7 @@ describe("production delegation provenance", () => {
           invocationId,
           toolId: "task",
           executor: { kind: "builtin", id: "task" },
+          capability: undefined,
           args: { description: "interrupt", prompt: "interrupt", subagent_type: "general" },
           originTurnId: "msg_interrupted_after_delegation",
         })

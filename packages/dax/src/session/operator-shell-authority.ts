@@ -3,6 +3,10 @@ import { resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { decideContractTool } from "@/execution/execution-contract"
 import { Permission } from "@/governance"
 import { NamedError } from "@dax-ai/util/error"
+import { resolveCapabilityAuthority } from "@/capability/authority"
+import { Instance } from "@/project/instance"
+import { recordCapabilityResolution } from "@/state/events/event-transitions"
+import { getRunAuthority } from "@/state/events/run-event-store"
 import { Session } from "."
 
 export type OperatorShellAuthorization =
@@ -49,10 +53,35 @@ export async function authorizeOperatorShell(input: {
   sessionID: string
   agent: string
   command: string
+  /** The persisted tool part's call ID: the subject of the shadow record. */
+  callID: string
+  /** The operator shell's own descriptor, from its identity binding. */
+  capability: unknown
 }): Promise<OperatorShellAuthorization> {
   const initial = await Session.get(input.sessionID)
   const authority = await resolveExecutionAuthority(initial.id, initial.governingRunId)
   const agent = await Agent.get(input.agent).catch(() => undefined)
+
+  // Record what the shared lookup concludes, in the governing run's journal when
+  // it has one. This is a shadow of the contract decision only: it is written
+  // before the permission snapshot below so that nothing is awaited between
+  // that snapshot and the spawn, and it takes no part in the decision.
+  if (authority.contract && authority.governingRunId) {
+    if ((await getRunAuthority(authority.governingRunId)) === "event-log") {
+      await recordCapabilityResolution(authority.governingRunId, {
+        subjectId: input.callID,
+        ...resolveCapabilityAuthority({
+          path: "operator_shell",
+          initiator: "operator",
+          contract: authority.contract,
+          authorityRunId: authority.governingRunId,
+          executor: { kind: "builtin", alias: "shell", descriptor: input.capability },
+          directory: Instance.directory,
+          worktree: Instance.worktree,
+        }),
+      })
+    }
+  }
 
   // Nothing is awaited between this read and the decision below.
   const session = await Session.get(input.sessionID)

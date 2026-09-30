@@ -20,6 +20,7 @@ import { CapabilityIdentityError, mcpCapability } from "@/capability/dynamic-ide
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { compileWithRunId } from "@/execution/compiler"
 import { Config } from "@/config/config"
+import { readRunEvents } from "@/state/events/run-event-store"
 
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -557,6 +558,38 @@ describe("MCP identity through production discovery and dispatch", () => {
         })
         expect(before).toBe(1)
         expect(after).toBe(1)
+        expect(remote.calls).toHaveLength(1)
+      },
+    })
+  })
+
+  test("a real MCP dispatch records the tool's source-qualified identity, record only", async () => {
+    const remote = await fixture()
+    await configure({ remote })
+    await Instance.provide({
+      directory,
+      async fn() {
+        const created = await session()
+        const result = await dispatch(created.id, "remote_probe")
+        expect(result.entered).toBe(true)
+        const events = await readRunEvents(created.id)
+        const resolutions = events.filter((event) => event.type === "capability_resolution_recorded")
+        expect(resolutions).toHaveLength(1)
+        expect(resolutions[0].payload).toMatchObject({
+          enforcement: "record_only",
+          path: "mcp_tool",
+          initiator: "model",
+          // The identity minted from the configured server and the server's own
+          // tool name, not the alias the model called.
+          capabilityId: mcpCapability(["mcp", "remote", "probe"]).descriptor.id,
+          enrolled: true,
+          basis: "v1_contract",
+          decision: "allow",
+        })
+        // The enforced decision is a separate event, recorded after the shadow.
+        const order = events.map((event) => event.type)
+        expect(order.indexOf("tool_invocation_recorded")).toBeLessThan(order.indexOf("capability_resolution_recorded"))
+        expect(order.indexOf("capability_resolution_recorded")).toBeLessThan(order.indexOf("authorization_recorded"))
         expect(remote.calls).toHaveLength(1)
       },
     })

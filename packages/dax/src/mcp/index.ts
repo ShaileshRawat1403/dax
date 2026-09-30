@@ -236,6 +236,8 @@ export namespace MCP {
   }
 
   export const executionIdentity = mcpExecutionIdentity
+  /** The configured server and the server's own name for a bound tool. */
+  export const toolSummary = mcpToolSummary
 
   /**
    * This instance's currently valid MCP tool descriptors. It reads state the

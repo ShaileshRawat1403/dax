@@ -4,6 +4,7 @@ import { getRunAuthority } from "@/state/events/run-event-store"
 import {
   getEventAuthorityState,
   recordToolInvocation,
+  recordCapabilityResolution,
   recordAuthorization,
   recordDelegation,
   recordToolResult,
@@ -11,6 +12,8 @@ import {
 } from "@/state/events/event-transitions"
 import { computeCanonicalCommitment } from "./canonical-commitment"
 import { decideContractTool, type ExecutionContract } from "./execution-contract"
+import { resolveCapabilityAuthority, type McpSource } from "@/capability/authority"
+import { Instance } from "@/project/instance"
 import { isMutatingTool } from "@/tool/tool-class"
 import {
   discardNativeMutationObservation,
@@ -46,7 +49,7 @@ const beginning = new Set<string>()
 
 export class NativeSettlementAppendError extends Error {
   constructor(
-    public readonly stage: "invocation" | "authorization" | "delegation" | "result",
+    public readonly stage: "invocation" | "capability_resolution" | "authorization" | "delegation" | "result",
     public readonly invocationId: string,
     cause: unknown,
   ) {
@@ -102,6 +105,17 @@ export async function resolveNativeSettlementAuthority(
 export type BeginInvocationResult = { status: "not_canonical" } | { status: "recorded" }
 
 /**
+ * Filesystem target evidence for the shared lookup. Only the built-in read,
+ * write and edit tools have one validated `filePath` that is their whole
+ * target. Anything else that looks like a path is not proof of scope.
+ */
+function nativeFilesystemTarget(kind: NativeExecutorKind, toolId: string, args: unknown) {
+  if (kind !== "builtin" || !["read", "write", "edit"].includes(toolId)) return undefined
+  if (typeof args !== "object" || args === null || !("filePath" in args)) return undefined
+  return typeof args.filePath === "string" ? { paths: [args.filePath] } : undefined
+}
+
+/**
  * Records one new governed attempt. Re-dispatch of an existing invocation ID
  * is rejected: after a crash DAX cannot know whether an external effect
  * occurred, so idempotent event append must never re-enter the executor.
@@ -111,6 +125,16 @@ export async function beginNativeInvocation(params: {
   invocationId: string
   toolId: string
   executor: { kind: NativeExecutorKind; id: string }
+  /**
+   * The selected executor's descriptor, from its binding; `undefined` for a
+   * legacy executor that has none. Required, so a dispatch path cannot forget
+   * it and have a built-in recorded as unenrolled. Used only for the
+   * record-only capability resolution; it takes no part in the contract
+   * decision below.
+   */
+  capability: unknown
+  /** Where an MCP identity was minted from, so a source selector can be proven. */
+  source?: McpSource
   args: unknown
   originTurnId?: string
   parentInvocationId?: string
@@ -146,6 +170,26 @@ export async function beginNativeInvocation(params: {
       })
     } catch (error) {
       throw new NativeSettlementAppendError("invocation", params.invocationId, error)
+    }
+
+    // The shared lookup's conclusion, written beside the invocation and before
+    // its authorization. It is a shadow: the decision enforced below is still
+    // the existing contract rule, and the two are recorded as different events.
+    const resolution = resolveCapabilityAuthority({
+      path: params.parentInvocationId ? "batch_leaf" : params.executor.kind === "mcp" ? "mcp_tool" : "native_tool",
+      initiator: "model",
+      contract: authority.contract,
+      authorityRunId: authority.authorityRunId,
+      executor: { kind: params.executor.kind, alias: params.toolId, descriptor: params.capability },
+      source: params.source,
+      target: nativeFilesystemTarget(params.executor.kind, params.toolId, params.args),
+      directory: Instance.directory,
+      worktree: Instance.worktree,
+    })
+    try {
+      await recordCapabilityResolution(authority.authorityRunId, { subjectId: params.invocationId, ...resolution })
+    } catch (error) {
+      throw new NativeSettlementAppendError("capability_resolution", params.invocationId, error)
     }
 
     // Decided for the executor that was selected, not for its alias.
