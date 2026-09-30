@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
 import { expectGap } from "./known-gaps"
-import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { nativeCapabilities, createCapabilityRegistry } from "@/capability/registry"
 import { CapabilityDescriptor } from "@/capability/capability-types"
@@ -10,9 +9,11 @@ import { Instance } from "@/project/instance"
 import { tmpdir } from "node:os"
 import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import z from "zod"
+import { resolveCapabilityAuthority } from "@/capability/authority"
 import { CapabilityCatalog } from "@/capability/catalog"
+import { compileWithRunId } from "@/execution/compiler"
+import { ExecutionContract, ExecutionContractV2 } from "@/execution/execution-contract"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
-import type { ExecutionContract } from "@/execution/execution-contract"
 import type { Operator } from "@/operators/base"
 import { OperatorRouter, defaultRouter } from "@/operators/router"
 import type { PlannedTask } from "@/planner/task-graph"
@@ -51,7 +52,6 @@ import { WorkflowRegistry } from "@/workflows/registry"
  * dispatch without a descriptor.
  */
 
-const SRC = join(import.meta.dir, "..")
 
 function plannedTask(type: string, action?: string): PlannedTask {
   return {
@@ -230,21 +230,36 @@ describe("invariant 5 — contract-defined authority", () => {
   })
 
   test("the contract expresses authority as capability grants", () => {
-    // The execution contract already carries writeScope, forbiddenPaths,
-    // verification, egress and provenance. Under this invariant those become the
-    // fields of a grant against a named capability, rather than a flat policy blob
-    // whose relationship to any particular action is implicit.
+    // What production writes at run birth is the compiler's contract. Under this
+    // invariant it would carry operator-reviewed grants against named
+    // capabilities. It is a v1 tool filter: the grant format exists and is inactive.
+    const { contract } = compileWithRunId({ request: { intent: { input: "Edit one file." } } }, "ses_gap_probe")
+    expect(ExecutionContract.safeParse(contract).success).toBe(true)
     expectGap("inv5.contract-grants", () => {
-      expect(existsSync(join(SRC, "capability/grant.ts"))).toBe(true)
+      expect(ExecutionContractV2.safeParse(contract).success).toBe(true)
+      expect((contract as { capabilityGrants?: unknown[] }).capabilityGrants?.length).toBeGreaterThan(0)
     })
   })
 
   test("every execution path resolves authority through the same grant lookup", () => {
     // The point of the vocabulary. A native edit, a worker patch and a delegated
     // subagent action should all answer "am I permitted?" by resolving a grant,
-    // not by consulting three different mechanisms.
+    // and that answer should be the one enforced. The shared lookup exists and is
+    // called on some paths, but it resolves a v1 tool filter and only records.
+    const { contract } = compileWithRunId({ request: { intent: { input: "Edit one file." } } }, "ses_gap_probe")
+    const resolution = resolveCapabilityAuthority({
+      path: "native_tool",
+      initiator: "model",
+      contract,
+      authorityRunId: "ses_gap_probe",
+      executor: { kind: "builtin", alias: "read", descriptor: nativeCapabilities.require("native.tool.read") },
+      directory: "/repo",
+      worktree: "/repo",
+    })
+    expect(resolution).toMatchObject({ capabilityId: "native.tool.read", decision: "allow" })
     expectGap("inv5.grant-resolution", () => {
-      expect(existsSync(join(SRC, "capability/resolve-grant.ts"))).toBe(true)
+      expect(resolution.basis).toBe("v2_grant")
+      expect(resolution.enforcement).toBe("enforced" as never)
     })
   })
 })

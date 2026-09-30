@@ -31,12 +31,14 @@ export const KNOWN_GAPS = {
     "Every DAX-dispatched tool, command, verification, workflow, worker and context family resolves through one composed vocabulary; legacy custom tools and caller-supplied graph operators stay compatible and dispatch without a descriptor, which prevents universal coverage",
   "inv5.capability-properties":
     "Enrolled descriptors are strictly validated, reject authority fields and authorize nothing; the legacy executors above have no validated descriptor",
-  "inv5.contract-grants": "Contracts do not express authority as grants against named capabilities",
+  "inv5.contract-grants":
+    "A strict grant schema and an inactive v2 contract format exist, but production contracts are v1 tool filters compiled from prompt text: none carries an operator-reviewed grant",
   "scope.project-journal":
     "A project-owned journal replays approved facts after source-run removal, but production PM reads/writes and an operator review flow have not migrated to its authority",
   "memory.no-producer":
     "Project memory is read by intent interpretation on every session but no production code writes it; what may be promoted into memory is an open governance decision",
-  "inv5.grant-resolution": "Execution paths do not resolve authority through one shared grant lookup",
+  "inv5.grant-resolution":
+    "One shared lookup resolves the selected executor's capability for native, batch, MCP and operator-shell actions and records its conclusion, record only; it enforces nothing, resolves no grant in production, and other execution paths do not call it",
 } as const
 
 export type GapId = keyof typeof KNOWN_GAPS

@@ -20,6 +20,14 @@ type Snapshot = {
 const bindings = new WeakMap<object, Snapshot>()
 export type McpResourceBinding = object
 
+/**
+ * The descriptor one read of a named resource or prompt on a named server has.
+ * Pure: it lets a caller that holds the source prove which identity it minted.
+ */
+export function mcpReadDescriptor(kind: "resource" | "prompt", clientName: string, name: string): CapabilityDescriptor {
+  return descriptor(kind, clientName, name)
+}
+
 /** A source-qualified, opaque description of one read; never a grant. */
 function descriptor(kind: "resource" | "prompt", clientName: string, uri: string): CapabilityDescriptor {
   const hash = createHash("sha256").update(`dax.mcp.${kind}.v1\0`)

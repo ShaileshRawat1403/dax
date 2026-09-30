@@ -9,6 +9,7 @@ import {
 } from "./workflow-class"
 import type { WorkflowClass, ExecutionMode, RiskLevel } from "./workflow-class"
 import { isNativeToolAlias } from "@/capability/native-alias"
+import { CapabilityGrants } from "@/capability/grant"
 
 export const SchemaVersion = z.literal("v1")
 export type SchemaVersion = z.infer<typeof SchemaVersion>
@@ -95,7 +96,7 @@ export const RuntimePolicy = z.object({
 })
 export type RuntimePolicy = z.infer<typeof RuntimePolicy>
 
-export const ExecutionContract = z.object({
+const ExecutionContractBase = z.object({
   schemaVersion: SchemaVersion.default("v1"),
   contractId: z.string(),
   contractInstanceId: z.string().optional(),
@@ -109,6 +110,8 @@ export const ExecutionContract = z.object({
   riskLevel: RiskLevelSchema,
   toolAllowlist: z.string().array(),
   toolBlocklist: z.string().array(),
+  /** Required for v2; absent in historical v1 contracts. Never inferred on replay. */
+  capabilityGrants: CapabilityGrants.optional(),
   approvalPolicy: ApprovalPolicy,
   expectedOutputs: OutputContract.array(),
   timeoutMs: z.number().min(60000).max(3600000).default(1800000),
@@ -124,7 +127,24 @@ export const ExecutionContract = z.object({
   initiatedBy: z.string().optional(),
   createdAt: z.string(),
 })
+/** The executable contract. The runtime is v1-only: a v1 contract cannot carry grants. */
+export const ExecutionContract = ExecutionContractBase.superRefine((contract, ctx) => {
+  if (contract.capabilityGrants !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["capabilityGrants"], message: "v1 contract cannot claim capability grants" })
+  }
+})
 export type ExecutionContract = z.infer<typeof ExecutionContract>
+
+/**
+ * Candidate wire format, inactive. Nothing in production writes, reads or
+ * executes it: the guardian accepts only `ExecutionContract`. It exists so the
+ * shared resolver's grant path can be specified and tested before activation.
+ */
+export const ExecutionContractV2 = ExecutionContractBase.omit({ schemaVersion: true, capabilityGrants: true }).extend({
+  schemaVersion: z.literal("v2"),
+  capabilityGrants: CapabilityGrants,
+})
+export type ExecutionContractV2 = z.infer<typeof ExecutionContractV2>
 
 export const ExecutionContractMeta = z.object({
   contractId: z.string(),
