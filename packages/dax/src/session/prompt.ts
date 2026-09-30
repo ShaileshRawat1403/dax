@@ -93,6 +93,7 @@ import type { ProviderInputSourceCandidate } from "@/execution/provider-input-pa
 import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
 import { bindOperatorShell, requireOperatorShellCapability } from "./operator-shell-identity"
+import { ProjectRestartRequiredError } from "@/project/trust"
 import { bindContextAttachment, requireContextAttachment } from "./context-attachment-identity"
 import { bindTemplateContext, requireTemplateContext } from "./template-context-identity"
 
@@ -355,7 +356,7 @@ export namespace SessionPrompt {
   async function rejectCapabilityIdentity(sessionID: string, error: unknown): Promise<never> {
     // The message route has already opened its response stream. Use the existing
     // operator notification; rejection stays a rejection, not successful output.
-    if (error instanceof CapabilityIdentityError) {
+    if (error instanceof CapabilityIdentityError || error instanceof ProjectRestartRequiredError) {
       await Bus.publish(Session.Event.Error, { sessionID, error: error.toObject() })
     }
     throw error

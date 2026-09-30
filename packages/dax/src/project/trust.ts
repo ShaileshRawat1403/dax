@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import { fileURLToPath } from "url"
 import { Global } from "../global"
 import { Log } from "../util/log"
+import { NamedError } from "@dax-ai/util/error"
 
 /**
  * Workspace trust for project-scoped configuration.
@@ -222,6 +223,74 @@ export async function inspectProjectPlugins(
   } catch (error) {
     if (error instanceof ProjectToolScanError) return { failure: error.failure }
     return { failure: { path: directories.join(", "), code: "unknown" } }
+  }
+}
+
+/**
+ * Content this process has already imported, by file.
+ *
+ * The runtime caches a module for the life of the process. Once a project file
+ * has been imported, importing the same path again returns the cached module,
+ * whatever the file now contains. An approval of newer content therefore cannot
+ * be honored in this process: the code that would run is the older code. This
+ * is process state because the module cache is process state; an instance
+ * being disposed and recreated does not clear either.
+ */
+const loadedContent = new Map<string, string>()
+
+/**
+ * Approved project content differs from what this process already imported.
+ * Stable and path-free so it can be shown to the operator as it is.
+ */
+export class ProjectRestartRequiredError extends NamedError.Unknown {
+  readonly code = "restart_required"
+  constructor(public readonly files: readonly string[]) {
+    const message =
+      "Project executable files changed after this process loaded them. Restart DAX to run the approved version."
+    super({ message })
+    this.message = message
+  }
+}
+
+/** The `tool` and `tools` folders of the given project directories. */
+export function projectToolFolders(directories: readonly string[]) {
+  return directories.flatMap((directory) => TOOL_DIRECTORIES.map((name) => path.join(directory, name)))
+}
+
+/** The `plugin` and `plugins` folders of the given project directories. */
+export function projectPluginFolders(directories: readonly string[]) {
+  return directories.flatMap((directory) => PLUGIN_DIRECTORIES.map((name) => path.join(directory, name)))
+}
+
+/**
+ * Refuse to import approved content over content this process already loaded.
+ *
+ * Every file in the inventory is compared, not only the entry modules: a tool
+ * imports its helpers, and re-importing a changed entry would still run its
+ * cached helpers. A file this process loaded that is now gone from one of the
+ * given folders counts too, since a cached module may still import it. Files
+ * never loaded here, including ones added since, import fresh and are fine.
+ */
+export function requireNotStale(entries: readonly string[], folders: readonly string[]) {
+  if (entries.length === 0) return
+  const current = new Map(entries.map((entry) => [describeToolEntry(entry).file, describeToolEntry(entry).content]))
+  const stale: string[] = []
+  for (const [file, content] of loadedContent) {
+    const now = current.get(file)
+    if (now !== undefined) {
+      if (now !== content) stale.push(file)
+    } else if (folders.some((folder) => file.startsWith(folder + path.sep))) {
+      stale.push(file)
+    }
+  }
+  if (stale.length > 0) throw new ProjectRestartRequiredError(stale.sort())
+}
+
+/** Record that this process is about to import exactly this content. */
+export function markLoaded(entries: readonly string[]) {
+  for (const entry of entries) {
+    const { file, content } = describeToolEntry(entry)
+    loadedContent.set(file, content)
   }
 }
 

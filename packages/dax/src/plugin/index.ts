@@ -74,6 +74,12 @@ export namespace Plugin {
           plugins: project.specifiers.length,
           failure: current.failure,
         })
+      } else if (current.files) {
+        // The approval is for this content. A module this process already
+        // imported would run as it was, so refuse rather than initialize older
+        // code under a newer approval.
+        ProjectTrust.requireNotStale(current.files, ProjectTrust.projectPluginFolders(project.directories))
+        ProjectTrust.markLoaded(current.files)
       }
     }
     if (plugins.length) await Config.waitForDependencies()

@@ -220,6 +220,13 @@ export namespace ToolRegistry {
       ProjectTrust.noteWithheldTools(current.tools)
       log.warn("withheld untrusted project tools", { files: current.tools.length })
     }
+    if (projectAllowed && current.tools) {
+      // The approval is for this content. A module this process already
+      // imported would run as it was, so refuse rather than run older code
+      // under a newer approval.
+      ProjectTrust.requireNotStale(current.tools, ProjectTrust.projectToolFolders(project.directories))
+      ProjectTrust.markLoaded(current.tools)
+    }
     const matches = await Config.directories().then((dirs) =>
       dirs.flatMap((dir) =>
         project.directories.includes(dir) && !projectAllowed
