@@ -94,6 +94,7 @@ import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
 import { bindOperatorShell, requireOperatorShellCapability } from "./operator-shell-identity"
 import { ProjectRestartRequiredError } from "@/project/trust"
+import { authorizeOperatorShell, OperatorShellDeniedError } from "./operator-shell-authority"
 import { bindContextAttachment, requireContextAttachment } from "./context-attachment-identity"
 import { bindTemplateContext, requireTemplateContext } from "./template-context-identity"
 
@@ -2506,12 +2507,23 @@ ${
     const cwd = Instance.directory
     const shellEnv = await (async () => {
       const env = await Plugin.trigger("shell.env", { cwd }, { env: {} })
+      // In a governed session the contract and permission denials bind the
+      // operator's shell too. Decided after the last awaited hook, then the
+      // identity is rechecked, so nothing awaits between the decision and spawn.
+      const authorization = await authorizeOperatorShell({
+        sessionID: input.sessionID,
+        agent: input.agent,
+        command: input.command,
+      })
       requireOperatorShellCapability({
         binding: shellBinding,
         sessionID: input.sessionID,
         command: input.command,
         executor: spawn,
       })
+      if (part.type === "tool" && authorization.governed) {
+        part.metadata = { ...part.metadata, authorization }
+      }
       return env
     })().catch(async (error) => {
       // The running tool part is already persisted. No process was launched, so
@@ -2520,6 +2532,17 @@ ${
         msg.time.completed = Date.now()
         await Session.updateMessage(msg)
         if (part.type === "tool" && part.state.status === "running") {
+          if (error instanceof OperatorShellDeniedError) {
+            part.metadata = {
+              ...part.metadata,
+              authorization: {
+                governed: true,
+                disposition: "denied",
+                reasonCode: error.reasonCode,
+                contractId: error.contractId,
+              },
+            }
+          }
           part.state = {
             status: "error",
             input: part.state.input,
