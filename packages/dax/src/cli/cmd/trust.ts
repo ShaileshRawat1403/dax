@@ -6,11 +6,16 @@ import { Instance } from "../../project/instance"
 import * as ProjectTrust from "../../project/trust"
 import { Config } from "../../config/config"
 
-function describe(value: ProjectTrust.Executable): string[] {
+/** One line per withheld item, as `dax trust` prints it. */
+export function describeWithheld(value: ProjectTrust.Executable): string[] {
   const lines: string[] = []
   for (const plugin of value.plugins) lines.push(`  plugin  ${plugin}`)
   for (const server of value.mcp) lines.push(`  mcp     ${server} (spawns a local process)`)
   for (const dir of value.install) lines.push(`  install ${dir} (runs dependency install scripts)`)
+  for (const entry of value.tools) {
+    const { file, content } = ProjectTrust.describeToolEntry(entry)
+    lines.push(`  tool    ${file} (imported and run in-process; sha256 ${content.slice(0, 16)})`)
+  }
   return lines
 }
 
@@ -23,7 +28,7 @@ const TrustRevokeCommand = cmd({
       const root = ProjectTrust.root(Instance.worktree, Instance.directory)
       await ProjectTrust.revoke(root)
       process.stdout.write(`Trust revoked for ${root}${EOL}`)
-      process.stdout.write(`Its plugins, local MCP servers and install scripts will not run.${EOL}`)
+      process.stdout.write(`Its plugins, tool files, local MCP servers and install scripts will not run.${EOL}`)
     })
   },
 })
@@ -39,7 +44,8 @@ export const TrustCommand = cmd({
     }),
   handler: async (args) => {
     await bootstrap(process.cwd(), async () => {
-      // Loading config is what populates the withheld set.
+      // Loading config is what populates the withheld set. It scans project
+      // tool files by content and imports none of them.
       await Config.get()
       const root = ProjectTrust.root(Instance.worktree, Instance.directory)
       const withheld = ProjectTrust.getWithheld()
@@ -51,12 +57,14 @@ export const TrustCommand = cmd({
           return
         }
         process.stdout.write(`${root} declares no executable configuration.${EOL}`)
-        process.stdout.write(`Nothing to trust: no plugins, no local MCP servers, no install scripts.${EOL}`)
+        process.stdout.write(
+          `Nothing to trust: no plugins, no tool files, no local MCP servers, no install scripts.${EOL}`,
+        )
         return
       }
 
       process.stdout.write(`${root} declares executable configuration:${EOL}${EOL}`)
-      for (const line of describe(withheld)) process.stdout.write(`${line}${EOL}`)
+      for (const line of describeWithheld(withheld)) process.stdout.write(`${line}${EOL}`)
       process.stdout.write(`${EOL}`)
       process.stdout.write(`Trusting this worktree lets the above run with your full access:${EOL}`)
       process.stdout.write(`the filesystem, the network, and every credential in your environment.${EOL}`)

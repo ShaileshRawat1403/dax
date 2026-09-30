@@ -182,7 +182,7 @@ export namespace Config {
     // execute, and a repository is not a trusted input. Track what each
     // project-scoped source contributes so it can be withheld until the
     // operator trusts this worktree - see ProjectTrust.
-    const executable: ProjectTrust.Executable = { plugins: [], mcp: [], install: [] }
+    const executable: ProjectTrust.Executable = { plugins: [], mcp: [], install: [], tools: [] }
     const trackProjectContribution = <T>(before: () => T, after: (snapshot: T) => void) => {
       const snapshot = before()
       return () => after(snapshot)
@@ -297,6 +297,20 @@ export namespace Config {
       result.plugin.push(...discovered)
     }
 
+    // Tool discovery imports `tool/*.{js,ts}` from every directory above. The
+    // operator owns the global, home and DAX_CONFIG_DIR directories, so those
+    // keep loading as before. A directory only the repository contributed is
+    // project-scoped, and its tool files wait on the same trust decision.
+    const operatorDirectories = new Set(directories.filter((dir) => !isProjectScoped(dir)))
+    for (const dir of [Global.Path.config, Flag.DAX_CONFIG_DIR]) if (dir) operatorDirectories.add(dir)
+    for await (const dir of Filesystem.up({ targets: [".dax"], start: Global.Path.home, stop: Global.Path.home })) {
+      operatorDirectories.add(dir)
+    }
+    const projectToolDirectories = unique(projectDirectories).filter((dir) => !operatorDirectories.has(dir))
+    executable.tools = await ProjectTrust.scanProjectTools(projectToolDirectories)
+    // Undefined means nothing under a project tool directory may be imported.
+    let approvedProjectTools: string[] | undefined
+
     // Inline config content overrides all non-managed config sources.
     if (Flag.DAX_CONFIG_CONTENT) {
       result = mergeConfigConcatArrays(result, JSON.parse(Flag.DAX_CONFIG_CONTENT))
@@ -318,10 +332,13 @@ export namespace Config {
     // are untouched - only what the working directory itself introduced is
     // held back, and the decision is bound to a digest of precisely that, so
     // adding a plugin to an already-trusted repo asks again.
-    if (!ProjectTrust.isEmpty(executable)) {
+    if (ProjectTrust.isEmpty(executable)) {
+      approvedProjectTools = []
+    } else {
       const trustRoot = ProjectTrust.root(Instance.worktree, Instance.directory)
       if (await ProjectTrust.isTrusted(trustRoot, executable)) {
         ProjectTrust.setWithheld(ProjectTrust.empty)
+        approvedProjectTools = executable.tools
         for (const dir of executable.install) {
           deps.push(
             iife(async () => {
@@ -340,6 +357,7 @@ export namespace Config {
           plugins: executable.plugins.length,
           mcp: executable.mcp.length,
           install: executable.install.length,
+          tools: executable.tools.length,
         })
       }
     }
@@ -386,8 +404,19 @@ export namespace Config {
       config: result,
       directories,
       deps,
+      projectTools: { directories: projectToolDirectories, approved: approvedProjectTools },
     }
   })
+
+  /**
+   * Project-scoped tool directories and the tool files the operator approved
+   * when this instance loaded its config. `approved` is undefined while the
+   * worktree is untrusted. Tool discovery compares it with the files as they
+   * are at import time.
+   */
+  export async function projectTools() {
+    return state().then((x) => x.projectTools)
+  }
 
   /**
    * Waits for all dependency installations to complete.

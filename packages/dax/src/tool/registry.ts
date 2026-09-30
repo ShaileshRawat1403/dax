@@ -15,6 +15,7 @@ import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
 import { Config } from "../config/config"
+import * as ProjectTrust from "../project/trust"
 import path from "path"
 import { type ToolContext as PluginToolContext, type ToolDefinition } from "@dax-ai/plugin"
 import z from "zod"
@@ -198,8 +199,23 @@ export namespace ToolRegistry {
     const found: ReturnType<typeof fromPlugin>[] = []
     const glob = new Bun.Glob("{tool,tools}/*.{js,ts}")
 
+    // A repository's tool files are code it supplies, not code the operator
+    // installed. Import them only while they are exactly what the operator
+    // approved: re-read them now, so a file added or edited since config load
+    // is withheld along with the rest of that project's tools.
+    const project = await Config.projectTools()
+    const current = project.directories.length ? await ProjectTrust.scanProjectTools(project.directories) : []
+    const projectAllowed = project.approved !== undefined && ProjectTrust.sameTools(current, project.approved)
+    if (!projectAllowed && current.length > 0) {
+      ProjectTrust.noteWithheldTools(current)
+      log.warn("withheld untrusted project tools", { files: current.length })
+    }
     const matches = await Config.directories().then((dirs) =>
-      dirs.flatMap((dir) => [...glob.scanSync({ cwd: dir, absolute: true, followSymlinks: true, dot: true })]),
+      dirs.flatMap((dir) =>
+        project.directories.includes(dir) && !projectAllowed
+          ? []
+          : [...glob.scanSync({ cwd: dir, absolute: true, followSymlinks: true, dot: true })],
+      ),
     )
     if (matches.length) await Config.waitForDependencies()
     for (const match of matches) {

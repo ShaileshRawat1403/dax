@@ -9,8 +9,9 @@ import { Log } from "../util/log"
  *
  * Configuration found below the working directory can name code that DAX will
  * execute: `.dax/plugin/*.ts` is imported and every export called, `plugin`
- * entries are installed from npm and imported, and a local `mcp` server is
- * spawned as a child process. All of that used to happen on startup with no
+ * entries are installed from npm and imported, a local `mcp` server is
+ * spawned as a child process, and `.dax/tool/*.ts` is imported when tools are
+ * discovered. All of that used to happen with no
  * prompt, so cloning a repository and running `dax` inside it was arbitrary
  * code execution with the operator's full authority.
  *
@@ -28,6 +29,11 @@ export type Executable = {
   mcp: string[]
   /** Directories whose dependencies would be installed with `bun install`. */
   install: string[]
+  /**
+   * Files under a project's `.dax/tool` and `.dax/tools`, each bound to its
+   * content: see `scanProjectTools`. Tool discovery imports these in-process.
+   */
+  tools: string[]
 }
 
 export type TrustRecord = {
@@ -36,10 +42,75 @@ export type TrustRecord = {
   trustedAt: number
 }
 
-export const empty: Executable = { plugins: [], mcp: [], install: [] }
+export const empty: Executable = { plugins: [], mcp: [], install: [], tools: [] }
 
 export function isEmpty(value: Executable) {
-  return value.plugins.length === 0 && value.mcp.length === 0 && value.install.length === 0
+  return (
+    value.plugins.length === 0 && value.mcp.length === 0 && value.install.length === 0 && value.tools.length === 0
+  )
+}
+
+const TOOL_DIRECTORIES = ["tool", "tools"]
+
+/** One tool-file entry: the path the operator reviews and the content it had. */
+export function toolEntry(file: string, contentDigest: string) {
+  return `${file}#sha256:${contentDigest}`
+}
+
+/** Split an entry back into what a report shows. */
+export function describeToolEntry(entry: string): { file: string; content: string } {
+  const at = entry.lastIndexOf("#sha256:")
+  return at < 0 ? { file: entry, content: "" } : { file: entry.slice(0, at), content: entry.slice(at + 8) }
+}
+
+/**
+ * Every file under the given project `.dax` directories' `tool` and `tools`
+ * folders, each bound to a SHA-256 of its content.
+ *
+ * Discovery imports only the top-level `*.js` and `*.ts` files, but a tool can
+ * import a sibling helper, so the whole folder is covered: adding, editing or
+ * removing any file there changes the set. `node_modules` is skipped, because
+ * installing a project's dependencies is a separate trusted item. A file a
+ * tool imports from outside these folders is not covered.
+ *
+ * A file that cannot be read gets an entry that can never match an approval.
+ */
+export async function scanProjectTools(directories: readonly string[]): Promise<string[]> {
+  const entries: string[] = []
+  const visited = new Set<string>()
+  async function walk(folder: string) {
+    const real = await fs.realpath(folder).catch(() => undefined)
+    if (!real || visited.has(real)) return
+    visited.add(real)
+    const names = await fs.readdir(folder).catch(() => [] as string[])
+    for (const name of names.sort()) {
+      if (name === "node_modules") continue
+      const file = path.join(folder, name)
+      // stat follows symlinks: what matters is what an import would load.
+      const info = await fs.stat(file).catch(() => undefined)
+      if (!info) {
+        entries.push(toolEntry(file, "unreadable"))
+        continue
+      }
+      if (info.isDirectory()) {
+        await walk(file)
+        continue
+      }
+      const content = await fs.readFile(file).catch(() => undefined)
+      entries.push(
+        toolEntry(file, content ? createHash("sha256").update(content).digest("hex") : "unreadable"),
+      )
+    }
+  }
+  for (const directory of directories) {
+    for (const name of TOOL_DIRECTORIES) await walk(path.join(directory, name))
+  }
+  return entries.sort()
+}
+
+/** True when two scans name the same files with the same content. */
+export function sameTools(a: readonly string[], b: readonly string[]) {
+  return a.length === b.length && a.every((entry, index) => entry === b[index])
 }
 
 /**
@@ -52,12 +123,22 @@ export function root(worktree: string, directory: string): string {
   return resolved === path.parse(resolved).root ? path.resolve(directory) : resolved
 }
 
-/** Stable digest of what the operator is being asked to trust. */
+/**
+ * Stable digest of what the operator is being asked to trust.
+ *
+ * Compatibility with records written before tool files were covered: when a
+ * worktree has no project tool files, the canonical form is exactly the earlier
+ * three-field form, so its existing record stays valid. When it has tool files,
+ * they enter the digest, no earlier record can match, and the whole set is
+ * withheld until the operator reviews it again. An earlier record never
+ * approved a tool file, so it is not read as having done so.
+ */
 export function digest(value: Executable): string {
   const canonical = JSON.stringify({
     plugins: [...value.plugins].sort(),
     mcp: [...value.mcp].sort(),
     install: [...value.install].sort(),
+    ...(value.tools.length > 0 ? { tools: [...value.tools].sort() } : {}),
   })
   return createHash("sha256").update(canonical).digest("hex")
 }
@@ -116,4 +197,13 @@ export function setWithheld(value: Executable) {
 
 export function getWithheld(): Executable {
   return withheld
+}
+
+/**
+ * Tool discovery found project tool files it may not import: the worktree is
+ * untrusted, or the files differ from what was approved when config loaded.
+ * Keep the report current so `dax trust` shows the set that would be approved.
+ */
+export function noteWithheldTools(tools: readonly string[]) {
+  withheld = { ...withheld, tools: [...tools] }
 }
