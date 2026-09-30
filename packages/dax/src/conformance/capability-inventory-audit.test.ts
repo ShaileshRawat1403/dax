@@ -17,6 +17,10 @@ import { isToolAllowedByContract } from "@/execution/execution-contract"
  * Workstream 1 audit probes. These characterize what the pinned baseline does
  * at two production entry points; they assert observed behavior, not the
  * intended invariant, and exist so the audit's claims are runnable.
+ *
+ * Each probe asserts that a bypass succeeds. That is temporary: when the grant
+ * and enforcement delivery fixes an entry point, its probe is inverted into a
+ * negative regression. Neither may stay as a standing assertion of bypass.
  */
 
 let home: string
@@ -142,32 +146,36 @@ describe("workstream 1 audit probes at the pinned baseline", () => {
     })
   })
 
-  test("operator session shell runs without consulting the contract or shell permission", async () => {
-    const marker = path.join(home, "shell-effect.txt")
-    await Instance.provide({
-      directory,
-      async fn() {
-        const session = await Session.create({ title: "Inventory audit" })
-        await Session.update(session.id, (draft) => {
-          draft.permission = [{ permission: "*", pattern: "*", action: "deny" }]
-        })
-        const { contract } = compileWithRunId(
-          { request: { intent: { input: "Analyze the repository, read only" } } },
-          session.id,
-        )
-        contract.toolBlocklist = [...new Set([...contract.toolBlocklist, "shell"])]
-        expect(isToolAllowedByContract(contract, "shell")).toBe(false)
-        await ContractGuardian.create(session.id, contract)
+  // POSIX shell command; the finding is about dispatch, not shell portability.
+  test.skipIf(process.platform === "win32")(
+    "operator session shell runs without consulting the contract or shell permission",
+    async () => {
+      const marker = path.join(home, "shell-effect.txt")
+      await Instance.provide({
+        directory,
+        async fn() {
+          const session = await Session.create({ title: "Inventory audit" })
+          await Session.update(session.id, (draft) => {
+            draft.permission = [{ permission: "*", pattern: "*", action: "deny" }]
+          })
+          const { contract } = compileWithRunId(
+            { request: { intent: { input: "Analyze the repository, read only" } } },
+            session.id,
+          )
+          contract.toolBlocklist = [...new Set([...contract.toolBlocklist, "shell"])]
+          expect(isToolAllowedByContract(contract, "shell")).toBe(false)
+          await ContractGuardian.create(session.id, contract)
 
-        const result = await SessionPrompt.shell({
-          sessionID: session.id,
-          agent: "build",
-          model: toolModel,
-          command: `printf executed > ${JSON.stringify(marker)}`,
-        })
-        expect(result.parts[0]).toMatchObject({ type: "tool", tool: "shell", state: { status: "completed" } })
-        expect(await fs.readFile(marker, "utf8")).toBe("executed")
-      },
-    })
-  })
+          const result = await SessionPrompt.shell({
+            sessionID: session.id,
+            agent: "build",
+            model: toolModel,
+            command: `printf executed > ${JSON.stringify(marker)}`,
+          })
+          expect(result.parts[0]).toMatchObject({ type: "tool", tool: "shell", state: { status: "completed" } })
+          expect(await fs.readFile(marker, "utf8")).toBe("executed")
+        },
+      })
+    },
+  )
 })
