@@ -47,13 +47,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   withholds the project's executable configuration and cannot be approved. Tools
   in the operator's own global, home and `DAX_CONFIG_DIR` directories load as
   before.
+- **A trusted repository's plugin files are now approved by content.** Workspace
+  trust identified a project's local plugin file by its path, so an approved
+  plugin could be edited and would run without asking again. Plugin files under
+  `.dax/plugin` and `.dax/plugins`, and local files a project config names as
+  plugins, are now bound to their content and checked again immediately before
+  they are imported. Package plugins are still identified by name and version.
 
 ### Compatibility
 
-- A trust record written before tool files were covered stays valid for a
-  worktree that has no project tool files. A worktree that has them is withheld
-  as a whole until `dax trust` is run again: an earlier record never approved a
-  tool file and is not read as having done so.
+- A trust record written before file content was covered stays valid for a
+  worktree with no project tool files and no local project plugin files. A
+  worktree that has either is withheld as a whole until `dax trust` is run
+  again: an earlier record never approved a tool file, and approved a plugin
+  file only by its path.
 
 - New canonical runs use explicitly run-owned v2 envelopes. Existing v1 journals
   and interrupted v1 initialization recipes retain v1; a new initialization

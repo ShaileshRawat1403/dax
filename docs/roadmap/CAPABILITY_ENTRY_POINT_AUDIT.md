@@ -146,7 +146,8 @@ assertions of bypass success.
 | Issue | Location | Severity | Status |
 | --- | --- | --- | --- |
 | A project's `.dax/tool/*.{js,ts}` was imported and offered at tool discovery in a worktree with no trust record. Workspace trust tracked plugins, local MCP and installs, not tool files | `tool/registry.ts` `discover`, `config/config.ts` | High | Fixed in a separate slice after Astra reproduced it |
-| A project's `.dax/plugin/*` file is approved by path, not content, so editing an approved plugin file does not ask again | `project/trust.ts` `digest`, `config/config.ts` `loadPlugin` | Medium | Open; found while fixing the row above, not changed |
+| A project's local plugin file was approved by path, not content, so editing an approved plugin did not ask again | `project/trust.ts` `digest`, `config/config.ts` `loadPlugin` | Medium | Fixed in a separate slice, approved by Astra |
+| A project's dependency install is approved by directory, not by `package.json` content | `project/trust.ts` `digest`, `config/config.ts` | Medium | Open; found while fixing the row above, not changed |
 | Project `formatter` and `lsp` configuration is not tracked by workspace trust | `config/config.ts`, `format/index.ts`, `lsp/index.ts` | Medium | Open; see service lifecycle effects |
 
 The fix puts every file under a project's `.dax/tool` and `.dax/tools` into the
@@ -158,19 +159,46 @@ Operator-owned global, home and `DAX_CONFIG_DIR` tool directories are untouched.
 
 The inventory is complete or it is a failure. Only a tool folder that does not
 exist counts as absent. A folder, entry or file that cannot be resolved, listed,
-inspected or read makes the set of tool files unknown: nothing is imported, the
-project's other executable configuration is withheld with it, and `dax trust`
-refuses to approve. An entry without a real content digest is never approvable.
+inspected or read makes the set of tool files unknown, and `dax trust` refuses to
+approve an unknown set. An entry without a real content digest is never approvable.
+
+The two checks withhold different things, and neither revokes anything already
+running:
+
+| Check | When | What a mismatch or failure withholds |
+| --- | --- | --- |
+| Config load | Once, when an instance loads its config | The project's executable configuration for that instance: plugins, local MCP servers, dependency installs and tool files |
+| Tool discovery recheck | Each tool discovery | That project's tool files only |
+| Plugin load recheck | Once, when an instance first loads plugins | That project's plugins only |
+
+A recheck does not unload a module that was already imported, stop a running MCP
+server, or change the trust record. The record is re-evaluated at the next config
+load.
 The first version of this fix at `3e13bba0d453e3ab67d2cd54feff03cd20801203`
 turned a failed folder scan into an empty inventory and recorded an unreadable
 file as an approvable `unreadable` entry. Astra reproduced an import through each.
 
+Plugin files are bound the same way. Every file under a project's `.dax/plugin`
+and `.dax/plugins`, and any other local file a project config names as a plugin,
+enters the trust decision with its content digest and is rechecked immediately
+before plugins are imported. A package specifier stays identified by name and
+version. A named plugin file that does not exist is a failure, not an absent plugin.
+
+Tools and plugins classify one directory differently, and this is left as it is.
+A home `~/.dax` that lies above a project with no repository is operator-owned for
+tools, so its tools load without a prompt. Plugin loading has always treated that
+same directory as project-scoped, so its plugins wait on the project's trust.
+
 Compatibility is explicit: a trust record written earlier stays valid for a
-worktree with no project tool files, and never approves one. Limits: a tool's
-imports from outside the tool folders and from `node_modules` are not covered, and
-there is a narrow window between the content check and the import.
+worktree with no project tool files and no local project plugin files. It never
+approves a tool file, and it approved a plugin file only by path, so a worktree
+that has either is withheld as a whole until `dax trust` is run again. Limits: imports
+from outside the tool and plugin folders and from `node_modules` are not covered,
+and there is a narrow window between the content check and the import.
 [tool-trust.test.ts](../../packages/dax/src/project/tool-trust.test.ts) keeps the
-reproduction as a regression.
+reproduction as a regression, and
+[plugin-trust.test.ts](../../packages/dax/src/project/plugin-trust.test.ts) covers
+plugin files.
 
 ### Vocabulary
 
