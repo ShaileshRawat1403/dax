@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { Agent } from "@/agent/agent"
 import { Bus } from "@/bus"
 import { isNativeToolAlias, permissionForExecutor } from "@/capability/native-alias"
 import { Config } from "@/config/config"
@@ -534,6 +535,76 @@ describe("the operator shell is bound by the governing contract and permission d
           hook.mockRestore()
         }
         expect(await effect("shell")).toBe(false)
+      },
+    })
+  })
+
+  /** Run `during` inside the agent lookup that authorization awaits, after the contract was resolved. */
+  async function shellWhileResolving(sessionID: string, during: () => Promise<void>) {
+    const original = Agent.get
+    let lookups = 0
+    const lookup = spyOn(Agent, "get").mockImplementation((async (name: string) => {
+      // The first lookup is the shell's own; authorization makes the second.
+      if (++lookups === 2) await during()
+      return original(name)
+    }) as typeof Agent.get)
+    try {
+      return { ...(await shell(sessionID, command())), lookups }
+    } finally {
+      lookup.mockRestore()
+    }
+  }
+
+  test("a denial installed while authority is being resolved still prevents the spawn", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await governed((contract) => {
+          contract.toolAllowlist = []
+          contract.toolBlocklist = []
+        }, allowAll)
+        const deny: Permission.Ruleset = [{ permission: "shell", pattern: "*", action: "deny" }]
+        const { reason, lookups } = await shellWhileResolving(session.id, async () => {
+          await Session.update(session.id, (draft) => {
+            draft.permission = deny
+          })
+        })
+        expect(lookups).toBe(2)
+        expect((await Session.get(session.id)).permission).toEqual(deny)
+        expect(reason).toBeInstanceOf(OperatorShellDeniedError)
+        expect(reason).toMatchObject({ reasonCode: "permission_denied" })
+        expect(await effect("shell")).toBe(false)
+
+        // Settled as an error, with the denial recorded, and the session idle.
+        const [part] = await parts(session.id)
+        expect(part.state).toMatchObject({ status: "error", error: "Operator shell denied: permission_denied" })
+        expect(part.metadata).toMatchObject({ authorization: { disposition: "denied", reasonCode: "permission_denied" } })
+        expect(() => SessionPrompt.assertNotBusy(session.id)).not.toThrow()
+      },
+    })
+  })
+
+  test("a governing reference that changes while authority is being resolved refuses the command", async () => {
+    await Instance.provide({
+      directory,
+      async fn() {
+        const other = await governed((contract) => {
+          contract.toolAllowlist = []
+          contract.toolBlocklist = []
+        }, allowAll)
+
+        // Ungoverned when resolution began, governed by the time it finished.
+        const session = await Session.create({ title: "Grant stage 1" })
+        const becameGoverned = await shellWhileResolving(session.id, () =>
+          Session.bindGoverningRun(session.id, other.id).then(() => undefined),
+        )
+        expect(becameGoverned.reason).toMatchObject({ reasonCode: "governing_authority_changed" })
+        expect(await effect("shell")).toBe(false)
+        const [part] = await parts(session.id)
+        expect(part.state).toMatchObject({ status: "error" })
+        expect(part.metadata).toMatchObject({
+          authorization: { disposition: "denied", reasonCode: "governing_authority_changed" },
+        })
       },
     })
   })

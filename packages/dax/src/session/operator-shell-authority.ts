@@ -13,8 +13,12 @@ export type OperatorShellAuthorization =
 export class OperatorShellDeniedError extends NamedError.Unknown {
   readonly code = "operator_shell_denied"
   constructor(
-    public readonly reasonCode: "contract_tool_denied" | "contract_alias_executor_mismatch" | "permission_denied",
-    public readonly contractId: string,
+    public readonly reasonCode:
+      | "contract_tool_denied"
+      | "contract_alias_executor_mismatch"
+      | "permission_denied"
+      | "governing_authority_changed",
+    public readonly contractId: string | undefined,
   ) {
     const message = `Operator shell denied: ${reasonCode}`
     super({ message })
@@ -33,21 +37,34 @@ export class OperatorShellDeniedError extends NamedError.Unknown {
  *
  * Only a denial refuses. A rule that would ask is not a second prompt here:
  * the operator typed the command, and that submission is the approval.
+ *
+ * Resolving the contract and the agent both await. The session is therefore
+ * read again after them, as the last thing awaited, and the decision is made
+ * on that snapshot: a denial installed while the authority was being resolved
+ * is a denial. The snapshot must still name the governing run that was
+ * resolved; if it does not, the contract read above no longer governs this
+ * session and the command is refused rather than judged against it.
  */
 export async function authorizeOperatorShell(input: {
   sessionID: string
   agent: string
   command: string
 }): Promise<OperatorShellAuthorization> {
+  const initial = await Session.get(input.sessionID)
+  const authority = await resolveExecutionAuthority(initial.id, initial.governingRunId)
+  const agent = await Agent.get(input.agent).catch(() => undefined)
+
+  // Nothing is awaited between this read and the decision below.
   const session = await Session.get(input.sessionID)
-  const authority = await resolveExecutionAuthority(session.id, session.governingRunId)
-  if (!authority.contract || !authority.governingRunId) return { governed: false }
-  const { contract } = authority
+  const contract = authority.contract ?? undefined
+  if (session.governingRunId !== initial.governingRunId) {
+    throw new OperatorShellDeniedError("governing_authority_changed", contract?.contractId)
+  }
+  if (!contract || !authority.governingRunId) return { governed: false }
 
   const decision = decideContractTool(contract, "shell", { kind: "builtin" })
   if (!decision.allowed) throw new OperatorShellDeniedError(decision.reasonCode, contract.contractId)
 
-  const agent = await Agent.get(input.agent).catch(() => undefined)
   const rule = Permission.evaluate("shell", input.command, agent?.permission ?? [], session.permission ?? [])
   if (rule.action === "deny") throw new OperatorShellDeniedError("permission_denied", contract.contractId)
 
