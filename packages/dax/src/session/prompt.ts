@@ -2500,12 +2500,34 @@ ${
     const args = matchingInvocation?.args
 
     const cwd = Instance.directory
-    const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
-    requireOperatorShellCapability({
-      binding: shellBinding,
-      sessionID: input.sessionID,
-      command: input.command,
-      executor: spawn,
+    const shellEnv = await (async () => {
+      const env = await Plugin.trigger("shell.env", { cwd }, { env: {} })
+      requireOperatorShellCapability({
+        binding: shellBinding,
+        sessionID: input.sessionID,
+        command: input.command,
+        executor: spawn,
+      })
+      return env
+    })().catch(async (error) => {
+      // The running tool part is already persisted. No process was launched, so
+      // settle it as failed instead of leaving history that never finishes.
+      try {
+        msg.time.completed = Date.now()
+        await Session.updateMessage(msg)
+        if (part.type === "tool" && part.state.status === "running") {
+          part.state = {
+            status: "error",
+            input: part.state.input,
+            error: error instanceof Error ? error.message : String(error),
+            time: { start: part.state.time.start, end: Date.now() },
+          }
+          await Session.updatePart(part)
+        }
+      } catch (settleError) {
+        log.error("failed to settle rejected shell command", { sessionID: input.sessionID, error: settleError })
+      }
+      throw error
     })
     const proc = spawn(shell, args, {
       cwd,

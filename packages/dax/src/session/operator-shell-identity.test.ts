@@ -35,6 +35,24 @@ afterEach(async () => {
   await fs.rm(root, { recursive: true, force: true })
 })
 
+/** Every persisted shell tool part, reduced to what a reader of the history sees. */
+async function settledShellParts(sessionID: string) {
+  const stored = await Session.messages({ sessionID })
+  return stored
+    .flatMap((message) => message.parts)
+    .flatMap((part) =>
+      part.type === "tool"
+        ? [
+            {
+              status: part.state.status,
+              error: part.state.status === "error" ? part.state.error : undefined,
+              command: part.state.input.command,
+            },
+          ]
+        : [],
+    )
+}
+
 describe("operator session shell identity", () => {
   test("the descriptor is strict, listed in the vocabulary, and never an execution grant", () => {
     const [descriptor] = listOperatorShellCapabilities()
@@ -93,18 +111,15 @@ describe("operator session shell identity", () => {
   })
 
   posix("a command changed during the awaited environment hook cannot reach the shell", async () => {
+    const marker = path.join(root, "shell-ran.txt")
+    const replaced = path.join(root, "replaced-ran.txt")
+    const original = `printf ran > ${JSON.stringify(marker)}`
+    let sessionID = ""
     await Instance.provide({
       directory: root,
       async fn() {
         const session = await Session.create({ title: "Operator shell producer" })
-        const marker = path.join(root, "shell-ran.txt")
-        const replaced = path.join(root, "replaced-ran.txt")
-        const input = {
-          sessionID: session.id,
-          agent: "build",
-          model,
-          command: `printf ran > ${JSON.stringify(marker)}`,
-        }
+        const input = { sessionID: session.id, agent: "build", model, command: original }
         const trigger = Plugin.trigger
         const hook = spyOn(Plugin, "trigger").mockImplementation((async (name: string, ...rest: unknown[]) => {
           if (name === "shell.env") input.command = `printf ran > ${JSON.stringify(replaced)}`
@@ -122,6 +137,57 @@ describe("operator session shell identity", () => {
         expect(reason).toMatchObject({ code: "changed" })
         expect(await Bun.file(marker).exists()).toBe(false)
         expect(await Bun.file(replaced).exists()).toBe(false)
+
+        // The rejected dispatch leaves settled history and an idle session.
+        expect(await settledShellParts(session.id)).toEqual([
+          { status: "error", error: "Capability identity rejected: changed", command: original },
+        ])
+        expect(() => SessionPrompt.assertNotBusy(session.id)).not.toThrow()
+        sessionID = session.id
+      },
+    })
+
+    // Reopened from storage by a fresh instance, the history reads the same.
+    await Instance.disposeAll()
+    await Instance.provide({
+      directory: root,
+      async fn() {
+        expect(await settledShellParts(sessionID)).toEqual([
+          { status: "error", error: "Capability identity rejected: changed", command: original },
+        ])
+        expect(() => SessionPrompt.assertNotBusy(sessionID)).not.toThrow()
+        expect(await Bun.file(marker).exists()).toBe(false)
+        expect(await Bun.file(replaced).exists()).toBe(false)
+      },
+    })
+  })
+
+  posix("a failing environment hook settles the record and keeps its own error", async () => {
+    await Instance.provide({
+      directory: root,
+      async fn() {
+        const session = await Session.create({ title: "Operator shell producer" })
+        const marker = path.join(root, "shell-ran.txt")
+        const command = `printf ran > ${JSON.stringify(marker)}`
+        const trigger = Plugin.trigger
+        const hook = spyOn(Plugin, "trigger").mockImplementation((async (name: string, ...rest: unknown[]) => {
+          if (name === "shell.env") throw new Error("controlled hook failure")
+          return (trigger as (...args: unknown[]) => unknown)(name, ...rest)
+        }) as typeof Plugin.trigger)
+        let reason: unknown
+        try {
+          await SessionPrompt.shell({ sessionID: session.id, agent: "build", model, command })
+        } catch (error) {
+          reason = error
+        } finally {
+          hook.mockRestore()
+        }
+        expect(reason).toHaveProperty("message", "controlled hook failure")
+        expect(await Bun.file(marker).exists()).toBe(false)
+        expect(await settledShellParts(session.id)).toEqual([
+          { status: "error", error: "controlled hook failure", command },
+        ])
+        expect(() => SessionPrompt.assertNotBusy(session.id)).not.toThrow()
       },
     })
   })
