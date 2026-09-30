@@ -24,9 +24,10 @@ Read this file first when working in `/Users/Shailesh/MYAIAGENTS/dax`.
 
 ## Current ownership
 
-- Codex owns all DAX implementation lanes following the 2026-09-19 handover; Claude has withdrawn and has no work in flight.
-- Read [docs/DAX_STATUS.md](./docs/DAX_STATUS.md) for current validation, open work, and the preserved handover.
-- The two-agent lane assignments and relay requirements below apply when a second agent is active. They are dormant during sole ownership. Keep the evidence discipline and diff-appropriate gates; do not describe solo review as independent cross-validation.
+- From 2026-09-30, Claude Opus 5.5 implements the remaining conformance work on its own branch and worktree, and Astra reviews architecture and merges. Sol's implementation is frozen; its branches are preserved and stay Sol-owned. The maintainer relays every message and merges.
+- This supersedes the 2026-09-19 arrangement, under which Codex owned all lanes after Claude withdrew. That handover and Sol's 2026-09-30 handover are preserved as historical records.
+- Read [docs/DAX_STATUS.md](./docs/DAX_STATUS.md) for current validation, open work, and the preserved handovers.
+- Two agents are active, so the lane and relay requirements below apply. An implementer's own checks are not independent cross-validation; only the reviewer's acceptance of an exact SHA is.
 - Feature branches remain required. The maintainer merges into `main`.
 
 ## Working alongside another agent

@@ -306,6 +306,12 @@ Order findings Critical first, then High, Medium, Low, Info.
 
 ## 11. Project bindings
 
+**2026-09-30 ownership update:** Claude Opus 5.5 implements the remaining
+conformance work on its own branch and worktree; Astra reviews and the maintainer
+merges; Sol's branches are frozen and stay Sol-owned. Two agents are active, so
+sections 1 to 10 apply in full. [Current status](DAX_STATUS.md) names the branch.
+The note below is the earlier arrangement, kept as a record.
+
 **2026-09-19 ownership update:** Claude has withdrawn and Codex owns all lanes.
 The lane split and environment table below preserve the ratification record;
 [current status](DAX_STATUS.md) supersedes them for active work. The gate table

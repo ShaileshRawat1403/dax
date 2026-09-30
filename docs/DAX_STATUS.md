@@ -1,5 +1,31 @@
 # DAX current ownership and release work
 
+## Execution ownership — 2026-09-30
+
+The maintainer transferred implementation of the remaining conformance work to
+Claude Opus 5.5. Astra remains the architecture and merge reviewer. Sol's
+implementation is frozen.
+
+| Role | Holder | Branch and worktree |
+| --- | --- | --- |
+| Implementer | Claude Opus 5.5 | `feat/conformance-execution-opus`, from `3c47d1a3045fa311bba4755d3aff8c5735e1baa2`, in `.claude/worktrees/conformance-execution-opus` |
+| Reviewer | Astra | Reviews authority boundaries and adversarial controls, then corrective diffs on revalidation |
+| Frozen | Sol | Existing branches preserved and Sol-owned; handover on `docs/sol-to-opus-handover` at `8c032805c6db25b0733c3ed47470579c0c903036` |
+
+Work proceeds in this order: capability vocabulary and properties, contract grants
+and shared enforcement, project-journal production integration, governed memory.
+The [entry-point audit](roadmap/CAPABILITY_ENTRY_POINT_AUDIT.md) records the first
+workstream's scope decisions and findings. No merge happens until Astra accepts an
+exact candidate SHA. No release or installed-binary replacement is authorized.
+Published `main`, v1.5.0 and its frozen evidence are unchanged. The preparatory
+grant work at `a2cab7370582f96f8a70978994f92ad11de3423a` is outside the baseline
+and is not integrated or approved.
+
+The sections below are the record up to the handover. Where they name Sol as the
+implementer or say no Claude lane is assigned, this section supersedes them.
+
+## Record before the 2026-09-30 handover
+
 Codex retains DAX ownership after Claude's withdrawal on 2026-09-19. The current
 conformance sprint uses Sol for implementation and Astra 6 high for architecture
 and adversarial review.

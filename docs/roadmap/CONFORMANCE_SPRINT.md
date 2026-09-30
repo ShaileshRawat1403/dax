@@ -2,7 +2,9 @@
 
 Status: resumed on 2026-09-26 at the maintainer's request, proposal before runtime.
 The 2026-09-20 pause during the maintainer's absence remains historical evidence.
-Implementation model: Sol. Reviewer: Astra 6, high reasoning. Released baseline:
+Implementation model: Sol until 2026-09-30, then Claude Opus 5.5 on
+`feat/conformance-execution-opus` from `3c47d1a3045fa311bba4755d3aff8c5735e1baa2`;
+Sol's branches are frozen. Reviewer: Astra 6, high reasoning. Released baseline:
 DAX v1.5.0 at `88e74c97c25a8bf1e304554d8e2c4ff45533ff09`;
 original sprint baseline: `20a16f361f1f61f7a348844cec3f324fdddc50c3`;
 resumed source baseline: `0170d2f8137bbd0abab7d9f6d72837ca5cec59f0`.
