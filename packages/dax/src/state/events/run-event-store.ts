@@ -103,12 +103,15 @@ async function runJournal(
           }
     },
     // Authority records must be valid under the run lock before persistence.
+    // A type whose reducer case can reject belongs in this list: otherwise it is
+    // written first and rejected on the next read, and the journal stops replaying.
     validateAppend: async (existing, candidate) => {
       validateEnvelopeRecipe(runId, await readAuthorityRecord(runId), [...existing, candidate])
       if (
         candidate.type === "approval_requested" ||
         candidate.type === "approval_resolved" ||
         candidate.type === "tool_invocation_recorded" ||
+        candidate.type === "capability_resolution_recorded" ||
         candidate.type === "authorization_recorded" ||
         candidate.type === "delegation_recorded" ||
         candidate.type === "assistant_recording_started" ||
