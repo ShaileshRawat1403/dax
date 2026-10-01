@@ -28,6 +28,8 @@ export namespace Command {
       agent: z.string().optional(),
       model: z.string().optional(),
       source: z.enum(["command", "mcp", "skill"]).optional(),
+      /** For an MCP prompt command: the configured server and the server's own prompt name. */
+      mcp: z.object({ server: z.string(), name: z.string() }).optional(),
       // workaround for zod not supporting async functions natively so we use getters
       // https://zod.dev/v4/changelog?id=zfunction
       template: z.promise(z.string()).or(z.string()),
@@ -139,6 +141,7 @@ export namespace Command {
       result[name] = {
         name,
         source: "mcp",
+        mcp: { server: prompt.client, name: prompt.name },
         description: prompt.description,
         get template() {
           // since a getter can't be async we need to manually return a promise here

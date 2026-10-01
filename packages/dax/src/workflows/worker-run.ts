@@ -25,7 +25,8 @@ import { runSandboxedCommand, runSandboxedWorkerCheck } from "@/worker/worker-sa
 import { startEgressProxy } from "@/worker/egress-proxy"
 import { z } from "zod"
 import { discoverAntigravityModels, requireAntigravityModel } from "@/worker/antigravity-models"
-import { requireFixedWorkflowCapability } from "./capability-identity"
+import { requireFixedWorkflowCapability, recordFixedWorkflowResolution } from "./capability-identity"
+import { recordActionResolution } from "@/capability/record-resolution"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 
 const log = Log.create({ service: "worker-run-workflow" })
@@ -291,12 +292,13 @@ export class WorkerRunWorkflow {
       this.execute !== WorkerRunWorkflow.prototype.execute
     )
       throw new CapabilityIdentityError("changed")
-    requireFixedWorkflowCapability({
+    const workflowCapability = requireFixedWorkflowCapability({
       workflowClass: "worker_run",
       phase: "execute",
       contract: this.contract,
       runId: this.runId,
     })
+    await recordFixedWorkflowResolution({ descriptor: workflowCapability, phase: "execute", runId: this.runId })
     const stepResults: WorkflowStepResult[] = []
 
     const workerId = workerIdFromProviderHint(this.contract.providerHint)
@@ -383,6 +385,16 @@ export class WorkerRunWorkflow {
         egress: this.contract.runtimePolicy?.egress,
       })
 
+      // Record only, before the worker is launched: what the shared lookup
+      // concludes for the profile that will actually run. The workflow's own
+      // approval gate and the sandbox still decide.
+      await recordActionResolution({
+        governedBy: { runId: this.runId },
+        subject: `worker_${workerId}`,
+        path: "worker",
+        initiator: "system",
+        executor: { kind: "builtin", descriptor: requireBuiltinWorkerInvocationCapability(invocation) },
+      })
       requireBuiltinWorkerInvocationCapability(invocation)
 
       const result = WorkerProcessResultSchema.parse(
@@ -597,12 +609,13 @@ export class WorkerRunWorkflow {
       this.resumeAfterApproval !== WorkerRunWorkflow.prototype.resumeAfterApproval
     )
       throw new CapabilityIdentityError("changed")
-    requireFixedWorkflowCapability({
+    const workflowCapability = requireFixedWorkflowCapability({
       workflowClass: "worker_run",
       phase: "resume_after_approval",
       contract: this.contract,
       runId: this.runId,
     })
+    await recordFixedWorkflowResolution({ descriptor: workflowCapability, phase: "resume_after_approval", runId: this.runId })
     if (decision === "denied") {
       await RunLifecycle.transition(this.runId, "failed", "approval_denied")
       return { success: false, stepResults: [], error: "Approval was denied" }

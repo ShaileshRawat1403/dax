@@ -2,6 +2,7 @@ import { createCapabilityRegistry } from "@/capability/registry"
 import type { CapabilityDescriptor } from "@/capability/capability-types"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import type { ExecutionContract } from "@/execution/execution-contract"
+import { recordActionResolution } from "@/capability/record-resolution"
 
 const phases = {
   draft_and_approve: ["execute", "resume_after_approval"],
@@ -41,6 +42,26 @@ export function requireFixedWorkflowCapability(input: {
   )
     throw new CapabilityIdentityError("changed")
   return registry.require(`workflow.${input.workflowClass}.${input.phase}`)
+}
+
+/**
+ * Record, record only, what the shared lookup concludes about this workflow
+ * phase in its own run's journal. Called after the identity check and before
+ * the phase's effects. A v1 contract has no name for a workflow, so the record
+ * says so; the workflow's own approval and verification still decide.
+ */
+export async function recordFixedWorkflowResolution(input: {
+  descriptor: CapabilityDescriptor
+  phase: WorkflowPhase
+  runId: string
+}) {
+  await recordActionResolution({
+    governedBy: { runId: input.runId },
+    subject: `workflow_${input.phase}`,
+    path: "workflow",
+    initiator: "system",
+    executor: { kind: "builtin", descriptor: input.descriptor },
+  })
 }
 
 export function listFixedWorkflowCapabilities(): readonly CapabilityDescriptor[] {

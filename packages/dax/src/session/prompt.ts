@@ -94,6 +94,8 @@ import { resolveCompactedMessages } from "@/execution/compaction-provenance"
 import { bindCommandShell, requireCommandShellCapability } from "./command-shell-identity"
 import { bindOperatorShell, requireOperatorShellCapability } from "./operator-shell-identity"
 import { ProjectRestartRequiredError } from "@/project/trust"
+import { recordActionResolution } from "@/capability/record-resolution"
+import { mcpReadDescriptor } from "@/mcp/resource-identity"
 import { authorizeOperatorShell, OperatorShellDeniedError } from "./operator-shell-authority"
 import { bindContextAttachment, requireContextAttachment } from "./context-attachment-identity"
 import { bindTemplateContext, requireTemplateContext } from "./template-context-identity"
@@ -469,7 +471,11 @@ export namespace SessionPrompt {
    * @param template - Template string to resolve
    * @returns Array of prompt input parts
    */
-  export async function resolvePromptParts(template: string): Promise<PromptInput["parts"]> {
+  export async function resolvePromptParts(
+    template: string,
+    /** The session whose run records each reference, and who wrote the template. */
+    recordFor?: { sessionID: string; initiator: "model" | "operator" },
+  ): Promise<PromptInput["parts"]> {
     const parts: PromptInput["parts"] = [
       {
         type: "text",
@@ -490,6 +496,16 @@ export namespace SessionPrompt {
         const executor = fs.stat
         const binding = bindTemplateContext({ reference: name, filepath, executor })
         const requireStat = () => requireTemplateContext({ binding, reference: name, filepath, executor: fs.stat })
+        if (recordFor) {
+          await recordActionResolution({
+            governedBy: { sessionID: recordFor.sessionID },
+            subject: "template_reference",
+            path: "template_reference",
+            initiator: recordFor.initiator,
+            executor: { kind: "builtin", descriptor: requireStat() },
+            target: { paths: [filepath] },
+          })
+        }
         requireStat()
         const stats = await executor(filepath).catch((error) => {
           if (error instanceof CapabilityIdentityError) throw error
@@ -1595,6 +1611,20 @@ export namespace SessionPrompt {
     }
     using _ = defer(() => InstructionPrompt.clear(info.id))
 
+    // Record-only: what the shared lookup concludes about each prompt-time read.
+    // A delegated prompt carries its delegation receipt, so a model chose these
+    // reads; otherwise the session's user did.
+    const attachmentInitiator = input.assistantProvenance ? ("model" as const) : ("operator" as const)
+    const recordAttachment = (descriptor: unknown, filepath: string, alias?: string) =>
+      recordActionResolution({
+        governedBy: { sessionID: input.sessionID },
+        subject: "context_attachment",
+        path: "context_attachment",
+        initiator: attachmentInitiator,
+        executor: { kind: "builtin", alias, descriptor },
+        target: { paths: [filepath] },
+      })
+
     const parts = await Promise.all(
       (input.parts as any[]).map(async (part: any): Promise<MessageV2.Part[]> => {
         if (part.type === "file") {
@@ -1614,6 +1644,14 @@ export namespace SessionPrompt {
               },
             ]
 
+            await recordActionResolution({
+              governedBy: { sessionID: input.sessionID },
+              subject: "mcp_resource",
+              path: "mcp_resource",
+              initiator: attachmentInitiator,
+              executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", clientName, uri) },
+              source: { server: clientName, name: uri },
+            })
             try {
               const resourceContent = await MCP.readResource(clientName, uri)
               if (!resourceContent) {
@@ -1728,6 +1766,10 @@ export namespace SessionPrompt {
 
               const statFile = Bun.file(filepath)
               const statBinding = bindContextAttachment({ part, filepath, operation: "stat", executor: statFile })
+              await recordAttachment(
+                requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile }),
+                filepath,
+              )
               requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile })
               const stat = await statFile.stat().catch(() => undefined)
               requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile })
@@ -1752,6 +1794,16 @@ export namespace SessionPrompt {
                   // symbol in the document to get the full range
                   if (start === end) {
                     const symbolBinding = bindContextAttachment({ part, filepath, operation: "read", executor: LSP })
+                    await recordAttachment(
+                      requireContextAttachment({
+                        binding: symbolBinding,
+                        part,
+                        filepath,
+                        operation: "read",
+                        executor: LSP,
+                      }),
+                      filepath,
+                    )
                     requireContextAttachment({
                       binding: symbolBinding,
                       part,
@@ -1818,6 +1870,11 @@ export namespace SessionPrompt {
                       ask: async () => {},
                       authorize: async () => {},
                     }
+                    await recordAttachment(
+                      requireContextAttachment({ binding, part, filepath, operation: "read", executor: t }),
+                      filepath,
+                      "read",
+                    )
                     requireContextAttachment({ binding, part, filepath, operation: "read", executor: t })
                     const result = await t.execute(args, readCtx)
                     pieces.push({
@@ -1887,8 +1944,14 @@ export namespace SessionPrompt {
                 }
                 const result = await ListTool.init().then((t) => {
                   const binding = bindContextAttachment({ part, filepath, operation: "list", executor: t })
-                  requireContextAttachment({ binding, part, filepath, operation: "list", executor: t })
-                  return t.execute(args, listCtx)
+                  return recordAttachment(
+                    requireContextAttachment({ binding, part, filepath, operation: "list", executor: t }),
+                    filepath,
+                    "list",
+                  ).then(() => {
+                    requireContextAttachment({ binding, part, filepath, operation: "list", executor: t })
+                    return t.execute(args, listCtx)
+                  })
                 })
                 return [
                   {
@@ -1918,6 +1981,10 @@ export namespace SessionPrompt {
 
               const file = Bun.file(filepath)
               const mediaBinding = bindContextAttachment({ part, filepath, operation: "media", executor: file })
+              await recordAttachment(
+                requireContextAttachment({ binding: mediaBinding, part, filepath, operation: "media", executor: file }),
+                filepath,
+              )
               requireContextAttachment({ binding: mediaBinding, part, filepath, operation: "media", executor: file })
               FileTime.read(input.sessionID, filepath)
               return [
@@ -2749,6 +2816,18 @@ ${
     const raw = input.arguments.match(argsRegex) ?? []
     const args = raw.map((arg) => arg.replace(quoteTrimRegex, ""))
 
+    if (command.source === "mcp" && command.mcp) {
+      // Fetching an MCP prompt is a read from that server. Recorded, record
+      // only, before the fetch, under the identity it is minted with.
+      await recordActionResolution({
+        governedBy: { sessionID: input.sessionID },
+        subject: "mcp_prompt",
+        path: "mcp_prompt",
+        initiator: "operator",
+        executor: { kind: "mcp", descriptor: mcpReadDescriptor("prompt", command.mcp.server, command.mcp.name) },
+        source: { server: command.mcp.server, name: command.mcp.name },
+      })
+    }
     const templateCommand = await command.template
 
     const placeholders = templateCommand.match(placeholderRegex) ?? []
@@ -2793,6 +2872,15 @@ ${
           snippet,
         })
       shell.forEach(([, cmd], index) => requireShell(index, cmd))
+      // Record-only, before any snippet runs. The command's own permission ask
+      // below is what decides; this records what the shared lookup concludes.
+      await recordActionResolution({
+        governedBy: { sessionID: input.sessionID },
+        subject: "command_shell",
+        path: "command_shell",
+        initiator: "operator",
+        executor: { kind: "builtin", alias: "shell", descriptor: requireShell(0, shell[0][1]) },
+      })
       // Backtick-bang blocks in command markdown run raw shell. A hostile repo
       // can ship .dax/command/<name>.md, so typing /<name> used to execute
       // arbitrary commands with no approval card and no audit record. Gate them
@@ -2879,7 +2967,7 @@ ${
       throw error
     }
 
-    const templateParts = await resolvePromptParts(template)
+    const templateParts = await resolvePromptParts(template, { sessionID: input.sessionID, initiator: "operator" })
     const isSubtask = (agent.mode === "subagent" && command.subtask !== false) || command.subtask === true
     const parts = isSubtask
       ? [

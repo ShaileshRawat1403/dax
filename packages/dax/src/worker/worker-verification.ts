@@ -1,5 +1,8 @@
 import { createEvidenceReceipt, type EvidenceReceipt } from "@/sdlc/evidence-receipt"
 import { runCheck } from "@/sdlc/check-runner"
+import { listVerificationCommandCapabilities } from "@/sdlc/verification-identity"
+import { runSandboxedWorkerCheck } from "./worker-sandbox"
+import { recordActionResolution } from "@/capability/record-resolution"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { isWhitelistedVerificationCommand, parseCommandExecutable } from "@/tool/shell-whitelist"
 import { redactCheckResult } from "./evidence-redaction"
@@ -111,8 +114,23 @@ export async function verifyWorkerPatch(input: {
   const plan = buildWorkerVerificationChecks(input.commands, input.cwd)
   const execute = input.run ?? runCheck
   const checks = [...plan.rejected]
+  // The identity of the runner that will actually execute each check. A runner
+  // injected in place of the production ones has none and is recorded as such.
+  const runner = execute === runCheck ? "direct" : execute === runSandboxedWorkerCheck ? "sandboxed" : undefined
+  const descriptor = runner
+    ? listVerificationCommandCapabilities().find((item) => item.id === `verification.command.${runner}`)
+    : undefined
 
   for (const check of plan.checks) {
+    // Record only, before the check runs. The plan's allowlist decided which
+    // commands may run; this records what the shared lookup concludes.
+    await recordActionResolution({
+      governedBy: { runId: input.runId },
+      subject: `verification_${check.id}`,
+      path: "verification_command",
+      initiator: "system",
+      executor: { kind: "builtin", descriptor },
+    })
     try {
       checks.push(await execute(check))
     } catch (error) {

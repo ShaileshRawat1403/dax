@@ -4,7 +4,7 @@ import type { ExecutionContract } from "@/execution/execution-contract"
 import type { WorkflowContext, WorkflowExecutionResult, WorkflowStepResult } from "./types"
 import { DraftArtifactSchema, type DraftArtifact } from "./types"
 import { Identifier } from "@/id/id"
-import { requireFixedWorkflowCapability } from "./capability-identity"
+import { requireFixedWorkflowCapability, recordFixedWorkflowResolution } from "./capability-identity"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 
 const log = Log.create({ service: "repo-analyze" })
@@ -36,12 +36,13 @@ export class RepoAnalyzeWorkflow {
       this.execute !== RepoAnalyzeWorkflow.prototype.execute
     )
       throw new CapabilityIdentityError("changed")
-    requireFixedWorkflowCapability({
+    const workflowCapability = requireFixedWorkflowCapability({
       workflowClass: "repo_analyze",
       phase: "execute",
       contract: this.contract,
       runId: this.runId,
     })
+    await recordFixedWorkflowResolution({ descriptor: workflowCapability, phase: "execute", runId: this.runId })
     const stepResults: WorkflowStepResult[] = []
 
     log.info("starting repo_analyze workflow", { runId: this.runId })

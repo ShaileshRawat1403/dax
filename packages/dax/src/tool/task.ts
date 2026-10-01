@@ -67,7 +67,11 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
         }
       }
 
-      const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
+      // The model wrote this prompt; its references are recorded in the parent's run.
+      const promptParts = await SessionPrompt.resolvePromptParts(params.prompt, {
+        sessionID: ctx.sessionID,
+        initiator: "model",
+      })
 
       // Gate subagent spawning behind an explicit permission request so the
       // operator can review the task description and prompt before a new
