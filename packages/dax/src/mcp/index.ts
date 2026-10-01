@@ -236,6 +236,13 @@ export namespace MCP {
   }
 
   export const executionIdentity = mcpExecutionIdentity
+  /** This instance's valid MCP tools with their server, raw name and listed definition. Performs no discovery. */
+  export async function catalogEntries() {
+    const existing = state.peek()
+    if (!existing) return Object.freeze([])
+    return (await existing).catalog.entries()
+  }
+
   /** The configured server and the server's own name for a bound tool. */
   export const toolSummary = mcpToolSummary
 

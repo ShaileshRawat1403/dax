@@ -47,6 +47,7 @@ import {
   type RunIntervention,
 } from "./run-contract"
 import { buildProjectedRun, buildInterventionProjection, mapEventToNarrativeItem } from "./run-projections"
+import { hasGrantReview } from "@/execution/grant-review-barrier"
 import {
   authorityUnreadable,
   buildRunInspectorProjectionV1,
@@ -97,6 +98,9 @@ async function resumeCanonicalWorkflowApproval(
   approvalId: string,
   decision: "approve" | "deny",
 ): Promise<void> {
+  // A run under grant review has nothing to resume: its approval publishes a
+  // reviewed contract, which stays non-executable until stage 4.
+  if (await hasGrantReview(runId)) return
   const contract = await RunFactory.getContract(runId)
   if (contract?.workflowClass !== "worker_run") return
 

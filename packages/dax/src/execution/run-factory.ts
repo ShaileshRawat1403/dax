@@ -19,6 +19,9 @@ import { Lifecycle } from "@/bus/lifecycle"
 import { ShadowAuditor } from "./shadow-auditor"
 
 import { ContractGuardian } from "./contract-guardian"
+import { GrantReview, type GrantReviewRevision } from "@/capability/grant-review"
+import { proposeGrants } from "@/capability/grant-proposal"
+import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
 import { RunLifecycle } from "@/state/run-lifecycle"
 import {
   createEventAuthorityRun,
@@ -360,6 +363,54 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
     response,
     warnings,
   }
+}
+
+/**
+ * Stage 3: create a run that executes only under operator-reviewed capability
+ * grants. Not reachable from any route or configuration.
+ *
+ * The review is reserved before the run has any other state, so nothing can
+ * execute in it or give it a v1 contract. No contract is written to the
+ * guardian. The run waits on one approval whose subject commits to the exact
+ * proposal; approving and publishing it still leaves the run non-executable
+ * until grant enforcement exists.
+ */
+export async function createGrantReviewedRun(
+  input: RunFactoryInput,
+  options?: { writeScope?: { roots: string[]; reviewed: boolean } },
+): Promise<{ runId: string; revision: GrantReviewRevision }> {
+  const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
+  const session = await Session.create({ title, permission: sessionPermissionFromPreset(input.request) })
+  const { contract } = compileWithRunId(input, session.id)
+  contract.runId = session.id
+  await GrantReview.reserve(session.id, contract.contractId)
+  await Session.bindGoverningRun(session.id, session.id)
+
+  await createEventAuthorityRun(
+    session.id,
+    contract.contractId,
+    contract.runtimePolicy?.postconditions?.verificationRequired === true,
+    resolveGuardEnforcementMode(),
+  )
+  // The state machine reaches waiting_approval only through running, as the
+  // plan quality gate does. No execution starts: the barrier is already in place.
+  await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+  await transitionEventAuthority(session.id, "running", "execution_started", {})
+
+  const proposal = await proposeGrants({
+    runId: session.id,
+    contract,
+    snapshot: await captureReviewSnapshot(contract),
+    inputs: {
+      toolAllowlist: contract.toolAllowlist,
+      toolBlocklist: contract.toolBlocklist,
+      workflowClass: contract.workflowClass,
+      ...(contract.providerHint ? { providerHint: contract.providerHint } : {}),
+      ...(options?.writeScope ? { writeScope: options.writeScope } : {}),
+    },
+  })
+  const revision = await GrantReview.begin(session.id, proposal)
+  return { runId: session.id, revision }
 }
 
 export async function getContractForRun(runId: string): Promise<ExecutionContract | undefined> {

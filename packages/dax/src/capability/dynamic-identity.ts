@@ -165,6 +165,27 @@ export function createDynamicCatalog(namespace?: string) {
       ++latest
       for (const record of records.values()) record.active = false
     },
+    /**
+     * The currently valid enrolled entries' source and metadata, for binding a
+     * reviewed grant to what it was reviewed against. Empty once disposed.
+     */
+    entries(): readonly { alias: string; source: string; metadata: string; capability: CapabilityDescriptor }[] {
+      if (disposed) return Object.freeze([])
+      return Object.freeze(
+        [...records.values()].flatMap((record) =>
+          record.active && record.entry.capability
+            ? [
+                {
+                  alias: record.entry.alias,
+                  source: record.entry.source,
+                  metadata: record.entry.metadata,
+                  capability: record.entry.capability,
+                },
+              ]
+            : [],
+        ),
+      )
+    },
     /** Descriptors of currently valid enrolled entries; empty once disposed. */
     list(): readonly CapabilityDescriptor[] {
       if (disposed) return Object.freeze([])

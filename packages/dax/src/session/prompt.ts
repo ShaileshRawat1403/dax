@@ -71,6 +71,7 @@ import { decideContractTool } from "@/execution/execution-contract"
 import { permissionForExecutor } from "@/capability/native-alias"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
+import { assertNoGrantReview } from "@/execution/grant-review-barrier"
 import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
 import { createEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
 import {
@@ -183,6 +184,17 @@ export namespace SessionPrompt {
       .filter(Boolean)
       .join("\n\n")
     return text || "Continue the governed session."
+  }
+
+  /**
+   * A session whose governing run is under grant review does nothing: no
+   * message, no attachment read, no command, no shell, no model call. Checked
+   * first at every session entry point, ahead of any effect, so no path relies
+   * on reaching a contract read before its first effect.
+   */
+  async function assertSessionExecutable(sessionID: string) {
+    const session = await Session.get(sessionID)
+    await assertNoGrantReview(session.governingRunId ?? session.id)
   }
 
   /**
@@ -366,6 +378,7 @@ export namespace SessionPrompt {
   }
 
   export const prompt = fn(PromptInput, async (input) => {
+    await assertSessionExecutable(input.sessionID)
     if (await AntigravityConversation.isBound(input.sessionID)) return AntigravityConversation.prompt(input)
     if (input.model?.providerID === "worker:antigravity") return AntigravityConversation.startChat(input)
     if (input.tools && Object.keys(input.tools).length > 0) {
@@ -621,6 +634,7 @@ export namespace SessionPrompt {
     assistantProvenance: AssistantDelegationReceiptSchema.optional(),
   })
   export const loop = fn(LoopInput, async (input) => {
+    await assertSessionExecutable(input.sessionID)
     if (await AntigravityConversation.isBound(input.sessionID))
       throw new Error("AGY sessions cannot enter the native model loop.")
     const { sessionID, resume_existing, completionPolicy, assistantProvenance } = input
@@ -2428,6 +2442,7 @@ ${
   })
   export type ShellInput = z.infer<typeof ShellInput>
   export async function shell(input: ShellInput) {
+    await assertSessionExecutable(input.sessionID)
     if (await AntigravityConversation.isBound(input.sessionID))
       throw new Error("Direct shell execution is unavailable in an AGY governed conversation.")
     // Identity of the operator's direct shell, captured before awaited setup.
@@ -2757,6 +2772,7 @@ ${
    */
 
   export async function command(input: CommandInput) {
+    await assertSessionExecutable(input.sessionID)
     if (await AntigravityConversation.isBound(input.sessionID))
       throw new Error("Agent commands are unavailable in an AGY governed conversation. Use the AGY session controls.")
     log.info("command", input)

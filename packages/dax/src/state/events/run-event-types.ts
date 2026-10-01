@@ -6,6 +6,7 @@ import { MutationReceiptSchema } from "@/sdlc/mutation-receipt"
 import { ApprovalContextSchema, ApprovalSourceSchema } from "@/approval/approval-types"
 import { ScopedEnvelopeFields, validateSourceReferences, type JournalEventReference } from "./scope-envelope"
 import { ProjectFactApprovalSubjectSchema } from "./project-fact-approval"
+import { ContractGrantApprovalSubjectSchema } from "./contract-grant-approval"
 
 const closed = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape).strict()
 
@@ -740,6 +741,7 @@ const RunEventVariants = [
       context: ApprovalContextSchema.strict().optional(),
       source: ApprovalSourceSchema.optional(),
       projectFactSubject: ProjectFactApprovalSubjectSchema.optional(),
+      contractGrantSubject: ContractGrantApprovalSubjectSchema.optional(),
     }),
   }),
   z.object({

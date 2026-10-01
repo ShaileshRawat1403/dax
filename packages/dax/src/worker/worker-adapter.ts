@@ -462,6 +462,16 @@ function invocationDigest(invocation: WorkerInvocation): string {
   return createHash("sha256").update("dax.worker.invocation.v1\0").update(data).digest("hex")
 }
 
+/**
+ * The facts a reviewed worker grant is bound to: the profile's reviewed
+ * metadata and the binary path that would be launched. The binary's content is
+ * not attested.
+ */
+export function workerProfileFacts(workerId: ExternalWorkerId) {
+  const profile = WORKER_PROFILES[ExternalWorkerId.parse(workerId)]
+  return { profile: profileMetadata(profile).key, binary: Bun.which(profile.binary) ?? null }
+}
+
 /** Descriptive built-in provider identity; never a grant or sandbox receipt. */
 export function listBuiltinWorkerCapabilities(): readonly CapabilityDescriptor[] {
   return builtinWorkerCapabilities.list()

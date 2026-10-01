@@ -18,6 +18,8 @@ const RUN = "ses_authority_resolver"
 const native = (tool: string) => nativeCapabilities.require(`native.tool.${tool}`)
 const capability = (capabilityId: string) => ({ kind: "capability" as const, capabilityId })
 const run = { kind: "run" as const }
+// Run scope for a filesystem-capable capability needs the operator's explicit statement.
+const unconfined = { kind: "run" as const, acknowledgesNoFilesystemConfinement: true as const }
 
 function v1(configure?: (contract: ExecutionContract) => void) {
   const { contract } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, RUN)
@@ -29,7 +31,14 @@ function v1(configure?: (contract: ExecutionContract) => void) {
 
 function v2(grants: CapabilityGrant[], runId = RUN) {
   const { contract } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, runId)
-  return ExecutionContractV2.parse({ ...contract, schemaVersion: "v2", capabilityGrants: grants })
+  // Start from no tool lists so each test states the denials it relies on.
+  return ExecutionContractV2.parse({
+    ...contract,
+    toolAllowlist: [],
+    toolBlocklist: [],
+    schemaVersion: "v2",
+    capabilityGrants: grants,
+  })
 }
 
 function resolve(input: Partial<ResolveAuthorityInput> & Pick<ResolveAuthorityInput, "contract" | "executor">) {
@@ -65,7 +74,10 @@ describe("shared capability authority resolution", () => {
       resolve({ contract: v1(), executor: read }),
       resolve({ contract: v1((c) => (c.toolBlocklist = ["read"])), executor: read }),
       resolve({ contract: v2([]), executor: read }),
-      resolve({ contract: v2([{ subject: capability("native.tool.read"), decision: "allow", scope: run }]), executor: read }),
+      resolve({
+        contract: v2([{ subject: capability("native.tool.read"), decision: "allow", scope: unconfined }]),
+        executor: read,
+      }),
     ]
     expect(results.map((item) => item.decision)).toEqual(["allow", "allow", "deny", "deny", "allow"])
     for (const result of results) expect(result.enforcement).toBe("record_only")
@@ -133,7 +145,7 @@ describe("shared capability authority resolution", () => {
     // A grant for another capability is not a grant for this one.
     const other = v2([{ subject: capability("native.tool.write"), decision: "allow", scope: run }])
     expect(resolve({ contract: other, executor: read })).toMatchObject({ decision: "deny", reasonCode: "grant_absent" })
-    const asking = v2([{ subject: capability("native.tool.read"), decision: "ask", scope: run }])
+    const asking = v2([{ subject: capability("native.tool.read"), decision: "ask", scope: unconfined }])
     expect(resolve({ contract: asking, executor: read })).toMatchObject({ decision: "ask", grantScope: "run" })
     // There is no deny grant to write: absence is the denial.
     expect(
@@ -142,7 +154,7 @@ describe("shared capability authority resolution", () => {
   })
 
   test("a v2 grant is matched by capability identity, never by alias", () => {
-    const contract = v2([{ subject: capability("native.tool.read"), decision: "allow", scope: run }])
+    const contract = v2([{ subject: capability("native.tool.read"), decision: "allow", scope: unconfined }])
     const plugin = pluginCapability(["directory", "/tools/read.js", "default"]).descriptor
     expect(resolve({ contract, executor: read })).toMatchObject({ decision: "allow" })
     expect(resolve({ contract, executor: { kind: "plugin", alias: "read", descriptor: plugin } })).toMatchObject({
@@ -188,6 +200,62 @@ describe("shared capability authority resolution", () => {
     expect(resolve({ contract, executor: shell, target: { paths: [inRepo("src", "a.ts")] } })).toMatchObject({
       decision: "deny",
       reasonCode: "scope_unsupported",
+    })
+  })
+
+  test("run scope does not cover a filesystem-capable capability unless the operator accepted that", () => {
+    const silent = v2([{ subject: capability("native.tool.read"), decision: "allow", scope: run }])
+    expect(resolve({ contract: silent, executor: read })).toMatchObject({
+      decision: "deny",
+      reasonCode: "scope_unconfined_unacknowledged",
+    })
+    const stated = v2([{ subject: capability("native.tool.read"), decision: "allow", scope: unconfined }])
+    expect(resolve({ contract: stated, executor: read })).toMatchObject({ decision: "allow", grantScope: "run" })
+    // A capability that cannot be confined to a path needs no such statement.
+    const shell = { kind: "builtin" as const, alias: "shell", descriptor: native("shell") }
+    const opaque = v2([{ subject: capability("native.tool.shell"), decision: "allow", scope: run }])
+    expect(resolve({ contract: opaque, executor: shell })).toMatchObject({ decision: "allow" })
+  })
+
+  test("a blocked or unlisted tool stays denied under any grant, exact or by source", () => {
+    const blocked = mcpCapability(["mcp", "alpha", "dangerous"]).descriptor
+    const allowed = mcpCapability(["mcp", "alpha", "probe"]).descriptor
+    const contract = v2([
+      { subject: capability(blocked.id), decision: "allow", scope: run },
+      { subject: { kind: "mcp_source", server: "alpha", family: "tool" }, decision: "allow", scope: run },
+    ])
+    contract.toolBlocklist = ["alpha_dangerous"]
+    // Same server, same family grant, an exact grant too: the blocked one stays denied.
+    expect(
+      resolve({
+        contract,
+        executor: { kind: "mcp", alias: "alpha_dangerous", descriptor: blocked },
+        source: { server: "alpha", name: "dangerous" },
+      }),
+    ).toMatchObject({ decision: "deny", reasonCode: "contract_tool_denied" })
+    expect(
+      resolve({
+        contract,
+        executor: { kind: "mcp", alias: "alpha_probe", descriptor: allowed },
+        source: { server: "alpha", name: "probe" },
+      }),
+    ).toMatchObject({ decision: "allow" })
+    // A tool outside a non-empty allowlist is not reached by the source grant either.
+    const listed = v2([{ subject: { kind: "mcp_source", server: "alpha", family: "tool" }, decision: "allow", scope: run }])
+    listed.toolAllowlist = ["alpha_probe"]
+    expect(
+      resolve({
+        contract: listed,
+        executor: { kind: "mcp", alias: "alpha_dangerous", descriptor: blocked },
+        source: { server: "alpha", name: "dangerous" },
+      }),
+    ).toMatchObject({ decision: "deny", reasonCode: "contract_tool_denied" })
+    // The same holds for a native tool with an exact grant.
+    const readBlocked = v2([{ subject: capability("native.tool.read"), decision: "allow", scope: unconfined }])
+    readBlocked.toolBlocklist = ["read"]
+    expect(resolve({ contract: readBlocked, executor: read })).toMatchObject({
+      decision: "deny",
+      reasonCode: "contract_tool_denied",
     })
   })
 
@@ -237,7 +305,7 @@ describe("shared capability authority resolution", () => {
   })
 
   test("a v2 contract for another run, or a malformed one, denies", () => {
-    const grants: CapabilityGrant[] = [{ subject: capability("native.tool.read"), decision: "allow", scope: run }]
+    const grants: CapabilityGrant[] = [{ subject: capability("native.tool.read"), decision: "allow", scope: unconfined }]
     expect(resolve({ contract: v2(grants, "ses_other_run"), executor: read })).toMatchObject({
       decision: "deny",
       reasonCode: "contract_run_mismatch",

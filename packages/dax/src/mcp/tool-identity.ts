@@ -50,7 +50,16 @@ export function createMcpToolCatalog() {
   const epochs = new Map<string, number>()
   const listings = new Map<string, number>()
   const pending = new Map<string, AbortController>()
-  let published: { capability: CapabilityDescriptor; current(): void }[] = []
+  type Published = {
+    capability: CapabilityDescriptor
+    alias: string
+    server: string
+    name: string
+    /** The listed definition and timeout, canonicalized: what a review of this tool saw. */
+    definition: string
+    current(): void
+  }
+  let published: Published[] = []
   let disposed = false
 
   function invalidate(name: string) {
@@ -60,6 +69,20 @@ export function createMcpToolCatalog() {
 
   return {
     invalidate,
+    /** Valid published tools with the server, raw name and listed definition they came from. */
+    entries(): readonly Omit<Published, "current">[] {
+      if (disposed) return Object.freeze([])
+      return Object.freeze(
+        published.flatMap(({ current, ...entry }) => {
+          try {
+            current()
+            return [entry]
+          } catch {
+            return []
+          }
+        }),
+      )
+    },
     /** Descriptors whose catalog generation and connection epoch are both current. */
     list(): readonly CapabilityDescriptor[] {
       if (disposed) return Object.freeze([])
@@ -208,6 +231,10 @@ export function createMcpToolCatalog() {
       )
       published = candidates.map((candidate, index) => ({
         capability: candidate.identity.descriptor,
+        alias: candidate.alias,
+        server: candidate.connection.name,
+        name: candidate.definition.name,
+        definition: candidate.original,
         current() {
           checks[index]()
           candidate.currentEpoch()

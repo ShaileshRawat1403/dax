@@ -1,6 +1,11 @@
 import path from "node:path"
 import { relativeGuardPath } from "@/execution/runtime-guard-path"
-import { decideContractTool, ExecutionContractV2, type ExecutionContract } from "@/execution/execution-contract"
+import {
+  decideContractTool,
+  ExecutionContractV2,
+  isToolAllowedByContract,
+  type ExecutionContract,
+} from "@/execution/execution-contract"
 import { mcpReadDescriptor, MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE } from "@/mcp/resource-identity"
 import { CapabilityDescriptor } from "./capability-types"
 import { mcpCapability, MCP_TOOL_NAMESPACE } from "./dynamic-identity"
@@ -59,6 +64,7 @@ export type CapabilityResolutionReason =
   | "scope_unsupported"
   | "scope_unproven"
   | "scope_outside"
+  | "scope_unconfined_unacknowledged"
 
 export type AuthorityTarget = { paths: readonly string[] } | { agent: string }
 
@@ -158,6 +164,11 @@ export function resolveCapabilityAuthority(input: ResolveAuthorityInput): Capabi
   const deny = (reasonCode: CapabilityResolutionReason): CapabilityResolution => ({ ...v2, decision: "deny", reasonCode })
   if (!contract.success) return deny("contract_invalid")
   if (contract.data.runId !== input.authorityRunId) return deny("contract_run_mismatch")
+  // The contract's own tool lists still bind: a selector or family grant can
+  // never revive a tool the contract blocks, nor reach one it does not allow.
+  if (input.executor.alias !== undefined && !isToolAllowedByContract(contract.data, input.executor.alias)) {
+    return deny("contract_tool_denied")
+  }
   if (input.executor.descriptor === undefined) return deny("capability_unenrolled")
   if (!descriptor) return deny("descriptor_invalid")
 
@@ -182,7 +193,14 @@ export function resolveCapabilityAuthority(input: ResolveAuthorityInput): Capabi
   if (!grant) return deny("grant_absent")
 
   const matched = (): CapabilityResolution => ({ ...v2, decision: grant.decision, grantScope: grant.scope.kind })
-  if (grant.scope.kind === "run") return matched()
+  if (grant.scope.kind === "run") {
+    // Run scope confines nothing to a path. For a capability that can be
+    // confined, it holds only when the operator said so explicitly.
+    if (descriptor.scopeSupport === "filesystem" && grant.scope.acknowledgesNoFilesystemConfinement !== true) {
+      return deny("scope_unconfined_unacknowledged")
+    }
+    return matched()
+  }
 
   if (grant.scope.kind === "delegation") {
     if (descriptor.scopeSupport !== "delegation") return deny("scope_unsupported")

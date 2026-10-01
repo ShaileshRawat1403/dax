@@ -6,6 +6,7 @@ import { RunStore } from "@/state/run-store"
 import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
 import { acquireRunLock } from "@/util/fs-lock"
 import { Identifier } from "@/id/id"
+import { assertNoGrantReview } from "./grant-review-barrier"
 
 const log = Log.create({ service: "contract-guardian" })
 
@@ -23,6 +24,9 @@ export class ContractImmutabilityError extends Error {
 
 // Read contract
 export async function readContract(runId: string): Promise<ExecutionContract | null> {
+  // A run under grant review has no executable contract. Its absence must not
+  // read as an ungoverned run, and nothing may write a v1 contract in its place.
+  await assertNoGrantReview(runId)
   try {
     const contract = await Storage.read<unknown>(contractPath(runId))
     if (!isValidContract(contract)) {

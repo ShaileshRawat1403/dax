@@ -7,7 +7,17 @@ import { CapabilityDescriptor } from "./capability-types"
  * guards and permission checks still apply to every allowed invocation.
  */
 export const CapabilityGrantScope = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("run") }).strict(),
+  z
+    .object({
+      kind: z.literal("run"),
+      /**
+       * Required before run scope can cover a filesystem-capable capability. Run
+       * scope confines nothing to a path; only an operator states that it accepts
+       * this, and the proposal never sets it.
+       */
+      acknowledgesNoFilesystemConfinement: z.literal(true).optional(),
+    })
+    .strict(),
   z.object({ kind: z.literal("filesystem"), roots: z.array(z.string().min(1)).min(1) }).strict(),
   z.object({ kind: z.literal("delegation"), agents: z.array(z.string().min(1)).min(1) }).strict(),
 ])

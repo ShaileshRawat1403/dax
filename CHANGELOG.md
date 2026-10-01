@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record is marked record-only and changes nothing about what runs; the
   enforced decision is still the authorization recorded separately. A grant
   schema and a v2 contract format are defined and inactive.
+- Operator review of a run's capability grants, reachable from tests only. A
+  proposal derived from the compiled contract and a capture of this instance's
+  catalog grants exact identities, is bound to the implementations it names, and
+  is approved through one digest-bound approval request per revision. Approval
+  publishes the exact reviewed contract; the run stays non-executable until grant
+  enforcement exists. No route or configuration reaches it.
 
 ### Changed
 
@@ -83,6 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Compatibility
 
+- A run under grant review carries an `approval_requested` event with a
+  `contractGrantSubject`, which earlier binaries reject. Such runs are created
+  only by tests.
 - Governed runs now append a record-only `capability_resolution_recorded` event
   beside tool invocations and operator shell commands. A journal containing it
   cannot be read by an earlier binary, including the published v1.5.0; keep

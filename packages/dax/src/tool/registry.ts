@@ -198,6 +198,11 @@ export namespace ToolRegistry {
     async (s) => s.catalog.dispose(),
   )
 
+  /** This instance's valid loader and opt-in entries with their source and metadata. Performs no discovery. */
+  export function catalogEntries() {
+    return state.peek()?.catalog.entries() ?? Object.freeze([])
+  }
+
   /** This instance's currently valid loader and opt-in descriptors. Creates no state and performs no discovery. */
   export function capabilities(): readonly CapabilityDescriptor[] {
     return state.peek()?.catalog.list() ?? Object.freeze([])
@@ -599,6 +604,11 @@ export namespace ToolRegistry {
       ...builtins.map((info) => ({ info, kind: "builtin" as const })),
       ...custom.map((info) => ({ info, kind: "plugin" as const })),
     ]
+  }
+
+  /** Every tool in dispatch order with its executor kind, for capturing a grant review. */
+  export async function reviewOrder() {
+    return all().then((x) => x.map((t) => ({ alias: t.info.id, kind: t.kind })))
   }
 
   export async function ids() {

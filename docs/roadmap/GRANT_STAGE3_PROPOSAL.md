@@ -72,79 +72,110 @@ exact grant set an operator approved. It does not turn enforcement on; that is s
   architecture review wires it.
 - The shared lookup keeps recording, record only. Stage 3 adds no enforcement.
 
+### Review amendments, binding
+
+Astra reviewed this proposal at `52898e52221592e0c159c1086e609e01f01b4234` and
+authorized implementation with five amendments. They replace the earlier text of steps
+1 to 3 and are reflected below. Decisions 2 to 5 were accepted; decision 1 is amended.
+
+| Finding on the proposal | Amendment |
+|---|---|
+| A capability ID names a logical source, not an implementation: a plugin file edited in place keeps its ID | Approval binds the implementation as well as the identity |
+| A per-server MCP family grant could match a tool the contract blocks | The proposal grants exact identities; a family grant never revives a blocked tool |
+| An approved v2 contract, once stored, needs a barrier until stage 4 | Reviewed storage is separate from executable contract access, and every entry point refuses the run |
+| Missing filesystem evidence defaulted to run scope | The grant is omitted unless the operator explicitly accepts unconfined run scope |
+| Approval publication needed defined recovery | Publication is serialized, validated against the current request, and fails closed when uncertain |
+
 ### Step 1: a proposal, which is data
 
-`proposeGrants` derives a candidate grant set from inputs that are all known at run
-creation and all recorded:
+`proposeGrants` derives a candidate from inputs known at run creation:
 
 | Input | What it contributes |
 |---|---|
 | The compiled v1 contract's allowlist and blocklist | Which aliases the run may use at all |
-| A capability catalog snapshot taken at proposal time | The identity each allowed alias would select, so a grant names `native.tool.read`, not `read` |
+| A capability catalog snapshot | The identity each allowed alias would select, so a grant names `native.tool.read`, not `read` |
 | The workflow class, provider hint and verification plan | `workflow.<class>.<phase>`, `worker.profile.<id>` and `verification.command.<runner>` grants |
-| `runtimePolicy.writeScope`, only when its provenance is reviewed | Filesystem roots for `edit`, `write` and `apply_patch` grants; otherwise run scope |
+| `runtimePolicy.writeScope`, only when its provenance is reviewed | Filesystem roots for filesystem-capable grants |
 
-Rules the derivation keeps:
+Rules:
 
-- An alias the contract blocks yields no grant. An alias held only by a non-native
-  executor yields a grant for that executor's identity and is marked for the reviewer.
-- A legacy executor has no identity and yields no grant; it is listed as excluded so the
-  reviewer sees what the run cannot do.
-- An MCP family yields a source selector for each configured server, never a grant by
-  display alias.
-- Delegation grants name agents only when the contract names them. There is no
-  wildcard.
-- The proposal is deterministic for its inputs, and its inputs are recorded with it, so a
-  reviewer can reproduce it.
+- An alias the contract blocks yields no grant, and stays blocked under v2 whatever other
+  grant exists.
+- MCP tools the contract allows are granted by their exact identity. The proposal never
+  adds a server or family selector; an operator may add one in review, where its breadth
+  is shown, and it still cannot revive a blocked tool.
+- A filesystem-capable capability without reviewed scope evidence is not granted. It is
+  listed as needing a scope. Only an operator edit can grant it run scope, and only with
+  an explicit statement that run scope provides no filesystem confinement.
+- A legacy executor has no identity and is listed as excluded.
+- A delegation capability is listed as needing scope: a v1 contract names no agents.
+- MCP resource reads and prompt fetches have no enumerable identity. Each configured
+  server is listed for the reviewer, who may add a source selector; none is proposed.
 
-A proposal authorizes nothing. It cannot be read by the guardian.
+### Step 2: binding the implementation, not only the identity
 
-### Step 2: review bound to the exact content
+Every granted subject is recorded with an implementation binding: a digest over the facts
+that make that capability what it is now. Only granted subjects are bound, so adding or
+listing unrelated tools changes nothing.
 
-The run is created in `waiting_approval` with one approval request whose subject commits
-to the complete candidate v2 contract, grants included:
+| Family | Bound facts |
+|---|---|
+| Native tool, session capability, fixed workflow, verification runner | DAX version and capability ID; for verification, the runner and the planned commands |
+| Loader or opt-in custom tool | Its source, its declared metadata and schema, and the content digest of its entry file where local |
+| MCP tool | The server's configured transport and command or URL, the names of its environment variables, and the tool's listed definition |
+| MCP source selector | The server's configured transport and command or URL, and its environment variable names |
+| Worker profile | The profile's reviewed metadata and the resolved binary path |
+
+The proposal, its derivation inputs and these bindings are committed together. Checking a
+binding later gives one of three answers: unchanged, changed, or unavailable (for example
+a server not connected). Changed or unavailable means the approval no longer covers what
+would run, and the run needs a new review. Not covered: the content of a worker's external
+binary, imports outside a plugin's entry file, and any attestation of a remote server's
+implementation.
+
+### Step 3: review bound to the exact content
+
+The review is stored separately from executable contracts, in revisions. Each revision
+has one approval request whose subject commits to the candidate, the derivation inputs and
+the bindings:
 
 ```
 contractGrantSubject: {
   kind: "contract_grant_set",
-  runId, contractId,
+  runId, contractId, revision,
   canonicalization: "sorted-json-v1",
-  digest: "sha256:<over the full candidate ExecutionContractV2>"
+  digest: "sha256:<over candidate, inputs and bindings>"
 }
 ```
 
-This follows the existing digest-bound pattern for project facts
-(`state/events/project-fact-approval.ts`): the run log carries the commitment, not a copy.
+Publication, under the run lock:
 
-- **Approved** with a subject whose digest equals the candidate: the guardian writes that
-  exact v2 contract, and only then. It is immutable from that point.
-- **Approved** with any other digest, or a stale request: refused; nothing is written.
-- **Denied**, expired or never answered: no v2 contract exists and the run does not
-  start. There is no fallback to v1 for an opted-in run.
-- **Edited before approval**: an edit is a new candidate with a new digest and a new
-  request. The old request cannot approve it.
+- Approved, for the current revision's request, with matching run, contract, revision and
+  digest, and every grant's binding unchanged in a fresh capture: the approved artifact is
+  written. Only then. A changed or unavailable binding requires a new revision.
+- A new revision supersedes the previous one; its request is closed as expired in the same
+  locked step, and an approval of it publishes nothing.
+- Denied, expired or never answered: nothing is published.
+- A repeated approval of an already published revision is a no-op, never a second
+  publication.
+- Publication writes an intent before the artifact and a completion after it. An intent
+  without a completion after a restart is uncertain; it is never treated as published, and
+  the run needs a new revision.
 
-The reviewer sees each grant with the executor identity it names, its decision and its
-scope, the excluded legacy executors, and every alias that is held by a non-native
-executor.
+### Step 4: the barrier until stage 4
 
-### Step 3: what the approved contract means for execution
+A run with a grant review is non-executable in stage 3, whatever the review's state,
+including approved and published. The guardian refuses its authority; there is no v1
+contract to fall back to, and the run's session cannot be given one. Prompting the
+session, running a command or operator shell in it, dispatching a tool, and starting or
+resuming its workflow each fail before any provider call or effect.
 
-Recorded in stage 3, enforced in stage 4:
+### Step 5: what the approved contract will mean for execution
 
-- **Executor binding.** A grant names a capability identity. If the executor under an
-  alias changes after approval, its identity changes, the grant does not match, and the
-  action is denied as `grant_absent`. There is no retargeting.
-- **Scope binding.** A filesystem grant covers only canonical paths inside its roots; an
-  unprovable target is denied as `scope_unproven`. A delegation grant covers only the
-  named agents. A source selector covers only its server and family.
-- **Missing grant.** Denied. Never a prompt.
-- **`ask` grant.** Asked through the existing approval card, which shows the capability
-  and the grant. A remembered "always" applies only to the same contract digest, the
-  same grant, the same executor identity and the same scope, and is never written back
-  into the contract.
-- **Children.** A delegated child resolves against its parent's approved contract and
-  cannot hold a grant the parent lacks.
+Recorded now, enforced in stage 4: executor binding by identity and implementation, no
+retargeting; scope binding; missing grant denies; `ask` only by an explicit grant; a
+remembered "always" bound to contract digest, grant, executor identity and scope; a child
+never holds a grant its parent lacks.
 
 ### Legacy behavior, explicit
 
@@ -158,22 +189,10 @@ Recorded in stage 3, enforced in stage 4:
 | V1 run resumed for consequential work in a v2 context | Requires a new opted-in run with its own reviewed contract. The v1 contract is never mutated or upgraded |
 | Published v1.5.0 | Cannot read development journals that contain these records, as already documented |
 
-### Decisions requested
+### Decisions
 
-1. **Derivation.** Adopt the input table above as the only source of proposed grants,
-   with run scope wherever reviewed scope evidence is absent. Recommended.
-2. **Opt-in location.** A field on the run request, unexposed until stage 4. No
-   configuration key. Recommended.
-3. **Review surface.** The existing approval request with the new digest-bound subject,
-   rather than a new approval channel. Recommended.
-4. **Operator-initiated paths under v2.** Attachments, template references, MCP resource
-   reads, MCP prompt fetches and the operator and command shells are operator actions.
-   Options: require grants for them like any other path, or keep them on their existing
-   rules and record them. Recommended: require grants, because an operator-reviewed
-   contract that does not cover the operator's own reads is a gap, and a denial is
-   visible and immediate. This changes behavior for opted-in runs only.
-5. **Graph operators.** They have no journal today. Leave them outside v2 until they run
-   inside a governed run. Recommended.
+All five were reviewed. Decisions 2 to 5 were accepted as proposed, including grants for
+operator-initiated paths in opted-in v2 runs. Decision 1 was amended as described above.
 
 ### Acceptance evidence for stage 3
 
@@ -186,9 +205,41 @@ Recorded in stage 3, enforced in stage 4:
 - After approval the contract cannot be changed, and replay reproduces it.
 - A stored v1 contract, an interactive session and a run without the opt-in behave
   exactly as before, shown by the existing stage 1 and stage 2 regressions unchanged.
-- The guardian still refuses any v2 contract that did not come through an approved
-  review.
+- The guardian refuses every run with a grant review, approved or not, and the prompt,
+  command, operator shell, tool dispatch and workflow entry points produce no provider
+  call and no effect for it.
+- A blocked tool and an allowed tool on the same MCP server: the blocked one stays denied
+  under any grant.
+- Publication under concurrent revisions, duplicate approval, denial, expiry and an
+  interrupted publication.
 - Nothing is reachable from a route or configuration.
+
+### Stage 3 as delivered
+
+| Part | Where |
+|---|---|
+| Proposal, bindings, binding check | `capability/grant-proposal.ts` |
+| Capture of this instance's catalog, without secret values | `capability/grant-review-snapshot.ts` |
+| Review store, revisions, publication | `capability/grant-review.ts` |
+| Barrier | `execution/grant-review-barrier.ts`, checked first by every contract read and at the top of `prompt`, `loop`, `command` and `shell` |
+| Approval subject | `state/events/contract-grant-approval.ts`, carried by `approval_requested` |
+| Unexposed creation | `createGrantReviewedRun` in `execution/run-factory.ts` |
+| Resolver amendments | `capability/authority.ts`: under v2 the contract's tool lists still bind, and run scope covers a filesystem-capable capability only with `acknowledgesNoFilesystemConfinement` |
+| Evidence | `conformance/grant-stage3.test.ts`, additions to `capability/authority.test.ts` |
+
+Choices and limits to review:
+
+| Issue | Location | Severity |
+|---|---|---|
+| The run state machine reaches `waiting_approval` only through `running`, so a reviewed run passes through `running` with a start time, and approval returns it to `running`, although nothing can execute. Changing the state machine is an authority change and was not made | `execution/run-factory.ts` `createGrantReviewedRun` | Medium |
+| The opt-in is a factory function, not a field on the run request, so the request schema is unchanged and nothing can reach it from a route | `execution/run-factory.ts` | Info |
+| Verification runners are not captured at review: the runner is chosen when a check runs, so no verification grant is proposed | `capability/grant-review-snapshot.ts` | Low |
+| A plugin from a package, not a local file, binds its source and metadata but not content | `capability/grant-review-snapshot.ts` | Low |
+| The session entry checks are, today, redundant with the guardian barrier, which the AGY binding check reaches first; the negative controls show the guardian barrier is the load-bearing one | `session/prompt.ts` | Info |
+| The run inspector reports a reviewed run as `execution_contract_unreadable` rather than naming the review | `server/run-gateway.ts` | Low |
+
+Bindings are checked at publication against a fresh capture of this instance. Harmless
+catalog changes, such as a new unrelated tool, leave them unchanged.
 
 ### Not in stage 3
 
