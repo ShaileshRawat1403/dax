@@ -331,14 +331,46 @@ An operator action has no authorization event. Its shadow record covers the cont
 only; a permission rule that refuses it is a separate, enforced refusal recorded on
 the session's tool part.
 
-### Not recorded yet
+### Second delivery: the remaining paths
+
+Every remaining DAX-dispatched path now records its resolution with the same
+standalone event, under the actual executor's identity and the actual initiator.
+
+| Path | Recorded where | Identity | Initiator |
+|---|---|---|---|
+| Command-template shell | Before any snippet runs | `session.command.shell` | operator |
+| Prompt attachment stat, read, symbol read, list, media | Before each read | `session.context.attachment.*` | operator, or model for a delegated prompt |
+| Template reference | Before its stat | `session.context.template.stat` | operator for a command, model for a task prompt |
+| MCP resource read | Before the read | `mcp.resource.v1.*`, minted from server and URI | as for attachments |
+| MCP prompt fetch | Before the fetch | `mcp.prompt.v1.*`, minted from server and prompt name | operator |
+| Fixed workflow phase | After its identity check, before its effects | `workflow.<class>.<phase>` | system |
+| Worker launch | Before the worker process starts | `worker.profile.<id>` | system |
+| Verification command | Before each check | `verification.command.direct` or `.sandboxed`; a runner injected in their place is recorded as unenrolled | system |
+
+A delegated prompt is recognized by the delegation receipt it carries; any other user
+message is attributed to the operator. A workflow, a worker and a verification check
+are DAX orchestration and are attributed to the system.
+
+A v1 contract lists model tools by alias and has no name for most of these paths. Where
+it has none, the resolution says so: `allow` with reason `v1_contract_has_no_selector`,
+not an allow or a deny inferred from the tool list. Where the executor is a native tool
+under a name the contract can list, such as an attachment read through the built-in
+`read`, the stage 1 rule applies. The enforced path is unchanged in both cases: an
+attachment read under a contract that blocks `read` is still performed, as before, and
+the record shows the shadow denial.
+
+These paths wrote nothing to the journal for the action before, so their record is
+isolated. A failure to resolve or write it, including an unreadable governing reference
+or journal, is logged and the action proceeds exactly as it would have.
+
+### Not recorded
 
 | Path | Why |
 |---|---|
-| Command-template shell, attachments, template references, MCP resources and prompts | Not wired in this delivery |
-| Fixed workflows, workers, verification commands | Not wired in this delivery |
-| Graph operators from `dax workflow` and `dax explore` | Operator-direct with no run journal to write to |
-| Any dispatch outside a canonical run | No journal exists; nothing is recorded, as before |
+| Graph operators from `dax workflow` and `dax explore` | Operator-direct, with no run journal |
+| A session or run with no canonical journal | No journal exists; nothing is recorded, by design |
+| A run whose contract is not stored | Nothing to resolve against; nothing is recorded |
+| Dispatch outside a canonical run | No journal; as before |
 
 ### Compatibility
 
