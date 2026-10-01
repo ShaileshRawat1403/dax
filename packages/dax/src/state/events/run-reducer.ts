@@ -1506,9 +1506,14 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         record.decidedAt = payload.resolvedAt ?? event.occurredAt
         record.comment = payload.comment ?? null
 
-        if (state.pendingApprovalIds.length === 0 && record.approvalType === CONTRACT_GRANT_APPROVAL_TYPE) {
-          // A decided grant review starts nothing. The run returns to the
-          // queue; only an actual dispatch may record it as running.
+        // Decided by the run's own durable history, not by whichever approval
+        // resolved last: a run that has ever requested grant review and has
+        // never started returns to the queue. Only an actual start may record
+        // it as running.
+        const unstartedGrantReview =
+          state.startedAt === null &&
+          state.approvals.some((approval) => approval.approvalType === CONTRACT_GRANT_APPROVAL_TYPE)
+        if (state.pendingApprovalIds.length === 0 && unstartedGrantReview) {
           if (!isTerminalStatus(state.status)) state.status = "queued"
         } else if (state.pendingApprovalIds.length === 0) {
           if (!isLegalTransition(state.status, "running")) {

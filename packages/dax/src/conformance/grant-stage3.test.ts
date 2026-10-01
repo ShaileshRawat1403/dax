@@ -28,7 +28,13 @@ import { Session } from "@/session"
 import { LLM } from "@/session/llm"
 import { authorizeOperatorShell } from "@/session/operator-shell-authority"
 import { SessionPrompt } from "@/session/prompt"
-import { addApprovalEvent, appendEventOnly, resolveApprovalEvent } from "@/state/events/event-transitions"
+import {
+  addApprovalEvent,
+  appendEventOnly,
+  createEventAuthorityRun,
+  resolveApprovalEvent,
+  transitionEventAuthority,
+} from "@/state/events/event-transitions"
 import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { Storage } from "@/storage/storage"
 
@@ -566,6 +572,54 @@ describe("a grant review never claims execution", () => {
       expect(state?.status).toBe("queued")
       expect(state?.startedAt ?? null).toBeNull()
       expect((await readRunEvents(runId)).some((event) => event.type === "execution_started")).toBe(false)
+    })
+  })
+
+  // Every order and outcome of a grant review overlapping an ordinary approval.
+  const orders = [
+    ["grant", "ordinary"],
+    ["ordinary", "grant"],
+  ] as const
+  const outcomes = ["approved", "rejected", "expired"] as const
+  for (const order of orders) {
+    for (const grantDecision of outcomes) {
+      for (const otherDecision of outcomes) {
+        test(`resolving ${order.join(" then ")} (${grantDecision}, ${otherDecision}) leaves an unstarted review queued, across a restart`, async () => {
+          let runId = ""
+          await within(async () => {
+            const created = await reviewedRun()
+            runId = created.runId
+            await addApprovalEvent(runId, "apr_ordinary_overlap", { approvalType: "tool" })
+            const decisions = { grant: grantDecision, ordinary: otherDecision }
+            const ids = { grant: created.revision.approvalId, ordinary: "apr_ordinary_overlap" }
+            await resolveApprovalEvent(runId, ids[order[0]], decisions[order[0]], "operator")
+            expect((await projectRunStateFromEvents(runId))?.status).toBe("waiting_approval")
+            await resolveApprovalEvent(runId, ids[order[1]], decisions[order[1]], "operator")
+          })
+          await Instance.disposeAll()
+          await within(async () => {
+            // Replayed from the log alone.
+            const state = await projectRunStateFromEvents(runId)
+            expect(state?.status).toBe("queued")
+            expect(state?.startedAt ?? null).toBeNull()
+            expect((await readRunEvents(runId)).some((event) => event.type === "execution_started")).toBe(false)
+          })
+        })
+      }
+    }
+  }
+
+  test("a run that actually started keeps ordinary approval behavior", async () => {
+    await within(async () => {
+      const session = await Session.create({ title: "ordinary" })
+      const { contract: compiled } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, session.id)
+      await ContractGuardian.create(session.id, compiled)
+      await createEventAuthorityRun(session.id, compiled.contractId)
+      await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+      await transitionEventAuthority(session.id, "running", "execution_started", {})
+      await addApprovalEvent(session.id, "apr_ordinary_only", { approvalType: "tool" })
+      await resolveApprovalEvent(session.id, "apr_ordinary_only", "rejected", "operator")
+      expect((await projectRunStateFromEvents(session.id))?.status).toBe("running")
     })
   })
 
