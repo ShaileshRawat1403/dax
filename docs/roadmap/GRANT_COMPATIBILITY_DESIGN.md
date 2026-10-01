@@ -379,6 +379,11 @@ contains it cannot be read by a binary that predates it, including the published
 v1.5.0. That was already true of development journals. Earlier journals contain no
 such event and replay unchanged.
 
+## Next
+
+Stage 2 is summarized, and stage 3 is proposed, in
+[GRANT_STAGE3_PROPOSAL.md](GRANT_STAGE3_PROPOSAL.md).
+
 ## Acceptance evidence planned
 
 - A plugin named `read` is denied under a read-only contract, through the real
