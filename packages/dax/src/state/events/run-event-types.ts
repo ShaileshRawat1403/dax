@@ -1,3 +1,4 @@
+import { AUTHORITY_PATHS } from "@/capability/authority-paths"
 import { z } from "zod"
 import { CheckResult } from "@/sdlc/check-types"
 import { EvidenceReceipt } from "@/sdlc/evidence-receipt"
@@ -163,7 +164,7 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   /** The action this is about: a native invocation ID, or an operator action's call ID. */
   subjectId: z.string().min(1),
   enforcement: z.literal("record_only"),
-  path: z.enum(["native_tool", "batch_leaf", "mcp_tool", "operator_shell"]),
+  path: z.enum(AUTHORITY_PATHS),
   initiator: z.enum(["model", "operator", "system"]),
   /** The selected executor's source-qualified identity. Absent for an executor with no descriptor. */
   capabilityId: z.string().min(1).optional(),

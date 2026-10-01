@@ -1,3 +1,4 @@
+import { INVOCATION_PATHS } from "@/capability/authority-paths"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
 /**
  * The state machine is defined once, in run-state.ts.
@@ -688,7 +689,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (state.capabilityResolutions.some((record) => record.subjectId === payload.subjectId)) {
           throw new Error(`Capability resolution already recorded: ${payload.subjectId}`)
         }
-        if (payload.path !== "operator_shell") {
+        if ((INVOCATION_PATHS as readonly string[]).includes(payload.path)) {
           const invocation = state.invocations[payload.subjectId]
           if (!invocation) {
             throw new Error(`Capability resolution references unknown invocation: ${payload.subjectId}`)

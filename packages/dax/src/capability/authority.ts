@@ -5,6 +5,7 @@ import { mcpReadDescriptor, MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE } from 
 import { CapabilityDescriptor } from "./capability-types"
 import { mcpCapability, MCP_TOOL_NAMESPACE } from "./dynamic-identity"
 import type { CapabilityGrant } from "./grant"
+import type { AuthorityPath } from "./authority-paths"
 
 /**
  * One resolution of authority for one action, for every execution path.
@@ -40,13 +41,14 @@ export type CapabilityResolution = {
   grantScope?: CapabilityGrant["scope"]["kind"]
 }
 
-export type AuthorityPath = "native_tool" | "batch_leaf" | "mcp_tool" | "operator_shell"
+export { ACTION_PATHS, AUTHORITY_PATHS, INVOCATION_PATHS, type AuthorityPath } from "./authority-paths"
 
 export type CapabilityResolutionReason =
   // v1 and no-contract bases: the existing rules, restated.
   | "no_governing_contract"
   | "contract_tool_denied"
   | "contract_alias_executor_mismatch"
+  | "v1_contract_has_no_selector"
   // v2 basis.
   | "contract_invalid"
   | "contract_run_mismatch"
@@ -70,8 +72,12 @@ export type ResolveAuthorityInput = {
   contract: ExecutionContract | ExecutionContractV2 | null
   /** The run whose contract this is. Required to match for a v2 decision. */
   authorityRunId?: string
-  /** The selected executor. `descriptor` is absent for an executor that was never enrolled. */
-  executor: { kind: "builtin" | "plugin" | "mcp"; alias: string; descriptor?: unknown }
+  /**
+   * The selected executor. `descriptor` is absent for an executor that was never
+   * enrolled. `alias` is the tool name a v1 contract can list it under; a path a
+   * v1 contract has no name for, such as a workflow or a worker, has none.
+   */
+  executor: { kind: "builtin" | "plugin" | "mcp"; alias?: string; descriptor?: unknown }
   /** Where an MCP identity came from. Needed for a grant that selects by source. */
   source?: McpSource
   target?: AuthorityTarget
@@ -124,6 +130,18 @@ export function resolveCapabilityAuthority(input: ResolveAuthorityInput): Capabi
   }
 
   if (input.contract.schemaVersion !== "v2") {
+    // A v1 contract lists tools by alias and nothing else. A path it has no
+    // name for was never consulted by it, and the lookup says exactly that
+    // rather than inventing an allow or a deny from the tool list.
+    if (input.executor.alias === undefined) {
+      return {
+        ...base,
+        basis: "v1_contract",
+        contractId: input.contract.contractId,
+        decision: "allow",
+        reasonCode: "v1_contract_has_no_selector",
+      }
+    }
     const decision = decideContractTool(input.contract, input.executor.alias, { kind: input.executor.kind })
     return {
       ...base,
