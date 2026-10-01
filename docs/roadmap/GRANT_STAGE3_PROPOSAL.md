@@ -261,6 +261,9 @@ Corrections after review at `587e83c`:
   a reviewed run is never recorded as started. Only `capability_grant_review` requests
   carrying a `contractGrantSubject` get this; ordinary approvals are unchanged.
 
+Stage 3 was accepted, inactive, at `60b56dd24723178ed3f40def27fcbbc14c770120`. Stage 4 is
+proposed in [GRANT_STAGE4_PROPOSAL.md](GRANT_STAGE4_PROPOSAL.md).
+
 ### Not in stage 3
 
 Enforcement of grant decisions, exposing the opt-in, interactive-session review,
