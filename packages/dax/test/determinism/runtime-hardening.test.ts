@@ -240,12 +240,16 @@ describe("runtime hardening", () => {
   })
 
   test("allows approved sensitive paths when approval signal explicitly references the path", async () => {
+    // The repository's own CI file, from the repository root, wherever the
+    // suite runs from: cwd-relative targets name a different, unclassified
+    // path when the suite is run from the package directory.
+    const repoRoot = path.resolve(import.meta.dir, "../../../..")
     await Instance.provide({
-      directory: process.cwd(),
+      directory: repoRoot,
       fn: async () => {
         const target = ".github/workflows/ci.yml"
         const session = await setupGuardedSession({
-          cwd: process.cwd(),
+          cwd: repoRoot,
           targetFiles: [target],
         })
 
@@ -287,7 +291,7 @@ describe("runtime hardening", () => {
               patterns: [target],
               always: ["*"],
               metadata: {
-                filepath: path.join(process.cwd(), target),
+                filepath: path.join(repoRoot, target),
                 diff: "@@",
               },
             },

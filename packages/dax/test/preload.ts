@@ -17,6 +17,13 @@ if (process.env.DAX_TEST_HOME === undefined) {
   process.env.DAX_TEST_HOME = mkdtempSync(join(tmpdir(), "dax-test-home-"))
 }
 
+// The PM database path is fixed when its module first loads. Load it here,
+// against the disposable home above, so its open file never lives inside a
+// home that a test sets and later deletes. A test that loaded it first left
+// every later PM read failing with SQLITE_IOERR_VNODE, in file-order-dependent
+// ways.
+await import("../src/pm")
+
 if (process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS === undefined) {
   process.env.DAX_RUNTIME_GUARD_APPROVAL_TIMEOUT_MS = "0"
 }
