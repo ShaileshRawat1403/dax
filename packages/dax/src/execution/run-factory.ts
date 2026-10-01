@@ -392,10 +392,9 @@ export async function createGrantReviewedRun(
     contract.runtimePolicy?.postconditions?.verificationRequired === true,
     resolveGuardEnforcementMode(),
   )
-  // The state machine reaches waiting_approval only through running, as the
-  // plan quality gate does. No execution starts: the barrier is already in place.
+  // Queued, then straight into review: a grant review request may enter
+  // waiting_approval from the queue, so the run is never recorded as started.
   await transitionEventAuthority(session.id, "queued", "execution_queued", {})
-  await transitionEventAuthority(session.id, "running", "execution_started", {})
 
   const proposal = await proposeGrants({
     runId: session.id,

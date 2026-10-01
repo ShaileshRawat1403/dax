@@ -4,13 +4,14 @@ import { grantReviewPath } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
 import { appendEventOnly, resolveApprovalEvent } from "@/state/events/event-transitions"
 import {
+  CONTRACT_GRANT_APPROVAL_TYPE,
   ContractGrantApprovalSubjectSchema,
   type ContractGrantApprovalSubject,
 } from "@/state/events/contract-grant-approval"
 import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { Storage } from "@/storage/storage"
 import { acquireRunLock } from "@/util/fs-lock"
-import { checkBinding, proposalDigest, type GrantProposal, type ReviewCatalogSnapshot } from "./grant-proposal"
+import { checkBinding, proposalDigest, type GrantProposal } from "./grant-proposal"
 import { captureReviewSnapshot } from "./grant-review-snapshot"
 
 /**
@@ -31,7 +32,10 @@ export type GrantReviewRevision = {
   approvalId: string
   digest: string
   proposal: GrantProposal
-  /** Pending until superseded or published. An interrupted publication leaves it uncertain. */
+  /**
+   * Pending until superseded or published. An interrupted publication leaves it
+   * uncertain, and only a new revision, reviewed afresh, replaces it.
+   */
   status: "pending" | "superseded" | "published" | "uncertain"
 }
 
@@ -42,6 +46,8 @@ export type GrantReviewRecord = {
   revisions: GrantReviewRevision[]
   /** Written as an intent before the artifact and completed after it. */
   publication?: { revision: number; digest: string; state: "intent" | "complete" }
+  /** Interrupted publications, kept as found when a new revision replaced them. */
+  abandoned?: { revision: number; digest: string; approvalId: string }[]
 }
 
 export type PublishedGrantReview = {
@@ -63,6 +69,7 @@ export type GrantReviewRefusal =
   | "approval_not_current"
   | "approval_request_missing"
   | "approval_not_approved"
+  | "approval_actor_missing"
   | "digest_mismatch"
   | "candidate_invalid"
   | "binding_changed"
@@ -119,7 +126,7 @@ async function requestApproval(record: GrantReviewRecord, revision: GrantReviewR
     "approval_requested",
     {
       approvalId: revision.approvalId,
-      approvalType: "capability_grant_review",
+      approvalType: CONTRACT_GRANT_APPROVAL_TYPE,
       risk: "high",
       title: `Review capability grants, revision ${revision.revision}`,
       reason: "This run executes only under the exact capability grants an operator approves.",
@@ -175,16 +182,30 @@ async function begin(runId: string, proposal: GrantProposal): Promise<GrantRevie
  * Replaces the pending revision with a new one. The new request is appended
  * before the old one is closed as expired, so the run never appears to have
  * nothing awaiting review. A published review is final.
+ *
+ * This is also the only recovery from an interrupted publication. The failed
+ * intent is kept in `abandoned`, its revision stays uncertain and can never be
+ * published, any artifact it may have written is removed so it can never
+ * become visible, and the new revision needs its own approval.
  */
 async function revise(runId: string, proposal: GrantProposal): Promise<GrantReviewRevision> {
   return withReviewLock(runId, async () => {
     const record = await readOptional<GrantReviewRecord>(grantReviewPath(runId))
     if (!record) throw new GrantReviewError("review_missing", runId)
+    if (record.publication?.state === "complete") throw new GrantReviewError("review_published", runId)
     if (record.publication) {
-      throw new GrantReviewError(
-        record.publication.state === "complete" ? "review_published" : "publication_uncertain",
-        runId,
-      )
+      const failed = record.publication
+      const interrupted = record.revisions.find((item) => item.revision === failed.revision)
+      if (interrupted) interrupted.status = "uncertain"
+      record.abandoned = [
+        ...(record.abandoned ?? []),
+        { revision: failed.revision, digest: failed.digest, approvalId: interrupted?.approvalId ?? "" },
+      ]
+      // Removed before the intent is cleared: an interruption here leaves the
+      // intent in place, so this recovery simply runs again.
+      await Storage.remove(publishedPath(runId))
+      delete record.publication
+      await Storage.write(grantReviewPath(runId), record)
     }
     const previous = record.revisions.filter((revision) => revision.status === "pending")
     const revision = await newRevision(record, proposal)
@@ -218,7 +239,8 @@ async function revise(runId: string, proposal: GrantProposal): Promise<GrantRevi
 async function publish(
   runId: string,
   approval: { approvalId: string; subject: unknown },
-  options?: { afterIntent?: () => Promise<void>; snapshot?: ReviewCatalogSnapshot },
+  /** Test-only interruption points. Publication always captures its own snapshot. */
+  options?: { afterIntent?: () => Promise<void>; afterArtifact?: () => Promise<void> },
 ): Promise<{ status: "published" | "already_published"; published: PublishedGrantReview }> {
   return withReviewLock(runId, async () => {
     const record = await readOptional<GrantReviewRecord>(grantReviewPath(runId))
@@ -261,25 +283,42 @@ async function publish(
       throw new GrantReviewError("digest_mismatch", runId)
     }
 
-    // The run log is the authority for what was requested and what was decided.
+    // The run log is the authority for what was requested and what was decided,
+    // read as the project-fact boundary reads it: the exact request, then an
+    // approved resolution of it that names who approved.
     const events = await readRunEvents(runId)
-    const requested = events
-      .filter((event) => event.type === "approval_requested")
-      .map((event) => event.payload as { approvalId?: unknown; contractGrantSubject?: unknown })
-      .find((payload) => payload.approvalId === current.approvalId)
-    const logged = ContractGrantApprovalSubjectSchema.safeParse(requested?.contractGrantSubject)
-    if (!logged.success) throw new GrantReviewError("approval_request_missing", runId)
+    const requested = events.find(
+      (event) =>
+        event.type === "approval_requested" &&
+        (event.payload as { approvalId?: unknown }).approvalId === current.approvalId,
+    )
+    const request = requested?.payload as { approvalType?: unknown; contractGrantSubject?: unknown } | undefined
+    const logged = ContractGrantApprovalSubjectSchema.safeParse(request?.contractGrantSubject)
+    if (!requested || request?.approvalType !== CONTRACT_GRANT_APPROVAL_TYPE || !logged.success) {
+      throw new GrantReviewError("approval_request_missing", runId)
+    }
     if (!isDeepStrictEqual(logged.data, subject)) throw new GrantReviewError("subject_mismatch", runId)
-    const state = await projectRunStateFromEvents(runId)
-    const decided = state?.approvals.find((item) => item.approvalId === current.approvalId)
-    if (decided?.status !== "approved") throw new GrantReviewError("approval_not_approved", runId)
+    const resolution = events.find(
+      (event) =>
+        event.type === "approval_resolved" &&
+        (event.payload as { approvalId?: unknown }).approvalId === current.approvalId,
+    )
+    const decided = resolution?.payload as { decision?: unknown; actor?: unknown } | undefined
+    if (!resolution || resolution.seq <= requested.seq || decided?.decision !== "approved") {
+      throw new GrantReviewError("approval_not_approved", runId)
+    }
+    // A recorded name, not authentication: it keeps the existing approval
+    // boundary, which refuses an approval nobody put their name to.
+    if (typeof decided.actor !== "string" || !decided.actor.trim()) {
+      throw new GrantReviewError("approval_actor_missing", runId)
+    }
 
     const candidate = ExecutionContractV2.safeParse(current.proposal.candidate)
     if (!candidate.success || candidate.data.runId !== runId || candidate.data.contractId !== record.contractId) {
       throw new GrantReviewError("candidate_invalid", runId)
     }
 
-    const now = options?.snapshot ?? (await captureReviewSnapshot(candidate.data))
+    const now = await captureReviewSnapshot(candidate.data)
     const grants = current.proposal.candidate.capabilityGrants
     if (grants.length !== current.proposal.bindings.length) throw new GrantReviewError("binding_changed", runId)
     for (const [index, grant] of grants.entries()) {
@@ -299,6 +338,7 @@ async function publish(
       contract: candidate.data,
     }
     await Storage.write(publishedPath(runId), published)
+    await options?.afterArtifact?.()
     current.status = "published"
     record.publication = { ...record.publication, state: "complete" }
     await Storage.write(grantReviewPath(runId), record)
@@ -317,7 +357,12 @@ async function get(runId: string): Promise<GrantReviewRecord | undefined> {
 async function readPublished(runId: string): Promise<PublishedGrantReview | undefined> {
   const record = await get(runId)
   if (record?.publication?.state !== "complete") return undefined
-  return readOptional<PublishedGrantReview>(publishedPath(runId))
+  const published = await readOptional<PublishedGrantReview>(publishedPath(runId))
+  // Only the artifact the completed publication names.
+  if (published?.revision !== record.publication.revision || published.digest !== record.publication.digest) {
+    return undefined
+  }
+  return published
 }
 
 export const GrantReview = { reserve, begin, revise, publish, get, readPublished }

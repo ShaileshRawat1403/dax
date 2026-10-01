@@ -59,9 +59,13 @@ function mcpMaterial(config: Config.Mcp): McpServerMaterial {
 export async function captureReviewSnapshot(
   contract: Pick<ExecutionContract, "workflowClass" | "providerHint">,
 ): Promise<ReviewCatalogSnapshot> {
+  // Discovery first: it republishes the loader catalog from what is loaded now,
+  // so the order and the enrolled source and metadata come from one current
+  // catalog. Reading the catalog before discovery would see a cold or stale one.
+  const order = await ToolRegistry.reviewOrder()
   const plugins = new Map(ToolRegistry.catalogEntries().map((entry) => [entry.alias, entry]))
   const tools: ReviewToolEntry[] = []
-  for (const { alias, kind } of await ToolRegistry.reviewOrder()) {
+  for (const { alias, kind } of order) {
     if (kind === "builtin") {
       const descriptor = nativeCapabilities.list().find((item) => item.id === `native.tool.${alias}`)
       tools.push(descriptor ? { family: "native", alias, descriptor } : { family: "legacy", alias })

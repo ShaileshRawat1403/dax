@@ -28,7 +28,7 @@ import { Session } from "@/session"
 import { LLM } from "@/session/llm"
 import { authorizeOperatorShell } from "@/session/operator-shell-authority"
 import { SessionPrompt } from "@/session/prompt"
-import { resolveApprovalEvent } from "@/state/events/event-transitions"
+import { addApprovalEvent, appendEventOnly, resolveApprovalEvent } from "@/state/events/event-transitions"
 import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { Storage } from "@/storage/storage"
 
@@ -397,10 +397,6 @@ describe("review publication is exact, serialized and recoverable", () => {
       )
       expect(await GrantReview.readPublished(runId)).toBeUndefined()
 
-      // What would run now differs from what was reviewed: nothing publishes.
-      const drifted = { ...(await captureReviewSnapshot(revision.proposal.candidate)), daxVersion: "other" }
-      expect(await refusal(GrantReview.publish(runId, approval, { snapshot: drifted }))).toBe("binding_changed")
-
       const result = await GrantReview.publish(runId, approval)
       expect(result.status).toBe("published")
       expect(result.published.contract).toEqual(revision.proposal.candidate)
@@ -476,35 +472,180 @@ describe("review publication is exact, serialized and recoverable", () => {
     })
   })
 
-  test("an interrupted publication is never treated as published, across a restart", async () => {
-    let runId = ""
-    let approval: { approvalId: string; subject: unknown } | undefined
+  test("an approval nobody put their name to publishes nothing", async () => {
     await within(async () => {
-      const created = await reviewedRun()
-      runId = created.runId
-      approval = {
-        approvalId: created.revision.approvalId,
-        subject: await subjectOf(runId, created.revision.approvalId),
+      for (const actor of [null, "", "   "]) {
+        const { runId, revision } = await reviewedRun()
+        await resolveApprovalEvent(runId, revision.approvalId, "approved", actor)
+        const subject = await subjectOf(runId, revision.approvalId)
+        expect(await refusal(GrantReview.publish(runId, { approvalId: revision.approvalId, subject }))).toBe(
+          "approval_actor_missing",
+        )
+        expect(await GrantReview.readPublished(runId)).toBeUndefined()
       }
-      await resolveApprovalEvent(runId, created.revision.approvalId, "approved", "operator")
-      const died = await rejection(
-        GrantReview.publish(runId, approval, {
-          afterIntent: async () => {
-            throw new Error("process died")
-          },
-        }),
-      )
-      expect((died as Error).message).toBe("process died")
     })
-    await Instance.disposeAll()
+  })
+
+  for (const point of ["afterIntent", "afterArtifact"] as const) {
+    test(`a publication interrupted ${point === "afterIntent" ? "before" : "after"} its artifact recovers only through a new reviewed revision`, async () => {
+      let runId = ""
+      let first: { approvalId: string; subject: unknown } | undefined
+      await within(async () => {
+        const created = await reviewedRun()
+        runId = created.runId
+        first = {
+          approvalId: created.revision.approvalId,
+          subject: await subjectOf(runId, created.revision.approvalId),
+        }
+        await resolveApprovalEvent(runId, created.revision.approvalId, "approved", "operator")
+        const died = await rejection(
+          GrantReview.publish(runId, first, {
+            [point]: async () => {
+              throw new Error("process died")
+            },
+          }),
+        )
+        expect((died as Error).message).toBe("process died")
+      })
+      await Instance.disposeAll()
+      await within(async () => {
+        expect(await refusal(GrantReview.publish(runId, first!))).toBe("publication_uncertain")
+        expect(await GrantReview.readPublished(runId)).toBeUndefined()
+
+        const stored = (await GrantReview.get(runId))!
+        const replacement = await GrantReview.revise(runId, stored.revisions[0]!.proposal)
+        expect(replacement.revision).toBe(2)
+        const record = (await GrantReview.get(runId))!
+        expect(record.revisions.map((item) => item.status)).toEqual(["uncertain", "pending"])
+        expect(record.publication).toBeUndefined()
+        expect(record.abandoned).toEqual([
+          { revision: 1, digest: stored.revisions[0]!.digest, approvalId: stored.revisions[0]!.approvalId },
+        ])
+        // Whatever the interruption left behind is gone, and the old approval publishes nothing.
+        expect(await rejection(Storage.read(["grant_review_published", Instance.project.id, runId]))).toMatchObject({
+          name: "NotFoundError",
+        })
+        expect(await refusal(GrantReview.publish(runId, first!))).toBe("revision_not_current")
+        expect(await GrantReview.readPublished(runId)).toBeUndefined()
+        expect(await rejection(readContract(runId))).toBeInstanceOf(GrantReviewBarrierError)
+
+        // The new revision needs its own approval, then publishes as itself.
+        const second = { approvalId: replacement.approvalId, subject: await subjectOf(runId, replacement.approvalId) }
+        expect(await refusal(GrantReview.publish(runId, second))).toBe("approval_not_approved")
+        await resolveApprovalEvent(runId, replacement.approvalId, "approved", "operator")
+        const result = await GrantReview.publish(runId, second)
+        expect(result.published.revision).toBe(2)
+        expect(await GrantReview.readPublished(runId)).toEqual(result.published)
+      })
+    })
+  }
+})
+
+describe("a grant review never claims execution", () => {
+  test("the run is queued, waits on review, and returns to the queue when decided", async () => {
     await within(async () => {
-      expect(await refusal(GrantReview.publish(runId, approval!))).toBe("publication_uncertain")
-      expect(await GrantReview.readPublished(runId)).toBeUndefined()
-      expect((await GrantReview.get(runId))?.revisions.map((item) => item.status)).toEqual(["uncertain"])
-      expect(await refusal(GrantReview.revise(runId, (await GrantReview.get(runId))!.revisions[0]!.proposal))).toBe(
-        "publication_uncertain",
+      const { runId, revision } = await reviewedRun()
+      const types = (await readRunEvents(runId)).map((event) => event.type)
+      expect(types).toEqual(["contract_compiled", "execution_queued", "approval_requested"])
+      expect((await projectRunStateFromEvents(runId))?.startedAt ?? null).toBeNull()
+
+      // Denied: back to the queue, and a new revision can be requested from there.
+      await resolveApprovalEvent(runId, revision.approvalId, "rejected", "operator")
+      expect((await projectRunStateFromEvents(runId))?.status).toBe("queued")
+      const second = await GrantReview.revise(runId, revision.proposal)
+      expect((await projectRunStateFromEvents(runId))?.status).toBe("waiting_approval")
+
+      // Approved and published: still queued, never running.
+      await resolveApprovalEvent(runId, second.approvalId, "approved", "operator")
+      expect((await projectRunStateFromEvents(runId))?.status).toBe("queued")
+      await GrantReview.publish(runId, {
+        approvalId: second.approvalId,
+        subject: await subjectOf(runId, second.approvalId),
+      })
+      const state = await projectRunStateFromEvents(runId)
+      expect(state?.status).toBe("queued")
+      expect(state?.startedAt ?? null).toBeNull()
+      expect((await readRunEvents(runId)).some((event) => event.type === "execution_started")).toBe(false)
+    })
+  })
+
+  test("only a grant review request may enter review from the queue, and it must carry its subject", async () => {
+    await within(async () => {
+      const { runId, revision } = await reviewedRun()
+      await resolveApprovalEvent(runId, revision.approvalId, "rejected", "operator")
+      // An ordinary approval from the queue is still illegal.
+      expect(await rejection(addApprovalEvent(runId, "apr_ordinary", { approvalType: "tool" }))).toBeInstanceOf(Error)
+      // A grant review type without its subject, or a subject on another type, is refused.
+      expect(
+        await rejection(
+          appendEventOnly(runId, "approval_requested", {
+            approvalId: "apr_bare",
+            approvalType: "capability_grant_review",
+            risk: "high",
+          }),
+        ),
+      ).toBeInstanceOf(Error)
+      expect(
+        await rejection(
+          appendEventOnly(runId, "approval_requested", {
+            approvalId: "apr_mislabelled",
+            approvalType: "tool",
+            risk: "high",
+            contractGrantSubject: await subjectOf(runId, revision.approvalId),
+          }),
+        ),
+      ).toBeInstanceOf(Error)
+      expect((await projectRunStateFromEvents(runId))?.status).toBe("queued")
+    })
+  })
+})
+
+describe("capture reads the current catalog and publication checks it afresh", () => {
+  async function probe(description: string) {
+    const folder = path.join(home, ".config", "dax", "tool")
+    await fs.mkdir(folder, { recursive: true })
+    const file = path.join(folder, "search.js")
+    await fs.writeFile(
+      file,
+      `export default { description: ${JSON.stringify(description)}, args: {}, async execute() { return "ok" } }`,
+    )
+    return file
+  }
+
+  test("a cold capture sees an enrolled loader plugin as a plugin, not a legacy executor", async () => {
+    await probe("initial")
+    await within(async () => {
+      const captured = await captureReviewSnapshot(contract())
+      expect(captured.tools.find((item) => item.alias === "search")?.family).toBe("plugin")
+    })
+  })
+
+  test("a plugin changed after review is caught by the first fresh capture, and publication refuses it", async () => {
+    const file = await probe("initial")
+    await within(async () => {
+      const { runId, revision } = await reviewedRun()
+      const granted = revision.proposal.candidate.capabilityGrants.findIndex(
+        (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId.startsWith("plugin.tool.v1."),
       )
-      expect(await rejection(readContract(runId))).toBeInstanceOf(GrantReviewBarrierError)
+      expect(granted).toBeGreaterThanOrEqual(0)
+      const binding = revision.proposal.bindings[granted]!
+      const subject = revision.proposal.candidate.capabilityGrants[granted]!.subject
+
+      // The loaded module's metadata changes in place; the capability ID does not.
+      const loaded = (await import(file)) as { default: { description: string } }
+      loaded.default.description = "changed after operator review"
+      expect(await checkBinding(binding, subject, await captureReviewSnapshot(revision.proposal.candidate))).toBe(
+        "changed",
+      )
+
+      await resolveApprovalEvent(runId, revision.approvalId, "approved", "operator")
+      const approval = { approvalId: revision.approvalId, subject: await subjectOf(runId, revision.approvalId) }
+      expect(await refusal(GrantReview.publish(runId, approval))).toBe("binding_changed")
+      expect(await GrantReview.readPublished(runId)).toBeUndefined()
+
+      // Restored, the same approval publishes: the binding is to content, not to time.
+      loaded.default.description = "initial"
+      expect((await GrantReview.publish(runId, approval)).status).toBe("published")
     })
   })
 })

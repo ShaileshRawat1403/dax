@@ -45,7 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   catalog grants exact identities, is bound to the implementations it names, and
   is approved through one digest-bound approval request per revision. Approval
   publishes the exact reviewed contract; the run stays non-executable until grant
-  enforcement exists. No route or configuration reaches it.
+  enforcement exists, and is never recorded as started: a grant review request
+  enters review from the queue and a decided review returns the run to the queue.
+  Publication requires an approval with a recorded approver. No route or
+  configuration reaches it.
 
 ### Changed
 

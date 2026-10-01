@@ -1,4 +1,5 @@
 import { INVOCATION_PATHS } from "@/capability/authority-paths"
+import { CONTRACT_GRANT_APPROVAL_TYPE } from "./contract-grant-approval"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
 /**
  * The state machine is defined once, in run-state.ts.
@@ -1440,13 +1441,25 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (isTerminalStatus(state.status)) {
           throw new Error(`Cannot request approval for terminal run ${state.runId}`)
         }
-        if (state.status !== "waiting_approval" && !isLegalTransition(state.status, "waiting_approval")) {
+        const payload = event.payload as Extract<RunEventPayload, { type: "approval_requested" }>["payload"]
+        // A grant review request and its subject come together or not at all.
+        const grantReview = payload.approvalType === CONTRACT_GRANT_APPROVAL_TYPE
+        if (grantReview !== (payload.contractGrantSubject !== undefined)) {
+          throw new Error(`Grant review approval ${payload.approvalId} must carry exactly its contract grant subject`)
+        }
+        // A run under grant review enters review from the queue: it has not
+        // started and must never be recorded as running to get here.
+        const entersFromQueue = grantReview && state.status === "queued"
+        if (
+          state.status !== "waiting_approval" &&
+          !entersFromQueue &&
+          !isLegalTransition(state.status, "waiting_approval")
+        ) {
           throw new Error(`Illegal transition from ${state.status} to waiting_approval`)
         }
         if (state.status !== "waiting_approval") {
           state.status = "waiting_approval"
         }
-        const payload = event.payload as Extract<RunEventPayload, { type: "approval_requested" }>["payload"]
         if (state.approvals.some((approval) => approval.approvalId === payload.approvalId)) {
           throw new Error(`Approval already requested: ${payload.approvalId}`)
         }
@@ -1493,7 +1506,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         record.decidedAt = payload.resolvedAt ?? event.occurredAt
         record.comment = payload.comment ?? null
 
-        if (state.pendingApprovalIds.length === 0) {
+        if (state.pendingApprovalIds.length === 0 && record.approvalType === CONTRACT_GRANT_APPROVAL_TYPE) {
+          // A decided grant review starts nothing. The run returns to the
+          // queue; only an actual dispatch may record it as running.
+          if (!isTerminalStatus(state.status)) state.status = "queued"
+        } else if (state.pendingApprovalIds.length === 0) {
           if (!isLegalTransition(state.status, "running")) {
             if (!isTerminalStatus(state.status)) {
               throw new Error(`Illegal transition from ${state.status} to running`)

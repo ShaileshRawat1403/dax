@@ -231,15 +231,35 @@ Choices and limits to review:
 
 | Issue | Location | Severity |
 |---|---|---|
-| The run state machine reaches `waiting_approval` only through `running`, so a reviewed run passes through `running` with a start time, and approval returns it to `running`, although nothing can execute. Changing the state machine is an authority change and was not made | `execution/run-factory.ts` `createGrantReviewedRun` | Medium |
-| The opt-in is a factory function, not a field on the run request, so the request schema is unchanged and nothing can reach it from a route | `execution/run-factory.ts` | Info |
+| Native capabilities bind the DAX version label, and package plugins bind source and metadata. Neither establishes exact implementation identity; this must be resolved before stage 4 activation | `capability/grant-proposal.ts` | Medium |
+| The opt-in is a factory function, not a field on the run request (accepted while unexposed) | `execution/run-factory.ts` | Info |
 | Verification runners are not captured at review: the runner is chosen when a check runs, so no verification grant is proposed | `capability/grant-review-snapshot.ts` | Low |
 | A plugin from a package, not a local file, binds its source and metadata but not content | `capability/grant-review-snapshot.ts` | Low |
 | The session entry checks are, today, redundant with the guardian barrier, which the AGY binding check reaches first; the negative controls show the guardian barrier is the load-bearing one | `session/prompt.ts` | Info |
 | The run inspector reports a reviewed run as `execution_contract_unreadable` rather than naming the review | `server/run-gateway.ts` | Low |
 
-Bindings are checked at publication against a fresh capture of this instance. Harmless
-catalog changes, such as a new unrelated tool, leave them unchanged.
+Bindings are checked at publication against a capture publication takes itself; no
+caller can supply one. Capture runs discovery first and reads the loader catalog it
+republished, so order, source and metadata come from one current catalog. Harmless
+catalog changes, such as a new unrelated tool, leave the bindings unchanged.
+
+Corrections after review at `587e83c`:
+
+- **Capture.** It read the loader catalog before discovery, so a cold capture listed
+  enrolled plugins as legacy and a changed plugin still matched on the first fresh
+  capture. Discovery now comes first, and publication no longer accepts a snapshot.
+- **Approver.** An approval with no recorded actor published. Publication now reads the
+  run log as the project-fact boundary does: the exact request, then an approved
+  resolution after it with a nonblank actor. A name is not authentication.
+- **Recovery.** An interrupted publication blocked revision for good. `revise` now
+  recovers it: the failed intent is kept in `abandoned`, its revision stays `uncertain`
+  and can never publish, any artifact it wrote is removed, and the new revision needs its
+  own approval. Published artifacts are read only when they match the completed
+  publication.
+- **Lifecycle** (authorized change). A grant review request may enter
+  `waiting_approval` from `queued`, and a decided review returns the run to `queued`, so
+  a reviewed run is never recorded as started. Only `capability_grant_review` requests
+  carrying a `contractGrantSubject` get this; ordinary approvals are unchanged.
 
 ### Not in stage 3
 

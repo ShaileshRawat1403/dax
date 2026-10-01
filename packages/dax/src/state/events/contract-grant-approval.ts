@@ -16,4 +16,7 @@ export const ContractGrantApprovalSubjectSchema = z
   })
   .strict()
 
+/** The approval type a grant review request carries, and only it. */
+export const CONTRACT_GRANT_APPROVAL_TYPE = "capability_grant_review"
+
 export type ContractGrantApprovalSubject = z.infer<typeof ContractGrantApprovalSubjectSchema>
