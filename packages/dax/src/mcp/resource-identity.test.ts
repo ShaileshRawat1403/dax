@@ -1,3 +1,7 @@
+import { compileWithRunId } from "@/execution/compiler"
+import { ContractGuardian } from "@/execution/contract-guardian"
+import { createEventAuthorityRun } from "@/state/events/event-transitions"
+import { readRunEvents } from "@/state/events/run-event-store"
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -15,6 +19,7 @@ import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
 import { MCP } from "."
+import { mcpReadDescriptor } from "./resource-identity"
 
 function deferred() {
   let resolve!: () => void
@@ -126,7 +131,70 @@ async function rejection(promise: Promise<unknown>) {
   return reason
 }
 
+
+/** A session with a stored contract and a canonical run journal. */
+async function bornSession() {
+  const session = await Session.create({ title: "MCP read record" })
+  const { contract } = compileWithRunId({ request: { intent: { input: "Read a source." } } }, session.id)
+  contract.toolAllowlist = []
+  contract.toolBlocklist = []
+  await ContractGuardian.create(session.id, contract)
+  await createEventAuthorityRun(session.id, contract.contractId)
+  return session
+}
+
+async function shadowsOf(runId: string) {
+  return (await readRunEvents(runId))
+    .filter((event) => event.type === "capability_resolution_recorded")
+    .map((event) => event.payload as Record<string, unknown>)
+}
+
 describe("MCP resource identity through real transport and prompt dispatch", () => {
+  test("a user-selected resource read is recorded under the identity it is read with, before the read", async () => {
+    const alpha = await fixture()
+    await configure({ alpha })
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await bornSession()
+        const uri = "control://resource/probe"
+        let recordedBeforeRead = false
+        alpha.onRead = async () => {
+          // The server handler runs outside the instance context; enter it to read the journal.
+          const recorded = await Instance.provide({ directory, fn: () => shadowsOf(session.id) })
+          recordedBeforeRead = recorded.some((item) => item.path === "mcp_resource")
+        }
+        await SessionPrompt.prompt({
+          sessionID: session.id,
+          model: { providerID: "openai", modelID: "gpt-4o" },
+          noReply: true,
+          parts: [
+            {
+              type: "file",
+              filename: "probe",
+              mime: "text/plain",
+              url: uri,
+              source: { type: "resource", clientName: "alpha", uri, text: { value: "@probe", start: 0, end: 6 } },
+            },
+          ],
+        })
+        expect(alpha.requests).toEqual([uri])
+        expect(recordedBeforeRead).toBe(true)
+        expect((await shadowsOf(session.id)).filter((item) => item.path === "mcp_resource")).toMatchObject([
+          {
+            enforcement: "record_only",
+            initiator: "operator",
+            capabilityId: mcpReadDescriptor("resource", "alpha", uri).id,
+            enrolled: true,
+            basis: "v1_contract",
+            decision: "allow",
+            reasonCode: "v1_contract_has_no_selector",
+          },
+        ])
+      },
+    })
+  })
+
   test("a user-selected resource reaches the real client and becomes prompt context", async () => {
     const alpha = await fixture()
     await configure({ alpha })

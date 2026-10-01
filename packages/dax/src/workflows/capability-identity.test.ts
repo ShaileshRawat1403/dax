@@ -1,3 +1,5 @@
+import { ContractGuardian } from "@/execution/contract-guardian"
+import { Instance } from "@/project/instance"
 import { afterAll, afterEach, describe, expect, test } from "bun:test"
 import { randomUUID } from "node:crypto"
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
@@ -84,6 +86,42 @@ describe("fixed workflow descriptive identity", () => {
     })
     expect(run.result.success).toBe(true)
     expect(eventByType(run.events, "workflow_completed")).toHaveLength(1)
+  })
+
+  test("a workflow phase records its identity, record only, in its own run", async () => {
+    const governing = contract("repo_analyze")
+    // Production writes the contract before the run starts; the harness does not.
+    await Instance.provide({ directory: workspace, fn: () => ContractGuardian.create(governing.runId, governing) })
+    const run = await runWorkflowAndCaptureEvents({ workflowClass: "repo_analyze", contract: governing, directory: workspace })
+    expect(run.result.success).toBe(true)
+    const recorded = eventByType(run.events, "capability_resolution_recorded").map((event) => event.payload)
+    expect(recorded).toMatchObject([
+      {
+        enforcement: "record_only",
+        path: "workflow",
+        initiator: "system",
+        capabilityId: "workflow.repo_analyze.execute",
+        enrolled: true,
+        basis: "v1_contract",
+        contractId: governing.contractId,
+        // A v1 contract lists tools; it has no name for a workflow.
+        decision: "allow",
+        reasonCode: "v1_contract_has_no_selector",
+      },
+    ])
+    // Recorded before the phase's effects.
+    const order = run.events.map((event) => event.type)
+    expect(order.indexOf("capability_resolution_recorded")).toBeLessThan(order.indexOf("workflow_completed"))
+  })
+
+  test("a workflow whose run has no stored contract records nothing and still runs", async () => {
+    const run = await runWorkflowAndCaptureEvents({
+      workflowClass: "repo_analyze",
+      contract: contract("repo_analyze"),
+      directory: workspace,
+    })
+    expect(run.result.success).toBe(true)
+    expect(eventByType(run.events, "capability_resolution_recorded")).toHaveLength(0)
   })
 
   test("real registry dispatch executes draft before its existing approval gate", async () => {

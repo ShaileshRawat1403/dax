@@ -1,3 +1,6 @@
+import { readRunEvents } from "@/state/events/run-event-store"
+import { ContractGuardian } from "@/execution/contract-guardian"
+import { Instance } from "@/project/instance"
 import { afterAll, afterEach, describe, expect, test } from "bun:test"
 import { randomUUID } from "node:crypto"
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
@@ -109,6 +112,40 @@ describe("built-in worker profile identity", () => {
     const changedProvider = invocation()
     changedProvider.providerId = "claude"
     expect(() => requireBuiltinWorkerInvocationCapability(changedProvider)).toThrow(CapabilityIdentityError)
+  })
+
+  test("a worker launch records the profile that runs, record only, before launch", async () => {
+    const governing = workerContract()
+    await Instance.provide({ directory: workspace, fn: () => ContractGuardian.create(governing.runId, governing) })
+    let launchedAfterRecord = false
+    WorkerRunEffects.set({
+      async createCheckout() {
+        return { path: workspace, cleanup: async () => {} }
+      },
+      async runWorker() {
+        const events = await Instance.provide({ directory: workspace, fn: () => readRunEvents(governing.runId) })
+        launchedAfterRecord = events.some((event) => event.type === "capability_resolution_recorded")
+        throw new Error("controlled worker stop")
+      },
+    })
+    const run = await runWorkflowAndCaptureEvents({ workflowClass: "worker_run", contract: governing, directory: workspace })
+    expect(run.result.success).toBe(false)
+    expect(launchedAfterRecord).toBe(true)
+    expect(
+      eventByType(run.events, "capability_resolution_recorded").map((event) => event.payload),
+    ).toMatchObject([
+      { path: "workflow", capabilityId: "workflow.worker_run.execute", initiator: "system" },
+      {
+        enforcement: "record_only",
+        path: "worker",
+        initiator: "system",
+        capabilityId: "worker.profile.codex",
+        enrolled: true,
+        basis: "v1_contract",
+        decision: "allow",
+        reasonCode: "v1_contract_has_no_selector",
+      },
+    ])
   })
 
   test("changed built-in profile fails before checkout and worker launch", async () => {

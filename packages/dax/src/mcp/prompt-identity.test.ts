@@ -1,3 +1,7 @@
+import { compileWithRunId } from "@/execution/compiler"
+import { ContractGuardian } from "@/execution/contract-guardian"
+import { createEventAuthorityRun } from "@/state/events/event-transitions"
+import { readRunEvents } from "@/state/events/run-event-store"
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -14,8 +18,16 @@ import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { Command } from "@/command"
 import { Config } from "@/config/config"
 import { Instance } from "@/project/instance"
+import { Session } from "@/session"
+import { SessionPrompt } from "@/session/prompt"
 import { MCP } from "."
-import { bindMcpPromptRead, bindMcpResourceRead, MCP_PROMPT_NAMESPACE, requireMcpPromptRead } from "./resource-identity"
+import {
+  bindMcpPromptRead,
+  bindMcpResourceRead,
+  MCP_PROMPT_NAMESPACE,
+  mcpReadDescriptor,
+  requireMcpPromptRead,
+} from "./resource-identity"
 
 function deferred() {
   let resolve!: () => void
@@ -132,7 +144,62 @@ async function rejection(promise: Promise<unknown>) {
   return reason
 }
 
+
+/** A session with a stored contract and a canonical run journal. */
+async function bornSession() {
+  const session = await Session.create({ title: "MCP read record" })
+  const { contract } = compileWithRunId({ request: { intent: { input: "Read a source." } } }, session.id)
+  contract.toolAllowlist = []
+  contract.toolBlocklist = []
+  await ContractGuardian.create(session.id, contract)
+  await createEventAuthorityRun(session.id, contract.contractId)
+  return session
+}
+
+async function shadowsOf(runId: string) {
+  return (await readRunEvents(runId))
+    .filter((event) => event.type === "capability_resolution_recorded")
+    .map((event) => event.payload as Record<string, unknown>)
+}
+
 describe("MCP prompt identity through real transport and command dispatch", () => {
+  test("running an MCP prompt command records the prompt read before the fetch", async () => {
+    const alpha = await fixture()
+    await configure({ alpha })
+    await Instance.provide({
+      directory,
+      async fn() {
+        const session = await bornSession()
+        let recordedBeforeFetch = false
+        alpha.onGet = async () => {
+          // The server handler runs outside the instance context; enter it to read the journal.
+          const recorded = await Instance.provide({ directory, fn: () => shadowsOf(session.id) })
+          recordedBeforeFetch = recorded.some((item) => item.path === "mcp_prompt")
+        }
+        const command = Object.values(await Command.list()).find((item) => item.source === "mcp")!
+        expect(command.mcp).toEqual({ server: "alpha", name: "probe" })
+        await SessionPrompt.command({
+          sessionID: session.id,
+          command: command.name,
+          arguments: "",
+          model: "openai/does-not-exist",
+        }).catch(() => undefined)
+        expect(alpha.requests).toEqual(["probe"])
+        expect(recordedBeforeFetch).toBe(true)
+        expect((await shadowsOf(session.id)).filter((item) => item.path === "mcp_prompt")).toMatchObject([
+          {
+            enforcement: "record_only",
+            initiator: "operator",
+            capabilityId: mcpReadDescriptor("prompt", "alpha", "probe").id,
+            enrolled: true,
+            decision: "allow",
+            reasonCode: "v1_contract_has_no_selector",
+          },
+        ])
+      },
+    })
+  })
+
   test("the real command loader fetches a prompt through the bound client", async () => {
     const alpha = await fixture()
     await configure({ alpha })
