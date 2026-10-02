@@ -50,6 +50,14 @@ export const CapabilityGrant = z
     // There is no "deny" grant: the absence of a grant is the denial.
     decision: z.enum(["allow", "ask"]),
     scope: CapabilityGrantScope,
+    /**
+     * The operator accepts that this capability's implementation is a reviewed
+     * external source, not an attested one: a remote server, a development
+     * build, a local plugin file or a launched executable. It never makes the
+     * binding exact. The proposal sets it only from the operator's own
+     * acknowledgement, recorded in its inputs.
+     */
+    acknowledgesExternalTrust: z.literal(true).optional(),
   })
   .strict()
 export type CapabilityGrant = z.infer<typeof CapabilityGrant>

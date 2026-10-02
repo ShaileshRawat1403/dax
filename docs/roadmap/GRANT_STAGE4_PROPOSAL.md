@@ -17,6 +17,33 @@ Stage 4 does not expose the opt-in. Runs are still created only by
 `createGrantReviewedRun`. Exposing it through a route or the CLI is a separate decision
 after stage 4 is accepted.
 
+## Review amendments, binding
+
+Astra reviewed this proposal at `5fba00a10f4dcb51a2e490526716f75e3b7708a1`, approved its
+direction and authorized 4a with five amendments. Decisions 4 and 7 were accepted as
+proposed; decisions 1 to 3, 5 and 6 are amended. Where the sections below differ, this
+section and "4a as delivered" govern.
+
+| # | Amendment | How it is applied |
+|---|---|---|
+| 1 | Size and modification time may save work but never authorize; a binding describes what is actually loaded or launched, protected against substitution between check and execution | No binding is cached by `stat`; every check hashes content. A loader module is bound as this process first imported it, and the bytes read before and after that import must match. Only the compiled DAX binary, hashed at startup, is protected end to end, so only it is **exact** |
+| 2 | Hashing source directories, package directories or interpreter scripts misses imported code. Support a bounded set of forms and deny the rest | Supported forms: a compiled DAX binary; a local module that imports only runtime builtins; a directly launched binary that is neither a launcher nor a `#!` script. Everything else (package plugins, launchers such as `npx`, `uvx`, `bun`, `node`, scripts, modules with non-builtin or computed imports) is **unbindable** and never granted |
+| 3 | A remote MCP server is a reviewed external source, not an attested implementation | Every non-exact binding is **external**. A grant may cover it only with `acknowledgesExternalTrust`, set solely from the operator's acknowledgement in the proposal inputs. It never counts as exact |
+| 4 | Durable publication and activation proof in the journal, validated on replay without current files or storage | Required before 4b; specified below under "Journal authority". Not part of 4a |
+| 5 | Bind the runner that actually dispatches, the executable, the argument vector and the working directory | The workflow class proposes a runner. At dispatch, the genuine dispatch function, registered once per runner, establishes it; a runner name that does not match the function holding the binding establishes nothing |
+
+### Journal authority (for 4b)
+
+Publication will append a run event carrying the publication proof: revision, approval
+ID, approving actor, proposal digest, contract digest and every binding digest with its
+attestation. Activation at run start will append a second event carrying the bindings
+verified at start. Each `enforced` resolution names the activation event it relies on.
+Replay validates the chain from the journal alone: a request, an approved resolution
+with an actor, a publication whose digests match the request's subject, an activation
+whose bindings match the publication, and resolutions that cite that activation. An
+interrupted sequence, such as a resolution without its authorization or an activation
+without its publication, stays incomplete and denies.
+
 ## 1. Implementation binding
 
 Stage 3 binds native capabilities to the DAX version label and package plugins to their
@@ -165,6 +192,31 @@ and exact-SHA CI. None of them exposes the opt-in.
   plus new rows for graph operators and noncanonical dispatch.
 - The barrier holds for every reviewed run state except a completed publication that
   passes the start check.
+
+## 4a as delivered
+
+| Part | Where |
+|---|---|
+| Attestation classes, DAX executable identity, executable and module forms | `capability/implementation-binding.ts` |
+| Startup hashing of the running binary; build commit define | `index.ts`, `script/build.ts` (`DAX_BUILD_COMMIT`) |
+| Loaded-module recording at first import | `tool/registry.ts` (`importRecorded`, `loadedModule`) |
+| Proposal: `unbindable`, `needsTrust`, `acknowledgedExternal`, attestation on every binding | `capability/grant-proposal.ts`, `capability/grant.ts` |
+| Capture: executables for local MCP servers and workers, verification plan by argument vector | `capability/grant-review-snapshot.ts`, `worker/worker-adapter.ts` |
+| Verification dispatch: genuine runner registry, dispatch description, reviewed-plan match | `sdlc/verification-identity.ts`, `sdlc/check-runner.ts`, `worker/worker-sandbox.ts`, `capability/grant-proposal.ts` |
+| Evidence | `conformance/grant-stage4a.test.ts`; stage 3 tests updated for attested bindings |
+
+Nothing is enforced. The stage 3 barrier holds every reviewed run.
+
+Consequences and limits to review:
+
+| Issue | Location | Severity |
+|---|---|---|
+| A source run of DAX is development, so every native capability needs an explicit external-trust acknowledgement there. Only a compiled binary binds exactly | `capability/implementation-binding.ts` | Info |
+| Most verification plans run through a launcher (`bun run test`, `npm test`), which has no supported form, so they propose no verification grant | `capability/grant-review-snapshot.ts` | Medium |
+| Worker CLIs that are scripts or launch through an interpreter have no supported form, so those worker profiles cannot be granted | `worker/worker-adapter.ts` | Medium |
+| Tools from plugin packages, and plugin-sourced tools generally, have no recorded module and cannot be granted | `capability/grant-review-snapshot.ts` | Low |
+| External executables are bound by content when checked; protection between that check and launch is designed for 4c, where launch happens under enforcement | `capability/implementation-binding.ts` | Medium |
+| On macOS the running binary is hashed by path at startup, so a replacement between launch and that hash would go unseen. Linux could hash `/proc/self/exe` instead | `capability/implementation-binding.ts` | Low |
 
 ## Not in stage 4
 

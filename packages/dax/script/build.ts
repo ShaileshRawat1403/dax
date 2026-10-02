@@ -183,6 +183,8 @@ async function buildTarget(item: (typeof allTargets)[number]) {
       OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + workerRelativePath,
       DAX_WORKER_PATH: workerPath,
       DAX_CHANNEL: `'${Script.channel}'`,
+      // The commit a compiled binary was built from, bound into capability grants.
+      DAX_BUILD_COMMIT: `'${Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim()}'`,
       DAX_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
     },
   })

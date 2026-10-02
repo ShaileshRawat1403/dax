@@ -1,4 +1,5 @@
 import z from "zod"
+import { executableFacts } from "@/capability/implementation-binding"
 import { isAbsolute, join } from "node:path"
 import { createHash } from "node:crypto"
 import { buildEgressAllowlist } from "./egress-allowlist"
@@ -464,12 +465,12 @@ function invocationDigest(invocation: WorkerInvocation): string {
 
 /**
  * The facts a reviewed worker grant is bound to: the profile's reviewed
- * metadata and the binary path that would be launched. The binary's content is
- * not attested.
+ * metadata and the executable that would be launched, by content. A worker
+ * that is a script or a launcher has no supported form and cannot be granted.
  */
 export function workerProfileFacts(workerId: ExternalWorkerId) {
   const profile = WORKER_PROFILES[ExternalWorkerId.parse(workerId)]
-  return { profile: profileMetadata(profile).key, binary: Bun.which(profile.binary) ?? null }
+  return { profile: profileMetadata(profile).key, executable: executableFacts(profile.binary) }
 }
 
 /** Descriptive built-in provider identity; never a grant or sandbox receipt. */

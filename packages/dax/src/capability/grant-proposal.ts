@@ -3,6 +3,14 @@ import { decideContractTool, ExecutionContractV2, type ExecutionContract } from 
 import { isNativeToolAlias } from "./native-alias"
 import type { CapabilityDescriptor } from "./capability-types"
 import type { CapabilityGrant } from "./grant"
+import {
+  nativeBinding,
+  type Attestation,
+  type BoundFacts,
+  type DaxExecutable,
+  type ExecutableFacts,
+  type ModuleFacts,
+} from "./implementation-binding"
 
 /**
  * Stage 3: a proposed grant set, and what it was derived from. A proposal is
@@ -21,8 +29,11 @@ export type ReviewToolEntry =
       source: string
       /** The declared description and schema, canonicalized. */
       metadata: string
-      /** SHA-256 of the entry file where it is a local file; null where there is none to hash. */
-      entryContent: string | null
+      /**
+       * The module as this process loaded it, recorded at its first import; null
+       * when it was not loaded from a local file, as for a package plugin.
+       */
+      module: ModuleFacts | null
     }
   | {
       family: "mcp_tool"
@@ -39,12 +50,13 @@ export type ReviewToolEntry =
 
 /** A configured MCP server, without secret values: header and environment names only. */
 export type McpServerMaterial =
-  | { type: "local"; command: readonly string[]; environment: readonly string[] }
+  | { type: "local"; command: readonly string[]; environment: readonly string[]; executable: ExecutableFacts }
   | { type: "remote"; url: string; headers: readonly string[] }
 
 /** Everything a proposal and its bindings are derived from, captured at one moment. */
 export type ReviewCatalogSnapshot = {
-  daxVersion: string
+  /** The running DAX implementation, which every DAX-native capability is bound to. */
+  daxExecutable: DaxExecutable
   tools: readonly ReviewToolEntry[]
   mcpServers: Readonly<Record<string, McpServerMaterial>>
   /** The session capabilities operator-initiated paths run under, in the vocabulary. */
@@ -52,9 +64,18 @@ export type ReviewCatalogSnapshot = {
   /** The fixed workflow phases for this run's class, if it has one. */
   workflow: readonly CapabilityDescriptor[]
   /** The worker profile this run would launch, if it is a worker run. */
-  worker?: { descriptor: CapabilityDescriptor; facts: { profile: string; binary: string | null } }
-  /** The verification runner and plan, if the run verifies. */
-  verification?: { descriptor: CapabilityDescriptor; commands: readonly string[] }
+  worker?: { descriptor: CapabilityDescriptor; facts: { profile: string; executable: ExecutableFacts } }
+  /**
+   * The verification plan, if the run verifies: the runner the workflow's path
+   * dispatches through, each command as an argument vector with the executable
+   * it resolves to, and the working directory relative to the worktree.
+   */
+  verification?: {
+    descriptor: CapabilityDescriptor
+    runner: "direct" | "sandboxed"
+    cwd: string
+    commands: readonly { argv: readonly string[]; executable: ExecutableFacts }[]
+  }
 }
 
 export type ProposalInputs = {
@@ -64,11 +85,18 @@ export type ProposalInputs = {
   providerHint?: string
   /** Filesystem roots usable as grant scope, only when their provenance was reviewed. */
   writeScope?: { roots: readonly string[]; reviewed: boolean }
+  /**
+   * Capability IDs and source subject keys whose external, unattested
+   * implementation the operator explicitly accepts. Never set by the proposal.
+   */
+  acknowledgedExternal?: readonly string[]
 }
 
 export type ImplementationBinding = {
   /** The grant subject this binds: a capability ID, or `mcp_source:<family>:<server>`. */
   subject: string
+  /** Exact only for the compiled DAX binary; everything else is a reviewed external source. */
+  attestation: Attestation
   canonicalization: "sorted-json-v1"
   digest: string
 }
@@ -76,7 +104,7 @@ export type ImplementationBinding = {
 export type GrantProposal = {
   runId: string
   candidate: ExecutionContractV2
-  inputs: ProposalInputs & { daxVersion: string }
+  inputs: ProposalInputs & { daxExecutable: DaxExecutable }
   bindings: readonly ImplementationBinding[]
   /** Executors the run cannot use because they have no identity to grant. */
   excluded: readonly { alias: string; reason: "legacy_unenrolled" }[]
@@ -90,62 +118,137 @@ export type GrantProposal = {
    * add a source selector for it, where its breadth is visible.
    */
   onDemandSources: readonly { server: string; family: "resource" | "prompt" }[]
+  /** Capabilities whose implementation cannot be bound in a supported form. Never granted. */
+  unbindable: readonly { capabilityId: string; alias?: string }[]
+  /** Capabilities bound only as a reviewed external source, awaiting the operator's acknowledgement. */
+  needsTrust: readonly { capabilityId: string; alias?: string }[]
 }
 
 export function subjectKey(subject: CapabilityGrant["subject"]) {
   return subject.kind === "capability" ? subject.capabilityId : `mcp_source:${subject.family}:${subject.server}`
 }
 
-/** The facts an implementation binding commits to, for one grant subject. Undefined when unavailable now. */
-export function bindingFacts(snapshot: ReviewCatalogSnapshot, subject: CapabilityGrant["subject"]): unknown {
+/**
+ * What an implementation binding commits to for one grant subject, and how far
+ * that is attested. Undefined when no supported form describes it now.
+ */
+export function bindingFacts(
+  snapshot: ReviewCatalogSnapshot,
+  subject: CapabilityGrant["subject"],
+): BoundFacts | undefined {
   if (subject.kind === "mcp_source") {
     const server = snapshot.mcpServers[subject.server]
-    return server ? { kind: "mcp_source", family: subject.family, server: subject.server, material: server } : undefined
+    if (!server || (server.type === "local" && server.executable.form !== "binary")) return undefined
+    return {
+      attestation: "external",
+      facts: { kind: "mcp_source", family: subject.family, server: subject.server, material: server },
+    }
   }
   const id = subject.capabilityId
   for (const entry of snapshot.tools) {
     if (entry.family === "legacy" || entry.descriptor.id !== id) continue
-    if (entry.family === "native") return { kind: "native", id, daxVersion: snapshot.daxVersion }
+    if (entry.family === "native") return nativeBinding(id, snapshot.daxExecutable)
     if (entry.family === "plugin") {
-      return { kind: "plugin", id, source: entry.source, metadata: entry.metadata, entryContent: entry.entryContent }
+      if (entry.module?.form !== "self_contained") return undefined
+      return {
+        attestation: "external",
+        facts: { kind: "plugin", id, source: entry.source, metadata: entry.metadata, module: entry.module },
+      }
     }
     const server = snapshot.mcpServers[entry.server]
-    if (!server) return undefined
+    if (!server || (server.type === "local" && server.executable.form !== "binary")) return undefined
     return {
-      kind: "mcp_tool",
-      id,
-      server: entry.server,
-      material: server,
-      name: entry.name,
-      definition: entry.definition,
+      attestation: "external",
+      facts: {
+        kind: "mcp_tool",
+        id,
+        server: entry.server,
+        material: server,
+        name: entry.name,
+        definition: entry.definition,
+      },
     }
   }
-  if (snapshot.session.some((item) => item.id === id)) return { kind: "session", id, daxVersion: snapshot.daxVersion }
-  if (snapshot.workflow.some((item) => item.id === id)) return { kind: "workflow", id, daxVersion: snapshot.daxVersion }
-  if (snapshot.worker?.descriptor.id === id) return { kind: "worker", id, ...snapshot.worker.facts }
-  if (snapshot.verification?.descriptor.id === id) {
-    return { kind: "verification", id, daxVersion: snapshot.daxVersion, commands: snapshot.verification.commands }
+  if (snapshot.session.some((item) => item.id === id) || snapshot.workflow.some((item) => item.id === id)) {
+    return nativeBinding(id, snapshot.daxExecutable)
+  }
+  if (snapshot.worker?.descriptor.id === id) {
+    if (snapshot.worker.facts.executable.form !== "binary") return undefined
+    return { attestation: "external", facts: { kind: "worker", id, ...snapshot.worker.facts } }
+  }
+  const verification = snapshot.verification
+  if (verification?.descriptor.id === id) {
+    const runner = nativeBinding(id, snapshot.daxExecutable)
+    if (!runner || verification.commands.length === 0) return undefined
+    if (verification.commands.some((command) => command.executable.form !== "binary")) return undefined
+    return {
+      attestation: "external",
+      facts: {
+        kind: "verification",
+        id,
+        runner: verification.runner,
+        cwd: verification.cwd,
+        commands: verification.commands,
+        dax: runner.facts,
+      },
+    }
   }
   return undefined
 }
 
-async function bind(snapshot: ReviewCatalogSnapshot, subject: CapabilityGrant["subject"]) {
-  const facts = bindingFacts(snapshot, subject)
-  if (facts === undefined) throw new Error(`No binding facts for grant subject ${subjectKey(subject)}`)
-  const commitment = await computeCanonicalCommitment(facts)
-  return { subject: subjectKey(subject), canonicalization: commitment.canonicalization, digest: commitment.digest }
+async function bind(
+  snapshot: ReviewCatalogSnapshot,
+  subject: CapabilityGrant["subject"],
+): Promise<ImplementationBinding> {
+  const bound = bindingFacts(snapshot, subject)
+  if (bound === undefined) throw new Error(`No binding facts for grant subject ${subjectKey(subject)}`)
+  const commitment = await computeCanonicalCommitment(bound.facts)
+  return {
+    subject: subjectKey(subject),
+    attestation: bound.attestation,
+    canonicalization: commitment.canonicalization,
+    digest: commitment.digest,
+  }
 }
 
-/** Whether what a reviewed binding committed to is still what would run. */
+/**
+ * Whether what a reviewed binding committed to is still what would run. Always
+ * a full content comparison: nothing is taken as unchanged from its size or
+ * modification time.
+ */
 export async function checkBinding(
   binding: ImplementationBinding,
   subject: CapabilityGrant["subject"],
   current: ReviewCatalogSnapshot,
 ): Promise<"unchanged" | "changed" | "unavailable"> {
   if (subjectKey(subject) !== binding.subject) return "changed"
-  const facts = bindingFacts(current, subject)
-  if (facts === undefined) return "unavailable"
-  return (await computeCanonicalCommitment(facts)).digest === binding.digest ? "unchanged" : "changed"
+  const bound = bindingFacts(current, subject)
+  if (bound === undefined) return "unavailable"
+  if (bound.attestation !== binding.attestation) return "changed"
+  return (await computeCanonicalCommitment(bound.facts)).digest === binding.digest ? "unchanged" : "changed"
+}
+
+/**
+ * Whether a check about to run is one the reviewed verification plan covers:
+ * the same runner, working directory, argument vector and executable content.
+ * The runner comes from the genuine dispatch, not from the workflow class that
+ * proposed it.
+ */
+export function matchesReviewedVerification(
+  reviewed: NonNullable<ReviewCatalogSnapshot["verification"]>,
+  dispatch: { runner: string; cwd: string; argv: readonly string[]; executable: ExecutableFacts },
+): boolean {
+  if (dispatch.runner !== reviewed.runner || dispatch.cwd !== reviewed.cwd) return false
+  if (dispatch.executable.form !== "binary") return false
+  const executable = dispatch.executable
+  return reviewed.commands.some(
+    (command) =>
+      command.argv.length === dispatch.argv.length &&
+      command.argv.every((arg, index) => arg === dispatch.argv[index]) &&
+      command.executable.form === "binary" &&
+      command.executable.path === executable.path &&
+      command.executable.digest === executable.digest,
+  )
 }
 
 /**
@@ -160,6 +263,9 @@ export async function checkBinding(
  *   them it is listed as needing scope. Run scope for it is never proposed.
  * - A delegation capability is listed as needing scope: a v1 contract names no agents.
  * - An executor with no descriptor is listed as excluded.
+ * - A capability with no supported binding is listed as unbindable. One bound
+ *   only as an external source is listed as needing trust, unless the operator
+ *   acknowledged it in the inputs, and is then granted with that acknowledgement.
  */
 export async function proposeGrants(input: {
   runId: string
@@ -173,8 +279,24 @@ export async function proposeGrants(input: {
   const needsScope = new Map<string, GrantProposal["needsScope"][number]>()
   const marked = new Map<string, GrantProposal["marked"][number]>()
   const roots = input.inputs.writeScope?.reviewed ? [...new Set(input.inputs.writeScope.roots)].sort() : []
+  const unbindable = new Map<string, GrantProposal["unbindable"][number]>()
+  const needsTrust = new Map<string, GrantProposal["needsTrust"][number]>()
+  const acknowledged = new Set(input.inputs.acknowledgedExternal ?? [])
+  const trust = new Map<string, true>()
 
   const propose = (descriptor: CapabilityDescriptor, alias?: string) => {
+    const bound = bindingFacts(snapshot, { kind: "capability", capabilityId: descriptor.id })
+    if (!bound) {
+      unbindable.set(descriptor.id, { capabilityId: descriptor.id, ...(alias ? { alias } : {}) })
+      return
+    }
+    if (bound.attestation === "external") {
+      if (!acknowledged.has(descriptor.id)) {
+        needsTrust.set(descriptor.id, { capabilityId: descriptor.id, ...(alias ? { alias } : {}) })
+        return
+      }
+      trust.set(descriptor.id, true)
+    }
     if (descriptor.scopeSupport === "filesystem") {
       if (roots.length === 0) {
         needsScope.set(descriptor.id, { capabilityId: descriptor.id, alias, scopeSupport: "filesystem" })
@@ -233,7 +355,11 @@ export async function proposeGrants(input: {
   if (snapshot.worker) propose(snapshot.worker.descriptor)
   if (snapshot.verification) propose(snapshot.verification.descriptor)
 
-  const ordered = [...grants.values()].sort((a, b) => (subjectKey(a.subject) < subjectKey(b.subject) ? -1 : 1))
+  const ordered = [...grants.values()]
+    .map((grant) =>
+      trust.has(subjectKey(grant.subject)) ? { ...grant, acknowledgesExternalTrust: true as const } : grant,
+    )
+    .sort((a, b) => (subjectKey(a.subject) < subjectKey(b.subject) ? -1 : 1))
   const candidate = ExecutionContractV2.parse({
     ...contract,
     schemaVersion: "v2",
@@ -252,7 +378,10 @@ export async function proposeGrants(input: {
       workflowClass: input.inputs.workflowClass,
       ...(input.inputs.providerHint ? { providerHint: input.inputs.providerHint } : {}),
       ...(input.inputs.writeScope ? { writeScope: input.inputs.writeScope } : {}),
-      daxVersion: snapshot.daxVersion,
+      ...(input.inputs.acknowledgedExternal
+        ? { acknowledgedExternal: [...new Set(input.inputs.acknowledgedExternal)].sort() }
+        : {}),
+      daxExecutable: snapshot.daxExecutable,
     },
     bindings,
     excluded: [...excluded.values()].sort((a, b) => (a.alias < b.alias ? -1 : 1)),
@@ -264,6 +393,8 @@ export async function proposeGrants(input: {
         { server, family: "resource" as const },
         { server, family: "prompt" as const },
       ]),
+    unbindable: sortById(unbindable.values()),
+    needsTrust: sortById(needsTrust.values()),
   }
 }
 

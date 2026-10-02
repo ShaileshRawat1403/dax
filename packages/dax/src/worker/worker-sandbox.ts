@@ -3,7 +3,11 @@ import { basename, dirname, join, posix } from "node:path"
 import { realpathSync } from "node:fs"
 import type { CheckDefinition, CheckResult } from "@/sdlc/check-types"
 import { Shell } from "@/shell/shell"
-import { bindVerificationCommand, requireVerificationCommandCapability } from "@/sdlc/verification-identity"
+import {
+  bindVerificationCommand,
+  registerVerificationRunner,
+  requireVerificationCommandCapability,
+} from "@/sdlc/verification-identity"
 
 export type WorkerSandboxProvider = "seatbelt" | "bwrap"
 export type WorkerSandboxNetwork = "full" | "none"
@@ -475,3 +479,5 @@ export async function runSandboxedWorkerCheck(check: CheckDefinition): Promise<C
     }
   }
 }
+
+registerVerificationRunner("sandboxed", runSandboxedWorkerCheck)

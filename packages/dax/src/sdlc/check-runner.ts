@@ -1,7 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import { Shell } from "@/shell/shell"
 import type { CheckDefinition, CheckResult } from "./check-types"
-import { bindVerificationCommand, requireVerificationCommandCapability } from "./verification-identity"
+import {
+  bindVerificationCommand,
+  registerVerificationRunner,
+  requireVerificationCommandCapability,
+} from "./verification-identity"
 
 /** True while any process in the group still exists. Delivers no signal. */
 function groupAlive(pgid: number): boolean {
@@ -138,3 +142,5 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
     })
   })
 }
+
+registerVerificationRunner("direct", runCheck)

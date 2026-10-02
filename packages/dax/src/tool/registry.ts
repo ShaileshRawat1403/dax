@@ -17,6 +17,8 @@ import { Instance } from "../project/instance"
 import { Config } from "../config/config"
 import * as ProjectTrust from "../project/trust"
 import path from "path"
+import fs from "node:fs/promises"
+import { moduleFacts, type ModuleFacts } from "@/capability/implementation-binding"
 import { type ToolContext as PluginToolContext, type ToolDefinition } from "@dax-ai/plugin"
 import z from "zod"
 import { Plugin } from "../plugin"
@@ -198,6 +200,36 @@ export namespace ToolRegistry {
     async (s) => s.catalog.dispose(),
   )
 
+  // Module facts for each loader file as this process first imported it. The
+  // module cache is per process, so later imports reuse that code whatever the
+  // file now holds; the facts describe the loaded code, not the current file.
+  const loadedModules = new Map<string, ModuleFacts>()
+
+  async function importRecorded(file: string) {
+    const real = await fs.realpath(file).catch(() => file)
+    const first = !loadedModules.has(real)
+    const before = first ? await Bun.file(real).bytes().catch(() => undefined) : undefined
+    const mod = await import(file)
+    if (first) {
+      const after = await Bun.file(real).bytes().catch(() => undefined)
+      loadedModules.set(
+        real,
+        !before || !after
+          ? { form: "unsupported", reason: "unreadable" }
+          : Buffer.compare(Buffer.from(before), Buffer.from(after)) !== 0
+            ? { form: "unsupported", reason: "changed_during_load" }
+            : moduleFacts(before, real),
+      )
+    }
+    return mod
+  }
+
+  /** The loaded module facts for a loader file, if this process imported it. */
+  export async function loadedModule(file: string): Promise<ModuleFacts | undefined> {
+    const real = await fs.realpath(file).catch(() => file)
+    return loadedModules.get(real)
+  }
+
   /** This instance's valid loader and opt-in entries with their source and metadata. Performs no discovery. */
   export function catalogEntries() {
     return state.peek()?.catalog.entries() ?? Object.freeze([])
@@ -252,7 +284,7 @@ export namespace ToolRegistry {
     if (matches.length) await Config.waitForDependencies()
     for (const match of matches) {
       const namespace = path.basename(match, path.extname(match))
-      const mod = await import(match)
+      const mod = await importRecorded(match)
       for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
         found.push(
           fromPlugin(

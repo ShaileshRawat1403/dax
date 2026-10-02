@@ -59,15 +59,24 @@ function contract(configure?: (contract: ExecutionContract) => void, runId = RUN
   return contract
 }
 
-function pluginEntry(
-  alias: string,
-  file: string,
-  metadata = "m1",
-  entryContent: string | null = "sha256:a",
-): ReviewToolEntry {
+function pluginEntry(alias: string, file: string, metadata = "m1", moduleDigest = "sha256:a"): ReviewToolEntry {
   const { descriptor, source } = pluginCapability(["directory", file, "default"])
-  return { family: "plugin", alias, descriptor, source, metadata, entryContent }
+  return {
+    family: "plugin",
+    alias,
+    descriptor,
+    source,
+    metadata,
+    module: { form: "self_contained", digest: moduleDigest },
+  }
 }
+
+const alphaServer = (command = "alpha-server") => ({
+  type: "local" as const,
+  command: [command],
+  environment: ["ALPHA_TOKEN"],
+  executable: { form: "binary" as const, path: `/bin/${command}`, digest: `sha256:${command}` },
+})
 
 function mcpEntry(server: string, name: string, definition = "d1"): ReviewToolEntry {
   return {
@@ -87,7 +96,8 @@ type MutableSnapshot = ReviewCatalogSnapshot & {
 
 function snapshot(change?: (snapshot: MutableSnapshot) => void): ReviewCatalogSnapshot {
   const value: MutableSnapshot = {
-    daxVersion: "test",
+    // A compiled binary: DAX-native capabilities are exactly bound.
+    daxExecutable: { form: "compiled", commit: "c0ffee", digest: "sha256:dax" },
     tools: [
       nativeEntry("read"),
       nativeEntry("shell"),
@@ -98,7 +108,7 @@ function snapshot(change?: (snapshot: MutableSnapshot) => void): ReviewCatalogSn
       mcpEntry("alpha", "dangerous"),
       { family: "legacy", alias: "old" },
     ],
-    mcpServers: { alpha: { type: "local", command: ["alpha-server"], environment: ["ALPHA_TOKEN"] } },
+    mcpServers: { alpha: alphaServer() },
     session: [],
     workflow: [],
   }
@@ -112,12 +122,21 @@ const inputs = (value: ExecutionContract) => ({
   workflowClass: value.workflowClass,
 })
 
-async function propose(value = contract(), snap = snapshot(), writeScope?: { roots: string[]; reviewed: boolean }) {
+/** Every plugin and MCP tool in the snapshot: the operator's acknowledgement of external trust. */
+const externalIds = (snap: ReviewCatalogSnapshot) =>
+  snap.tools.flatMap((entry) => (entry.family === "plugin" || entry.family === "mcp_tool" ? [entry.descriptor.id] : []))
+
+async function propose(
+  value = contract(),
+  snap = snapshot(),
+  writeScope?: { roots: string[]; reviewed: boolean },
+  acknowledgedExternal: readonly string[] = externalIds(snap),
+) {
   return proposeGrants({
     runId: value.runId,
     contract: value,
     snapshot: snap,
-    inputs: { ...inputs(value), ...(writeScope ? { writeScope } : {}) },
+    inputs: { ...inputs(value), ...(writeScope ? { writeScope } : {}), acknowledgedExternal },
   })
 }
 
@@ -239,7 +258,7 @@ describe("approval binds the implementation, not only the identity", () => {
     })
     expect(await checkBinding(probe.binding, probe.subject, redefined)).toBe("changed")
     const relaunched = snapshot((value) => {
-      value.mcpServers.alpha = { type: "local", command: ["other-server"], environment: ["ALPHA_TOKEN"] }
+      value.mcpServers.alpha = alphaServer("other-server")
     })
     expect(await checkBinding(probe.binding, probe.subject, relaunched)).toBe("changed")
     const gone = snapshot((value) => {
@@ -317,8 +336,11 @@ afterEach(async () => {
 
 const within = <T>(fn: () => Promise<T>) => Instance.provide({ directory, fn })
 
-async function reviewedRun() {
-  return createGrantReviewedRun({ request: { intent: { input: "Inspect the repository, read only." } } })
+async function reviewedRun(acknowledgedExternal?: string[]) {
+  return createGrantReviewedRun(
+    { request: { intent: { input: "Inspect the repository, read only." } } },
+    acknowledgedExternal ? { acknowledgedExternal } : undefined,
+  )
 }
 
 /** What the operator saw and approved: the subject the run log holds for this revision. */
@@ -430,10 +452,8 @@ describe("review publication is exact, serialized and recoverable", () => {
       const { runId, revision } = await reviewedRun()
       await resolveApprovalEvent(runId, revision.approvalId, "approved", "operator")
       const key = ["grant_review", Instance.project.id, runId]
-      const record = await Storage.read<{ revisions: { proposal: { candidate: { capabilityGrants: unknown[] } } }[] }>(
-        key,
-      )
-      record.revisions[0]!.proposal.candidate.capabilityGrants = []
+      const record = await Storage.read<{ revisions: { proposal: { candidate: { intent: string } } }[] }>(key)
+      record.revisions[0]!.proposal.candidate.intent = "Something the operator never saw."
       await Storage.write(key, record)
       const subject = await subjectOf(runId, revision.approvalId)
       expect(await refusal(GrantReview.publish(runId, { approvalId: revision.approvalId, subject }))).toBe(
@@ -677,7 +697,11 @@ describe("capture reads the current catalog and publication checks it afresh", (
   test("a plugin changed after review is caught by the first fresh capture, and publication refuses it", async () => {
     const file = await probe("initial")
     await within(async () => {
-      const { runId, revision } = await reviewedRun()
+      // The operator accepts the loader plugin as a reviewed external source.
+      const captured = await captureReviewSnapshot(contract())
+      const search = captured.tools.find((item) => item.alias === "search")
+      if (search?.family !== "plugin") throw new Error("the probe plugin was not enrolled")
+      const { runId, revision } = await reviewedRun([search.descriptor.id])
       const granted = revision.proposal.candidate.capabilityGrants.findIndex(
         (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId.startsWith("plugin.tool.v1."),
       )

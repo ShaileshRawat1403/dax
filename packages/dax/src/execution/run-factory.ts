@@ -377,7 +377,11 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
  */
 export async function createGrantReviewedRun(
   input: RunFactoryInput,
-  options?: { writeScope?: { roots: string[]; reviewed: boolean } },
+  options?: {
+    writeScope?: { roots: string[]; reviewed: boolean }
+    /** Capability IDs whose external, unattested implementation the operator accepts. */
+    acknowledgedExternal?: string[]
+  },
 ): Promise<{ runId: string; revision: GrantReviewRevision }> {
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
   const session = await Session.create({ title, permission: sessionPermissionFromPreset(input.request) })
@@ -406,6 +410,7 @@ export async function createGrantReviewedRun(
       workflowClass: contract.workflowClass,
       ...(contract.providerHint ? { providerHint: contract.providerHint } : {}),
       ...(options?.writeScope ? { writeScope: options.writeScope } : {}),
+      ...(options?.acknowledgedExternal ? { acknowledgedExternal: options.acknowledgedExternal } : {}),
     },
   })
   const revision = await GrantReview.begin(session.id, proposal)

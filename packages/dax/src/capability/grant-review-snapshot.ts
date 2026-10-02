@@ -1,10 +1,8 @@
-import { createHash } from "node:crypto"
-import fs from "node:fs/promises"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
 import { Config } from "@/config/config"
 import type { ExecutionContract } from "@/execution/execution-contract"
-import { Installation } from "@/installation"
+import { Instance } from "@/project/instance"
+import { listVerificationCommandCapabilities } from "@/sdlc/verification-identity"
+import { daxExecutable, executableFacts } from "./implementation-binding"
 import { MCP } from "@/mcp"
 import { listCommandShellCapabilities } from "@/session/command-shell-identity"
 import { listContextAttachmentCapabilities } from "@/session/context-attachment-identity"
@@ -16,37 +14,17 @@ import { ExternalWorkerId, listBuiltinWorkerCapabilities, workerProfileFacts } f
 import type { McpServerMaterial, ReviewCatalogSnapshot, ReviewToolEntry } from "./grant-proposal"
 import { nativeCapabilities } from "./registry"
 
-/** The local file a plugin source names, if it names one. */
-function entryFile(parts: readonly string[]): string | undefined {
-  for (const part of parts) {
-    if (part.startsWith("file://")) {
-      try {
-        return fileURLToPath(part)
-      } catch {
-        continue
-      }
-    }
-    if (path.isAbsolute(part)) return part
-  }
-  return undefined
-}
-
-async function contentDigest(file: string | undefined): Promise<string | null> {
-  if (!file) return null
-  try {
-    return `sha256:${createHash("sha256")
-      .update(await fs.readFile(file))
-      .digest("hex")}`
-  } catch {
-    // Unreadable now: bound as absent, so a later readable file is a change.
-    return null
-  }
-}
-
 function mcpMaterial(config: Config.Mcp): McpServerMaterial {
   // Names only: a binding must never carry a secret value.
   if (config.type === "local") {
-    return { type: "local", command: [...config.command], environment: Object.keys(config.environment ?? {}).sort() }
+    return {
+      type: "local",
+      command: [...config.command],
+      environment: Object.keys(config.environment ?? {}).sort(),
+      executable: config.command[0]
+        ? executableFacts(config.command[0])
+        : { form: "unsupported", reason: "unresolved" },
+    }
   }
   return { type: "remote", url: config.url, headers: Object.keys(config.headers ?? {}).sort() }
 }
@@ -57,7 +35,7 @@ function mcpMaterial(config: Config.Mcp): McpServerMaterial {
  * exactly as a run's birth does, and executes nothing.
  */
 export async function captureReviewSnapshot(
-  contract: Pick<ExecutionContract, "workflowClass" | "providerHint">,
+  contract: Pick<ExecutionContract, "workflowClass" | "providerHint" | "runtimePolicy">,
 ): Promise<ReviewCatalogSnapshot> {
   // Discovery first: it republishes the loader catalog from what is loaded now,
   // so the order and the enrolled source and metadata come from one current
@@ -88,7 +66,8 @@ export async function captureReviewSnapshot(
       descriptor: entry.capability,
       source: entry.source,
       metadata: entry.metadata,
-      entryContent: await contentDigest(entryFile(parts)),
+      // Only a loader file has a recorded module; a plugin from a package does not.
+      module: parts[0] === "directory" && parts[1] ? ((await ToolRegistry.loadedModule(parts[1])) ?? null) : null,
     })
   }
 
@@ -118,8 +97,29 @@ export async function captureReviewSnapshot(
     return descriptor ? { descriptor, facts: workerProfileFacts(id.data) } : undefined
   })()
 
+  // The workflow's path fixes the runner: worker runs verify in the sandbox,
+  // everything else directly. The commands are the reviewed plan, by argument
+  // vector, run from the worktree root.
+  const planned = contract.runtimePolicy?.postconditions?.validationCommands ?? []
+  const runner = contract.workflowClass === "worker_run" ? ("sandboxed" as const) : ("direct" as const)
+  const verificationDescriptor = listVerificationCommandCapabilities().find(
+    (item) => item.id === `verification.command.${runner}`,
+  )
+  const verification =
+    planned.length > 0 && verificationDescriptor
+      ? {
+          descriptor: verificationDescriptor,
+          runner,
+          cwd: ".",
+          commands: planned.map((command) => {
+            const argv = command.trim().split(/\s+/)
+            return { argv, executable: executableFacts(argv[0]!, Instance.worktree) }
+          }),
+        }
+      : undefined
+
   return {
-    daxVersion: Installation.VERSION,
+    daxExecutable: await daxExecutable(),
     tools,
     mcpServers,
     session: [
@@ -132,5 +132,6 @@ export async function captureReviewSnapshot(
       item.id.startsWith(`workflow.${contract.workflowClass}.`),
     ),
     ...(worker ? { worker } : {}),
+    ...(verification ? { verification } : {}),
   }
 }
