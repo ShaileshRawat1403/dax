@@ -1,5 +1,6 @@
 import { ulid } from "ulid"
 import { readContract, resolveExecutionAuthority } from "@/execution/contract-guardian"
+import { GrantReviewBarrierError, hasGrantReview } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { recordCapabilityResolution } from "@/state/events/event-transitions"
@@ -22,9 +23,83 @@ export type RecordedAction = {
   target?: ResolveAuthorityInput["target"]
 }
 
+/** An action an activated reviewed run's published contract does not allow. Nothing ran. */
+export class CapabilityActionDeniedError extends Error {
+  constructor(
+    readonly path: RecordedAction["path"],
+    readonly reasonCode: string,
+  ) {
+    super(`Capability action ${path} was denied: ${reasonCode}`)
+    this.name = "CapabilityActionDeniedError"
+  }
+}
+
+/**
+ * Stage 4c: an action in an activated reviewed run is decided, not shadowed.
+ * The published contract and the journal's activation decide it before any
+ * effect; the enforced resolution is written before the action proceeds, and
+ * a write that fails denies it. A reviewed run that is not activated meets the
+ * barrier here too, rather than proceeding unrecorded.
+ */
+async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | CapabilityResolution> {
+  let runId: string
+  try {
+    runId =
+      "runId" in action.governedBy
+        ? action.governedBy.runId
+        : await Session.get(action.governedBy.sessionID).then((session) => session.governingRunId ?? session.id)
+    // Outside any instance there is no review store to consult, and the
+    // isolated path below handles the action exactly as before.
+    void Instance.project.id
+  } catch {
+    // No session or instance to read a run from: the isolated path handles it.
+    return "not_reviewed"
+  }
+  if (!(await hasGrantReview(runId))) return "not_reviewed"
+  const { GrantReview } = await import("./grant-review")
+  const reviewed = await GrantReview.dispatchAuthority(runId)
+  if (!reviewed) throw new GrantReviewBarrierError(runId)
+  const { captureDispatchSnapshot } = await import("./grant-review-snapshot")
+  const { decideReviewedAction, enforcedRecord } = await import("./enforcement")
+  const contract = reviewed.published.contract
+  const resolution = await decideReviewedAction({
+    contract,
+    contractDigest: reviewed.published.contractDigest,
+    activation: reviewed.activation,
+    resolve: {
+      path: action.path,
+      initiator: action.initiator,
+      authorityRunId: runId,
+      executor: action.executor,
+      source: action.source,
+      target: action.target,
+      directory: Instance.directory,
+      worktree: Instance.worktree,
+    },
+    current: await captureDispatchSnapshot(contract),
+  })
+  try {
+    await recordCapabilityResolution(runId, {
+      subjectId: `${action.subject}_${ulid()}`,
+      ...(enforcedRecord(resolution) as Omit<Parameters<typeof recordCapabilityResolution>[1], "subjectId">),
+    })
+  } catch (error) {
+    log.warn("enforced capability resolution was not recorded; the action is denied", { path: action.path, error })
+    throw new CapabilityActionDeniedError(action.path, "resolution_unrecorded")
+  }
+  if (resolution.decision !== "allow") {
+    throw new CapabilityActionDeniedError(action.path, resolution.reasonCode ?? "grant_denied")
+  }
+  return resolution as unknown as CapabilityResolution
+}
+
 /**
  * Record what the shared lookup concludes about one action that is not a
  * native invocation, in the governing run's journal.
+ *
+ * In an activated reviewed run this decides instead, and throws
+ * `CapabilityActionDeniedError` before the action has any effect; see
+ * `governReviewed`. Everywhere else:
  *
  * Record only, and isolated. These paths wrote nothing to the journal for the
  * action before, so this write must not become a new way for them to fail or
@@ -37,6 +112,9 @@ export type RecordedAction = {
  * what it already persists; never use the result to decide anything.
  */
 export async function recordActionResolution(action: RecordedAction): Promise<CapabilityResolution | undefined> {
+  // Not isolated: a reviewed run's decision and its barrier must reach the caller.
+  const governed = await governReviewed(action)
+  if (governed !== "not_reviewed") return governed
   try {
     let runId: string | undefined
     let contract: Awaited<ReturnType<typeof resolveExecutionAuthority>>["contract"]

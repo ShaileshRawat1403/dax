@@ -763,7 +763,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
               throw new Error(`Enforced resolution ${payload.subjectId} names a grant that cannot cover its capability`)
             }
           }
-        } else if (state.grantReview.activated && (INVOCATION_PATHS as readonly string[]).includes(payload.path)) {
+        } else if (state.grantReview.activated) {
           throw new Error(`An activated reviewed run records only enforced resolutions: ${payload.subjectId}`)
         }
         if ((INVOCATION_PATHS as readonly string[]).includes(payload.path)) {

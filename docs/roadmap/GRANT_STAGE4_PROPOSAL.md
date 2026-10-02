@@ -292,6 +292,49 @@ meets the barrier at dispatch, as before.
 | Native acceptance runs only in a compiled probe of the decision; the full dispatch path is exercised from source, where no native grant can bind | `conformance/grant-stage4b.test.ts` | Medium |
 | A governed permission ask for a reviewed run meets the barrier, so it fails closed until 4c and 4d | `execution/governed-ask.ts` | Low |
 
+## 4c, first slice: action paths
+
+4b was accepted, inactive, at `a571b730536001af6257ebcd90ca3da94532d87c`.
+
+Every action path records through `recordActionResolution`, and every caller awaits it
+before its effect. For an activated reviewed run that call now decides: the published
+contract and the journal's activation decide by the same enforcement as tool paths, the
+`enforced` resolution is written first, a failed write denies (`resolution_unrecorded`),
+and a denial throws `CapabilityActionDeniedError` before anything happens. A reviewed run
+that is not activated meets the barrier there instead of proceeding unrecorded. Every
+other run keeps the isolated record-only path, unchanged: a write failure is logged and
+the action proceeds. The operator's shell is decided the same way, then permission
+denials apply on top. The reducer accepts no record-only resolution on any path of an
+activated run.
+
+| Path | In an activated reviewed run |
+|---|---|
+| Template references, attachments | Decided against filesystem grants and their roots |
+| Command-template shell, operator shell | Decided, under the contract's tool lists |
+| Fixed workflow phases | Decided per phase |
+| MCP resource reads, prompt fetches | Denied as `source_unproven`: the source cannot be proven without recording the item name |
+| Workers, verification checks | Unreachable: activation refuses runs that need them |
+
+Within the accepted boundary every session and workflow capability binds only to a
+compiled running image, so from source every action is denied; a compiled probe shows the
+allow side, including filesystem scope inside and outside the reviewed roots.
+
+### Proposed for architecture review: server-provable MCP read identities
+
+A resource or prompt identity is `mcp.<family>.v1.m<sha256(server, item)>`. Replay cannot
+check its server without the item name, which may be private. Proposal: a new identity
+version that carries a server commitment, `mcp.<family>.v2.s<sha256(server)>.m<sha256(server,
+item)>`. Replay checks the server segment against the grant's server; the item stays
+hashed. It would change every resource and prompt identity, including record-only
+records written by earlier builds of this branch, so it is not implemented without
+review. Until then these sources stay denied.
+
+### Remaining 4c
+
+`ask` grants carried through the existing approval flow, with a remembered "always" bound
+to contract digest, grant, capability, binding and scope; delegation grants for the
+`task` tool and child sessions.
+
 ## Not in stage 4
 
 Exposing the opt-in through a route, configuration or the CLI; interactive-session review;

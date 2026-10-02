@@ -60,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its published contract and the bindings verified at activation. Activation
   refuses runs that need a worker or required verification before any effect.
   Reviewed runs remain non-executable until the barrier is lifted.
+- Action paths (attachments, template references, command and operator shell,
+  fixed workflow phases, MCP reads) are enforced the same way for an activated
+  reviewed run, before any effect. Other runs keep the isolated record-only path.
 
 ### Changed
 

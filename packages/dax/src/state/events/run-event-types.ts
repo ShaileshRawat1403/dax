@@ -207,7 +207,9 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   /**
    * For an MCP tool matched by its source, the server and the server's own tool
    * name, so replay can re-mint the identity and prove the grant's server
-   * covers it. Tool names are what the server lists; nothing private.
+   * covers it. This retains, in the run journal, the configured server name
+   * and the tool name the server listed. Neither is guaranteed to be public;
+   * both are kept only for a resolution matched by a source grant.
    */
   source: closed({ server: z.string().min(1), name: z.string().min(1) }).optional(),
   path: z.enum(AUTHORITY_PATHS),

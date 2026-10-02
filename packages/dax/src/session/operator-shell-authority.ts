@@ -1,4 +1,6 @@
 import { Agent } from "@/agent/agent"
+import { GrantReviewBarrierError, hasGrantReview } from "@/execution/grant-review-barrier"
+import { CapabilityActionDeniedError, recordActionResolution } from "@/capability/record-resolution"
 import { resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { decideContractTool } from "@/execution/execution-contract"
 import { Permission } from "@/governance"
@@ -24,7 +26,9 @@ export class OperatorShellDeniedError extends NamedError.Unknown {
       | "contract_tool_denied"
       | "contract_alias_executor_mismatch"
       | "permission_denied"
-      | "governing_authority_changed",
+      | "governing_authority_changed"
+      /** An activated reviewed run's enforced decision, by its reason code. */
+      | `grant:${string}`,
     public readonly contractId: string | undefined,
   ) {
     const message = `Operator shell denied: ${reasonCode}`
@@ -52,6 +56,43 @@ export class OperatorShellDeniedError extends NamedError.Unknown {
  * resolved; if it does not, the contract read above no longer governs this
  * session and the command is refused rather than judged against it.
  */
+/**
+ * Stage 4c: the operator's shell in an activated reviewed run. The published
+ * contract decides, enforced and recorded before the spawn; permission denials
+ * still apply on top. A reviewed run that is not activated meets the barrier.
+ */
+async function authorizeReviewedOperatorShell(
+  input: Parameters<typeof authorizeOperatorShell>[0],
+  runId: string,
+): Promise<OperatorShellAuthorization> {
+  const { GrantReview } = await import("@/capability/grant-review")
+  const reviewed = await GrantReview.dispatchAuthority(runId)
+  if (!reviewed) throw new GrantReviewBarrierError(runId)
+  const contractId = reviewed.published.contract.contractId
+  try {
+    await recordActionResolution({
+      governedBy: { runId },
+      subject: "operator_shell",
+      path: "operator_shell",
+      initiator: "operator",
+      executor: { kind: "builtin", alias: "shell", descriptor: input.capability },
+    })
+  } catch (error) {
+    if (error instanceof CapabilityActionDeniedError) {
+      throw new OperatorShellDeniedError(`grant:${error.reasonCode}`, contractId)
+    }
+    throw error
+  }
+  const session = await Session.get(input.sessionID)
+  if ((session.governingRunId ?? session.id) !== runId) {
+    throw new OperatorShellDeniedError("governing_authority_changed", contractId)
+  }
+  const agent = await Agent.get(input.agent).catch(() => undefined)
+  const rule = Permission.evaluate("shell", input.command, agent?.permission ?? [], session.permission ?? [])
+  if (rule.action === "deny") throw new OperatorShellDeniedError("permission_denied", contractId)
+  return { governed: true, disposition: "allowed", contractId, governingRunId: runId }
+}
+
 export async function authorizeOperatorShell(input: {
   sessionID: string
   agent: string
@@ -62,6 +103,8 @@ export async function authorizeOperatorShell(input: {
   capability: unknown
 }): Promise<OperatorShellAuthorization> {
   const initial = await Session.get(input.sessionID)
+  const reviewedRunId = initial.governingRunId ?? initial.id
+  if (await hasGrantReview(reviewedRunId)) return authorizeReviewedOperatorShell(input, reviewedRunId)
   const authority = await resolveExecutionAuthority(initial.id, initial.governingRunId)
   const agent = await Agent.get(input.agent).catch(() => undefined)
 
