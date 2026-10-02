@@ -55,6 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   operator's explicit acknowledgement. Source runs, plugins, local MCP servers,
   workers and verification commands cannot be bound. Local MCP servers now start
   from the executable resolved with their own configured PATH and directory.
+- The run journal now proves a reviewed run's publication and activation by
+  itself, and tool dispatch for an activated reviewed run is enforced against
+  its published contract and the bindings verified at activation. Activation
+  refuses runs that need a worker or required verification before any effect.
+  Reviewed runs remain non-executable until the barrier is lifted.
 
 ### Changed
 
@@ -98,6 +103,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Compatibility
 
+- Reviewed runs record `grant_review_published`, `grant_review_activated` and
+  `enforced` capability resolutions, which earlier binaries reject. Such runs
+  are created only by tests.
 - A run under grant review carries an `approval_requested` event with a
   `contractGrantSubject`, which earlier binaries reject. Such runs are created
   only by tests.

@@ -126,3 +126,46 @@ export async function captureReviewSnapshot(
     ...(verification ? { verification } : {}),
   }
 }
+
+/**
+ * What would run now for the families that can be bound, without discovery,
+ * launching or connecting: the running DAX image, every native capability,
+ * the MCP tools this instance already lists, and the configured servers. Used
+ * at dispatch, where only the binding of the grant that matched is compared.
+ */
+export async function captureDispatchSnapshot(
+  contract: Pick<ExecutionContract, "workflowClass">,
+): Promise<ReviewCatalogSnapshot> {
+  const tools: ReviewToolEntry[] = nativeCapabilities
+    .list()
+    .map((descriptor) => ({ family: "native" as const, alias: descriptor.id.slice("native.tool.".length), descriptor }))
+  for (const entry of await MCP.catalogEntries()) {
+    tools.push({
+      family: "mcp_tool",
+      alias: entry.alias,
+      descriptor: entry.capability,
+      server: entry.server,
+      name: entry.name,
+      definition: entry.definition,
+    })
+  }
+  const config = await Config.get()
+  const mcpServers: Record<string, McpServerMaterial> = {}
+  for (const [name, server] of Object.entries(config.mcp ?? {})) {
+    if (server && typeof server === "object" && "type" in server) mcpServers[name] = mcpMaterial(name, server)
+  }
+  return {
+    daxExecutable: daxExecutable(),
+    tools,
+    mcpServers,
+    session: [
+      ...listOperatorShellCapabilities(),
+      ...listCommandShellCapabilities(),
+      ...listContextAttachmentCapabilities(),
+      ...listTemplateContextCapabilities(),
+    ],
+    workflow: listFixedWorkflowCapabilities().filter((item) =>
+      item.id.startsWith(`workflow.${contract.workflowClass}.`),
+    ),
+  }
+}

@@ -1,5 +1,5 @@
 import { INVOCATION_PATHS } from "@/capability/authority-paths"
-import { CONTRACT_GRANT_APPROVAL_TYPE } from "./contract-grant-approval"
+import { CONTRACT_GRANT_APPROVAL_TYPE, type ContractGrantApprovalSubject } from "./contract-grant-approval"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
 /**
  * The state machine is defined once, in run-state.ts.
@@ -138,9 +138,25 @@ export type RunStatus =
   | "cancelled"
 
 /** Event replay always has the canonical invocation projection. */
+export type GrantReviewPublication = Extract<RunEventPayload, { type: "grant_review_published" }>["payload"] & {
+  eventId: string
+}
+export type GrantReviewActivation = Extract<RunEventPayload, { type: "grant_review_activated" }>["payload"] & {
+  eventId: string
+}
+
 export type CanonicalRunState = RunState & {
   invocations: Record<string, NativeInvocationRecord>
   capabilityResolutions: CapabilityResolutionRecord[]
+  /**
+   * A reviewed run's proof chain, from this log alone: each grant review
+   * request's subject, the one publication, and the one activation.
+   */
+  grantReview: {
+    requests: Record<string, ContractGrantApprovalSubject>
+    published: GrantReviewPublication | null
+    activated: GrantReviewActivation | null
+  }
 }
 
 /**
@@ -526,6 +542,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     steps: [],
     invocations: {},
     capabilityResolutions: [],
+    grantReview: { requests: {}, published: null, activated: null },
     delegationHistory: {
       coverage: "complete",
       records: [],
@@ -690,6 +707,16 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (state.capabilityResolutions.some((record) => record.subjectId === payload.subjectId)) {
           throw new Error(`Capability resolution already recorded: ${payload.subjectId}`)
         }
+        if (payload.enforcement === "enforced") {
+          const activated = state.grantReview.activated
+          if (
+            !activated ||
+            payload.activation?.revision !== activated.revision ||
+            payload.activation.contractDigest !== activated.contractDigest
+          ) {
+            throw new Error(`Enforced capability resolution ${payload.subjectId} does not cite this run's activation`)
+          }
+        }
         if ((INVOCATION_PATHS as readonly string[]).includes(payload.path)) {
           const invocation = state.invocations[payload.subjectId]
           if (!invocation) {
@@ -700,6 +727,56 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           }
         }
         state.capabilityResolutions.push({ ...payload, eventId: event.eventId, recordedAt: event.occurredAt })
+        break
+      }
+
+      case "grant_review_published": {
+        // The proof chain, checked from this log alone: the exact request, an
+        // approved resolution of it naming its approver, and one publication.
+        const payload = event.payload as Extract<RunEventPayload, { type: "grant_review_published" }>["payload"]
+        if (state.grantReview.published) throw new Error(`Run ${state.runId} already published a grant review`)
+        const subject = state.grantReview.requests[payload.approvalId]
+        const approval = state.approvals.find((item) => item.approvalId === payload.approvalId)
+        if (!subject || !approval || approval.approvalType !== CONTRACT_GRANT_APPROVAL_TYPE) {
+          throw new Error(`Grant review publication cites no grant review request: ${payload.approvalId}`)
+        }
+        if (approval.status !== "approved" || !approval.decidedBy?.trim() || approval.decidedBy !== payload.approvedBy) {
+          throw new Error(`Grant review publication ${payload.approvalId} lacks a named approval`)
+        }
+        if (
+          subject.runId !== state.runId ||
+          subject.contractId !== payload.contractId ||
+          payload.contractId !== state.contractId ||
+          subject.revision !== payload.revision ||
+          subject.digest !== payload.proposalDigest
+        ) {
+          throw new Error(`Grant review publication ${payload.approvalId} does not match its request`)
+        }
+        if (new Set(payload.bindings.map((item) => item.subject)).size !== payload.bindings.length) {
+          throw new Error(`Grant review publication ${payload.approvalId} repeats a binding`)
+        }
+        state.grantReview.published = { ...payload, eventId: event.eventId }
+        break
+      }
+
+      case "grant_review_activated": {
+        const payload = event.payload as Extract<RunEventPayload, { type: "grant_review_activated" }>["payload"]
+        const published = state.grantReview.published
+        if (!published) throw new Error(`Run ${state.runId} activated a grant review it never published`)
+        if (state.grantReview.activated) throw new Error(`Run ${state.runId} already activated its grant review`)
+        if (isTerminalStatus(state.status)) throw new Error(`Cannot activate terminal run ${state.runId}`)
+        const same =
+          payload.revision === published.revision &&
+          payload.contractDigest === published.contractDigest &&
+          payload.bindings.length === published.bindings.length &&
+          payload.bindings.every(
+            (item, index) =>
+              item.subject === published.bindings[index]!.subject &&
+              item.attestation === published.bindings[index]!.attestation &&
+              item.digest === published.bindings[index]!.digest,
+          )
+        if (!same) throw new Error(`Run ${state.runId} activation does not match its publication`)
+        state.grantReview.activated = { ...payload, eventId: event.eventId }
         break
       }
 
@@ -1460,6 +1537,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (state.status !== "waiting_approval") {
           state.status = "waiting_approval"
         }
+        if (payload.contractGrantSubject) state.grantReview.requests[payload.approvalId] = payload.contractGrantSubject
         if (state.approvals.some((approval) => approval.approvalId === payload.approvalId)) {
           throw new Error(`Approval already requested: ${payload.approvalId}`)
         }

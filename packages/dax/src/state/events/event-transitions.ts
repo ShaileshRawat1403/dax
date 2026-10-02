@@ -298,6 +298,36 @@ export async function recordCapabilityResolution(
  * and any approvals used. Durable before the caller may proceed into the
  * external-effect executor.
  */
+/** Appends the journal's publication proof for one reviewed revision. Validated under the run lock. */
+export async function recordGrantReviewPublished(
+  runId: string,
+  payload: Extract<RunEventPayload, { type: "grant_review_published" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "grant_review_published",
+    payload,
+    `cmd_grant_review_published_r${payload.revision}`,
+    undefined,
+    { rejectDuplicateCommand: true },
+  )
+}
+
+/** Appends the bindings verified when a published revision is activated. Validated under the run lock. */
+export async function recordGrantReviewActivated(
+  runId: string,
+  payload: Extract<RunEventPayload, { type: "grant_review_activated" }>["payload"],
+): Promise<RunState> {
+  return appendEventOnly(
+    runId,
+    "grant_review_activated",
+    payload,
+    `cmd_grant_review_activated_r${payload.revision}`,
+    undefined,
+    { rejectDuplicateCommand: true },
+  )
+}
+
 export async function recordAuthorization(
   runId: string,
   invocationId: string,

@@ -230,6 +230,57 @@ Nothing is enforced. The stage 3 barrier holds every reviewed run.
 | Tests and source runs cannot exercise a native grant at all; enforcement tests in 4b will need a compiled probe | `capability/implementation-binding.ts` | Medium |
 | The native runtime is identified by its compiled-in revision, not by hashing its machine code | `capability/implementation-binding.ts` | Low |
 
+## 4b as delivered
+
+Within the boundary accepted at `57d16e5`: compiled-DAX native capabilities and
+acknowledged remote MCP. The barrier stays until 4d.
+
+**Journal proof.** Two run events carry the chain, and the reducer checks each against
+this log alone:
+
+| Event | Accepted only when |
+|---|---|
+| `grant_review_published` | It cites a `capability_grant_review` request in this log; that request was approved by a named actor, the same one the proof names; the revision, proposal digest, contract and run match the request's subject; and the run has not published before |
+| `grant_review_activated` | The run published; the revision and contract digest match the publication; every binding matches the published one in order; the run has not activated before and is not terminal |
+| `capability_resolution_recorded`, `enforced` | The run activated, and the resolution cites exactly that activation |
+
+Publication writes its intent, then the artifact, then the journal proof, then its
+completion. An interruption before the proof publishes nothing and is recovered by a new
+revision. An interruption after it is rolled forward: the proof settles the publication,
+and the artifact is rewritten from the stored revision if it reproduces the proven
+digests. A stored artifact that differs from the proof is never read as the published
+contract.
+
+**Activation.** `GrantReview.activate` refuses, before any effect, a run that is not
+published, a run that needs a worker or required verification (no grant can cover
+either), a run already activated, and any binding that is changed or unavailable in a
+fresh capture. It records the bindings it verified. It lifts nothing.
+
+**Tool paths.** `beginNativeInvocation` covers native and plugin tools, the queued task
+path, batch leaves and MCP tools. For an activated reviewed run it resolves against the
+published contract and records an `enforced` resolution citing the activation. The
+action is denied before anything runs when the lookup denies, when the binding of the
+grant that matched is changed or unavailable now, or when the grant is `ask` (the ask
+flow is 4c). An allowed invocation still goes through every permission check and the
+runtime guard, which until 4d meet the barrier. A reviewed run that is not activated
+meets the barrier at dispatch, as before.
+
+| Part | Where |
+|---|---|
+| Proof events and reducer checks | `state/events/run-event-types.ts`, `state/events/run-reducer.ts`, `state/events/event-transitions.ts`, `state/events/run-event-store.ts` |
+| Publication proof, roll-forward, activation, dispatch authority | `capability/grant-review.ts` |
+| Enforcement decision | `capability/enforcement.ts`; grant selection shared from `capability/authority.ts` |
+| Dispatch snapshot, without discovery or launch | `capability/grant-review-snapshot.ts` |
+| Tool-path enforcement | `execution/native-settlement.ts` |
+| Evidence | `conformance/grant-stage4b.test.ts`, including a compiled probe for native acceptance |
+
+| Issue | Location | Severity |
+|---|---|---|
+| Plugins, local MCP, workers, verification and source-run native capabilities remain unavailable, so enforcement on those families is not established; the related gaps stay open | `capability/grant-proposal.ts` | High |
+| `ask` grants are refused until 4c carries the grant through the approval flow | `capability/enforcement.ts` | Medium |
+| Native acceptance runs only in a compiled probe of the decision; the full dispatch path is exercised from source, where no native grant can bind | `conformance/grant-stage4b.test.ts` | Medium |
+| A governed permission ask for a reviewed run meets the barrier, so it fails closed until 4c and 4d | `execution/governed-ask.ts` | Low |
+
 ## Not in stage 4
 
 Exposing the opt-in through a route, configuration or the CLI; interactive-session review;

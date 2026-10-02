@@ -112,6 +112,32 @@ function sourceProves(id: string, family: "tool" | "resource" | "prompt", source
 }
 
 /**
+ * The grant a v2 contract holds for one identity. An exact grant for the
+ * identity wins. Otherwise an MCP identity may be selected by its source, but
+ * only a source that re-mints this exact ID. Pure; the same selection the
+ * lookup below makes, exposed so enforcement checks the binding of the grant
+ * that actually matched.
+ */
+export function selectGrant(
+  contract: ExecutionContractV2,
+  capabilityId: string,
+  source?: McpSource,
+): CapabilityGrant | "source_unproven" | undefined {
+  const exact = contract.capabilityGrants.find(
+    (item) => item.subject.kind === "capability" && item.subject.capabilityId === capabilityId,
+  )
+  if (exact) return exact
+  const family = mcpFamily(capabilityId)
+  if (!family) return undefined
+  const selectors = contract.capabilityGrants.filter(
+    (item) => item.subject.kind === "mcp_source" && item.subject.family === family,
+  )
+  if (selectors.length === 0) return undefined
+  if (!source || !sourceProves(capabilityId, family, source)) return "source_unproven"
+  return selectors.find((item) => item.subject.kind === "mcp_source" && item.subject.server === source.server)
+}
+
+/**
  * Resolve authority for one action. Pure: it reads nothing and records nothing.
  *
  * - No contract: the action is ungoverned, as it is today. Recorded as such.
@@ -172,24 +198,9 @@ export function resolveCapabilityAuthority(input: ResolveAuthorityInput): Capabi
   if (input.executor.descriptor === undefined) return deny("capability_unenrolled")
   if (!descriptor) return deny("descriptor_invalid")
 
-  // An exact grant for this identity wins. Otherwise an MCP identity may be
-  // selected by its source, but only a source that re-mints this exact ID.
-  let grant = contract.data.capabilityGrants.find(
-    (item) => item.subject.kind === "capability" && item.subject.capabilityId === descriptor.id,
-  )
-  if (!grant) {
-    const family = mcpFamily(descriptor.id)
-    if (family) {
-      const selectors = contract.data.capabilityGrants.filter(
-        (item) => item.subject.kind === "mcp_source" && item.subject.family === family,
-      )
-      if (selectors.length > 0) {
-        if (!input.source || !sourceProves(descriptor.id, family, input.source)) return deny("source_unproven")
-        const server = input.source.server
-        grant = selectors.find((item) => item.subject.kind === "mcp_source" && item.subject.server === server)
-      }
-    }
-  }
+  const selected = selectGrant(contract.data, descriptor.id, input.source)
+  if (selected === "source_unproven") return deny("source_unproven")
+  const grant = selected
   if (!grant) return deny("grant_absent")
 
   const matched = (): CapabilityResolution => ({ ...v2, decision: grant.decision, grantScope: grant.scope.kind })

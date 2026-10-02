@@ -1,8 +1,14 @@
 import { isDeepStrictEqual } from "node:util"
 import { ExecutionContractV2 } from "@/execution/execution-contract"
-import { grantReviewPath } from "@/execution/grant-review-barrier"
+import { grantReviewPath, hasGrantReview } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
-import { appendEventOnly, resolveApprovalEvent } from "@/state/events/event-transitions"
+import {
+  appendEventOnly,
+  recordGrantReviewActivated,
+  recordGrantReviewPublished,
+  resolveApprovalEvent,
+} from "@/state/events/event-transitions"
+import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import {
   CONTRACT_GRANT_APPROVAL_TYPE,
   ContractGrantApprovalSubjectSchema,
@@ -55,6 +61,8 @@ export type PublishedGrantReview = {
   revision: number
   approvalId: string
   digest: string
+  /** The canonical commitment to `contract`, as the journal's publication proof records it. */
+  contractDigest: string
   contract: ExecutionContractV2
 }
 
@@ -73,6 +81,9 @@ export type GrantReviewRefusal =
   | "digest_mismatch"
   | "candidate_invalid"
   | "binding_changed"
+  | "not_published"
+  | "already_activated"
+  | "activation_unsupported"
   | "run_not_canonical"
 
 export class GrantReviewError extends Error {
@@ -192,6 +203,9 @@ async function revise(runId: string, proposal: GrantProposal): Promise<GrantRevi
   return withReviewLock(runId, async () => {
     const record = await readOptional<GrantReviewRecord>(grantReviewPath(runId))
     if (!record) throw new GrantReviewError("review_missing", runId)
+    if (record.publication?.state === "intent" && (await rollForward(runId, record))) {
+      throw new GrantReviewError("review_published", runId)
+    }
     if (record.publication?.state === "complete") throw new GrantReviewError("review_published", runId)
     if (record.publication) {
       const failed = record.publication
@@ -240,7 +254,11 @@ async function publish(
   runId: string,
   approval: { approvalId: string; subject: unknown },
   /** Test-only interruption points. Publication always captures its own snapshot. */
-  options?: { afterIntent?: () => Promise<void>; afterArtifact?: () => Promise<void> },
+  options?: {
+    afterIntent?: () => Promise<void>
+    afterArtifact?: () => Promise<void>
+    afterProof?: () => Promise<void>
+  },
 ): Promise<{ status: "published" | "already_published"; published: PublishedGrantReview }> {
   return withReviewLock(runId, async () => {
     const record = await readOptional<GrantReviewRecord>(grantReviewPath(runId))
@@ -249,6 +267,7 @@ async function publish(
     if (!parsed.success) throw new GrantReviewError("subject_invalid", runId)
     const subject = parsed.data
 
+    if (record.publication?.state === "intent") await rollForward(runId, record)
     if (record.publication) {
       if (record.publication.state === "intent") {
         const interrupted = record.revisions.find((item) => item.revision === record.publication!.revision)
@@ -335,10 +354,28 @@ async function publish(
       revision: current.revision,
       approvalId: current.approvalId,
       digest: current.digest,
+      contractDigest: (await computeCanonicalCommitment(candidate.data)).digest,
       contract: candidate.data,
     }
     await Storage.write(publishedPath(runId), published)
     await options?.afterArtifact?.()
+    // The journal's proof, appended last: until it exists the publication is
+    // only an intent, and once it exists the publication is settled whatever
+    // happens to the completion below.
+    await recordGrantReviewPublished(runId, {
+      revision: current.revision,
+      approvalId: current.approvalId,
+      approvedBy: decided.actor,
+      proposalDigest: current.digest,
+      contractId: record.contractId,
+      contractDigest: published.contractDigest,
+      bindings: current.proposal.bindings.map((item) => ({
+        subject: item.subject,
+        attestation: item.attestation,
+        digest: item.digest,
+      })),
+    })
+    await options?.afterProof?.()
     current.status = "published"
     record.publication = { ...record.publication, state: "complete" }
     await Storage.write(grantReviewPath(runId), record)
@@ -358,11 +395,133 @@ async function readPublished(runId: string): Promise<PublishedGrantReview | unde
   const record = await get(runId)
   if (record?.publication?.state !== "complete") return undefined
   const published = await readOptional<PublishedGrantReview>(publishedPath(runId))
-  // Only the artifact the completed publication names.
+  // Only the artifact the completed publication names, and only as the
+  // journal's proof records it.
   if (published?.revision !== record.publication.revision || published.digest !== record.publication.digest) {
     return undefined
   }
+  const proof = (await projectRunStateFromEvents(runId))?.grantReview.published
+  if (!proof || !(await artifactMatchesProof(published, proof))) return undefined
   return published
 }
 
-export const GrantReview = { reserve, begin, revise, publish, get, readPublished }
+type PublicationProof = NonNullable<
+  NonNullable<Awaited<ReturnType<typeof projectRunStateFromEvents>>>["grantReview"]["published"]
+>
+
+async function artifactMatchesProof(published: PublishedGrantReview, proof: PublicationProof) {
+  return (
+    proof.revision === published.revision &&
+    proof.approvalId === published.approvalId &&
+    proof.proposalDigest === published.digest &&
+    proof.contractDigest === published.contractDigest &&
+    (await computeCanonicalCommitment(published.contract)).digest === published.contractDigest
+  )
+}
+
+/**
+ * Settles an intent the journal already proves: the publication happened, and
+ * only its completion marker was lost. Rewrites the artifact from the stored
+ * revision when it is missing, and only if it reproduces the proven digests.
+ * Returns false, changing nothing, when the journal holds no proof for it.
+ */
+async function rollForward(runId: string, record: GrantReviewRecord): Promise<boolean> {
+  const intent = record.publication
+  if (intent?.state !== "intent") return false
+  const proof = (await projectRunStateFromEvents(runId))?.grantReview.published
+  if (!proof || proof.revision !== intent.revision || proof.proposalDigest !== intent.digest) return false
+  const revision = record.revisions.find((item) => item.revision === intent.revision)
+  if (!revision) return false
+  let published = await readOptional<PublishedGrantReview>(publishedPath(runId))
+  if (!published || !(await artifactMatchesProof(published, proof))) {
+    const candidate = ExecutionContractV2.parse(revision.proposal.candidate)
+    published = {
+      runId,
+      revision: revision.revision,
+      approvalId: revision.approvalId,
+      digest: revision.digest,
+      contractDigest: (await computeCanonicalCommitment(candidate)).digest,
+      contract: candidate,
+    }
+    if (!(await artifactMatchesProof(published, proof))) return false
+    await Storage.write(publishedPath(runId), published)
+  }
+  revision.status = "published"
+  record.publication = { ...intent, state: "complete" }
+  await Storage.write(grantReviewPath(runId), record)
+  return true
+}
+
+/**
+ * What a reviewed run needs that no grant can provide today. Refused before
+ * activation so a run never starts work it cannot complete.
+ */
+function unsupportedRequirement(contract: ExecutionContractV2): string | undefined {
+  if (contract.workflowClass === "worker_run") return "worker"
+  if (contract.runtimePolicy?.postconditions?.verificationRequired === true) return "verification"
+  return undefined
+}
+
+/**
+ * Verifies a published revision for execution and records that in the journal.
+ *
+ * Refused before any effect when the run needs a path no grant can cover
+ * (a worker, or required verification), when the journal holds no matching
+ * publication proof, or when any binding is changed or unavailable in a fresh
+ * capture. The bindings recorded are the published ones, each found unchanged.
+ * Activation lifts nothing: the stage 3 barrier still holds the run until the
+ * guardian is changed to honour activation, which is stage 4d.
+ */
+async function activate(runId: string): Promise<{ revision: number; contractDigest: string }> {
+  return withReviewLock(runId, async () => {
+    const record = await readOptional<GrantReviewRecord>(grantReviewPath(runId))
+    if (!record) throw new GrantReviewError("review_missing", runId)
+    if (record.publication?.state === "intent") await rollForward(runId, record)
+    const published = await readPublished(runId)
+    if (!published) throw new GrantReviewError("not_published", runId)
+    const state = await projectRunStateFromEvents(runId)
+    if (state?.grantReview.activated) throw new GrantReviewError("already_activated", runId)
+    const proof = state?.grantReview.published
+    if (!proof) throw new GrantReviewError("not_published", runId)
+    if (unsupportedRequirement(published.contract)) throw new GrantReviewError("activation_unsupported", runId)
+
+    const revision = record.revisions.find((item) => item.revision === published.revision)
+    if (!revision) throw new GrantReviewError("not_published", runId)
+    const grants = published.contract.capabilityGrants
+    const now = await captureReviewSnapshot(published.contract)
+    for (const [index, grant] of grants.entries()) {
+      const binding = revision.proposal.bindings[index]
+      if (!binding || (await checkBinding(binding, grant.subject, now)) !== "unchanged") {
+        throw new GrantReviewError("binding_changed", runId)
+      }
+    }
+    await recordGrantReviewActivated(runId, {
+      revision: proof.revision,
+      contractDigest: proof.contractDigest,
+      bindings: proof.bindings,
+    })
+    return { revision: proof.revision, contractDigest: proof.contractDigest }
+  })
+}
+
+/**
+ * The authority an activated reviewed run dispatches under: its published
+ * contract and the journal's activation of exactly that contract. Undefined
+ * for any run without both, which then meets the review barrier.
+ */
+async function dispatchAuthority(runId: string) {
+  if (!(await hasGrantReview(runId))) return undefined
+  const activation = (await projectRunStateFromEvents(runId))?.grantReview.activated
+  if (!activation) return undefined
+  const published = await readPublished(runId)
+  if (
+    !published ||
+    published.revision !== activation.revision ||
+    published.contractDigest !== activation.contractDigest
+  ) {
+    return undefined
+  }
+  return { published, activation }
+}
+
+export const GrantReview = { reserve, begin, revise, publish, get, readPublished, activate, dispatchAuthority }

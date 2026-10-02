@@ -112,6 +112,8 @@ async function runJournal(
         candidate.type === "approval_resolved" ||
         candidate.type === "tool_invocation_recorded" ||
         candidate.type === "capability_resolution_recorded" ||
+        candidate.type === "grant_review_published" ||
+        candidate.type === "grant_review_activated" ||
         candidate.type === "authorization_recorded" ||
         candidate.type === "delegation_recorded" ||
         candidate.type === "assistant_recording_started" ||

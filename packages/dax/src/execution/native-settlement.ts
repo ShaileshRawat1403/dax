@@ -146,6 +146,15 @@ export async function beginNativeInvocation(params: {
 
   beginning.add(params.invocationId)
   try {
+    // An activated reviewed run is governed by its published contract, under
+    // enforcement. Every other run, including a reviewed run that is not
+    // activated, takes the existing path, where the review barrier refuses it.
+    const session = await Session.get(params.sessionID)
+    const reviewedRunId = session.governingRunId ?? session.id
+    const { GrantReview } = await import("@/capability/grant-review")
+    const reviewed = await GrantReview.dispatchAuthority(reviewedRunId)
+    if (reviewed) return await beginReviewedInvocation(params, reviewedRunId, reviewed)
+
     const authority = await resolveNativeSettlementAuthority(params.sessionID)
     if (!authority || !authority.canonical) return { status: "not_canonical" }
 
@@ -223,6 +232,96 @@ export async function beginNativeInvocation(params: {
   } finally {
     beginning.delete(params.invocationId)
   }
+}
+
+/**
+ * Stage 4b: one invocation of an activated reviewed run. Recorded exactly as a
+ * governed invocation is, with the enforced decision taking the place of the
+ * v1 contract rule: a denial is settled before anything runs, and an allowed
+ * invocation still passes every existing permission check and the runtime
+ * guard before its authorization is sealed.
+ */
+async function beginReviewedInvocation(
+  params: Parameters<typeof beginNativeInvocation>[0],
+  runId: string,
+  reviewed: NonNullable<Awaited<ReturnType<typeof import("@/capability/grant-review").GrantReview.dispatchAuthority>>>,
+): Promise<BeginInvocationResult> {
+  if ((await getRunAuthority(runId)) !== "event-log") return { status: "not_canonical" }
+  const existing = await getEventAuthorityState(runId)
+  if (existing?.invocations?.[params.invocationId]) {
+    throw new NativeSettlementStateError(
+      params.invocationId,
+      "canonical history already contains this attempt; automatic replay is unsafe",
+    )
+  }
+  const contract = reviewed.published.contract
+  const input = await computeCanonicalCommitment(params.args)
+  try {
+    await recordToolInvocation(runId, params.invocationId, {
+      toolId: params.toolId,
+      input: { basis: "validated_tool_input", ...input },
+      contractId: contract.contractId,
+      executor: params.executor,
+      originTurnId: params.originTurnId,
+      parentInvocationId: params.parentInvocationId,
+      ordinal: params.ordinal,
+    })
+  } catch (error) {
+    throw new NativeSettlementAppendError("invocation", params.invocationId, error)
+  }
+
+  const { captureDispatchSnapshot } = await import("@/capability/grant-review-snapshot")
+  const { decideReviewedAction, enforcedRecord } = await import("@/capability/enforcement")
+  const resolution = await decideReviewedAction({
+    contract,
+    contractDigest: reviewed.published.contractDigest,
+    activation: reviewed.activation,
+    resolve: {
+      path: params.parentInvocationId ? "batch_leaf" : params.executor.kind === "mcp" ? "mcp_tool" : "native_tool",
+      initiator: "model",
+      authorityRunId: runId,
+      executor: { kind: params.executor.kind, alias: params.toolId, descriptor: params.capability },
+      source: params.source,
+      target: nativeFilesystemTarget(params.executor.kind, params.toolId, params.args),
+      directory: Instance.directory,
+      worktree: Instance.worktree,
+    },
+    current: await captureDispatchSnapshot(contract),
+  })
+  try {
+    await recordCapabilityResolution(runId, {
+      subjectId: params.invocationId,
+      ...(enforcedRecord(resolution) as Omit<Parameters<typeof recordCapabilityResolution>[1], "subjectId">),
+    })
+  } catch (error) {
+    throw new NativeSettlementAppendError("capability_resolution", params.invocationId, error)
+  }
+
+  const allowed = resolution.decision === "allow"
+  pending.set(params.invocationId, {
+    authorityRunId: runId,
+    contractId: contract.contractId,
+    contractDisposition: allowed ? "allowed" : "denied",
+    authorizationEventId: null,
+    denied: false,
+    resultPending: false,
+    policyChecks: 0,
+    runtimeGuardDisposition: "not_evaluated",
+    permissionDisposition: "not_evaluated",
+    approvalIds: new Set(),
+    reasonCodes: new Set(),
+    mutationObservationRequired: params.executor.kind !== "builtin" || isMutatingTool(params.toolId),
+    mutationObservationPrepared: false,
+    mutationObservationError: null,
+  })
+  if (!allowed) {
+    const state = pending.get(params.invocationId)!
+    const reasonCode = resolution.reasonCode ?? "grant_denied"
+    state.reasonCodes.add(reasonCode)
+    await appendAuthorization(params.invocationId, state, "denied")
+    throw new NativeAuthorizationDeniedError(params.invocationId, reasonCode)
+  }
+  return { status: "recorded" }
 }
 
 export function isNativeSettlementPending(invocationId: string): boolean {

@@ -161,10 +161,49 @@ const AuthorizationRecordedPayloadSchema = closed({
  * an authorization. The decision that was enforced is `authorization_recorded`.
  * A record here neither permits nor prevents anything, on write or on replay.
  */
+const Sha256Digest = z.string().regex(/^sha256:[0-9a-f]{64}$/)
+
+/** One implementation binding as published and as verified at activation. */
+const GrantBindingProofSchema = closed({
+  subject: z.string().min(1),
+  attestation: z.enum(["exact", "external"]),
+  digest: Sha256Digest,
+})
+
+/**
+ * The journal's proof that one reviewed revision was published: who approved
+ * it, what the approval committed to, and every binding it carries. Replay
+ * checks it against the request and the resolution in this same log.
+ */
+const GrantReviewPublishedPayloadSchema = closed({
+  revision: z.number().int().positive(),
+  approvalId: z.string().min(1),
+  approvedBy: z.string().refine((value) => value.trim().length > 0, "an approval names its approver"),
+  proposalDigest: Sha256Digest,
+  contractId: z.string().min(1),
+  contractDigest: Sha256Digest,
+  bindings: z.array(GrantBindingProofSchema),
+})
+
+/** The bindings found unchanged when the published revision was activated for execution. */
+const GrantReviewActivatedPayloadSchema = closed({
+  revision: z.number().int().positive(),
+  contractDigest: Sha256Digest,
+  bindings: z.array(GrantBindingProofSchema),
+})
+
 const CapabilityResolutionRecordedPayloadSchema = closed({
   /** The action this is about: a native invocation ID, or an operator action's call ID. */
   subjectId: z.string().min(1),
-  enforcement: z.literal("record_only"),
+  /**
+   * `record_only` for every run that is not an activated reviewed run, and
+   * never read as authority. `enforced` only under an activation recorded in
+   * this log, which the resolution names.
+   */
+  enforcement: z.enum(["record_only", "enforced"]),
+  activation: closed({ revision: z.number().int().positive(), contractDigest: Sha256Digest }).optional(),
+  /** The grant subject the decision matched, for an enforced resolution that matched one. */
+  grantSubject: z.string().min(1).optional(),
   path: z.enum(AUTHORITY_PATHS),
   initiator: z.enum(["model", "operator", "system"]),
   /** The selected executor's source-qualified identity. Absent for an executor with no descriptor. */
@@ -187,6 +226,15 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   }
   if ((resolution.basis === "no_contract") !== (resolution.contractId === undefined)) {
     ctx.addIssue({ code: "custom", path: ["contractId"], message: "is present exactly when a contract governed" })
+  }
+  if ((resolution.enforcement === "enforced") !== (resolution.activation !== undefined)) {
+    ctx.addIssue({ code: "custom", path: ["activation"], message: "is present exactly when the resolution is enforced" })
+  }
+  if (resolution.enforcement === "enforced" && resolution.basis !== "v2_grant") {
+    ctx.addIssue({ code: "custom", path: ["basis"], message: "only a reviewed contract is enforced" })
+  }
+  if (resolution.grantSubject !== undefined && resolution.enforcement !== "enforced") {
+    ctx.addIssue({ code: "custom", path: ["grantSubject"], message: "is recorded only for an enforced resolution" })
   }
 })
 
@@ -611,6 +659,8 @@ const RunEventVariants = [
     type: z.literal("capability_resolution_recorded"),
     payload: CapabilityResolutionRecordedPayloadSchema,
   }),
+  z.object({ type: z.literal("grant_review_published"), payload: GrantReviewPublishedPayloadSchema }),
+  z.object({ type: z.literal("grant_review_activated"), payload: GrantReviewActivatedPayloadSchema }),
   z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
   z.object({ type: z.literal("assistant_recording_started"), payload: AssistantRecordingStartedPayloadSchema }),
   z.object({ type: z.literal("assistant_message_recorded"), payload: AssistantMessageRecordedPayloadSchema }),
