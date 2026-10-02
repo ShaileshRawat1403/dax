@@ -21,14 +21,15 @@ after stage 4 is accepted.
 
 Astra reviewed this proposal at `5fba00a10f4dcb51a2e490526716f75e3b7708a1`, approved its
 direction and authorized 4a with five amendments. Decisions 4 and 7 were accepted as
-proposed; decisions 1 to 3, 5 and 6 are amended. Where the sections below differ, this
-section and "4a as delivered" govern.
+proposed; decisions 1 to 3, 5 and 6 are amended. 4a was accepted, inactive, at
+`57d16e559a8f76ca83921172f27baecffe58d86f`, with the restricted boundary below accepted for
+4b. The sections below describe that accepted boundary.
 
 | # | Amendment | How it is applied |
 |---|---|---|
-| 1 | Size and modification time may save work but never authorize; a binding describes what is actually loaded or launched, protected against substitution between check and execution | No binding is cached by `stat`; every check hashes content. A loader module is bound as this process first imported it, and the bytes read before and after that import must match. Only the compiled DAX binary, hashed at startup, is protected end to end, so only it is **exact** |
-| 2 | Hashing source directories, package directories or interpreter scripts misses imported code. Support a bounded set of forms and deny the rest | Supported forms: a compiled DAX binary; a local module that imports only runtime builtins; a directly launched binary that is neither a launcher nor a `#!` script. Everything else (package plugins, launchers such as `npx`, `uvx`, `bun`, `node`, scripts, modules with non-builtin or computed imports) is **unbindable** and never granted |
-| 3 | A remote MCP server is a reviewed external source, not an attested implementation | Every non-exact binding is **external**. A grant may cover it only with `acknowledgesExternalTrust`, set solely from the operator's acknowledgement in the proposal inputs. It never counts as exact |
+| 1 | Size and modification time may save work but never authorize; a binding describes what is actually loaded or launched, protected against substitution between check and execution | Every check compares content; nothing is cached by `stat`. The only exact binding is a compiled DAX binary's running image: the embedded bundle read from the process's own memory, plus the runtime revision compiled into it |
+| 2 | Hashing source directories, package directories or interpreter scripts misses imported code. Support a bounded set of forms and deny the rest | The supported set is the compiled DAX running image and, as an external exception, a remote MCP server. Source runs, plugin and loader modules, local MCP servers, worker CLIs and verification commands are **unbindable** and never granted |
+| 3 | A remote MCP server is a reviewed external source, not an attested implementation | Remote MCP is the only **external** binding. A grant may cover it only with `acknowledgesExternalTrust`, set solely from the operator's acknowledgement in the proposal inputs. It never counts as exact |
 | 4 | Durable publication and activation proof in the journal, validated on replay without current files or storage | Required before 4b; specified below under "Journal authority". Not part of 4a |
 | 5 | Bind the runner that actually dispatches, the executable, the argument vector and the working directory | The workflow class proposes a runner. At dispatch, the genuine dispatch function, registered once per runner, establishes it; a runner name that does not match the function holding the binding establishes nothing |
 
@@ -46,28 +47,24 @@ without its publication, stays incomplete and denies.
 
 ## 1. Implementation binding
 
-Stage 3 binds native capabilities to the DAX version label and package plugins to their
-source and metadata. Neither establishes an exact implementation. Stage 4 replaces both,
-and treats any binding it cannot establish as **unavailable**: the grant does not match
-and the action is denied. Nothing falls back to a weaker binding.
+Any binding DAX cannot establish is **unavailable**: the grant does not match and the
+action is denied. Nothing falls back to a weaker binding.
 
-| Family | Stage 3 binding | Stage 4 binding |
-|---|---|---|
-| Native tool, session capability, fixed workflow, verification runner | DAX version label | **Executable identity**: for a compiled binary, the SHA-256 of `process.execPath` computed once at startup, plus the build commit injected as a new `DAX_BUILD_COMMIT` define. For a source run, the commit plus a digest of the tracked `packages/dax/src` tree; a dirty or unknown tree is unavailable |
-| Local loader or plugin file | Entry file digest | Entry file digest plus the digests of the local modules it imports, walked from the entry file and kept within the trusted roots. An import that leaves them, or cannot be resolved, makes the binding unavailable |
-| Package plugin | Source and metadata | The resolved package directory's content digest over its files, taken once per process. An unresolvable package is unavailable |
-| Local MCP server | Command, environment names, tool definition | As before, plus the digest of the resolved executable named by `command[0]`. For an interpreter (`node`, `bun`, `python`, `uvx` and similar) the next argument, when it is a local file, is digested as well |
-| Remote MCP server | URL, header names, tool definition | Unchanged. The review shows it as **remote, unattested**. Remote implementation attestation stays out of scope |
-| Worker profile | Profile metadata and binary path | Plus the SHA-256 of the resolved binary |
+| Implementation | Binding |
+|---|---|
+| Native tool, session capability, fixed workflow | **Exact**, for a compiled binary only: the embedded bundle digest read from the running image and the runtime revision compiled into it, with the build commit for display. A source run of DAX binds nothing |
+| Remote MCP server | **External**: URL, header names and tool definition. Granted only with the operator's acknowledgement |
+| Plugin and loader modules, package plugins | Unavailable |
+| Local MCP server | Unavailable. Its executable is described by content as its launch resolves it, so a reviewer sees what would start |
+| Worker profile | Unavailable. Its executable is described the same way |
+| Verification command | Unavailable. Described by runner, argument vector, directory and executable |
 
-When it is checked:
+When it is checked, always by content:
 
-- **At publication**, as in stage 3.
+- **At publication**, against a capture publication takes itself.
 - **At run start**: every binding is checked once. Any changed or unavailable binding
   refuses the start and the run needs a new revision.
-- **At each dispatch**, for the executor about to run. The check is cached per process
-  by path, size and modification time and recomputed on any difference, so the hot path
-  is one `stat` per executor.
+- **At each dispatch**, for the grant the action matched.
 
 A changed binding at dispatch denies that action as `binding_changed` and the run continues
 under its other grants. It does not invalidate the run.
@@ -86,10 +83,12 @@ So the proposal can name the runner from the workflow class: `sandboxed` for `wo
 `runtimePolicy.postconditions.validationCommands` and the detected repository commands. They
 are part of the verification grant's binding facts, as argument vectors.
 
-At dispatch, a check whose argument vector is not one of the reviewed commands is denied as
-`verification_command_unreviewed`. A run with no planned commands proposes no verification
-grant, and a run that requires verification without one cannot be approved: the proposal
-lists it under `needsScope`, as it does filesystem capabilities without roots.
+Verification commands have no supported binding form yet, so no verification grant is
+proposed. The selection machinery is in place for when one exists: the genuine dispatch
+function establishes the runner, and a check matches the plan only with the same runner,
+directory, argument vector and executable content. A reviewed run that requires
+verification, or launches a worker, is refused at activation, before any effect, rather
+than allowed to start work it cannot complete.
 
 ## 3. Enforcement across enrolled paths
 
@@ -159,33 +158,24 @@ and exact-SHA CI. None of them exposes the opt-in.
 | 4c | Enforcement on action paths. Remembered "always". Delegation | As 4b |
 | 4d | Lifting the barrier for published runs that pass the start check | Reviewed runs created by the factory become executable |
 
-## Decisions requested
+## Decisions
 
-1. **Executable identity.** Hash the running binary and inject the build commit; treat a
-   source run with a dirty or unknown tree as unavailable. Recommended.
-2. **Plugin closure.** Bind the local import closure within the trusted roots and package
-   directory content; anything unresolvable is unavailable. Recommended.
-3. **Local MCP.** Bind the resolved executable and, for known interpreters, the script
-   argument. Recommended.
-4. **Dispatch-time binding failure** denies that action only, not the whole run.
-   Recommended.
-5. **Verification.** Runner from the path; reviewed argument vectors; unreviewed commands
-   denied. Recommended.
-6. **New enforcement value** `enforced` on `capability_resolution_recorded`, readable only by
-   this build. Recommended.
-7. **Slicing** 4a to 4d as above, with activation only in 4d. Recommended.
+Decisions 4 (a dispatch-time binding failure denies that action only) and 7 (slicing
+4a to 4d, activation only in 4d) were accepted as proposed. Decisions 1 to 3, 5 and 6 were
+amended as recorded under "Review amendments" and section 1: exact binding only for a
+compiled running image, remote MCP as the only acknowledged external exception, no
+binding for modules or launched programs, and the `enforced` value tied to journal
+activation proof. The restricted boundary was accepted for 4b at `57d16e5`.
 
 ## Acceptance evidence planned
 
-- Each binding family: an in-place change after review is caught at run start and at
+- Each bindable family: an in-place change after review is caught at run start and at
   dispatch, a harmless catalog change is not, and an unavailable binding denies.
-- A dirty source tree, an unresolvable plugin import and an unresolvable package each make
-  the binding unavailable.
+- Every unsupported family is refused, acknowledged or not.
 - Every enrolled path, for a reviewed run: an action without a grant has no effect; an
   allowed action still obeys a permission deny and the runtime guard; an `ask` grant asks
   and a denial has no effect; append failure denies.
-- A blocked tool stays denied under every grant, and a verification command outside the
-  reviewed list is denied.
+- A blocked tool stays denied under every grant.
 - A remembered "always" applies only to the same contract digest, grant, executor, binding
   and scope.
 - Every row of the legacy table, shown by the existing stage 1 to 3 regressions unchanged
