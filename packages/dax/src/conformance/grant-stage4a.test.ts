@@ -5,33 +5,34 @@ import os from "node:os"
 import path from "node:path"
 import { mcpCapability, pluginCapability } from "@/capability/dynamic-identity"
 import {
-  checkBinding,
   matchesReviewedVerification,
   proposeGrants,
   type ReviewCatalogSnapshot,
   type ReviewToolEntry,
 } from "@/capability/grant-proposal"
 import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
-import { daxExecutable, executableFacts, moduleFacts } from "@/capability/implementation-binding"
+import { daxExecutable, executableFacts, nativeBinding } from "@/capability/implementation-binding"
 import { nativeCapabilities } from "@/capability/registry"
 import { Config } from "@/config/config"
 import { compileWithRunId } from "@/execution/compiler"
 import type { ExecutionContract } from "@/execution/execution-contract"
+import { MCP } from "@/mcp"
 import { Instance } from "@/project/instance"
 import { runCheck } from "@/sdlc/check-runner"
 import { CheckDefinition } from "@/sdlc/check-types"
 import { bindVerificationCommand, describeVerificationDispatch } from "@/sdlc/verification-identity"
-import { ToolRegistry } from "@/tool/registry"
 import { runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
 
 /**
  * Grant stage 4a: implementation bindings and verification selection.
  *
- * Only the compiled DAX binary is bound exactly. Everything else DAX can see is
- * a reviewed external source, granted only with the operator's acknowledgement,
- * or has no supported form and is never granted. Bindings compare content,
- * never size or modification time. Nothing here is enforced: the stage 3
- * barrier still holds every reviewed run.
+ * Exact binding exists only for a compiled DAX binary, from its running image.
+ * The one external exception is a remote MCP server the operator acknowledged.
+ * Every other implementation (a source run, plugin and loader modules, local
+ * MCP servers, workers, verification commands) has no supported form and is
+ * never granted. Launched executables are described by content, resolved as
+ * the launch resolves them. Nothing here is enforced: the stage 3 barrier
+ * still holds every reviewed run.
  */
 
 let home: string
@@ -44,7 +45,7 @@ beforeEach(async () => {
   process.env.DAX_TEST_HOME = home
   directory = path.join(home, "project")
   await fs.mkdir(path.join(directory, "sub"), { recursive: true })
-  await fs.mkdir(path.join(home, ".config", "dax"), { recursive: true })
+  await fs.mkdir(path.join(home, ".config", "dax", "tool"), { recursive: true })
   expect(Bun.spawnSync(["git", "init", "--quiet", directory]).exitCode).toBe(0)
   await Instance.disposeAll()
   Config.global.reset()
@@ -59,19 +60,29 @@ afterEach(async () => {
 
 const within = <T>(fn: () => Promise<T>) => Instance.provide({ directory, fn })
 const digest = (bytes: Uint8Array | string) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`
+const exe = (name: string) => (process.platform === "win32" ? `${name}.exe` : name)
 
-/** A directly launchable file that is not a script: what a supported executable looks like. */
-async function binary(name: string, content = "binary-v1") {
-  const file = path.join(home, process.platform === "win32" ? `${name}.exe` : name)
-  await fs.writeFile(file, Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.from(content)]))
-  await fs.chmod(file, 0o755)
-  return file
+/** Compiles a standalone program with this toolchain, as a release build does. */
+async function compile(source: string, outfile: string, define: Record<string, string> = {}) {
+  const entry = `${outfile}.ts`
+  await fs.writeFile(entry, source)
+  const args = Object.entries(define).flatMap(([key, value]) => ["--define", `${key}=${value}`])
+  const proc = Bun.spawn([process.execPath, "build", "--compile", ...args, entry, "--outfile", outfile], {
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [code, , stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  if (code !== 0) throw new Error(stderr)
+  return process.platform === "win32" && !outfile.endsWith(".exe") ? `${outfile}.exe` : outfile
 }
 
-/** Rewrites a file with different bytes of the same length and puts its timestamps back. */
+/** Rewrites a file with different bytes of the same length and fixed timestamps. */
 async function sameSizeEdit(file: string, from: string, to: string) {
   expect(to.length).toBe(from.length)
-  // Whole seconds, which every filesystem here stores exactly.
   const fixed = new Date("2026-01-01T00:00:00Z")
   await fs.utimes(file, fixed, fixed)
   const stat = await fs.stat(file)
@@ -83,169 +94,279 @@ async function sameSizeEdit(file: string, from: string, to: string) {
   expect(after.mtimeMs).toBe(stat.mtimeMs)
 }
 
-describe("bindings compare content, never size or modification time", () => {
-  test("a same-size edit to an executable with its timestamps restored changes its binding", async () => {
-    const file = await binary("probe-tool")
-    const before = executableFacts(file)
-    expect(before.form).toBe("binary")
-    await sameSizeEdit(file, "binary-v1", "binary-v2")
-    const after = executableFacts(file)
-    expect(after.form).toBe("binary")
-    if (before.form !== "binary" || after.form !== "binary") return
-    expect(after.digest).not.toBe(before.digest)
-    expect(after.digest).toBe(digest(await fs.readFile(file)))
-  })
+describe("exact binding is the compiled binary's running image", () => {
+  test("replacing the binary on disk does not change what the running process binds", async () => {
+    const binding = path.resolve(import.meta.dir, "../capability/implementation-binding.ts")
+    const program = (marker: string) => `
+import { existsSync } from "node:fs"
+import { daxExecutable } from ${JSON.stringify(binding)}
+const MARKER = ${JSON.stringify(marker)}
+const go = process.argv[2]
+if (go) while (!existsSync(go)) await Bun.sleep(25)
+console.log(JSON.stringify({ marker: MARKER, executable: daxExecutable() }))
+`
+    const define = { DAX_BUILD_COMMIT: '"probe-commit"' }
+    const a = await compile(program("ORIGINAL-A"), path.join(home, "probe-a"), define)
+    const b = await compile(program("REPLACED-B"), path.join(home, "probe-b"), define)
+    const run = async (file: string, go?: string) => {
+      const proc = Bun.spawn([file, ...(go ? [go] : [])], { stdout: "pipe", stderr: "pipe" })
+      return proc
+    }
+    const report = async (proc: Bun.Subprocess<"ignore", "pipe", "pipe">) => {
+      const [code, out, err] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
+      if (code !== 0) throw new Error(err)
+      return JSON.parse(out.trim()) as {
+        marker: string
+        executable: { form: string; bundle?: string; runtime?: string }
+      }
+    }
+    const original = await report(await run(a))
+    const replacement = await report(await run(b))
+    expect(original.executable.form).toBe("compiled")
+    expect(original.executable.runtime).toBe(Bun.revision)
+    expect(replacement.executable.bundle).not.toBe(original.executable.bundle)
 
-  test("a loader module is bound as this process loaded it, not as the file now reads", async () => {
-    const folder = path.join(home, ".config", "dax", "tool")
-    await fs.mkdir(folder, { recursive: true })
-    const file = path.join(folder, "probe.js")
-    const original = `export default { description: "v1", args: {}, async execute() { return "one" } }`
-    await fs.writeFile(file, original)
-    await within(async () => {
-      await captureReviewSnapshot({ workflowClass: "generic" })
-      expect(await ToolRegistry.loadedModule(file)).toEqual({ form: "self_contained", digest: digest(original) })
-      // The loaded code is unchanged by a same-size edit with restored timestamps,
-      // and the binding keeps describing it rather than the new bytes.
-      await sameSizeEdit(file, `return "one"`, `return "two"`)
-      const recaptured = await captureReviewSnapshot({ workflowClass: "generic" })
-      const probe = recaptured.tools.find((item) => item.alias === "probe")
-      expect(probe?.family).toBe("plugin")
-      if (probe?.family !== "plugin") return
-      expect(probe.module).toEqual({ form: "self_contained", digest: digest(original) })
-      expect(digest(await fs.readFile(file))).not.toBe(digest(original))
-    })
-  })
+    // Start A, replace its file with B, then let it bind.
+    const go = path.join(home, "go")
+    const running = await run(a, go)
+    await Bun.sleep(300)
+    await fs.rename(a, `${a}.old`)
+    await fs.copyFile(b, a)
+    await fs.writeFile(go, "")
+    const result = await report(running)
+    expect(result.marker).toBe("ORIGINAL-A")
+    expect(result.executable.bundle).toBe(original.executable.bundle)
+    expect(digest(await fs.readFile(a))).toBe(digest(await fs.readFile(b)))
+  }, 120_000)
 
-  test("a same-size change to bound module content is a changed binding", async () => {
-    const snap = snapshot()
-    const proposal = await propose(contract(), snap, externalIds(snap))
-    const lintId = pluginCapability(["directory", "/plugins/lint.js", "default"]).descriptor.id
-    const index = proposal.candidate.capabilityGrants.findIndex(
-      (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId === lintId,
-    )
-    expect(index).toBeGreaterThanOrEqual(0)
-    const edited = snapshot((value) => {
-      value.tools[1] = plugin("lint", "/plugins/lint.js", `sha256:${"b".repeat(64)}`)
-    })
+  test("a source run is development and binds nothing natively", () => {
+    expect(daxExecutable()).toEqual({ form: "development" })
+    expect(nativeBinding("native.tool.shell", daxExecutable())).toBeUndefined()
+    expect(nativeBinding("native.tool.shell", { form: "unknown" })).toBeUndefined()
     expect(
-      await checkBinding(proposal.bindings[index]!, proposal.candidate.capabilityGrants[index]!.subject, edited),
-    ).toBe("changed")
+      nativeBinding("native.tool.shell", { form: "compiled", commit: "c", runtime: "r", bundle: "sha256:b" })
+        ?.attestation,
+    ).toBe("exact")
   })
 })
 
-describe("only supported execution forms can be bound", () => {
-  test("launchers, scripts and unresolved commands are unsupported; a direct binary is external", async () => {
-    expect(executableFacts(process.execPath)).toEqual({ form: "unsupported", reason: "launcher" })
-    for (const launcher of ["node", "npx", "uvx", "python3", "bash"]) {
-      const facts = executableFacts(launcher)
-      expect(facts.form).toBe("unsupported")
-    }
-    const script = path.join(home, "probe-script")
-    await fs.writeFile(script, "#!/bin/sh\necho hi\n")
-    await fs.chmod(script, 0o755)
-    if (process.platform !== "win32") expect(executableFacts(script)).toEqual({ form: "unsupported", reason: "script" })
-    expect(executableFacts(path.join(home, "missing-tool"))).toEqual({ form: "unsupported", reason: "unresolved" })
-    const file = await binary("probe-tool")
-    expect(executableFacts(file)).toEqual({
-      form: "binary",
-      path: await fs.realpath(file),
-      digest: digest(await fs.readFile(file)),
-    })
-  })
-
-  test("a module is supported only when everything it imports is a runtime builtin", () => {
-    const facts = (source: string) => moduleFacts(new TextEncoder().encode(source), "/tool/probe.ts")
-    expect(facts(`import fs from "node:fs"; import { $ } from "bun"; export default {}`).form).toBe("self_contained")
-    expect(facts(`const fs = await import("node:fs"); export default {}`).form).toBe("self_contained")
-    expect(facts(`import helper from "./helper"; export default helper`)).toEqual({
-      form: "unsupported",
-      reason: "imports",
-    })
-    expect(facts(`import z from "zod"; export default z`)).toEqual({ form: "unsupported", reason: "imports" })
-    expect(facts(`const name = "./x"; export default await import(name)`)).toEqual({
-      form: "unsupported",
-      reason: "imports",
-    })
-    expect(facts(`export default require(process.env.X!)`)).toEqual({ form: "unsupported", reason: "imports" })
-  })
-
-  test("unsupported forms are never granted, external ones need the operator's acknowledgement", async () => {
+describe("nothing without a supported form is granted, acknowledged or not", () => {
+  test("plugins, local MCP, workers, verification and development builds are unbindable; only remote MCP is external", async () => {
     const snap = snapshot((value) => {
-      value.tools.push(
-        { ...plugin("pkg", "/plugins/pkg.js"), module: null } as ReviewToolEntry,
-        mcpTool("beta", "probe"),
-        mcpTool("gamma", "probe"),
-      )
-      value.mcpServers.beta = {
+      value.tools.push(mcpTool("local", "probe"), mcpTool("remote", "probe"))
+      value.mcpServers.local = {
         type: "local",
-        command: ["npx", "beta-server"],
+        command: ["server"],
         environment: [],
-        executable: { form: "unsupported", reason: "launcher" },
+        executable: { form: "described", path: "/bin/server", target: "/bin/server", digest: digest("server") },
       }
-      value.mcpServers.gamma = { type: "remote", url: "https://gamma.invalid/mcp", headers: ["Authorization"] }
+      value.mcpServers.remote = { type: "remote", url: "https://remote.invalid/mcp", headers: [] }
+      value.worker = {
+        descriptor: {
+          id: "worker.profile.codex",
+          riskClass: "high",
+          scopeSupport: "opaque",
+          requiresVerification: true,
+        },
+        facts: {
+          profile: "codex",
+          executable: { form: "described", path: "/bin/codex", target: "/bin/codex", digest: digest("codex") },
+        },
+      }
+      value.verification = {
+        descriptor: {
+          id: "verification.command.direct",
+          riskClass: "high",
+          scopeSupport: "opaque",
+          requiresVerification: false,
+        },
+        runner: "direct",
+        cwd: ".",
+        commands: [
+          {
+            argv: ["/bin/check"],
+            executable: { form: "described", path: "/bin/check", target: "/bin/check", digest: digest("check") },
+          },
+        ],
+      }
     })
-    const pkg = pluginCapability(["directory", "/plugins/pkg.js", "default"]).descriptor.id
-    const beta = mcpCapability(["mcp", "beta", "probe"]).descriptor.id
-    const gamma = mcpCapability(["mcp", "gamma", "probe"]).descriptor.id
+    const lint = pluginCapability(["directory", "/plugins/lint.js", "default"]).descriptor.id
+    const local = mcpCapability(["mcp", "local", "probe"]).descriptor.id
+    const remote = mcpCapability(["mcp", "remote", "probe"]).descriptor.id
+    const everything = [lint, local, remote, "worker.profile.codex", "verification.command.direct"]
 
-    const unacknowledged = await propose(contract(), snap, [])
-    expect(unacknowledged.unbindable.map((item) => item.capabilityId)).toEqual(expect.arrayContaining([pkg, beta]))
-    expect(unacknowledged.needsTrust.map((item) => item.capabilityId)).toContain(gamma)
-    // A compiled binary binds native tools exactly, with no acknowledgement.
-    expect(unacknowledged.candidate.capabilityGrants).toContainEqual({
-      subject: { kind: "capability", capabilityId: "native.tool.shell" },
-      decision: "allow",
-      scope: { kind: "run" },
-    })
-    expect(unacknowledged.bindings.every((binding) => binding.attestation === "exact")).toBe(true)
-
-    // Acknowledging an unsupported form grants nothing; acknowledging a remote
-    // server grants it, marked as external trust and never as exact.
-    const acknowledged = await propose(contract(), snap, [pkg, beta, gamma])
-    const granted = acknowledged.candidate.capabilityGrants.find(
-      (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId === gamma,
+    const acknowledged = await propose(contract(), snap, everything)
+    expect(acknowledged.unbindable.map((item) => item.capabilityId)).toEqual(
+      expect.arrayContaining([lint, local, "worker.profile.codex", "verification.command.direct"]),
     )
-    expect(granted?.acknowledgesExternalTrust).toBe(true)
-    expect(acknowledged.bindings.find((binding) => binding.subject === gamma)?.attestation).toBe("external")
-    expect(
-      acknowledged.candidate.capabilityGrants.some(
-        (grant) => grant.subject.kind === "capability" && [pkg, beta].includes(grant.subject.capabilityId),
-      ),
-    ).toBe(false)
-  })
+    const granted = acknowledged.candidate.capabilityGrants.map((grant) =>
+      grant.subject.kind === "capability" ? grant.subject.capabilityId : "",
+    )
+    expect(granted).toEqual(expect.arrayContaining(["native.tool.shell", remote]))
+    for (const id of [lint, local, "worker.profile.codex", "verification.command.direct"])
+      expect(granted).not.toContain(id)
+    expect(acknowledged.bindings.find((item) => item.subject === remote)?.attestation).toBe("external")
+    expect(acknowledged.bindings.find((item) => item.subject === "native.tool.shell")?.attestation).toBe("exact")
 
-  test("a development or unknown DAX build never binds native capabilities exactly", async () => {
-    const development = snapshot((value) => {
-      value.daxExecutable = { form: "development", commit: "c0ffee", clean: true }
+    // Without acknowledgement, the remote server waits for it; native stays exact.
+    const silent = await propose(contract(), snap, [])
+    expect(silent.needsTrust.map((item) => item.capabilityId)).toEqual([remote])
+
+    // A development build binds no native capability, and acknowledging one changes nothing.
+    const development = await propose(
+      contract(),
+      snapshot((value) => {
+        value.daxExecutable = { form: "development" }
+      }),
+      ["native.tool.shell"],
+    )
+    expect(development.unbindable.map((item) => item.capabilityId)).toContain("native.tool.shell")
+    expect(development.candidate.capabilityGrants).toEqual([])
+
+    // A source selector reaches only a remote server.
+    const selected = await proposeGrants({
+      runId: contract().runId,
+      contract: contract(),
+      snapshot: snap,
+      inputs: {
+        toolAllowlist: [],
+        toolBlocklist: [],
+        workflowClass: "generic",
+        acknowledgedExternal: ["mcp_source:resource:remote", "mcp_source:resource:local"],
+        sourceSelections: [
+          { server: "remote", family: "resource" },
+          { server: "local", family: "resource" },
+        ],
+      },
     })
-    const proposal = await propose(contract(), development, [])
-    expect(proposal.needsTrust.map((item) => item.capabilityId)).toContain("native.tool.shell")
-    expect(proposal.candidate.capabilityGrants).toEqual([])
-    const trusted = await propose(contract(), development, ["native.tool.shell"])
-    expect(trusted.candidate.capabilityGrants).toContainEqual({
-      subject: { kind: "capability", capabilityId: "native.tool.shell" },
+    expect(selected.unbindable).toContainEqual({ capabilityId: "mcp_source:resource:local" })
+    // A selection the operator did not also acknowledge waits for it.
+    const unacknowledged = await proposeGrants({
+      runId: contract().runId,
+      contract: contract(),
+      snapshot: snap,
+      inputs: {
+        toolAllowlist: [],
+        toolBlocklist: [],
+        workflowClass: "generic",
+        sourceSelections: [{ server: "remote", family: "resource" }],
+      },
+    })
+    expect(unacknowledged.needsTrust).toContainEqual({ capabilityId: "mcp_source:resource:remote" })
+    expect(unacknowledged.candidate.capabilityGrants.some((grant) => grant.subject.kind === "mcp_source")).toBe(false)
+    expect(selected.candidate.capabilityGrants).toContainEqual({
+      subject: { kind: "mcp_source", server: "remote", family: "resource" },
       decision: "allow",
       scope: { kind: "run" },
       acknowledgesExternalTrust: true,
     })
-    const unknown = await propose(
-      contract(),
-      snapshot((value) => {
-        value.daxExecutable = { form: "unknown" }
-      }),
-      ["native.tool.shell"],
-    )
-    expect(unknown.unbindable.map((item) => item.capabilityId)).toContain("native.tool.shell")
-
-    // This suite runs from source: the running build is development, at HEAD.
-    const running = await daxExecutable()
-    expect(running.form).toBe("development")
-    const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: import.meta.dir })
-      .stdout.toString()
-      .trim()
-    if (running.form === "development") expect(running.commit).toBe(head)
   })
+
+  test("a loader module with hidden dependencies, or one cached before discovery, is never bound", async () => {
+    const folder = path.join(home, ".config", "dax", "tool")
+    await fs.writeFile(path.join(home, "helper.cjs"), `module.exports = "uncommitted helper"`)
+    await fs.writeFile(
+      path.join(folder, "hidden.js"),
+      `import { createRequire } from "node:module"
+const load = createRequire(${JSON.stringify(path.join(home, "anchor.js"))})
+export default { description: load(${JSON.stringify(path.join(home, "helper.cjs"))}), args: {}, async execute() { return "x" } }`,
+    )
+    const cached = path.join(folder, "cachedprobe.js")
+    await fs.writeFile(cached, `export default { description: "probe", args: {}, async execute() { return "ONE" } }`)
+    await import(cached)
+    await fs.writeFile(cached, `export default { description: "probe", args: {}, async execute() { return "TWO" } }`)
+    await within(async () => {
+      const snap = await captureReviewSnapshot({ workflowClass: "generic" })
+      const ids = snap.tools.flatMap((item) => (item.family === "plugin" ? [item.descriptor.id] : []))
+      expect(
+        snap.tools
+          .filter((item) => item.family === "plugin")
+          .map((item) => item.alias)
+          .sort(),
+      ).toEqual(["cachedprobe", "hidden"])
+      const compiled = contract()
+      const proposal = await propose(
+        compiled,
+        { ...snap, daxExecutable: { form: "compiled", commit: "c", runtime: "r", bundle: "sha256:b" } },
+        ids,
+      )
+      expect(proposal.unbindable.map((item) => item.capabilityId)).toEqual(expect.arrayContaining(ids))
+      expect(proposal.bindings.some((item) => ids.includes(item.subject))).toBe(false)
+    })
+  })
+})
+
+describe("launched executables are described by content, as the launch resolves them", () => {
+  test("a same-size edit with its timestamps restored changes the description", async () => {
+    const file = path.join(home, exe("probe-tool"))
+    await fs.writeFile(file, "binary-v1")
+    await fs.chmod(file, 0o755)
+    const before = executableFacts(file)
+    await sameSizeEdit(file, "binary-v1", "binary-v2")
+    const after = executableFacts(file)
+    expect(before.form).toBe("described")
+    expect(after.form).toBe("described")
+    if (before.form !== "described" || after.form !== "described") return
+    expect(after.digest).not.toBe(before.digest)
+    expect(after.digest).toBe(digest(await fs.readFile(file)))
+  })
+
+  test("a local MCP server starts, and is described as, the executable its configured PATH selects", async () => {
+    const ambient = path.join(home, "ambient")
+    const configured = path.join(home, "configured")
+    await fs.mkdir(ambient)
+    await fs.mkdir(configured)
+    const name = "stage4a-mcp"
+    const server = (marker: string) => `
+import { createInterface } from "node:readline"
+await Bun.write(${JSON.stringify(path.join(home, "started-"))} + ${JSON.stringify(marker)}, process.argv0)
+for await (const line of createInterface({ input: process.stdin })) {
+  const request = JSON.parse(line)
+  if (request.id === undefined) continue
+  const result = request.method === "initialize"
+    ? { protocolVersion: request.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: ${JSON.stringify(marker)}, version: "1" } }
+    : request.method === "tools/list" ? { tools: [{ name: "probe", description: ${JSON.stringify(marker)}, inputSchema: { type: "object", properties: {} } }] } : {}
+  console.log(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }))
+}`
+    await compile(server("ambient"), path.join(ambient, name))
+    const selected = await compile(server("configured"), path.join(configured, name))
+    const previousPath = process.env.PATH
+    process.env.PATH = `${ambient}${path.delimiter}${previousPath}`
+    await fs.writeFile(
+      path.join(home, ".config", "dax", "dax.json"),
+      JSON.stringify({
+        mcp: {
+          probe: {
+            type: "local",
+            command: [name],
+            environment: { PATH: `${configured}${path.delimiter}${previousPath}` },
+          },
+        },
+      }),
+    )
+    try {
+      await within(async () => {
+        const snap = await captureReviewSnapshot({ workflowClass: "generic" })
+        expect(snap.tools.filter((item) => item.family === "mcp_tool")).toHaveLength(1)
+        const material = snap.mcpServers.probe
+        expect(material?.type).toBe("local")
+        if (material?.type !== "local") return
+        expect(material.executable).toEqual(executableFacts(selected))
+        expect(MCP.launchFacts("probe")).toEqual(material.executable)
+        // The transport started the very path that was described, not a name it resolved again.
+        expect(material.executable.form).toBe("described")
+        if (material.executable.form !== "described") return
+        expect(await Bun.file(path.join(home, "started-configured")).text()).toBe(material.executable.path)
+        expect(await Bun.file(path.join(home, "started-ambient")).exists()).toBe(false)
+      })
+    } finally {
+      process.env.PATH = previousPath
+    }
+  }, 60_000)
 })
 
 describe("verification binds the runner that dispatches, the argument vector, the directory and the executable", () => {
@@ -254,7 +375,9 @@ describe("verification binds the runner that dispatches, the argument vector, th
   }
 
   test("the plan proposes a runner by workflow; only a genuine dispatch establishes it", async () => {
-    const tool = await binary("probe-tool")
+    const tool = path.join(home, exe("probe-tool"))
+    await fs.writeFile(tool, "binary-v1")
+    await fs.chmod(tool, 0o755)
     const planned = (workflowClass: string) =>
       ({
         workflowClass,
@@ -287,73 +410,35 @@ describe("verification binds the runner that dispatches, the argument vector, th
         executable: executableFacts(tool),
       })
       expect(matchesReviewedVerification(direct, genuine!)).toBe(true)
-
-      // A different argument vector or directory is not the reviewed command.
       expect(matchesReviewedVerification(direct, dispatched(["--fix"])!)).toBe(false)
       expect(matchesReviewedVerification(direct, dispatched(["--check"], path.join(directory, "sub"))!)).toBe(false)
-      // The sandboxed runner is not the direct one the plan named.
       expect(
         matchesReviewedVerification(direct, dispatched(["--check"], directory, "sandboxed", runSandboxedWorkerCheck)!),
       ).toBe(false)
       // A runner name that does not match the genuine dispatch function establishes nothing.
       expect(dispatched(["--check"], directory, "sandboxed", runCheck)).toBeUndefined()
       expect(dispatched(["--check"], directory, "direct", async () => undefined)).toBeUndefined()
-      // Outside the worktree is not a reviewable directory.
       expect(dispatched(["--check"], home)).toBeUndefined()
 
-      // Same name, same size, different content: not the reviewed executable.
       await sameSizeEdit(tool, "binary-v1", "binary-v2")
       expect(matchesReviewedVerification(direct, dispatched(["--check"])!)).toBe(false)
-    })
-  })
 
-  test("a plan run through a launcher has no supported form and proposes no verification grant", async () => {
-    const snap = snapshot((value) => {
-      value.verification = {
-        descriptor: nativeCapabilities.list().find(() => false) ?? verificationDescriptor(),
-        runner: "direct",
-        cwd: ".",
-        commands: [{ argv: ["bun", "test"], executable: { form: "unsupported", reason: "launcher" } }],
-      }
+      // Described, matched, and still not grantable: a launched program has no supported form yet.
+      const proposal = await propose(contract(), { ...snapshot(), verification: direct }, [
+        "verification.command.direct",
+      ])
+      expect(proposal.unbindable.map((item) => item.capabilityId)).toContain("verification.command.direct")
     })
-    const proposal = await propose(contract(), snap, ["verification.command.direct"])
-    expect(proposal.unbindable.map((item) => item.capabilityId)).toContain("verification.command.direct")
-    expect(
-      proposal.candidate.capabilityGrants.some(
-        (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId === "verification.command.direct",
-      ),
-    ).toBe(false)
   })
 })
 
 // ---- synthetic catalog -------------------------------------------------------
-
-function verificationDescriptor() {
-  return {
-    id: "verification.command.direct",
-    riskClass: "high",
-    scopeSupport: "opaque",
-    requiresVerification: false,
-  } as const
-}
 
 function contract(): ExecutionContract {
   const { contract } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, "ses_grant_stage4a")
   contract.toolAllowlist = []
   contract.toolBlocklist = []
   return contract
-}
-
-function plugin(alias: string, file: string, moduleDigest = `sha256:${"a".repeat(64)}`): ReviewToolEntry {
-  const { descriptor, source } = pluginCapability(["directory", file, "default"])
-  return {
-    family: "plugin",
-    alias,
-    descriptor,
-    source,
-    metadata: "m1",
-    module: { form: "self_contained", digest: moduleDigest },
-  }
 }
 
 function mcpTool(server: string, name: string): ReviewToolEntry {
@@ -373,11 +458,12 @@ type MutableSnapshot = ReviewCatalogSnapshot & {
 }
 
 function snapshot(change?: (value: MutableSnapshot) => void): ReviewCatalogSnapshot {
+  const { descriptor, source } = pluginCapability(["directory", "/plugins/lint.js", "default"])
   const value: MutableSnapshot = {
-    daxExecutable: { form: "compiled", commit: "c0ffee", digest: `sha256:${"d".repeat(64)}` },
+    daxExecutable: { form: "compiled", commit: "c0ffee", runtime: "r1", bundle: `sha256:${"d".repeat(64)}` },
     tools: [
       { family: "native", alias: "shell", descriptor: nativeCapabilities.require("native.tool.shell") },
-      plugin("lint", "/plugins/lint.js"),
+      { family: "plugin", alias: "lint", descriptor, source, metadata: "m1" },
     ],
     mcpServers: {},
     session: [],
@@ -386,9 +472,6 @@ function snapshot(change?: (value: MutableSnapshot) => void): ReviewCatalogSnaps
   change?.(value)
   return value
 }
-
-const externalIds = (snap: ReviewCatalogSnapshot) =>
-  snap.tools.flatMap((entry) => (entry.family === "plugin" || entry.family === "mcp_tool" ? [entry.descriptor.id] : []))
 
 function propose(value: ExecutionContract, snap: ReviewCatalogSnapshot, acknowledgedExternal: readonly string[]) {
   return proposeGrants({

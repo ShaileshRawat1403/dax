@@ -50,12 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Publication requires an approval with a recorded approver. No route or
   configuration reaches it.
 - Grant implementation bindings now say how far they are attested. Only a
-  compiled DAX binary, hashed at startup, is exact. Remote servers, local plugin
-  files, launched binaries and source runs are external and need the operator's
-  explicit acknowledgement; launchers, scripts, package plugins and modules with
-  non-builtin imports cannot be bound at all. Bindings always compare content.
-  Verification plans are bound by runner, argument vector, directory and
-  executable, with the runner established by the genuine dispatch function.
+  compiled DAX binary is exact, bound by the bundle in its running image. A
+  remote MCP server is the one external exception, granted only with the
+  operator's explicit acknowledgement. Source runs, plugins, local MCP servers,
+  workers and verification commands cannot be bound. Local MCP servers now start
+  from the executable resolved with their own configured PATH and directory.
 
 ### Changed
 

@@ -25,6 +25,7 @@ import open from "open"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { createMcpToolCatalog, mcpExecutionIdentity, mcpToolSummary } from "./tool-identity"
 import type { CapabilityDescriptor } from "@/capability/capability-types"
+import { executableFacts, type ExecutableFacts } from "@/capability/implementation-binding"
 import {
   bindMcpPromptRead,
   bindMcpResourceRead,
@@ -40,6 +41,10 @@ import {
  * needs to start; anything else a server requires is declared in its own
  * `environment` block, where the operator can see it.
  */
+// The executable each local server was last launched from, per instance
+// directory, as the launch itself resolved it.
+const launches = new Map<string, ExecutableFacts>()
+
 function baseEnvironment(): Record<string, string> {
   const allowed = [
     "PATH",
@@ -237,6 +242,11 @@ export namespace MCP {
 
   export const executionIdentity = mcpExecutionIdentity
   /** This instance's valid MCP tools with their server, raw name and listed definition. Performs no discovery. */
+  /** The executable this instance last launched for a local server, as that launch resolved it. */
+  export function launchFacts(server: string): ExecutableFacts | undefined {
+    return launches.get(`${Instance.directory}\0${server}`)
+  }
+
   export async function catalogEntries() {
     const existing = state.peek()
     if (!existing) return Object.freeze([])
@@ -552,16 +562,21 @@ export namespace MCP {
     if (mcp.type === "local") {
       const [cmd, ...args] = mcp.command
       const cwd = Instance.directory
+      const env: Record<string, string> = {
+        ...baseEnvironment(),
+        ...(cmd === "dax" ? { BUN_BE_BUN: "1" } : {}),
+        ...mcp.environment,
+      }
+      // Resolve once, with the launch's own PATH and directory, and start
+      // exactly that file. What a review describes is what this launches.
+      const launched = executableFacts(cmd, { PATH: env.PATH, cwd })
+      launches.set(`${Instance.directory}\0${key}`, launched)
       const transport = new StdioClientTransport({
         stderr: "pipe",
-        command: cmd,
+        command: launched.form === "described" ? launched.path : cmd,
         args,
         cwd,
-        env: {
-          ...baseEnvironment(),
-          ...(cmd === "dax" ? { BUN_BE_BUN: "1" } : {}),
-          ...mcp.environment,
-        },
+        env,
       })
       transport.stderr?.on("data", (chunk: Buffer) => {
         log.info(`mcp stderr: ${chunk.toString()}`, { key })

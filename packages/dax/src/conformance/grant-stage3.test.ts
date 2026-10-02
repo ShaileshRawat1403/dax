@@ -59,23 +59,16 @@ function contract(configure?: (contract: ExecutionContract) => void, runId = RUN
   return contract
 }
 
-function pluginEntry(alias: string, file: string, metadata = "m1", moduleDigest = "sha256:a"): ReviewToolEntry {
+function pluginEntry(alias: string, file: string, metadata = "m1"): ReviewToolEntry {
   const { descriptor, source } = pluginCapability(["directory", file, "default"])
-  return {
-    family: "plugin",
-    alias,
-    descriptor,
-    source,
-    metadata,
-    module: { form: "self_contained", digest: moduleDigest },
-  }
+  return { family: "plugin", alias, descriptor, source, metadata }
 }
 
-const alphaServer = (command = "alpha-server") => ({
-  type: "local" as const,
-  command: [command],
-  environment: ["ALPHA_TOKEN"],
-  executable: { form: "binary" as const, path: `/bin/${command}`, digest: `sha256:${command}` },
+// A remote server: the one external source an operator may acknowledge.
+const alphaServer = (version = "v1") => ({
+  type: "remote" as const,
+  url: `https://alpha.invalid/${version}/mcp`,
+  headers: ["Authorization"],
 })
 
 function mcpEntry(server: string, name: string, definition = "d1"): ReviewToolEntry {
@@ -97,7 +90,7 @@ type MutableSnapshot = ReviewCatalogSnapshot & {
 function snapshot(change?: (snapshot: MutableSnapshot) => void): ReviewCatalogSnapshot {
   const value: MutableSnapshot = {
     // A compiled binary: DAX-native capabilities are exactly bound.
-    daxExecutable: { form: "compiled", commit: "c0ffee", digest: "sha256:dax" },
+    daxExecutable: { form: "compiled", commit: "c0ffee", runtime: "r1", bundle: "sha256:dax" },
     tools: [
       nativeEntry("read"),
       nativeEntry("shell"),
@@ -122,9 +115,9 @@ const inputs = (value: ExecutionContract) => ({
   workflowClass: value.workflowClass,
 })
 
-/** Every plugin and MCP tool in the snapshot: the operator's acknowledgement of external trust. */
+/** Every MCP tool in the snapshot: the operator's acknowledgement of external trust. */
 const externalIds = (snap: ReviewCatalogSnapshot) =>
-  snap.tools.flatMap((entry) => (entry.family === "plugin" || entry.family === "mcp_tool" ? [entry.descriptor.id] : []))
+  snap.tools.flatMap((entry) => (entry.family === "mcp_tool" ? [entry.descriptor.id] : []))
 
 async function propose(
   value = contract(),
@@ -165,7 +158,7 @@ describe("a proposal is deterministic data derived from recorded inputs", () => 
       await propose(
         compiled,
         snapshot((value) => {
-          value.tools[4] = pluginEntry("lint", "/plugins/lint.js", "m2")
+          value.tools[5] = mcpEntry("alpha", "probe", "d2")
         }),
       ),
     )
@@ -193,8 +186,11 @@ describe("a proposal is deterministic data derived from recorded inputs", () => 
     )
     expect(proposal.excluded).toEqual([{ alias: "old", reason: "legacy_unenrolled" }])
     const override = pluginCapability(["directory", "/plugins/read.js", "default"]).descriptor.id
-    // Dispatch selects the last executor under an alias; that is the one granted.
-    expect(subjects(proposal)).toContain(override)
+    // Dispatch selects the last executor under an alias. A plugin has no
+    // supported binding, so neither it nor the native tool it shadows is granted.
+    expect(subjects(proposal)).not.toContain(override)
+    expect(subjects(proposal)).not.toContain("native.tool.read")
+    expect(proposal.unbindable).toContainEqual({ capabilityId: override, alias: "read" })
     expect(proposal.marked).toEqual([
       { capabilityId: override, alias: "read", note: "non_native_executor_under_native_alias" },
     ])
@@ -233,7 +229,7 @@ describe("a proposal is deterministic data derived from recorded inputs", () => 
 })
 
 describe("approval binds the implementation, not only the identity", () => {
-  test("a changed plugin file, MCP definition or server changes the binding; unrelated additions do not", async () => {
+  test("a changed MCP definition or server changes the binding; unrelated additions do not", async () => {
     const proposal = await propose()
     const bindingFor = (id: string) => {
       const index = proposal.candidate.capabilityGrants.findIndex(
@@ -241,24 +237,14 @@ describe("approval binds the implementation, not only the identity", () => {
       )
       return { binding: proposal.bindings[index]!, subject: proposal.candidate.capabilityGrants[index]!.subject }
     }
-    const lint = bindingFor(pluginCapability(["directory", "/plugins/lint.js", "default"]).descriptor.id)
     const probe = bindingFor(mcpCapability(["mcp", "alpha", "probe"]).descriptor.id)
-
-    // Same logical identity, edited in place: the capability ID is unchanged.
-    const edited = snapshot((value) => {
-      value.tools[4] = pluginEntry("lint", "/plugins/lint.js", "m1", "sha256:b")
-    })
-    expect((edited.tools[4] as { descriptor: { id: string } }).descriptor.id).toBe(
-      lint.subject.kind === "capability" ? lint.subject.capabilityId : "",
-    )
-    expect(await checkBinding(lint.binding, lint.subject, edited)).toBe("changed")
 
     const redefined = snapshot((value) => {
       value.tools[5] = mcpEntry("alpha", "probe", "d2")
     })
     expect(await checkBinding(probe.binding, probe.subject, redefined)).toBe("changed")
     const relaunched = snapshot((value) => {
-      value.mcpServers.alpha = alphaServer("other-server")
+      value.mcpServers.alpha = alphaServer("v2")
     })
     expect(await checkBinding(probe.binding, probe.subject, relaunched)).toBe("changed")
     const gone = snapshot((value) => {
@@ -269,7 +255,6 @@ describe("approval binds the implementation, not only the identity", () => {
     const enlarged = snapshot((value) =>
       value.tools.push(mcpEntry("beta", "extra"), pluginEntry("fmt", "/plugins/fmt.js")),
     )
-    expect(await checkBinding(lint.binding, lint.subject, enlarged)).toBe("unchanged")
     expect(await checkBinding(probe.binding, probe.subject, enlarged)).toBe("unchanged")
   })
 })
@@ -336,11 +321,8 @@ afterEach(async () => {
 
 const within = <T>(fn: () => Promise<T>) => Instance.provide({ directory, fn })
 
-async function reviewedRun(acknowledgedExternal?: string[]) {
-  return createGrantReviewedRun(
-    { request: { intent: { input: "Inspect the repository, read only." } } },
-    acknowledgedExternal ? { acknowledgedExternal } : undefined,
-  )
+async function reviewedRun(options?: Parameters<typeof createGrantReviewedRun>[1]) {
+  return createGrantReviewedRun({ request: { intent: { input: "Inspect the repository, read only." } } }, options)
 }
 
 /** What the operator saw and approved: the subject the run log holds for this revision. */
@@ -694,36 +676,66 @@ describe("capture reads the current catalog and publication checks it afresh", (
     })
   })
 
-  test("a plugin changed after review is caught by the first fresh capture, and publication refuses it", async () => {
-    const file = await probe("initial")
+  test("a loader plugin has no supported binding: listed, never granted, even when acknowledged", async () => {
+    await probe("initial")
     await within(async () => {
-      // The operator accepts the loader plugin as a reviewed external source.
       const captured = await captureReviewSnapshot(contract())
       const search = captured.tools.find((item) => item.alias === "search")
       if (search?.family !== "plugin") throw new Error("the probe plugin was not enrolled")
-      const { runId, revision } = await reviewedRun([search.descriptor.id])
-      const granted = revision.proposal.candidate.capabilityGrants.findIndex(
-        (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId.startsWith("plugin.tool.v1."),
-      )
-      expect(granted).toBeGreaterThanOrEqual(0)
-      const binding = revision.proposal.bindings[granted]!
-      const subject = revision.proposal.candidate.capabilityGrants[granted]!.subject
+      const { revision } = await reviewedRun({ acknowledgedExternal: [search.descriptor.id] })
+      expect(revision.proposal.unbindable).toContainEqual({ capabilityId: search.descriptor.id, alias: "search" })
+      expect(
+        revision.proposal.candidate.capabilityGrants.some(
+          (grant) => grant.subject.kind === "capability" && grant.subject.capabilityId === search.descriptor.id,
+        ),
+      ).toBe(false)
+    })
+  })
 
-      // The loaded module's metadata changes in place; the capability ID does not.
-      const loaded = (await import(file)) as { default: { description: string } }
-      loaded.default.description = "changed after operator review"
-      expect(await checkBinding(binding, subject, await captureReviewSnapshot(revision.proposal.candidate))).toBe(
-        "changed",
+  test("a remote source changed after review is caught by publication's own capture", async () => {
+    const configure = (url: string) =>
+      fs.writeFile(
+        path.join(home, ".config", "dax", "dax.json"),
+        JSON.stringify({ mcp: { gamma: { type: "remote", url, enabled: false } } }),
       )
+    await configure("http://127.0.0.1:9/reviewed")
+    let runId = ""
+    let approval: { approvalId: string; subject: unknown } | undefined
+    await within(async () => {
+      const created = await reviewedRun({
+        acknowledgedExternal: ["mcp_source:resource:gamma"],
+        sourceSelections: [{ server: "gamma", family: "resource" }],
+      })
+      runId = created.runId
+      expect(created.revision.proposal.candidate.capabilityGrants).toContainEqual({
+        subject: { kind: "mcp_source", server: "gamma", family: "resource" },
+        decision: "allow",
+        scope: { kind: "run" },
+        acknowledgesExternalTrust: true,
+      })
+      expect(created.revision.proposal.bindings.map((item) => item.attestation)).toEqual(["external"])
+      await resolveApprovalEvent(runId, created.revision.approvalId, "approved", "operator")
+      approval = {
+        approvalId: created.revision.approvalId,
+        subject: await subjectOf(runId, created.revision.approvalId),
+      }
+    })
 
-      await resolveApprovalEvent(runId, revision.approvalId, "approved", "operator")
-      const approval = { approvalId: revision.approvalId, subject: await subjectOf(runId, revision.approvalId) }
-      expect(await refusal(GrantReview.publish(runId, approval))).toBe("binding_changed")
+    // The server now points somewhere the operator never reviewed.
+    await configure("http://127.0.0.1:9/elsewhere")
+    await Instance.disposeAll()
+    Config.global.reset()
+    await within(async () => {
+      expect(await refusal(GrantReview.publish(runId, approval!))).toBe("binding_changed")
       expect(await GrantReview.readPublished(runId)).toBeUndefined()
+    })
 
-      // Restored, the same approval publishes: the binding is to content, not to time.
-      loaded.default.description = "initial"
-      expect((await GrantReview.publish(runId, approval)).status).toBe("published")
+    // Back to what was reviewed: the same approval publishes.
+    await configure("http://127.0.0.1:9/reviewed")
+    await Instance.disposeAll()
+    Config.global.reset()
+    await within(async () => {
+      expect((await GrantReview.publish(runId, approval!)).status).toBe("published")
     })
   })
 })

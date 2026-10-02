@@ -3,10 +3,6 @@ import { plugin } from "bun"
 import solid from "@opentui/solid/bun-plugin"
 plugin(solid)
 
-// Bind the running implementation as launched: a compiled binary is hashed now,
-// before anything else could replace the file, and reused for the process.
-void import("./capability/implementation-binding").then((binding) => binding.daxExecutable())
-
 const { default: yargs } = await import("yargs")
 const { hideBin } = await import("yargs/helpers")
 const { RunCommand } = await import("./cli/cmd/run")

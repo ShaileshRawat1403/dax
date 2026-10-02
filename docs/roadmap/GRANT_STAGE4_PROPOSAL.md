@@ -195,28 +195,50 @@ and exact-SHA CI. None of them exposes the opt-in.
 
 ## 4a as delivered
 
+The first 4a commit, `9ffd1b1`, was refused on review: hidden module dependencies,
+a module cached before discovery, executables classified by name, an MCP executable
+resolved from the wrong PATH, and a compiled binary hashed from disk after it had been
+replaced. The correction narrows what can be bound instead of analysing more:
+
+| Implementation | Binding |
+|---|---|
+| Compiled DAX binary | **Exact**: the bundle embedded in the running image, read from the process's own memory, plus the runtime revision compiled into it. Replacing the file on disk changes nothing it describes |
+| Source run of DAX | None. Development builds are never bound, acknowledged or not |
+| Remote MCP server | **External**, the only exception: URL, header names and tool definitions, granted only with `acknowledgesExternalTrust`, set solely from the operator's acknowledgement |
+| Plugin and loader modules | None: their dependency closure cannot be established without analysing JavaScript |
+| Local MCP server, worker CLI, verification command | None yet: what a launched program runs depends on what it loads, and nothing protects it between check and launch |
+
+Launched executables are still **described** by content so a reviewer sees exactly what
+would start. A local MCP server's executable is resolved once, with the launch's own
+PATH and working directory, and the transport starts that resolved path; the review
+shows the description recorded at launch. A description is never a binding.
+
+Verification selection is in place for when a supported form exists: the plan records
+the runner, argument vectors, directory and executable descriptions; the genuine
+dispatch function establishes the runner; and a check matches the plan only with the
+same runner, directory, argument vector and executable content. No verification grant
+is proposed today.
+
+Operators may select MCP source selectors from `onDemandSources`; a selection is granted
+only for a remote server and only when its subject key is also acknowledged.
+
 | Part | Where |
 |---|---|
-| Attestation classes, DAX executable identity, executable and module forms | `capability/implementation-binding.ts` |
-| Startup hashing of the running binary; build commit define | `index.ts`, `script/build.ts` (`DAX_BUILD_COMMIT`) |
-| Loaded-module recording at first import | `tool/registry.ts` (`importRecorded`, `loadedModule`) |
-| Proposal: `unbindable`, `needsTrust`, `acknowledgedExternal`, attestation on every binding | `capability/grant-proposal.ts`, `capability/grant.ts` |
-| Capture: executables for local MCP servers and workers, verification plan by argument vector | `capability/grant-review-snapshot.ts`, `worker/worker-adapter.ts` |
-| Verification dispatch: genuine runner registry, dispatch description, reviewed-plan match | `sdlc/verification-identity.ts`, `sdlc/check-runner.ts`, `worker/worker-sandbox.ts`, `capability/grant-proposal.ts` |
-| Evidence | `conformance/grant-stage4a.test.ts`; stage 3 tests updated for attested bindings |
+| Attestation, running-image identity, executable descriptions | `capability/implementation-binding.ts` |
+| Build commit define | `script/build.ts` (`DAX_BUILD_COMMIT`) |
+| Shared local MCP launch resolution and launch record | `mcp/index.ts` (`launchFacts`) |
+| Proposal: `unbindable`, `needsTrust`, `acknowledgedExternal`, `sourceSelections` | `capability/grant-proposal.ts`, `capability/grant.ts`, `execution/run-factory.ts` |
+| Capture | `capability/grant-review-snapshot.ts`, `worker/worker-adapter.ts` |
+| Verification dispatch | `sdlc/verification-identity.ts`, `sdlc/check-runner.ts`, `worker/worker-sandbox.ts` |
+| Evidence | `conformance/grant-stage4a.test.ts`; stage 3 tests updated |
 
 Nothing is enforced. The stage 3 barrier holds every reviewed run.
 
-Consequences and limits to review:
-
 | Issue | Location | Severity |
 |---|---|---|
-| A source run of DAX is development, so every native capability needs an explicit external-trust acknowledgement there. Only a compiled binary binds exactly | `capability/implementation-binding.ts` | Info |
-| Most verification plans run through a launcher (`bun run test`, `npm test`), which has no supported form, so they propose no verification grant | `capability/grant-review-snapshot.ts` | Medium |
-| Worker CLIs that are scripts or launch through an interpreter have no supported form, so those worker profiles cannot be granted | `worker/worker-adapter.ts` | Medium |
-| Tools from plugin packages, and plugin-sourced tools generally, have no recorded module and cannot be granted | `capability/grant-review-snapshot.ts` | Low |
-| External executables are bound by content when checked; protection between that check and launch is designed for 4c, where launch happens under enforcement | `capability/implementation-binding.ts` | Medium |
-| On macOS the running binary is hashed by path at startup, so a replacement between launch and that hash would go unseen. Linux could hash `/proc/self/exe` instead | `capability/implementation-binding.ts` | Low |
+| Under enforcement, a reviewed run could use only compiled-DAX native capabilities and acknowledged remote MCP. Plugins, local MCP servers, workers and verification need a supported form first: this is a product decision before 4b | `capability/grant-proposal.ts` | High |
+| Tests and source runs cannot exercise a native grant at all; enforcement tests in 4b will need a compiled probe | `capability/implementation-binding.ts` | Medium |
+| The native runtime is identified by its compiled-in revision, not by hashing its machine code | `capability/implementation-binding.ts` | Low |
 
 ## Not in stage 4
 

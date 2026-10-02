@@ -14,16 +14,15 @@ import { ExternalWorkerId, listBuiltinWorkerCapabilities, workerProfileFacts } f
 import type { McpServerMaterial, ReviewCatalogSnapshot, ReviewToolEntry } from "./grant-proposal"
 import { nativeCapabilities } from "./registry"
 
-function mcpMaterial(config: Config.Mcp): McpServerMaterial {
+function mcpMaterial(name: string, config: Config.Mcp): McpServerMaterial {
   // Names only: a binding must never carry a secret value.
   if (config.type === "local") {
     return {
       type: "local",
       command: [...config.command],
       environment: Object.keys(config.environment ?? {}).sort(),
-      executable: config.command[0]
-        ? executableFacts(config.command[0])
-        : { form: "unsupported", reason: "unresolved" },
+      // As the last launch resolved it: the configured PATH and the instance directory.
+      executable: MCP.launchFacts(name) ?? { form: "unresolved" },
     }
   }
   return { type: "remote", url: config.url, headers: Object.keys(config.headers ?? {}).sort() }
@@ -54,20 +53,12 @@ export async function captureReviewSnapshot(
       tools.push({ family: "legacy", alias })
       continue
     }
-    let parts: string[] = []
-    try {
-      parts = JSON.parse(entry.source)
-    } catch {
-      // Not a recorded part list: there is no local file to hash.
-    }
     tools.push({
       family: "plugin",
       alias,
       descriptor: entry.capability,
       source: entry.source,
       metadata: entry.metadata,
-      // Only a loader file has a recorded module; a plugin from a package does not.
-      module: parts[0] === "directory" && parts[1] ? ((await ToolRegistry.loadedModule(parts[1])) ?? null) : null,
     })
   }
 
@@ -86,7 +77,7 @@ export async function captureReviewSnapshot(
   const config = await Config.get()
   const mcpServers: Record<string, McpServerMaterial> = {}
   for (const [name, server] of Object.entries(config.mcp ?? {})) {
-    if (server && typeof server === "object" && "type" in server) mcpServers[name] = mcpMaterial(server)
+    if (server && typeof server === "object" && "type" in server) mcpServers[name] = mcpMaterial(name, server)
   }
 
   const worker = (() => {
@@ -113,13 +104,13 @@ export async function captureReviewSnapshot(
           cwd: ".",
           commands: planned.map((command) => {
             const argv = command.trim().split(/\s+/)
-            return { argv, executable: executableFacts(argv[0]!, Instance.worktree) }
+            return { argv, executable: executableFacts(argv[0]!, { cwd: Instance.worktree }) }
           }),
         }
       : undefined
 
   return {
-    daxExecutable: await daxExecutable(),
+    daxExecutable: daxExecutable(),
     tools,
     mcpServers,
     session: [

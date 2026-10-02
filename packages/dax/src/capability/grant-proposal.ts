@@ -9,7 +9,6 @@ import {
   type BoundFacts,
   type DaxExecutable,
   type ExecutableFacts,
-  type ModuleFacts,
 } from "./implementation-binding"
 
 /**
@@ -30,10 +29,9 @@ export type ReviewToolEntry =
       /** The declared description and schema, canonicalized. */
       metadata: string
       /**
-       * The module as this process loaded it, recorded at its first import; null
-       * when it was not loaded from a local file, as for a package plugin.
+       * Plugin and loader modules have no supported binding form: their
+       * dependency closure cannot be established. They are listed, never granted.
        */
-      module: ModuleFacts | null
     }
   | {
       family: "mcp_tool"
@@ -90,12 +88,18 @@ export type ProposalInputs = {
    * implementation the operator explicitly accepts. Never set by the proposal.
    */
   acknowledgedExternal?: readonly string[]
+  /**
+   * Source selectors the operator chose from `onDemandSources`, for MCP reads
+   * that have no enumerable identity. Each is granted only when its subject key
+   * (`mcp_source:<family>:<server>`) is also in `acknowledgedExternal`.
+   */
+  sourceSelections?: readonly { server: string; family: "tool" | "resource" | "prompt" }[]
 }
 
 export type ImplementationBinding = {
   /** The grant subject this binds: a capability ID, or `mcp_source:<family>:<server>`. */
   subject: string
-  /** Exact only for the compiled DAX binary; everything else is a reviewed external source. */
+  /** Exact only for the compiled DAX binary's running image; external only for a remote MCP server. */
   attestation: Attestation
   canonicalization: "sorted-json-v1"
   digest: string
@@ -136,63 +140,35 @@ export function bindingFacts(
   snapshot: ReviewCatalogSnapshot,
   subject: CapabilityGrant["subject"],
 ): BoundFacts | undefined {
+  // Remote MCP is the only external exception; a local server's program has no supported form.
+  const remote = (server: string) => {
+    const material = snapshot.mcpServers[server]
+    return material?.type === "remote" ? material : undefined
+  }
   if (subject.kind === "mcp_source") {
-    const server = snapshot.mcpServers[subject.server]
-    if (!server || (server.type === "local" && server.executable.form !== "binary")) return undefined
+    const material = remote(subject.server)
+    if (!material) return undefined
     return {
       attestation: "external",
-      facts: { kind: "mcp_source", family: subject.family, server: subject.server, material: server },
+      facts: { kind: "mcp_source", family: subject.family, server: subject.server, material },
     }
   }
   const id = subject.capabilityId
   for (const entry of snapshot.tools) {
     if (entry.family === "legacy" || entry.descriptor.id !== id) continue
     if (entry.family === "native") return nativeBinding(id, snapshot.daxExecutable)
-    if (entry.family === "plugin") {
-      if (entry.module?.form !== "self_contained") return undefined
-      return {
-        attestation: "external",
-        facts: { kind: "plugin", id, source: entry.source, metadata: entry.metadata, module: entry.module },
-      }
-    }
-    const server = snapshot.mcpServers[entry.server]
-    if (!server || (server.type === "local" && server.executable.form !== "binary")) return undefined
+    if (entry.family === "plugin") return undefined
+    const material = remote(entry.server)
+    if (!material) return undefined
     return {
       attestation: "external",
-      facts: {
-        kind: "mcp_tool",
-        id,
-        server: entry.server,
-        material: server,
-        name: entry.name,
-        definition: entry.definition,
-      },
+      facts: { kind: "mcp_tool", id, server: entry.server, material, name: entry.name, definition: entry.definition },
     }
   }
   if (snapshot.session.some((item) => item.id === id) || snapshot.workflow.some((item) => item.id === id)) {
     return nativeBinding(id, snapshot.daxExecutable)
   }
-  if (snapshot.worker?.descriptor.id === id) {
-    if (snapshot.worker.facts.executable.form !== "binary") return undefined
-    return { attestation: "external", facts: { kind: "worker", id, ...snapshot.worker.facts } }
-  }
-  const verification = snapshot.verification
-  if (verification?.descriptor.id === id) {
-    const runner = nativeBinding(id, snapshot.daxExecutable)
-    if (!runner || verification.commands.length === 0) return undefined
-    if (verification.commands.some((command) => command.executable.form !== "binary")) return undefined
-    return {
-      attestation: "external",
-      facts: {
-        kind: "verification",
-        id,
-        runner: verification.runner,
-        cwd: verification.cwd,
-        commands: verification.commands,
-        dax: runner.facts,
-      },
-    }
-  }
+  // Workers and verification commands launch programs with no supported form yet.
   return undefined
 }
 
@@ -239,14 +215,15 @@ export function matchesReviewedVerification(
   dispatch: { runner: string; cwd: string; argv: readonly string[]; executable: ExecutableFacts },
 ): boolean {
   if (dispatch.runner !== reviewed.runner || dispatch.cwd !== reviewed.cwd) return false
-  if (dispatch.executable.form !== "binary") return false
+  if (dispatch.executable.form !== "described") return false
   const executable = dispatch.executable
   return reviewed.commands.some(
     (command) =>
       command.argv.length === dispatch.argv.length &&
       command.argv.every((arg, index) => arg === dispatch.argv[index]) &&
-      command.executable.form === "binary" &&
+      command.executable.form === "described" &&
       command.executable.path === executable.path &&
+      command.executable.target === executable.target &&
       command.executable.digest === executable.digest,
   )
 }
@@ -352,6 +329,20 @@ export async function proposeGrants(input: {
     propose(descriptor)
   }
   for (const descriptor of snapshot.workflow) propose(descriptor)
+  for (const selection of input.inputs.sourceSelections ?? []) {
+    const subject = { kind: "mcp_source" as const, server: selection.server, family: selection.family }
+    const key = subjectKey(subject)
+    if (!bindingFacts(snapshot, subject)) {
+      unbindable.set(key, { capabilityId: key })
+      continue
+    }
+    if (!acknowledged.has(key)) {
+      needsTrust.set(key, { capabilityId: key })
+      continue
+    }
+    trust.set(key, true)
+    grants.set(key, { subject, decision: "allow", scope: { kind: "run" } })
+  }
   if (snapshot.worker) propose(snapshot.worker.descriptor)
   if (snapshot.verification) propose(snapshot.verification.descriptor)
 
@@ -380,6 +371,13 @@ export async function proposeGrants(input: {
       ...(input.inputs.writeScope ? { writeScope: input.inputs.writeScope } : {}),
       ...(input.inputs.acknowledgedExternal
         ? { acknowledgedExternal: [...new Set(input.inputs.acknowledgedExternal)].sort() }
+        : {}),
+      ...(input.inputs.sourceSelections
+        ? {
+            sourceSelections: [...input.inputs.sourceSelections]
+              .map((item) => ({ server: item.server, family: item.family }))
+              .sort((a, b) => (`${a.family}:${a.server}` < `${b.family}:${b.server}` ? -1 : 1)),
+          }
         : {}),
       daxExecutable: snapshot.daxExecutable,
     },

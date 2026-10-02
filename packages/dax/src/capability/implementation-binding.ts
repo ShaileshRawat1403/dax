@@ -5,22 +5,23 @@ import path from "node:path"
 /**
  * Stage 4a: what a grant's implementation binding can establish.
  *
- * `exact` means the bound content is the content that executes, protected
- * against substitution between checking and execution. Only the compiled DAX
- * binary is exact: its code is the process image, hashed once at startup.
+ * `exact`: the bound content is the code that runs. Only a compiled DAX binary
+ * qualifies, and only through its running image: the embedded bundle is read
+ * from the process's own memory, so replacing the file on disk changes nothing
+ * the binding describes. The native runtime is identified by the revision
+ * compiled into it.
  *
- * `external` means a reviewed external source: its identity and content are
- * bound as far as DAX can see them, but what actually runs is not attested.
- * Remote MCP servers, source runs of DAX, local plugin files, local MCP
- * executables, worker binaries and verification executables are external. A
- * grant may cover one only with the operator's explicit acknowledgement, and
- * it never counts as exact.
+ * `external`: a reviewed external source whose implementation DAX cannot see.
+ * This is a narrow exception for remote MCP servers, granted only with the
+ * operator's explicit acknowledgement, and never counted as exact.
  *
- * Anything outside the supported forms below is unavailable and is never
- * granted: interpreted programs, package launchers, package plugins, modules
- * that import anything beyond runtime builtins, and unresolvable executables.
- * Checks always compare content; nothing is trusted because its size or
- * modification time is unchanged.
+ * Everything else has no supported form and cannot be bound or granted: a
+ * source run of DAX, plugin and loader modules (their dependency closure cannot
+ * be established without analysing JavaScript), local MCP servers, worker
+ * CLIs and verification commands (a launched program's behaviour depends on
+ * what it loads, and nothing yet protects it between check and launch).
+ * Launched executables are still described by content, so a reviewer sees
+ * exactly what would start, but the description authorizes nothing.
  */
 export type Attestation = "exact" | "external"
 
@@ -30,175 +31,101 @@ declare global {
   const DAX_BUILD_COMMIT: string
 }
 
-function sha256File(file: string): string {
-  return `sha256:${createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`
+/** The compiled binary's embedded filesystem root, as Bun names it per platform. */
+function embeddedRoot(): string | undefined {
+  const main = Bun.main
+  if (main.startsWith("/$bunfs/")) return path.posix.dirname(main)
+  if (/^[A-Za-z]:[\\/]~BUN[\\/]/.test(main)) return path.win32.dirname(main)
+  return undefined
 }
 
-/** Streams the file, so hashing a large binary does not hold the event loop. */
-async function sha256FileAsync(file: string): Promise<string> {
+/** Every embedded file by name, length and content, in a fixed order. */
+function digestTree(root: string): string {
   const hash = createHash("sha256")
-  for await (const chunk of fs.createReadStream(file)) hash.update(chunk as Buffer)
+  const walk = (dir: string, prefix: string) => {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const full = path.join(dir, name)
+      const relative = prefix ? `${prefix}/${name}` : name
+      if (fs.statSync(full).isDirectory()) {
+        walk(full, relative)
+        continue
+      }
+      const bytes = fs.readFileSync(full)
+      hash.update(`${relative}\0${bytes.length}\0`).update(bytes)
+    }
+  }
+  walk(root, "")
   return `sha256:${hash.digest("hex")}`
 }
 
-/** The compiled binary's own embedded filesystem, as Bun names it per platform. */
-function isCompiledBinary() {
-  return Bun.main.startsWith("/$bunfs/") || /^[A-Za-z]:[\\/]~BUN[\\/]/.test(Bun.main)
-}
-
 export type DaxExecutable =
-  | { form: "compiled"; commit: string; digest: string }
-  | { form: "development"; commit: string; clean: boolean }
+  | { form: "compiled"; commit: string; runtime: string; bundle: string }
+  | { form: "development" }
   | { form: "unknown" }
 
-let executable: Promise<DaxExecutable> | undefined
-
-async function computeDaxExecutable(): Promise<DaxExecutable> {
-  try {
-    if (isCompiledBinary()) {
-      const commit = typeof DAX_BUILD_COMMIT === "string" ? DAX_BUILD_COMMIT : ""
-      return commit
-        ? { form: "compiled", commit, digest: await sha256FileAsync(process.execPath) }
-        : { form: "unknown" }
-    }
-    const cwd = path.dirname(Bun.main)
-    const run = async (args: string[]) => {
-      const proc = Bun.spawn(["git", ...args], { cwd, stdout: "pipe", stderr: "ignore" })
-      const [text, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-      return code === 0 ? text.trim() : undefined
-    }
-    const [commit, status] = await Promise.all([
-      run(["rev-parse", "HEAD"]),
-      run(["status", "--porcelain", "--untracked-files=no"]),
-    ])
-    return commit && status !== undefined ? { form: "development", commit, clean: status === "" } : { form: "unknown" }
-  } catch {
-    return { form: "unknown" }
-  }
-}
+let executable: DaxExecutable | undefined
 
 /**
- * The running DAX implementation, computed once per process. The entry point
- * starts this at startup, so a compiled binary is hashed as it was launched;
- * the running code is that image from then on. A source run is development:
- * the commit and whether the tracked tree was clean, which neither covers
- * dependencies nor attests what was loaded.
+ * The running DAX implementation. For a compiled binary, the digest of the
+ * bundle embedded in the running image and the runtime revision built into it.
+ * A source run is development and is never bound: its loaded modules and
+ * dependencies are not established by any digest available here.
  */
-export function daxExecutable(): Promise<DaxExecutable> {
-  executable ??= computeDaxExecutable()
+export function daxExecutable(): DaxExecutable {
+  if (executable) return executable
+  try {
+    const root = embeddedRoot()
+    if (!root) {
+      executable = { form: "development" }
+      return executable
+    }
+    const commit = typeof DAX_BUILD_COMMIT === "string" ? DAX_BUILD_COMMIT : ""
+    executable = commit
+      ? { form: "compiled", commit, runtime: Bun.revision, bundle: digestTree(root) }
+      : { form: "unknown" }
+  } catch {
+    executable = { form: "unknown" }
+  }
   return executable
 }
 
-/** Bound facts for a DAX-native capability, or undefined when the executable is unknown. */
+/** Bound facts for a DAX-native capability: exact for a compiled binary, otherwise none. */
 export function nativeBinding(id: string, current: DaxExecutable): BoundFacts | undefined {
-  if (current.form === "unknown") return undefined
-  return {
-    attestation: current.form === "compiled" ? "exact" : "external",
-    facts: { kind: "native", id, executable: current },
-  }
+  if (current.form !== "compiled") return undefined
+  return { attestation: "exact", facts: { kind: "native", id, executable: current } }
 }
-
-/** Launchers and interpreters: what they run is chosen by arguments, options or imports. */
-const UNSUPPORTED_LAUNCHERS = new Set([
-  "node",
-  "nodejs",
-  "bun",
-  "bunx",
-  "deno",
-  "npx",
-  "npm",
-  "pnpm",
-  "pnpx",
-  "yarn",
-  "python",
-  "python3",
-  "pip",
-  "pipx",
-  "uv",
-  "uvx",
-  "ruby",
-  "perl",
-  "php",
-  "java",
-  "sh",
-  "bash",
-  "zsh",
-  "pwsh",
-  "powershell",
-  "cmd",
-  "env",
-])
 
 export type ExecutableFacts =
-  | { form: "binary"; path: string; digest: string }
-  | { form: "unsupported"; reason: "unresolved" | "launcher" | "script" }
-
-/**
- * A directly launched executable. Supported only when it resolves to a real
- * file that is neither a known launcher nor a script with an interpreter line:
- * for those, the program that actually runs is chosen elsewhere.
- */
-export function executableFacts(command: string, cwd?: string): ExecutableFacts {
-  const resolved = Bun.which(command, cwd ? { cwd } : undefined)
-  if (!resolved) return { form: "unsupported", reason: "unresolved" }
-  let real: string
-  try {
-    real = fs.realpathSync(resolved)
-  } catch {
-    return { form: "unsupported", reason: "unresolved" }
-  }
-  const base = path
-    .basename(real)
-    .toLowerCase()
-    .replace(/\.(exe|cmd|bat|ps1)$/, "")
-  const named = path
-    .basename(command)
-    .toLowerCase()
-    .replace(/\.(exe|cmd|bat|ps1)$/, "")
-  if (UNSUPPORTED_LAUNCHERS.has(base) || UNSUPPORTED_LAUNCHERS.has(named))
-    return { form: "unsupported", reason: "launcher" }
-  try {
-    const head = Buffer.alloc(2)
-    const fd = fs.openSync(real, "r")
-    try {
-      fs.readSync(fd, head, 0, 2, 0)
-    } finally {
-      fs.closeSync(fd)
+  | {
+      form: "described"
+      /** The absolute path the launch starts, as resolved. */
+      path: string
+      /** The file that path leads to, and its content. */
+      target: string
+      digest: string
     }
-    if (head.toString("latin1") === "#!") return { form: "unsupported", reason: "script" }
-    return { form: "binary", path: real, digest: sha256File(real) }
-  } catch {
-    return { form: "unsupported", reason: "unresolved" }
-  }
-}
-
-/** Builtins a self-contained module may import. */
-function isRuntimeBuiltin(specifier: string) {
-  return specifier.startsWith("node:") || specifier.startsWith("bun:") || specifier === "bun"
-}
-
-export type ModuleFacts =
-  | { form: "self_contained"; digest: string }
-  | { form: "unsupported"; reason: "imports" | "unreadable" | "changed_during_load" }
+  | { form: "unresolved" }
 
 /**
- * A local module file, described by the exact bytes given. Supported only when
- * every import is a runtime builtin: anything else would load code this digest
- * does not cover. Dynamic imports and requires must be literal builtins too.
+ * Describes the executable a launch would start, by content, resolving the
+ * command exactly as the launch does: with the launch's own PATH and working
+ * directory. A description is not a binding; no launched program has a
+ * supported form yet.
  */
-export function moduleFacts(bytes: Uint8Array, file: string): ModuleFacts {
-  const source = new TextDecoder().decode(bytes)
-  const loader = /\.tsx?$/.test(file) ? (file.endsWith("x") ? "tsx" : "ts") : file.endsWith(".jsx") ? "jsx" : "js"
-  let imports: { path: string; kind: string }[]
+export function executableFacts(command: string, launch?: { PATH?: string; cwd?: string }): ExecutableFacts {
+  const resolved = /[\\/]/.test(command)
+    ? path.resolve(launch?.cwd ?? process.cwd(), command)
+    : Bun.which(command, {
+        ...(launch?.PATH !== undefined ? { PATH: launch.PATH } : {}),
+        ...(launch?.cwd ? { cwd: launch.cwd } : {}),
+      })
+  if (!resolved) return { form: "unresolved" }
   try {
-    imports = new Bun.Transpiler({ loader }).scanImports(source)
+    const real = fs.realpathSync(resolved)
+    if (!fs.statSync(real).isFile()) return { form: "unresolved" }
+    const digest = `sha256:${createHash("sha256").update(fs.readFileSync(real)).digest("hex")}`
+    return { form: "described", path: resolved, target: real, digest }
   } catch {
-    return { form: "unsupported", reason: "imports" }
+    return { form: "unresolved" }
   }
-  if (imports.some((item) => !isRuntimeBuiltin(item.path))) return { form: "unsupported", reason: "imports" }
-  // A computed import() or require() is invisible to the scan above.
-  const calls = source.match(/\b(?:import|require)\s*\(/g)?.length ?? 0
-  const scannedCalls = imports.filter((item) => item.kind === "dynamic-import" || item.kind === "require-call").length
-  if (calls !== scannedCalls) return { form: "unsupported", reason: "imports" }
-  return { form: "self_contained", digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}` }
 }

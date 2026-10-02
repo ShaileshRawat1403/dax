@@ -133,7 +133,7 @@ export function describeVerificationDispatch(
     runner,
     argv: [snapshot.command, ...snapshot.args],
     cwd,
-    executable: executableFacts(snapshot.command, path.resolve(worktree, snapshot.cwd)),
+    executable: executableFacts(snapshot.command, { cwd: path.resolve(worktree, snapshot.cwd) }),
   }
 }
 
