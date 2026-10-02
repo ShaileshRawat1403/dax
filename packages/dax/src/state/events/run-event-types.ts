@@ -204,6 +204,12 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   activation: closed({ revision: z.number().int().positive(), contractDigest: Sha256Digest }).optional(),
   /** The grant subject the decision matched, for an enforced resolution that matched one. */
   grantSubject: z.string().min(1).optional(),
+  /**
+   * For an MCP tool matched by its source, the server and the server's own tool
+   * name, so replay can re-mint the identity and prove the grant's server
+   * covers it. Tool names are what the server lists; nothing private.
+   */
+  source: closed({ server: z.string().min(1), name: z.string().min(1) }).optional(),
   path: z.enum(AUTHORITY_PATHS),
   initiator: z.enum(["model", "operator", "system"]),
   /** The selected executor's source-qualified identity. Absent for an executor with no descriptor. */
@@ -235,6 +241,9 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   }
   if (resolution.grantSubject !== undefined && resolution.enforcement !== "enforced") {
     ctx.addIssue({ code: "custom", path: ["grantSubject"], message: "is recorded only for an enforced resolution" })
+  }
+  if (resolution.source !== undefined && !resolution.grantSubject?.startsWith("mcp_source:tool:")) {
+    ctx.addIssue({ code: "custom", path: ["source"], message: "is recorded only for a tool matched by its source" })
   }
 })
 

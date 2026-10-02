@@ -1,6 +1,16 @@
 import { INVOCATION_PATHS } from "@/capability/authority-paths"
+import { mcpCapability } from "@/capability/dynamic-identity"
 import { CONTRACT_GRANT_APPROVAL_TYPE, type ContractGrantApprovalSubject } from "./contract-grant-approval"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
+
+/** Whether this server and tool name mint exactly this identity, by the minting rule itself. */
+function remintsTool(server: string, name: string, capabilityId: string | undefined) {
+  try {
+    return capabilityId !== undefined && mcpCapability(["mcp", server, name]).descriptor.id === capabilityId
+  } catch {
+    return false
+  }
+}
 
 // The identity namespace each MCP family mints under, as the dynamic and
 // resource identity modules define them; restated here so replay stays free of
@@ -734,9 +744,20 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             if (!subject || !activated.bindings.some((binding) => binding.subject === subject)) {
               throw new Error(`Enforced resolution ${payload.subjectId} names no activated grant`)
             }
-            const source = /^mcp_source:(tool|resource|prompt):(.+)$/.exec(subject)
-            const covers = source
-              ? (payload.capabilityId ?? "").startsWith(MCP_FAMILY_NAMESPACE[source[1] as keyof typeof MCP_FAMILY_NAMESPACE])
+            const selector = /^mcp_source:(tool|resource|prompt):(.+)$/.exec(subject)
+            if (selector && selector[1] !== "tool") {
+              // A resource or prompt identity cannot be re-minted from this log
+              // without recording the item's name, which may be private. Until a
+              // server-provable identity exists, no source grant covers one here.
+              throw new Error(`Enforced resolution ${payload.subjectId} cannot prove its ${selector[1]} source`)
+            }
+            // A source grant covers only the identity its own server mints:
+            // re-mint it from the recorded server and tool name, exactly as
+            // identities are minted, and require that server to be the grant's.
+            const covers = selector
+              ? payload.source !== undefined &&
+                payload.source.server === selector[2] &&
+                remintsTool(payload.source.server, payload.source.name, payload.capabilityId)
               : subject === payload.capabilityId
             if (!covers) {
               throw new Error(`Enforced resolution ${payload.subjectId} names a grant that cannot cover its capability`)

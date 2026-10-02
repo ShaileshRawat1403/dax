@@ -242,7 +242,7 @@ this log alone:
 |---|---|
 | `grant_review_published` | It cites a `capability_grant_review` request in this log; that request was approved by a named actor, the same one the proof names; the revision, proposal digest, contract and run match the request's subject; the contract digest and every binding, in order, are exactly those the request's subject committed to; and the run has not published before. A request whose subject carries no contract and binding commitment can never publish |
 | `grant_review_activated` | The run published; the revision and contract digest match the publication; every binding matches the published one in order; the run has not activated before and is not terminal |
-| `capability_resolution_recorded`, `enforced` | The run activated and the resolution cites exactly that activation. An allow or ask names its matched grant, which must be an activated binding able to cover the capability: the same identity, or the MCP source and family it was minted under. A denial names none. An activated run records no record-only resolution on a tool path |
+| `capability_resolution_recorded`, `enforced` | The run activated and the resolution cites exactly that activation. An allow or ask names its matched grant, which must be an activated binding able to cover the capability: the same identity, or, for an MCP tool matched by its source, an identity that replay re-mints from the recorded server and tool name, by the minting rule itself, on the grant's own server. A resource or prompt source cannot be proven this way without recording a possibly private item name, so no enforced resolution may cite one until a server-provable identity exists (4c). A denial names none. An activated run records no record-only resolution on a tool path |
 | `authorization_recorded`, activated run | The invocation has an enforced resolution; the contract disposition agrees with it; an enforced denial is never followed by an allowed authorization |
 
 Publication writes its intent, then the artifact, then the journal proof, then its
@@ -263,7 +263,9 @@ The first 4b commit, `75f46da`, was refused on review: the publication proof was
 linked to what the approval committed to, activation verified the private record rather
 than the journal, an enforced allow could name a grant that was never activated, and an
 authorization could contradict an enforced denial. The approval subject now carries the
-contract digest and bindings, and the reducer enforces the rows above.
+contract digest and bindings, and the reducer enforces the rows above. The second, `583163c`, checked only
+the MCP family prefix, so a source grant for one server covered an identity minted for
+another; source coverage is now re-minted on replay as above.
 
 **Tool paths.** `beginNativeInvocation` covers native and plugin tools, the queued task
 path, batch leaves and MCP tools. For an activated reviewed run it resolves against the

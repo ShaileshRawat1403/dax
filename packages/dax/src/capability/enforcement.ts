@@ -23,6 +23,8 @@ export type EnforcedResolution = Omit<CapabilityResolution, "enforcement" | "rea
   enforcement: "enforced"
   activation: { revision: number; contractDigest: string }
   grantSubject?: string
+  /** The proven source, recorded when an MCP tool was matched by a source grant. */
+  source?: { server: string; name: string }
   reasonCode?: CapabilityResolution["reasonCode"] | EnforcementReason
 }
 
@@ -78,16 +80,26 @@ export async function decideReviewedAction(input: {
   if (status === "unavailable") return deny("binding_unavailable")
   if (status === "changed") return deny("binding_changed")
   if (resolution.decision === "ask") return deny("grant_ask_unsupported")
+  if (grant.subject.kind === "mcp_source") {
+    // Replay re-mints the identity from this to prove the grant's server covers it.
+    if (grant.subject.family !== "tool" || !input.resolve.source) return deny("source_unproven")
+    return {
+      ...enforced,
+      grantSubject: key,
+      source: { server: input.resolve.source.server, name: input.resolve.source.name },
+    }
+  }
   return { ...enforced, grantSubject: key }
 }
 
 /** Strips an unset optional field so the record stays within its closed schema. */
 export function enforcedRecord(resolution: EnforcedResolution) {
-  const { grantScope, reasonCode, grantSubject, ...rest } = resolution
+  const { grantScope, reasonCode, grantSubject, source, ...rest } = resolution
   return {
     ...rest,
     ...(grantScope !== undefined ? { grantScope } : {}),
     ...(reasonCode !== undefined ? { reasonCode } : {}),
     ...(grantSubject !== undefined ? { grantSubject } : {}),
+    ...(source !== undefined ? { source } : {}),
   }
 }

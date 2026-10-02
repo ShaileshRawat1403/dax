@@ -3,6 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { mcpCapability } from "@/capability/dynamic-identity"
+import { resolveCapabilityAuthority } from "@/capability/authority"
 import { GrantReview, GrantReviewError } from "@/capability/grant-review"
 import { nativeCapabilities } from "@/capability/registry"
 import { Config } from "@/config/config"
@@ -23,7 +24,7 @@ import {
 } from "@/state/events/event-transitions"
 import { MCP_FAMILY_NAMESPACE } from "@/state/events/run-reducer"
 import { MCP_TOOL_NAMESPACE } from "@/capability/dynamic-identity"
-import { MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE } from "@/mcp/resource-identity"
+import { MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE, mcpReadDescriptor } from "@/mcp/resource-identity"
 import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { bindingFacts } from "@/capability/grant-proposal"
 import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
@@ -432,6 +433,8 @@ describe("the journal binds every enforced record to the activation, and every a
         allow(probeDescriptor().id),
         allow("mcp_source:resource:gamma"),
         allow("mcp_source:tool:gamma", "native.tool.read"),
+        // A source grant without the source it was matched on proves nothing.
+        allow("mcp_source:tool:gamma"),
       ]) {
         const error = await rejection(
           appendEventOnly(runId, "capability_resolution_recorded", payload as never, `cmd_${Math.random()}`, {
@@ -463,6 +466,140 @@ describe("the journal binds every enforced record to the activation, and every a
           ),
         ),
       ).toBeInstanceOf(Error)
+      expect((await readRunEvents(runId)).length).toBe(before)
+    })
+  })
+
+  test("a source grant covers only identities its own server mints, and resource or prompt sources cannot be proven", async () => {
+    await within(async () => {
+      const { runId, revision, activation } = await activatedRun()
+      const contractId = revision.proposal.candidate.contractId
+      const delta = mcpCapability(["mcp", "delta", "probe"]).descriptor
+      // The lookup itself denies the cross-server identity.
+      expect(
+        resolveCapabilityAuthority({
+          contract: revision.proposal.candidate,
+          authorityRunId: runId,
+          path: "mcp_tool",
+          initiator: "model",
+          executor: { kind: "mcp", alias: PROBE, descriptor: delta },
+          source: { server: "delta", name: "probe" },
+          directory: Instance.directory,
+          worktree: Instance.worktree,
+        }).decision,
+      ).toBe("deny")
+      await invocation(runId, "inv_cross_server", PROBE, "mcp", contractId)
+      const forged = (
+        capabilityId: string,
+        source?: { server: string; name: string },
+        grantSubject = "mcp_source:tool:gamma",
+      ) => ({
+        subjectId: "inv_cross_server",
+        enforcement: "enforced",
+        activation: { revision: activation.revision, contractDigest: activation.contractDigest },
+        path: "mcp_tool",
+        initiator: "model",
+        capabilityId,
+        enrolled: true,
+        basis: "v2_grant",
+        contractId,
+        decision: "allow",
+        grantScope: "run",
+        grantSubject,
+        ...(source ? { source } : {}),
+      })
+      const before = (await readRunEvents(runId)).length
+      for (const payload of [
+        // A delta identity under the gamma grant, with or without a claimed source.
+        forged(delta.id),
+        forged(delta.id, { server: "delta", name: "probe" }),
+        forged(delta.id, { server: "gamma", name: "probe" }),
+        // A gamma source claimed for an identity it does not mint.
+        forged(probeDescriptor().id, { server: "gamma", name: "other" }),
+      ]) {
+        expect(
+          await rejection(
+            appendEventOnly(runId, "capability_resolution_recorded", payload as never, `cmd_${Math.random()}`, {
+              correlationId: "inv_cross_server",
+            }),
+          ),
+        ).toBeInstanceOf(Error)
+      }
+      expect((await readRunEvents(runId)).length).toBe(before)
+      // With no enforced decision recorded, nothing can authorize it.
+      expect(
+        await rejection(
+          recordAuthorization(runId, "inv_cross_server", {
+            finalDisposition: "allowed",
+            contractDisposition: "allowed",
+            runtimeGuardDisposition: "allowed",
+            permissionDisposition: "allowed",
+            approvalIds: [],
+            reasonCodes: [],
+          }),
+        ),
+      ).toBeInstanceOf(Error)
+      expect((await projectRunStateFromEvents(runId))!.invocations["inv_cross_server"]!.status).toBe(
+        "awaiting_authorization",
+      )
+    })
+  })
+
+  test("a resource or prompt source grant cannot prove coverage on replay", async () => {
+    await within(async () => {
+      // A run whose operator selected and acknowledged the server's resources and prompts.
+      const { runId, revision } = await createGrantReviewedRun(
+        { request: { intent: { input: "Inspect the repository, read only." } }, availableTools: ["read"] },
+        {
+          acknowledgedExternal: ["mcp_source:resource:gamma", "mcp_source:prompt:gamma"],
+          sourceSelections: [
+            { server: "gamma", family: "resource" },
+            { server: "gamma", family: "prompt" },
+          ],
+        },
+      )
+      await resolveApprovalEvent(runId, revision.approvalId, "approved", "operator")
+      await GrantReview.publish(runId, {
+        approvalId: revision.approvalId,
+        subject: await subjectOf(runId, revision.approvalId),
+      })
+      await GrantReview.activate(runId)
+      const activation = (await projectRunStateFromEvents(runId))!.grantReview.activated!
+      expect(activation.bindings.map((item) => item.subject)).toEqual([
+        "mcp_source:prompt:gamma",
+        "mcp_source:resource:gamma",
+      ])
+      const before = (await readRunEvents(runId)).length
+      for (const [family, path] of [
+        ["resource", "mcp_resource"],
+        ["prompt", "mcp_prompt"],
+      ] as const) {
+        const capabilityId = mcpReadDescriptor(family, "gamma", "item").id
+        expect(
+          await rejection(
+            appendEventOnly(
+              runId,
+              "capability_resolution_recorded",
+              {
+                subjectId: `op_${family}`,
+                enforcement: "enforced",
+                activation: { revision: activation.revision, contractDigest: activation.contractDigest },
+                path,
+                initiator: "operator",
+                capabilityId,
+                enrolled: true,
+                basis: "v2_grant",
+                contractId: revision.proposal.candidate.contractId,
+                decision: "allow",
+                grantScope: "run",
+                grantSubject: `mcp_source:${family}:gamma`,
+              },
+              `cmd_${family}`,
+              { correlationId: `op_${family}` },
+            ),
+          ),
+        ).toBeInstanceOf(Error)
+      }
       expect((await readRunEvents(runId)).length).toBe(before)
     })
   })
@@ -584,6 +721,8 @@ describe("tool paths are enforced for an activated reviewed run", () => {
         decision: "allow",
         basis: "v2_grant",
         grantSubject: "mcp_source:tool:gamma",
+        // The proven source, which replay re-mints to check the grant's server covers it.
+        source: { server: "gamma", name: "probe" },
         activation: { revision: activation.revision, contractDigest: activation.contractDigest },
       })
       // A grant is necessary, not sufficient: the runtime guard still runs, and
