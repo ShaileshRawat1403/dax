@@ -16,6 +16,8 @@ import { GrantReview, GrantReviewError } from "@/capability/grant-review"
 import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
 import { nativeCapabilities } from "@/capability/registry"
 import { Config } from "@/config/config"
+import type { ContractGrantApprovalSubject } from "@/state/events/contract-grant-approval"
+import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian, readContract, resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { ExecutionContractV2, type ExecutionContract } from "@/execution/execution-contract"
@@ -332,14 +334,7 @@ async function subjectOf(runId: string, approvalId: string) {
     .filter((event) => event.type === "approval_requested")
     .map((event) => event.payload as { approvalId: string; contractGrantSubject?: unknown })
     .find((payload) => payload.approvalId === approvalId)
-  return requested!.contractGrantSubject as {
-    kind: "contract_grant_set"
-    runId: string
-    contractId: string
-    revision: number
-    canonicalization: "sorted-json-v1"
-    digest: string
-  }
+  return requested!.contractGrantSubject as ContractGrantApprovalSubject
 }
 
 /** The rejection a promise settles with, or undefined if it fulfills. */
@@ -370,6 +365,13 @@ describe("review publication is exact, serialized and recoverable", () => {
         revision: 1,
         canonicalization: "sorted-json-v1",
         digest: revision.digest,
+        // The approval also commits, in the log, to the contract and its bindings.
+        contractDigest: (await computeCanonicalCommitment(revision.proposal.candidate)).digest,
+        bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({
+          subject,
+          attestation,
+          digest,
+        })),
       })
       expect(revision.digest).toBe((await proposalDigest(revision.proposal)).digest)
       expect(await rejection(readContract(runId))).toBeInstanceOf(GrantReviewBarrierError)

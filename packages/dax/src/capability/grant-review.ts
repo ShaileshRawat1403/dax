@@ -17,7 +17,7 @@ import {
 import { getRunAuthority, projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { Storage } from "@/storage/storage"
 import { acquireRunLock } from "@/util/fs-lock"
-import { checkBinding, proposalDigest, type GrantProposal } from "./grant-proposal"
+import { checkBinding, proposalDigest, subjectKey, type GrantProposal } from "./grant-proposal"
 import { captureReviewSnapshot } from "./grant-review-snapshot"
 
 /**
@@ -123,6 +123,14 @@ function approvalIdFor(runId: string, revision: number) {
   return `apr_grant_${runId}_r${revision}`
 }
 
+/** What the journal's publication proof must restate: the contract digest and every binding, in order. */
+async function commitments(revision: GrantReviewRevision) {
+  return {
+    contractDigest: (await computeCanonicalCommitment(ExecutionContractV2.parse(revision.proposal.candidate))).digest,
+    bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({ subject, attestation, digest })),
+  }
+}
+
 async function requestApproval(record: GrantReviewRecord, revision: GrantReviewRevision) {
   const subject: ContractGrantApprovalSubject = {
     kind: "contract_grant_set",
@@ -131,6 +139,7 @@ async function requestApproval(record: GrantReviewRecord, revision: GrantReviewR
     revision: revision.revision,
     canonicalization: "sorted-json-v1",
     digest: revision.digest,
+    ...(await commitments(revision)),
   }
   await appendEventOnly(
     record.runId,
@@ -487,11 +496,38 @@ async function activate(runId: string): Promise<{ revision: number; contractDige
 
     const revision = record.revisions.find((item) => item.revision === published.revision)
     if (!revision) throw new GrantReviewError("not_published", runId)
+    // What is verified is the journal's published bindings, nothing private:
+    // every grant of the published contract has exactly one, in order, and the
+    // stored revision must agree with them before it is trusted for anything.
     const grants = published.contract.capabilityGrants
+    if (
+      grants.length !== proof.bindings.length ||
+      grants.some((grant, index) => subjectKey(grant.subject) !== proof.bindings[index]!.subject)
+    ) {
+      throw new GrantReviewError("binding_changed", runId)
+    }
+    const stored = revision.proposal.bindings
+    if (
+      stored.length !== proof.bindings.length ||
+      stored.some(
+        (item, index) =>
+          item.subject !== proof.bindings[index]!.subject ||
+          item.attestation !== proof.bindings[index]!.attestation ||
+          item.digest !== proof.bindings[index]!.digest,
+      )
+    ) {
+      throw new GrantReviewError("binding_changed", runId)
+    }
     const now = await captureReviewSnapshot(published.contract)
     for (const [index, grant] of grants.entries()) {
-      const binding = revision.proposal.bindings[index]
-      if (!binding || (await checkBinding(binding, grant.subject, now)) !== "unchanged") {
+      const proven = proof.bindings[index]!
+      const binding = {
+        subject: proven.subject,
+        attestation: proven.attestation,
+        canonicalization: "sorted-json-v1" as const,
+        digest: proven.digest,
+      }
+      if ((await checkBinding(binding, grant.subject, now)) !== "unchanged") {
         throw new GrantReviewError("binding_changed", runId)
       }
     }

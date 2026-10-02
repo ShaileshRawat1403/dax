@@ -1,6 +1,11 @@
 import { INVOCATION_PATHS } from "@/capability/authority-paths"
 import { CONTRACT_GRANT_APPROVAL_TYPE, type ContractGrantApprovalSubject } from "./contract-grant-approval"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
+
+// The identity namespace each MCP family mints under, as the dynamic and
+// resource identity modules define them; restated here so replay stays free of
+// those modules. Checked against them by the stage 4b tests.
+export const MCP_FAMILY_NAMESPACE = { tool: "mcp.tool.v1.", resource: "mcp.resource.v1.", prompt: "mcp.prompt.v1." } as const
 /**
  * The state machine is defined once, in run-state.ts.
  *
@@ -716,6 +721,29 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           ) {
             throw new Error(`Enforced capability resolution ${payload.subjectId} does not cite this run's activation`)
           }
+          // A decision that lets the action go must name the grant that matched,
+          // that grant must be one the activation verified, and it must be able
+          // to cover this capability: the same identity, or the MCP source and
+          // family this identity was minted under.
+          if (payload.decision === "deny") {
+            if (payload.grantSubject !== undefined) {
+              throw new Error(`Enforced denial ${payload.subjectId} cannot name a matched grant`)
+            }
+          } else {
+            const subject = payload.grantSubject
+            if (!subject || !activated.bindings.some((binding) => binding.subject === subject)) {
+              throw new Error(`Enforced resolution ${payload.subjectId} names no activated grant`)
+            }
+            const source = /^mcp_source:(tool|resource|prompt):(.+)$/.exec(subject)
+            const covers = source
+              ? (payload.capabilityId ?? "").startsWith(MCP_FAMILY_NAMESPACE[source[1] as keyof typeof MCP_FAMILY_NAMESPACE])
+              : subject === payload.capabilityId
+            if (!covers) {
+              throw new Error(`Enforced resolution ${payload.subjectId} names a grant that cannot cover its capability`)
+            }
+          }
+        } else if (state.grantReview.activated && (INVOCATION_PATHS as readonly string[]).includes(payload.path)) {
+          throw new Error(`An activated reviewed run records only enforced resolutions: ${payload.subjectId}`)
         }
         if ((INVOCATION_PATHS as readonly string[]).includes(payload.path)) {
           const invocation = state.invocations[payload.subjectId]
@@ -751,6 +779,24 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           subject.digest !== payload.proposalDigest
         ) {
           throw new Error(`Grant review publication ${payload.approvalId} does not match its request`)
+        }
+        // The approval committed, in this log, to a contract digest and every
+        // binding. The publication must restate exactly those. A request made
+        // without that commitment can never publish.
+        if (subject.contractDigest === undefined || subject.bindings === undefined) {
+          throw new Error(`Grant review request ${payload.approvalId} carries no contract or binding commitment`)
+        }
+        if (
+          subject.contractDigest !== payload.contractDigest ||
+          subject.bindings.length !== payload.bindings.length ||
+          subject.bindings.some(
+            (item, index) =>
+              item.subject !== payload.bindings[index]!.subject ||
+              item.attestation !== payload.bindings[index]!.attestation ||
+              item.digest !== payload.bindings[index]!.digest,
+          )
+        ) {
+          throw new Error(`Grant review publication ${payload.approvalId} differs from what was approved`)
         }
         if (new Set(payload.bindings.map((item) => item.subject)).size !== payload.bindings.length) {
           throw new Error(`Grant review publication ${payload.approvalId} repeats a binding`)
@@ -794,6 +840,24 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         }
         if (invocation.status !== "awaiting_authorization") {
           throw new Error(`Cannot authorize invocation ${payload.invocationId} from status ${invocation.status}`)
+        }
+        // In an activated reviewed run, the enforced decision binds the
+        // authorization: nothing may authorize an invocation it did not decide,
+        // and nothing may allow one it denied.
+        if (state.grantReview.activated) {
+          const enforced = state.capabilityResolutions.find(
+            (record) => record.subjectId === payload.invocationId && record.enforcement === "enforced",
+          )
+          if (!enforced) {
+            throw new Error(`Authorization of ${payload.invocationId} has no enforced decision`)
+          }
+          const expected = enforced.decision === "deny" ? "denied" : "allowed"
+          if (payload.contractDisposition !== expected) {
+            throw new Error(`Authorization of ${payload.invocationId} contradicts its enforced decision`)
+          }
+          if (enforced.decision === "deny" && payload.finalDisposition !== "denied") {
+            throw new Error(`Authorization of ${payload.invocationId} reverses an enforced denial`)
+          }
         }
         const approvalRecords = payload.approvalIds.map((approvalId) => {
           const approval = state.approvals.find((record) => record.approvalId === approvalId)

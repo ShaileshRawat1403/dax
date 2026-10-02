@@ -1,9 +1,16 @@
 import z from "zod"
 
+const Sha256Digest = z.string().regex(/^sha256:[0-9a-f]{64}$/)
+
 /**
  * What an operator approves when reviewing a run's capability grants: one
  * revision of one proposal, committed by digest. The run log carries this
  * commitment, never the proposal itself.
+ *
+ * `contractDigest` and `bindings` commit, in the log itself, to the contract
+ * and the implementation bindings the approval covers, so replay can check a
+ * publication against them without the proposal. A request without them was
+ * made before that commitment existed; it parses, and it can never publish.
  */
 export const ContractGrantApprovalSubjectSchema = z
   .object({
@@ -12,7 +19,19 @@ export const ContractGrantApprovalSubjectSchema = z
     contractId: z.string().min(1),
     revision: z.number().int().positive(),
     canonicalization: z.literal("sorted-json-v1"),
-    digest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+    digest: Sha256Digest,
+    contractDigest: Sha256Digest.optional(),
+    bindings: z
+      .array(
+        z
+          .object({
+            subject: z.string().min(1),
+            attestation: z.enum(["exact", "external"]),
+            digest: Sha256Digest,
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict()
 

@@ -15,7 +15,18 @@ import { enforceRuntimeGuard } from "@/execution/runtime-guard"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
-import { appendEventOnly, resolveApprovalEvent } from "@/state/events/event-transitions"
+import {
+  appendEventOnly,
+  recordAuthorization,
+  recordToolInvocation,
+  resolveApprovalEvent,
+} from "@/state/events/event-transitions"
+import { MCP_FAMILY_NAMESPACE } from "@/state/events/run-reducer"
+import { MCP_TOOL_NAMESPACE } from "@/capability/dynamic-identity"
+import { MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE } from "@/mcp/resource-identity"
+import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
+import { bindingFacts } from "@/capability/grant-proposal"
+import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
 import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 import { Storage } from "@/storage/storage"
 
@@ -185,79 +196,116 @@ describe("the journal proves publication and activation by itself", () => {
     })
   })
 
-  test("the reducer refuses every proof that does not follow from this log", async () => {
+  test("the reducer refuses every proof that does not follow from this log, and the journal is unchanged", async () => {
     await within(async () => {
       const { runId, revision } = await reviewedRun()
-      const digest = `sha256:${"a".repeat(64)}`
+      const candidate = revision.proposal.candidate
+      // The genuine proof: exactly what the approval committed to.
       const proof = {
-        revision: 1,
+        revision: revision.revision,
         approvalId: revision.approvalId,
         approvedBy: "operator",
         proposalDigest: revision.digest,
-        contractId: revision.proposal.candidate.contractId,
-        contractDigest: digest,
-        bindings: [],
+        contractId: candidate.contractId,
+        contractDigest: (await computeCanonicalCommitment(candidate)).digest,
+        bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({
+          subject,
+          attestation,
+          digest,
+        })),
       }
-      const append = (type: "grant_review_published" | "grant_review_activated", payload: object) =>
-        rejection(appendEventOnly(runId, type, payload as never))
-      // Not yet approved, then approved by nobody named.
-      expect(await append("grant_review_published", proof)).toBeInstanceOf(Error)
+      expect(proof.bindings).toHaveLength(1)
+      const other = `sha256:${"a".repeat(64)}`
+      const refused = async (type: "grant_review_published" | "grant_review_activated", payload: object) => {
+        const before = (await readRunEvents(runId)).length
+        const error = await rejection(appendEventOnly(runId, type, payload as never))
+        expect((await readRunEvents(runId)).length).toBe(before)
+        return error instanceof Error
+      }
+      // Not yet approved.
+      expect(await refused("grant_review_published", proof)).toBe(true)
       await resolveApprovalEvent(runId, revision.approvalId, "approved", "operator")
-      expect(await append("grant_review_published", { ...proof, approvedBy: "someone else" })).toBeInstanceOf(Error)
-      expect(await append("grant_review_published", { ...proof, proposalDigest: digest })).toBeInstanceOf(Error)
-      expect(await append("grant_review_published", { ...proof, revision: 2 })).toBeInstanceOf(Error)
-      expect(await append("grant_review_published", { ...proof, approvalId: "apr_other" })).toBeInstanceOf(Error)
+      expect(await refused("grant_review_published", { ...proof, approvedBy: "someone else" })).toBe(true)
+      expect(await refused("grant_review_published", { ...proof, proposalDigest: other })).toBe(true)
+      expect(await refused("grant_review_published", { ...proof, revision: 2 })).toBe(true)
+      expect(await refused("grant_review_published", { ...proof, approvalId: "apr_other" })).toBe(true)
+      // A substituted contract or binding set is not what the operator approved.
+      expect(await refused("grant_review_published", { ...proof, contractDigest: other })).toBe(true)
+      expect(await refused("grant_review_published", { ...proof, bindings: [] })).toBe(true)
       expect(
-        await append("grant_review_activated", { revision: 1, contractDigest: digest, bindings: [] }),
-      ).toBeInstanceOf(Error)
-      // An enforced resolution with no activation behind it.
+        await refused("grant_review_published", {
+          ...proof,
+          bindings: [...proof.bindings, { subject: "native.tool.read", attestation: "exact", digest: other }],
+        }),
+      ).toBe(true)
       expect(
-        await rejection(
-          appendEventOnly(
-            runId,
-            "capability_resolution_recorded",
-            {
-              subjectId: "op_forged",
-              enforcement: "enforced",
-              activation: { revision: 1, contractDigest: digest },
-              path: "operator_shell",
-              initiator: "operator",
-              capabilityId: "session.shell.operator",
-              enrolled: true,
-              basis: "v2_grant",
-              contractId: revision.proposal.candidate.contractId,
-              decision: "deny",
-              reasonCode: "grant_absent",
-            },
-            "cmd_forged",
-            { correlationId: "op_forged" },
-          ),
-        ),
-      ).toBeInstanceOf(Error)
+        await refused("grant_review_published", {
+          ...proof,
+          bindings: [{ ...proof.bindings[0]!, digest: other }],
+        }),
+      ).toBe(true)
+      expect(
+        await refused("grant_review_activated", {
+          revision: 1,
+          contractDigest: proof.contractDigest,
+          bindings: proof.bindings,
+        }),
+      ).toBe(true)
 
       // The genuine chain is accepted once, and nothing may repeat or diverge from it.
-      expect(await append("grant_review_published", proof)).toBeUndefined()
-      expect(await append("grant_review_published", proof)).toBeInstanceOf(Error)
-      expect(
-        await append("grant_review_activated", {
-          revision: 1,
-          contractDigest: `sha256:${"b".repeat(64)}`,
-          bindings: [],
+      expect(await rejection(appendEventOnly(runId, "grant_review_published", proof))).toBeUndefined()
+      expect(await refused("grant_review_published", proof)).toBe(true)
+      const activation = { revision: 1, contractDigest: proof.contractDigest, bindings: proof.bindings }
+      expect(await refused("grant_review_activated", { ...activation, contractDigest: other })).toBe(true)
+      expect(await refused("grant_review_activated", { ...activation, bindings: [] })).toBe(true)
+      expect(await rejection(appendEventOnly(runId, "grant_review_activated", activation))).toBeUndefined()
+      expect(await refused("grant_review_activated", activation)).toBe(true)
+    })
+  })
+
+  test("a request made without the contract and binding commitment can never publish", async () => {
+    await within(async () => {
+      const { runId, revision } = await reviewedRun()
+      // A legacy-shaped request on the same run: subject without the commitment.
+      const legacy = { ...((await subjectOf(runId, revision.approvalId)) as object), revision: 2 } as Record<
+        string,
+        unknown
+      >
+      delete legacy.contractDigest
+      delete legacy.bindings
+      await appendEventOnly(runId, "approval_requested", {
+        approvalId: "apr_legacy_shape",
+        approvalType: "capability_grant_review",
+        risk: "high",
+        contractGrantSubject: legacy as never,
+      })
+      await resolveApprovalEvent(runId, "apr_legacy_shape", "approved", "operator")
+      const before = (await readRunEvents(runId)).length
+      const error = await rejection(
+        appendEventOnly(runId, "grant_review_published", {
+          revision: 2,
+          approvalId: "apr_legacy_shape",
+          approvedBy: "operator",
+          proposalDigest: revision.digest,
+          contractId: revision.proposal.candidate.contractId,
+          contractDigest: (await computeCanonicalCommitment(revision.proposal.candidate)).digest,
+          bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({
+            subject,
+            attestation,
+            digest,
+          })),
         }),
-      ).toBeInstanceOf(Error)
-      expect(
-        await append("grant_review_activated", {
-          revision: 1,
-          contractDigest: digest,
-          bindings: [{ subject: "native.tool.read", attestation: "exact", digest }],
-        }),
-      ).toBeInstanceOf(Error)
-      expect(
-        await append("grant_review_activated", { revision: 1, contractDigest: digest, bindings: [] }),
-      ).toBeUndefined()
-      expect(
-        await append("grant_review_activated", { revision: 1, contractDigest: digest, bindings: [] }),
-      ).toBeInstanceOf(Error)
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect((await readRunEvents(runId)).length).toBe(before)
+    })
+  })
+
+  test("the reducer's MCP family namespaces are the ones identities are minted under", () => {
+    expect(MCP_FAMILY_NAMESPACE).toEqual({
+      tool: MCP_TOOL_NAMESPACE,
+      resource: MCP_RESOURCE_NAMESPACE,
+      prompt: MCP_PROMPT_NAMESPACE,
     })
   })
 
@@ -338,6 +386,182 @@ describe("activation is refused before any effect unless it can be honoured", ()
         await rejection(SessionPrompt.prompt({ sessionID: runId, parts: [{ type: "text", text: "go" }] })),
       ).toBeInstanceOf(GrantReviewBarrierError)
       expect((await projectRunStateFromEvents(runId))?.status).toBe("queued")
+    })
+  })
+})
+
+describe("the journal binds every enforced record to the activation, and every authorization to its decision", () => {
+  async function activatedRun() {
+    const { runId, revision } = await published()
+    await GrantReview.activate(runId)
+    return { runId, revision, activation: (await projectRunStateFromEvents(runId))!.grantReview.activated! }
+  }
+  async function invocation(runId: string, id: string, toolId: string, kind: "builtin" | "mcp", contractId: string) {
+    await recordToolInvocation(runId, id, {
+      toolId,
+      executor: { kind, id: toolId },
+      contractId,
+      input: { basis: "validated_tool_input", ...(await computeCanonicalCommitment({})) },
+    })
+  }
+
+  test("an enforced allow must name an activated grant that can cover its capability", async () => {
+    await within(async () => {
+      const { runId, revision, activation } = await activatedRun()
+      const contractId = revision.proposal.candidate.contractId
+      await invocation(runId, "inv_forged_allow", PROBE, "mcp", contractId)
+      const allow = (grantSubject: string | undefined, capabilityId = probeDescriptor().id) => ({
+        subjectId: "inv_forged_allow",
+        enforcement: "enforced",
+        activation: { revision: activation.revision, contractDigest: activation.contractDigest },
+        path: "mcp_tool",
+        initiator: "model",
+        capabilityId,
+        enrolled: true,
+        basis: "v2_grant",
+        contractId,
+        decision: "allow",
+        grantScope: "run",
+        ...(grantSubject ? { grantSubject } : {}),
+      })
+      const before = (await readRunEvents(runId)).length
+      for (const payload of [
+        allow("native.tool.read"),
+        allow(undefined),
+        // Names this exact identity, which could cover it, but was never activated.
+        allow(probeDescriptor().id),
+        allow("mcp_source:resource:gamma"),
+        allow("mcp_source:tool:gamma", "native.tool.read"),
+      ]) {
+        const error = await rejection(
+          appendEventOnly(runId, "capability_resolution_recorded", payload as never, `cmd_${Math.random()}`, {
+            correlationId: "inv_forged_allow",
+          }),
+        )
+        expect(error).toBeInstanceOf(Error)
+      }
+      // A record-only resolution has no place in an activated run's tool paths.
+      expect(
+        await rejection(
+          appendEventOnly(
+            runId,
+            "capability_resolution_recorded",
+            {
+              subjectId: "inv_forged_allow",
+              enforcement: "record_only",
+              path: "mcp_tool",
+              initiator: "model",
+              capabilityId: probeDescriptor().id,
+              enrolled: true,
+              basis: "v2_grant",
+              contractId,
+              decision: "allow",
+              grantScope: "run",
+            },
+            "cmd_record_only",
+            { correlationId: "inv_forged_allow" },
+          ),
+        ),
+      ).toBeInstanceOf(Error)
+      expect((await readRunEvents(runId)).length).toBe(before)
+    })
+  })
+
+  test("an authorization can neither reverse an enforced denial nor stand without an enforced decision", async () => {
+    await within(async () => {
+      const { runId, revision, activation } = await activatedRun()
+      const contractId = revision.proposal.candidate.contractId
+      await invocation(runId, "inv_denied", "read", "builtin", contractId)
+      await appendEventOnly(
+        runId,
+        "capability_resolution_recorded",
+        {
+          subjectId: "inv_denied",
+          enforcement: "enforced",
+          activation: { revision: activation.revision, contractDigest: activation.contractDigest },
+          path: "native_tool",
+          initiator: "model",
+          capabilityId: "native.tool.read",
+          enrolled: true,
+          basis: "v2_grant",
+          contractId,
+          decision: "deny",
+          reasonCode: "grant_absent",
+        },
+        "cmd_denied",
+        { correlationId: "inv_denied" },
+      )
+      await invocation(runId, "inv_undecided", "read", "builtin", contractId)
+      const allowed = {
+        finalDisposition: "allowed" as const,
+        contractDisposition: "allowed" as const,
+        runtimeGuardDisposition: "allowed" as const,
+        permissionDisposition: "allowed" as const,
+        approvalIds: [],
+        reasonCodes: [],
+      }
+      const before = (await readRunEvents(runId)).length
+      expect(await rejection(recordAuthorization(runId, "inv_denied", allowed))).toBeInstanceOf(Error)
+      expect(await rejection(recordAuthorization(runId, "inv_undecided", allowed))).toBeInstanceOf(Error)
+      expect((await readRunEvents(runId)).length).toBe(before)
+      const state = await projectRunStateFromEvents(runId)
+      expect(state!.invocations["inv_denied"]!.status).toBe("awaiting_authorization")
+      // The denial itself is still recordable.
+      await recordAuthorization(runId, "inv_denied", {
+        ...allowed,
+        finalDisposition: "denied",
+        contractDisposition: "denied",
+        reasonCodes: ["grant_absent"],
+      })
+      expect((await projectRunStateFromEvents(runId))!.invocations["inv_denied"]!.status).toBe("denied")
+    })
+  })
+
+  test("a private record that disagrees with the journal is refused even when nothing else changed", async () => {
+    await within(async () => {
+      const { runId } = await published()
+      const record = (await GrantReview.get(runId))!
+      const binding = record.revisions[0]!.proposal.bindings[0]!
+      record.revisions[0]!.proposal.bindings = [{ ...binding, digest: `sha256:${"f".repeat(64)}` }]
+      await Storage.write(["grant_review", Instance.project.id, runId], record)
+      const before = (await readRunEvents(runId)).length
+      expect(await refusal(GrantReview.activate(runId))).toBe("binding_changed")
+      expect((await readRunEvents(runId)).length).toBe(before)
+    })
+  })
+
+  test("activation verifies the journal's bindings, and refuses a rewritten private record", async () => {
+    let runId = ""
+    let candidate: unknown
+    await within(async () => {
+      const created = await published()
+      runId = created.runId
+      candidate = created.revision.proposal.candidate
+    })
+    await configure("http://127.0.0.1:9/replacement")
+    await restart()
+    await within(async () => {
+      // Rewrite the stored revision so its bindings describe the replacement.
+      const current = await captureReviewSnapshot(candidate as never)
+      const record = (await GrantReview.get(runId))!
+      const subject = (candidate as { capabilityGrants: { subject: never }[] }).capabilityGrants[0]!.subject
+      const facts = bindingFacts(current, subject)!
+      const commitment = await computeCanonicalCommitment(facts.facts)
+      const proven = (await projectRunStateFromEvents(runId))!.grantReview.published!.bindings[0]!
+      expect(commitment.digest).not.toBe(proven.digest)
+      record.revisions[0]!.proposal.bindings = [
+        {
+          subject: proven.subject,
+          attestation: facts.attestation,
+          canonicalization: "sorted-json-v1",
+          digest: commitment.digest,
+        },
+      ]
+      await Storage.write(["grant_review", Instance.project.id, runId], record)
+      const before = (await readRunEvents(runId)).length
+      expect(await refusal(GrantReview.activate(runId))).toBe("binding_changed")
+      expect((await readRunEvents(runId)).length).toBe(before)
+      expect((await projectRunStateFromEvents(runId))!.grantReview.activated).toBeNull()
     })
   })
 })

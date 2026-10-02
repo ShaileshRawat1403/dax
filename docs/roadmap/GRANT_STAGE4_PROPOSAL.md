@@ -240,9 +240,10 @@ this log alone:
 
 | Event | Accepted only when |
 |---|---|
-| `grant_review_published` | It cites a `capability_grant_review` request in this log; that request was approved by a named actor, the same one the proof names; the revision, proposal digest, contract and run match the request's subject; and the run has not published before |
+| `grant_review_published` | It cites a `capability_grant_review` request in this log; that request was approved by a named actor, the same one the proof names; the revision, proposal digest, contract and run match the request's subject; the contract digest and every binding, in order, are exactly those the request's subject committed to; and the run has not published before. A request whose subject carries no contract and binding commitment can never publish |
 | `grant_review_activated` | The run published; the revision and contract digest match the publication; every binding matches the published one in order; the run has not activated before and is not terminal |
-| `capability_resolution_recorded`, `enforced` | The run activated, and the resolution cites exactly that activation |
+| `capability_resolution_recorded`, `enforced` | The run activated and the resolution cites exactly that activation. An allow or ask names its matched grant, which must be an activated binding able to cover the capability: the same identity, or the MCP source and family it was minted under. A denial names none. An activated run records no record-only resolution on a tool path |
+| `authorization_recorded`, activated run | The invocation has an enforced resolution; the contract disposition agrees with it; an enforced denial is never followed by an allowed authorization |
 
 Publication writes its intent, then the artifact, then the journal proof, then its
 completion. An interruption before the proof publishes nothing and is recovered by a new
@@ -253,8 +254,16 @@ contract.
 
 **Activation.** `GrantReview.activate` refuses, before any effect, a run that is not
 published, a run that needs a worker or required verification (no grant can cover
-either), a run already activated, and any binding that is changed or unavailable in a
-fresh capture. It records the bindings it verified. It lifts nothing.
+either), a run already activated, a stored revision whose bindings disagree with the
+journal's, and any journal binding that is changed or unavailable in a fresh capture. It
+verifies and records the journal's published bindings, never the private record's. It
+lifts nothing.
+
+The first 4b commit, `75f46da`, was refused on review: the publication proof was not
+linked to what the approval committed to, activation verified the private record rather
+than the journal, an enforced allow could name a grant that was never activated, and an
+authorization could contradict an enforced denial. The approval subject now carries the
+contract digest and bindings, and the reducer enforces the rows above.
 
 **Tool paths.** `beginNativeInvocation` covers native and plugin tools, the queued task
 path, batch leaves and MCP tools. For an activated reviewed run it resolves against the
