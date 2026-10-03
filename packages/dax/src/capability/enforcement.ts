@@ -6,6 +6,7 @@ import {
   type ResolveAuthorityInput,
 } from "./authority"
 import { checkBinding, subjectKey, type ReviewCatalogSnapshot } from "./grant-proposal"
+import type { GrantAskSubject } from "@/state/events/contract-grant-approval"
 
 /**
  * Stage 4b: enforcement for an activated reviewed run.
@@ -17,7 +18,8 @@ import { checkBinding, subjectKey, type ReviewCatalogSnapshot } from "./grant-pr
  * sufficient: an allowed action still passes every existing permission rule
  * and the runtime guard.
  *
- * `ask` grants are refused until the approval flow carries the grant (4c).
+ * An `ask` grant returns `ask` with the exact subject the operator approves;
+ * the caller obtains that approval, or finds it remembered, before any effect.
  */
 export type EnforcedResolution = Omit<CapabilityResolution, "enforcement" | "reasonCode"> & {
   enforcement: "enforced"
@@ -25,6 +27,10 @@ export type EnforcedResolution = Omit<CapabilityResolution, "enforcement" | "rea
   grantSubject?: string
   /** The proven source, recorded when an MCP tool was matched by a source grant. */
   source?: { server: string; name: string }
+  /** What satisfied an `ask`, once something has. */
+  askSatisfiedBy?: { approvalId: string; remembered: boolean }
+  /** For an `ask`: exactly what the operator is asked to approve. Never recorded on the resolution itself. */
+  askSubject?: GrantAskSubject
   reasonCode?: CapabilityResolution["reasonCode"] | EnforcementReason
 }
 
@@ -32,7 +38,8 @@ export type EnforcementReason =
   | "activation_missing"
   | "binding_changed"
   | "binding_unavailable"
-  | "grant_ask_unsupported"
+  | "grant_ask_denied"
+  | "grant_ask_expired"
 
 export type Activation = {
   revision: number
@@ -79,27 +86,83 @@ export async function decideReviewedAction(input: {
   )
   if (status === "unavailable") return deny("binding_unavailable")
   if (status === "changed") return deny("binding_changed")
-  if (resolution.decision === "ask") return deny("grant_ask_unsupported")
+  // An ask names exactly what the operator approves: this grant, for this
+  // capability, under this contract and binding. Nothing broader.
+  const ask: Pick<EnforcedResolution, "askSubject"> =
+    resolution.decision === "ask" && resolution.capabilityId
+      ? {
+          askSubject: {
+            kind: "capability_grant_ask",
+            grantSubject: key,
+            capabilityId: resolution.capabilityId,
+            contractDigest: input.activation.contractDigest,
+            bindingDigest: bound.digest,
+          },
+        }
+      : {}
   if (grant.subject.kind === "mcp_source") {
     // Replay re-mints the identity from this to prove the grant's server covers it.
     if (grant.subject.family !== "tool" || !input.resolve.source) return deny("source_unproven")
     return {
       ...enforced,
+      ...ask,
       grantSubject: key,
       source: { server: input.resolve.source.server, name: input.resolve.source.name },
     }
   }
-  return { ...enforced, grantSubject: key }
+  return { ...enforced, ...ask, grantSubject: key }
+}
+
+/** The same resolution, denied: a denial names no grant and carries nothing of the ask. */
+export function denied(resolution: EnforcedResolution, reasonCode: EnforcementReason): EnforcedResolution {
+  const { grantSubject: _grant, source: _source, askSubject: _ask, askSatisfiedBy: _satisfied, ...rest } = resolution
+  return { ...rest, decision: "deny", reasonCode, grantScope: undefined }
+}
+
+/**
+ * Settles an `ask` before anything runs: a remembered approval for exactly
+ * this tuple satisfies it; otherwise, when `askNow` is given, the operator is
+ * asked and the answer settles it. Without `askNow` an unremembered ask is
+ * returned unsatisfied, for a caller that asks after recording it.
+ */
+export async function settleAsk(
+  runId: string,
+  resolution: EnforcedResolution,
+  askNow?: string,
+): Promise<{ resolution: EnforcedResolution; satisfied: boolean }> {
+  if (resolution.decision !== "ask" || !resolution.askSubject)
+    return { resolution, satisfied: resolution.decision === "allow" }
+  const { rememberedAsk, askOperator } = await import("./grant-ask")
+  const remembered = await rememberedAsk(runId, resolution.askSubject)
+  if (remembered) {
+    return {
+      resolution: { ...resolution, askSatisfiedBy: { approvalId: remembered, remembered: true } },
+      satisfied: true,
+    }
+  }
+  if (askNow === undefined) return { resolution, satisfied: false }
+  const answer = await askOperator(runId, askNow, resolution.askSubject)
+  if (answer.decision === "approved") {
+    return {
+      resolution: { ...resolution, askSatisfiedBy: { approvalId: answer.approvalId, remembered: false } },
+      satisfied: true,
+    }
+  }
+  return {
+    resolution: denied(resolution, answer.decision === "expired" ? "grant_ask_expired" : "grant_ask_denied"),
+    satisfied: false,
+  }
 }
 
 /** Strips an unset optional field so the record stays within its closed schema. */
 export function enforcedRecord(resolution: EnforcedResolution) {
-  const { grantScope, reasonCode, grantSubject, source, ...rest } = resolution
+  const { grantScope, reasonCode, grantSubject, source, askSatisfiedBy, askSubject: _askSubject, ...rest } = resolution
   return {
     ...rest,
     ...(grantScope !== undefined ? { grantScope } : {}),
     ...(reasonCode !== undefined ? { reasonCode } : {}),
     ...(grantSubject !== undefined ? { grantSubject } : {}),
     ...(source !== undefined ? { source } : {}),
+    ...(askSatisfiedBy !== undefined ? { askSatisfiedBy } : {}),
   }
 }

@@ -271,8 +271,8 @@ async function beginReviewedInvocation(
   }
 
   const { captureDispatchSnapshot } = await import("@/capability/grant-review-snapshot")
-  const { decideReviewedAction, enforcedRecord } = await import("@/capability/enforcement")
-  const resolution = await decideReviewedAction({
+  const { decideReviewedAction, enforcedRecord, settleAsk } = await import("@/capability/enforcement")
+  const decided = await decideReviewedAction({
     contract,
     contractDigest: reviewed.published.contractDigest,
     activation: reviewed.activation,
@@ -288,6 +288,9 @@ async function beginReviewedInvocation(
     },
     current: await captureDispatchSnapshot(contract),
   })
+  // A remembered approval satisfies an ask here; otherwise the ask is recorded
+  // first and the operator is asked before the authorization is decided.
+  const { resolution, satisfied } = await settleAsk(runId, decided)
   try {
     await recordCapabilityResolution(runId, {
       subjectId: params.invocationId,
@@ -297,7 +300,14 @@ async function beginReviewedInvocation(
     throw new NativeSettlementAppendError("capability_resolution", params.invocationId, error)
   }
 
-  const allowed = resolution.decision === "allow"
+  let allowed = satisfied
+  let askReason: string | undefined
+  if (resolution.decision === "ask" && !satisfied && resolution.askSubject) {
+    const { askOperator } = await import("@/capability/grant-ask")
+    const answer = await askOperator(runId, params.invocationId, resolution.askSubject)
+    allowed = answer.decision === "approved"
+    if (!allowed) askReason = answer.decision === "expired" ? "grant_ask_expired" : "grant_ask_denied"
+  }
   pending.set(params.invocationId, {
     authorityRunId: runId,
     contractId: contract.contractId,
@@ -316,7 +326,7 @@ async function beginReviewedInvocation(
   })
   if (!allowed) {
     const state = pending.get(params.invocationId)!
-    const reasonCode = resolution.reasonCode ?? "grant_denied"
+    const reasonCode = askReason ?? resolution.reasonCode ?? "grant_denied"
     state.reasonCodes.add(reasonCode)
     await appendAuthorization(params.invocationId, state, "denied")
     throw new NativeAuthorizationDeniedError(params.invocationId, reasonCode)

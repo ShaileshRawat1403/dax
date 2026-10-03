@@ -94,6 +94,8 @@ export type ProposalInputs = {
    * (`mcp_source:<family>:<server>`) is also in `acknowledgedExternal`.
    */
   sourceSelections?: readonly { server: string; family: "tool" | "resource" | "prompt" }[]
+  /** Grant subjects the operator wants asked about each time rather than allowed. */
+  askSubjects?: readonly string[]
 }
 
 export type ImplementationBinding = {
@@ -346,10 +348,12 @@ export async function proposeGrants(input: {
   if (snapshot.worker) propose(snapshot.worker.descriptor)
   if (snapshot.verification) propose(snapshot.verification.descriptor)
 
+  const asked = new Set(input.inputs.askSubjects ?? [])
   const ordered = [...grants.values()]
     .map((grant) =>
       trust.has(subjectKey(grant.subject)) ? { ...grant, acknowledgesExternalTrust: true as const } : grant,
     )
+    .map((grant) => (asked.has(subjectKey(grant.subject)) ? { ...grant, decision: "ask" as const } : grant))
     .sort((a, b) => (subjectKey(a.subject) < subjectKey(b.subject) ? -1 : 1))
   const candidate = ExecutionContractV2.parse({
     ...contract,
@@ -372,6 +376,7 @@ export async function proposeGrants(input: {
       ...(input.inputs.acknowledgedExternal
         ? { acknowledgedExternal: [...new Set(input.inputs.acknowledgedExternal)].sort() }
         : {}),
+      ...(input.inputs.askSubjects ? { askSubjects: [...new Set(input.inputs.askSubjects)].sort() } : {}),
       ...(input.inputs.sourceSelections
         ? {
             sourceSelections: [...input.inputs.sourceSelections]

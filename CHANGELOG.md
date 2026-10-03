@@ -63,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Action paths (attachments, template references, command and operator shell,
   fixed workflow phases, MCP reads) are enforced the same way for an activated
   reviewed run, before any effect. Other runs keep the isolated record-only path.
+- `ask` grants in an activated reviewed run wait for a named operator's approval
+  of exactly that grant, capability, contract and binding; "always" remembers
+  only that tuple. Records `capability_grant_ask` approvals and
+  `grant_ask_remembered`, which earlier binaries reject.
 
 ### Changed
 

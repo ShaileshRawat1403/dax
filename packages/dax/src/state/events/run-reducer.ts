@@ -1,7 +1,44 @@
 import { INVOCATION_PATHS } from "@/capability/authority-paths"
 import { mcpCapability } from "@/capability/dynamic-identity"
-import { CONTRACT_GRANT_APPROVAL_TYPE, type ContractGrantApprovalSubject } from "./contract-grant-approval"
+import {
+  CONTRACT_GRANT_APPROVAL_TYPE,
+  CONTRACT_GRANT_ASK_TYPE,
+  type ContractGrantApprovalSubject,
+  type GrantAskSubject,
+} from "./contract-grant-approval"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
+
+function sameAsk(a: GrantAskSubject, b: GrantAskSubject) {
+  return (
+    a.grantSubject === b.grantSubject &&
+    a.capabilityId === b.capabilityId &&
+    a.contractDigest === b.contractDigest &&
+    a.bindingDigest === b.bindingDigest
+  )
+}
+
+/** The grant ask, remembered or approved for this action, that satisfies an enforced ask. */
+function satisfiesAsk(
+  state: CanonicalRunState,
+  resolution: { subjectId: string; grantSubject?: string; capabilityId?: string },
+  approvalId: string,
+  remembered: boolean,
+): boolean {
+  const activated = state.grantReview.activated
+  if (!activated || !resolution.grantSubject || !resolution.capabilityId) return false
+  const binding = activated.bindings.find((item) => item.subject === resolution.grantSubject)
+  const subject = remembered ? state.grantReview.remembered[approvalId] : state.grantReview.asks[approvalId]
+  const approval = state.approvals.find((item) => item.approvalId === approvalId)
+  if (!subject || !binding || !approval || approval.status !== "approved" || !approval.decidedBy?.trim()) return false
+  if (!remembered && approval.correlationId !== resolution.subjectId) return false
+  return sameAsk(subject, {
+    kind: "capability_grant_ask",
+    grantSubject: resolution.grantSubject,
+    capabilityId: resolution.capabilityId,
+    contractDigest: activated.contractDigest,
+    bindingDigest: binding.digest,
+  })
+}
 
 /** Whether this server and tool name mint exactly this identity, by the minting rule itself. */
 function remintsTool(server: string, name: string, capabilityId: string | undefined) {
@@ -171,6 +208,10 @@ export type CanonicalRunState = RunState & {
     requests: Record<string, ContractGrantApprovalSubject>
     published: GrantReviewPublication | null
     activated: GrantReviewActivation | null
+    /** Each grant ask request's subject, by approval ID. */
+    asks: Record<string, GrantAskSubject>
+    /** Approvals the operator chose to remember, by approval ID. */
+    remembered: Record<string, GrantAskSubject>
   }
 }
 
@@ -557,7 +598,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     steps: [],
     invocations: {},
     capabilityResolutions: [],
-    grantReview: { requests: {}, published: null, activated: null },
+    grantReview: { requests: {}, published: null, activated: null, asks: {}, remembered: {} },
     delegationHistory: {
       coverage: "complete",
       records: [],
@@ -762,6 +803,19 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             if (!covers) {
               throw new Error(`Enforced resolution ${payload.subjectId} names a grant that cannot cover its capability`)
             }
+            // An ask is satisfied by the operator, never by the record itself.
+            // An action records what satisfied it; an invocation may instead be
+            // satisfied before its authorization, which is checked there.
+            if (payload.decision === "ask") {
+              const satisfied = payload.askSatisfiedBy
+              if (satisfied) {
+                if (!satisfiesAsk(state, payload, satisfied.approvalId, satisfied.remembered)) {
+                  throw new Error(`Enforced ask ${payload.subjectId} cites no approval that covers it`)
+                }
+              } else if (!(INVOCATION_PATHS as readonly string[]).includes(payload.path)) {
+                throw new Error(`Enforced ask ${payload.subjectId} on an action must record what satisfied it`)
+              }
+            }
           }
         } else if (state.grantReview.activated) {
           throw new Error(`An activated reviewed run records only enforced resolutions: ${payload.subjectId}`)
@@ -826,6 +880,21 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         break
       }
 
+      case "grant_ask_remembered": {
+        // "Always" is the operator's own approval of one ask, remembered for
+        // exactly its tuple: same contract, grant, capability and binding.
+        const payload = event.payload as Extract<RunEventPayload, { type: "grant_ask_remembered" }>["payload"]
+        const asked = state.grantReview.asks[payload.approvalId]
+        const approval = state.approvals.find((item) => item.approvalId === payload.approvalId)
+        if (!asked || !approval || approval.status !== "approved" || !approval.decidedBy?.trim()) {
+          throw new Error(`Only an approved, named grant ask can be remembered: ${payload.approvalId}`)
+        }
+        if (!sameAsk(asked, payload.subject)) throw new Error(`Remembered ask differs from its request: ${payload.approvalId}`)
+        if (state.grantReview.remembered[payload.approvalId]) throw new Error(`Ask already remembered: ${payload.approvalId}`)
+        state.grantReview.remembered[payload.approvalId] = payload.subject
+        break
+      }
+
       case "grant_review_activated": {
         const payload = event.payload as Extract<RunEventPayload, { type: "grant_review_activated" }>["payload"]
         const published = state.grantReview.published
@@ -872,7 +941,21 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           if (!enforced) {
             throw new Error(`Authorization of ${payload.invocationId} has no enforced decision`)
           }
-          const expected = enforced.decision === "deny" ? "denied" : "allowed"
+          // An unsatisfied ask is a denial: it may allow only once the operator
+          // approved this invocation's ask, or an approval remembered for it.
+          const askSatisfied =
+            enforced.decision !== "ask" ||
+            enforced.askSatisfiedBy !== undefined ||
+            state.approvals.some(
+              (approval) =>
+                approval.correlationId === payload.invocationId &&
+                approval.approvalType === CONTRACT_GRANT_ASK_TYPE &&
+                satisfiesAsk(state, enforced, approval.approvalId, false),
+            )
+          const expected = enforced.decision === "deny" || !askSatisfied ? "denied" : "allowed"
+          if (expected === "denied" && payload.finalDisposition !== "denied") {
+            throw new Error(`Authorization of ${payload.invocationId} allows what its enforced decision does not`)
+          }
           if (payload.contractDisposition !== expected) {
             throw new Error(`Authorization of ${payload.invocationId} contradicts its enforced decision`)
           }
@@ -1609,9 +1692,29 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (grantReview !== (payload.contractGrantSubject !== undefined)) {
           throw new Error(`Grant review approval ${payload.approvalId} must carry exactly its contract grant subject`)
         }
+        // A grant ask and its subject come together too, and only for an
+        // activated reviewed run, for exactly its contract and binding.
+        const grantAsk = payload.approvalType === CONTRACT_GRANT_ASK_TYPE
+        if (grantAsk !== (payload.grantAskSubject !== undefined)) {
+          throw new Error(`Grant ask approval ${payload.approvalId} must carry exactly its grant ask subject`)
+        }
+        if (payload.grantAskSubject) {
+          const subject = payload.grantAskSubject
+          const activated = state.grantReview.activated
+          const binding = activated?.bindings.find((item) => item.subject === subject.grantSubject)
+          if (
+            !activated ||
+            !event.correlationId ||
+            subject.contractDigest !== activated.contractDigest ||
+            !binding ||
+            binding.digest !== subject.bindingDigest
+          ) {
+            throw new Error(`Grant ask ${payload.approvalId} does not match this run's activation`)
+          }
+        }
         // A run under grant review enters review from the queue: it has not
         // started and must never be recorded as running to get here.
-        const entersFromQueue = grantReview && state.status === "queued"
+        const entersFromQueue = (grantReview || grantAsk) && state.status === "queued"
         if (
           state.status !== "waiting_approval" &&
           !entersFromQueue &&
@@ -1623,6 +1726,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           state.status = "waiting_approval"
         }
         if (payload.contractGrantSubject) state.grantReview.requests[payload.approvalId] = payload.contractGrantSubject
+        if (payload.grantAskSubject) state.grantReview.asks[payload.approvalId] = payload.grantAskSubject
         if (state.approvals.some((approval) => approval.approvalId === payload.approvalId)) {
           throw new Error(`Approval already requested: ${payload.approvalId}`)
         }

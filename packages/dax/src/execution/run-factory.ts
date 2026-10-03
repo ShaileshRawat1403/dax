@@ -383,6 +383,8 @@ export async function createGrantReviewedRun(
     acknowledgedExternal?: string[]
     /** MCP source selectors the operator chose for reads with no enumerable identity. */
     sourceSelections?: { server: string; family: "tool" | "resource" | "prompt" }[]
+    /** Grant subjects to be asked about each time rather than allowed. */
+    askSubjects?: string[]
   },
 ): Promise<{ runId: string; revision: GrantReviewRevision }> {
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
@@ -414,6 +416,7 @@ export async function createGrantReviewedRun(
       ...(options?.writeScope ? { writeScope: options.writeScope } : {}),
       ...(options?.acknowledgedExternal ? { acknowledgedExternal: options.acknowledgedExternal } : {}),
       ...(options?.sourceSelections ? { sourceSelections: options.sourceSelections } : {}),
+      ...(options?.askSubjects ? { askSubjects: options.askSubjects } : {}),
     },
   })
   const revision = await GrantReview.begin(session.id, proposal)

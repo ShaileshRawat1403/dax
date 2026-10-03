@@ -6,7 +6,7 @@ import { MutationReceiptSchema } from "@/sdlc/mutation-receipt"
 import { ApprovalContextSchema, ApprovalSourceSchema } from "@/approval/approval-types"
 import { ScopedEnvelopeFields, validateSourceReferences, type JournalEventReference } from "./scope-envelope"
 import { ProjectFactApprovalSubjectSchema } from "./project-fact-approval"
-import { ContractGrantApprovalSubjectSchema } from "./contract-grant-approval"
+import { ContractGrantApprovalSubjectSchema, GrantAskSubjectSchema } from "./contract-grant-approval"
 
 const closed = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape).strict()
 
@@ -212,6 +212,11 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
    * both are kept only for a resolution matched by a source grant.
    */
   source: closed({ server: z.string().min(1), name: z.string().min(1) }).optional(),
+  /**
+   * For an `ask` grant, what satisfied it: the operator's approval of this
+   * very action, or an earlier approval remembered for exactly this tuple.
+   */
+  askSatisfiedBy: closed({ approvalId: z.string().min(1), remembered: z.boolean() }).optional(),
   path: z.enum(AUTHORITY_PATHS),
   initiator: z.enum(["model", "operator", "system"]),
   /** The selected executor's source-qualified identity. Absent for an executor with no descriptor. */
@@ -243,6 +248,9 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   }
   if (resolution.grantSubject !== undefined && resolution.enforcement !== "enforced") {
     ctx.addIssue({ code: "custom", path: ["grantSubject"], message: "is recorded only for an enforced resolution" })
+  }
+  if (resolution.askSatisfiedBy !== undefined && resolution.decision !== "ask") {
+    ctx.addIssue({ code: "custom", path: ["askSatisfiedBy"], message: "is recorded only for an ask decision" })
   }
   if (resolution.source !== undefined && !resolution.grantSubject?.startsWith("mcp_source:tool:")) {
     ctx.addIssue({ code: "custom", path: ["source"], message: "is recorded only for a tool matched by its source" })
@@ -672,6 +680,10 @@ const RunEventVariants = [
   }),
   z.object({ type: z.literal("grant_review_published"), payload: GrantReviewPublishedPayloadSchema }),
   z.object({ type: z.literal("grant_review_activated"), payload: GrantReviewActivatedPayloadSchema }),
+  z.object({
+    type: z.literal("grant_ask_remembered"),
+    payload: closed({ approvalId: z.string().min(1), subject: GrantAskSubjectSchema }),
+  }),
   z.object({ type: z.literal("delegation_recorded"), payload: DelegationRecordedPayloadSchema }),
   z.object({ type: z.literal("assistant_recording_started"), payload: AssistantRecordingStartedPayloadSchema }),
   z.object({ type: z.literal("assistant_message_recorded"), payload: AssistantMessageRecordedPayloadSchema }),
@@ -803,6 +815,7 @@ const RunEventVariants = [
       source: ApprovalSourceSchema.optional(),
       projectFactSubject: ProjectFactApprovalSubjectSchema.optional(),
       contractGrantSubject: ContractGrantApprovalSubjectSchema.optional(),
+      grantAskSubject: GrantAskSubjectSchema.optional(),
     }),
   }),
   z.object({

@@ -35,6 +35,26 @@ export const ContractGrantApprovalSubjectSchema = z
   })
   .strict()
 
+/**
+ * What an operator approves when an activated reviewed run reaches an `ask`
+ * grant: this grant, for this capability, under this contract and binding.
+ * Remembering it ("always") covers exactly this tuple and nothing else.
+ */
+export const GrantAskSubjectSchema = z
+  .object({
+    kind: z.literal("capability_grant_ask"),
+    grantSubject: z.string().min(1),
+    capabilityId: z.string().min(1),
+    contractDigest: Sha256Digest,
+    bindingDigest: Sha256Digest,
+  })
+  .strict()
+
+export type GrantAskSubject = z.infer<typeof GrantAskSubjectSchema>
+
+/** The approval type a grant ask carries, and only it. */
+export const CONTRACT_GRANT_ASK_TYPE = "capability_grant_ask"
+
 /** The approval type a grant review request carries, and only it. */
 export const CONTRACT_GRANT_APPROVAL_TYPE = "capability_grant_review"
 

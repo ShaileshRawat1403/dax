@@ -332,7 +332,7 @@ minting does. The two digests are domain-separated from each other and from v1.
 | Condition | How it is met |
 |---|---|
 | Historical v1 records unchanged and never v2 evidence | v1 minting stays as it is and keeps minting v1 for every existing caller of the v1 function. Replay treats a v1 resource or prompt identity as carrying no server commitment, so an enforced resolution citing a source grant for it stays refused |
-| The complete identity, family and server validated, not a prefix | Replay parses the whole identity against one exact pattern for its family and version, recomputes the server segment from the grant's server, and requires an exact match of both segments' lengths and values |
+| The complete identity, family and server validated, not a prefix | Replay parses the whole identity against one exact pattern for its family and version, recomputes the server digest from the grant's server and requires it to match exactly, and validates the item digest's format. It cannot recompute the item digest, which would need the private item name |
 | Domain-separated, unambiguous hashing | Distinct prefixes for the server segment and the item digest, length-prefixed parts, the same validation rules as v1 |
 | Item names never in journals | Only the identity is recorded. The server segment commits to the server name, which the grant already names. Hashing is not encryption: a short or guessable item name can be found by trying candidates against the item digest, and nothing here authenticates the server's identity |
 | Old exact grants never authorize v2 identities | An exact grant names one identity string; a v1 string never equals a v2 one, and nothing maps between them |
@@ -341,11 +341,28 @@ minting does. The two digests are domain-separated from each other and from v1.
 Rollout, when reviewed: mint v2 for new reads in reviewed runs only, keep v1 everywhere
 else, and add the v2 identities to the on-demand families of the vocabulary.
 
+### 4c second slice: ask grants and the remembered "always"
+
+The 4c corrections were accepted at `144ed919f87641a7b6e9d238cdbbae67eab9a620`, with the
+MCP identity design approved under the wording correction above.
+
+An operator may mark grants `ask` in the proposal (`askSubjects`). In an activated run an
+`ask` is never allowed by the record itself:
+
+| Step | Behaviour |
+|---|---|
+| The request | An `approval_requested` of type `capability_grant_ask`, correlated to the action, with a subject naming exactly the grant, the capability, the contract digest and the binding digest. The reducer accepts it only when those match the run's activation |
+| The answer | The operator approves or denies through the existing approval transitions. Only an approval with a named actor counts, at runtime and on replay. No answer within `DAX_GRANT_ASK_TIMEOUT_MS` (default 10 minutes) expires the request and denies |
+| "Always" | `grant_ask_remembered`, appended only after a named approval of that very ask and only for its exact subject. A later ask for the same grant, capability, contract and binding is satisfied by it; a different capability under the same grant is asked again |
+| Tool paths | The `ask` resolution is recorded, then the operator is asked; the reducer allows the invocation's authorization only with that approved ask in the log, or a cited memory |
+| Action paths | The ask is settled before the action and its resolution records what settled it; an action's ask without that is refused |
+
+Scope is not part of the subject separately: one contract holds one grant per subject,
+and the contract digest commits to its scope.
+
 ### Remaining 4c
 
-`ask` grants carried through the existing approval flow, with a remembered "always" bound
-to contract digest, grant, capability, binding and scope; delegation grants for the
-`task` tool and child sessions.
+Delegation grants for the `task` tool and child sessions.
 
 ### 4c first slice: corrections
 
