@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
+import * as Resolution from "@/capability/record-resolution"
+import { Agent } from "@/agent/agent"
 import os from "node:os"
 import path from "node:path"
 import { GrantReview } from "@/capability/grant-review"
@@ -17,6 +19,7 @@ import { createGrantReviewedRun } from "@/execution/run-factory"
 import { mcpReadDescriptor } from "@/mcp/resource-identity"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
+import { SessionPrompt } from "@/session/prompt"
 import { authorizeOperatorShell, OperatorShellDeniedError } from "@/session/operator-shell-authority"
 import { appendEventOnly, createEventAuthorityRun, resolveApprovalEvent } from "@/state/events/event-transitions"
 import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
@@ -302,6 +305,107 @@ describe("action paths in an activated reviewed run are decided before any effec
       )
       expect(error).toBeInstanceOf(Error)
       expect((await readRunEvents(runId)).length).toBe(before)
+    })
+  })
+})
+
+describe("uncertain authority denies before any effect", () => {
+  /** Counts stats of one file through the production template path. */
+  async function templateEffects(runId: string, fixture: string) {
+    const originalStat = fs.stat
+    let effects = 0
+    const stat = spyOn(fs, "stat").mockImplementation((async (...args: unknown[]) => {
+      if (args[0] === fixture) effects++
+      return (originalStat as (...a: unknown[]) => unknown)(...args)
+    }) as typeof fs.stat)
+    try {
+      const error = await rejection(
+        SessionPrompt.resolvePromptParts("Inspect @fixture.txt", { sessionID: runId, initiator: "operator" }),
+      )
+      return { error, effects }
+    } finally {
+      stat.mockRestore()
+    }
+  }
+
+  test("an unreadable session or review store refuses the action with no filesystem effect", async () => {
+    await within(async () => {
+      const runId = await reviewed()
+      const fixture = path.join(directory, "fixture.txt")
+      await fs.writeFile(fixture, "fixture")
+      for (const unreadable of [
+        (key: string[]) => key[0] === "session" && key.at(-1) === runId,
+        (key: string[]) => key[0] === "grant_review" && key.at(-1) === runId,
+      ]) {
+        const originalRead = Storage.read
+        const read = spyOn(Storage, "read").mockImplementation((async (key: string[]) => {
+          if (unreadable(key)) throw new Error("injected read failure")
+          return originalRead(key)
+        }) as typeof Storage.read)
+        let outcome: { error: unknown; effects: number }
+        try {
+          outcome = await templateEffects(runId, fixture)
+        } finally {
+          read.mockRestore()
+        }
+        expect(outcome.error).toBeInstanceOf(CapabilityActionDeniedError)
+        expect((outcome.error as CapabilityActionDeniedError).reasonCode).toBe("authority_unreadable")
+        expect(outcome.effects).toBe(0)
+      }
+    })
+  })
+
+  test("an action recorded outside any instance is refused, not treated as unreviewed", async () => {
+    const error = await rejection(
+      recordActionResolution({
+        governedBy: { runId: "ses_outside_instance" },
+        subject: "workflow",
+        path: "workflow",
+        initiator: "system",
+        executor: { kind: "builtin" },
+      }),
+    )
+    expect(error).toBeInstanceOf(CapabilityActionDeniedError)
+    expect((error as CapabilityActionDeniedError).reasonCode).toBe("authority_unreadable")
+  })
+
+  test("the reviewed operator shell decides on permissions read after the agent lookup", async () => {
+    await within(async () => {
+      const runId = await reviewed()
+      await Session.update(runId, (draft) => {
+        draft.permission = [{ permission: "*", pattern: "*", action: "allow" }]
+      })
+      // Isolate the permission boundary: the grant decision is supplied as allowed.
+      const decision = spyOn(Resolution, "recordActionResolution").mockResolvedValue({ decision: "allow" } as never)
+      const originalAgent = Agent.get
+      const agent = spyOn(Agent, "get").mockImplementation((async (name: string) => {
+        await Session.update(runId, (draft) => {
+          draft.permission = [{ permission: "shell", pattern: "*", action: "deny" }]
+        })
+        return originalAgent(name)
+      }) as typeof Agent.get)
+      let outcome: unknown
+      try {
+        outcome = await rejection(
+          authorizeOperatorShell({
+            sessionID: runId,
+            agent: "build",
+            command: "true",
+            callID: "call_4c_race",
+            capability: {
+              id: "session.shell.operator",
+              riskClass: "high",
+              scopeSupport: "opaque",
+              requiresVerification: true,
+            },
+          }),
+        )
+      } finally {
+        agent.mockRestore()
+        decision.mockRestore()
+      }
+      expect(outcome).toBeInstanceOf(OperatorShellDeniedError)
+      expect(outcome).toMatchObject({ reasonCode: "permission_denied" })
     })
   })
 })

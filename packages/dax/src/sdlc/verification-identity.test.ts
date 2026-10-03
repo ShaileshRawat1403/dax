@@ -7,6 +7,7 @@ import { CapabilityDescriptor } from "@/capability/capability-types"
 import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 import { runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
 import { verifyWorkerPatch } from "@/worker/worker-verification"
+import { Instance } from "@/project/instance"
 import { runCheck } from "./check-runner"
 import { CheckDefinition } from "./check-types"
 import {
@@ -22,6 +23,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  await Instance.disposeAll()
   await fs.rm(root, { recursive: true, force: true })
 })
 
@@ -89,7 +91,11 @@ describe("verification command identity", () => {
       path.join(root, "check.js"),
       `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran")`,
     )
-    const result = await verifyWorkerPatch({ runId: "run_identity", cwd: root, commands: ["bun run check.js"] })
+    // Verification reads the governing run's review state inside an instance, as the workflow runs it.
+    const result = await Instance.provide({
+      directory: root,
+      fn: () => verifyWorkerPatch({ runId: "run_identity", cwd: root, commands: ["bun run check.js"] }),
+    })
     expect(result.checks.map((check) => check.status)).toEqual(["passed"])
     expect(result.passed).toBe(true)
     expect(await Bun.file(marker).text()).toBe("ran")
@@ -113,7 +119,10 @@ describe("verification command identity", () => {
       return runCheck(check)
     }
     try {
-      const result = await verifyWorkerPatch({ runId: "run_identity", cwd: root, commands: ["bun run check.js"], run })
+      const result = await Instance.provide({
+        directory: root,
+        fn: () => verifyWorkerPatch({ runId: "run_identity", cwd: root, commands: ["bun run check.js"], run }),
+      })
       expect(result.passed).toBe(false)
       expect(result.checks.map((check) => check.status)).toEqual(["error"])
       expect(result.checks[0].stderrPreview).toContain("Capability identity rejected: changed")

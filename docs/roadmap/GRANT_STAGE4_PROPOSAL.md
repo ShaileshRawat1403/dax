@@ -319,21 +319,43 @@ Within the accepted boundary every session and workflow capability binds only to
 compiled running image, so from source every action is denied; a compiled probe shows the
 allow side, including filesystem scope inside and outside the reviewed roots.
 
-### Proposed for architecture review: server-provable MCP read identities
+### Server-provable MCP read identities: compatibility design
 
-A resource or prompt identity is `mcp.<family>.v1.m<sha256(server, item)>`. Replay cannot
-check its server without the item name, which may be private. Proposal: a new identity
-version that carries a server commitment, `mcp.<family>.v2.s<sha256(server)>.m<sha256(server,
-item)>`. Replay checks the server segment against the grant's server; the item stays
-hashed. It would change every resource and prompt identity, including record-only
-records written by earlier builds of this branch, so it is not implemented without
-review. Until then these sources stay denied.
+The direction was accepted at `3a3f683` with binding conditions. This records the design
+before any implementation; nothing below is built yet.
+
+**Format.** A new version per family, minted only by new code:
+`mcp.<family>.v2.s<hex(sha256("dax.mcp.<family>.server.v2\0" ‖ len:server))>.m<hex(sha256("dax.mcp.<family>.v2\0" ‖ len:server ‖ len:item))>`,
+with every part length-prefixed in UTF-8 bytes and lone surrogates rejected, as the v1
+minting does. The two digests are domain-separated from each other and from v1.
+
+| Condition | How it is met |
+|---|---|
+| Historical v1 records unchanged and never v2 evidence | v1 minting stays as it is and keeps minting v1 for every existing caller of the v1 function. Replay treats a v1 resource or prompt identity as carrying no server commitment, so an enforced resolution citing a source grant for it stays refused |
+| The complete identity, family and server validated, not a prefix | Replay parses the whole identity against one exact pattern for its family and version, recomputes the server segment from the grant's server, and requires an exact match of both segments' lengths and values |
+| Domain-separated, unambiguous hashing | Distinct prefixes for the server segment and the item digest, length-prefixed parts, the same validation rules as v1 |
+| Item names never in journals | Only the identity is recorded. The server segment commits to the server name, which the grant already names. Hashing is not encryption: a short or guessable item name can be found by trying candidates against the item digest, and nothing here authenticates the server's identity |
+| Old exact grants never authorize v2 identities | An exact grant names one identity string; a v1 string never equals a v2 one, and nothing maps between them |
+| Unsupported v1 source coverage stays denied | As today |
+
+Rollout, when reviewed: mint v2 for new reads in reviewed runs only, keep v1 everywhere
+else, and add the v2 identities to the on-demand families of the vocabulary.
 
 ### Remaining 4c
 
 `ask` grants carried through the existing approval flow, with a remembered "always" bound
 to contract digest, grant, capability, binding and scope; delegation grants for the
 `task` tool and child sessions.
+
+### 4c first slice: corrections
+
+Review at `3a3f683` found two boundaries open. An unreadable session, review store or
+missing instance was treated as an unreviewed run, so a template stat could still run;
+compatibility now applies only after the governing run is read and the review store
+answers that it has no review, and anything uncertain denies as `authority_unreadable`
+before any effect. The reviewed operator shell read session permissions before awaiting
+the agent lookup; it now looks up the agent first and decides on a session read with
+nothing awaited after it.
 
 ## Not in stage 4
 

@@ -83,11 +83,13 @@ async function authorizeReviewedOperatorShell(
     }
     throw error
   }
+  // The agent first: nothing may be awaited between the session read below,
+  // which carries the current permission and governing reference, and the decision.
+  const agent = await Agent.get(input.agent).catch(() => undefined)
   const session = await Session.get(input.sessionID)
   if ((session.governingRunId ?? session.id) !== runId) {
     throw new OperatorShellDeniedError("governing_authority_changed", contractId)
   }
-  const agent = await Agent.get(input.agent).catch(() => undefined)
   const rule = Permission.evaluate("shell", input.command, agent?.permission ?? [], session.permission ?? [])
   if (rule.action === "deny") throw new OperatorShellDeniedError("permission_denied", contractId)
   return { governed: true, disposition: "allowed", contractId, governingRunId: runId }

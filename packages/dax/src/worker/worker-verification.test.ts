@@ -1,4 +1,8 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { Instance } from "@/project/instance"
 import { buildWorkerVerificationChecks, verifyWorkerPatch } from "./worker-verification"
 import type { CheckResult } from "@/sdlc/check-types"
 import { createEvidenceReceipt } from "@/sdlc/evidence-receipt"
@@ -22,6 +26,19 @@ function result(check: { id: string; command: string; cwd: string }, status: Che
     stderrPreview: status === "passed" ? "" : "failed",
   }
 }
+
+// Verification records its capability resolution through the governing run's
+// review state, which is read inside an instance; outside one, authority is
+// unreadable and the check is refused. The workflow always runs inside one.
+let directory = ""
+beforeAll(async () => {
+  directory = await fs.mkdtemp(path.join(os.tmpdir(), "dax-worker-verification-"))
+})
+afterAll(async () => {
+  await Instance.disposeAll()
+  await fs.rm(directory, { recursive: true, force: true })
+})
+const within = <T>(fn: () => Promise<T>) => Instance.provide({ directory, fn })
 
 describe("worker verification", () => {
   test("accepts allowlisted commands and preserves their argv", () => {
@@ -47,42 +64,48 @@ describe("worker verification", () => {
   })
 
   test("records a receipt for every DAX-owned check and blocks a failure", async () => {
-    const verification = await verifyWorkerPatch({
-      runId: "run_1",
-      cwd: "/repo",
-      commands: ["bun test"],
-      run: async (check) => result(check, "failed"),
+    await within(async () => {
+      const verification = await verifyWorkerPatch({
+        runId: "run_1",
+        cwd: "/repo",
+        commands: ["bun test"],
+        run: async (check) => result(check, "failed"),
+      })
+      expect(verification.passed).toBeFalse()
+      expect(verification.receipts).toHaveLength(1)
+      expect(verification.receipts[0]).toMatchObject({ runId: "run_1", status: "failed", source: "dax" })
     })
-    expect(verification.passed).toBeFalse()
-    expect(verification.receipts).toHaveLength(1)
-    expect(verification.receipts[0]).toMatchObject({ runId: "run_1", status: "failed", source: "dax" })
   })
 
   test("records runner errors as failed-closed evidence", async () => {
-    const verification = await verifyWorkerPatch({
-      runId: "run_1",
-      cwd: "/repo",
-      commands: ["bun test"],
-      run: async () => {
-        throw new Error("runner unavailable")
-      },
+    await within(async () => {
+      const verification = await verifyWorkerPatch({
+        runId: "run_1",
+        cwd: "/repo",
+        commands: ["bun test"],
+        run: async () => {
+          throw new Error("runner unavailable")
+        },
+      })
+      expect(verification.passed).toBeFalse()
+      expect(verification.checks[0]).toMatchObject({ status: "error", stderrPreview: "runner unavailable" })
+      expect(verification.receipts[0]).toMatchObject({ runId: "run_1", status: "error", source: "dax" })
     })
-    expect(verification.passed).toBeFalse()
-    expect(verification.checks[0]).toMatchObject({ status: "error", stderrPreview: "runner unavailable" })
-    expect(verification.receipts[0]).toMatchObject({ runId: "run_1", status: "error", source: "dax" })
   })
 
   test("attests raw results while persisting only redacted previews", async () => {
-    const raw = result({ id: "worker-verification-1", command: "bun", cwd: "/repo" }, "failed")
-    raw.stderrPreview = "token=private-verification-token"
-    const verification = await verifyWorkerPatch({
-      runId: "run_1",
-      cwd: "/repo",
-      commands: ["bun test"],
-      run: async () => raw,
-    })
+    await within(async () => {
+      const raw = result({ id: "worker-verification-1", command: "bun", cwd: "/repo" }, "failed")
+      raw.stderrPreview = "token=private-verification-token"
+      const verification = await verifyWorkerPatch({
+        runId: "run_1",
+        cwd: "/repo",
+        commands: ["bun test"],
+        run: async () => raw,
+      })
 
-    expect(verification.checks[0]?.stderrPreview).toBe("token=[REDACTED]")
-    expect(verification.receipts[0]?.digest).toBe(createEvidenceReceipt("run_1", raw).digest)
+      expect(verification.checks[0]?.stderrPreview).toBe("token=[REDACTED]")
+      expect(verification.receipts[0]?.digest).toBe(createEvidenceReceipt("run_1", raw).digest)
+    })
   })
 })

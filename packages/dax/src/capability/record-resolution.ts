@@ -1,6 +1,6 @@
 import { ulid } from "ulid"
 import { readContract, resolveExecutionAuthority } from "@/execution/contract-guardian"
-import { GrantReviewBarrierError, hasGrantReview } from "@/execution/grant-review-barrier"
+import { assertNoGrantReview, GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { recordCapabilityResolution } from "@/state/events/event-transitions"
@@ -42,20 +42,29 @@ export class CapabilityActionDeniedError extends Error {
  * barrier here too, rather than proceeding unrecorded.
  */
 async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | CapabilityResolution> {
+  // Compatibility is only for a run positively shown to have no review: its
+  // governing run was read, and the review store answered that none exists.
+  // Anything uncertain, from an unreadable session to an unreadable store or
+  // no instance to read it in, denies before the action has any effect.
   let runId: string
   try {
     runId =
       "runId" in action.governedBy
         ? action.governedBy.runId
         : await Session.get(action.governedBy.sessionID).then((session) => session.governingRunId ?? session.id)
-    // Outside any instance there is no review store to consult, and the
-    // isolated path below handles the action exactly as before.
-    void Instance.project.id
-  } catch {
-    // No session or instance to read a run from: the isolated path handles it.
-    return "not_reviewed"
+  } catch (error) {
+    log.warn("governing authority could not be read; the action is denied", { path: action.path, error })
+    throw new CapabilityActionDeniedError(action.path, "authority_unreadable")
   }
-  if (!(await hasGrantReview(runId))) return "not_reviewed"
+  try {
+    await assertNoGrantReview(runId)
+    return "not_reviewed"
+  } catch (error) {
+    if (!(error instanceof GrantReviewBarrierError)) {
+      log.warn("grant review state could not be read; the action is denied", { path: action.path, error })
+      throw new CapabilityActionDeniedError(action.path, "authority_unreadable")
+    }
+  }
   const { GrantReview } = await import("./grant-review")
   const reviewed = await GrantReview.dispatchAuthority(runId)
   if (!reviewed) throw new GrantReviewBarrierError(runId)
