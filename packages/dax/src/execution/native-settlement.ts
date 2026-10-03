@@ -271,23 +271,30 @@ async function beginReviewedInvocation(
   }
 
   const { captureDispatchSnapshot } = await import("@/capability/grant-review-snapshot")
-  const { decideReviewedAction, enforcedRecord, settleAsk } = await import("@/capability/enforcement")
-  const decided = await decideReviewedAction({
-    contract,
-    contractDigest: reviewed.published.contractDigest,
-    activation: reviewed.activation,
-    resolve: {
-      path: params.parentInvocationId ? "batch_leaf" : params.executor.kind === "mcp" ? "mcp_tool" : "native_tool",
-      initiator: "model",
-      authorityRunId: runId,
-      executor: { kind: params.executor.kind, alias: params.toolId, descriptor: params.capability },
-      source: params.source,
-      target: nativeFilesystemTarget(params.executor.kind, params.toolId, params.args),
-      directory: Instance.directory,
-      worktree: Instance.worktree,
-    },
-    current: await captureDispatchSnapshot(contract),
-  })
+  const { decideReviewedAction, enforcedRecord, settleAsk, recheckAfterWait } = await import("@/capability/enforcement")
+  const { GrantReview } = await import("@/capability/grant-review")
+  // Decided from the authority and implementation as they are at the moment
+  // of deciding; called again after any wait for the operator.
+  const decideNow = async (authority: typeof reviewed | undefined) => {
+    if (!authority) return undefined
+    return decideReviewedAction({
+      contract: authority.published.contract,
+      contractDigest: authority.published.contractDigest,
+      activation: authority.activation,
+      resolve: {
+        path: params.parentInvocationId ? "batch_leaf" : params.executor.kind === "mcp" ? "mcp_tool" : "native_tool",
+        initiator: "model",
+        authorityRunId: runId,
+        executor: { kind: params.executor.kind, alias: params.toolId, descriptor: params.capability },
+        source: params.source,
+        target: nativeFilesystemTarget(params.executor.kind, params.toolId, params.args),
+        directory: Instance.directory,
+        worktree: Instance.worktree,
+      },
+      current: await captureDispatchSnapshot(authority.published.contract),
+    })
+  }
+  const decided = (await decideNow(reviewed))!
   // A remembered approval satisfies an ask here; otherwise the ask is recorded
   // first and the operator is asked before the authorization is decided.
   const { resolution, satisfied } = await settleAsk(runId, decided)
@@ -302,11 +309,24 @@ async function beginReviewedInvocation(
 
   let allowed = satisfied
   let askReason: string | undefined
+  let expiredAsk: string | undefined
   if (resolution.decision === "ask" && !satisfied && resolution.askSubject) {
     const { askOperator } = await import("@/capability/grant-ask")
     const answer = await askOperator(runId, params.invocationId, resolution.askSubject)
     allowed = answer.decision === "approved"
     if (!allowed) askReason = answer.decision === "expired" ? "grant_ask_expired" : "grant_ask_denied"
+    if (answer.decision === "expired") expiredAsk = answer.approvalId
+    // The approval answered one exact ask. Whatever changed while waiting is
+    // decided again now, and a changed authority or binding denies.
+    if (allowed) {
+      const stale = await recheckAfterWait(resolution, async () =>
+        decideNow(await GrantReview.dispatchAuthority(runId)),
+      )
+      if (stale) {
+        allowed = false
+        askReason = stale
+      }
+    }
   }
   pending.set(params.invocationId, {
     authorityRunId: runId,
@@ -328,7 +348,16 @@ async function beginReviewedInvocation(
     const state = pending.get(params.invocationId)!
     const reasonCode = askReason ?? resolution.reasonCode ?? "grant_denied"
     state.reasonCodes.add(reasonCode)
-    await appendAuthorization(params.invocationId, state, "denied")
+    try {
+      // The denial is recorded first; only then is a timed-out ask closed.
+      await appendAuthorization(params.invocationId, state, "denied")
+    } finally {
+      // Never left authorizable in this process, even if the denial could
+      // not be written; the ask's deadline keeps it so on replay.
+      state.denied = true
+      pending.delete(params.invocationId)
+    }
+    if (expiredAsk) await (await import("@/capability/grant-ask")).expireAsk(runId, expiredAsk)
     throw new NativeAuthorizationDeniedError(params.invocationId, reasonCode)
   }
   return { status: "recorded" }

@@ -28,6 +28,8 @@ export const ContractGrantApprovalSubjectSchema = z
             subject: z.string().min(1),
             attestation: z.enum(["exact", "external"]),
             digest: Sha256Digest,
+            // Absent only on a request made before decisions were committed; such a request cannot publish.
+            decision: z.enum(["allow", "ask"]).optional(),
           })
           .strict(),
       )

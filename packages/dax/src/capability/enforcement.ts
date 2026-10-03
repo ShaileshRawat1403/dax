@@ -114,7 +114,10 @@ export async function decideReviewedAction(input: {
 }
 
 /** The same resolution, denied: a denial names no grant and carries nothing of the ask. */
-export function denied(resolution: EnforcedResolution, reasonCode: EnforcementReason): EnforcedResolution {
+export function denied(
+  resolution: EnforcedResolution,
+  reasonCode: NonNullable<EnforcedResolution["reasonCode"]>,
+): EnforcedResolution {
   const { grantSubject: _grant, source: _source, askSubject: _ask, askSatisfiedBy: _satisfied, ...rest } = resolution
   return { ...rest, decision: "deny", reasonCode, grantScope: undefined }
 }
@@ -125,11 +128,40 @@ export function denied(resolution: EnforcedResolution, reasonCode: EnforcementRe
  * asked and the answer settles it. Without `askNow` an unremembered ask is
  * returned unsatisfied, for a caller that asks after recording it.
  */
+/**
+ * After waiting for the operator, decides again from what holds now. The
+ * approval covers only the exact ask it answered: if the authority or the
+ * binding changed while waiting, the action is denied with the current reason.
+ */
+export async function recheckAfterWait(
+  asked: EnforcedResolution,
+  decideNow: () => Promise<EnforcedResolution | undefined>,
+): Promise<EnforcementReason | CapabilityResolution["reasonCode"] | undefined> {
+  const now = await decideNow().catch(() => undefined)
+  if (!now) return "activation_missing"
+  if (now.decision === "deny") return now.reasonCode ?? "binding_changed"
+  const a = asked.askSubject
+  const b = now.askSubject
+  if (
+    now.decision !== "ask" ||
+    !a ||
+    !b ||
+    a.grantSubject !== b.grantSubject ||
+    a.capabilityId !== b.capabilityId ||
+    a.contractDigest !== b.contractDigest ||
+    a.bindingDigest !== b.bindingDigest
+  ) {
+    return "binding_changed"
+  }
+  return undefined
+}
+
 export async function settleAsk(
   runId: string,
   resolution: EnforcedResolution,
-  askNow?: string,
-): Promise<{ resolution: EnforcedResolution; satisfied: boolean }> {
+  options?: { askNow?: string; decideNow?: () => Promise<EnforcedResolution | undefined> },
+): Promise<{ resolution: EnforcedResolution; satisfied: boolean; expired?: string }> {
+  const askNow = options?.askNow
   if (resolution.decision !== "ask" || !resolution.askSubject)
     return { resolution, satisfied: resolution.decision === "allow" }
   const { rememberedAsk, askOperator } = await import("./grant-ask")
@@ -143,6 +175,8 @@ export async function settleAsk(
   if (askNow === undefined) return { resolution, satisfied: false }
   const answer = await askOperator(runId, askNow, resolution.askSubject)
   if (answer.decision === "approved") {
+    const stale = options?.decideNow ? await recheckAfterWait(resolution, options.decideNow) : undefined
+    if (stale) return { resolution: denied(resolution, stale), satisfied: false }
     return {
       resolution: { ...resolution, askSatisfiedBy: { approvalId: answer.approvalId, remembered: false } },
       satisfied: true,
@@ -151,6 +185,7 @@ export async function settleAsk(
   return {
     resolution: denied(resolution, answer.decision === "expired" ? "grant_ask_expired" : "grant_ask_denied"),
     satisfied: false,
+    ...(answer.decision === "expired" ? { expired: answer.approvalId } : {}),
   }
 }
 

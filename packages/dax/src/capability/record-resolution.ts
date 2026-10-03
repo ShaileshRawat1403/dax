@@ -70,27 +70,35 @@ async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | 
   if (!reviewed) throw new GrantReviewBarrierError(runId)
   const { captureDispatchSnapshot } = await import("./grant-review-snapshot")
   const { decideReviewedAction, enforcedRecord, settleAsk } = await import("./enforcement")
-  const contract = reviewed.published.contract
-  const decided = await decideReviewedAction({
-    contract,
-    contractDigest: reviewed.published.contractDigest,
-    activation: reviewed.activation,
-    resolve: {
-      path: action.path,
-      initiator: action.initiator,
-      authorityRunId: runId,
-      executor: action.executor,
-      source: action.source,
-      target: action.target,
-      directory: Instance.directory,
-      worktree: Instance.worktree,
-    },
-    current: await captureDispatchSnapshot(contract),
-  })
+  // Decided from the authority and implementation as they are at the moment
+  // of deciding; called again after any wait for the operator.
+  const decideNow = async (authority: NonNullable<typeof reviewed> | undefined) => {
+    if (!authority) return undefined
+    return decideReviewedAction({
+      contract: authority.published.contract,
+      contractDigest: authority.published.contractDigest,
+      activation: authority.activation,
+      resolve: {
+        path: action.path,
+        initiator: action.initiator,
+        authorityRunId: runId,
+        executor: action.executor,
+        source: action.source,
+        target: action.target,
+        directory: Instance.directory,
+        worktree: Instance.worktree,
+      },
+      current: await captureDispatchSnapshot(authority.published.contract),
+    })
+  }
+  const decided = (await decideNow(reviewed))!
   // An action has no later authorization: an ask is settled, by memory or by
-  // asking the operator now, before its resolution is recorded.
+  // asking the operator now, then checked again, before its resolution is recorded.
   const subjectId = `${action.subject}_${ulid()}`
-  const { resolution } = await settleAsk(runId, decided, subjectId)
+  const { resolution, expired } = await settleAsk(runId, decided, {
+    askNow: subjectId,
+    decideNow: async () => decideNow(await GrantReview.dispatchAuthority(runId)),
+  })
   try {
     await recordCapabilityResolution(runId, {
       subjectId,
@@ -100,6 +108,7 @@ async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | 
     log.warn("enforced capability resolution was not recorded; the action is denied", { path: action.path, error })
     throw new CapabilityActionDeniedError(action.path, "resolution_unrecorded")
   }
+  if (expired) await (await import("./grant-ask")).expireAsk(runId, expired)
   if (resolution.decision === "deny" || (resolution.decision === "ask" && !resolution.askSatisfiedBy)) {
     throw new CapabilityActionDeniedError(action.path, resolution.reasonCode ?? "grant_denied")
   }

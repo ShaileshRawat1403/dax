@@ -360,6 +360,14 @@ An operator may mark grants `ask` in the proposal (`askSubjects`). In an activat
 Scope is not part of the subject separately: one contract holds one grant per subject,
 and the contract digest commits to its scope.
 
+Review at `06c5a95` found three boundaries open, now closed:
+
+| Finding | Correction |
+|---|---|
+| Replay accepted an `allow` resolution under an `ask` grant | Every binding in the approval subject, the publication and the activation carries its grant's decision. An enforced allow or ask must carry exactly its activated grant's decision |
+| An approval given while the binding changed still let the action run | After the wait, the decision is made again from the authority and implementation as they are then; any change denies, on tool and action paths |
+| A failed expiry with a racing approval left a timed-out invocation authorizable | Each grant ask carries its deadline, and replay refuses an approval recorded after it. A denial is always recordable, recorded before the ask is closed, and the invocation is never left pending in the process |
+
 ### Remaining 4c
 
 Delegation grants for the `task` tool and child sessions.

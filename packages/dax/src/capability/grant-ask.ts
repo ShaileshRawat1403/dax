@@ -63,6 +63,9 @@ export async function askOperator(
         ? undefined
         : ("denied" as const)
 
+  // The deadline is in the request itself, so replay refuses any approval
+  // recorded after it, whatever happens to the expiry below.
+  const expiresAt = new Date(Date.now() + timeoutMs()).toISOString()
   const answer = new Promise<"approved" | "denied" | "expired">((resolve) => {
     let finished = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -89,6 +92,7 @@ export async function askOperator(
         reason: "The reviewed contract grants this capability only with your approval each time.",
         source: "system",
         grantAskSubject: subject,
+        expiresAt,
       },
       `cmd_grant_ask_${correlationId}`,
       { correlationId },
@@ -99,19 +103,22 @@ export async function askOperator(
         if (already) return finish(already)
         // The clock starts only once the request is in the log, so an expiry
         // always has a request to close.
-        timer = setTimeout(() => finish("expired"), timeoutMs())
+        timer = setTimeout(() => finish("expired"), Math.max(0, Date.parse(expiresAt) - Date.now()))
       })
       .catch(() => finish("denied"))
   })
-  const decision = await answer
-  if (decision === "expired") {
-    // Closed in the log; if that fails the request is left pending, but the
-    // action is denied either way and nothing can authorize it afterwards.
-    await ApprovalTransitions.expire(runId, approvalId).catch((error) =>
-      log.warn("grant ask could not be expired", { runId, approvalId, error }),
-    )
-  }
-  return { approvalId, decision }
+  return { approvalId, decision: await answer }
+}
+
+/**
+ * Closes a timed-out ask in the log. Called after the action's denial is
+ * recorded, so the denial never depends on this; and the request's deadline
+ * already makes any later approval of it unrecordable.
+ */
+export async function expireAsk(runId: string, approvalId: string): Promise<void> {
+  await ApprovalTransitions.expire(runId, approvalId).catch((error) =>
+    log.warn("grant ask could not be expired", { runId, approvalId, error }),
+  )
 }
 
 /**

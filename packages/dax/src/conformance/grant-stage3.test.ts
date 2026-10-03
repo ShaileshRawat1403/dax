@@ -367,10 +367,11 @@ describe("review publication is exact, serialized and recoverable", () => {
         digest: revision.digest,
         // The approval also commits, in the log, to the contract and its bindings.
         contractDigest: (await computeCanonicalCommitment(revision.proposal.candidate)).digest,
-        bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({
+        bindings: revision.proposal.bindings.map(({ subject, attestation, digest }, index) => ({
           subject,
           attestation,
           digest,
+          decision: revision.proposal.candidate.capabilityGrants[index]!.decision,
         })),
       })
       expect(revision.digest).toBe((await proposalDigest(revision.proposal)).digest)

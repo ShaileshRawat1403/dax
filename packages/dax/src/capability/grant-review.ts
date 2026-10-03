@@ -123,11 +123,21 @@ function approvalIdFor(runId: string, revision: number) {
   return `apr_grant_${runId}_r${revision}`
 }
 
+/** Every binding with the decision of the grant it belongs to, in the contract's grant order. */
+function proofBindings(proposal: GrantProposal) {
+  return proposal.bindings.map(({ subject, attestation, digest }, index) => ({
+    subject,
+    attestation,
+    digest,
+    decision: proposal.candidate.capabilityGrants[index]!.decision,
+  }))
+}
+
 /** What the journal's publication proof must restate: the contract digest and every binding, in order. */
 async function commitments(revision: GrantReviewRevision) {
   return {
     contractDigest: (await computeCanonicalCommitment(ExecutionContractV2.parse(revision.proposal.candidate))).digest,
-    bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({ subject, attestation, digest })),
+    bindings: proofBindings(revision.proposal),
   }
 }
 
@@ -378,11 +388,7 @@ async function publish(
       proposalDigest: current.digest,
       contractId: record.contractId,
       contractDigest: published.contractDigest,
-      bindings: current.proposal.bindings.map((item) => ({
-        subject: item.subject,
-        attestation: item.attestation,
-        digest: item.digest,
-      })),
+      bindings: proofBindings(current.proposal),
     })
     await options?.afterProof?.()
     current.status = "published"
@@ -502,7 +508,11 @@ async function activate(runId: string): Promise<{ revision: number; contractDige
     const grants = published.contract.capabilityGrants
     if (
       grants.length !== proof.bindings.length ||
-      grants.some((grant, index) => subjectKey(grant.subject) !== proof.bindings[index]!.subject)
+      grants.some(
+        (grant, index) =>
+          subjectKey(grant.subject) !== proof.bindings[index]!.subject ||
+          grant.decision !== proof.bindings[index]!.decision,
+      )
     ) {
       throw new GrantReviewError("binding_changed", runId)
     }

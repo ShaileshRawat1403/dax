@@ -212,6 +212,8 @@ export type CanonicalRunState = RunState & {
     asks: Record<string, GrantAskSubject>
     /** Approvals the operator chose to remember, by approval ID. */
     remembered: Record<string, GrantAskSubject>
+    /** Each grant ask's deadline, by approval ID. */
+    askDeadlines: Record<string, string>
   }
 }
 
@@ -598,7 +600,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     steps: [],
     invocations: {},
     capabilityResolutions: [],
-    grantReview: { requests: {}, published: null, activated: null, asks: {}, remembered: {} },
+    grantReview: { requests: {}, published: null, activated: null, asks: {}, remembered: {}, askDeadlines: {} },
     delegationHistory: {
       coverage: "complete",
       records: [],
@@ -782,8 +784,14 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             }
           } else {
             const subject = payload.grantSubject
-            if (!subject || !activated.bindings.some((binding) => binding.subject === subject)) {
+            const activatedBinding = activated.bindings.find((binding) => binding.subject === subject)
+            if (!subject || !activatedBinding) {
               throw new Error(`Enforced resolution ${payload.subjectId} names no activated grant`)
+            }
+            // The decision is the approved grant's, never the record's choice:
+            // an ask grant can never be recorded as an allow.
+            if (activatedBinding.decision !== payload.decision) {
+              throw new Error(`Enforced resolution ${payload.subjectId} does not carry its grant's decision`)
             }
             const selector = /^mcp_source:(tool|resource|prompt):(.+)$/.exec(subject)
             if (selector && selector[1] !== "tool") {
@@ -858,7 +866,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         // The approval committed, in this log, to a contract digest and every
         // binding. The publication must restate exactly those. A request made
         // without that commitment can never publish.
-        if (subject.contractDigest === undefined || subject.bindings === undefined) {
+        if (
+          subject.contractDigest === undefined ||
+          subject.bindings === undefined ||
+          subject.bindings.some((item) => item.decision === undefined)
+        ) {
           throw new Error(`Grant review request ${payload.approvalId} carries no contract or binding commitment`)
         }
         if (
@@ -868,7 +880,8 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             (item, index) =>
               item.subject !== payload.bindings[index]!.subject ||
               item.attestation !== payload.bindings[index]!.attestation ||
-              item.digest !== payload.bindings[index]!.digest,
+              item.digest !== payload.bindings[index]!.digest ||
+              item.decision !== payload.bindings[index]!.decision,
           )
         ) {
           throw new Error(`Grant review publication ${payload.approvalId} differs from what was approved`)
@@ -909,7 +922,8 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             (item, index) =>
               item.subject === published.bindings[index]!.subject &&
               item.attestation === published.bindings[index]!.attestation &&
-              item.digest === published.bindings[index]!.digest,
+              item.digest === published.bindings[index]!.digest &&
+              item.decision === published.bindings[index]!.decision,
           )
         if (!same) throw new Error(`Run ${state.runId} activation does not match its publication`)
         state.grantReview.activated = { ...payload, eventId: event.eventId }
@@ -952,12 +966,15 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
                 approval.approvalType === CONTRACT_GRANT_ASK_TYPE &&
                 satisfiesAsk(state, enforced, approval.approvalId, false),
             )
-          const expected = enforced.decision === "deny" || !askSatisfied ? "denied" : "allowed"
-          if (expected === "denied" && payload.finalDisposition !== "denied") {
-            throw new Error(`Authorization of ${payload.invocationId} allows what its enforced decision does not`)
-          }
-          if (payload.contractDisposition !== expected) {
+          // A denial is always recordable: it never needs the decision's leave,
+          // and a timed-out or stale ask must be able to settle as denied even
+          // if an approval arrived in the meantime. Only an allow is checked.
+          const permitted = enforced.decision !== "deny" && askSatisfied
+          if (payload.contractDisposition === "allowed" && !permitted) {
             throw new Error(`Authorization of ${payload.invocationId} contradicts its enforced decision`)
+          }
+          if (payload.finalDisposition === "allowed" && !permitted) {
+            throw new Error(`Authorization of ${payload.invocationId} allows what its enforced decision does not`)
           }
           if (enforced.decision === "deny" && payload.finalDisposition !== "denied") {
             throw new Error(`Authorization of ${payload.invocationId} reverses an enforced denial`)
@@ -1705,6 +1722,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           if (
             !activated ||
             !event.correlationId ||
+            !payload.expiresAt ||
             subject.contractDigest !== activated.contractDigest ||
             !binding ||
             binding.digest !== subject.bindingDigest
@@ -1726,7 +1744,10 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           state.status = "waiting_approval"
         }
         if (payload.contractGrantSubject) state.grantReview.requests[payload.approvalId] = payload.contractGrantSubject
-        if (payload.grantAskSubject) state.grantReview.asks[payload.approvalId] = payload.grantAskSubject
+        if (payload.grantAskSubject) {
+          state.grantReview.asks[payload.approvalId] = payload.grantAskSubject
+          state.grantReview.askDeadlines[payload.approvalId] = payload.expiresAt!
+        }
         if (state.approvals.some((approval) => approval.approvalId === payload.approvalId)) {
           throw new Error(`Approval already requested: ${payload.approvalId}`)
         }
@@ -1766,6 +1787,15 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         }
         if (record.status !== "pending") {
           throw new Error(`Approval already resolved: ${payload.approvalId}`)
+        }
+        // A grant ask answered after its deadline is not an approval of it.
+        const deadline = state.grantReview.askDeadlines[payload.approvalId]
+        if (
+          payload.decision === "approved" &&
+          deadline !== undefined &&
+          Date.parse(event.occurredAt) > Date.parse(deadline)
+        ) {
+          throw new Error(`Grant ask ${payload.approvalId} was answered after its deadline`)
         }
         state.pendingApprovalIds = state.pendingApprovalIds.filter((id) => id !== payload.approvalId)
         record.status = payload.decision

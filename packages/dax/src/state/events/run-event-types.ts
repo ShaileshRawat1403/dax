@@ -168,6 +168,8 @@ const GrantBindingProofSchema = closed({
   subject: z.string().min(1),
   attestation: z.enum(["exact", "external"]),
   digest: Sha256Digest,
+  /** The approved grant's decision, so replay can tell an `allow` grant from an `ask` one. */
+  decision: z.enum(["allow", "ask"]),
 })
 
 /**
@@ -816,6 +818,8 @@ const RunEventVariants = [
       projectFactSubject: ProjectFactApprovalSubjectSchema.optional(),
       contractGrantSubject: ContractGrantApprovalSubjectSchema.optional(),
       grantAskSubject: GrantAskSubjectSchema.optional(),
+      /** A grant ask's deadline; replay refuses an approval of it recorded later. */
+      expiresAt: z.string().datetime().optional(),
     }),
   }),
   z.object({

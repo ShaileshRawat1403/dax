@@ -209,10 +209,11 @@ describe("the journal proves publication and activation by itself", () => {
         proposalDigest: revision.digest,
         contractId: candidate.contractId,
         contractDigest: (await computeCanonicalCommitment(candidate)).digest,
-        bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({
+        bindings: revision.proposal.bindings.map(({ subject, attestation, digest }, index) => ({
           subject,
           attestation,
           digest,
+          decision: revision.proposal.candidate.capabilityGrants[index]!.decision,
         })),
       }
       expect(proof.bindings).toHaveLength(1)
@@ -233,6 +234,13 @@ describe("the journal proves publication and activation by itself", () => {
       // A substituted contract or binding set is not what the operator approved.
       expect(await refused("grant_review_published", { ...proof, contractDigest: other })).toBe(true)
       expect(await refused("grant_review_published", { ...proof, bindings: [] })).toBe(true)
+      // A grant's decision is part of what was approved.
+      expect(
+        await refused("grant_review_published", {
+          ...proof,
+          bindings: [{ ...proof.bindings[0]!, decision: proof.bindings[0]!.decision === "ask" ? "allow" : "ask" }],
+        }),
+      ).toBe(true)
       expect(
         await refused("grant_review_published", {
           ...proof,
@@ -290,10 +298,11 @@ describe("the journal proves publication and activation by itself", () => {
           proposalDigest: revision.digest,
           contractId: revision.proposal.candidate.contractId,
           contractDigest: (await computeCanonicalCommitment(revision.proposal.candidate)).digest,
-          bindings: revision.proposal.bindings.map(({ subject, attestation, digest }) => ({
+          bindings: revision.proposal.bindings.map(({ subject, attestation, digest }, index) => ({
             subject,
             attestation,
             digest,
+            decision: revision.proposal.candidate.capabilityGrants[index]!.decision,
           })),
         }),
       )

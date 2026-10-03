@@ -8,11 +8,17 @@ import { GrantReview } from "@/capability/grant-review"
 import * as ImplementationBinding from "@/capability/implementation-binding"
 import { CapabilityActionDeniedError, recordActionResolution } from "@/capability/record-resolution"
 import { Config } from "@/config/config"
+import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { ApprovalTransitions } from "@/approval/approval-transitions"
 import { beginNativeInvocation, NativeAuthorizationDeniedError } from "@/execution/native-settlement"
 import { createGrantReviewedRun } from "@/execution/run-factory"
 import { Instance } from "@/project/instance"
-import { appendEventOnly, recordAuthorization, resolveApprovalEvent } from "@/state/events/event-transitions"
+import {
+  appendEventOnly,
+  recordAuthorization,
+  recordToolInvocation,
+  resolveApprovalEvent,
+} from "@/state/events/event-transitions"
 import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
 
 /**
@@ -319,6 +325,116 @@ describe("replay accepts no ask, approval or memory that does not follow from th
   })
 })
 
+describe("an ask cannot be bypassed, outlived or answered too late", () => {
+  test("an ask grant can never be recorded as an allow", async () => {
+    await within(async () => {
+      const runId = await activated(askedRemote)
+      const state = (await projectRunStateFromEvents(runId))!
+      expect(state.grantReview.activated!.bindings.map((item) => item.decision)).toEqual(["ask"])
+      const invocationId = "inv_ask_as_allow"
+      await recordToolInvocation(runId, invocationId, {
+        toolId: "gamma_probe",
+        executor: { kind: "mcp", id: "gamma_probe" },
+        contractId: state.contractId,
+        input: { basis: "validated_tool_input", ...(await computeCanonicalCommitment({})) },
+      })
+      const before = (await readRunEvents(runId)).length
+      const error = await rejection(
+        appendEventOnly(
+          runId,
+          "capability_resolution_recorded",
+          {
+            subjectId: invocationId,
+            enforcement: "enforced",
+            activation: {
+              revision: state.grantReview.activated!.revision,
+              contractDigest: state.grantReview.activated!.contractDigest,
+            },
+            path: "mcp_tool",
+            initiator: "model",
+            capabilityId: mcpCapability(["mcp", "gamma", "probe"]).descriptor.id,
+            enrolled: true,
+            basis: "v2_grant",
+            contractId: state.contractId,
+            decision: "allow",
+            grantScope: "run",
+            grantSubject: "mcp_source:tool:gamma",
+            source: { server: "gamma", name: "probe" },
+          },
+          "cmd_ask_as_allow",
+          { correlationId: invocationId },
+        ),
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect(await rejection(recordAuthorization(runId, invocationId, allowed))).toBeInstanceOf(Error)
+      expect((await readRunEvents(runId)).length).toBe(before)
+    })
+  })
+
+  test("a binding that changes while the operator decides denies the approved invocation", async () => {
+    await within(async () => {
+      const runId = await activated(askedRemote)
+      const originalGet = Config.get
+      let changed = false
+      const get = spyOn(Config, "get").mockImplementation(async () => {
+        const current = await originalGet()
+        return changed
+          ? {
+              ...current,
+              mcp: {
+                ...current.mcp,
+                gamma: { type: "remote" as const, url: "http://127.0.0.1:9/replacement", enabled: false },
+              },
+            }
+          : current
+      })
+      try {
+        const first = invoke(runId)
+        const outcome = rejection(first.done)
+        const ask = await askFor(runId, first.invocationId)
+        changed = true
+        await answerGrantAsk(runId, ask.approvalId, { approve: true, actor: "operator" })
+        const error = await outcome
+        expect(error).toBeInstanceOf(NativeAuthorizationDeniedError)
+        expect((error as NativeAuthorizationDeniedError).reasonCode).toBe("binding_changed")
+        expect((await projectRunStateFromEvents(runId))!.invocations[first.invocationId]!.status).toBe("denied")
+      } finally {
+        get.mockRestore()
+      }
+    })
+  })
+
+  test("a timed-out ask is denied durably, and no late approval can authorize it", async () => {
+    await within(async () => {
+      const runId = await activated(askedRemote)
+      process.env.DAX_GRANT_ASK_TIMEOUT_MS = "0"
+      // A named answer races in while closing the ask fails.
+      const expire = spyOn(ApprovalTransitions, "expire").mockImplementation(async (id: string, approvalId: string) => {
+        await rejection(ApprovalTransitions.approve(id, approvalId, "operator"))
+        throw new Error("injected expiry failure")
+      })
+      try {
+        const first = invoke(runId)
+        const error = await rejection(first.done)
+        expect((error as NativeAuthorizationDeniedError).reasonCode).toBe("grant_ask_expired")
+        const state = (await projectRunStateFromEvents(runId))!
+        expect(state.invocations[first.invocationId]!.status).toBe("denied")
+        // The late approval was refused on its own: it came after the deadline.
+        const ask = state.approvals.find((item) => item.correlationId === first.invocationId)!
+        expect(ask.status).toBe("pending")
+        const before = (await readRunEvents(runId)).length
+        expect(await rejection(recordAuthorization(runId, first.invocationId, allowed))).toBeInstanceOf(Error)
+        expect(await rejection(resolveApprovalEvent(runId, ask.approvalId, "approved", "operator"))).toBeInstanceOf(
+          Error,
+        )
+        expect((await readRunEvents(runId)).length).toBe(before)
+      } finally {
+        expire.mockRestore()
+      }
+    })
+  })
+})
+
 describe("an action's ask is settled before the action, and recorded with what settled it", () => {
   // A source run binds no session capability. These tests substitute a compiled
   // identity to isolate the ask flow on an action path; they are not compiled
@@ -370,6 +486,35 @@ describe("an action's ask is settled before the action, and recorded with what s
         ])
         expect(deniedResult).toBeInstanceOf(CapabilityActionDeniedError)
         expect((deniedResult as CapabilityActionDeniedError).reasonCode).toBe("grant_ask_denied")
+
+        // A running image that changes while the operator decides denies the action.
+        const [staleResult] = await Promise.all([
+          rejection(recordActionResolution(action)),
+          (async () => {
+            for (let attempt = 0; attempt < 400; attempt++) {
+              const pendingAsk = (await askApprovals(runId)).find((item) => item.status === "pending")
+              if (pendingAsk) {
+                compiled.mockReturnValue({
+                  form: "compiled",
+                  commit: "probe",
+                  runtime: Bun.revision,
+                  bundle: `sha256:${"9".repeat(64)}`,
+                })
+                await answerGrantAsk(runId, pendingAsk.approvalId, { approve: true, actor: "operator" })
+                return
+              }
+              await Bun.sleep(10)
+            }
+          })(),
+        ])
+        expect(staleResult).toBeInstanceOf(CapabilityActionDeniedError)
+        expect((staleResult as CapabilityActionDeniedError).reasonCode).toBe("binding_changed")
+        compiled.mockReturnValue({
+          form: "compiled",
+          commit: "probe",
+          runtime: Bun.revision,
+          bundle: `sha256:${"b".repeat(64)}`,
+        })
 
         await Promise.all([recordActionResolution(action), answerNext({ approve: true, always: true })])
         const asksBefore = (await askApprovals(runId)).length
