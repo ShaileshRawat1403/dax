@@ -125,12 +125,17 @@ function approvalIdFor(runId: string, revision: number) {
 
 /** Every binding with the decision of the grant it belongs to, in the contract's grant order. */
 function proofBindings(proposal: GrantProposal) {
-  return proposal.bindings.map(({ subject, attestation, digest }, index) => ({
-    subject,
-    attestation,
-    digest,
-    decision: proposal.candidate.capabilityGrants[index]!.decision,
-  }))
+  return proposal.bindings.map(({ subject, attestation, digest }, index) => {
+    const grant = proposal.candidate.capabilityGrants[index]!
+    return {
+      subject,
+      attestation,
+      digest,
+      decision: grant.decision,
+      // A delegation grant's agents, so replay can check which agent a child was started as.
+      ...(grant.scope.kind === "delegation" ? { agents: [...grant.scope.agents].sort() } : {}),
+    }
+  })
 }
 
 /** What the journal's publication proof must restate: the contract digest and every binding, in order. */
@@ -511,7 +516,9 @@ async function activate(runId: string): Promise<{ revision: number; contractDige
       grants.some(
         (grant, index) =>
           subjectKey(grant.subject) !== proof.bindings[index]!.subject ||
-          grant.decision !== proof.bindings[index]!.decision,
+          grant.decision !== proof.bindings[index]!.decision ||
+          JSON.stringify(grant.scope.kind === "delegation" ? [...grant.scope.agents].sort() : undefined) !==
+            JSON.stringify(proof.bindings[index]!.agents),
       )
     ) {
       throw new GrantReviewError("binding_changed", runId)

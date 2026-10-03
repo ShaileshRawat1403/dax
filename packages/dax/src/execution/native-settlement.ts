@@ -105,11 +105,17 @@ export async function resolveNativeSettlementAuthority(
 export type BeginInvocationResult = { status: "not_canonical" } | { status: "recorded" }
 
 /**
- * Filesystem target evidence for the shared lookup. Only the built-in read,
- * write and edit tools have one validated `filePath` that is their whole
- * target. Anything else that looks like a path is not proof of scope.
+ * Target evidence for the shared lookup. Only the built-in read, write and
+ * edit tools have one validated `filePath` that is their whole target, and
+ * the built-in task tool's whole target is the agent it starts. Anything else
+ * that looks like a path or an agent is not proof of scope.
  */
 function nativeFilesystemTarget(kind: NativeExecutorKind, toolId: string, args: unknown) {
+  // The built-in task tool's whole target is the agent it starts.
+  if (kind === "builtin" && toolId === "task") {
+    if (typeof args !== "object" || args === null || !("subagent_type" in args)) return undefined
+    return typeof args.subagent_type === "string" && args.subagent_type ? { agent: args.subagent_type } : undefined
+  }
   if (kind !== "builtin" || !["read", "write", "edit"].includes(toolId)) return undefined
   if (typeof args !== "object" || args === null || !("filePath" in args)) return undefined
   return typeof args.filePath === "string" ? { paths: [args.filePath] } : undefined

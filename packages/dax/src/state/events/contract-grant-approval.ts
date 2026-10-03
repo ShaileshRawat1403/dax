@@ -30,6 +30,7 @@ export const ContractGrantApprovalSubjectSchema = z
             digest: Sha256Digest,
             // Absent only on a request made before decisions were committed; such a request cannot publish.
             decision: z.enum(["allow", "ask"]).optional(),
+            agents: z.array(z.string().min(1)).optional(),
           })
           .strict(),
       )

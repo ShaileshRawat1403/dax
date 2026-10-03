@@ -67,6 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of exactly that grant, capability, contract and binding; "always" remembers
   only that tuple. Records `capability_grant_ask` approvals and
   `grant_ask_remembered`, which earlier binaries reject.
+- Delegation grants in reviewed runs name the agents the operator approved; a
+  task is allowed only for one of them and its child must start as exactly
+  that agent.
 
 ### Changed
 

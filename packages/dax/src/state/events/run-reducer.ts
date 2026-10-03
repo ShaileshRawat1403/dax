@@ -8,6 +8,11 @@ import {
 } from "./contract-grant-approval"
 import type { RunEventEnvelope, RunEventPayload } from "./run-event-types"
 
+function sameAgents(a: readonly string[] | undefined, b: readonly string[] | undefined) {
+  if (a === undefined || b === undefined) return a === b
+  return a.length === b.length && a.every((agent, index) => agent === b[index])
+}
+
 function sameAsk(a: GrantAskSubject, b: GrantAskSubject) {
   return (
     a.grantSubject === b.grantSubject &&
@@ -793,6 +798,14 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
             if (activatedBinding.decision !== payload.decision) {
               throw new Error(`Enforced resolution ${payload.subjectId} does not carry its grant's decision`)
             }
+            // A delegation grant covers only its approved agents.
+            if (
+              (payload.grantScope === "delegation") !== (activatedBinding.agents !== undefined) ||
+              (payload.grantScope === "delegation" &&
+                (!payload.delegatedAgent || !activatedBinding.agents!.includes(payload.delegatedAgent)))
+            ) {
+              throw new Error(`Enforced resolution ${payload.subjectId} delegates outside its grant's agents`)
+            }
             const selector = /^mcp_source:(tool|resource|prompt):(.+)$/.exec(subject)
             if (selector && selector[1] !== "tool") {
               // A resource or prompt identity cannot be re-minted from this log
@@ -881,7 +894,8 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
               item.subject !== payload.bindings[index]!.subject ||
               item.attestation !== payload.bindings[index]!.attestation ||
               item.digest !== payload.bindings[index]!.digest ||
-              item.decision !== payload.bindings[index]!.decision,
+              item.decision !== payload.bindings[index]!.decision ||
+              !sameAgents(item.agents, payload.bindings[index]!.agents),
           )
         ) {
           throw new Error(`Grant review publication ${payload.approvalId} differs from what was approved`)
@@ -923,7 +937,8 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
               item.subject === published.bindings[index]!.subject &&
               item.attestation === published.bindings[index]!.attestation &&
               item.digest === published.bindings[index]!.digest &&
-              item.decision === published.bindings[index]!.decision,
+              item.decision === published.bindings[index]!.decision &&
+              sameAgents(item.agents, published.bindings[index]!.agents),
           )
         if (!same) throw new Error(`Run ${state.runId} activation does not match its publication`)
         state.grantReview.activated = { ...payload, eventId: event.eventId }
@@ -1041,6 +1056,16 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         }
         if (state.delegationHistory.records.some((record) => record.invocationId === payload.invocationId)) {
           throw new Error(`Invocation already has a delegation: ${payload.invocationId}`)
+        }
+        // In an activated reviewed run the child is started as exactly the
+        // agent the enforced decision allowed, never a fallback.
+        if (state.grantReview.activated) {
+          const decided = state.capabilityResolutions.find(
+            (record) => record.subjectId === payload.invocationId && record.enforcement === "enforced",
+          )
+          if (!decided || decided.decision === "deny" || decided.delegatedAgent !== payload.agent) {
+            throw new Error(`Delegation ${payload.invocationId} starts an agent its enforced decision did not allow`)
+          }
         }
         if (
           payload.mode === "created" &&

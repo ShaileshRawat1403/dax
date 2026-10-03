@@ -368,9 +368,20 @@ Review at `06c5a95` found three boundaries open, now closed:
 | An approval given while the binding changed still let the action run | After the wait, the decision is made again from the authority and implementation as they are then; any change denies, on tool and action paths |
 | A failed expiry with a racing approval left a timed-out invocation authorizable | Each grant ask carries its deadline, and replay refuses an approval recorded after it. A denial is always recordable, recorded before the ask is closed, and the invocation is never left pending in the process |
 
-### Remaining 4c
+### 4c third slice: delegation
 
-Delegation grants for the `task` tool and child sessions.
+The ask corrections were accepted at `cfcce3c8a91d6965cacafad0e4fcfdd29cf89baa`.
+
+| Part | Behaviour |
+|---|---|
+| Grant | Nothing proposes an agent. The operator names the agents a delegation capability may start (`delegations`); only then is it granted, with delegation scope. Without that it stays under `needsScope` |
+| Proof | Each delegation binding carries its sorted agents in the approval subject, the publication and the activation, compared exactly |
+| Decision | The built-in task tool's target is the requested `subagent_type`. An agent outside the grant is denied as `scope_outside`, none as `scope_unproven`. An allow records the `delegatedAgent`, which replay requires to be one of the activated binding's agents |
+| Child | `delegation_recorded` in an activated run must start exactly the agent the invocation's enforced decision allowed. The task tool also refuses, before creating the child, to fall back to another agent in a reviewed run; until 4d the barrier refuses the task tool earlier |
+| Child sessions | A child governed by the run dispatches under the parent's published contract and activation, so it holds nothing the parent does not |
+
+The flows run from source with a substituted compiled identity, since a source run binds
+no native capability; compiled acceptance stays with the compiled probes.
 
 ### 4c first slice: corrections
 

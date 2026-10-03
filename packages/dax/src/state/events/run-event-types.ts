@@ -170,6 +170,8 @@ const GrantBindingProofSchema = closed({
   digest: Sha256Digest,
   /** The approved grant's decision, so replay can tell an `allow` grant from an `ask` one. */
   decision: z.enum(["allow", "ask"]),
+  /** A delegation grant's agents, sorted. */
+  agents: z.array(z.string().min(1)).optional(),
 })
 
 /**
@@ -219,6 +221,8 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
    * very action, or an earlier approval remembered for exactly this tuple.
    */
   askSatisfiedBy: closed({ approvalId: z.string().min(1), remembered: z.boolean() }).optional(),
+  /** For a delegation grant, the agent the child is started as, checked on replay against the grant's agents. */
+  delegatedAgent: z.string().min(1).optional(),
   path: z.enum(AUTHORITY_PATHS),
   initiator: z.enum(["model", "operator", "system"]),
   /** The selected executor's source-qualified identity. Absent for an executor with no descriptor. */
@@ -250,6 +254,9 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   }
   if (resolution.grantSubject !== undefined && resolution.enforcement !== "enforced") {
     ctx.addIssue({ code: "custom", path: ["grantSubject"], message: "is recorded only for an enforced resolution" })
+  }
+  if (resolution.delegatedAgent !== undefined && resolution.grantScope !== "delegation") {
+    ctx.addIssue({ code: "custom", path: ["delegatedAgent"], message: "is recorded only under a delegation grant" })
   }
   if (resolution.askSatisfiedBy !== undefined && resolution.decision !== "ask") {
     ctx.addIssue({ code: "custom", path: ["askSatisfiedBy"], message: "is recorded only for an ask decision" })

@@ -385,6 +385,8 @@ export async function createGrantReviewedRun(
     sourceSelections?: { server: string; family: "tool" | "resource" | "prompt" }[]
     /** Grant subjects to be asked about each time rather than allowed. */
     askSubjects?: string[]
+    /** Agents the operator allows each delegation capability to start. */
+    delegations?: { capabilityId: string; agents: string[] }[]
   },
 ): Promise<{ runId: string; revision: GrantReviewRevision }> {
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
@@ -417,6 +419,7 @@ export async function createGrantReviewedRun(
       ...(options?.acknowledgedExternal ? { acknowledgedExternal: options.acknowledgedExternal } : {}),
       ...(options?.sourceSelections ? { sourceSelections: options.sourceSelections } : {}),
       ...(options?.askSubjects ? { askSubjects: options.askSubjects } : {}),
+      ...(options?.delegations ? { delegations: options.delegations } : {}),
     },
   })
   const revision = await GrantReview.begin(session.id, proposal)

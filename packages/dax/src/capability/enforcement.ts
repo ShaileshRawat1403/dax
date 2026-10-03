@@ -27,6 +27,8 @@ export type EnforcedResolution = Omit<CapabilityResolution, "enforcement" | "rea
   grantSubject?: string
   /** The proven source, recorded when an MCP tool was matched by a source grant. */
   source?: { server: string; name: string }
+  /** For a delegation grant, the agent it allowed. */
+  delegatedAgent?: string
   /** What satisfied an `ask`, once something has. */
   askSatisfiedBy?: { approvalId: string; remembered: boolean }
   /** For an `ask`: exactly what the operator is asked to approve. Never recorded on the resolution itself. */
@@ -110,7 +112,11 @@ export async function decideReviewedAction(input: {
       source: { server: input.resolve.source.server, name: input.resolve.source.name },
     }
   }
-  return { ...enforced, ...ask, grantSubject: key }
+  const delegated =
+    grant.scope.kind === "delegation" && input.resolve.target && "agent" in input.resolve.target
+      ? { delegatedAgent: input.resolve.target.agent }
+      : {}
+  return { ...enforced, ...ask, ...delegated, grantSubject: key }
 }
 
 /** The same resolution, denied: a denial names no grant and carries nothing of the ask. */
@@ -118,7 +124,14 @@ export function denied(
   resolution: EnforcedResolution,
   reasonCode: NonNullable<EnforcedResolution["reasonCode"]>,
 ): EnforcedResolution {
-  const { grantSubject: _grant, source: _source, askSubject: _ask, askSatisfiedBy: _satisfied, ...rest } = resolution
+  const {
+    grantSubject: _grant,
+    source: _source,
+    askSubject: _ask,
+    askSatisfiedBy: _satisfied,
+    delegatedAgent: _agent,
+    ...rest
+  } = resolution
   return { ...rest, decision: "deny", reasonCode, grantScope: undefined }
 }
 

@@ -96,6 +96,8 @@ export type ProposalInputs = {
   sourceSelections?: readonly { server: string; family: "tool" | "resource" | "prompt" }[]
   /** Grant subjects the operator wants asked about each time rather than allowed. */
   askSubjects?: readonly string[]
+  /** Agents the operator allows a delegation capability to start. No agent is ever proposed. */
+  delegations?: readonly { capabilityId: string; agents: readonly string[] }[]
 }
 
 export type ImplementationBinding = {
@@ -289,7 +291,20 @@ export async function proposeGrants(input: {
       return
     }
     if (descriptor.scopeSupport === "delegation") {
-      needsScope.set(descriptor.id, { capabilityId: descriptor.id, alias, scopeSupport: "delegation" })
+      const agents = [
+        ...new Set(
+          (input.inputs.delegations ?? []).filter((item) => item.capabilityId === descriptor.id).flatMap((item) => item.agents),
+        ),
+      ].sort()
+      if (agents.length === 0) {
+        needsScope.set(descriptor.id, { capabilityId: descriptor.id, alias, scopeSupport: "delegation" })
+        return
+      }
+      grants.set(descriptor.id, {
+        subject: { kind: "capability", capabilityId: descriptor.id },
+        decision: "allow",
+        scope: { kind: "delegation", agents },
+      })
       return
     }
     grants.set(descriptor.id, {
@@ -377,6 +392,13 @@ export async function proposeGrants(input: {
         ? { acknowledgedExternal: [...new Set(input.inputs.acknowledgedExternal)].sort() }
         : {}),
       ...(input.inputs.askSubjects ? { askSubjects: [...new Set(input.inputs.askSubjects)].sort() } : {}),
+      ...(input.inputs.delegations
+        ? {
+            delegations: [...input.inputs.delegations]
+              .map((item) => ({ capabilityId: item.capabilityId, agents: [...new Set(item.agents)].sort() }))
+              .sort((a, b) => (a.capabilityId < b.capabilityId ? -1 : 1)),
+          }
+        : {}),
       ...(input.inputs.sourceSelections
         ? {
             sourceSelections: [...input.inputs.sourceSelections]

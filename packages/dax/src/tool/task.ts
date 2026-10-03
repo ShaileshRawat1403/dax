@@ -1,4 +1,5 @@
 import { Tool } from "./tool"
+import { hasGrantReview } from "@/execution/grant-review-barrier"
 import DESCRIPTION from "./task.txt"
 import z from "zod"
 import { Session } from "../session"
@@ -88,6 +89,11 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
       })
       await ctx.authorize()
 
+      // A reviewed run's delegation grant allowed exactly the requested agent.
+      // Never fall back to another one there; refuse before the child exists.
+      if (agentName !== params.subagent_type && (await hasGrantReview(parentSession.governingRunId ?? parentSession.id))) {
+        throw new Error(`Agent ${params.subagent_type} is not available; a reviewed run does not fall back to ${agentName}`)
+      }
       // Creating a derived session is itself an execution effect. Do it only
       // after the parent invocation's combined authority is durable.
       session ??= await Session.fork({ sessionID: ctx.sessionID, deferAssistantMarker: true })
