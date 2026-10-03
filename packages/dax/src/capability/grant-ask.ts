@@ -4,6 +4,9 @@ import { Lifecycle } from "@/bus/lifecycle"
 import { appendEventOnly } from "@/state/events/event-transitions"
 import { CONTRACT_GRANT_ASK_TYPE, type GrantAskSubject } from "@/state/events/contract-grant-approval"
 import { projectRunStateFromEvents } from "@/state/events/run-event-store"
+import { Log } from "@/util/log"
+
+const log = Log.create({ service: "grant-ask" })
 
 /**
  * Stage 4c: the operator's answer to an `ask` grant in an activated reviewed
@@ -62,6 +65,7 @@ export async function askOperator(
 
   const answer = new Promise<"approved" | "denied" | "expired">((resolve) => {
     let finished = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     const finish = (value: "approved" | "denied" | "expired") => {
       if (finished) return
       finished = true
@@ -69,7 +73,6 @@ export async function askOperator(
       unsubscribe()
       resolve(value)
     }
-    const timer = setTimeout(() => finish("expired"), timeoutMs())
     const unsubscribe = Bus.subscribe(Lifecycle.ApprovalResolved, async (event) => {
       if (event.properties.runId !== runId || event.properties.approvalId !== approvalId) return
       finish((settle(await decided()) ?? "denied") as "approved" | "denied")
@@ -93,13 +96,20 @@ export async function askOperator(
     )
       .then(async () => {
         const already = settle(await decided())
-        if (already) finish(already)
+        if (already) return finish(already)
+        // The clock starts only once the request is in the log, so an expiry
+        // always has a request to close.
+        timer = setTimeout(() => finish("expired"), timeoutMs())
       })
       .catch(() => finish("denied"))
   })
   const decision = await answer
   if (decision === "expired") {
-    await ApprovalTransitions.expire(runId, approvalId).catch(() => undefined)
+    // Closed in the log; if that fails the request is left pending, but the
+    // action is denied either way and nothing can authorize it afterwards.
+    await ApprovalTransitions.expire(runId, approvalId).catch((error) =>
+      log.warn("grant ask could not be expired", { runId, approvalId, error }),
+    )
   }
   return { approvalId, decision }
 }
