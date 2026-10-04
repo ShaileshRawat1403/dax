@@ -1,0 +1,43 @@
+{
+  "sourceBase": "685eb38adf17e3b36bacc4e2d1bc674f414ffab1",
+  "scope": "Medium integrity correction: empty legacy marker cannot negate supplied reviewed intent",
+  "fullGates": {
+    "exitCode": 0,
+    "testsPassed": 2318,
+    "failed": 0,
+    "existingSkipped": 2,
+    "assertions": 8730,
+    "files": 284,
+    "compiledProducerControls": 41,
+    "smokePassed": 5,
+    "rustPassed": 79,
+    "log": "d2-reservation-legacy-gates.log"
+  },
+  "sourceFiles": {
+    "packages/dax/src/state/events/run-event-store.ts": "3a0b2de89a24f4edc8a07ea938069f10de943d74a3a78faf7f8e70e68893263d",
+    "packages/dax/src/conformance/grant-reservation.test.ts": "26515d1be586d83ca40c297c3057256e21586ad3793eb224f36085ef73d3f9a3"
+  },
+  "logs": {
+    "d2-reservation-legacy-gates.log": "27c4f542f2e473fff034936c7bfeb6e3355299499eee548a0ce777840c60c737",
+    "d2-reservation-legacy-format.log": "74dfbd7c7fc36bc1aa09d7eebb96c9a484b727caa477b3df11cbec18885869dd",
+    "dax-astra-d2-legacy-intent-baseline.log": "4d07fb8590889a0beca9a32a6fef101124c15f8e41a54ce7c79e526e7b8bf09b"
+  },
+  "archive": {
+    "file": "d2-reservation-legacy-raw-logs.tar.gz",
+    "sha256": "84262a3ac1de6283efc46daf65218196a64775dc08596d2832ed45ac8675700d"
+  },
+  "independentBaseline": {
+    "reviewer": "Astra",
+    "sourceBase": "685eb38adf17e3b36bacc4e2d1bc674f414ffab1",
+    "testsPassed": 10,
+    "failed": 1,
+    "assertions": 55,
+    "controlFile": "dax-astra-d2-legacy-intent-control.txt",
+    "controlSha256": "2cdaf876cc7df4b5810609bd8e5f7d80585c4e5a367d43f114dc79b60692b35f"
+  },
+  "limitations": [
+    "Exact corrective SHA independent review and three-platform CI pending",
+    "No operator routes exposed",
+    "No aggregate gap or release acceptance"
+  ]
+}

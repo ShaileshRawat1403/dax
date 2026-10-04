@@ -247,3 +247,41 @@ test("erased birth intent and lost reservation cannot erase a readable reviewed 
     expect(await refusal(ContractGuardian.get(runId))).toBeDefined()
     expect(await Storage.read<unknown>(journalKey)).toEqual(altered)
   }))
+
+test("empty legacy marker cannot negate literal or malformed reviewed intent", async () =>
+  within(async () => {
+    for (const intent of ["reviewed_grants", "malformed"]) {
+      const runId = `run_legacy_${intent}`
+      const key = ["run_authority", Instance.project.id, runId, "authority.json"]
+      const marker = {
+        authority: "legacy",
+        initialization: {
+          contractId: "ctr_legacy_intent",
+          verificationRequired: false,
+          guardEnforcementMode: "warn",
+          grantReviewIntent: intent,
+        },
+      }
+      await Storage.write(key, marker)
+      expect(await hasJournaledGrantReview(runId)).toBe(true)
+      expect(await refusal(ContractGuardian.get(runId))).toBeDefined()
+      let effects = 0
+      expect(
+        await refusal(
+          recordActionResolution({
+            governedBy: { runId },
+            subject: "contradictory-legacy-intent",
+            path: "mcp_resource",
+            initiator: "operator",
+            executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "gamma", "file:///notes") },
+            source: { server: "gamma", name: "file:///notes" },
+          }).then(() => {
+            effects++
+          }),
+        ),
+      ).toBeDefined()
+      expect(effects).toBe(0)
+      expect(await Storage.read<unknown>(key)).toEqual(marker)
+      expect(await readRunEvents(runId)).toEqual([])
+    }
+  }))

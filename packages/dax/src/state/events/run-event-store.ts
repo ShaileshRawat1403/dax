@@ -182,7 +182,13 @@ export async function hasJournaledGrantReview(runId: string): Promise<boolean> {
     // reads refuse uncertainty; an actual absent or valid ordinary marker does
     // not invent reviewed authority. No repair, mutation or lock occurs here.
     const record = await readAuthorityRecord(runId)
-    if (!record || record.authority === "legacy" || record.initialization === undefined) return false
+    if (!record || record.initialization === undefined) return false
+    // A legacy label cannot negate contradictory supplied review intent. It
+    // still supplies no canonical execution authority, even if the intent is malformed.
+    if (record.authority === "legacy") {
+      const recipe = record.initialization as { grantReviewIntent?: unknown }
+      return recipe?.grantReviewIntent !== undefined
+    }
     return parseInitialization(record.initialization, true).grantReviewIntent === "reviewed_grants"
   }
   const state = reduceRunState(events)

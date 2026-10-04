@@ -48,7 +48,7 @@ publication order; intent retry/schema/recipe disagreement; birth-only erasure;
 malformed positive recipe; ordinary/historical starts and marker isolation.
 Genuine compiled producer acceptance remains the separate production-module suite.
 
-Full pinned `release:gates` exited zero: **2,317 passed, zero failed, two
+Initial correction (`685eb38`) full pinned `release:gates` exited zero: **2,317 passed, zero failed, two
 existing skips, 8,718 assertions across 284 files**, plus five smoke evaluations
 and 79 Rust tests. Workspace typecheck/lint, repo/legacy guards, Rust fmt/clippy
 and release checks passed. The full suite re-ran the genuine 41-control compiled
@@ -74,3 +74,32 @@ approved restricted generic creation/review/revision/start operator API, with
 strict preflight, complete expected pins under owner locks, and a durable initial
 dispatch claim. D3 MCP/ask/delegation, D4 session activity presentation and C2–C5
 remain pending. No main merge, activation, release or installed binary change.
+
+## Corrective review finding at 685eb38
+
+Astra independently passed the original reservation/source/compiled/legacy
+matrix at `685eb38adf17e3b36bacc4e2d1bc674f414ffab1` (21 tests / 130 assertions,
+including the 41 compiled controls), then found a Medium integrity inconsistency:
+an empty journal marker labeled `legacy` with a supplied reviewed initialization
+recipe returned ordinary absence. This is contradictory stored metadata, not an
+established normal producer crash or protection against rewriting every trusted
+storage object. The independent extra baseline (ten passing, one failing, 55
+assertions, including historical cutover controls) and appended source are retained
+separately as `dax-astra-d2-legacy-intent-baseline.log` and
+`dax-astra-d2-legacy-intent-control.txt`.
+
+The empty-journal legacy branch now treats any supplied review-intent value as
+presence, including malformed values. Genuine legacy markers without review
+intent retain absence. New literal/malformed controls require getter and direct
+action refusal, zero successor effects, unchanged marker and unchanged empty
+journal. No grant or executable authority is inferred from the contradictory
+recipe. The exact corrective receipt and raw gate log accompany the successor
+commit; its independent review and CI remain required before D2 exposure.
+
+
+Corrective full pinned `release:gates` exited zero: **2,318 passed, zero
+failed, two existing skips, 8,730 assertions across 284 files**, including the
+41 compiled controls, five smoke evaluations and 79 Rust tests. The receipt
+`d2-reservation-legacy-evidence.json` pins current source bytes and raw log
+checksums; `d2-reservation-legacy-raw-logs.tar.gz` preserves corrective validation
+and the independent red baseline. Operator exposure is still held for review.
