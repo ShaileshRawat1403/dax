@@ -1,0 +1,42 @@
+$ bun turbo typecheck
+• turbo 2.10.4
+
+   • Packages in scope: @dax-ai/dax, @dax-ai/plugin, @dax-ai/script, @dax-ai/sdk, @dax-ai/util
+   • Running typecheck in 5 packages
+   • Remote caching disabled, using shared worktree cache
+
+@dax-ai/sdk:typecheck: cache miss, executing 8823cf925d5d0acf
+@dax-ai/script:typecheck: cache hit, replaying logs cfbeebe81564202f
+@dax-ai/util:typecheck: cache hit, replaying logs c07e368accea76e2
+@dax-ai/script:typecheck: $ tsc --noEmit
+@dax-ai/util:typecheck: $ tsc --noEmit
+@dax-ai/sdk:typecheck: $ tsc --noEmit
+@dax-ai/plugin:typecheck: cache miss, executing 96f0d19a2452df4c
+@dax-ai/plugin:typecheck: $ tsc --noEmit
+@dax-ai/plugin:typecheck: error TS2688: Cannot find type definition file for 'd3-color'.
+@dax-ai/plugin:typecheck:   The file is in the program because:
+@dax-ai/plugin:typecheck:     Entry point for implicit type library 'd3-color'
+@dax-ai/plugin:typecheck: error TS2688: Cannot find type definition file for 'd3-drag'.
+@dax-ai/plugin:typecheck:   The file is in the program because:
+@dax-ai/plugin:typecheck:     Entry point for implicit type library 'd3-drag'
+@dax-ai/plugin:typecheck: error TS2688: Cannot find type definition file for 'd3-interpolate'.
+@dax-ai/plugin:typecheck:   The file is in the program because:
+@dax-ai/plugin:typecheck:     Entry point for implicit type library 'd3-interpolate'
+@dax-ai/plugin:typecheck: error TS2688: Cannot find type definition file for 'd3-selection'.
+@dax-ai/plugin:typecheck:   The file is in the program because:
+@dax-ai/plugin:typecheck:     Entry point for implicit type library 'd3-selection'
+@dax-ai/plugin:typecheck: error TS2688: Cannot find type definition file for 'd3-transition'.
+@dax-ai/plugin:typecheck:   The file is in the program because:
+@dax-ai/plugin:typecheck:     Entry point for implicit type library 'd3-transition'
+@dax-ai/plugin:typecheck: error TS2688: Cannot find type definition file for 'd3-zoom'.
+@dax-ai/plugin:typecheck:   The file is in the program because:
+@dax-ai/plugin:typecheck:     Entry point for implicit type library 'd3-zoom'
+@dax-ai/plugin#typecheck:  ERROR  command (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/plugin) /Users/Shailesh/MYAIAGENTS/dax/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun run typecheck exited (2)
+
+ Tasks:    3 successful, 4 total
+Cached:    2 cached, 4 total
+  Time:    1.941s 
+Failed:    @dax-ai/plugin#typecheck
+
+ ERROR  run failed: command  exited (2)
+error: "turbo" exited with code 2

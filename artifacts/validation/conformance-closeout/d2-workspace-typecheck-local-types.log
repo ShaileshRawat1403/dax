@@ -1,0 +1,22 @@
+$ bun turbo typecheck
+• turbo 2.10.4
+
+   • Packages in scope: @dax-ai/dax, @dax-ai/plugin, @dax-ai/script, @dax-ai/sdk, @dax-ai/util
+   • Running typecheck in 5 packages
+   • Remote caching disabled, using shared worktree cache
+
+@dax-ai/sdk:typecheck: cache miss, executing 0cc82b3ad95fc2bc
+@dax-ai/util:typecheck: cache hit, replaying logs c07e368accea76e2
+@dax-ai/script:typecheck: cache hit, replaying logs cfbeebe81564202f
+@dax-ai/script:typecheck: $ tsc --noEmit
+@dax-ai/util:typecheck: $ tsc --noEmit
+@dax-ai/sdk:typecheck: $ tsc --noEmit
+@dax-ai/plugin:typecheck: cache miss, executing f6ff08cb2e1ea3d5
+@dax-ai/plugin:typecheck: $ tsc --noEmit
+@dax-ai/dax:typecheck: cache miss, executing b2eaa650957cbf26
+@dax-ai/dax:typecheck: $ tsc --noEmit
+
+ Tasks:    5 successful, 5 total
+Cached:    2 cached, 5 total
+  Time:    15.574s 
+
