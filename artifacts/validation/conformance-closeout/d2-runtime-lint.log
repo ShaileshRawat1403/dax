@@ -1,0 +1,1 @@
+$ eslint src/ --ext .ts,.tsx,.js,.jsx --suppressions-location eslint-suppressions.json

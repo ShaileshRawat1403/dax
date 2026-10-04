@@ -1,5 +1,9 @@
 import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
-import { decideContractTool, ExecutionContractV2, type ExecutionContract } from "@/execution/execution-contract"
+import {
+  decideContractTool,
+  ExecutionContractV2,
+  type GoverningExecutionContract,
+} from "@/execution/execution-contract"
 import { isNativeToolAlias } from "./native-alias"
 import type { CapabilityDescriptor } from "./capability-types"
 import type { CapabilityGrant } from "./grant"
@@ -250,7 +254,7 @@ export function matchesReviewedVerification(
  */
 export async function proposeGrants(input: {
   runId: string
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
   snapshot: ReviewCatalogSnapshot
   inputs: ProposalInputs
 }): Promise<GrantProposal> {
@@ -293,7 +297,9 @@ export async function proposeGrants(input: {
     if (descriptor.scopeSupport === "delegation") {
       const agents = [
         ...new Set(
-          (input.inputs.delegations ?? []).filter((item) => item.capabilityId === descriptor.id).flatMap((item) => item.agents),
+          (input.inputs.delegations ?? [])
+            .filter((item) => item.capabilityId === descriptor.id)
+            .flatMap((item) => item.agents),
         ),
       ].sort()
       if (agents.length === 0) {

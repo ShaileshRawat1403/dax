@@ -1,0 +1,28 @@
+$ bun run --conditions=browser ./src/index.ts generate
+[95m[@hey-api/sdk] `instance` is deprecated. Use `operations: { strategy: "single", containerName: "DaxClient", methods: "instance" }` instead.[39m
+[90m@hey-api/openapi-ts v0.99.0[39m
+
+[90m[Job 1] [39m[90m~[39m [36mGenerating...[39m
+[90m[Job 1] [39m[36m  [1] [39m./openapi.json
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+[90m[Job 1] [39m[32m✓[39m [96m/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/src/v2/gen[39m [90m· 3 files · 223ms[39m
+[90m@hey-api/openapi-ts v0.99.0[39m
+
+[90m[Job 1] [39m[90m~[39m [36mGenerating...[39m
+[90m[Job 1] [39m[36m  [1] [39m./openapi.json
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+Skipping unresolvable $ref: /Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/openapi.json#/components/schemas/__schema0
+[90m[Job 1] [39m[32m✓[39m [96m/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/sdk/js/src/gen[39m [90m· 3 files · 141ms[39m

@@ -63,7 +63,7 @@ This exposure is an explicit extension to the previously approved Stage 4 scope,
 which kept opt-in exposure separate. D1 lifts the barrier without exposing the
 factory; D2 needs acceptance of this operator API boundary before exposure.
 
-Use the existing `POST /run` creation surface. Add an optional, strict
+Use the existing `POST /runs` creation surface. Add an optional, strict
 `capabilityReview` object with required `mode: "reviewed_grants"`. Absence preserves
 the existing request/response and v1 factory path. There is no global setting,
 automatic upgrade, ordinary-chat review prompt, or companion-only interface.
@@ -85,12 +85,20 @@ Reject a compiled candidate that requires a worker or verification, including
 inferred requirements; keep `GrantReview.activate`'s existing refusal as defense
 in depth. No requirement is weakened to make a run start.
 
+Generic is a workflow boundary, not a read-only policy. The existing compiler can
+retain native write/edit/shell tools for a neutral intent without requiring
+verification. Explicit reviewed filesystem roots can therefore propose
+consequential grants; inspection must show them before the exact grant set is
+approved. Preserve the compiler, permissions and postconditions; never infer
+read-only authority from `verificationRequired: false`.
+
 Creation calls `createGrantReviewedRun`, persists ordinary run metadata, and
 returns the ordinary run identity/status plus an optional review summary:
 revision, approval ID, proposal digest, contract digest, binding-manifest digest,
 and review location.
 The actual canonical status is waiting_approval; creation dispatches no prompt.
-The factory reserves review before binding/birth as today. Discovery may load
+Canonical reviewed birth/queue and private reservation precede session creation;
+the session is explicitly governed at birth. Discovery may load
 trusted plugins or connect/start configured MCP clients to describe the catalog;
 creation is not claimed to perform zero external initialization. No task/tool
 invocation, resource read, prompt fetch, or workflow effect starts from creation.
@@ -99,10 +107,10 @@ Add only these run-scoped operations:
 
 | Operation | Proposed contract | Behavior |
 | --- | --- | --- |
-| `GET /run/:runID/grant-review` | Current review revision, exact approval subject, grants/scopes, bindings/attestations, exclusions, needsScope, needsTrust, unbindable, onDemandSources and publication/activation state | A read-only review view. Shows actual authority limits and external trust. Carries no secret header/environment values; does not invent or expose private MCP resource/prompt names |
-| `POST /run/:runID/grant-review/revisions` | Expected current revision/proposal/contract/binding-manifest digests plus updated structured operator inputs | Recapture and propose server-side, then `GrantReview.revise`; supersede the old request. Serialize the expected-state check with revision mutation. Published reviews remain final |
-| Existing `POST /run/:runID/approvals/:approvalID` | Existing named actor/decision; optional `remember: true` permitted only for an approved `capability_grant_ask` | Review approval records the exact existing subject and dispatches nothing. Ask approval calls `answerGrantAsk`; always records only the exact tuple. Reject remember on other approval types or denial |
-| `POST /run/:runID/grant-review/start` | Expected revision, approval ID, proposal digest, contract digest and binding-manifest digest | Publish the approved current subject, verify activation and enforcing runtime, claim start canonically, then dispatch the generic root prompt once |
+| `GET /runs/:runID/grant-review` | Current review revision, exact approval subject, grants/scopes, bindings/attestations, exclusions, needsScope, needsTrust, unbindable, onDemandSources and publication/activation state | A read-only review view. Shows actual authority limits and external trust. Carries no secret header/environment values; does not invent or expose private MCP resource/prompt names |
+| `POST /runs/:runID/grant-review/revisions` | Expected current revision/proposal/contract/binding-manifest digests plus updated structured operator inputs | Recapture and propose server-side, then `GrantReview.revise`; supersede the old request. Serialize the expected-state check with revision mutation. Published reviews remain final |
+| Existing `POST /runs/:runID/approvals/:approvalID` | Existing named actor/decision; optional `remember: true` permitted only for an approved `capability_grant_ask` | Review approval records the exact existing subject and dispatches nothing. Ask approval calls `answerGrantAsk`; always records only the exact tuple. Reject remember on other approval types or denial |
+| `POST /runs/:runID/grant-review/start` | Expected revision, approval ID, proposal digest, contract digest and binding-manifest digest | Publish the approved current subject, verify activation and enforcing runtime, claim start canonically, then dispatch the generic root prompt once |
 
 The binding-manifest digest is a canonical commitment to the complete ordered
 publication bindings (subject, attestation, binding digest, decision and delegation
@@ -150,6 +158,12 @@ A reviewed read succeeds only when:
    Remote source changes still deny their affected actions at dispatch; start
    checks every binding, as already required. Do not recapture/connect all MCP
    sources on every guardian read.
+
+Executable reviewed session/dispatch entry requires canonical `startedAt` as
+well as running/waiting-approval state. Activated queued or never-started
+waiting-approval rows remain inspectable but cannot produce model, message or
+action effects. Administrative start uses the read-only proven loader before
+claiming `execution_started`; only then may it dispatch the root prompt.
 
 Terminal runs retain readable proven contract/evidence but cannot dispatch new
 work. Session executability additionally requires permitted canonical lifecycle

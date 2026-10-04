@@ -23,10 +23,14 @@ strict v1 writes and genuine compiled root producer controls. Astra accepted D1
 at exact `f2484a2f6131494d82a734b9e2326496e673f2c2` with independent 50 tests /
 223 assertions and all three CI platforms green; the retained
 [D1 review](tooling/grant-stage4d-d1-astra-review.md) records provenance. D2 is
-now authorized, with a bounded reviewed-creation crash-window correction first:
-immutable reviewed birth/initialization intent must precede usable session creation,
-and losing a pre-request private reservation must retain the execution barrier.
-Operator routes remain unexposed while that correction is validated. The inherited dependency foundation
+authorized after Astra accepted the bounded reviewed-creation correction at
+`7fc5cd14f2719ce54ef603c462cfe1efb9b083d5`: independent 32 tests / 190 assertions
+and exact three-platform CI passed. The retained
+[creation review](tooling/grant-stage4d-reservation-astra-review.md) records that
+bounded acceptance. D2 operator routes, complete-pinned revision/start transactions,
+initial-claim entry guards and approval routing are candidate implementation work;
+full gates, exact-SHA CI and independent D2 review remain outstanding. SDK generation
+must remain additive and preserve accepted client runtime templates. The inherited dependency foundation
 `d2ef0b0..3c47d1a`, inspected in final context
 `32b2f34fc9dc3d78d20b4a9a29606f6e1a726309`, received bounded C1 acceptance
 (185 regressions and two independent journal controls); this is not blanket gap,

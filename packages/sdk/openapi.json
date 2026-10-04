@@ -3449,6 +3449,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Reviewed creation authority refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -7675,6 +7685,208 @@
           }
         ]
       }
+    },
+    "/runs/{runID}/grant-review": {
+      "get": {
+        "operationId": "run.grantReview.get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "runID",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Inspect reviewed capability grants",
+        "responses": {
+          "200": {
+            "description": "Current review and complete pins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunGrantReview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Review missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Authority unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.run.grantReview.get({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/runs/{runID}/grant-review/revisions": {
+      "post": {
+        "operationId": "run.grantReview.revise",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "runID",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Revise reviewed capability grants",
+        "responses": {
+          "200": {
+            "description": "Fresh revision awaiting fresh approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunGrantReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid operator input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale pins or immutable publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseGrantReviewRequest"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.run.grantReview.revise({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/runs/{runID}/grant-review/start": {
+      "post": {
+        "operationId": "run.grantReview.start",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "runID",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Claim initial reviewed run dispatch",
+        "description": "Checks exact approval, proposal, contract and ordered binding pins; claims initial dispatch once in the canonical journal.",
+        "responses": {
+          "200": {
+            "description": "Initial dispatch claimed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartGrantReviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid start input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not startable or authority refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartGrantReviewRequest"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createDaxClient } from \"@dax-ai/sdk\"\n\nconst client = createDaxClient()\nawait client.run.grantReview.start({\n  ...\n})"
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -10141,7 +10353,9 @@
               "patch_apply",
               "tool_use",
               "workflow_gate",
-              "question"
+              "question",
+              "capability_grant_review",
+              "capability_grant_ask"
             ]
           },
           "status": {
@@ -10183,6 +10397,125 @@
           },
           "resolution": {
             "$ref": "#/components/schemas/ApprovalResolutionV1"
+          },
+          "contractGrantSubject": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "contract_grant_set"
+              },
+              "runId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "contractId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "canonicalization": {
+                "type": "string",
+                "const": "sorted-json-v1"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "contractDigest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "bindings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "attestation": {
+                      "type": "string",
+                      "enum": [
+                        "exact",
+                        "external"
+                      ]
+                    },
+                    "digest": {
+                      "type": "string",
+                      "pattern": "^sha256:[0-9a-f]{64}$"
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "allow",
+                        "ask"
+                      ]
+                    },
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "attestation",
+                    "digest"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "runId",
+              "contractId",
+              "revision",
+              "canonicalization",
+              "digest"
+            ],
+            "additionalProperties": false
+          },
+          "grantAskSubject": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "capability_grant_ask"
+              },
+              "grantSubject": {
+                "type": "string",
+                "minLength": 1
+              },
+              "capabilityId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "contractDigest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "bindingDigest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "kind",
+              "grantSubject",
+              "capabilityId",
+              "contractDigest",
+              "bindingDigest"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -14932,7 +15265,9 @@
               "patch_apply",
               "tool_use",
               "workflow_gate",
-              "question"
+              "question",
+              "capability_grant_review",
+              "capability_grant_ask"
             ]
           },
           "risk": {
@@ -15058,6 +15393,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "grantReview": {
+            "$ref": "#/components/schemas/GrantReviewSummary"
           }
         },
         "required": [
@@ -15258,6 +15596,9 @@
                 ]
               }
             }
+          },
+          "capabilityReview": {
+            "$ref": "#/components/schemas/ReviewedGrantOptIn"
           }
         },
         "required": [
@@ -16348,6 +16689,9 @@
           },
           "requestId": {
             "type": "string"
+          },
+          "remember": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -17403,6 +17747,791 @@
           "extensions",
           "enabled"
         ]
+      },
+      "GrantReviewSummary": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "approvalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "proposalDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "contractDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "bindingManifestDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "location": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "approvalId",
+          "proposalDigest",
+          "contractDigest",
+          "bindingManifestDigest",
+          "location"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewedRunRefusal": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "ReviewedGrantOptIn": {
+        "type": "object",
+        "properties": {
+          "writeScope": {
+            "type": "object",
+            "properties": {
+              "roots": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "reviewed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "roots",
+              "reviewed"
+            ],
+            "additionalProperties": false
+          },
+          "acknowledgedExternal": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sourceSelections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "server": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "family": {
+                  "type": "string",
+                  "enum": [
+                    "tool",
+                    "resource",
+                    "prompt"
+                  ]
+                }
+              },
+              "required": [
+                "server",
+                "family"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "askSubjects": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "delegations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capabilityId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "capabilityId",
+                "agents"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "mode": {
+            "type": "string",
+            "const": "reviewed_grants"
+          },
+          "successorOf": {
+            "type": "string",
+            "pattern": "^ses[a-zA-Z]*_[0-9a-zA-Z_-]+$"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "GrantReviewPins": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "approvalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "proposalDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "contractDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "bindingManifestDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "revision",
+          "approvalId",
+          "proposalDigest",
+          "contractDigest",
+          "bindingManifestDigest"
+        ],
+        "additionalProperties": false
+      },
+      "GrantOperatorInputs": {
+        "type": "object",
+        "properties": {
+          "writeScope": {
+            "type": "object",
+            "properties": {
+              "roots": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "reviewed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "roots",
+              "reviewed"
+            ],
+            "additionalProperties": false
+          },
+          "acknowledgedExternal": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sourceSelections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "server": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "family": {
+                  "type": "string",
+                  "enum": [
+                    "tool",
+                    "resource",
+                    "prompt"
+                  ]
+                }
+              },
+              "required": [
+                "server",
+                "family"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "askSubjects": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "delegations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capabilityId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "capabilityId",
+                "agents"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunGrantReview": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "revisionStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "superseded",
+              "published",
+              "uncertain"
+            ]
+          },
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "unrecorded",
+              "pending",
+              "approved",
+              "denied",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "expected": {
+            "$ref": "#/components/schemas/GrantReviewPins"
+          },
+          "approvalSubject": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "contract_grant_set"
+              },
+              "runId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "contractId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "canonicalization": {
+                "type": "string",
+                "const": "sorted-json-v1"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "contractDigest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "bindings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "attestation": {
+                      "type": "string",
+                      "enum": [
+                        "exact",
+                        "external"
+                      ]
+                    },
+                    "digest": {
+                      "type": "string",
+                      "pattern": "^sha256:[0-9a-f]{64}$"
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "allow",
+                        "ask"
+                      ]
+                    },
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "attestation",
+                    "digest"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "runId",
+              "contractId",
+              "revision",
+              "canonicalization",
+              "digest"
+            ],
+            "additionalProperties": false
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "capability"
+                        },
+                        "capabilityId": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "capabilityId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "mcp_source"
+                        },
+                        "server": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "family": {
+                          "type": "string",
+                          "enum": [
+                            "tool",
+                            "resource",
+                            "prompt"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "server",
+                        "family"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "allow",
+                    "ask"
+                  ]
+                },
+                "scope": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "run"
+                        },
+                        "acknowledgesNoFilesystemConfinement": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "filesystem"
+                        },
+                        "roots": {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "roots"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "delegation"
+                        },
+                        "agents": {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "agents"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "acknowledgesExternalTrust": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": [
+                "subject",
+                "decision",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "bindings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "attestation": {
+                  "type": "string",
+                  "enum": [
+                    "exact",
+                    "external"
+                  ]
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "decision": {
+                  "type": "string",
+                  "enum": [
+                    "allow",
+                    "ask"
+                  ]
+                },
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "subject",
+                "attestation",
+                "digest"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/GrantOperatorInputs"
+          },
+          "excluded": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "alias": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string",
+                  "const": "legacy_unenrolled"
+                }
+              },
+              "required": [
+                "alias",
+                "reason"
+              ]
+            }
+          },
+          "needsScope": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capabilityId": {
+                  "type": "string"
+                },
+                "alias": {
+                  "type": "string"
+                },
+                "scopeSupport": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "capabilityId",
+                "scopeSupport"
+              ]
+            }
+          },
+          "needsTrust": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capabilityId": {
+                  "type": "string"
+                },
+                "alias": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "capabilityId"
+              ]
+            }
+          },
+          "unbindable": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capabilityId": {
+                  "type": "string"
+                },
+                "alias": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "capabilityId"
+              ]
+            }
+          },
+          "marked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capabilityId": {
+                  "type": "string"
+                },
+                "alias": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string",
+                  "const": "non_native_executor_under_native_alias"
+                }
+              },
+              "required": [
+                "capabilityId",
+                "alias",
+                "note"
+              ]
+            }
+          },
+          "onDemandSources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "server": {
+                  "type": "string"
+                },
+                "family": {
+                  "type": "string",
+                  "enum": [
+                    "resource",
+                    "prompt"
+                  ]
+                }
+              },
+              "required": [
+                "server",
+                "family"
+              ]
+            }
+          },
+          "publication": {
+            "type": "string",
+            "enum": [
+              "none",
+              "intent",
+              "complete"
+            ]
+          },
+          "activated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "runId",
+          "contractId",
+          "status",
+          "revisionStatus",
+          "approvalStatus",
+          "expected",
+          "grants",
+          "bindings",
+          "inputs",
+          "excluded",
+          "needsScope",
+          "needsTrust",
+          "unbindable",
+          "marked",
+          "onDemandSources",
+          "publication",
+          "activated"
+        ]
+      },
+      "ReviseGrantReviewRequest": {
+        "type": "object",
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/GrantReviewPins"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/GrantOperatorInputs"
+          }
+        },
+        "required": [
+          "expected",
+          "inputs"
+        ],
+        "additionalProperties": false
+      },
+      "StartGrantReviewResponse": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "const": "running"
+          },
+          "claimed": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "runId",
+          "status",
+          "claimed"
+        ]
+      },
+      "StartGrantReviewRequest": {
+        "type": "object",
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/GrantReviewPins"
+          }
+        },
+        "required": [
+          "expected"
+        ],
+        "additionalProperties": false
       }
     }
   }

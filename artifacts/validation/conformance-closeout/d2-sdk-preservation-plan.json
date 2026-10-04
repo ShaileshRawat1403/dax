@@ -1,0 +1,143 @@
+{
+  "source": "7fc5cd14f2719ce54ef603c462cfe1efb9b083d5",
+  "action": "Replace exactly 26 owned generator runtime outputs with accepted bytes. Preserve the four additive SDK type/method files. No other files are replaced.",
+  "beforeGenerationEvidence": "Initial continuation git status listed only seven D2 production/doc edits and reviewed-run-contract.ts; SDK was clean. Feature branch ownership is exclusive. Generator raw logs and full patch retained.",
+  "restorations": [
+    {
+      "path": "packages/sdk/js/src/gen/client.gen.ts",
+      "taskGeneratedCurrentSha256": "2ae7d6f4afcae24e89799653c5318524d9d89a6b9bd1d721267585df9458aca3",
+      "acceptedRestorationSha256": "68679a12f152e52cc8df2ed4fc3773c6733f9ac3ec92a2872757d4d6dc01e9e3"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/client.gen.ts",
+      "taskGeneratedCurrentSha256": "426ff1c11a0dee9bac79568e2b2093ef697cf3828dfe9dba5258a31d3e38568d",
+      "acceptedRestorationSha256": "18b543601b2bd874d6ee5322e014c32ab54f1464a65014433ef2bbd54ab6ecb6"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/index.ts",
+      "taskGeneratedCurrentSha256": "acd2b749181050a8297f24ac3db4f3941ca0a66c049e5b984f29f0e98c8329f8",
+      "acceptedRestorationSha256": "4b3722a28a0310480245fb7e2d67472b6c4462d8d2318ade3eb8fc5f8d0a5fed"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/types.gen.ts",
+      "taskGeneratedCurrentSha256": "8a353b3ee2450c26415ec2816491cf4e82262a87597180f1b97dd989c9102f96",
+      "acceptedRestorationSha256": "e42920930ae232335b3621d6293ef87dcb9603b2d5a6013ed58cebebf5da9106"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/utils.gen.ts",
+      "taskGeneratedCurrentSha256": "f21c22bd8f37a0d0fa4008c4d70bb7e7a4b74afa8c5b9d05dda9b39f1c89424c",
+      "acceptedRestorationSha256": "39068f6d8d92fd3bcff803f18bcac3d8c933977a0907d1b19f765dc991d0b97a"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/auth.gen.ts",
+      "taskGeneratedCurrentSha256": "4b4aca5bd9b2c43a112bb74617295278d84f86360ada71a8db57f09cd0c254f4",
+      "acceptedRestorationSha256": "f3f9784fc4278d75604c87cb1a3d371ec1d368819e5f61a1f9b7d3850bf0c797"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/bodySerializer.gen.ts",
+      "taskGeneratedCurrentSha256": "c9739bff031dce1781a56ab9072791d4bd52bd0896cc989d4ad1cd03f71b282b",
+      "acceptedRestorationSha256": "4c1df146964468fd0c59229f71b5cdec044fc2b70f23439332a69dae5d38f860"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/params.gen.ts",
+      "taskGeneratedCurrentSha256": "097c75f6e269c6c8680641091832a69b38e8828e8ee8465318d32a177593330f",
+      "acceptedRestorationSha256": "49081b36d1648e238aea18691d5d90c84019b0784f4ed8a8c3eadc4f3bfd0315"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/pathSerializer.gen.ts",
+      "taskGeneratedCurrentSha256": "6e80a19627d36fd2a9e8daee113713b2e047d107d42ead9b4a9ab344690b998c",
+      "acceptedRestorationSha256": "32247c341763861725db5f2a9507edd17a0ac5b6175c1259b38d4fe5d86c3b0d"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/queryKeySerializer.gen.ts",
+      "taskGeneratedCurrentSha256": "adc570c9357a08624cce81dc503abd8d8ff60a76d25bd4d3a4afbe349d82d1f0",
+      "acceptedRestorationSha256": "ae2f324aef441962db761712f8446297996cab4d0bf39dc79751737b98bd223b"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/serverSentEvents.gen.ts",
+      "taskGeneratedCurrentSha256": "09dc8417b03b92849cc7582d2c8e5a610cc002d447a93b0cef721dcdbd09ff12",
+      "acceptedRestorationSha256": "77448240b588ad2782c0a179408f3401684fa3732e15eada6aa394f4e78059d3"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/types.gen.ts",
+      "taskGeneratedCurrentSha256": "11742d13e9417ed7f71e78e6062873c83340beeae766666a04a3e56726bc3567",
+      "acceptedRestorationSha256": "97809868e25038db3dd6164e39cc2e7ad5c0ecc3b58e0259b08ead093e8ba3e2"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/utils.gen.ts",
+      "taskGeneratedCurrentSha256": "ef50364c77d213864515776ee4abaf2f3a1a309d106c2db000e2fc4b6080e78c",
+      "acceptedRestorationSha256": "d5e3722a34bcda437cde4aa3f23d952995aa32f7e57c7390bea51b00dd515eda"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client.gen.ts",
+      "taskGeneratedCurrentSha256": "2ae7d6f4afcae24e89799653c5318524d9d89a6b9bd1d721267585df9458aca3",
+      "acceptedRestorationSha256": "68679a12f152e52cc8df2ed4fc3773c6733f9ac3ec92a2872757d4d6dc01e9e3"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/client.gen.ts",
+      "taskGeneratedCurrentSha256": "426ff1c11a0dee9bac79568e2b2093ef697cf3828dfe9dba5258a31d3e38568d",
+      "acceptedRestorationSha256": "18b543601b2bd874d6ee5322e014c32ab54f1464a65014433ef2bbd54ab6ecb6"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/index.ts",
+      "taskGeneratedCurrentSha256": "acd2b749181050a8297f24ac3db4f3941ca0a66c049e5b984f29f0e98c8329f8",
+      "acceptedRestorationSha256": "4b3722a28a0310480245fb7e2d67472b6c4462d8d2318ade3eb8fc5f8d0a5fed"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/types.gen.ts",
+      "taskGeneratedCurrentSha256": "8a353b3ee2450c26415ec2816491cf4e82262a87597180f1b97dd989c9102f96",
+      "acceptedRestorationSha256": "e42920930ae232335b3621d6293ef87dcb9603b2d5a6013ed58cebebf5da9106"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/utils.gen.ts",
+      "taskGeneratedCurrentSha256": "f21c22bd8f37a0d0fa4008c4d70bb7e7a4b74afa8c5b9d05dda9b39f1c89424c",
+      "acceptedRestorationSha256": "39068f6d8d92fd3bcff803f18bcac3d8c933977a0907d1b19f765dc991d0b97a"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/auth.gen.ts",
+      "taskGeneratedCurrentSha256": "4b4aca5bd9b2c43a112bb74617295278d84f86360ada71a8db57f09cd0c254f4",
+      "acceptedRestorationSha256": "f3f9784fc4278d75604c87cb1a3d371ec1d368819e5f61a1f9b7d3850bf0c797"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/bodySerializer.gen.ts",
+      "taskGeneratedCurrentSha256": "c9739bff031dce1781a56ab9072791d4bd52bd0896cc989d4ad1cd03f71b282b",
+      "acceptedRestorationSha256": "4c1df146964468fd0c59229f71b5cdec044fc2b70f23439332a69dae5d38f860"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/params.gen.ts",
+      "taskGeneratedCurrentSha256": "097c75f6e269c6c8680641091832a69b38e8828e8ee8465318d32a177593330f",
+      "acceptedRestorationSha256": "49081b36d1648e238aea18691d5d90c84019b0784f4ed8a8c3eadc4f3bfd0315"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/pathSerializer.gen.ts",
+      "taskGeneratedCurrentSha256": "6e80a19627d36fd2a9e8daee113713b2e047d107d42ead9b4a9ab344690b998c",
+      "acceptedRestorationSha256": "32247c341763861725db5f2a9507edd17a0ac5b6175c1259b38d4fe5d86c3b0d"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/queryKeySerializer.gen.ts",
+      "taskGeneratedCurrentSha256": "adc570c9357a08624cce81dc503abd8d8ff60a76d25bd4d3a4afbe349d82d1f0",
+      "acceptedRestorationSha256": "ae2f324aef441962db761712f8446297996cab4d0bf39dc79751737b98bd223b"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/serverSentEvents.gen.ts",
+      "taskGeneratedCurrentSha256": "09dc8417b03b92849cc7582d2c8e5a610cc002d447a93b0cef721dcdbd09ff12",
+      "acceptedRestorationSha256": "77448240b588ad2782c0a179408f3401684fa3732e15eada6aa394f4e78059d3"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/types.gen.ts",
+      "taskGeneratedCurrentSha256": "11742d13e9417ed7f71e78e6062873c83340beeae766666a04a3e56726bc3567",
+      "acceptedRestorationSha256": "97809868e25038db3dd6164e39cc2e7ad5c0ecc3b58e0259b08ead093e8ba3e2"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/utils.gen.ts",
+      "taskGeneratedCurrentSha256": "ef50364c77d213864515776ee4abaf2f3a1a309d106c2db000e2fc4b6080e78c",
+      "acceptedRestorationSha256": "d5e3722a34bcda437cde4aa3f23d952995aa32f7e57c7390bea51b00dd515eda"
+    }
+  ],
+  "preservedAdditiveFiles": [
+    "packages/sdk/js/src/gen/sdk.gen.ts",
+    "packages/sdk/js/src/gen/types.gen.ts",
+    "packages/sdk/js/src/v2/gen/sdk.gen.ts",
+    "packages/sdk/js/src/v2/gen/types.gen.ts"
+  ]
+}

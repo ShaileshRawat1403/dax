@@ -1,5 +1,7 @@
 import { Session } from "@/session"
 import { Identifier } from "@/id/id"
+import { assertReviewedImage } from "@/capability/reviewed-authority"
+import { ReviewedRunError } from "@/capability/reviewed-run-contract"
 import { SessionPrompt } from "@/session/prompt"
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
@@ -52,6 +54,7 @@ type RunMeta = {
   }
   contractId?: string
   workflowClass?: string
+  successorOf?: string
 }
 
 const log = Log.create({ service: "run-factory" })
@@ -77,7 +80,7 @@ async function readContract(runId: string): Promise<GoverningExecutionContract |
   return contract || undefined
 }
 
-async function writeRunMeta(runId: string, meta: RunMeta): Promise<void> {
+export async function writeRunMeta(runId: string, meta: RunMeta): Promise<void> {
   await Storage.write(["run_meta", Instance.project.id, runId], meta)
 }
 
@@ -113,7 +116,7 @@ function sessionPermissionFromPreset(input: CreateRunRequest): Permission.Rulese
   return Object.keys(permission).length > 0 ? Permission.fromConfig(permission) : undefined
 }
 
-function buildPromptContext(contract: ExecutionContract): string {
+function buildPromptContext(contract: GoverningExecutionContract): string {
   const parts: string[] = []
 
   parts.push(`## Execution Contract`)
@@ -148,7 +151,7 @@ function buildPromptContext(contract: ExecutionContract): string {
   return parts.join("\n")
 }
 
-async function startExecution(runId: string, contract: ExecutionContract): Promise<void> {
+export async function startExecution(runId: string, contract: GoverningExecutionContract): Promise<void> {
   if (!contract.intent.trim()) {
     log.info("empty intent, skipping execution", { runId })
     return
@@ -366,8 +369,8 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
 }
 
 /**
- * Stage 3: create a run that executes only under operator-reviewed capability
- * grants. Not reachable from any route or configuration.
+ * Create a run that executes only under operator-reviewed capability grants.
+ * The restricted generic operator API additionally requires pure preflight.
  *
  * Canonical reviewed intent and a private reservation precede the publicly
  * usable, explicitly governed session. A creation crash or lost reservation
@@ -388,6 +391,7 @@ export async function createGrantReviewedRun(
     /** Agents the operator allows each delegation capability to start. */
     delegations?: { capabilityId: string; agents: string[] }[]
   },
+  policy?: { restrictedGeneric: true },
 ): Promise<{ runId: string; revision: GrantReviewRevision }> {
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
   // Compile before any durable state, then establish canonical reviewed intent
@@ -395,6 +399,23 @@ export async function createGrantReviewedRun(
   // turn a creation interrupted before the first request into an ordinary run.
   const runId = Identifier.descending("session")
   const { contract } = compileWithRunId(input, runId)
+  if (policy?.restrictedGeneric) {
+    if (input.request.metadata?.allowLegacyFallback) throw new ReviewedRunError("legacy_fallback_conflict", 400)
+    if (input.request.workflowHint !== "generic" || contract.workflowClass !== "generic") {
+      throw new ReviewedRunError("generic_workflow_required", 400)
+    }
+    if (input.request.workerConstraints !== undefined || contract.providerHint?.startsWith("worker:")) {
+      throw new ReviewedRunError("worker_unsupported", 400)
+    }
+    if (contract.runtimePolicy?.postconditions?.verificationRequired) {
+      throw new ReviewedRunError("verification_unsupported", 400)
+    }
+    try {
+      assertReviewedImage(runId)
+    } catch {
+      throw new ReviewedRunError("enforcing_image_required", 400)
+    }
+  }
   await createEventAuthorityRun(
     runId,
     contract.contractId,

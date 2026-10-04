@@ -108,6 +108,25 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const api = JSON.parse((await run("api", [first, home, "api"])).trim().split("\n").at(-1)!)
+      expect(api.controls).toEqual([
+        "api-preflight-no-session-authority-provider",
+        "api-complete-stale-pins-no-append",
+        "api-grant-actor-remember-validation-before-append",
+        "api-server-produced-revision-fresh-approval",
+        "api-grant-approval-no-workflow-resume",
+        "api-activated-queued-all-session-entries-no-effects",
+        "api-genuine-start-at-most-one-dispatch",
+        "api-neutral-intent-explicit-roots-consequential-grants-disclosed",
+        "api-denied-review-readable-no-start",
+        "api-cross-process-one-initial-model-dispatch",
+        "api-activated-unstarted-waiting-no-dispatch-effects",
+        "api-claim-before-dispatch-never-retried",
+        "api-publication-proof-crash-roll-forward",
+        "api-ask-remember-validation-routing-no-workflow-resume",
+        "api-wrong-approval-type-remember-no-append",
+        "api-successor-fresh-authority-no-copy",
+      ])
       const other = JSON.parse((await run("other-image", [second, home, "other-image"])).trim().split("\n").at(-1)!)
       expect(other.controls).toEqual([
         "changed-image-native-binding-denied",
@@ -120,6 +139,7 @@ describe("stage 4d genuine compiled production authority", () => {
           .at(-1)!,
       )
       expect(source.controls).toEqual([
+        "source-api-create-start-no-effects",
         "source-native-denied",
         "source-remote-only-denied",
         "source-direct-action-denied",
@@ -128,7 +148,7 @@ describe("stage 4d genuine compiled production authority", () => {
       const missing = JSON.parse((await run("unknown", [unknown, home, "unknown"])).trim().split("\n").at(-1)!)
       expect(missing.controls).toEqual(["unknown-image-remote-only-denied"])
       expect(missing.providerCalls).toBe(0)
-      console.log(JSON.stringify({ stage4d: matrix, otherImage: other, source, unknown: missing }))
+      console.log(JSON.stringify({ stage4d: matrix, api, otherImage: other, source, unknown: missing }))
     } finally {
       await fs.rm(home, { recursive: true, force: true })
     }

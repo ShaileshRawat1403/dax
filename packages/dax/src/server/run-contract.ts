@@ -1,3 +1,5 @@
+import { ContractGrantApprovalSubjectSchema, GrantAskSubjectSchema } from "@/state/events/contract-grant-approval"
+import { ReviewedGrantOptIn, GrantReviewSummary } from "@/capability/reviewed-run-contract"
 import z from "zod"
 import { WorkflowTerminalReasonSchema } from "@/workflows/types"
 import type { WorkflowTerminalReason } from "@/workflows/types"
@@ -9,7 +11,13 @@ export type SchemaVersion = z.infer<typeof SchemaVersion>
 export const SourceSystem = z.enum(["soothsayer", "dax", "cli", "api"])
 export type SourceSystem = z.infer<typeof SourceSystem>
 
-export const WorkflowClass = z.enum(["draft_and_approve", "repo_analyze", "review_and_signoff", "worker_run", "generic"])
+export const WorkflowClass = z.enum([
+  "draft_and_approve",
+  "repo_analyze",
+  "review_and_signoff",
+  "worker_run",
+  "generic",
+])
 export type WorkflowClass = z.infer<typeof WorkflowClass>
 
 export const WorkflowTrustPosture = z.enum(["high", "medium", "low", "minimal"])
@@ -178,7 +186,16 @@ export const ApprovalRecord = z
   .object({
     approvalId: z.string(),
     runId: z.string(),
-    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate", "question"]),
+    type: z.enum([
+      "file_write",
+      "command_execute",
+      "patch_apply",
+      "tool_use",
+      "workflow_gate",
+      "question",
+      "capability_grant_review",
+      "capability_grant_ask",
+    ]),
     status: ApprovalStatus,
     risk: RiskLevel,
     title: z.string(),
@@ -188,6 +205,8 @@ export const ApprovalRecord = z
     updatedAt: z.string(),
     resolvedAt: z.string().optional(),
     resolution: ApprovalResolution.optional(),
+    contractGrantSubject: ContractGrantApprovalSubjectSchema.optional(),
+    grantAskSubject: GrantAskSubjectSchema.optional(),
   })
   .meta({ ref: "ApprovalRecordV1" })
 export type ApprovalRecord = z.infer<typeof ApprovalRecord>
@@ -255,7 +274,10 @@ export type ScopeProvenance = z.infer<typeof ScopeProvenance>
 
 export const WorkerConstraints = z
   .object({
-    conversation: z.object({ effort: z.enum(["low", "medium", "high"]).optional() }).strict().optional(),
+    conversation: z
+      .object({ effort: z.enum(["low", "medium", "high"]).optional() })
+      .strict()
+      .optional(),
     /** Glob patterns the worker may write to. CLI flags win over inferred. */
     writeScope: z.array(z.string()).optional(),
     /** Paths/globs the worker must not touch. */
@@ -282,6 +304,7 @@ export type WorkerConstraints = z.infer<typeof WorkerConstraints>
 export const CreateRunRequest = z
   .object({
     intent: RunIntent,
+    capabilityReview: ReviewedGrantOptIn.optional(),
     personaPreset: PersonaPreset.optional(),
     workflowHint: WorkflowClass.optional(),
     /** Scope constraints for worker_run. Operator-supplied or refineIntent-inferred. */
@@ -315,6 +338,7 @@ export type CreateRunRequest = z.infer<typeof CreateRunRequest>
 export const CreateRunResponse = z
   .object({
     runId: z.string(),
+    grantReview: GrantReviewSummary.optional(),
     status: RunStatus,
     createdAt: z.string(),
     workflowHint: WorkflowClass.optional(),
@@ -332,6 +356,7 @@ export const ResolveApprovalRequest = z
     source: z.enum(["soothsayer", "api", "dax"]).optional(),
     comment: z.string().optional(),
     requestId: z.string().optional(),
+    remember: z.boolean().optional(),
   })
   .meta({ ref: "ResolveApprovalRequestV1" })
 export type ResolveApprovalRequest = z.infer<typeof ResolveApprovalRequest>
@@ -414,7 +439,16 @@ export const PendingApprovalSummary = z
   .object({
     approvalId: z.string(),
     runId: z.string(),
-    type: z.enum(["file_write", "command_execute", "patch_apply", "tool_use", "workflow_gate", "question"]),
+    type: z.enum([
+      "file_write",
+      "command_execute",
+      "patch_apply",
+      "tool_use",
+      "workflow_gate",
+      "question",
+      "capability_grant_review",
+      "capability_grant_ask",
+    ]),
     risk: RiskLevel,
     title: z.string(),
     reason: z.string(),
@@ -543,12 +577,14 @@ const IntentCreatedPayload = z.object({
 
 const PlanCompiledPayload = z.object({
   planId: z.string(),
-  tasks: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string(),
-    dependencies: z.array(z.string()),
-  })),
+  tasks: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string(),
+      dependencies: z.array(z.string()),
+    }),
+  ),
 })
 
 const PlanStepPromotedPayload = z.object({
@@ -573,11 +609,13 @@ const InterventionResolvedPayload = z.object({
 
 const AuditPostureUpdatedPayload = z.object({
   trust: RunTrustState,
-  finding: z.object({
-    type: z.string(),
-    severity: z.enum(["critical", "major", "minor", "info"]),
-    title: z.string(),
-  }).optional(),
+  finding: z
+    .object({
+      type: z.string(),
+      severity: z.enum(["critical", "major", "minor", "info"]),
+      title: z.string(),
+    })
+    .optional(),
 })
 
 export const RunEventPayload = z.discriminatedUnion("type", [

@@ -48,6 +48,10 @@ import {
 } from "./run-contract"
 import { buildProjectedRun, buildInterventionProjection, mapEventToNarrativeItem } from "./run-projections"
 import { hasGrantReview } from "@/execution/grant-review-barrier"
+import { createReviewedRun } from "@/capability/reviewed-run"
+import { ReviewedRunError } from "@/capability/reviewed-run-contract"
+import { answerGrantAsk } from "@/capability/grant-ask"
+import { CONTRACT_GRANT_APPROVAL_TYPE, CONTRACT_GRANT_ASK_TYPE } from "@/state/events/contract-grant-approval"
 import {
   authorityUnreadable,
   buildRunInspectorProjectionV1,
@@ -68,6 +72,7 @@ type RunMeta = {
   }
   contractId?: string
   workflowClass?: string
+  successorOf?: string
 }
 
 const log = Log.create({ service: "run-gateway" })
@@ -262,6 +267,8 @@ function canonicalApprovalType(value: string): ApprovalRecord["type"] {
     case "tool_use":
     case "workflow_gate":
     case "question":
+    case "capability_grant_review":
+    case "capability_grant_ask":
       return value
     case "tool":
       return "tool_use"
@@ -1059,6 +1066,8 @@ export namespace RunGateway {
   }
 
   export async function createRun(input: CreateRunRequest): Promise<CreateRunResponse> {
+    // Any supplied opt-in must validate; it can never enter the legacy catch.
+    if (Object.prototype.hasOwnProperty.call(input, "capabilityReview")) return createReviewedRun(input)
     initialize()
     const compatibilityWarnings = input.metadata?.allowLegacyFallback ? [LEGACY_RUN_FALLBACK_FLAG_WARNING] : []
 
@@ -1438,7 +1447,11 @@ export namespace RunGateway {
     if (source.kind === "event-log") {
       return source.state.approvals
         .filter((approval) => approval.status === "pending")
-        .map((approval) => toCanonicalApprovalRecord(runId, approval))
+        .map((approval) => ({
+          ...toCanonicalApprovalRecord(runId, approval),
+          contractGrantSubject: source.state.grantReview.requests[approval.approvalId],
+          grantAskSubject: source.state.grantReview.asks[approval.approvalId],
+        }))
     }
 
     const canonicalApprovals = await ApprovalStore.pending(runId)
@@ -1493,14 +1506,42 @@ export namespace RunGateway {
         throw new Storage.NotFoundError({ message: `Approval not found: ${approvalId}` })
       }
 
-      const decision = canonicalApproval.status === "pending"
-        ? input.decision
-        : canonicalApproval.status === "approved"
-          ? "approve"
-          : "deny"
+      const decision =
+        canonicalApproval.status === "pending"
+          ? input.decision
+          : canonicalApproval.status === "approved"
+            ? "approve"
+            : "deny"
 
+      const grantSet = canonicalApproval.approvalType === CONTRACT_GRANT_APPROVAL_TYPE
+      const grantAsk = canonicalApproval.approvalType === CONTRACT_GRANT_ASK_TYPE
+      if (grantSet || grantAsk) {
+        if (!input.actorId?.trim()) throw new ReviewedRunError("approval_actor_missing", 400, runId)
+        if (input.decision !== "approve" && input.decision !== "deny")
+          throw new ReviewedRunError("invalid_approval_decision", 400, runId)
+        if (
+          input.remember !== undefined &&
+          (typeof input.remember !== "boolean" || !grantAsk || input.decision !== "approve")
+        ) {
+          throw new ReviewedRunError("invalid_remember_combination", 400, runId)
+        }
+        if (
+          (grantSet && !source.state.grantReview.requests[approvalId]) ||
+          (grantAsk && !source.state.grantReview.asks[approvalId])
+        ) {
+          throw new ReviewedRunError("approval_subject_missing", 409, runId)
+        }
+      } else if (input.remember !== undefined) {
+        throw new ReviewedRunError("invalid_remember_combination", 400, runId)
+      }
       if (canonicalApproval.status === "pending") {
-        if (decision === "approve") {
+        if (grantAsk) {
+          await answerGrantAsk(runId, approvalId, {
+            approve: decision === "approve",
+            actor: input.actorId!,
+            always: input.remember,
+          })
+        } else if (decision === "approve") {
           await ApprovalTransitions.approve(runId, approvalId, input.actorId, input.comment)
         } else {
           await ApprovalTransitions.deny(runId, approvalId, input.actorId, input.comment)
@@ -1519,7 +1560,7 @@ export namespace RunGateway {
         }
       }
 
-      await resumeCanonicalWorkflowApproval(runId, approvalId, decision)
+      if (!grantSet && !grantAsk) await resumeCanonicalWorkflowApproval(runId, approvalId, decision)
 
       const updatedSource = await loadGatewayAuthoritySource(runId)
       if (updatedSource.kind !== "event-log") {

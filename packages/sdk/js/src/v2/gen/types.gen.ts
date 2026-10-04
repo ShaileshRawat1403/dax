@@ -716,7 +716,15 @@ export type ApprovalResolutionV1 = {
 export type ApprovalRecordV1 = {
   approvalId: string
   runId: string
-  type: "file_write" | "command_execute" | "patch_apply" | "tool_use" | "workflow_gate" | "question"
+  type:
+    | "file_write"
+    | "command_execute"
+    | "patch_apply"
+    | "tool_use"
+    | "workflow_gate"
+    | "question"
+    | "capability_grant_review"
+    | "capability_grant_ask"
   status: "pending" | "approved" | "denied" | "expired" | "cancelled"
   risk: "low" | "medium" | "high" | "critical"
   title: string
@@ -726,6 +734,29 @@ export type ApprovalRecordV1 = {
   updatedAt: string
   resolvedAt?: string
   resolution?: ApprovalResolutionV1
+  contractGrantSubject?: {
+    kind: "contract_grant_set"
+    runId: string
+    contractId: string
+    revision: number
+    canonicalization: "sorted-json-v1"
+    digest: string
+    contractDigest?: string
+    bindings?: Array<{
+      subject: string
+      attestation: "exact" | "external"
+      digest: string
+      decision?: "allow" | "ask"
+      agents?: Array<string>
+    }>
+  }
+  grantAskSubject?: {
+    kind: "capability_grant_ask"
+    grantSubject: string
+    capabilityId: string
+    contractDigest: string
+    bindingDigest: string
+  }
 }
 
 export type EventApprovalRequested = {
@@ -2492,7 +2523,15 @@ export type RunListItemV1 = {
 export type PendingApprovalSummaryV1 = {
   approvalId: string
   runId: string
-  type: "file_write" | "command_execute" | "patch_apply" | "tool_use" | "workflow_gate" | "question"
+  type:
+    | "file_write"
+    | "command_execute"
+    | "patch_apply"
+    | "tool_use"
+    | "workflow_gate"
+    | "question"
+    | "capability_grant_review"
+    | "capability_grant_ask"
   risk: "low" | "medium" | "high" | "critical"
   title: string
   reason: string
@@ -2517,6 +2556,7 @@ export type CreateRunResponseV1 = {
   workflowHintAccepted?: boolean
   workflowClass?: "draft_and_approve" | "repo_analyze" | "review_and_signoff" | "generic"
   warnings?: Array<string>
+  grantReview?: GrantReviewSummary
 }
 
 export type RunIntentV1 = {
@@ -2561,6 +2601,7 @@ export type CreateRunRequestV1 = {
       repoPath?: string
     }
   }
+  capabilityReview?: ReviewedGrantOptIn
 }
 
 export type RunPlanTaskV1 = {
@@ -2831,6 +2872,7 @@ export type ResolveApprovalRequestV1 = {
   source?: "soothsayer" | "api" | "dax"
   comment?: string
   requestId?: string
+  remember?: boolean
 }
 
 export type RunSummaryV1 = {
@@ -4770,7 +4812,8 @@ export type RunCreateErrors = {
   /**
    * Bad request
    */
-  400: BadRequestError
+  400: BadRequestError | ReviewedRunRefusal
+  409: ReviewedRunRefusal
 }
 
 export type RunCreateError = RunCreateErrors[keyof RunCreateErrors]
@@ -4880,6 +4923,8 @@ export type RunApprovalsResolveErrors = {
    * Not found
    */
   404: NotFoundError
+  400: BadRequestError | ReviewedRunRefusal
+  409: ReviewedRunRefusal
 }
 
 export type RunApprovalsResolveError = RunApprovalsResolveErrors[keyof RunApprovalsResolveErrors]
@@ -6609,3 +6654,264 @@ export type EventSubscribeResponses = {
 }
 
 export type EventSubscribeResponse = EventSubscribeResponses[keyof EventSubscribeResponses]
+
+export type GrantReviewSummary = {
+  revision: number
+  approvalId: string
+  proposalDigest: string
+  contractDigest: string
+  bindingManifestDigest: string
+  location: string
+}
+
+export type ReviewedRunRefusal = {
+  code: string
+  message: string
+  runId?: string
+}
+
+export type ReviewedGrantOptIn = {
+  writeScope?: {
+    roots: Array<string>
+    reviewed: boolean
+  }
+  acknowledgedExternal?: Array<string>
+  sourceSelections?: Array<{
+    server: string
+    family: "tool" | "resource" | "prompt"
+  }>
+  askSubjects?: Array<string>
+  delegations?: Array<{
+    capabilityId: string
+    agents: Array<string>
+  }>
+  mode: "reviewed_grants"
+  successorOf?: string
+}
+
+export type GrantReviewPins = {
+  revision: number
+  approvalId: string
+  proposalDigest: string
+  contractDigest: string
+  bindingManifestDigest: string
+}
+
+export type GrantOperatorInputs = {
+  writeScope?: {
+    roots: Array<string>
+    reviewed: boolean
+  }
+  acknowledgedExternal?: Array<string>
+  sourceSelections?: Array<{
+    server: string
+    family: "tool" | "resource" | "prompt"
+  }>
+  askSubjects?: Array<string>
+  delegations?: Array<{
+    capabilityId: string
+    agents: Array<string>
+  }>
+}
+
+export type RunGrantReview = {
+  runId: string
+  contractId: string
+  status: string
+  revisionStatus: "pending" | "superseded" | "published" | "uncertain"
+  approvalStatus: "unrecorded" | "pending" | "approved" | "denied" | "expired" | "cancelled"
+  expected: GrantReviewPins
+  approvalSubject?: {
+    kind: "contract_grant_set"
+    runId: string
+    contractId: string
+    revision: number
+    canonicalization: "sorted-json-v1"
+    digest: string
+    contractDigest?: string
+    bindings?: Array<{
+      subject: string
+      attestation: "exact" | "external"
+      digest: string
+      decision?: "allow" | "ask"
+      agents?: Array<string>
+    }>
+  }
+  grants: Array<{
+    subject:
+      | {
+          kind: "capability"
+          capabilityId: string
+        }
+      | {
+          kind: "mcp_source"
+          server: string
+          family: "tool" | "resource" | "prompt"
+        }
+    decision: "allow" | "ask"
+    scope:
+      | {
+          kind: "run"
+          acknowledgesNoFilesystemConfinement?: true
+        }
+      | {
+          kind: "filesystem"
+          roots: Array<string>
+        }
+      | {
+          kind: "delegation"
+          agents: Array<string>
+        }
+    acknowledgesExternalTrust?: true
+  }>
+  bindings: Array<{
+    subject: string
+    attestation: "exact" | "external"
+    digest: string
+    decision?: "allow" | "ask"
+    agents?: Array<string>
+  }>
+  inputs: GrantOperatorInputs
+  excluded: Array<{
+    alias: string
+    reason: "legacy_unenrolled"
+  }>
+  needsScope: Array<{
+    capabilityId: string
+    alias?: string
+    scopeSupport: string
+  }>
+  needsTrust: Array<{
+    capabilityId: string
+    alias?: string
+  }>
+  unbindable: Array<{
+    capabilityId: string
+    alias?: string
+  }>
+  marked: Array<{
+    capabilityId: string
+    alias: string
+    note: "non_native_executor_under_native_alias"
+  }>
+  onDemandSources: Array<{
+    server: string
+    family: "resource" | "prompt"
+  }>
+  publication: "none" | "intent" | "complete"
+  activated: boolean
+}
+
+export type ReviseGrantReviewRequest = {
+  expected: GrantReviewPins
+  inputs: GrantOperatorInputs
+}
+
+export type StartGrantReviewResponse = {
+  runId: string
+  status: "running"
+  claimed: true
+}
+
+export type StartGrantReviewRequest = {
+  expected: GrantReviewPins
+}
+
+export type RunGrantReviewGetData = {
+  body?: never
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/grant-review"
+}
+
+export type RunGrantReviewGetErrors = {
+  /**
+   * Review missing
+   */
+  404: ReviewedRunRefusal
+  /**
+   * Authority unreadable
+   */
+  409: ReviewedRunRefusal
+}
+
+export type RunGrantReviewGetError = RunGrantReviewGetErrors[keyof RunGrantReviewGetErrors]
+
+export type RunGrantReviewGetResponses = {
+  /**
+   * Current review and complete pins
+   */
+  200: RunGrantReview
+}
+
+export type RunGrantReviewGetResponse = RunGrantReviewGetResponses[keyof RunGrantReviewGetResponses]
+
+export type RunGrantReviewReviseData = {
+  body?: ReviseGrantReviewRequest
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/grant-review/revisions"
+}
+
+export type RunGrantReviewReviseErrors = {
+  /**
+   * Invalid operator input
+   */
+  400: ReviewedRunRefusal
+  /**
+   * Stale pins or immutable publication
+   */
+  409: ReviewedRunRefusal
+}
+
+export type RunGrantReviewReviseError = RunGrantReviewReviseErrors[keyof RunGrantReviewReviseErrors]
+
+export type RunGrantReviewReviseResponses = {
+  /**
+   * Fresh revision awaiting fresh approval
+   */
+  200: RunGrantReview
+}
+
+export type RunGrantReviewReviseResponse = RunGrantReviewReviseResponses[keyof RunGrantReviewReviseResponses]
+
+export type RunGrantReviewStartData = {
+  body?: StartGrantReviewRequest
+  path: {
+    runID: string
+  }
+  query?: {
+    directory?: string
+  }
+  url: "/runs/{runID}/grant-review/start"
+}
+
+export type RunGrantReviewStartErrors = {
+  /**
+   * Invalid start input
+   */
+  400: ReviewedRunRefusal
+  /**
+   * Not startable or authority refused
+   */
+  409: ReviewedRunRefusal
+}
+
+export type RunGrantReviewStartError = RunGrantReviewStartErrors[keyof RunGrantReviewStartErrors]
+
+export type RunGrantReviewStartResponses = {
+  /**
+   * Initial dispatch claimed
+   */
+  200: StartGrantReviewResponse
+}
+
+export type RunGrantReviewStartResponse = RunGrantReviewStartResponses[keyof RunGrantReviewStartResponses]

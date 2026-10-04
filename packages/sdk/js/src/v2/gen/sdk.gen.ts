@@ -3,6 +3,14 @@
 import { client } from "./client.gen.js"
 import { buildClientParams, type Client, type Options as Options2, type TDataShape } from "./client/index.js"
 import type {
+  ReviseGrantReviewRequest,
+  StartGrantReviewRequest,
+  RunGrantReviewGetErrors,
+  RunGrantReviewGetResponses,
+  RunGrantReviewReviseErrors,
+  RunGrantReviewReviseResponses,
+  RunGrantReviewStartErrors,
+  RunGrantReviewStartResponses,
   AgentPartInput,
   AppAgentsResponses,
   AppLogErrors,
@@ -1979,6 +1987,114 @@ export class Permission extends HeyApiClient {
   }
 }
 
+export class GrantReview extends HeyApiClient {
+  /**
+   * Inspect reviewed capability grants
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<RunGrantReviewGetResponses, RunGrantReviewGetErrors, ThrowOnError>({
+      url: "/runs/{runID}/grant-review",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Revise reviewed capability grants
+   */
+  public revise<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      reviseGrantReviewRequest?: ReviseGrantReviewRequest
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { key: "reviseGrantReviewRequest", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      RunGrantReviewReviseResponses,
+      RunGrantReviewReviseErrors,
+      ThrowOnError
+    >({
+      url: "/runs/{runID}/grant-review/revisions",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Claim initial reviewed run dispatch
+   *
+   * Checks exact approval, proposal, contract and ordered binding pins; claims initial dispatch once in the canonical journal.
+   */
+  public start<ThrowOnError extends boolean = false>(
+    parameters: {
+      runID: string
+      directory?: string
+      startGrantReviewRequest?: StartGrantReviewRequest
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "runID" },
+            { in: "query", key: "directory" },
+            { key: "startGrantReviewRequest", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<RunGrantReviewStartResponses, RunGrantReviewStartErrors, ThrowOnError>(
+      {
+        url: "/runs/{runID}/grant-review/start",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+}
+
 export class Approvals extends HeyApiClient {
   /**
    * Get run approvals
@@ -2118,7 +2234,7 @@ export class Run extends HeyApiClient {
   /**
    * Create run
    *
-   * Create a DAX-backed external run and start execution against the current workspace.
+   * Create a DAX-backed run. Reviewed generic opt-in waits for explicit operator approval and start.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -2272,6 +2388,10 @@ export class Run extends HeyApiClient {
     })
   }
 
+  private _grantReview?: GrantReview
+  get grantReview(): GrantReview {
+    return (this._grantReview ??= new GrantReview({ client: this.client }))
+  }
   private _approvals?: Approvals
   get approvals(): Approvals {
     return (this._approvals ??= new Approvals({ client: this.client }))

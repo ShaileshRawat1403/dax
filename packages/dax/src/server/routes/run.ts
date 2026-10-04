@@ -22,22 +22,39 @@ import { RunGateway } from "../run-gateway"
 import { RunInspectorReadResultV1 } from "../run-inspector-projection"
 import { discoverAntigravityModels } from "@/worker/antigravity-models"
 import { AntigravityConversation } from "@/worker/antigravity-conversation"
+import { inspectReviewedRun, reviseReviewedRun, startReviewedRun } from "@/capability/reviewed-run"
+import {
+  ReviewedRunError,
+  ReviewedRunRefusal,
+  RunGrantReview,
+  ReviseGrantReviewRequest,
+  StartGrantReviewRequest,
+  StartGrantReviewResponse,
+} from "@/capability/reviewed-run-contract"
 
 export const RunRoutes = lazy(() =>
   new Hono()
     .get("/agy/models", async (c) => {
-      try { return c.json({ models: await discoverAntigravityModels() }) }
-      catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 503) }
+      try {
+        return c.json({ models: await discoverAntigravityModels() })
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : String(error) }, 503)
+      }
     })
     .post("/:runID/agy/finish", async (c) => {
       try {
         await AntigravityConversation.finish(c.req.param("runID"))
         return c.json({ accepted: true })
-      } catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 409) }
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : String(error) }, 409)
+      }
     })
     .get("/:runID/agy/status", async (c) => {
-      try { return c.json(await AntigravityConversation.status(c.req.param("runID"))) }
-      catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 404) }
+      try {
+        return c.json(await AntigravityConversation.status(c.req.param("runID")))
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : String(error) }, 404)
+      }
     })
     .get(
       "/overview",
@@ -65,7 +82,7 @@ export const RunRoutes = lazy(() =>
       "/",
       describeRoute({
         summary: "Create run",
-        description: "Create a DAX-backed external run and start execution against the current workspace.",
+        description: "Create a DAX-backed run. Reviewed generic opt-in waits for explicit operator approval and start.",
         operationId: "run.create",
         responses: {
           200: {
@@ -77,12 +94,119 @@ export const RunRoutes = lazy(() =>
             },
           },
           ...errors(400),
+          409: {
+            description: "Reviewed creation authority refused",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
         },
       }),
       validator("json", CreateRunRequest),
       async (c) => {
         const body = c.req.valid("json")
-        return c.json(await RunGateway.createRun(body))
+        try {
+          return c.json(await RunGateway.createRun(body))
+        } catch (error) {
+          if (error instanceof ReviewedRunError)
+            return c.json({ code: error.code, message: error.message, runId: error.runId }, error.status)
+          throw error
+        }
+      },
+    )
+    .get(
+      "/:runID/grant-review",
+      describeRoute({
+        summary: "Inspect reviewed capability grants",
+        operationId: "run.grantReview.get",
+        responses: {
+          200: {
+            description: "Current review and complete pins",
+            content: { "application/json": { schema: resolver(RunGrantReview) } },
+          },
+          404: {
+            description: "Review missing",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
+          409: {
+            description: "Authority unreadable",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
+        },
+      }),
+      validator("param", z.object({ runID: z.string() })),
+      async (c) => {
+        try {
+          return c.json(await inspectReviewedRun(c.req.valid("param").runID))
+        } catch (error) {
+          if (error instanceof ReviewedRunError)
+            return c.json({ code: error.code, message: error.message, runId: error.runId }, error.status)
+          throw error
+        }
+      },
+    )
+    .post(
+      "/:runID/grant-review/revisions",
+      describeRoute({
+        summary: "Revise reviewed capability grants",
+        operationId: "run.grantReview.revise",
+        responses: {
+          200: {
+            description: "Fresh revision awaiting fresh approval",
+            content: { "application/json": { schema: resolver(RunGrantReview) } },
+          },
+          400: {
+            description: "Invalid operator input",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
+          409: {
+            description: "Stale pins or immutable publication",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
+        },
+      }),
+      validator("param", z.object({ runID: z.string() })),
+      validator("json", ReviseGrantReviewRequest),
+      async (c) => {
+        try {
+          return c.json(await reviseReviewedRun(c.req.valid("param").runID, c.req.valid("json")))
+        } catch (error) {
+          if (error instanceof ReviewedRunError)
+            return c.json({ code: error.code, message: error.message, runId: error.runId }, error.status)
+          throw error
+        }
+      },
+    )
+    .post(
+      "/:runID/grant-review/start",
+      describeRoute({
+        summary: "Claim initial reviewed run dispatch",
+        operationId: "run.grantReview.start",
+        description:
+          "Checks exact approval, proposal, contract and ordered binding pins; claims initial dispatch once in the canonical journal.",
+        responses: {
+          200: {
+            description: "Initial dispatch claimed",
+            content: { "application/json": { schema: resolver(StartGrantReviewResponse) } },
+          },
+          400: {
+            description: "Invalid start input",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
+          409: {
+            description: "Not startable or authority refused",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
+        },
+      }),
+      validator("param", z.object({ runID: z.string() })),
+      validator("json", StartGrantReviewRequest),
+      async (c) => {
+        try {
+          return c.json(await startReviewedRun(c.req.valid("param").runID, c.req.valid("json")))
+        } catch (error) {
+          if (error instanceof ReviewedRunError)
+            return c.json({ code: error.code, message: error.message, runId: error.runId }, error.status)
+          throw error
+        }
       },
     )
     .get(
@@ -238,7 +362,13 @@ export const RunRoutes = lazy(() =>
       async (c) => {
         const params = c.req.valid("param")
         const body = c.req.valid("json")
-        return c.json(await RunGateway.resolveApproval(params.runID, params.approvalID, body))
+        try {
+          return c.json(await RunGateway.resolveApproval(params.runID, params.approvalID, body))
+        } catch (error) {
+          if (error instanceof ReviewedRunError)
+            return c.json({ code: error.code, message: error.message, runId: error.runId }, error.status)
+          throw error
+        }
       },
     )
     .get(

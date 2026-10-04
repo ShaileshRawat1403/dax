@@ -72,6 +72,7 @@ import { permissionForExecutor } from "@/capability/native-alias"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { assertReviewedSessionExecutable } from "@/capability/reviewed-authority"
+import { GrantReviewBarrierError, hasGrantReview } from "@/execution/grant-review-barrier"
 import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
 import { createEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
 import {
@@ -205,6 +206,7 @@ export namespace SessionPrompt {
   export async function ensureCanonicalRunBirth(input: { sessionID: string; intent: string }): Promise<void> {
     const initialSession = await Session.get(input.sessionID)
     const authorityRunId = initialSession.governingRunId ?? initialSession.id
+    await assertReviewedSessionExecutable(authorityRunId)
     const birthLock = await acquireRunLock(`native-birth-${authorityRunId}`)
 
     try {
@@ -284,6 +286,12 @@ export namespace SessionPrompt {
       }
 
       let status = state.status
+      if (
+        (status === "compiled" || status === "queued") &&
+        (contract.schemaVersion === "v2" || (await hasGrantReview(governingRunId)))
+      ) {
+        throw new GrantReviewBarrierError(governingRunId)
+      }
       if (status === "compiled") {
         await transitionEventAuthority(governingRunId, "queued", "execution_queued", {})
         status = "queued"

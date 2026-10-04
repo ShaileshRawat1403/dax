@@ -1,0 +1,158 @@
+{
+  "head": "7fc5cd14f2719ce54ef603c462cfe1efb9b083d5",
+  "branch": "feat/conformance-closeout",
+  "files": [
+    {
+      "path": "packages/sdk/js/src/gen/client.gen.ts",
+      "sha256": "2ae7d6f4afcae24e89799653c5318524d9d89a6b9bd1d721267585df9458aca3",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/client.gen.ts",
+      "sha256": "426ff1c11a0dee9bac79568e2b2093ef697cf3828dfe9dba5258a31d3e38568d",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/index.ts",
+      "sha256": "acd2b749181050a8297f24ac3db4f3941ca0a66c049e5b984f29f0e98c8329f8",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/types.gen.ts",
+      "sha256": "8a353b3ee2450c26415ec2816491cf4e82262a87597180f1b97dd989c9102f96",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/client/utils.gen.ts",
+      "sha256": "f21c22bd8f37a0d0fa4008c4d70bb7e7a4b74afa8c5b9d05dda9b39f1c89424c",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/auth.gen.ts",
+      "sha256": "4b4aca5bd9b2c43a112bb74617295278d84f86360ada71a8db57f09cd0c254f4",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/bodySerializer.gen.ts",
+      "sha256": "c9739bff031dce1781a56ab9072791d4bd52bd0896cc989d4ad1cd03f71b282b",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/params.gen.ts",
+      "sha256": "097c75f6e269c6c8680641091832a69b38e8828e8ee8465318d32a177593330f",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/pathSerializer.gen.ts",
+      "sha256": "6e80a19627d36fd2a9e8daee113713b2e047d107d42ead9b4a9ab344690b998c",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/queryKeySerializer.gen.ts",
+      "sha256": "adc570c9357a08624cce81dc503abd8d8ff60a76d25bd4d3a4afbe349d82d1f0",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/serverSentEvents.gen.ts",
+      "sha256": "09dc8417b03b92849cc7582d2c8e5a610cc002d447a93b0cef721dcdbd09ff12",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/types.gen.ts",
+      "sha256": "11742d13e9417ed7f71e78e6062873c83340beeae766666a04a3e56726bc3567",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/core/utils.gen.ts",
+      "sha256": "ef50364c77d213864515776ee4abaf2f3a1a309d106c2db000e2fc4b6080e78c",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/sdk.gen.ts",
+      "sha256": "3c21aa4ed79b5e7689530ed6f4eb0d81bf7163b09f2e2dbae9285e3e77b83664",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/gen/types.gen.ts",
+      "sha256": "fa519a58438905812d4ed1fc1ecbeafc4486a4593998849bf470165c8b48a3d3",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client.gen.ts",
+      "sha256": "2ae7d6f4afcae24e89799653c5318524d9d89a6b9bd1d721267585df9458aca3",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/client.gen.ts",
+      "sha256": "426ff1c11a0dee9bac79568e2b2093ef697cf3828dfe9dba5258a31d3e38568d",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/index.ts",
+      "sha256": "acd2b749181050a8297f24ac3db4f3941ca0a66c049e5b984f29f0e98c8329f8",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/types.gen.ts",
+      "sha256": "8a353b3ee2450c26415ec2816491cf4e82262a87597180f1b97dd989c9102f96",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/client/utils.gen.ts",
+      "sha256": "f21c22bd8f37a0d0fa4008c4d70bb7e7a4b74afa8c5b9d05dda9b39f1c89424c",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/auth.gen.ts",
+      "sha256": "4b4aca5bd9b2c43a112bb74617295278d84f86360ada71a8db57f09cd0c254f4",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/bodySerializer.gen.ts",
+      "sha256": "c9739bff031dce1781a56ab9072791d4bd52bd0896cc989d4ad1cd03f71b282b",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/params.gen.ts",
+      "sha256": "097c75f6e269c6c8680641091832a69b38e8828e8ee8465318d32a177593330f",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/pathSerializer.gen.ts",
+      "sha256": "6e80a19627d36fd2a9e8daee113713b2e047d107d42ead9b4a9ab344690b998c",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/queryKeySerializer.gen.ts",
+      "sha256": "adc570c9357a08624cce81dc503abd8d8ff60a76d25bd4d3a4afbe349d82d1f0",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/serverSentEvents.gen.ts",
+      "sha256": "09dc8417b03b92849cc7582d2c8e5a610cc002d447a93b0cef721dcdbd09ff12",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/types.gen.ts",
+      "sha256": "11742d13e9417ed7f71e78e6062873c83340beeae766666a04a3e56726bc3567",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/core/utils.gen.ts",
+      "sha256": "ef50364c77d213864515776ee4abaf2f3a1a309d106c2db000e2fc4b6080e78c",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/sdk.gen.ts",
+      "sha256": "3c21aa4ed79b5e7689530ed6f4eb0d81bf7163b09f2e2dbae9285e3e77b83664",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    },
+    {
+      "path": "packages/sdk/js/src/v2/gen/types.gen.ts",
+      "sha256": "fa519a58438905812d4ed1fc1ecbeafc4486a4593998849bf470165c8b48a3d3",
+      "beforeGeneration": "clean at owned 7fc5cd1; only this task ran generator"
+    }
+  ],
+  "runtimeFileCount": 26,
+  "additiveFileCount": 4
+}

@@ -1,0 +1,10 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/sdk/js/test/reviewed-run.test.ts:
+(pass) v1 additive review methods preserve legacy transport and exact pins [20.39ms]
+(pass) v2 additive review methods preserve legacy transport and exact pins [0.66ms]
+
+ 2 pass
+ 0 fail
+ 24 expect() calls
+Ran 2 tests across 1 file. [73.00ms]
