@@ -98,7 +98,7 @@ commit; its independent review and CI remain required before D2 exposure.
 
 
 Corrective full pinned `release:gates` exited zero: **2,318 passed, zero
-failed, two existing skips, 8,730 assertions across 284 files**, including the
+failed, two existing skips, 8,731 assertions across 284 files**, including the
 41 compiled controls, five smoke evaluations and 79 Rust tests. The receipt
 `d2-reservation-legacy-evidence.json` pins current source bytes and raw log
 checksums; `d2-reservation-legacy-raw-logs.tar.gz` preserves corrective validation
