@@ -36,6 +36,14 @@ afterEach(async () => {
   await fs.rm(home, { recursive: true, force: true })
 })
 const within = (fn: () => Promise<void>) => Instance.provide({ directory, fn })
+async function refused(work: Promise<unknown>, message?: string) {
+  const error = await work.then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+  expect(error).toBeInstanceOf(Error)
+  if (message) expect((error as Error).message).toContain(message)
+}
 const digest = `sha256:${"a".repeat(64)}`
 const RUN = "ses_supersession"
 const subject = (
@@ -98,7 +106,7 @@ test("journal-only two-link supersession reaches exact proven current review", (
     expect(supersededReviewApprovals(state, "r2").size).toBe(0)
     expect(state.approvals[0]!.supersededByApprovalId).toBe("r2")
     const before = await readRunEvents(RUN)
-    await expect(supersede("r1", "r3")).rejects.toThrow()
+    await refused(supersede("r1", "r3"))
     expect(await readRunEvents(RUN)).toEqual(before)
   }))
 
@@ -169,7 +177,7 @@ for (const variant of [
         await request("r4", subject(4))
       }
       const before = await readRunEvents(RUN)
-      await expect(
+      await refused(
         variant === "malformed"
           ? appendEventOnly(RUN, "approval_resolved", {
               approvalId: "r1",
@@ -181,7 +189,7 @@ for (const variant of [
               variant === "cyclic" ? "r1" : ["published", "activated", "started"].includes(variant) ? "r4" : "r2",
               variant === "wrong-decision" ? "approved" : "expired",
             ),
-      ).rejects.toThrow()
+      )
       expect(await readRunEvents(RUN)).toEqual(before)
     }))
 }
@@ -202,7 +210,7 @@ test("invalid second event in batch publishes neither request nor resolution", (
     await birth()
     await request("r1", subject(1))
     const before = await readRunEvents(RUN)
-    await expect(
+    await refused(
       appendRunEventBatchAtTail(RUN, () => [
         {
           type: "approval_requested",
@@ -215,7 +223,7 @@ test("invalid second event in batch publishes neither request nor resolution", (
         },
         { type: "approval_resolved", payload: { approvalId: "r1", decision: "expired", supersededByApprovalId: "r2" } },
       ]),
-    ).rejects.toThrow()
+    )
     expect(await readRunEvents(RUN)).toEqual(before)
   }))
 
@@ -228,12 +236,8 @@ test("two interrupted private revisions recover every canonical pending request 
       return rename(from, to)
     })
     try {
-      await expect(GrantReview.revise(created.runId, created.revision.proposal)).rejects.toThrow(
-        "fault-before-atomic-publication",
-      )
-      await expect(GrantReview.revise(created.runId, created.revision.proposal)).rejects.toThrow(
-        "fault-before-atomic-publication",
-      )
+      await refused(GrantReview.revise(created.runId, created.revision.proposal), "fault-before-atomic-publication")
+      await refused(GrantReview.revise(created.runId, created.revision.proposal), "fault-before-atomic-publication")
       expect((await GrantReview.get(created.runId))!.revisions.at(-1)!.revision).toBe(3)
       expect((await projectRunStateFromEvents(created.runId))!.pendingApprovalIds).toEqual([
         created.revision.approvalId,
@@ -259,9 +263,7 @@ test("uncertain successful batch replay and subsequent revision preserve the com
       return result
     })
     try {
-      await expect(GrantReview.revise(created.runId, created.revision.proposal)).rejects.toThrow(
-        "fault-after-atomic-publication",
-      )
+      await refused(GrantReview.revise(created.runId, created.revision.proposal), "fault-after-atomic-publication")
     } finally {
       fault.mockRestore()
     }
@@ -284,7 +286,7 @@ test("historical request-before-expiry interruption recovers canonical pending e
       return rename(from, to)
     })
     try {
-      await expect(GrantReview.revise(created.runId, created.revision.proposal)).rejects.toThrow()
+      await refused(GrantReview.revise(created.runId, created.revision.proposal))
     } finally {
       fault.mockRestore()
     }

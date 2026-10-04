@@ -1,0 +1,328 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/dax/src/conformance/grant-supersession.test.ts:
+INFO  2026-10-04T14:05:39 +65ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-eC0WFv/project creating instance
+INFO  2026-10-04T14:05:39 +1ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-eC0WFv/project fromDirectory
+INFO  2026-10-04T14:05:39 +26ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +1ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +9ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +4ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +2ms service=event-store runId=ses_supersession seq=4 type=approval_resolved appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=5 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=6 type=approval_resolved appended event
+INFO  2026-10-04T14:05:39 +2ms service=event-store runId=ses_supersession seq=7 type=approval_resolved appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=8 type=grant_review_published appended event
+INFO  2026-10-04T14:05:39 +2ms service=event-store runId=ses_supersession seq=9 type=grant_review_activated appended event
+INFO  2026-10-04T14:05:39 +3ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-eC0WFv/project disposing instance
+(pass) journal-only two-link supersession reaches exact proven current review [85.21ms]
+INFO  2026-10-04T14:05:39 +24ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-u5OCNs/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-u5OCNs/project fromDirectory
+INFO  2026-10-04T14:05:39 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-u5OCNs/project disposing instance
+(pass) supersession equal refuses before journal publication [43.98ms]
+INFO  2026-10-04T14:05:39 +48ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-3oXUDE/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-3oXUDE/project fromDirectory
+INFO  2026-10-04T14:05:39 +23ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-3oXUDE/project disposing instance
+(pass) supersession older refuses before journal publication [78.04ms]
+INFO  2026-10-04T14:05:39 +25ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-wQO2jF/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-wQO2jF/project fromDirectory
+INFO  2026-10-04T14:05:39 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-wQO2jF/project disposing instance
+(pass) supersession cross-run refuses before journal publication [44.16ms]
+INFO  2026-10-04T14:05:39 +24ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ZndoSm/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ZndoSm/project fromDirectory
+INFO  2026-10-04T14:05:39 +17ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +0ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ZndoSm/project disposing instance
+(pass) supersession cross-contract refuses before journal publication [46.28ms]
+INFO  2026-10-04T14:05:39 +24ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-xT9rNv/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-xT9rNv/project fromDirectory
+INFO  2026-10-04T14:05:39 +16ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +0ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-xT9rNv/project disposing instance
+(pass) supersession incomplete-old refuses before journal publication [45.01ms]
+INFO  2026-10-04T14:05:39 +26ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2is3Yf/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2is3Yf/project fromDirectory
+INFO  2026-10-04T14:05:39 +16ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2is3Yf/project disposing instance
+(pass) supersession incomplete-new refuses before journal publication [47.81ms]
+INFO  2026-10-04T14:05:39 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-1T5ME0/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-1T5ME0/project fromDirectory
+INFO  2026-10-04T14:05:39 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:39 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:39 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:39 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:39 +0ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:39 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-1T5ME0/project disposing instance
+(pass) supersession missing-successor refuses before journal publication [42.10ms]
+INFO  2026-10-04T14:05:39 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:39 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-V3p3Ea/project creating instance
+INFO  2026-10-04T14:05:39 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-V3p3Ea/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +1ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=4 type=approval_resolved appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-V3p3Ea/project disposing instance
+(pass) supersession approved-successor refuses before journal publication [43.02ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-f8sHX9/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-f8sHX9/project fromDirectory
+INFO  2026-10-04T14:05:40 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-f8sHX9/project disposing instance
+(pass) supersession ordinary-old refuses before journal publication [42.17ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MYmpGh/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MYmpGh/project fromDirectory
+INFO  2026-10-04T14:05:40 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MYmpGh/project disposing instance
+(pass) supersession wrong-decision refuses before journal publication [42.02ms]
+INFO  2026-10-04T14:05:40 +22ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-YSVZY0/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-YSVZY0/project fromDirectory
+INFO  2026-10-04T14:05:40 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=4 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-YSVZY0/project disposing instance
+(pass) supersession stale-successor refuses before journal publication [43.57ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-3WbQPV/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-3WbQPV/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +1ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-3WbQPV/project disposing instance
+(pass) supersession cyclic refuses before journal publication [42.62ms]
+INFO  2026-10-04T14:05:40 +22ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-NSgwW7/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-NSgwW7/project fromDirectory
+INFO  2026-10-04T14:05:40 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=4 type=approval_resolved appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=5 type=grant_review_published appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=6 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-NSgwW7/project disposing instance
+(pass) supersession published refuses before journal publication [45.06ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-RZV99z/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-RZV99z/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=4 type=approval_resolved appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=5 type=grant_review_published appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=6 type=grant_review_activated appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=7 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +2ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-RZV99z/project disposing instance
+(pass) supersession activated refuses before journal publication [45.98ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ssB59A/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ssB59A/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +1ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=4 type=approval_resolved appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=5 type=grant_review_published appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=6 type=grant_review_activated appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=7 type=execution_started appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=8 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ssB59A/project disposing instance
+(pass) supersession started refuses before journal publication [46.48ms]
+INFO  2026-10-04T14:05:40 +24ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-LCDuwO/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-LCDuwO/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-LCDuwO/project disposing instance
+(pass) supersession malformed refuses before journal publication [43.35ms]
+INFO  2026-10-04T14:05:40 +24ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-zsycR5/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-zsycR5/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=3 type=approval_resolved appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=4 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=5 type=approval_resolved appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=6 type=grant_review_published appended event
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=7 type=grant_review_activated appended event
+INFO  2026-10-04T14:05:40 +0ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-zsycR5/project disposing instance
+(pass) historical expiry without explicit proof remains blocking, including unrelated requests [45.59ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-31SOG7/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-31SOG7/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-store runId=ses_supersession seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +1ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-31SOG7/project disposing instance
+(pass) invalid second event in batch publishes neither request nor resolution [41.31ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/project fromDirectory
+INFO  2026-10-04T14:05:40 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +5ms service=event-transitions runId=ses_ef8c3eaf9ffe74moxdy4gLm3Cc contractId=ctr_ses_1073c1507001jiLfjgAzyHhdWP verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_ef8c3eaf9ffe74moxdy4gLm3Cc seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-transitions runId=ses_ef8c3eaf9ffe74moxdy4gLm3Cc status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T14:05:40 +1ms service=session id=ses_ef8c3eaf9ffe74moxdy4gLm3Cc slug=brave-harbor version=local projectID=global directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/project governingRunId=ses_ef8c3eaf9ffe74moxdy4gLm3Cc title=Inspect source. time={"created":1791122740492,"updated":1791122740492} created
+INFO  2026-10-04T14:05:40 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T14:05:40 +2ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/.config/dax/config.json loading
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/.config/dax/dax.json loading
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/.config/dax/dax.jsonc loading
+INFO  2026-10-04T14:05:40 +3ms service=bus type=session.updated publishing
+INFO  2026-10-04T14:05:40 +2ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +5ms service=event-store runId=ses_ef8c3eaf9ffe74moxdy4gLm3Cc seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +5ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/project disposing instance
+INFO  2026-10-04T14:05:40 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/project waiting for state disposal to complete
+INFO  2026-10-04T14:05:40 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-MUGII6/project state disposal completed
+(pass) two interrupted private revisions recover every canonical pending request with skipped revisions [62.87ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/project fromDirectory
+INFO  2026-10-04T14:05:40 +15ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_ef8c3eabbffeBb4UtacAWJ07AM contractId=ctr_ses_1073c154400216Ot2AxakkBmg4 verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_ef8c3eabbffeBb4UtacAWJ07AM seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-transitions runId=ses_ef8c3eabbffeBb4UtacAWJ07AM status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T14:05:40 +0ms service=session id=ses_ef8c3eabbffeBb4UtacAWJ07AM slug=brave-forest version=local projectID=global directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/project governingRunId=ses_ef8c3eabbffeBb4UtacAWJ07AM title=Inspect source. time={"created":1791122740551,"updated":1791122740551} created
+INFO  2026-10-04T14:05:40 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/.config/dax/config.json loading
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/.config/dax/dax.json loading
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/.config/dax/dax.jsonc loading
+INFO  2026-10-04T14:05:40 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +2ms service=event-store runId=ses_ef8c3eabbffeBb4UtacAWJ07AM seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +3ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/project disposing instance
+INFO  2026-10-04T14:05:40 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/project waiting for state disposal to complete
+INFO  2026-10-04T14:05:40 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-2nlnAm/project state disposal completed
+(pass) uncertain successful batch replay and subsequent revision preserve the complete chain [46.85ms]
+INFO  2026-10-04T14:05:40 +23ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/project creating instance
+INFO  2026-10-04T14:05:40 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/project fromDirectory
+INFO  2026-10-04T14:05:40 +14ms service=storage index=0 running migration
+INFO  2026-10-04T14:05:40 +0ms service=storage index=1 running migration
+INFO  2026-10-04T14:05:40 +2ms service=event-transitions runId=ses_ef8c3ea8cffeh93wTPcDLiAfKj contractId=ctr_ses_1073c1573002KhXmcPsBK5Ew8G verificationRequired=false created event-authority run
+INFO  2026-10-04T14:05:40 +1ms service=event-store runId=ses_ef8c3ea8cffeh93wTPcDLiAfKj seq=1 type=execution_queued appended event
+INFO  2026-10-04T14:05:40 +0ms service=event-transitions runId=ses_ef8c3ea8cffeh93wTPcDLiAfKj status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T14:05:40 +0ms service=session id=ses_ef8c3ea8cffeh93wTPcDLiAfKj slug=silent-wolf version=local projectID=global directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/project governingRunId=ses_ef8c3ea8cffeh93wTPcDLiAfKj title=Inspect source. time={"created":1791122740598,"updated":1791122740598} created
+INFO  2026-10-04T14:05:40 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/.config/dax/config.json loading
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/.config/dax/dax.json loading
+INFO  2026-10-04T14:05:40 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/.config/dax/dax.jsonc loading
+INFO  2026-10-04T14:05:40 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T14:05:40 +2ms service=event-store runId=ses_ef8c3ea8cffeh93wTPcDLiAfKj seq=2 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +2ms service=event-store runId=ses_ef8c3ea8cffeh93wTPcDLiAfKj seq=3 type=approval_requested appended event
+INFO  2026-10-04T14:05:40 +2ms service=default disposing all instances
+INFO  2026-10-04T14:05:40 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/project disposing instance
+INFO  2026-10-04T14:05:40 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/project waiting for state disposal to complete
+INFO  2026-10-04T14:05:40 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-EqYqPk/project state disposal completed
+(pass) historical request-before-expiry interruption recovers canonical pending even when private old is superseded [48.35ms]
+
+ 22 pass
+ 0 fail
+ 83 expect() calls
+Ran 22 tests across 1 file. [1.91s]

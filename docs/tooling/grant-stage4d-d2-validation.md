@@ -89,3 +89,18 @@ Raw result: `d2-supersession-focused-third.log`; package typecheck is green.
 D3 MCP/tool/ask/delegation producer coverage, D4 live activity presentation and
 C2–C5 remaining conformance work are separate. No main merge, profile activation,
 installed-binary replacement, release or gap closure is claimed.
+
+## Candidate gate checkpoint
+
+Candidate `77422f5566b0ee550ce332243a57963c00661cd1` was pushed for independent
+review. Its first full local gate passed integrity, legacy guard and all five
+workspace typechecks, then failed on seven test-only `await-thenable` lint errors.
+The corrected refusal helper awaits the actual operation and preserves every
+Error/message and unchanged-journal assertion. Canonical controls reran green:
+**22 tests / 83 assertions**; targeted test lint passed. Raw failed gate and prior
+fixture results remain unchanged. Hosted CI for the original candidate was pending
+at this checkpoint; no success is claimed.
+
+Source/docs `git diff --check` passes. The full diff includes raw retained console
+logs with original trailing whitespace/blank lines; no full-diff whitespace pass
+is claimed. No evidence bytes were normalized to conceal this distinction.

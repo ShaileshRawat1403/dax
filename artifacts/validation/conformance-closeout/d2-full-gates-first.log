@@ -1,0 +1,44 @@
+$ bun run check:repo && bun run guard:legacy && bun run typecheck && bun run lint && bun run test && bun run eval:smoke && bun run rust:verify && bun run release:check
+$ bun run script/check-repo-integrity.ts
+repo-integrity: ok
+$ bun run script/guard-legacy.ts
+guard:legacy: ok
+$ bun turbo typecheck
+• turbo 2.10.4
+
+   • Packages in scope: @dax-ai/dax, @dax-ai/plugin, @dax-ai/script, @dax-ai/sdk, @dax-ai/util
+   • Running typecheck in 5 packages
+   • Remote caching disabled, using shared worktree cache
+
+@dax-ai/sdk:typecheck: cache miss, executing 3a93a23aa057ecdf
+@dax-ai/util:typecheck: cache hit, replaying logs c07e368accea76e2
+@dax-ai/script:typecheck: cache hit, replaying logs cfbeebe81564202f
+@dax-ai/util:typecheck: $ tsc --noEmit
+@dax-ai/script:typecheck: $ tsc --noEmit
+@dax-ai/sdk:typecheck: $ tsc --noEmit
+@dax-ai/plugin:typecheck: cache miss, executing 67d47431036be93e
+@dax-ai/plugin:typecheck: $ tsc --noEmit
+@dax-ai/dax:typecheck: cache miss, executing 65d09d4e8591b0bd
+@dax-ai/dax:typecheck: $ tsc --noEmit
+
+ Tasks:    5 successful, 5 total
+Cached:    2 cached, 5 total
+  Time:    15.412s 
+
+$ bun run --cwd packages/dax lint && bun run lint:workspaces
+$ eslint src/ --ext .ts,.tsx,.js,.jsx --suppressions-location eslint-suppressions.json
+
+/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts
+  101:5  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+  172:7  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+  205:5  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+  231:7  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+  234:7  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+  262:7  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+  287:7  error  Unexpected `await` of a non-Promise (non-"Thenable") value  @typescript-eslint/await-thenable
+
+✖ 7 problems (7 errors, 0 warnings)
+
+error: script "lint" exited with code 1
+error: script "lint" exited with code 1
+error: script "release:gates" exited with code 1
