@@ -1092,6 +1092,7 @@ describe("run gateway v1 contract", () => {
         })
 
         const contractMock = spyOn(RunFactoryModule.RunFactory, "getContract").mockResolvedValue({
+          schemaVersion: "v1",
           workflowClass: "worker_run",
         } as never)
         const resumeMock = spyOn(WorkerRunModule.WorkerRunWorkflow.prototype, "resumeAfterApproval").mockResolvedValue({

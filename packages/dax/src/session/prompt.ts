@@ -71,7 +71,7 @@ import { decideContractTool } from "@/execution/execution-contract"
 import { permissionForExecutor } from "@/capability/native-alias"
 import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian, resolveExecutionAuthority } from "@/execution/contract-guardian"
-import { assertNoGrantReview } from "@/execution/grant-review-barrier"
+import { assertReviewedSessionExecutable } from "@/capability/reviewed-authority"
 import { resolveGuardEnforcementMode } from "@/execution/guard-mode"
 import { createEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
 import {
@@ -187,14 +187,14 @@ export namespace SessionPrompt {
   }
 
   /**
-   * A session whose governing run is under grant review does nothing: no
+   * A session whose reviewed governing run cannot execute does nothing: no
    * message, no attachment read, no command, no shell, no model call. Checked
    * first at every session entry point, ahead of any effect, so no path relies
    * on reaching a contract read before its first effect.
    */
   async function assertSessionExecutable(sessionID: string) {
     const session = await Session.get(sessionID)
-    await assertNoGrantReview(session.governingRunId ?? session.id)
+    await assertReviewedSessionExecutable(session.governingRunId ?? session.id)
   }
 
   /**
@@ -1781,7 +1781,13 @@ export namespace SessionPrompt {
               const statFile = Bun.file(filepath)
               const statBinding = bindContextAttachment({ part, filepath, operation: "stat", executor: statFile })
               await recordAttachment(
-                requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile }),
+                requireContextAttachment({
+                  binding: statBinding,
+                  part,
+                  filepath,
+                  operation: "stat",
+                  executor: statFile,
+                }),
                 filepath,
               )
               requireContextAttachment({ binding: statBinding, part, filepath, operation: "stat", executor: statFile })

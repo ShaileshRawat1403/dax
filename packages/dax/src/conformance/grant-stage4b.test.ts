@@ -1,3 +1,4 @@
+import { reviewedDecisionFixture } from "./reviewed-decision-fixture"
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -38,10 +39,12 @@ import { Storage } from "@/storage/storage"
  * Within the boundary accepted for 4b, the only bindable families are the
  * compiled DAX running image and acknowledged remote MCP. A source run binds
  * no native capability, so native acceptance is proven by a compiled probe;
- * everything else here runs the production paths from source. The stage 3
- * barrier still stops every session entry point and the guardian.
+ * decision tests here use an explicit enforcing-image fixture after publication.
+ * This narrower fixture is not compiled producer acceptance. Stage 4d's genuine
+ * compiled producer separately proves guardian/session/native dispatch.
  */
 
+let restoreDecisionFixture: (() => void) | undefined
 let home: string
 let directory: string
 let previousHome: string | undefined
@@ -66,6 +69,8 @@ beforeEach(async () => {
   Config.global.reset()
 })
 afterEach(async () => {
+  restoreDecisionFixture?.()
+  restoreDecisionFixture = undefined
   await Instance.disposeAll()
   Config.global.reset()
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
@@ -176,7 +181,7 @@ describe("the journal proves publication and activation by itself", () => {
       expect(state?.grantReview.published?.revision).toBe(1)
       expect(state?.grantReview.activated?.contractDigest).toBe(state?.grantReview.published?.contractDigest)
       // Without the published artifact nothing can dispatch under it.
-      expect(await GrantReview.dispatchAuthority(runId)).toBeUndefined()
+      expect(await rejection(GrantReview.dispatchAuthority(runId))).toBeInstanceOf(GrantReviewBarrierError)
     })
   })
 
@@ -192,7 +197,7 @@ describe("the journal proves publication and activation by itself", () => {
       artifact.contractDigest = (await computeCanonicalCommitment(artifact.contract)).digest
       await Storage.write(key, artifact)
       expect(await GrantReview.readPublished(runId)).toBeUndefined()
-      expect(await GrantReview.dispatchAuthority(runId)).toBeUndefined()
+      expect(await rejection(GrantReview.dispatchAuthority(runId))).toBeInstanceOf(GrantReviewBarrierError)
       expect(await rejection(invoke(runId, PROBE, probeDescriptor()))).toBeInstanceOf(GrantReviewBarrierError)
     })
   })
@@ -716,10 +721,11 @@ describe("tool paths are enforced for an activated reviewed run", () => {
   async function activated() {
     const { runId } = await published()
     await GrantReview.activate(runId)
+    restoreDecisionFixture = await reviewedDecisionFixture(runId)
     return runId
   }
 
-  test("a granted remote tool is allowed under its acknowledged source, and the barrier still guards execution", async () => {
+  test("a remote tool decision is allowed in the mocked-image decision fixture and the runtime guard still runs", async () => {
     await within(async () => {
       const runId = await activated()
       expect(await invoke(runId, PROBE, probeDescriptor())).toEqual({ status: "recorded" })
@@ -734,8 +740,8 @@ describe("tool paths are enforced for an activated reviewed run", () => {
         source: { server: "gamma", name: "probe" },
         activation: { revision: activation.revision, contractDigest: activation.contractDigest },
       })
-      // A grant is necessary, not sufficient: the runtime guard still runs, and
-      // until stage 4d it meets the barrier.
+      // This is a mocked-image decision control, not compiled acceptance.
+      // The runtime guard reads the same proven contract and still runs.
       expect(
         await rejection(
           enforceRuntimeGuard({
@@ -746,7 +752,7 @@ describe("tool paths are enforced for an activated reviewed run", () => {
             req: { permission: PROBE, patterns: ["*"], always: ["*"], metadata: {} },
           }),
         ),
-      ).toBeInstanceOf(GrantReviewBarrierError)
+      ).toBeUndefined()
     })
   })
 

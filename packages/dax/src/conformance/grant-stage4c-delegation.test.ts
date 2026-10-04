@@ -1,3 +1,4 @@
+import { reviewedDecisionFixture } from "./reviewed-decision-fixture"
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -33,6 +34,7 @@ import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-eve
  * which the stage 4b and 4c compiled probes cover.
  */
 
+let restoreDecisionFixture: (() => void) | undefined
 let home: string
 let directory: string
 let previousHome: string | undefined
@@ -56,6 +58,8 @@ beforeEach(async () => {
   Config.global.reset()
 })
 afterEach(async () => {
+  restoreDecisionFixture?.()
+  restoreDecisionFixture = undefined
   compiled.mockRestore()
   await Instance.disposeAll()
   Config.global.reset()
@@ -98,6 +102,7 @@ async function activated(options?: NonNullable<Parameters<typeof createGrantRevi
     subject: await subjectOf(runId, revision.approvalId),
   })
   await GrantReview.activate(runId)
+  restoreDecisionFixture = await reviewedDecisionFixture(runId)
   return runId
 }
 

@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util"
 import { ExecutionContractV2 } from "@/execution/execution-contract"
-import { grantReviewPath, hasGrantReview } from "@/execution/grant-review-barrier"
+import { grantReviewPath } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
 import {
   appendEventOnly,
@@ -24,10 +24,9 @@ import { captureReviewSnapshot } from "./grant-review-snapshot"
  * Stage 3 review of a run's capability grants.
  *
  * The review is stored apart from executable contracts. Its presence is the
- * barrier (`execution/grant-review-barrier.ts`), so the run cannot execute
- * from the moment the review exists, whatever happens to it later. An approved
- * revision is published as a reviewed artifact that nothing reads as authority
- * until stage 4.
+ * strict v1 writer barrier (`execution/grant-review-barrier.ts`). Reviewed
+ * execution separately requires completed publication, canonical activation,
+ * and the read-only compiled-image/proof gate; approval alone cannot execute.
  *
  * Every mutation holds one lock per run, so a revision and a publication
  * never interleave. The approval requests themselves live in the run log.
@@ -560,21 +559,11 @@ async function activate(runId: string): Promise<{ revision: number; contractDige
 /**
  * The authority an activated reviewed run dispatches under: its published
  * contract and the journal's activation of exactly that contract. Undefined
- * for any run without both, which then meets the review barrier.
+ * only for positively absent review; unreadable or non-executable review throws.
  */
 async function dispatchAuthority(runId: string) {
-  if (!(await hasGrantReview(runId))) return undefined
-  const activation = (await projectRunStateFromEvents(runId))?.grantReview.activated
-  if (!activation) return undefined
-  const published = await readPublished(runId)
-  if (
-    !published ||
-    published.revision !== activation.revision ||
-    published.contractDigest !== activation.contractDigest
-  ) {
-    return undefined
-  }
-  return { published, activation }
+  const { loadReviewedAuthority } = await import("./reviewed-authority")
+  return loadReviewedAuthority(runId, { dispatch: true })
 }
 
 export const GrantReview = { reserve, begin, revise, publish, get, readPublished, activate, dispatchAuthority }

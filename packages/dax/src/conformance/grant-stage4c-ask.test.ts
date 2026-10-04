@@ -1,3 +1,4 @@
+import { reviewedDecisionFixture } from "./reviewed-decision-fixture"
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -31,6 +32,7 @@ import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-eve
  * that approval in the same log.
  */
 
+let restoreDecisionFixture: (() => void) | undefined
 let home: string
 let directory: string
 let previousHome: string | undefined
@@ -54,6 +56,8 @@ beforeEach(async () => {
   Config.global.reset()
 })
 afterEach(async () => {
+  restoreDecisionFixture?.()
+  restoreDecisionFixture = undefined
   await Instance.disposeAll()
   Config.global.reset()
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
@@ -93,6 +97,7 @@ async function activated(options: Options, availableTools = ["read", "gamma_prob
     subject: await subjectOf(runId, revision.approvalId),
   })
   await GrantReview.activate(runId)
+  restoreDecisionFixture = await reviewedDecisionFixture(runId)
   return runId
 }
 

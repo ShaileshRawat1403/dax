@@ -3,8 +3,9 @@
 Proposal for architecture review, recorded 2026-10-04. Implementer: Codex.
 Reviewer: Astra. Base: `18226c22dab1bb6d07d3a867a8ce8f2bd8334a3d`.
 Branch: `feat/conformance-closeout`, owned only by this implementer.
-This document changes no runtime, authorizes no activation and closes no gap.
-Implementation waits for approval of this design. Merge remains maintainer-owned.
+Architecture approved by Astra at exact `0925ab3cc3d34b68875c415d696761ed00caaaeb`.
+D1 implementation alone is authorized; D2 exposure waits for exact-SHA D1 review.
+This proposal closes no gap and authorizes no user-profile activation. Merge remains maintainer-owned.
 
 Builds on [stage 4](GRANT_STAGE4_PROPOSAL.md), its accepted amendments,
 [stage 3](GRANT_STAGE3_PROPOSAL.md), the
@@ -36,11 +37,25 @@ The inherited stack `d2ef0b0..3c47d1a` was inspected in the final Opus context
 `32b2f34` by Astra, who reported no blocking finding in the inspected production
 changes, 185 passing regressions, and two independent journal controls. This
 clears the inspected dependency audit for 4d design, not blanket gap/release
-acceptance. Record its exact-SHA review before D1.
+acceptance. Astra accepted this bounded C1 dependency foundation before D1 at
+`32b2f34fc9dc3d78d20b4a9a29606f6e1a726309`; retained reviewer evidence below names
+185 regressions (752 assertions), two independent journal controls, and the
+separate 38 final-context controls. This is independent reviewer evidence,
+not implementer self-review or acceptance of project-journal integration.
 Acceptance of an Opus slice does not by itself accept that stack. Main still has eight open
 gaps; the six-entry feature ledger and its two removed entries are candidates.
 Its grant-gap prose predates the delivered inactive enforcement and must be
 corrected only as reviewed status, without claiming closure.
+
+D1 review-presence refinement approved by Astra: read the shared journal with
+its strict owner/schema/sequence/event-ID checks and reducer to establish only
+review presence or absence, without consulting the separate authority marker.
+A readable non-review journal preserves existing v1 shadow-action failure
+isolation when that marker is unreadable. A readable reviewed journal still
+blocks a lost private record, even with an old valid v1 artifact; a corrupt or
+unreadable journal cannot prove absence. This presence check never authorizes
+execution: the reviewed loader still requires the readable canonical marker,
+full envelope recipe, publication/activation equality and current bindings.
 
 ## 2. Proposed smallest production opt-in
 
@@ -234,7 +249,9 @@ HTTP transport, approval routes and journal replay. Use a deterministic local
 HTTP model endpoint and a local HTTP MCP fixture classified as remote MCP;
 the operator explicitly acknowledges its external trust. Isolate app/XDG homes,
 ports and processes. Compile the same producer harness with a differing bundle
-for changed-image/restart controls. Do not substitute `daxExecutable`, guardian,
+for changed-image/restart controls with native bindings. A different compiled
+enforcing image can retain unchanged external-only grants; source/unknown
+images still cannot execute an external-only reviewed contract. Do not substitute `daxExecutable`, guardian,
 barrier or dispatch functions, manually seed activation as the success path, or
 claim helper-only compiled probes prove production dispatch.
 
@@ -247,7 +264,7 @@ claim helper-only compiled probes prove production dispatch.
 | Ask approve/deny/timeout/always | Resolve through approval routes, named actor and deadline; always covers later same tuple | Deny/timeout/late or anonymous approval no effect; changed binding while waiting denies; another grant/capability/contract/binding/run cannot reuse always |
 | TaskTool agent selection | Real approved agent creates exactly that child and records delegation before child dispatch | Unknown requested agent has no fallback child and no delegation receipt; agent missing after review fails safely |
 | Child dispatch and resume | Child resolves the parent's activation and same grants, with child permission/tool filters allowed to narrow it; same-run `task_id` keeps binding | Child cannot dispatch what parent lacks, create a v1 run, change agent selection, widen permission or resume another run's child; no child effect on rejection |
-| Every barrier state | Only valid publication + activation + enforcing image executes | Reserved, pending, denied, expired, superseded, interrupted intent without proof, unpublished, unactivated, corrupt/stale artifact, proof mismatch, unreadable authority, source/unknown/changed image all block |
+| Every barrier state | Only valid publication + activation + enforcing image executes | Reserved, pending, denied, expired, superseded, interrupted intent without proof, unpublished, unactivated, corrupt/stale artifact, proof mismatch, unreadable authority, source/unknown images and changed images with native bindings all block |
 | Start and recovery windows | Exactly one initial dispatch claim; proof roll-forward and queued activation recovery remain explicit | Concurrent/repeated starts spawn no second prompt; revision/start race cannot approve stale state; claimed start/effect uncertainty never auto-retries |
 | Existing denials/compatibility | Stage 1–4 regressions and every legacy table row still pass; v1 read/replay/no-contract unchanged | Blocked aliases under any grant, unenrolled reviewed executor, out-of-run graph/debug paths, failed append and missing explicit governing contract remain denied |
 | Activity/completion | Idle live session with open run has idle activity and durable nonterminal status; accepted adjudication alone completes | Stop with missing/denied invocation, pending approval or unmet outputs does not complete; reopen never fabricates busy/terminal truth |
@@ -356,9 +373,8 @@ contain `packages`, which can contaminate broad Bun test discovery. Record
 required unavailable platforms/flows explicitly. Exact-SHA CI and reviewer
 acceptance are distinct from implementer checks.
 
-The next implementation slice is D1 after architectural approval and the
-reviewer records the inherited dependency audit at its exact SHA. Decisions
-requested: the restricted generic API opt-in and explicit start, the common
+D1 is approved after exact-SHA architecture and bounded C1 dependency review.
+D2 exposure remains gated on D1 exact-SHA acceptance. Approved decisions: the restricted generic API opt-in and explicit start, the common
 image/proof gate and crash semantics, separate session activity, and the fresh
 reviewed successor boundary. Section 8 remains unresolved by design. No release
 tag, asset, installed executable, main merge or frozen branch is changed.

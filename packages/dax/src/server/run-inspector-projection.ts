@@ -1,5 +1,5 @@
 import { z } from "zod"
-import type { ExecutionContract } from "@/execution/execution-contract"
+import type { GoverningExecutionContract } from "@/execution/execution-contract"
 import type { CanonicalRunState } from "@/state/events/run-reducer"
 import { RUN_EVENT_TYPES, type RunEventEnvelope, type RunEventPayload } from "@/state/events/run-event-types"
 
@@ -526,7 +526,7 @@ function chronologyItem(event: RunEventEnvelope): z.infer<typeof ChronologyItem>
  */
 export function buildRunInspectorProjectionV1(input: {
   runId: string
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
   state: CanonicalRunState
   events: RunEventEnvelope[]
 }): RunInspectorProjectionV1 {

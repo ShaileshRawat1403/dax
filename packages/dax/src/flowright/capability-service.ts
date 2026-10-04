@@ -78,7 +78,10 @@ async function waitForReceiptReady(runId: string, timeoutMs: number): Promise<{ 
   return { timedOut: true }
 }
 
-async function buildReceipt(record: InvocationRecord, options?: { timeoutReason?: string }): Promise<CapabilityRunReceipt> {
+async function buildReceipt(
+  record: InvocationRecord,
+  options?: { timeoutReason?: string },
+): Promise<CapabilityRunReceipt> {
   const [snapshot, approvals, artifacts, events] = await Promise.all([
     RunGateway.getSnapshot(record.externalRunId),
     RunGateway.getApprovals(record.externalRunId),
@@ -98,10 +101,14 @@ async function buildReceipt(record: InvocationRecord, options?: { timeoutReason?
   })
 }
 
-async function resumeDelegatedApproval(record: InvocationRecord, gateId: string, decision: "approve" | "deny"): Promise<void> {
+async function resumeDelegatedApproval(
+  record: InvocationRecord,
+  gateId: string,
+  decision: "approve" | "deny",
+): Promise<void> {
   if (record.capability !== "dax.draft_and_approve") return
   const contract = await RunFactory.getContract(record.externalRunId)
-  if (!contract || contract.workflowClass !== "draft_and_approve") return
+  if (!contract || contract.schemaVersion !== "v1" || contract.workflowClass !== "draft_and_approve") return
   const workflow = new DraftApproveExecuteWorkflow({
     runId: record.externalRunId,
     contract,

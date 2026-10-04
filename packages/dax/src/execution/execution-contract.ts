@@ -127,7 +127,7 @@ const ExecutionContractBase = z.object({
   initiatedBy: z.string().optional(),
   createdAt: z.string(),
 })
-/** The executable contract. The runtime is v1-only: a v1 contract cannot carry grants. */
+/** Ordinary v1 contract format and writer boundary: v1 cannot carry grants. */
 export const ExecutionContract = ExecutionContractBase.superRefine((contract, ctx) => {
   if (contract.capabilityGrants !== undefined) {
     ctx.addIssue({ code: "custom", path: ["capabilityGrants"], message: "v1 contract cannot claim capability grants" })
@@ -136,15 +136,17 @@ export const ExecutionContract = ExecutionContractBase.superRefine((contract, ct
 export type ExecutionContract = z.infer<typeof ExecutionContract>
 
 /**
- * Candidate wire format, inactive. Nothing in production writes, reads or
- * executes it: the guardian accepts only `ExecutionContract`. It exists so the
- * shared resolver's grant path can be specified and tested before activation.
+ * Operator-reviewed format. Executable only through publication and activation
+ * proof in a compiled enforcing image; ordinary contract writers remain v1-only.
  */
 export const ExecutionContractV2 = ExecutionContractBase.omit({ schemaVersion: true, capabilityGrants: true }).extend({
   schemaVersion: z.literal("v2"),
   capabilityGrants: CapabilityGrants,
 })
 export type ExecutionContractV2 = z.infer<typeof ExecutionContractV2>
+
+/** Proven governing reads; this union does not widen ordinary contract writes. */
+export type GoverningExecutionContract = ExecutionContract | ExecutionContractV2
 
 export const ExecutionContractMeta = z.object({
   contractId: z.string(),

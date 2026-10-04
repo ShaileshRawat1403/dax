@@ -1,11 +1,11 @@
-import type { ExecutionContract } from "./execution-contract"
+import type { GoverningExecutionContract } from "./execution-contract"
 import type { RunState } from "@/state/run-state"
 import type { SessionV2 } from "@/session/model"
 
 export type CompletionProofSummary = SessionV2.CompletionProofState
 type ArtifactObservation = Pick<SessionV2.ArtifactRecord, "kind">
 
-function withinScope(contract: ExecutionContract, touchedFiles: string[]) {
+function withinScope(contract: GoverningExecutionContract, touchedFiles: string[]) {
   const targets = contract.runtimePolicy?.scope?.targetFiles ?? []
   if (targets.length === 0) return true
   return touchedFiles.every((candidate) =>
@@ -29,7 +29,7 @@ function containsSensitivePath(paths: string[]) {
   })
 }
 
-function requiresArtifacts(contract: ExecutionContract) {
+function requiresArtifacts(contract: GoverningExecutionContract) {
   return (contract.runtimePolicy?.scope?.targetFiles?.length ?? 0) > 0
 }
 
@@ -44,7 +44,7 @@ function normalizeOutputType(value: string | undefined): "file" | "patch" | "rep
 }
 
 function deriveObservedOutputTypes(input: {
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
   runState: RunState
   observedArtifacts?: ArtifactObservation[]
 }): Set<"file" | "patch" | "report" | "summary" | "message"> {
@@ -90,7 +90,7 @@ function deriveObservedOutputTypes(input: {
  * referential transparency - same inputs always produce same outputs.
  */
 export function evaluateCompletionProof(input: {
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
   runState: RunState
   artifactCountOverride?: number
   observedArtifacts?: ArtifactObservation[]
@@ -107,7 +107,11 @@ export function evaluateCompletionProof(input: {
 
   const artifactCount = input.artifactCountOverride ?? runState.artifactIds.length
   const artifactChecks = !requiresArtifacts(contract) || artifactCount > 0
-  const observedOutputTypes = deriveObservedOutputTypes({ contract, runState, observedArtifacts: input.observedArtifacts })
+  const observedOutputTypes = deriveObservedOutputTypes({
+    contract,
+    runState,
+    observedArtifacts: input.observedArtifacts,
+  })
   const expectedOutputTypes = Array.from(
     new Set(contract.expectedOutputs.map((output) => normalizeOutputType(output.type)).filter(Boolean)),
   ) as Array<"file" | "patch" | "report" | "summary" | "message">
@@ -161,7 +165,7 @@ export function evaluateCompletionProof(input: {
  * For pure evaluation, use evaluateCompletionProof directly.
  */
 export function deriveCompletionProof(input: {
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
   runState: RunState
   artifactCountOverride?: number
   observedArtifacts?: ArtifactObservation[]

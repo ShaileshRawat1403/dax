@@ -166,6 +166,23 @@ export async function appendRunEventAtTail(
   return result
 }
 
+/**
+ * Review presence only, never executable authority. A failed authority-marker
+ * read cannot erase review history or change legacy shadow failure isolation.
+ * Shared Journal.read validates ownership, schema, sequence and event IDs;
+ * replay validates the payload chains. Execution still uses readRunEvents and
+ * its separate authority recipe check. This read does not repair or lock.
+ */
+export async function hasJournaledGrantReview(runId: string): Promise<boolean> {
+  const events = await (await runJournal(runId)).read()
+  if (!events.length) return false
+  const state = reduceRunState(events)
+  if (!state) throw new Error(`Run ${runId} has events without a canonical birth; review absence is unproven`)
+  return Boolean(
+    Object.keys(state.grantReview.requests).length || state.grantReview.published || state.grantReview.activated,
+  )
+}
+
 export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> {
   try {
     const events = await (await runJournal(runId)).read()

@@ -11,7 +11,7 @@ import {
   type ToolResultOutcome,
 } from "@/state/events/event-transitions"
 import { computeCanonicalCommitment } from "./canonical-commitment"
-import { decideContractTool, type ExecutionContract } from "./execution-contract"
+import { decideContractTool, type GoverningExecutionContract } from "./execution-contract"
 import { resolveCapabilityAuthority, type McpSource } from "@/capability/authority"
 import { Instance } from "@/project/instance"
 import { isMutatingTool } from "@/tool/tool-class"
@@ -81,13 +81,11 @@ export class NativeAuthorizationDeniedError extends Error {
   }
 }
 
-export async function resolveNativeSettlementAuthority(
-  sessionID: string,
-): Promise<{
+export async function resolveNativeSettlementAuthority(sessionID: string): Promise<{
   canonical: boolean
   authorityRunId: string
   contractId: string
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
 } | null> {
   const session = await Session.get(sessionID)
   const authority = await resolveExecutionAuthority(session.id, session.governingRunId)
@@ -153,8 +151,8 @@ export async function beginNativeInvocation(params: {
   beginning.add(params.invocationId)
   try {
     // An activated reviewed run is governed by its published contract, under
-    // enforcement. Every other run, including a reviewed run that is not
-    // activated, takes the existing path, where the review barrier refuses it.
+    // enforcement. A present but non-executable reviewed run throws here,
+    // before legacy dispatch; only positively absent review takes the v1 path.
     const session = await Session.get(params.sessionID)
     const reviewedRunId = session.governingRunId ?? session.id
     const { GrantReview } = await import("@/capability/grant-review")

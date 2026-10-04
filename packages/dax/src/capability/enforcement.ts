@@ -1,3 +1,4 @@
+import { GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { ExecutionContractV2 } from "@/execution/execution-contract"
 import {
   resolveCapabilityAuthority,
@@ -157,7 +158,15 @@ export async function recheckAfterWait(
   asked: EnforcedResolution,
   decideNow: () => Promise<EnforcedResolution | undefined>,
 ): Promise<EnforcementReason | CapabilityResolution["reasonCode"] | undefined> {
-  const now = await decideNow().catch(() => undefined)
+  let now: EnforcedResolution | undefined
+  try {
+    now = await decideNow()
+  } catch (error) {
+    // Unreadable authority proves no active approval; keep the journal reason vocabulary.
+    return error instanceof GrantReviewBarrierError && error.reasonCode !== "authority_unreadable"
+      ? error.reasonCode
+      : "activation_missing"
+  }
   if (!now) return "activation_missing"
   if (now.decision === "deny") return now.reasonCode ?? "binding_changed"
   const a = asked.askSubject

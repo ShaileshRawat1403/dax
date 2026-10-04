@@ -1,3 +1,4 @@
+import { reviewedDecisionFixture } from "./reviewed-decision-fixture"
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import { createHash } from "node:crypto"
 import fs from "node:fs/promises"
@@ -116,6 +117,7 @@ describe("v2 read identities are minted by an exact, domain-separated rule", () 
   })
 })
 
+let restoreDecisionFixture: (() => void) | undefined
 let home: string
 let directory: string
 let previousHome: string | undefined
@@ -136,6 +138,8 @@ beforeEach(async () => {
   Config.global.reset()
 })
 afterEach(async () => {
+  restoreDecisionFixture?.()
+  restoreDecisionFixture = undefined
   await Instance.disposeAll()
   Config.global.reset()
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
@@ -170,6 +174,7 @@ async function activated() {
     .find((payload) => payload.approvalId === revision.approvalId)!.contractGrantSubject
   await GrantReview.publish(runId, { approvalId: revision.approvalId, subject })
   await GrantReview.activate(runId)
+  restoreDecisionFixture = await reviewedDecisionFixture(runId)
   return runId
 }
 

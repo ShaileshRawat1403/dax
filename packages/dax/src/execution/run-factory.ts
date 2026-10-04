@@ -7,7 +7,7 @@ import { Permission } from "@/governance"
 import type { Config } from "@/config/config"
 import type { CreateRunRequest, CreateRunResponse } from "@/server/run-contract"
 import { compileWithRunId } from "./compiler"
-import type { ExecutionContract } from "./execution-contract"
+import type { ExecutionContract, GoverningExecutionContract } from "./execution-contract"
 import { WorkflowRegistry } from "@/workflows/registry"
 import { isFixedWorkflow } from "@/workflows/types"
 import { Tracer } from "@/runtime/telemetry"
@@ -23,10 +23,7 @@ import { GrantReview, type GrantReviewRevision } from "@/capability/grant-review
 import { proposeGrants } from "@/capability/grant-proposal"
 import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
 import { RunLifecycle } from "@/state/run-lifecycle"
-import {
-  createEventAuthorityRun,
-  transitionEventAuthority,
-} from "@/state/events/event-transitions"
+import { createEventAuthorityRun, transitionEventAuthority } from "@/state/events/event-transitions"
 
 /**
  * Event authority used to cover draft_and_approve and worker_run only. The other
@@ -74,7 +71,7 @@ async function writeContract(runId: string, contract: ExecutionContract): Promis
   await ContractGuardian.create(runId, contract)
 }
 
-async function readContract(runId: string): Promise<ExecutionContract | undefined> {
+async function readContract(runId: string): Promise<GoverningExecutionContract | undefined> {
   const contract = await ContractGuardian.get(runId)
   return contract || undefined
 }
@@ -426,7 +423,7 @@ export async function createGrantReviewedRun(
   return { runId: session.id, revision }
 }
 
-export async function getContractForRun(runId: string): Promise<ExecutionContract | undefined> {
+export async function getContractForRun(runId: string): Promise<GoverningExecutionContract | undefined> {
   return readContract(runId)
 }
 
@@ -450,7 +447,7 @@ export namespace RunFactory {
    * @param runId - Run ID to get contract for
    * @returns Execution contract or undefined
    */
-  export async function getContract(runId: string): Promise<ExecutionContract | undefined> {
+  export async function getContract(runId: string): Promise<GoverningExecutionContract | undefined> {
     return getContractForRun(runId)
   }
 

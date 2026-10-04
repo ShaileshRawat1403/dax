@@ -1,4 +1,4 @@
-import type { ExecutionContract } from "./execution-contract"
+import type { GoverningExecutionContract } from "./execution-contract"
 import { appendEventOnly } from "@/state/events/event-transitions"
 import { verifyWorkerPatch } from "@/worker/worker-verification"
 import { runSandboxedWorkerCheck } from "@/worker/worker-sandbox"
@@ -36,7 +36,7 @@ export type NativeVerificationDecision =
  */
 export async function recordNativeVerification(input: {
   runId: string
-  contract: ExecutionContract
+  contract: GoverningExecutionContract
   cwd: string
 }): Promise<NativeVerificationDecision> {
   const postconditions = input.contract.runtimePolicy?.postconditions

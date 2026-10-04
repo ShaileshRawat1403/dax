@@ -102,7 +102,7 @@ async function resumeCanonicalWorkflowApproval(
   // reviewed contract, which stays non-executable until stage 4.
   if (await hasGrantReview(runId)) return
   const contract = await RunFactory.getContract(runId)
-  if (contract?.workflowClass !== "worker_run") return
+  if (contract?.schemaVersion !== "v1" || contract.workflowClass !== "worker_run") return
 
   // A repeated CLI request may be the recovery path after the approval store
   // was updated but the prior process exited before it could finalize the run.
@@ -186,7 +186,9 @@ function terminalReasonFromRunState(
 // and the run-contract enum (run-contract.ts:InterventionKind). These diverged
 // historically; producers publish bus values and consumers read contract
 // values, so the gateway is the right place to translate.
-function mapBusInterventionKind(value: string | undefined): "approval" | "ambiguity" | "recovery" | "policy_violation" | "risk_escalation" {
+function mapBusInterventionKind(
+  value: string | undefined,
+): "approval" | "ambiguity" | "recovery" | "policy_violation" | "risk_escalation" {
   switch (value) {
     case "approval":
     case "ambiguity":
@@ -1534,7 +1536,7 @@ export namespace RunGateway {
         resolution: record.resolution ?? {
           decision,
           actorId: input.actorId,
-          source: input.source === "api" ? "system" : input.source ?? "system",
+          source: input.source === "api" ? "system" : (input.source ?? "system"),
           comment: input.comment,
         },
         resolvedAt: record.resolvedAt,
@@ -1559,9 +1561,7 @@ export namespace RunGateway {
 
       const originalPermissionId = canonicalApproval.context?.originalPermissionId
       if (originalPermissionId) {
-        const livePermission = (await Permission.list()).find(
-          (item) => item.id === originalPermissionId,
-        )
+        const livePermission = (await Permission.list()).find((item) => item.id === originalPermissionId)
         if (livePermission) {
           await Permission.reply({
             requestID: originalPermissionId,
@@ -1646,11 +1646,7 @@ export namespace RunGateway {
   export async function getSummary(runId: string): Promise<RunSummary> {
     initialize()
     const source = await loadGatewayAuthoritySource(runId)
-    const [snapshot, events, meta] = await Promise.all([
-      getSnapshot(runId),
-      readEvents(runId),
-      readRunMeta(runId),
-    ])
+    const [snapshot, events, meta] = await Promise.all([getSnapshot(runId), readEvents(runId), readRunMeta(runId)])
     const runState = source.state
 
     let stepCount = 0

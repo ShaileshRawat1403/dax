@@ -10,17 +10,26 @@ order from here.
 
 | Role | Holder | Branch and worktree |
 | --- | --- | --- |
-| Implementer | Codex | Its own branch and worktree, from the Opus handover head |
+| Implementer | Codex (Sol) | `feat/conformance-closeout`, exclusive managed worktree `conformance-closeout/dax`, from `18226c22dab1bb6d07d3a867a8ce8f2bd8334a3d` |
 | Reviewer | Astra | Architecture and adversarial review of exact SHAs |
 | Independent reviewer, on request | Claude Opus 5.5 | Reviews Codex's authority changes when the maintainer relays them; never its own commits |
 | Frozen | Claude Opus 5.5 | `feat/conformance-execution-opus` at its handover commit; last implementation head `32b2f34fc9dc3d78d20b4a9a29606f6e1a726309` |
 | Frozen | Sol | Existing branches preserved and Sol-owned |
 
-Stage 4d runtime changes are on hold pending architecture review. No merge, activation,
-release, installed-binary replacement or gap closure is authorized. `main`
-(`d2ef0b0`), v1.5.0 and its frozen evidence are unchanged, and `main` records eight open
-gaps. The inherited stack under Opus's branch (`d2ef0b0..3c47d1a`) still awaits the final
-comprehensive review.
+Astra approved the [Stage 4d architecture](roadmap/GRANT_STAGE4D_PROPOSAL.md)
+at exact `0925ab3cc3d34b68875c415d696761ed00caaaeb` and authorized bounded D1
+implementation: the common compiled-image/publication gate, typed governing reads,
+strict v1 writes and genuine compiled root producer controls. D2 operator exposure
+requires exact-SHA D1 acceptance first. The inherited dependency foundation
+`d2ef0b0..3c47d1a`, inspected in final context
+`32b2f34fc9dc3d78d20b4a9a29606f6e1a726309`, received bounded C1 acceptance
+(185 regressions and two independent journal controls); this is not blanket gap,
+project-journal integration or release acceptance.
+
+No merge, user-profile activation, release, installed-binary replacement or gap
+closure is authorized. Published `main` (`d2ef0b0`), v1.5.0 and its frozen evidence
+remain unchanged; `main` records eight open gaps. The older status sections below
+are preserved history, superseded by this bounded architecture approval.
 
 The section below is the record of the previous arrangement, kept as written.
 

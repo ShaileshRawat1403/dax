@@ -1,4 +1,4 @@
-import { isValidContract, type ExecutionContract } from "./execution-contract"
+import { isValidContract, type ExecutionContract, type GoverningExecutionContract } from "./execution-contract"
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
 import { Log } from "@/util/log"
@@ -6,7 +6,8 @@ import { RunStore } from "@/state/run-store"
 import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
 import { acquireRunLock } from "@/util/fs-lock"
 import { Identifier } from "@/id/id"
-import { assertNoGrantReview } from "./grant-review-barrier"
+import { assertNoGrantReview, GrantReviewBarrierError } from "./grant-review-barrier"
+import { loadReviewedAuthority } from "@/capability/reviewed-authority"
 
 const log = Log.create({ service: "contract-guardian" })
 
@@ -23,10 +24,9 @@ export class ContractImmutabilityError extends Error {
 }
 
 // Read contract
-export async function readContract(runId: string): Promise<ExecutionContract | null> {
-  // A run under grant review has no executable contract. Its absence must not
-  // read as an ungoverned run, and nothing may write a v1 contract in its place.
-  await assertNoGrantReview(runId)
+export async function readContract(runId: string): Promise<GoverningExecutionContract | null> {
+  const reviewed = await loadReviewedAuthority(runId)
+  if (reviewed) return reviewed.published.contract
   try {
     const contract = await Storage.read<unknown>(contractPath(runId))
     if (!isValidContract(contract)) {
@@ -50,7 +50,7 @@ export async function readContract(runId: string): Promise<ExecutionContract | n
 export async function resolveExecutionAuthority(
   sessionId: string,
   governingRunId?: string,
-): Promise<{ governingRunId?: string; contract: ExecutionContract | null }> {
+): Promise<{ governingRunId?: string; contract: GoverningExecutionContract | null }> {
   const hasExplicitAuthority = governingRunId !== undefined
   const authorityRunId = hasExplicitAuthority ? Identifier.schema("session").parse(governingRunId) : sessionId
   const contract = await readContract(authorityRunId)
@@ -70,16 +70,29 @@ export async function resolveExecutionAuthority(
   return { governingRunId: authorityRunId, contract }
 }
 
+async function assertOrdinaryWriteAllowed(runId: string) {
+  try {
+    await assertNoGrantReview(runId)
+  } catch (error) {
+    if (error instanceof GrantReviewBarrierError) throw error
+    throw new ContractImmutabilityError(runId, "run authority is unreadable")
+  }
+}
+
 // Write contract only if run hasn't started or if it hasn't changed
 export async function writeContractIfNotStarted(runId: string, contract: ExecutionContract): Promise<void> {
   // TypeScript callers are not the authority boundary. Refuse a malformed or
   // unsupported contract version before a normal write can make it look like
-  // executable run authority. The inactive v2 format is refused here.
+  // executable run authority. The reviewed v2 format is refused by this ordinary writer.
   if (!isValidContract(contract)) throw new Error(`Invalid ExecutionContract proposed for run ${runId}`)
+  // Review presence is always a strict write barrier, including activated runs.
+  // Check before the event lock: the writer never reads reviewed authority.
+  await assertOrdinaryWriteAllowed(runId)
   // Share the event store's cross-process lock: authorizing a rewrite and
   // persisting it must serialize with establishing canonical authority.
   const lock = await acquireRunLock(runId)
   try {
+    await assertOrdinaryWriteAllowed(runId)
     const existing = await readContract(runId)
 
     if (existing) {
@@ -142,7 +155,7 @@ async function canModifyContract(runId: string): Promise<boolean> {
 
 export async function verifyContractIntegrity(runId: string): Promise<{
   valid: boolean
-  contract?: ExecutionContract
+  contract?: GoverningExecutionContract
   error?: string
 }> {
   const contract = await readContract(runId)
@@ -158,7 +171,7 @@ export async function verifyContractIntegrity(runId: string): Promise<{
   return { valid: true, contract }
 }
 
-async function hashContract(contract: ExecutionContract): Promise<string> {
+async function hashContract(contract: GoverningExecutionContract): Promise<string> {
   const data = JSON.stringify(contract)
   if (typeof crypto !== "undefined" && crypto.subtle) {
     const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data))
@@ -186,7 +199,7 @@ export namespace ContractGuardian {
    * @param runId - Run ID to get contract for
    * @returns Execution contract or null
    */
-  export async function get(runId: string): Promise<ExecutionContract | null> {
+  export async function get(runId: string): Promise<GoverningExecutionContract | null> {
     // Integrity is checked here rather than at the call sites. It previously
     // had none: verifyContractIntegrity and this namespace's `verify` were
     // exported and never called, so a stored contract missing contractId,

@@ -1,3 +1,4 @@
+import { reviewedDecisionFixture } from "./reviewed-decision-fixture"
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import * as Resolution from "@/capability/record-resolution"
@@ -35,6 +36,7 @@ import { Storage } from "@/storage/storage"
  * denied; the allow side is shown by a compiled probe of the same decision.
  */
 
+let restoreDecisionFixture: (() => void) | undefined
 let home: string
 let directory: string
 let previousHome: string | undefined
@@ -55,6 +57,8 @@ beforeEach(async () => {
   Config.global.reset()
 })
 afterEach(async () => {
+  restoreDecisionFixture?.()
+  restoreDecisionFixture = undefined
   await Instance.disposeAll()
   Config.global.reset()
   if (previousHome === undefined) delete process.env.DAX_TEST_HOME
@@ -92,7 +96,10 @@ async function reviewed(activate = true) {
     approvalId: revision.approvalId,
     subject: await subjectOf(runId, revision.approvalId),
   })
-  if (activate) await GrantReview.activate(runId)
+  if (activate) {
+    await GrantReview.activate(runId)
+    restoreDecisionFixture = await reviewedDecisionFixture(runId)
+  }
   return runId
 }
 

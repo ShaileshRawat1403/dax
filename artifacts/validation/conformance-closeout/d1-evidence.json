@@ -1,0 +1,584 @@
+{
+  "scope": "D1 implementer evidence; pending exact-SHA independent acceptance; no gap/release/opt-in closure",
+  "source_base": "0925ab3cc3d34b68875c415d696761ed00caaaeb",
+  "original_base": "18226c22dab1bb6d07d3a867a8ce8f2bd8334a3d",
+  "source_ref": "Containing Git commit; tested code-file SHA-256 manifest below",
+  "branch": "feat/conformance-closeout",
+  "worktree": "/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax",
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "runtime": {
+    "path": "/Users/Shailesh/MYAIAGENTS/dax/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun",
+    "version": "1.4.0",
+    "revision": "1.4.0+34cbb9a40",
+    "sha256": "539598c775882420b9d8deb7dc14d845f20f7d26f5600c50ab067dde6ac3f3bf"
+  },
+  "frozen_lockfile_sha256": "831bad444f35a22dd8469507f15aac499809502eed5b09781d0c86ba35e642de",
+  "checks": [
+    {
+      "command": "bun install --frozen-lockfile (own checkout, pinned Bun)",
+      "exit_code": 0,
+      "log": "d1-install.log"
+    },
+    {
+      "command": "bun test --max-concurrency 1 (five Stage4b/c files)",
+      "exit_code": 0,
+      "pass": 48,
+      "fail": 0,
+      "assertions": 346,
+      "files": 5,
+      "log": "d1-helper-regressions-second.log"
+    },
+    {
+      "command": "bun test --max-concurrency 1 (compiled + contract authority + stages1/2 + gateway)",
+      "exit_code": 0,
+      "pass": 61,
+      "fail": 0,
+      "assertions": 277,
+      "files": 5,
+      "log": "d1-compatibility-targeted.log"
+    },
+    {
+      "command": "bun run release:gates",
+      "exit_code": 0,
+      "log": "d1-release-gates-fourth.log",
+      "root_tests": {
+        "pass": 2310,
+        "fail": 0,
+        "skip": 2,
+        "assertions": 8644,
+        "total": 2312,
+        "files": 283
+      },
+      "smoke": {
+        "pass": 5,
+        "fail": 0
+      },
+      "rust": {
+        "pass": 79,
+        "fail": 0
+      },
+      "typecheck": "5 packages passed (4 unchanged workspace cache hits)",
+      "lint": "DAX and workspace passed",
+      "integrity": "passed",
+      "legacy_guard": "passed",
+      "release_check": "passed",
+      "environment": {
+        "PATH": "Pinned Bun directory prepended",
+        "DAX_PRODUCER_LOG_DIR": "own artifacts/validation/conformance-closeout/producer-full-gates-fourth",
+        "test_homes": "Preload/private fixture homes; no user-profile activation"
+      }
+    }
+  ],
+  "compiled_producer": {
+    "first_image_controls": [
+      "pending",
+      "reserved",
+      "denied",
+      "expired",
+      "superseded",
+      "approved-unpublished",
+      "unactivated",
+      "publication-intent-no-proof",
+      "stale-artifact",
+      "artifact-run-mismatch",
+      "artifact-schema-mismatch",
+      "missing-artifact",
+      "missing-review-with-journal-authority",
+      "missing-review-old-v1-artifact-denied",
+      "missing-pending-review-old-v1-artifact-denied",
+      "missing-review-unreadable-marker-old-v1-denied",
+      "missing-review-corrupt-journal-old-v1-denied",
+      "malformed-authority-marker",
+      "corrupt-review",
+      "corrupt-review-proposal",
+      "altered-activation-manifest",
+      "reordered-activation-manifest",
+      "activation-revision-mismatch",
+      "altered-remote-activation-manifest",
+      "reordered-remote-activation-manifest",
+      "malformed-source-selector",
+      "malformed-activation",
+      "raw-review-storage-failure",
+      "unreadable-review-structure",
+      "activated-v1-write-refused",
+      "genuine-native-SessionPrompt-read",
+      "idle-does-not-complete",
+      "journal-replay",
+      "genuine-remote-only-SessionPrompt",
+      "terminal-readable-no-dispatch"
+    ],
+    "first_image_provider_calls": 9,
+    "total_named_controls": 41,
+    "source_provider_calls": 0,
+    "unknown_provider_calls": 0,
+    "scope": "Real SessionPrompt root/native read; external-only root model turn; actual MCP producer/ask/delegation matrix pending D3"
+  },
+  "failed_attempts": "All failed raw logs retained; no failed attempt counted as green acceptance. Initial wrappers ending in tail did not capture test exit status; failure summaries remain authoritative.",
+  "source_files": [
+    {
+      "path": "packages/dax/src/capability/enforcement.ts",
+      "sha256": "75bf83b82ae1e46fb507eb49d2e01e5f7fed807ab6846210a6614793fac34a93"
+    },
+    {
+      "path": "packages/dax/src/capability/grant-review.ts",
+      "sha256": "7e5f5b0f18d617e46dcda3c06f5e9d878723254abd9adad48adf65049521180f"
+    },
+    {
+      "path": "packages/dax/src/capability/reviewed-authority.ts",
+      "sha256": "bd5110a09e4411025070f94855d853808a7ec108bfb0f362e74edfb2705319fe"
+    },
+    {
+      "path": "packages/dax/src/conformance/grant-stage4b.test.ts",
+      "sha256": "145e7355f2f10fe84f02020b9974e17e5d655bf5891ae2ca36547fab09f0aabc"
+    },
+    {
+      "path": "packages/dax/src/conformance/grant-stage4c-ask.test.ts",
+      "sha256": "0b79d76c64b25b1eb92cc5304406741081cd6d28fefce851a9052d2c47e8a229"
+    },
+    {
+      "path": "packages/dax/src/conformance/grant-stage4c-delegation.test.ts",
+      "sha256": "da80ebe4a62f0ae325e2e053802e277bb08f5ccc1abecb6cf09657a785f72b95"
+    },
+    {
+      "path": "packages/dax/src/conformance/grant-stage4c-mcp-v2.test.ts",
+      "sha256": "17cb6029f5d5925e1a8850d514a05a40fd1c24c944bfdc5488434843be932ff2"
+    },
+    {
+      "path": "packages/dax/src/conformance/grant-stage4c.test.ts",
+      "sha256": "646cae66ce73ead2de5e0a2abd6346bec237a7df058b06a1a1d33961d327d9cb"
+    },
+    {
+      "path": "packages/dax/src/conformance/grant-stage4d.test.ts",
+      "sha256": "b28d5df26d51d4de62705014272cfb254b3316c0a4a2691f3395d756531dd1ed"
+    },
+    {
+      "path": "packages/dax/src/conformance/reviewed-decision-fixture.ts",
+      "sha256": "ab0c5e632f406554dbc662978f48f353ca6c5a75bb068dcc83ee693758bdc1de"
+    },
+    {
+      "path": "packages/dax/src/execution/completion-proof.ts",
+      "sha256": "592121eb896042785360ad074434705d011aea2560bf508b03fd18293e554f13"
+    },
+    {
+      "path": "packages/dax/src/execution/contract-guardian.ts",
+      "sha256": "93d0b1dea9f4cd76e97519ea259f3e5c1ee2c2704b56c7b1a14169096f18a604"
+    },
+    {
+      "path": "packages/dax/src/execution/execution-contract.ts",
+      "sha256": "1b20c8aa9422c05b0d0db47afc4fc71c52d0e3068c3613827943f6680af5307c"
+    },
+    {
+      "path": "packages/dax/src/execution/grant-review-barrier.ts",
+      "sha256": "10933481b051927a783b768017cf5375c059ba7fe6583fe481f9a2b746bd9a37"
+    },
+    {
+      "path": "packages/dax/src/execution/native-settlement.ts",
+      "sha256": "61268f6c5c4bc77ac6f8563824f2c291589e9343de0ae9b5c173ef7af7116c53"
+    },
+    {
+      "path": "packages/dax/src/execution/native-verification.ts",
+      "sha256": "51c73e5ea7d110276c3e25af84023130a2edcbdeb8ea0aea4503e106b8346997"
+    },
+    {
+      "path": "packages/dax/src/execution/plan-quality-gate.ts",
+      "sha256": "97e5c50cb7dad981f43984c504f14f4e4481c41e52b627535d9b7f01a57b3db1"
+    },
+    {
+      "path": "packages/dax/src/execution/run-factory.ts",
+      "sha256": "1634357e9bb2f9fa5b8a9618adf2dea37667bc05a78da521b527a1379d926c79"
+    },
+    {
+      "path": "packages/dax/src/flowright/capability-service.ts",
+      "sha256": "812b3904d42703eb878b07d6f0f93bb2a2cd24d75384662d18208d04e3a49980"
+    },
+    {
+      "path": "packages/dax/src/server/run-gateway.test.ts",
+      "sha256": "e7fa7f839daa6c12664f61ac682ba93019c09de0cb26ad5fca81c515ad4c51f5"
+    },
+    {
+      "path": "packages/dax/src/server/run-gateway.ts",
+      "sha256": "f7012f056aa6c8d1aa0bd1471e3562dd09bbaaf55d9a9e262c9f3782d5c7c338"
+    },
+    {
+      "path": "packages/dax/src/server/run-inspector-projection.ts",
+      "sha256": "dbdb93630e0ac796f26c589cefa4204576a9d809c0fbfdbd86652fa0af005a29"
+    },
+    {
+      "path": "packages/dax/src/session/prompt.ts",
+      "sha256": "3387ee723e9812910e640663ec4f5a1f5249cc6345c71a2c1abb72734543cfd4"
+    },
+    {
+      "path": "packages/dax/src/state/events/run-event-store.ts",
+      "sha256": "158f3e10978353288a097171ea7ed080b2da75a3cf85db68eb4323582e81010c"
+    },
+    {
+      "path": "packages/dax/test/fixtures/grant-stage4d-producer.ts",
+      "sha256": "5040503ebfcc2822cab0c42a8fddfffbda0e8b02649b5204f89fb75171aabdbe"
+    }
+  ],
+  "raw_logs": [
+    {
+      "path": "d1-compatibility-targeted.log",
+      "sha256": "5d8272e9972f5296b660e8441c963c19c32a6b5c5fd2bb738f21cda6ff566aee",
+      "bytes": 424617
+    },
+    {
+      "path": "d1-helper-regressions-initial.log",
+      "sha256": "767481418cfd23a3c65247ea191ed6604cf299ebec7ea43d29d816a69d4113c8",
+      "bytes": 204744
+    },
+    {
+      "path": "d1-helper-regressions-second.log",
+      "sha256": "dd1f3c66ba0e1c93ecb5f62beab3b344444e52bb77b4f7ea95e0e5ad37eedc2a",
+      "bytes": 205491
+    },
+    {
+      "path": "d1-install.log",
+      "sha256": "d65bf1297e320cbb8256bdcd66b2e3f057c3ca7d6936d29489a4391852630901",
+      "bytes": 287
+    },
+    {
+      "path": "d1-producer-build-first.log",
+      "sha256": "61131ecc11538409ef98b544e55137fa2b136060569f8a5dabd7086b84a1d912",
+      "bytes": 150
+    },
+    {
+      "path": "d1-producer-build-second.log",
+      "sha256": "672e210cd874f06944930d2aaa75d2e3dcacab667a21fcbb63c23c6fd6dd5dd1",
+      "bytes": 151
+    },
+    {
+      "path": "d1-producer-build-unknown.log",
+      "sha256": "ae6786b5b9a7225349eb18b182904e8ae2ece6450e0d5fec9d7f8e5405b02b12",
+      "bytes": 152
+    },
+    {
+      "path": "d1-producer-fifth.log",
+      "sha256": "5365069e0816cf09be2317f0342f931825e7ee0ba586dafdc9614b86421699de",
+      "bytes": 1502
+    },
+    {
+      "path": "d1-producer-fourth.log",
+      "sha256": "ce2a495cc6e11a59d6b698c875b4a853d2822ce85cd63a30db0764a8e2a34fe2",
+      "bytes": 60653
+    },
+    {
+      "path": "d1-producer-initial.log",
+      "sha256": "f17bf1e7bc26d7b9bc0d234da48e28533f9f3c424bca5732ea2a5c8c6d58d4a3",
+      "bytes": 7880
+    },
+    {
+      "path": "d1-producer-matrix.log",
+      "sha256": "29919076692c652565c5f9dd77476e95011690f069f623e5f45dd510949f2e9e",
+      "bytes": 6682
+    },
+    {
+      "path": "d1-producer-second.log",
+      "sha256": "569b1e1b673793d232ab09c8eda4b015affae155691d78108e5d470189b08796",
+      "bytes": 27060
+    },
+    {
+      "path": "d1-producer-sixth.log",
+      "sha256": "429f92deadd2bda235fb74cffb319382013ffbcb8a83d7b0dda17b5b8ef289bb",
+      "bytes": 1619
+    },
+    {
+      "path": "d1-producer-third.log",
+      "sha256": "3534ee472700120b0976526c59a63fa3275c2bab590188bb48e26620c26b4cfb",
+      "bytes": 359
+    },
+    {
+      "path": "d1-release-gates-first.log",
+      "sha256": "4797d24ed50ffe65ebf35f2143bdb72ba468b72536f244dd9e9e7e545427c46a",
+      "bytes": 1864
+    },
+    {
+      "path": "d1-release-gates-fourth.log",
+      "sha256": "36144ab82ec28d05cc79d300cc69e438f649e3104da959aef82c39592de0c9ad",
+      "bytes": 4203674
+    },
+    {
+      "path": "d1-release-gates-second.log",
+      "sha256": "07d88a4c3595c6ab52839cd9746f2f8e1ec2559cf5fbb09d7c4761515ae3ce80",
+      "bytes": 4195684
+    },
+    {
+      "path": "d1-release-gates-third.log",
+      "sha256": "6822160ce10ee8e59c5b211b749531851075f6d73ec816ed66291bef404bff6c",
+      "bytes": 1793
+    },
+    {
+      "path": "d1-typecheck-initial.log",
+      "sha256": "4efcaea93e5878c16aeb3d7ffc08a1ceee5b80271123ca13466237a196e4c9af",
+      "bytes": 6552
+    },
+    {
+      "path": "d1-typecheck-second.log",
+      "sha256": "4439a8e3627759b8a3252eda9cb482c856e68494ed093eed681c908d8aa368f1",
+      "bytes": 3268
+    },
+    {
+      "path": "d1-typecheck-third.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "dax-astra-d1-source-baseline-four.log",
+      "sha256": "fa12bed87c503b6b77f31a56cc4effc2cbb65871883aaa02a1cbe0f9c71b041d",
+      "bytes": 20800
+    },
+    {
+      "path": "producer-attempt-02/d1-producer-build-first.log",
+      "sha256": "db8647d5d3193278c18c56de26e62a8c2a5755a7bd7d39b5cf63379a7df8c7d1",
+      "bytes": 150
+    },
+    {
+      "path": "producer-attempt-02/d1-producer-build-second.log",
+      "sha256": "f096038adafdcddda1fd41d88035705f3b121b422cccdfcc5732283822384900",
+      "bytes": 151
+    },
+    {
+      "path": "producer-attempt-02/d1-producer-build-unknown.log",
+      "sha256": "077f37b49ee4b0091eab054b272bd43840d09237125bd7a0673ff56c9fc63be9",
+      "bytes": 152
+    },
+    {
+      "path": "producer-attempt-02/d1-producer-matrix.log",
+      "sha256": "df7ca1fccd0355066e183e7b0f488924b830012d22f58b7714184438af46221f",
+      "bytes": 25862
+    },
+    {
+      "path": "producer-attempt-03/d1-producer-build-first.log",
+      "sha256": "4edb43ebb31f9394940e5ba9afdcf0e1a610fa9547730c174db4d57a45bd4f88",
+      "bytes": 150
+    },
+    {
+      "path": "producer-attempt-03/d1-producer-build-second.log",
+      "sha256": "db2d5e1d773b497acf04f08df66ea8ccc908efb678287c52dff77874aab857e7",
+      "bytes": 151
+    },
+    {
+      "path": "producer-attempt-03/d1-producer-build-unknown.log",
+      "sha256": "8f9e6da173a9b4fd177cd2b16ec492f6d0fce832e6bfb48f80cd42aafe9374d8",
+      "bytes": 152
+    },
+    {
+      "path": "producer-attempt-04/d1-producer-build-first.log",
+      "sha256": "ae8ef6f7ffdff96e0d1d108a948411be831f3e0d56b99d9e97badc814b50515c",
+      "bytes": 150
+    },
+    {
+      "path": "producer-attempt-04/d1-producer-build-second.log",
+      "sha256": "a743952ac49d76d67694d686200b7f0f25a5752a3450e95b02d464c96e074758",
+      "bytes": 151
+    },
+    {
+      "path": "producer-attempt-04/d1-producer-build-unknown.log",
+      "sha256": "0162dd924f48055e09503c6f42d6dc603111cf75aad46bab06c6e801721f23bb",
+      "bytes": 152
+    },
+    {
+      "path": "producer-attempt-04/d1-producer-matrix.log",
+      "sha256": "82ef19f0d01e116103d2b2f9f878285bf540e7ab6aa2da95306fac104b0d3792",
+      "bytes": 59577
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-build-first.log",
+      "sha256": "b373365730089f28bec93d90c2e45fb7469b8e9185cd329bc5bd6525d18bf7c1",
+      "bytes": 150
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-build-second.log",
+      "sha256": "3dce5128ef5b03415dc9734a3c4ae9fbf533a35fc0b51735d4dde6f832436de9",
+      "bytes": 151
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-build-unknown.log",
+      "sha256": "3c675cdce3e0aed3114109e971528642747b3bbc67a82d58919afafab69c81a9",
+      "bytes": 152
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-matrix.log",
+      "sha256": "8bf84c9bb901177335fe70e9b02694fd4389d71c4d033f97e62e27a753693625",
+      "bytes": 72087
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-other-image.log",
+      "sha256": "9fbd00afe1dd473c62af9cd47ba8a1ec78f5970cd705499aaeb6283329924dae",
+      "bytes": 8783
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-source.log",
+      "sha256": "0ab8908fbd8d67783c77f7b4ca14cb824e039f5162d58c0351c477ecda9d07b0",
+      "bytes": 787
+    },
+    {
+      "path": "producer-attempt-05/d1-producer-unknown.log",
+      "sha256": "72a37d46fb20a6af1d8212c290bfcd9c88ed82a2ce839e4054ee3e90404cba48",
+      "bytes": 712
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-build-first.log",
+      "sha256": "2b5999a0c5bdf1c59994e95c12638a21b1e2cd50104a284dfc6a953961bf3534",
+      "bytes": 150
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-build-second.log",
+      "sha256": "738955bba52d990a563348f164eee2c0fbbec7581e5f40caae4f6727a6ea7866",
+      "bytes": 151
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-build-unknown.log",
+      "sha256": "6875235564fa7e73e6746ebc02c015d8772f59ec87b0bf9a4eb38fa4262ed61e",
+      "bytes": 152
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-matrix.log",
+      "sha256": "77d549b8b5fff961efa38828b9dac22839b8a33bdbb152867f77079665bf1318",
+      "bytes": 77986
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-other-image.log",
+      "sha256": "b34ca68ec65823fc338760b1b9a3379be71ef8fcd739df55631ea54e60b1f2e5",
+      "bytes": 8783
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-source.log",
+      "sha256": "29b782fe393aa16937dd03c475bcbc6793ae1627dec5e8d71fd8add492032566",
+      "bytes": 787
+    },
+    {
+      "path": "producer-attempt-06/d1-producer-unknown.log",
+      "sha256": "a7ae2df2c78b78c7daa061ed3c826b9f1e7386508bd583695d25eb42b570d669",
+      "bytes": 712
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-build-first.log",
+      "sha256": "e693ec6a1ffc3fbc023b034c4c719d398a8b0a9b9978d289fe6824d0597cb622",
+      "bytes": 150
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-build-second.log",
+      "sha256": "1a7261d523dbba85ad04c701ff0d6a215dfb924cecc5cd19dae95ea007b63137",
+      "bytes": 151
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-build-unknown.log",
+      "sha256": "facfb92452121abcd935a6322a8583d956a48e67d51a39ccdeebab8217057fd6",
+      "bytes": 152
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-matrix.log",
+      "sha256": "09c8db29ef32d6d137bc0117bb639559bbba231c8c7fc018a191b9f816583b00",
+      "bytes": 82667
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-other-image.log",
+      "sha256": "4668bbc5f42adb8fca7b97c587713dc577277347b3c7adb2593025769d906cca",
+      "bytes": 8789
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-source.log",
+      "sha256": "55410bbda8467c554081ec48fde3db51dad9273e0056c1462bda0e796f06ce78",
+      "bytes": 787
+    },
+    {
+      "path": "producer-attempt-07/d1-producer-unknown.log",
+      "sha256": "94301712471a762ad55cee49a6d1d3cc4a841afe094627844ab9c46d9afa431a",
+      "bytes": 712
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-build-first.log",
+      "sha256": "7dac0e52824bfa904e6338e1e7a47bb9db453b4532457e8165ffc3a65a5fd873",
+      "bytes": 150
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-build-second.log",
+      "sha256": "c9814f1a388db2e5f29f9c5e8aab3ad0400d50b34e09cb523c2c10142d5e969a",
+      "bytes": 151
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-build-unknown.log",
+      "sha256": "3773617258dcc547fd1992fde8b9cfe3e4b223cc8c41d19aaf8b9b836a2aa23a",
+      "bytes": 152
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-matrix.log",
+      "sha256": "d53c8104727fb042e1a312e4bd7380d5ef4a14bf0aeb69ee5d48cb4482f4fc3c",
+      "bytes": 82626
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-other-image.log",
+      "sha256": "6d9be1353164bca79aeb6b531564da7a76709c5457cfb292da1aea3da72653c7",
+      "bytes": 8783
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-source.log",
+      "sha256": "cb13daf6a1a89ebb0fa64214cc393657d84576bb17bf3aa722478b8df5e87bb8",
+      "bytes": 787
+    },
+    {
+      "path": "producer-full-gates-fourth/d1-producer-unknown.log",
+      "sha256": "81a0f4201263568c1a4d092a3b8e3e4d06c9780653ffcc5944214ac476deb8a8",
+      "bytes": 712
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-build-first.log",
+      "sha256": "17118f95c095dc2de1f40097362d6e2455251f633084a7fff7b9c9d6325625b4",
+      "bytes": 150
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-build-second.log",
+      "sha256": "2b257e5c9712d1f10efe59dec043fd299d3d0a99ac58e06f81036fd25c41ffd5",
+      "bytes": 151
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-build-unknown.log",
+      "sha256": "1115ba355cabf16cb4f12060f60e0a4bc88434e7ebf1eb719340361f7ec6937e",
+      "bytes": 152
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-matrix.log",
+      "sha256": "2d708deaba501261dca48900e9b170d7a3491125c59a13610eea788617229193",
+      "bytes": 72080
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-other-image.log",
+      "sha256": "79f272895c18f6ce8e58d545d8edfb4aef046580c994adbc4457cf67b592f263",
+      "bytes": 8783
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-source.log",
+      "sha256": "3e24f51a121757f00f180bb5cc1cd3e9fec1acf42ce18ae4f76fd06fce56768b",
+      "bytes": 787
+    },
+    {
+      "path": "producer-full-gates-second/d1-producer-unknown.log",
+      "sha256": "bf74f9a4705d1dcc1e7087f5920f4c309759953a5db89b8d3d5862166c0d2f98",
+      "bytes": 712
+    }
+  ],
+  "archive": {
+    "path": "artifacts/validation/conformance-closeout/d1-raw-logs.tar.gz",
+    "sha256": "bbb647b80a233ad2438792a544560064529862c8cca88422b2c0a54545a6abcc",
+    "bytes": 642542
+  },
+  "reviewer_baseline": "Copied independent baseline log at 32b2f34: four expected failures. It is a negative baseline, not candidate acceptance.",
+  "ci": {
+    "status": "pending_at_commit",
+    "required_platforms": [
+      "ubuntu-latest",
+      "macos-latest",
+      "windows-latest"
+    ],
+    "workflow": ".github/workflows/ci.yml",
+    "runtime": "Bun 1.4.0"
+  },
+  "limitations": [
+    "D2 exposure awaits D1 exact-SHA review",
+    "No genuine MCP/ask/TaskTool/child producer acceptance claimed yet",
+    "Unsupported bindings unchanged",
+    "No merge/user-profile activation/release or installed binary change",
+    "Formatting reconstruction was rejected by auto-review and not executed; harmless hunks retained"
+  ]
+}

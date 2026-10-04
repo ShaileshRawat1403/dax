@@ -1,4 +1,4 @@
-import type { ExecutionContract } from "./execution-contract"
+import type { GoverningExecutionContract } from "./execution-contract"
 
 export type PlanQualityDecision = "proceed" | "pause"
 
@@ -21,10 +21,13 @@ function looksAmbiguousGoal(input: string) {
   const text = input.trim().toLowerCase()
   if (!text) return true
   if (text.length < 24) return true
-  return /\b(fix|improve|update|help|do it|make it better|handle this)\b/.test(text) && !/\b(file|test|run|workflow|module|component|api|contract|scope)\b/.test(text)
+  return (
+    /\b(fix|improve|update|help|do it|make it better|handle this)\b/.test(text) &&
+    !/\b(file|test|run|workflow|module|component|api|contract|scope)\b/.test(text)
+  )
 }
 
-function hasMutatingIntent(contract: ExecutionContract) {
+function hasMutatingIntent(contract: GoverningExecutionContract) {
   const policy = contract.runtimePolicy
   if (!policy) return true
   if (policy.postconditions.verificationRequired) return true
@@ -35,7 +38,7 @@ function unique<T>(items: T[]): T[] {
   return [...new Set(items)]
 }
 
-export function evaluatePlanQuality(contract: ExecutionContract): PlanQualitySummary {
+export function evaluatePlanQuality(contract: GoverningExecutionContract): PlanQualitySummary {
   if (!contract.intent.trim()) {
     return {
       score: 100,
