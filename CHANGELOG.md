@@ -70,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Delegation grants in reviewed runs name the agents the operator approved; a
   task is allowed only for one of them and its child must start as exactly
   that agent.
+- MCP resource reads and prompt fetches in an activated reviewed run are decided
+  under a v2 identity that commits to the server without recording the item, so
+  a source grant can cover them. v1 identities are unchanged elsewhere and are
+  never covered by a source grant.
 
 ### Changed
 

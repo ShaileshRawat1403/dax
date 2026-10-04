@@ -16,7 +16,7 @@ import { compileWithRunId } from "@/execution/compiler"
 import { ContractGuardian } from "@/execution/contract-guardian"
 import { GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { createGrantReviewedRun } from "@/execution/run-factory"
-import { mcpReadDescriptor } from "@/mcp/resource-identity"
+import { mcpReadDescriptor, mcpReadDescriptorV2 } from "@/mcp/resource-identity"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
@@ -197,23 +197,37 @@ describe("action paths in an activated reviewed run are decided before any effec
     })
   })
 
-  test("an MCP resource read under its acknowledged source grant is still denied: its source cannot be proven", async () => {
+  test("an MCP resource read under its acknowledged source grant is decided under its v2 identity", async () => {
     await within(async () => {
       const runId = await reviewed()
-      const error = await rejection(
+      const recorded = await recordActionResolution({
+        governedBy: { sessionID: runId },
+        subject: "mcp_resource",
+        path: "mcp_resource",
+        initiator: "operator",
+        executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "gamma", "file:///notes") },
+        source: { server: "gamma", name: "file:///notes" },
+      })
+      expect(recorded).toMatchObject({
+        decision: "allow",
+        grantSubject: "mcp_source:resource:gamma",
+        capabilityId: mcpReadDescriptorV2("resource", "gamma", "file:///notes").id,
+      })
+      // Nothing about the item name reaches the journal.
+      expect(JSON.stringify(await readRunEvents(runId))).not.toContain("file:///notes")
+      // A descriptor that is not this source's own v1 identity proves nothing.
+      const forged = await rejection(
         recordActionResolution({
           governedBy: { sessionID: runId },
           subject: "mcp_resource",
           path: "mcp_resource",
           initiator: "operator",
-          executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "gamma", "file:///notes") },
+          executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "delta", "file:///notes") },
           source: { server: "gamma", name: "file:///notes" },
         }),
       )
-      expect(error).toBeInstanceOf(CapabilityActionDeniedError)
-      expect((error as CapabilityActionDeniedError).reasonCode).toBe("source_unproven")
-      // Nothing about the item name reaches the journal.
-      expect(JSON.stringify(await readRunEvents(runId))).not.toContain("file:///notes")
+      expect(forged).toBeInstanceOf(CapabilityActionDeniedError)
+      expect((forged as CapabilityActionDeniedError).reasonCode).toBe("source_unproven")
     })
   })
 

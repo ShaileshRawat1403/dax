@@ -341,6 +341,17 @@ minting does. The two digests are domain-separated from each other and from v1.
 Rollout, when reviewed: mint v2 for new reads in reviewed runs only, keep v1 everywhere
 else, and add the v2 identities to the on-demand families of the vocabulary.
 
+**As delivered** (after delegation was accepted at `0fc64f2`): `mcpReadDescriptorV2`,
+`mcpServerCommitment` and `parseMcpReadV2` in `mcp/resource-identity.ts`, sharing v1's
+length-prefixed, well-formed-part digest rule, with v1 recomputed unchanged. The read
+sites still mint v1. When an activated reviewed run decides a read, the v1 identity must
+first prove to be that exact source; only then is it decided, and recorded, under its v2
+identity. The lookup re-mints each version by its own rule, enforcement covers a resource
+or prompt under a source grant only as v2, and replay accepts it only when the whole
+identity parses, its family matches the grant's and its server digest equals the one
+recomputed from the grant's server. No source is recorded for a read. The vocabulary
+gains on-demand `mcp_resource_v2` and `mcp_prompt_v2` families.
+
 ### 4c second slice: ask grants and the remembered "always"
 
 The 4c corrections were accepted at `144ed919f87641a7b6e9d238cdbbae67eab9a620`, with the

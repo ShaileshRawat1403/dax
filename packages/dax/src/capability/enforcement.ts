@@ -7,6 +7,7 @@ import {
 } from "./authority"
 import { checkBinding, subjectKey, type ReviewCatalogSnapshot } from "./grant-proposal"
 import type { GrantAskSubject } from "@/state/events/contract-grant-approval"
+import { parseMcpReadV2 } from "@/mcp/resource-identity"
 
 /**
  * Stage 4b: enforcement for an activated reviewed run.
@@ -102,9 +103,15 @@ export async function decideReviewedAction(input: {
           },
         }
       : {}
+  if (grant.subject.kind === "mcp_source" && grant.subject.family !== "tool") {
+    // A resource or prompt is covered only by a v2 identity, whose server
+    // commitment replay checks against the grant; the item name is not recorded.
+    if (!resolution.capabilityId || !parseMcpReadV2(resolution.capabilityId)) return deny("source_unproven")
+    return { ...enforced, ...ask, grantSubject: key }
+  }
   if (grant.subject.kind === "mcp_source") {
     // Replay re-mints the identity from this to prove the grant's server covers it.
-    if (grant.subject.family !== "tool" || !input.resolve.source) return deny("source_unproven")
+    if (!input.resolve.source) return deny("source_unproven")
     return {
       ...enforced,
       ...ask,

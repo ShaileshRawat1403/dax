@@ -1,5 +1,6 @@
 import { INVOCATION_PATHS } from "@/capability/authority-paths"
 import { mcpCapability } from "@/capability/dynamic-identity"
+import { mcpServerCommitment, parseMcpReadV2 } from "@/mcp/resource-identity"
 import {
   CONTRACT_GRANT_APPROVAL_TYPE,
   CONTRACT_GRANT_ASK_TYPE,
@@ -43,6 +44,15 @@ function satisfiesAsk(
     contractDigest: activated.contractDigest,
     bindingDigest: binding.digest,
   })
+}
+
+/** The v2 server commitment, by the minting rule itself; undefined for a malformed server name. */
+function serverCommitment(family: "resource" | "prompt", server: string) {
+  try {
+    return mcpServerCommitment(family, server)
+  } catch {
+    return undefined
+  }
 }
 
 /** Whether this server and tool name mint exactly this identity, by the minting rule itself. */
@@ -807,20 +817,29 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
               throw new Error(`Enforced resolution ${payload.subjectId} delegates outside its grant's agents`)
             }
             const selector = /^mcp_source:(tool|resource|prompt):(.+)$/.exec(subject)
-            if (selector && selector[1] !== "tool") {
-              // A resource or prompt identity cannot be re-minted from this log
-              // without recording the item's name, which may be private. Until a
-              // server-provable identity exists, no source grant covers one here.
-              throw new Error(`Enforced resolution ${payload.subjectId} cannot prove its ${selector[1]} source`)
-            }
-            // A source grant covers only the identity its own server mints:
-            // re-mint it from the recorded server and tool name, exactly as
-            // identities are minted, and require that server to be the grant's.
-            const covers = selector
-              ? payload.source !== undefined &&
+            // A source grant covers only identities its own server mints. A tool
+            // is re-minted from the recorded server and tool name. A resource or
+            // prompt must be a complete v2 identity whose server commitment is
+            // recomputed here from the grant's server; its item digest is only
+            // checked for form, since the item name is never recorded. A v1
+            // resource or prompt identity carries no server commitment and is
+            // never covered.
+            let covers: boolean
+            if (!selector) covers = subject === payload.capabilityId
+            else if (selector[1] === "tool") {
+              covers =
+                payload.source !== undefined &&
                 payload.source.server === selector[2] &&
                 remintsTool(payload.source.server, payload.source.name, payload.capabilityId)
-              : subject === payload.capabilityId
+            } else {
+              const family = selector[1] as "resource" | "prompt"
+              const read = payload.capabilityId ? parseMcpReadV2(payload.capabilityId) : undefined
+              covers =
+                payload.source === undefined &&
+                read !== undefined &&
+                read.family === family &&
+                read.serverDigest === serverCommitment(family, selector[2]!)
+            }
             if (!covers) {
               throw new Error(`Enforced resolution ${payload.subjectId} names a grant that cannot cover its capability`)
             }

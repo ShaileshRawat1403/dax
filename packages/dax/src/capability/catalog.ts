@@ -1,5 +1,10 @@
 import { MCP } from "@/mcp"
-import { MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE } from "@/mcp/resource-identity"
+import {
+  MCP_PROMPT_NAMESPACE,
+  MCP_PROMPT_V2_NAMESPACE,
+  MCP_RESOURCE_NAMESPACE,
+  MCP_RESOURCE_V2_NAMESPACE,
+} from "@/mcp/resource-identity"
 import { listBuiltinOperatorCapabilities } from "@/operators/capability-identity"
 import { listVerificationCommandCapabilities } from "@/sdlc/verification-identity"
 import { listCommandShellCapabilities } from "@/session/command-shell-identity"
@@ -41,6 +46,8 @@ function staticFamilies(): CapabilityFamily[] {
     listed("verification_command", "verification.command.", listVerificationCommandCapabilities()),
     { name: "mcp_resource", namespace: MCP_RESOURCE_NAMESPACE, enumeration: "on_demand", descriptors: [] },
     { name: "mcp_prompt", namespace: MCP_PROMPT_NAMESPACE, enumeration: "on_demand", descriptors: [] },
+    { name: "mcp_resource_v2", namespace: MCP_RESOURCE_V2_NAMESPACE, enumeration: "on_demand", descriptors: [] },
+    { name: "mcp_prompt_v2", namespace: MCP_PROMPT_V2_NAMESPACE, enumeration: "on_demand", descriptors: [] },
   ]
 }
 

@@ -6,7 +6,15 @@ import {
   isToolAllowedByContract,
   type ExecutionContract,
 } from "@/execution/execution-contract"
-import { mcpReadDescriptor, MCP_PROMPT_NAMESPACE, MCP_RESOURCE_NAMESPACE } from "@/mcp/resource-identity"
+import {
+  mcpReadDescriptor,
+  mcpReadDescriptorV2,
+  parseMcpReadV2,
+  MCP_PROMPT_NAMESPACE,
+  MCP_PROMPT_V2_NAMESPACE,
+  MCP_RESOURCE_NAMESPACE,
+  MCP_RESOURCE_V2_NAMESPACE,
+} from "@/mcp/resource-identity"
 import { CapabilityDescriptor } from "./capability-types"
 import { mcpCapability, MCP_TOOL_NAMESPACE } from "./dynamic-identity"
 import type { CapabilityGrant } from "./grant"
@@ -93,18 +101,21 @@ export type ResolveAuthorityInput = {
 
 function mcpFamily(id: string): "tool" | "resource" | "prompt" | undefined {
   if (id.startsWith(MCP_TOOL_NAMESPACE)) return "tool"
-  if (id.startsWith(MCP_RESOURCE_NAMESPACE)) return "resource"
-  if (id.startsWith(MCP_PROMPT_NAMESPACE)) return "prompt"
+  if (id.startsWith(MCP_RESOURCE_NAMESPACE) || id.startsWith(MCP_RESOURCE_V2_NAMESPACE)) return "resource"
+  if (id.startsWith(MCP_PROMPT_NAMESPACE) || id.startsWith(MCP_PROMPT_V2_NAMESPACE)) return "prompt"
   return undefined
 }
 
 /** Re-mint the identity from the claimed source. A source is proven only if it yields this exact ID. */
 function sourceProves(id: string, family: "tool" | "resource" | "prompt", source: McpSource): boolean {
   try {
+    // Each version re-mints by its own rule; neither stands in for the other.
     const minted =
       family === "tool"
         ? mcpCapability(["mcp", source.server, source.name]).descriptor.id
-        : mcpReadDescriptor(family, source.server, source.name).id
+        : parseMcpReadV2(id)
+          ? mcpReadDescriptorV2(family, source.server, source.name).id
+          : mcpReadDescriptor(family, source.server, source.name).id
     return minted === id
   } catch {
     return false
@@ -147,7 +158,8 @@ export function selectGrant(
  *   cannot be named by a grant and is denied.
  */
 export function resolveCapabilityAuthority(input: ResolveAuthorityInput): CapabilityResolution {
-  const parsed = input.executor.descriptor === undefined ? undefined : CapabilityDescriptor.safeParse(input.executor.descriptor)
+  const parsed =
+    input.executor.descriptor === undefined ? undefined : CapabilityDescriptor.safeParse(input.executor.descriptor)
   const descriptor = parsed?.success ? parsed.data : undefined
   const base = {
     enforcement: "record_only" as const,
@@ -187,7 +199,11 @@ export function resolveCapabilityAuthority(input: ResolveAuthorityInput): Capabi
 
   const contract = ExecutionContractV2.safeParse(input.contract)
   const v2 = { ...base, basis: "v2_grant" as const, contractId: input.contract.contractId }
-  const deny = (reasonCode: CapabilityResolutionReason): CapabilityResolution => ({ ...v2, decision: "deny", reasonCode })
+  const deny = (reasonCode: CapabilityResolutionReason): CapabilityResolution => ({
+    ...v2,
+    decision: "deny",
+    reasonCode,
+  })
   if (!contract.success) return deny("contract_invalid")
   if (contract.data.runId !== input.authorityRunId) return deny("contract_run_mismatch")
   // The contract's own tool lists still bind: a selector or family grant can

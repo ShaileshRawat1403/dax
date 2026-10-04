@@ -1,4 +1,5 @@
 import { ulid } from "ulid"
+import { mcpReadDescriptor, mcpReadDescriptorV2 } from "@/mcp/resource-identity"
 import { readContract, resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { assertNoGrantReview, GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
@@ -70,6 +71,11 @@ async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | 
   if (!reviewed) throw new GrantReviewBarrierError(runId)
   const { captureDispatchSnapshot } = await import("./grant-review-snapshot")
   const { decideReviewedAction, enforcedRecord, settleAsk } = await import("./enforcement")
+  // An MCP read is decided, and recorded, under its v2 identity, which commits
+  // to the server without recording the item. The v1 identity minted at the
+  // read site must first prove to be this exact source; otherwise the read
+  // keeps an identity no source grant covers.
+  const executor = reviewedReadExecutor(action)
   // Decided from the authority and implementation as they are at the moment
   // of deciding; called again after any wait for the operator.
   const decideNow = async (authority: NonNullable<typeof reviewed> | undefined) => {
@@ -82,7 +88,7 @@ async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | 
         path: action.path,
         initiator: action.initiator,
         authorityRunId: runId,
-        executor: action.executor,
+        executor,
         source: action.source,
         target: action.target,
         directory: Instance.directory,
@@ -113,6 +119,19 @@ async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | 
     throw new CapabilityActionDeniedError(action.path, resolution.reasonCode ?? "grant_denied")
   }
   return resolution as unknown as CapabilityResolution
+}
+
+function reviewedReadExecutor(action: RecordedAction): RecordedAction["executor"] {
+  const family = action.path === "mcp_resource" ? "resource" : action.path === "mcp_prompt" ? "prompt" : undefined
+  if (!family || !action.source) return action.executor
+  try {
+    const v1 = mcpReadDescriptor(family, action.source.server, action.source.name)
+    const given = action.executor.descriptor as { id?: unknown } | undefined
+    if (given?.id !== v1.id) return action.executor
+    return { ...action.executor, descriptor: mcpReadDescriptorV2(family, action.source.server, action.source.name) }
+  } catch {
+    return action.executor
+  }
 }
 
 /**

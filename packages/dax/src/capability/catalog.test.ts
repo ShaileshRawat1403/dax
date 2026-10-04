@@ -128,6 +128,8 @@ describe("composed capability catalog", () => {
       { name: "verification_command", namespace: "verification.command.", enumeration: "listed" },
       { name: "mcp_resource", namespace: "mcp.resource.v1.", enumeration: "on_demand" },
       { name: "mcp_prompt", namespace: "mcp.prompt.v1.", enumeration: "on_demand" },
+      { name: "mcp_resource_v2", namespace: "mcp.resource.v2.", enumeration: "on_demand" },
+      { name: "mcp_prompt_v2", namespace: "mcp.prompt.v2.", enumeration: "on_demand" },
       { name: "plugin_tool", namespace: "plugin.tool.v1.", enumeration: "listed" },
       { name: "mcp_tool", namespace: "mcp.tool.v1.", enumeration: "listed" },
     ])
@@ -146,6 +148,8 @@ describe("composed capability catalog", () => {
       verification_command: 2,
       mcp_resource: 0,
       mcp_prompt: 0,
+      mcp_resource_v2: 0,
+      mcp_prompt_v2: 0,
       plugin_tool: 0,
       mcp_tool: 0,
     })
