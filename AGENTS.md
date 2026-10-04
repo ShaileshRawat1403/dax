@@ -24,8 +24,8 @@ Read this file first when working in `/Users/Shailesh/MYAIAGENTS/dax`.
 
 ## Current ownership
 
-- From 2026-09-30, Claude Opus 5.5 implements the remaining conformance work on its own branch and worktree, and Astra reviews architecture and merges. Sol's implementation is frozen; its branches are preserved and stay Sol-owned. The maintainer relays every message and merges.
-- This supersedes the 2026-09-19 arrangement, under which Codex owned all lanes after Claude withdrew. That handover and Sol's 2026-09-30 handover are preserved as historical records.
+- From 2026-10-04, the maintainer transferred the remaining conformance implementation to Codex. Astra remains the architecture and merge reviewer. Claude Opus 5.5's implementation is frozen at its handover ([docs/HANDOVER_OPUS_TO_CODEX.md](./docs/HANDOVER_OPUS_TO_CODEX.md)); `feat/conformance-execution-opus` is preserved and no longer receives commits. Codex works on its own branch and worktree. Opus is available for independent review of Codex's authority changes when the maintainer relays them. The maintainer relays every message and merges.
+- This supersedes the 2026-09-30 arrangement, under which Opus implemented and Sol was frozen. Sol's implementation stays frozen; its branches are preserved and stay Sol-owned. The 2026-09-19 Claude-to-Codex handover, Sol's 2026-09-30 handover and Opus's 2026-10-04 handover are preserved as historical records.
 - Read [docs/DAX_STATUS.md](./docs/DAX_STATUS.md) for current validation, open work, and the preserved handovers.
 - Two agents are active, so the lane and relay requirements below apply. An implementer's own checks are not independent cross-validation; only the reviewer's acceptance of an exact SHA is.
 - Feature branches remain required. The maintainer merges into `main`.

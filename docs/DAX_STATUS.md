@@ -1,5 +1,29 @@
 # DAX current ownership and release work
 
+## Execution ownership — 2026-10-04
+
+The maintainer transferred the remaining conformance implementation to Codex. Astra
+remains the architecture and merge reviewer. Claude Opus 5.5's implementation is frozen;
+its [handover](HANDOVER_OPUS_TO_CODEX.md) records the branch state, the slice-to-SHA map,
+the remaining gaps, the stage 4d design and its mandatory controls, and the execution
+order from here.
+
+| Role | Holder | Branch and worktree |
+| --- | --- | --- |
+| Implementer | Codex | Its own branch and worktree, from the Opus handover head |
+| Reviewer | Astra | Architecture and adversarial review of exact SHAs |
+| Independent reviewer, on request | Claude Opus 5.5 | Reviews Codex's authority changes when the maintainer relays them; never its own commits |
+| Frozen | Claude Opus 5.5 | `feat/conformance-execution-opus` at its handover commit; last implementation head `32b2f34fc9dc3d78d20b4a9a29606f6e1a726309` |
+| Frozen | Sol | Existing branches preserved and Sol-owned |
+
+Stage 4d runtime changes are on hold pending architecture review. No merge, activation,
+release, installed-binary replacement or gap closure is authorized. `main`
+(`d2ef0b0`), v1.5.0 and its frozen evidence are unchanged, and `main` records eight open
+gaps. The inherited stack under Opus's branch (`d2ef0b0..3c47d1a`) still awaits the final
+comprehensive review.
+
+The section below is the record of the previous arrangement, kept as written.
+
 ## Execution ownership — 2026-09-30
 
 The maintainer transferred implementation of the remaining conformance work to
