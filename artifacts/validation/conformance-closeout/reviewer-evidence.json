@@ -1,0 +1,32 @@
+{
+  "source_sha": "32b2f34fc9dc3d78d20b4a9a29606f6e1a726309",
+  "reviewer": "Astra",
+  "provenance": "Reviewer-provided logs copied byte-for-byte; not implementer reruns or Stage 4d acceptance.",
+  "reported_results": {
+    "inherited_paths": {
+      "pass": 185,
+      "fail": 0,
+      "assertions": 752,
+      "files": 16
+    },
+    "final_opus_controls": {
+      "pass": 38,
+      "fail": 0,
+      "assertions": 379
+    }
+  },
+  "logs": [
+    {
+      "path": "artifacts/validation/conformance-closeout/dax-astra-inherited-review.log",
+      "source_path": "/private/tmp/dax-astra-inherited-review.log",
+      "sha256": "9d1185285858b6bd51fc4a260289fc10086b1c29aff693d4927572d37354b214",
+      "bytes": 475631
+    },
+    {
+      "path": "artifacts/validation/conformance-closeout/dax-astra-32b2f34-review.log",
+      "source_path": "/private/tmp/dax-astra-32b2f34-review.log",
+      "sha256": "36e4808606343981ef93a921e2163878320f1b4a43c56a32884960119802189f",
+      "bytes": 151760
+    }
+  ]
+}

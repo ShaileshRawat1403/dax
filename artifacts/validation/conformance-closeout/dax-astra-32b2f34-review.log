@@ -1,0 +1,1174 @@
+bun test v1.4.0 (34cbb9a40)
+
+src/conformance/astra-stage4c-mcp-v2.test.ts:
+INFO  2026-10-04T02:08:25 +783ms service=default disposing all instances
+INFO  2026-10-04T02:08:25 +2ms service=default disposing all instances
+(pass) Astra independent MCP v2 boundaries > all trailing terminators are rejected by the complete identity parser [34.53ms]
+INFO  2026-10-04T02:08:25 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:25 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/project creating instance
+INFO  2026-10-04T02:08:25 +1ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/project fromDirectory
+INFO  2026-10-04T02:08:26 +23ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +6ms service=session id=ses_efb549258ffeInxVvaBai3SqRk slug=tidy-otter version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/project title=Inspect the repository, read only. time={"created":1791079706025,"updated":1791079706025} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +3ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +5ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +4ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +3ms service=event-transitions runId=ses_efb549258ffeInxVvaBai3SqRk contractId=ctr_ses_104ab6db3001l4aWutvyO7GT0m verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549258ffeInxVvaBai3SqRk seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb549258ffeInxVvaBai3SqRk status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +2ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +8ms service=event-store runId=ses_efb549258ffeInxVvaBai3SqRk seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549258ffeInxVvaBai3SqRk seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +4ms service=event-store runId=ses_efb549258ffeInxVvaBai3SqRk seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +5ms service=event-store runId=ses_efb549258ffeInxVvaBai3SqRk seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +8ms service=event-store runId=ses_efb549258ffeInxVvaBai3SqRk seq=6 type=capability_resolution_recorded appended event
+ASTRA_MCP_INVALID_DESCRIPTOR {"error":"Capability action mcp_resource was denied: descriptor_invalid","resolution":{"subjectId":"astra_invalid_read_descriptor_01M42APVEQVJ3AKP8HPX6R90F3","enforcement":"enforced","path":"mcp_resource","initiator":"operator","enrolled":false,"basis":"v2_grant","contractId":"ctr_ses_104ab6db3001l4aWutvyO7GT0m","decision":"deny","activation":{"revision":1,"contractDigest":"sha256:cd8f0ed973042f5223ede97feb065226f188ab164e643cb1de0fad35f9c578c4"},"reasonCode":"descriptor_invalid","eventId":"evt_1791079706072_p9mq2ejib","recordedAt":"2026-10-04T02:08:26.072Z"}}
+INFO  2026-10-04T02:08:26 +2ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +3ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-96KT5M/project state disposal completed
+(pass) Astra independent MCP v2 boundaries > a read-site ID alone is not a validated enrolled descriptor [107.48ms]
+INFO  2026-10-04T02:08:26 +29ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/project fromDirectory
+INFO  2026-10-04T02:08:26 +24ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb5491ebffeaxxhCoN6uWy6Vm slug=eager-squid version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/project title=Inspect the repository, read only. time={"created":1791079706132,"updated":1791079706132} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb5491ebffeaxxhCoN6uWy6Vm contractId=ctr_ses_104ab6e15001rhKgXldRsrPe2B verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb5491ebffeaxxhCoN6uWy6Vm seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb5491ebffeaxxhCoN6uWy6Vm status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5491ebffeaxxhCoN6uWy6Vm seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb5491ebffeaxxhCoN6uWy6Vm seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb5491ebffeaxxhCoN6uWy6Vm seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5491ebffeaxxhCoN6uWy6Vm seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5491ebffeaxxhCoN6uWy6Vm seq=6 type=capability_resolution_recorded appended event
+ASTRA_MCP_EXTRA_DESCRIPTOR {"error":"Capability action mcp_prompt was denied: descriptor_invalid","resolution":{"subjectId":"astra_extra_read_descriptor_01M42APVH10MCEG0X5GYACQ9SH","enforcement":"enforced","path":"mcp_prompt","initiator":"operator","enrolled":false,"basis":"v2_grant","contractId":"ctr_ses_104ab6e15001rhKgXldRsrPe2B","decision":"deny","activation":{"revision":1,"contractDigest":"sha256:380fcc7f7c7cd7a27635f9d3fdd1ad04f7f1eab7ee5bc6fe3bcaaf71125c509a"},"reasonCode":"descriptor_invalid","eventId":"evt_1791079706146_5ll36iyln","recordedAt":"2026-10-04T02:08:26.146Z"}}
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-ETEBxq/project state disposal completed
+(pass) Astra independent MCP v2 boundaries > unknown descriptor properties must not be erased by v2 conversion [68.45ms]
+
+src/conformance/grant-stage4c-mcp-v2.test.ts:
+INFO  2026-10-04T02:08:26 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+(pass) v2 read identities are minted by an exact, domain-separated rule > v1 is unchanged; v2 commits to the server, separately per family [24.64ms]
+INFO  2026-10-04T02:08:26 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +2ms service=default disposing all instances
+(pass) v2 read identities are minted by an exact, domain-separated rule > an exact grant never covers a v2 identity, and a v1 identity is never covered by a source grant [27.23ms]
+INFO  2026-10-04T02:08:26 +33ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +1ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/project fromDirectory
+INFO  2026-10-04T02:08:26 +21ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb549170ffeYxoEpDHmBmxr97 slug=calm-lagoon version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/project title=Inspect the repository, read only. time={"created":1791079706255,"updated":1791079706255} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +2ms service=event-transitions runId=ses_efb549170ffeYxoEpDHmBmxr97 contractId=ctr_ses_104ab6e90001InXV6UsCBX16eR verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb549170ffeYxoEpDHmBmxr97 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=6 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=8 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=9 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=10 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=11 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=12 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=13 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=14 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=15 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=16 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549170ffeYxoEpDHmBmxr97 seq=17 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-6EdvfL/project state disposal completed
+(pass) only a complete, valid read-site descriptor is converted to v2 > missing fields, invalid values and extra properties keep their denial; a valid one converts [100.56ms]
+INFO  2026-10-04T02:08:26 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+(pass) enforcement covers a read only under its v2 identity > a proven v1 read is still refused under a source grant; its v2 identity is allowed [22.71ms]
+INFO  2026-10-04T02:08:26 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/project fromDirectory
+INFO  2026-10-04T02:08:26 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +0ms service=session id=ses_efb549104ffes4etDlOyLo3UnR slug=curious-squid version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/project title=Inspect the repository, read only. time={"created":1791079706363,"updated":1791079706363} created
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb549104ffes4etDlOyLo3UnR contractId=ctr_ses_104ab6efd001WOXoKO4gYCQurn verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb549104ffes4etDlOyLo3UnR status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +4ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=6 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549104ffes4etDlOyLo3UnR seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-CxCPUl/project state disposal completed
+(pass) replay checks a read's server, never its item name > a gamma read is accepted; cross-server, historical v1 and malformed identities are refused [56.12ms]
+INFO  2026-10-04T02:08:26 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/project fromDirectory
+INFO  2026-10-04T02:08:26 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb5490cdffe7Ao3Gfw9lF3OMH slug=cosmic-eagle version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/project title=Inspect the repository, read only. time={"created":1791079706418,"updated":1791079706418} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH contractId=ctr_ses_104ab6f33001O1PCp5EjTB0gHA verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb5490cdffe7Ao3Gfw9lF3OMH seq=6 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-sY3MSv/project state disposal completed
+(pass) replay checks a read's server, never its item name > a read the grant does not cover is denied before any read, and its item never reaches the journal [54.87ms]
+
+src/conformance/grant-stage4c.test.ts:
+INFO  2026-10-04T02:08:26 +30ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/project fromDirectory
+INFO  2026-10-04T02:08:26 +16ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb54908fffeC9dovfD01rbqWA slug=glowing-orchid version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/project title=Inspect the repository, read only. time={"created":1791079706480,"updated":1791079706480} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb54908fffeC9dovfD01rbqWA contractId=ctr_ses_104ab6f71001W6ouU5WQItMpXP verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb54908fffeC9dovfD01rbqWA status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=6 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=8 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54908fffeC9dovfD01rbqWA seq=9 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-geu2ke/project state disposal completed
+(pass) action paths in an activated reviewed run are decided before any effect > each action without a grant is denied, recorded as enforced, citing the activation [67.13ms]
+INFO  2026-10-04T02:08:26 +26ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/project fromDirectory
+INFO  2026-10-04T02:08:26 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb54904fffeEOSD8JrbGi4enU slug=jolly-falcon version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/project title=Inspect the repository, read only. time={"created":1791079706544,"updated":1791079706544} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb54904fffeEOSD8JrbGi4enU contractId=ctr_ses_104ab6fb1001hmc1Qrx962YCXr verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb54904fffeEOSD8JrbGi4enU status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +3ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=6 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb54904fffeEOSD8JrbGi4enU seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-cgYqP2/project state disposal completed
+(pass) action paths in an activated reviewed run are decided before any effect > an MCP resource read under its acknowledged source grant is decided under its v2 identity [56.35ms]
+INFO  2026-10-04T02:08:26 +26ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/project fromDirectory
+INFO  2026-10-04T02:08:26 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +0ms service=session id=ses_efb549017ffehuGgY7jgJEGBI0 slug=witty-moon version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/project title=Inspect the repository, read only. time={"created":1791079706600,"updated":1791079706600} created
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +2ms service=event-transitions runId=ses_efb549017ffehuGgY7jgJEGBI0 contractId=ctr_ses_104ab6fe9001EnFxcJcc3gdxjq verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549017ffehuGgY7jgJEGBI0 seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb549017ffehuGgY7jgJEGBI0 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549017ffehuGgY7jgJEGBI0 seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb549017ffehuGgY7jgJEGBI0 seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549017ffehuGgY7jgJEGBI0 seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb549017ffehuGgY7jgJEGBI0 seq=5 type=grant_review_activated appended event
+WARN  2026-10-04T02:08:26 +1ms service=capability-resolution path=command_shell error=injected resolution write failure enforced capability resolution was not recorded; the action is denied
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-Jo7pTN/project state disposal completed
+(pass) action paths in an activated reviewed run are decided before any effect > an enforced resolution that cannot be written denies the action [54.85ms]
+INFO  2026-10-04T02:08:26 +24ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project fromDirectory
+INFO  2026-10-04T02:08:26 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb548fe2ffemvpYsPzrzQUZAc slug=neon-star version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project title=Inspect the repository, read only. time={"created":1791079706653,"updated":1791079706653} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548fe2ffemvpYsPzrzQUZAc contractId=ctr_ses_104ab701e0010FFqF8c8whVUUq verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548fe2ffemvpYsPzrzQUZAc seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb548fe2ffemvpYsPzrzQUZAc status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548fe2ffemvpYsPzrzQUZAc seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548fe2ffemvpYsPzrzQUZAc seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fe2ffemvpYsPzrzQUZAc seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fe2ffemvpYsPzrzQUZAc seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fe2ffemvpYsPzrzQUZAc seq=6 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb548fd5ffeZ7vX1X4vbe1775 slug=lucky-river version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project title=Inspect the repository, read only. time={"created":1791079706666,"updated":1791079706666} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548fd5ffeZ7vX1X4vbe1775 contractId=ctr_ses_104ab702a002RIWPF6W7dONX4p verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +0ms service=event-store runId=ses_efb548fd5ffeZ7vX1X4vbe1775 seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb548fd5ffeZ7vX1X4vbe1775 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fd5ffeZ7vX1X4vbe1775 seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-store runId=ses_efb548fd5ffeZ7vX1X4vbe1775 seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fd5ffeZ7vX1X4vbe1775 seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-liZOor/project state disposal completed
+(pass) action paths in an activated reviewed run are decided before any effect > the operator's shell is decided the same way, and a run that is not activated meets the barrier [60.99ms]
+INFO  2026-10-04T02:08:26 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/project fromDirectory
+INFO  2026-10-04T02:08:26 +16ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb548fa3ffePvD1pNBDBPFpOo slug=eager-otter version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/project title=Inspect the repository, read only. time={"created":1791079706716,"updated":1791079706716} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548fa3ffePvD1pNBDBPFpOo contractId=ctr_ses_104ab705d001vOVswrOZPj95M2 verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +0ms service=event-store runId=ses_efb548fa3ffePvD1pNBDBPFpOo seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548fa3ffePvD1pNBDBPFpOo status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548fa3ffePvD1pNBDBPFpOo seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548fa3ffePvD1pNBDBPFpOo seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fa3ffePvD1pNBDBPFpOo seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548fa3ffePvD1pNBDBPFpOo seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-pEOeTc/project state disposal completed
+(pass) action paths in an activated reviewed run are decided before any effect > an activated run accepts no record-only resolution on any path [52.57ms]
+INFO  2026-10-04T02:08:26 +24ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/project fromDirectory
+INFO  2026-10-04T02:08:26 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb548f70ffewRH7HQf8VncZKQ slug=kind-otter version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/project title=Inspect the repository, read only. time={"created":1791079706767,"updated":1791079706767} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548f70ffewRH7HQf8VncZKQ contractId=ctr_ses_104ab7090001Zp2b5uz4omQsXJ verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548f70ffewRH7HQf8VncZKQ seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb548f70ffewRH7HQf8VncZKQ status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548f70ffewRH7HQf8VncZKQ seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-store runId=ses_efb548f70ffewRH7HQf8VncZKQ seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548f70ffewRH7HQf8VncZKQ seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548f70ffewRH7HQf8VncZKQ seq=5 type=grant_review_activated appended event
+WARN  2026-10-04T02:08:26 +1ms service=capability-resolution path=template_reference error=injected read failure governing authority could not be read; the action is denied
+WARN  2026-10-04T02:08:26 +0ms service=capability-resolution path=template_reference error=injected read failure grant review state could not be read; the action is denied
+INFO  2026-10-04T02:08:26 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-dx6KAK/project state disposal completed
+(pass) uncertain authority denies before any effect > an unreadable session or review store refuses the action with no filesystem effect [51.22ms]
+INFO  2026-10-04T02:08:26 +25ms service=default disposing all instances
+WARN  2026-10-04T02:08:26 +0ms service=capability-resolution path=workflow error=No context found for instance grant review state could not be read; the action is denied
+INFO  2026-10-04T02:08:26 +0ms service=default disposing all instances
+(pass) uncertain authority denies before any effect > an action recorded outside any instance is refused, not treated as unreviewed [23.36ms]
+INFO  2026-10-04T02:08:26 +22ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/project fromDirectory
+INFO  2026-10-04T02:08:26 +16ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb548f25ffeEnaKZd1ddM1put slug=crisp-orchid version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/project title=Inspect the repository, read only. time={"created":1791079706842,"updated":1791079706842} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548f25ffeEnaKZd1ddM1put contractId=ctr_ses_104ab70db001XBYq3nn1l4iazj verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548f25ffeEnaKZd1ddM1put seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:26 +0ms service=event-transitions runId=ses_efb548f25ffeEnaKZd1ddM1put status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:26 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548f25ffeEnaKZd1ddM1put seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548f25ffeEnaKZd1ddM1put seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548f25ffeEnaKZd1ddM1put seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:26 +2ms service=event-store runId=ses_efb548f25ffeEnaKZd1ddM1put seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +2ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-6hGOAm/project state disposal completed
+(pass) uncertain authority denies before any effect > the reviewed operator shell decides on permissions read after the agent lookup [53.36ms]
+INFO  2026-10-04T02:08:26 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +1ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/project creating instance
+INFO  2026-10-04T02:08:26 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/project fromDirectory
+INFO  2026-10-04T02:08:26 +16ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:26 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:26 +1ms service=session id=ses_efb548eefffe54irwxGm9nNbie slug=quiet-sailor version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/project title=v1 time={"created":1791079706896,"updated":1791079706896} created
+INFO  2026-10-04T02:08:26 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/.config/dax/config.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:26 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:26 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:26 +1ms service=contract-guardian runId=ses_efb548eefffe54irwxGm9nNbie contractId=ctr_ses_104ab7111001h4T1rnmH4k76sQ contract initialized
+INFO  2026-10-04T02:08:26 +1ms service=event-transitions runId=ses_efb548eefffe54irwxGm9nNbie contractId=ctr_ses_104ab7111001h4T1rnmH4k76sQ verificationRequired=false created event-authority run
+WARN  2026-10-04T02:08:26 +2ms service=capability-resolution path=template_reference error=injected resolution write failure capability resolution was not recorded
+WARN  2026-10-04T02:08:26 +0ms service=capability-resolution path=context_attachment error=injected resolution write failure capability resolution was not recorded
+WARN  2026-10-04T02:08:26 +1ms service=capability-resolution path=command_shell error=injected resolution write failure capability resolution was not recorded
+INFO  2026-10-04T02:08:26 +1ms service=event-store runId=ses_efb548eefffe54irwxGm9nNbie seq=1 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:26 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:26 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/project disposing instance
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:26 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-KsUfwT/project state disposal completed
+(pass) every other run keeps the isolated record-only path > a v1 governed session never fails or is refused because its record could not be written [47.83ms]
+INFO  2026-10-04T02:08:26 +23ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +1547ms service=default disposing all instances
+(pass) action grants are accepted only from a compiled running image > a compiled probe allows a granted session action inside its roots and denies outside them [1574.00ms]
+
+src/conformance/grant-stage4c-ask.test.ts:
+INFO  2026-10-04T02:08:28 +33ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +0ms service=session id=ses_efb548895ffe5qSWN3V82DtGbP slug=tidy-forest version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/project title=Inspect the repository, read only. time={"created":1791079708522,"updated":1791079708522} created
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb548895ffe5qSWN3V82DtGbP contractId=ctr_ses_104ab776c001jqFxRpkcP7g6V8 verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb548895ffe5qSWN3V82DtGbP status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +3ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +3ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +8ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=9 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb548895ffe5qSWN3V82DtGbP approvalId=apr_grant_ask_inv_ask_1 approval added
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb548895ffe5qSWN3V82DtGbP approvalId=apr_grant_ask_inv_ask_1 decision=approve approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb548895ffe5qSWN3V82DtGbP approvalId=apr_grant_ask_inv_ask_1 actorId=operator approval approved
+INFO  2026-10-04T02:08:28 +3ms service=event-store runId=ses_efb548895ffe5qSWN3V82DtGbP seq=10 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-ZVGDgQ/project state disposal completed
+(pass) an ask grant waits for the operator and grants exactly what was asked > approved: the invocation proceeds, and replay allows its authorization only with that approval [76.26ms]
+INFO  2026-10-04T02:08:28 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +1ms service=session id=ses_efb54884bffegu1308kuvI32N9 slug=gentle-wizard version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/project title=Inspect the repository, read only. time={"created":1791079708596,"updated":1791079708596} created
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb54884bffegu1308kuvI32N9 contractId=ctr_ses_104ab77b5001g3xcrT2oJ4jPDr verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb54884bffegu1308kuvI32N9 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +9ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=9 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb54884bffegu1308kuvI32N9 approvalId=apr_grant_ask_inv_ask_2 approval added
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb54884bffegu1308kuvI32N9 approvalId=apr_grant_ask_inv_ask_2 decision=deny approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb54884bffegu1308kuvI32N9 approvalId=apr_grant_ask_inv_ask_2 actorId=operator approval denied
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=10 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +3ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=11 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=12 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=13 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +2ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=14 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54884bffegu1308kuvI32N9 seq=15 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb54884bffegu1308kuvI32N9 approvalId=apr_grant_ask_inv_ask_3 approval added
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb54884bffegu1308kuvI32N9 approvalId=apr_grant_ask_inv_ask_3 newStatus=expired approval updated
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb54884bffegu1308kuvI32N9 approvalId=apr_grant_ask_inv_ask_3 approval expired
+INFO  2026-10-04T02:08:28 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-zNcEyv/project state disposal completed
+(pass) an ask grant waits for the operator and grants exactly what was asked > denied or unanswered: nothing is authorized, and the ask is closed [78.19ms]
+INFO  2026-10-04T02:08:28 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +0ms service=session id=ses_efb5487feffeBhORC4n2k5FoIm slug=crisp-engine version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/project title=Inspect the repository, read only. time={"created":1791079708673,"updated":1791079708673} created
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb5487feffeBhORC4n2k5FoIm contractId=ctr_ses_104ab7802001FJ1EWb2bULn2uC verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb5487feffeBhORC4n2k5FoIm status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +9ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=9 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb5487feffeBhORC4n2k5FoIm approvalId=apr_grant_ask_inv_ask_4 approval added
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb5487feffeBhORC4n2k5FoIm approvalId=apr_grant_ask_inv_ask_4 decision=approve approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb5487feffeBhORC4n2k5FoIm approvalId=apr_grant_ask_inv_ask_4 actorId=operator approval approved
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=10 type=grant_ask_remembered appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=11 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=12 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=13 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +3ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=14 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=15 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=16 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +8ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=17 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb5487feffeBhORC4n2k5FoIm approvalId=apr_grant_ask_inv_ask_6 approval added
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb5487feffeBhORC4n2k5FoIm approvalId=apr_grant_ask_inv_ask_6 decision=deny approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb5487feffeBhORC4n2k5FoIm approvalId=apr_grant_ask_inv_ask_6 actorId=operator approval denied
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487feffeBhORC4n2k5FoIm seq=18 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-KUBFBN/project state disposal completed
+(pass) an ask grant waits for the operator and grants exactly what was asked > always remembers exactly the asked tuple: the same capability proceeds, another still asks [87.42ms]
+INFO  2026-10-04T02:08:28 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +1ms service=session id=ses_efb5487a6ffeaTcJv4F1JjbAtl slug=cosmic-rocket version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/project title=Inspect the repository, read only. time={"created":1791079708761,"updated":1791079708761} created
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb5487a6ffeaTcJv4F1JjbAtl contractId=ctr_ses_104ab785a001Mw62g2WF2IaLD8 verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb5487a6ffeaTcJv4F1JjbAtl status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +11ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=9 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl approvalId=apr_grant_ask_inv_ask_7 approval added
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl approvalId=apr_grant_ask_inv_ask_7 decision=approve approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb5487a6ffeaTcJv4F1JjbAtl approvalId=apr_grant_ask_inv_ask_7 approval approved
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5487a6ffeaTcJv4F1JjbAtl seq=10 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-PSkCR7/project state disposal completed
+(pass) replay accepts no ask, approval or memory that does not follow from this log > forged asks, memories and authorizations are refused and the journal is unchanged [68.38ms]
+INFO  2026-10-04T02:08:28 +24ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +0ms service=session id=ses_efb548762ffemA11ov8CG06ZIn slug=glowing-panda version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/project title=Inspect the repository, read only. time={"created":1791079708829,"updated":1791079708829} created
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb548762ffemA11ov8CG06ZIn contractId=ctr_ses_104ab789e001oj5aBitA2P571U verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb548762ffemA11ov8CG06ZIn status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +9ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=9 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb548762ffemA11ov8CG06ZIn approvalId=apr_grant_ask_inv_ask_8 approval added
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb548762ffemA11ov8CG06ZIn approvalId=apr_grant_ask_inv_ask_8 decision=approve approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb548762ffemA11ov8CG06ZIn approvalId=apr_grant_ask_inv_ask_8 actorId=operator approval approved
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb548762ffemA11ov8CG06ZIn seq=10 type=grant_ask_remembered appended event
+INFO  2026-10-04T02:08:28 +3ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-3N5Cks/project state disposal completed
+(pass) replay accepts no ask, approval or memory that does not follow from this log > a resolution cannot claim an approval or memory it does not have [67.45ms]
+INFO  2026-10-04T02:08:28 +24ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +0ms service=session id=ses_efb54871fffeL9hyNk8ROkdaNM slug=happy-squid version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/project title=Inspect the repository, read only. time={"created":1791079708896,"updated":1791079708896} created
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb54871fffeL9hyNk8ROkdaNM contractId=ctr_ses_104ab78e1001gs37sMiGBYlddL verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54871fffeL9hyNk8ROkdaNM seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb54871fffeL9hyNk8ROkdaNM status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54871fffeL9hyNk8ROkdaNM seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54871fffeL9hyNk8ROkdaNM seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54871fffeL9hyNk8ROkdaNM seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb54871fffeL9hyNk8ROkdaNM seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb54871fffeL9hyNk8ROkdaNM seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-uReTbQ/project state disposal completed
+(pass) an ask cannot be bypassed, outlived or answered too late > an ask grant can never be recorded as an allow [52.67ms]
+INFO  2026-10-04T02:08:28 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/project creating instance
+INFO  2026-10-04T02:08:28 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/project fromDirectory
+INFO  2026-10-04T02:08:28 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:28 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:28 +1ms service=session id=ses_efb5486e9ffeF3y9lSiYzhogDn slug=jolly-comet version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/project title=Inspect the repository, read only. time={"created":1791079708950,"updated":1791079708950} created
+INFO  2026-10-04T02:08:28 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/.config/dax/config.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:28 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:28 +1ms service=event-transitions runId=ses_efb5486e9ffeF3y9lSiYzhogDn contractId=ctr_ses_104ab7917001P0YahiXAfzPwem verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:28 +0ms service=event-transitions runId=ses_efb5486e9ffeF3y9lSiYzhogDn status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:28 +1ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:28 +0ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:28 +9ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=9 type=approval_resolved appended event
+INFO  2026-10-04T02:08:28 +1ms service=approval-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn approvalId=apr_grant_ask_inv_ask_9 approval added
+INFO  2026-10-04T02:08:28 +0ms service=approval-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn approvalId=apr_grant_ask_inv_ask_9 decision=approve approval resolved
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:28 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:28 +0ms service=approval-transitions runId=ses_efb5486e9ffeF3y9lSiYzhogDn approvalId=apr_grant_ask_inv_ask_9 actorId=operator approval approved
+INFO  2026-10-04T02:08:28 +2ms service=event-store runId=ses_efb5486e9ffeF3y9lSiYzhogDn seq=10 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:28 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:28 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/project disposing instance
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:28 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-G2cMig/project state disposal completed
+(pass) an ask cannot be bypassed, outlived or answered too late > a binding that changes while the operator decides denies the approved invocation [66.22ms]
+INFO  2026-10-04T02:08:29 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/project fromDirectory
+INFO  2026-10-04T02:08:29 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=session id=ses_efb5486a7ffeZpHC2z6XWdvyCZ slug=swift-nebula version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/project title=Inspect the repository, read only. time={"created":1791079709016,"updated":1791079709016} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ contractId=ctr_ses_104ab7959001FvF1dLD2XTWPU6 verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=8 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ seq=9 type=authorization_recorded appended event
+WARN  2026-10-04T02:08:29 +2ms service=grant-ask runId=ses_efb5486a7ffeZpHC2z6XWdvyCZ approvalId=apr_grant_ask_inv_ask_10 error=injected expiry failure grant ask could not be expired
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-0MMKot/project state disposal completed
+(pass) an ask cannot be bypassed, outlived or answered too late > a timed-out ask is denied durably, and no late approval can authorize it [59.54ms]
+INFO  2026-10-04T02:08:29 +24ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +1ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/project fromDirectory
+INFO  2026-10-04T02:08:29 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=session id=ses_efb54866bffey8UJRPiKz4Mj1T slug=witty-wizard version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/project title=Inspect the repository, read only. time={"created":1791079709076,"updated":1791079709076} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb54866bffey8UJRPiKz4Mj1T contractId=ctr_ses_104ab7995001NGRkpKtz2r0m5W verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb54866bffey8UJRPiKz4Mj1T status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +3ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +2ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=6 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +10ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=7 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +0ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYD2DHRCCA8V4Q2RKNAK approval added
+INFO  2026-10-04T02:08:29 +1ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYD2DHRCCA8V4Q2RKNAK decision=approve approval resolved
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:29 +0ms service=approval-transitions runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYD2DHRCCA8V4Q2RKNAK actorId=operator approval approved
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=8 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=9 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +11ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=10 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +0ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYDHKX1CNJWKXWHEGRS0 approval added
+INFO  2026-10-04T02:08:29 +0ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYDHKX1CNJWKXWHEGRS0 decision=deny approval resolved
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:29 +1ms service=approval-transitions runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYDHKX1CNJWKXWHEGRS0 actorId=operator approval denied
+INFO  2026-10-04T02:08:29 +0ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=11 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=12 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +15ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=13 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +0ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYE0TNN18P7P8ZC66JS4 approval added
+INFO  2026-10-04T02:08:29 +0ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYE0TNN18P7P8ZC66JS4 decision=approve approval resolved
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:29 +0ms service=approval-transitions runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYE0TNN18P7P8ZC66JS4 actorId=operator approval approved
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=14 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=bus type=approval.resolved subscribing
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=15 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +10ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=16 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +1ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYEMX0A9RW9XQ7PB6HF0 approval added
+INFO  2026-10-04T02:08:29 +0ms service=approval-store runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYEMX0A9RW9XQ7PB6HF0 decision=approve approval resolved
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=approval.resolved unsubscribing
+INFO  2026-10-04T02:08:29 +0ms service=approval-transitions runId=ses_efb54866bffey8UJRPiKz4Mj1T approvalId=apr_grant_ask_template_reference_01M42APYEMX0A9RW9XQ7PB6HF0 actorId=operator approval approved
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=17 type=grant_ask_remembered appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=18 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +3ms service=event-store runId=ses_efb54866bffey8UJRPiKz4Mj1T seq=19 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-ask-h39SZZ/project state disposal completed
+(pass) an action's ask is settled before the action, and recorded with what settled it > approved, denied and remembered asks on a template reference [124.95ms]
+
+src/conformance/grant-stage4c-delegation.test.ts:
+INFO  2026-10-04T02:08:29 +26ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project fromDirectory
+INFO  2026-10-04T02:08:29 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=session id=ses_efb5485eeffeDPAHXRYmLdPiJ6 slug=hidden-comet version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project title=Inspect the repository, read only. time={"created":1791079709201,"updated":1791079709201} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +2ms service=event-transitions runId=ses_efb5485eeffeDPAHXRYmLdPiJ6 contractId=ctr_ses_104ab7a11002X5pndVUYYcVXtM verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +0ms service=event-store runId=ses_efb5485eeffeDPAHXRYmLdPiJ6 seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb5485eeffeDPAHXRYmLdPiJ6 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485eeffeDPAHXRYmLdPiJ6 seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +0ms service=session id=ses_efb5485e9ffekBkq9ZAHsJWZuq slug=calm-cactus version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project title=Inspect the repository, read only. time={"created":1791079709206,"updated":1791079709206} created
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb5485e9ffekBkq9ZAHsJWZuq contractId=ctr_ses_104ab7a17001lH0mOz8No0Ror6 verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485e9ffekBkq9ZAHsJWZuq seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb5485e9ffekBkq9ZAHsJWZuq status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485e9ffekBkq9ZAHsJWZuq seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485e9ffekBkq9ZAHsJWZuq seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485e9ffekBkq9ZAHsJWZuq seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485e9ffekBkq9ZAHsJWZuq seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-d2zsyr/project state disposal completed
+(pass) delegation grants name their agents, chosen by the operator > no agent is proposed; the operator's agents are granted and committed in the journal [56.19ms]
+INFO  2026-10-04T02:08:29 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/project fromDirectory
+INFO  2026-10-04T02:08:29 +16ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +0ms service=session id=ses_efb5485b5ffeWeKnsvFpV13DsG slug=misty-knight version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/project title=Inspect the repository, read only. time={"created":1791079709258,"updated":1791079709258} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb5485b5ffeWeKnsvFpV13DsG contractId=ctr_ses_104ab7a4b001XSkAT6bBeSyjNT verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb5485b5ffeWeKnsvFpV13DsG status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=8 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=9 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=10 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=11 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=12 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5485b5ffeWeKnsvFpV13DsG seq=13 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:29 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-n088uV/project state disposal completed
+(pass) a task is allowed only for an approved agent, and the child is exactly that agent > an approved agent is allowed and recorded; another agent or none is denied before anything starts [62.17ms]
+INFO  2026-10-04T02:08:29 +24ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/project fromDirectory
+INFO  2026-10-04T02:08:29 +15ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +0ms service=session id=ses_efb548579ffeh9ubZg57O6qBOV slug=happy-wizard version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/project title=Inspect the repository, read only. time={"created":1791079709318,"updated":1791079709318} created
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb548579ffeh9ubZg57O6qBOV contractId=ctr_ses_104ab7a87001FH0ba3kCU6l5vP verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb548579ffeh9ubZg57O6qBOV status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=8 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:29 +3ms service=event-store runId=ses_efb548579ffeh9ubZg57O6qBOV seq=9 type=delegation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-M35qUm/project state disposal completed
+(pass) a task is allowed only for an approved agent, and the child is exactly that agent > the delegation record must start the agent the decision allowed [58.05ms]
+INFO  2026-10-04T02:08:29 +25ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +1ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project fromDirectory
+INFO  2026-10-04T02:08:29 +14ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=session id=ses_efb54853dffeppxU7LMky2BskD slug=neon-panda version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project title=Inspect the repository, read only. time={"created":1791079709378,"updated":1791079709378} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +2ms service=event-transitions runId=ses_efb54853dffeppxU7LMky2BskD contractId=ctr_ses_104ab7ac3001MGO5NXWLKEcoVq verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +0ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb54853dffeppxU7LMky2BskD status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +5ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +3ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +0ms service=session id=ses_efb54852fffeKiK3KAP2Pd5oi3 slug=glowing-knight version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project parentID=ses_efb54853dffeppxU7LMky2BskD title=child time={"created":1791079709392,"updated":1791079709392} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=7 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=8 type=authorization_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=9 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb54853dffeppxU7LMky2BskD seq=10 type=capability_resolution_recorded appended event
+INFO  2026-10-04T02:08:29 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-YCIgAy/project state disposal completed
+(pass) a task is allowed only for an approved agent, and the child is exactly that agent > a child session dispatches under its parent's activation and can never hold more [63.74ms]
+INFO  2026-10-04T02:08:29 +28ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project fromDirectory
+INFO  2026-10-04T02:08:29 +16ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=session id=ses_efb5484faffejg23evXt2waNHy slug=misty-eagle version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project title=Inspect the repository, read only. time={"created":1791079709445,"updated":1791079709445} created
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb5484faffejg23evXt2waNHy contractId=ctr_ses_104ab7b05002g4d45GJc7KEwmb verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5484faffejg23evXt2waNHy seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb5484faffejg23evXt2waNHy status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5484faffejg23evXt2waNHy seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5484faffejg23evXt2waNHy seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5484faffejg23evXt2waNHy seq=4 type=grant_review_published appended event
+INFO  2026-10-04T02:08:29 +2ms service=event-store runId=ses_efb5484faffejg23evXt2waNHy seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5484faffejg23evXt2waNHy seq=6 type=tool_invocation_recorded appended event
+INFO  2026-10-04T02:08:29 +1ms service=session id=ses_efb5484edffeEtkw0wp8Fv2nKY slug=crisp-meadow version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project title=Inspect the repository, read only. time={"created":1791079709458,"updated":1791079709458} created
+INFO  2026-10-04T02:08:29 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T02:08:29 +1ms service=event-transitions runId=ses_efb5484edffeEtkw0wp8Fv2nKY contractId=ctr_ses_104ab7b13001Arr46VKsfwwfoz verificationRequired=false created event-authority run
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5484edffeEtkw0wp8Fv2nKY seq=1 type=execution_queued appended event
+INFO  2026-10-04T02:08:29 +0ms service=event-transitions runId=ses_efb5484edffeEtkw0wp8Fv2nKY status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5484edffeEtkw0wp8Fv2nKY seq=2 type=approval_requested appended event
+INFO  2026-10-04T02:08:29 +1ms service=event-store runId=ses_efb5484edffeEtkw0wp8Fv2nKY seq=3 type=approval_resolved appended event
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-delegation-sIEnQT/project state disposal completed
+(pass) replay refuses any delegation the journal does not prove > an agent outside the grant, a missing agent, or altered agents are refused and the journal is unchanged [63.20ms]
+
+src/capability/catalog.test.ts:
+INFO  2026-10-04T02:08:29 +6ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+(pass) composed capability catalog > the static vocabulary is exactly the declared DAX-dispatched population [1.55ms]
+INFO  2026-10-04T02:08:29 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +4ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/alpha creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/alpha fromDirectory
+INFO  2026-10-04T02:08:29 +0ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +1ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/alpha/dax.json loading
+INFO  2026-10-04T02:08:29 +10ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started invalid
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started question
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T02:08:29 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started read
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started write
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started task
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T02:08:29 +1ms service=tool.registry status=completed duration=1 skill
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started probe
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 probe
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started legacy
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 legacy
+INFO  2026-10-04T02:08:29 +2ms service=mcp key=remote type=remote found
+INFO  2026-10-04T02:08:29 +15ms service=mcp key=remote transport=StreamableHTTP connected
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote toolCount=1 create() successfully created client
+INFO  2026-10-04T02:08:29 +2ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/alpha disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/alpha waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-OeO1I5/alpha state disposal completed
+(pass) composed capability catalog > an instance snapshot lists real loader and MCP tools and never the legacy registration [37.98ms]
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +4ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha fromDirectory
+INFO  2026-10-04T02:08:29 +0ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=mcp key=local type=local found
+INFO  2026-10-04T02:08:29 +57ms service=mcp key=remote type=remote found
+INFO  2026-10-04T02:08:29 +2ms service=mcp key=remote transport=StreamableHTTP connected
+INFO  2026-10-04T02:08:29 +0ms service=mcp key=remote toolCount=1 create() successfully created client
+ERROR 2026-10-04T02:08:29 +14ms service=mcp key=local command=["/Users/Shailesh/MYAIAGENTS/dax/artifacts/bun-toolchain/1.4.0/bun-darwin-aarch64/bun","/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/launch-recorder.js"] cwd=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha error=MCP error -32000: Connection closed local mcp startup failed
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha state disposal completed
+INFO  2026-10-04T02:08:29 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha fromDirectory
+INFO  2026-10-04T02:08:29 +0ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-djxEh0/alpha disposing instance
+(pass) composed capability catalog > enumeration never connects to a server or launches a process; discovery does [82.94ms]
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +3ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/alpha creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/alpha fromDirectory
+INFO  2026-10-04T02:08:29 +0ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +2ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/alpha/dax.json loading
+INFO  2026-10-04T02:08:29 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started invalid
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started question
+INFO  2026-10-04T02:08:29 +1ms service=tool.registry status=completed duration=1 question
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T02:08:29 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started read
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started write
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started task
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started probe
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 probe
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote type=remote found
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote transport=StreamableHTTP connected
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote toolCount=1 create() successfully created client
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote type=remote found
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote transport=StreamableHTTP connected
+INFO  2026-10-04T02:08:29 +0ms service=mcp key=remote toolCount=1 create() successfully created client
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started invalid
+INFO  2026-10-04T02:08:29 +1ms service=tool.registry status=completed duration=1 invalid
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started question
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T02:08:29 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started read
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started write
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started task
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=started probe
+INFO  2026-10-04T02:08:29 +0ms service=tool.registry status=completed duration=0 probe
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/alpha disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/alpha waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-rMrbY5/alpha state disposal completed
+(pass) composed capability catalog > invalidation leaves the next snapshot, and healthy rediscovery restores the same identity [15.01ms]
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +2ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha fromDirectory
+INFO  2026-10-04T02:08:29 +2ms service=storage index=0 running migration
+INFO  2026-10-04T02:08:29 +0ms service=storage index=1 running migration
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/.config/dax/config.json loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/.config/dax/dax.json loading
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/.config/dax/dax.jsonc loading
+INFO  2026-10-04T02:08:29 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha/dax.json loading
+INFO  2026-10-04T02:08:29 +3ms service=mcp key=remote type=remote found
+INFO  2026-10-04T02:08:29 +8ms service=mcp key=remote transport=StreamableHTTP connected
+INFO  2026-10-04T02:08:29 +1ms service=mcp key=remote toolCount=1 create() successfully created client
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/beta creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/beta fromDirectory
+INFO  2026-10-04T02:08:29 +1ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/beta/dax.json loading
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha state disposal completed
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/beta disposing instance
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/beta waiting for state disposal to complete
+INFO  2026-10-04T02:08:29 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/beta state disposal completed
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha creating instance
+INFO  2026-10-04T02:08:29 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha fromDirectory
+INFO  2026-10-04T02:08:29 +1ms service=default disposing all instances
+INFO  2026-10-04T02:08:29 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-capability-catalog-z90osy/alpha disposing instance
+(pass) composed capability catalog > snapshots are instance-scoped, and disposal removes an instance's dynamic entries [21.40ms]
+
+ 38 pass
+ 0 fail
+ 379 expect() calls
+Ran 38 tests across 6 files. [4.53s]
